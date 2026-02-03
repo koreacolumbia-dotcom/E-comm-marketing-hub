@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-print("🔥 HERO SCRIPT NEW VERSION RUNNING 🔥", flush=True)
+print("HERO SCRIPT NEW VERSION RUNNING", flush=True)
       
 """
 hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
