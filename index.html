@@ -2,43 +2,99 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>M-OS PRO | Marketing Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Columbia E-Comm | Marketing Hub</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="min-h-screen bg-slate-50 flex">
   <!-- Sidebar -->
-  <aside class="w-72 bg-white border-r p-6 hidden lg:block">
-    <div class="font-black text-xl mb-8">M-OS PRO</div>
+  <aside class="w-72 bg-white border-r p-6 hidden lg:flex lg:flex-col">
+    <div class="flex items-center gap-3 mb-10">
+      <div class="w-10 h-10 rounded-2xl bg-[#002d72] text-white flex items-center justify-center font-black">M</div>
+      <div>
+        <div class="font-black leading-tight">M-OS PRO</div>
+        <div class="text-xs text-slate-400 font-bold">Marketing Hub</div>
+      </div>
+    </div>
+
     <nav class="space-y-2">
-      <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-100 font-bold"
-        onclick="openReport('naver_lowest_price.html')">네이버 최저가</button>
-      <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-100 font-bold"
-        onclick="openReport('hero_main.html')">경쟁사 히어로</button>
-      <button class="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-100 font-bold"
-        onclick="openReport('external_signal.html')">외부 시그널</button>
+      <button id="btn-naver"
+        class="w-full text-left px-4 py-3 rounded-xl font-bold hover:bg-slate-100"
+        onclick="openReport('naver_lowest_price.html')">
+        네이버 최저가 모니터
+      </button>
+
+      <button id="btn-hero"
+        class="w-full text-left px-4 py-3 rounded-xl font-bold hover:bg-slate-100"
+        onclick="openReport('hero_main.html')">
+        경쟁사 Hero 배너
+      </button>
+
+      <button id="btn-voc"
+        class="w-full text-left px-4 py-3 rounded-xl font-bold hover:bg-slate-100"
+        onclick="openReport('external_signal.html')">
+        커뮤니티 VOC 분석
+      </button>
     </nav>
+
+    <div class="mt-auto pt-6 text-xs text-slate-400 font-semibold">
+      reports/ 폴더의 HTML을 그대로 로딩합니다.
+    </div>
   </aside>
 
   <!-- Main -->
-  <main class="flex-1">
-    <div class="h-14 bg-white border-b flex items-center px-6 font-bold">
-      <span id="title">네이버 최저가</span>
-    </div>
-    <iframe id="frame" class="w-full" style="height: calc(100vh - 56px);"
-      src="reports/naver_lowest_price.html"></iframe>
+  <main class="flex-1 min-w-0">
+    <header class="h-14 bg-white border-b flex items-center justify-between px-6">
+      <div class="font-black text-slate-800" id="title">네이버 최저가 모니터</div>
+      <div class="text-xs text-slate-400 font-semibold" id="path">reports/naver_lowest_price.html</div>
+    </header>
+
+    <iframe
+      id="frame"
+      class="w-full"
+      style="height: calc(100vh - 56px);"
+      src="reports/naver_lowest_price.html"
+    ></iframe>
   </main>
 
   <script>
-    function openReport(file) {
+    const titles = {
+      "naver_lowest_price.html": "네이버 최저가 모니터",
+      "hero_main.html": "경쟁사 Hero 배너",
+      "external_signal.html": "커뮤니티 VOC 분석"
+    };
+
+    function setActive(file) {
       const map = {
-        "naver_lowest_price.html": "네이버 최저가",
-        "hero_main.html": "경쟁사 히어로",
-        "external_signal.html": "외부 시그널"
+        "naver_lowest_price.html": "btn-naver",
+        "hero_main.html": "btn-hero",
+        "external_signal.html": "btn-voc",
       };
-      document.getElementById('title').textContent = map[file] || file;
-      document.getElementById('frame').src = "reports/" + file;
+
+      Object.values(map).forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove("bg-slate-100", "text-[#002d72]");
+        el.classList.add("text-slate-700");
+      });
+
+      const activeId = map[file];
+      const activeEl = document.getElementById(activeId);
+      if (activeEl) {
+        activeEl.classList.add("bg-slate-100", "text-[#002d72]");
+      }
     }
+
+    function openReport(file) {
+      document.getElementById("title").textContent = titles[file] || file;
+      document.getElementById("path").textContent = "reports/" + file;
+      document.getElementById("frame").src = "reports/" + file;
+      setActive(file);
+    }
+
+    // initial
+    setActive("naver_lowest_price.html");
   </script>
 </body>
 </html>
