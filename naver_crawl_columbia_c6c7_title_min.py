@@ -708,7 +708,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>Columbia M-OS Pro | Price Monitoring</title>
+  <title>Columbia E-Comm | Price Monitoring</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
@@ -1448,3 +1448,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
