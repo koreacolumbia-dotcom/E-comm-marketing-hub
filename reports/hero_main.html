@@ -1,1 +1,258 @@
-<h1>Generating...</h1>
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>M-OS PRO | Competitor Hero Analysis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root { --brand: #002d72; --bg0: #f6f8fb; --bg1: #eef3f9; }
+    body { background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; min-height: 100vh; }
+    .glass-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }
+    .sidebar { background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }
+  </style>
+</head>
+<body class="flex">
+  <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
+    <div class="flex items-center gap-4 mb-16 px-2">
+      <div class="w-12 h-12 bg-[#002d72] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
+        <i class="fa-solid fa-mountain-sun text-xl"></i>
+      </div>
+      <div>
+        <div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div>
+        <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Marketing Portal</div>
+      </div>
+    </div>
+    <nav class="space-y-4">
+      <div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4 hover:bg-white/50 transition-all cursor-pointer">
+        <i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC 분석</span>
+      </div>
+      <div class="p-4 rounded-2xl bg-white shadow-sm text-[#002d72] font-black flex items-center gap-4 cursor-pointer">
+        <i class="fa-solid fa-chart-line"></i> <span>경쟁사 기획전</span>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="flex-1 p-8 md:p-16">
+    <header class="flex flex-col md:flex-row md:items-center justify-between mb-16 gap-6">
+      <div>
+        <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">Hero Banner Analysis</h1>
+        <p class="text-slate-500 text-lg font-medium italic">주요 아웃도어 브랜드 메인 히어로 배너 실시간 모니터링</p>
+        <p class="text-slate-400 text-xs mt-3">로컬이미지 경로 모드: REL(assets/) </p>
+      </div>
+      <div class="glass-card px-6 py-4 flex items-center gap-4">
+        <div class="flex h-3 w-3 relative"><span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span></div>
+        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-03 11:37</span>
+      </div>
+    </header>
+
+    <section>
+      <div class="flex flex-wrap gap-2 mb-8">
+        
+<button onclick="switchTab('tnf')" id="tab-tnf" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-[#002d72] text-white shadow-lg">
+  The North Face <span class="ml-1 opacity-60 text-xs">3</span>
+</button>
+<button onclick="switchTab('nepa')" id="tab-nepa" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+  NEPA <span class="ml-1 opacity-60 text-xs">1</span>
+</button>
+<button onclick="switchTab('patagonia')" id="tab-patagonia" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+  Patagonia <span class="ml-1 opacity-60 text-xs">1</span>
+</button>
+<button onclick="switchTab('blackyak')" id="tab-blackyak" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+  Black Yak <span class="ml-1 opacity-60 text-xs">3</span>
+</button>
+      </div>
+      <div class="min-h-[600px]">
+        
+<div id="content-tnf" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: grid;">
+  
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="tnf_1_6e45f5068c.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 1
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"Early_Bird_Package_main_mc.jpg"</h4>
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.thenorthfacekorea.co.kr/tnf100" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/Early_Bird_Package_main_mc.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="tnf_2_5cb11a9cf4.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 2
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"KALIX T JACKET 어떤 하루에도 어울리는 패딩을 완성하다"</h4>
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&storageId=92952" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/260100_칼릭스자켓_기획전_main_banner_pc.webp" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="tnf_3_162f113689.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 3
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"NEW YEAR NEW BACKPACK 새로운 시작을 위한 노스페이스 백팩 컬렉션"</h4>
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&storageId=92946" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/main_banner_PC_화라백팩.webp" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+</div>
+<div id="content-nepa" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+  
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="nepa_1_95592893a5.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 1
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"251226_main_slidebanner_dt.jpg"</h4>
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.nplus.co.kr/promotion/view.asp?EventNo=679" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://assetscdn51.styleship.com/assets/nplus/data/Banner/251226_main_slidebanner_dt.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+</div>
+<div id="content-patagonia" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+  
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="patagonia_1_413aac7c69.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 1
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"NewArrivals_banner.jpg"</h4>
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.patagonia.co.kr/shop/goodsList/001005001000000" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://patagonia.edge.naverncp.com/banner/NewArrivals_banner.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+</div>
+<div id="content-blackyak" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+  
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="blackyak_1_a56950360e.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 1
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"함께하는 병오년! 첫 가격인하 #특가찬스#가격인하 2026.01.06(TUE) ~"</h4>
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.byn.kr/_exh/?no=1886" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://cdn.byn.kr/real/_data/banner/0e4594f946dff0d8e5dd7d07922a1924.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="blackyak_2_c89f9ed162.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 2
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"2026 스페 "설" 이벤트 빠르게 찾아온 설 명절 혜택 인기템 구매하고 명절 혜택까지 15만원 이상 구매 시 사각방석 증정"</h4>
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.byn.kr/_exh/?no=2047" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://cdn.byn.kr/real/_data/banner/77025c37d77b18f38c308f79fa7320bb.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="blackyak_3_8d33cbf4b6.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 3
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"당신의 리얼 구매 후기를 기다립니다! BEST 포토 리뷰 10,000P 신발 한달 사용 리뷰 2,000P 추가 2026.02.02(MON) ~ 종료시까지"</h4>
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.byn.kr/_exh/?no=2044" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://cdn.byn.kr/real/_data/banner/10597b57170a4dcbd258a7624ed1a9af.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function switchTab(brandKey) {
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      document.getElementById('content-' + brandKey).style.display = 'grid';
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-[#002d72]', 'text-white', 'shadow-lg');
+        btn.classList.add('bg-white/50', 'text-slate-500');
+      });
+      const activeBtn = document.getElementById('tab-' + brandKey);
+      activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
+      activeBtn.classList.remove('bg-white/50', 'text-slate-500');
+    }
+  </script>
+</body>
+</html>
