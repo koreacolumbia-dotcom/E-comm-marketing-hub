@@ -1,100 +1,405 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Columbia E-Comm | Marketing Hub</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M-OS PRO | E-comm Marketing Hub</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }
+    .glass-card{
+      background: rgba(255,255,255,0.60);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.75);
+      border-radius: 28px;
+      box-shadow: 0 20px 50px rgba(0,45,114,0.06);
+    }
+    .sidebar{
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid rgba(255,255,255,0.85);
+    }
+    .nav-item{
+      border-radius: 18px;
+      padding: 14px 16px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      font-weight: 800;
+      transition: all .15s ease;
+      cursor:pointer;
+      user-select:none;
+    }
+    .nav-item.active{
+      background:#ffffff;
+      color: var(--brand);
+      box-shadow: 0 10px 20px rgba(0,45,114,0.06);
+    }
+    .nav-item:not(.active){
+      color: #94a3b8;
+    }
+    .nav-item:not(.active):hover{
+      background: rgba(255,255,255,0.55);
+      color:#334155;
+    }
+
+    /* iframe wrapper */
+    .frame-wrap{
+      position: relative;
+      width: 100%;
+      min-height: 70vh;
+    }
+    iframe{
+      width:100%;
+      height: calc(100vh - 240px);
+      min-height: 720px;
+      border: 0;
+      border-radius: 28px;
+      background: white;
+    }
+
+    /* loading overlay */
+    .overlay{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      border-radius: 28px;
+      background: rgba(246,248,251,0.72);
+      backdrop-filter: blur(10px);
+      z-index:10;
+    }
+    .overlay.show{ display:flex; }
+
+    .spinner{
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      border: 4px solid rgba(0,45,114,0.15);
+      border-top-color: rgba(0,45,114,0.9);
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* error state */
+    .error-card{
+      display:none;
+      position:absolute;
+      inset:0;
+      border-radius: 28px;
+      padding: 36px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(255,255,255,0.85);
+      backdrop-filter: blur(16px);
+      z-index:11;
+    }
+    .error-card.show{ display:block; }
+
+    /* mobile top tabs */
+    .mobile-tabs::-webkit-scrollbar{ height:8px; }
+    .mobile-tabs::-webkit-scrollbar-thumb{ background: rgba(15,23,42,0.12); border-radius: 999px; }
+    .chip{
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.55);
+      color:#64748b;
+      white-space:nowrap;
+      transition: all .15s ease;
+    }
+    .chip.active{
+      background: var(--brand);
+      color: white;
+      box-shadow: 0 14px 26px rgba(0,45,114,0.16);
+      border-color: rgba(0,45,114,0.12);
+    }
+  </style>
 </head>
 
-<body class="min-h-screen bg-slate-50 flex">
-  <!-- Sidebar -->
-  <aside class="w-72 bg-white border-r p-6 hidden lg:flex lg:flex-col">
-    <div class="flex items-center gap-3 mb-10">
-      <div class="w-10 h-10 rounded-2xl bg-[#002d72] text-white flex items-center justify-center font-black">M</div>
+<body class="flex">
+  <!-- Sidebar (Desktop) -->
+  <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
+    <div class="flex items-center gap-4 mb-14 px-2">
+      <div class="w-12 h-12 bg-[color:var(--brand)] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
+        <i class="fa-solid fa-tag text-xl"></i>
+      </div>
       <div>
-        <div class="font-black leading-tight">M-OS PRO</div>
-        <div class="text-xs text-slate-400 font-bold">Marketing Hub</div>
+        <div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div>
+        <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">E-comm Marketing Hub</div>
       </div>
     </div>
 
-    <nav class="space-y-2">
-      <button id="btn-naver"
-        class="w-full text-left px-4 py-3 rounded-xl font-bold hover:bg-slate-100"
-        onclick="openReport('naver_lowest_price.html')">
-        네이버 최저가 모니터
-      </button>
+    <div class="space-y-3">
+      <div id="nav-price" class="nav-item active" data-key="price">
+        <i class="fa-solid fa-won-sign"></i><span>네이버 최저가</span>
+      </div>
+      <div id="nav-hero" class="nav-item" data-key="hero">
+        <i class="fa-solid fa-image"></i><span>경쟁사 Hero 배너</span>
+      </div>
+      <div id="nav-voc" class="nav-item" data-key="voc">
+        <i class="fa-solid fa-tower-broadcast"></i><span>커뮤니티 VOC</span>
+      </div>
+    </div>
 
-      <button id="btn-hero"
-        class="w-full text-left px-4 py-3 rounded-xl font-bold hover:bg-slate-100"
-        onclick="openReport('hero_main.html')">
-        경쟁사 Hero 배너
-      </button>
+    <div class="mt-auto pt-10">
+      <div class="glass-card p-5">
+        <div class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-2">
+          Pages Links
+        </div>
+        <div class="text-slate-500 text-xs font-bold leading-relaxed">
+          이 포털은 GitHub Pages에서 제공됩니다.<br>
+          보고서들은 <span class="font-black text-slate-700">reports/</span>에 저장됩니다.
+        </div>
+        <div class="mt-4 flex gap-2">
+          <a id="open-current" href="#" target="_blank"
+             class="flex-1 text-center px-4 py-2 rounded-xl bg-[color:var(--brand)] text-white text-[10px] font-black hover:bg-blue-600 transition-colors">
+            새 탭 열기
+          </a>
+          <button id="refresh" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black hover:bg-slate-200 transition-colors">
+            새로고침
+          </button>
+        </div>
+      </div>
 
-      <button id="btn-voc"
-        class="w-full text-left px-4 py-3 rounded-xl font-bold hover:bg-slate-100"
-        onclick="openReport('external_signal.html')">
-        커뮤니티 VOC 분석
-      </button>
-    </nav>
-
-    <div class="mt-auto pt-6 text-xs text-slate-400 font-semibold">
-      reports/ 폴더의 HTML을 그대로 로딩합니다.
+      <div class="text-[10px] text-slate-400 font-bold mt-4 px-2">
+        © M-OS PRO
+      </div>
     </div>
   </aside>
 
   <!-- Main -->
-  <main class="flex-1 min-w-0">
-    <header class="h-14 bg-white border-b flex items-center justify-between px-6">
-      <div class="font-black text-slate-800" id="title">네이버 최저가 모니터</div>
-      <div class="text-xs text-slate-400 font-semibold" id="path">reports/naver_lowest_price.html</div>
+  <main class="flex-1 p-6 md:p-10 lg:p-16">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900">Marketing Intelligent Hub</h1>
+        <p class="text-slate-500 text-base md:text-lg font-medium italic mt-2">
+          자동 업데이트 리포트 포털 (GitHub Actions → reports/)
+        </p>
+      </div>
+
+      <div class="glass-card px-6 py-4 flex items-center gap-4 w-fit">
+        <div class="flex h-3 w-3 relative">
+          <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
+        </div>
+        <span id="now" class="text-sm font-black text-slate-800 tracking-widest uppercase">—</span>
+      </div>
     </header>
 
-    <iframe
-      id="frame"
-      class="w-full"
-      style="height: calc(100vh - 56px);"
-      src="reports/naver_lowest_price.html"
-    ></iframe>
+    <!-- Mobile Tabs -->
+    <div class="lg:hidden mb-6">
+      <div class="mobile-tabs flex gap-2 overflow-x-auto pb-2">
+        <button id="chip-price" class="chip active" data-key="price"><i class="fa-solid fa-won-sign mr-2"></i>네이버 최저가</button>
+        <button id="chip-hero" class="chip" data-key="hero"><i class="fa-solid fa-image mr-2"></i>Hero 배너</button>
+        <button id="chip-voc" class="chip" data-key="voc"><i class="fa-solid fa-tower-broadcast mr-2"></i>VOC</button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <section class="glass-card p-5 md:p-7">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+        <div>
+          <div id="section-title" class="text-xl md:text-2xl font-black text-slate-900">네이버 최저가</div>
+          <div id="section-desc" class="text-slate-500 text-sm font-bold">
+            공식가 vs 네이버 쇼핑 최저가 비교 대시보드
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <a id="direct-link" href="reports/naver_lowest_price.html" target="_blank"
+             class="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-[11px] font-black hover:bg-slate-200 transition-colors">
+            현재 리포트 링크
+          </a>
+        </div>
+      </div>
+
+      <div class="frame-wrap">
+        <div id="overlay" class="overlay show">
+          <div class="flex flex-col items-center gap-4">
+            <div class="spinner"></div>
+            <div class="text-slate-700 font-black text-sm">리포트 불러오는 중…</div>
+            <div class="text-slate-400 text-xs font-bold">reports 폴더의 HTML을 로드합니다</div>
+          </div>
+        </div>
+
+        <div id="error" class="error-card">
+          <div class="text-2xl font-black text-slate-900 mb-2">리포트를 불러올 수 없습니다</div>
+          <div class="text-slate-600 font-bold mb-6">
+            파일이 아직 생성되지 않았거나 경로가 다를 수 있어요.<br>
+            아래 버튼으로 해당 파일이 존재하는지 확인해줘.
+          </div>
+          <div class="flex gap-2">
+            <a id="error-open" href="#" target="_blank"
+               class="px-4 py-2 rounded-xl bg-[color:var(--brand)] text-white text-[11px] font-black hover:bg-blue-600 transition-colors">
+              파일 경로 열기
+            </a>
+            <button id="error-retry"
+               class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-[11px] font-black hover:bg-slate-200 transition-colors">
+              다시 시도
+            </button>
+          </div>
+
+          <div class="mt-6 text-slate-400 text-xs font-bold leading-relaxed">
+            체크 포인트:<br>
+            1) GitHub Actions 성공 여부<br>
+            2) reports/ 아래에 HTML이 커밋되었는지<br>
+            3) GitHub Pages 설정이 main / (root)인지
+          </div>
+        </div>
+
+        <iframe id="frame" src="reports/naver_lowest_price.html" loading="eager" referrerpolicy="no-referrer"></iframe>
+      </div>
+    </section>
   </main>
 
   <script>
-    const titles = {
-      "naver_lowest_price.html": "네이버 최저가 모니터",
-      "hero_main.html": "경쟁사 Hero 배너",
-      "external_signal.html": "커뮤니티 VOC 분석"
+    const REPORTS = {
+      price: {
+        title: "네이버 최저가",
+        desc: "공식가 vs 네이버 쇼핑 최저가 비교 대시보드",
+        path: "reports/naver_lowest_price.html",
+        iconNav: "nav-price",
+        iconChip: "chip-price"
+      },
+      hero: {
+        title: "경쟁사 Hero 배너",
+        desc: "주요 아웃도어 브랜드 메인 Hero 배너 모니터링",
+        path: "reports/hero_main.html",
+        iconNav: "nav-hero",
+        iconChip: "chip-hero"
+      },
+      voc: {
+        title: "커뮤니티 VOC",
+        desc: "디시 등산 갤러리 기반 브랜드 언급 문장/키워드 분석",
+        path: "reports/external_signal.html",
+        iconNav: "nav-voc",
+        iconChip: "chip-voc"
+      }
     };
 
-    function setActive(file) {
-      const map = {
-        "naver_lowest_price.html": "btn-naver",
-        "hero_main.html": "btn-hero",
-        "external_signal.html": "btn-voc",
-      };
+    const frame = document.getElementById("frame");
+    const overlay = document.getElementById("overlay");
+    const errorCard = document.getElementById("error");
 
-      Object.values(map).forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.classList.remove("bg-slate-100", "text-[#002d72]");
-        el.classList.add("text-slate-700");
+    const sectionTitle = document.getElementById("section-title");
+    const sectionDesc  = document.getElementById("section-desc");
+    const directLink   = document.getElementById("direct-link");
+    const openCurrent  = document.getElementById("open-current");
+    const errorOpen    = document.getElementById("error-open");
+
+    const btnRefresh   = document.getElementById("refresh");
+    const btnRetry     = document.getElementById("error-retry");
+
+    function setNow(){
+      const d = new Date();
+      const pad = (n)=> String(n).padStart(2,"0");
+      const txt = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      document.getElementById("now").textContent = txt;
+    }
+    setNow();
+    setInterval(setNow, 60*1000);
+
+    function setActiveUI(key){
+      // desktop nav
+      Object.values(REPORTS).forEach(r=>{
+        const el = document.getElementById(r.iconNav);
+        if (el) el.classList.remove("active");
       });
+      const nav = document.getElementById(REPORTS[key].iconNav);
+      if (nav) nav.classList.add("active");
 
-      const activeId = map[file];
-      const activeEl = document.getElementById(activeId);
-      if (activeEl) {
-        activeEl.classList.add("bg-slate-100", "text-[#002d72]");
-      }
+      // mobile chips
+      Object.values(REPORTS).forEach(r=>{
+        const chip = document.getElementById(r.iconChip);
+        if (chip) chip.classList.remove("active");
+      });
+      const chip = document.getElementById(REPORTS[key].iconChip);
+      if (chip) chip.classList.add("active");
     }
 
-    function openReport(file) {
-      document.getElementById("title").textContent = titles[file] || file;
-      document.getElementById("path").textContent = "reports/" + file;
-      document.getElementById("frame").src = "reports/" + file;
-      setActive(file);
+    function showLoading(){
+      errorCard.classList.remove("show");
+      overlay.classList.add("show");
     }
+    function hideLoading(){
+      overlay.classList.remove("show");
+    }
+    function showError(path){
+      hideLoading();
+      errorCard.classList.add("show");
+      errorOpen.href = path;
+    }
+
+    // Load with cache-bust to reflect latest commit quickly
+    function loadReport(key){
+      const r = REPORTS[key];
+      if (!r) return;
+
+      setActiveUI(key);
+
+      sectionTitle.textContent = r.title;
+      sectionDesc.textContent  = r.desc;
+      directLink.href          = r.path;
+      directLink.textContent   = r.path;
+
+      openCurrent.href         = r.path;
+
+      showLoading();
+
+      const cacheBust = (new Date()).getTime();
+      frame.src = r.path + (r.path.includes("?") ? "&" : "?") + "v=" + cacheBust;
+
+      // if iframe doesn't load within X sec, show error
+      const timeoutMs = 9000;
+      const t = setTimeout(()=> {
+        showError(r.path);
+      }, timeoutMs);
+
+      frame.onload = () => {
+        clearTimeout(t);
+        hideLoading();
+      };
+    }
+
+    // nav bindings
+    document.querySelectorAll(".nav-item").forEach(el=>{
+      el.addEventListener("click", ()=> loadReport(el.dataset.key));
+    });
+    document.querySelectorAll(".chip").forEach(el=>{
+      el.addEventListener("click", ()=> loadReport(el.dataset.key));
+    });
+
+    // refresh current
+    btnRefresh.addEventListener("click", ()=>{
+      // reload current key by reading active class
+      const active = document.querySelector(".nav-item.active");
+      const key = active ? active.dataset.key : "price";
+      loadReport(key);
+    });
+
+    btnRetry.addEventListener("click", ()=>{
+      const active = document.querySelector(".nav-item.active");
+      const key = active ? active.dataset.key : "price";
+      loadReport(key);
+    });
 
     // initial
-    setActive("naver_lowest_price.html");
+    loadReport("price");
   </script>
 </body>
 </html>
