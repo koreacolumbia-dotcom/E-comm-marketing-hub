@@ -9,9 +9,15 @@ Fixes:
 - Hotlink/Referer 이슈 대응: 이미지 다운로드 시 Referer를 "페이지 URL"로 설정
 - goto 후 networkidle wait으로 lazy-load 안정화
 - generic_top_banners 스캔 범위 소폭 확장 + 스크롤 너지로 렌더 유도
+
+[추가 Fix - GitHub Actions 실패 원인 해결]
+- 기존에 hero_main_report_*.html 존재 여부를 검사하던(구버전 잔재) 로직 때문에,
+  실제로 reports/hero_main.html 생성 성공했는데도 실패 처리(exit 1) 되는 케이스가 있었음.
+- 이제는 최종 산출물(hero_main.html) 존재 여부만 체크하고,
+  rows가 비어도(일시적 크롤링 실패) HTML/CSV는 생성하고 워크플로우는 성공 처리(Exit 0).
 """
 
-import os, re, csv, hashlib, urllib.parse
+import os, re, csv, hashlib, urllib.parse, sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -318,12 +324,10 @@ def to_file_url(path: str) -> str:
     """
     try:
         p = Path(path).resolve()
-        return p.as_uri()  # file:///C:/... or file:///home/...
+        return p.as_uri()
     except Exception:
-        # fallback
         ap = os.path.abspath(path).replace("\\", "/")
         if not ap.startswith("/"):
-            # windows drive
             return "file:///" + ap
         return "file://" + ap
 
@@ -913,38 +917,52 @@ def write_html(path: str, rows):
     tab_menu_html = ""
     content_area_html = ""
 
-    for i, bk in enumerate(active_brand_keys):
-        items = sorted(by_brand[bk], key=lambda x: x.rank)
-        brand_name = next((bn for k, bn, *rest in BRANDS if k == bk), bk)
-        active_class = "bg-[#002d72] text-white shadow-lg" if i == 0 else "bg-white/50 text-slate-500 hover:bg-white"
-        tab_menu_html += f"""
+    # rows가 비어도(일시적 크롤링 실패) HTML은 만들어서 포털에서 깨지지 않게
+    if not active_brand_keys:
+        tab_menu_html = """
+<button class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500">
+  No Data <span class="ml-1 opacity-60 text-xs">0</span>
+</button>
+"""
+        content_area_html = """
+<div class="glass-card p-10">
+  <div class="text-slate-800 font-black text-xl mb-3">데이터가 없습니다</div>
+  <div class="text-slate-500 font-medium">일시적으로 크롤링 결과가 비어있습니다. 다음 실행에서 자동으로 복구될 수 있어요.</div>
+</div>
+"""
+    else:
+        for i, bk in enumerate(active_brand_keys):
+            items = sorted(by_brand[bk], key=lambda x: x.rank)
+            brand_name = next((bn for k, bn, *rest in BRANDS if k == bk), bk)
+            active_class = "bg-[#002d72] text-white shadow-lg" if i == 0 else "bg-white/50 text-slate-500 hover:bg-white"
+            tab_menu_html += f"""
 <button onclick="switchTab('{bk}')" id="tab-{bk}" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm {active_class}">
   {brand_name} <span class="ml-1 opacity-60 text-xs">{len(items)}</span>
 </button>"""
 
-        display_style = "grid" if i == 0 else "none"
-        cards_html = ""
+            display_style = "grid" if i == 0 else "none"
+            cards_html = ""
 
-        for it in items:
-            img_src = ""
+            for it in items:
+                img_src = ""
 
-            # 1) 로컬 이미지가 있으면 로컬을 우선
-            if it.img_local:
-                local_path = os.path.join(OUT_DIR, it.img_local)  # it.img_local is like 'assets/xxx.jpg'
-                if HTML_USE_ABSOLUTE_FILE_URL:
-                    img_src = to_file_url(local_path)
-                else:
-                    img_src = it.img_local  # relative
+                # 1) 로컬 이미지가 있으면 로컬을 우선
+                if it.img_local:
+                    local_path = os.path.join(OUT_DIR, it.img_local)  # it.img_local is like 'assets/xxx.jpg'
+                    if HTML_USE_ABSOLUTE_FILE_URL:
+                        img_src = to_file_url(local_path)
+                    else:
+                        img_src = it.img_local  # relative
 
-            # 2) 로컬이 없으면 원본 URL 사용
-            if not img_src:
-                img_src = it.img_url or ""
+                # 2) 로컬이 없으면 원본 URL 사용
+                if not img_src:
+                    img_src = it.img_url or ""
 
-            # 링크/원본이미지 버튼
-            href = it.href or "#"
-            img_url_btn = it.img_url or img_src or "#"
+                # 링크/원본이미지 버튼
+                href = it.href or "#"
+                img_url_btn = it.img_url or img_src or "#"
 
-            cards_html += f"""
+                cards_html += f"""
 <div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
   <div class="relative aspect-[16/9] bg-slate-100">
     <img src="{img_src}" class="w-full h-full object-cover"
@@ -966,7 +984,7 @@ def write_html(path: str, rows):
   </div>
 </div>"""
 
-        content_area_html += f"""
+            content_area_html += f"""
 <div id="content-{bk}" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: {display_style};">
   {cards_html}
 </div>"""
@@ -1033,14 +1051,18 @@ def write_html(path: str, rows):
   <script>
     function switchTab(brandKey) {{
       document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-      document.getElementById('content-' + brandKey).style.display = 'grid';
+      const tgt = document.getElementById('content-' + brandKey);
+      if (tgt) tgt.style.display = 'grid';
+
       document.querySelectorAll('.tab-btn').forEach(btn => {{
         btn.classList.remove('bg-[#002d72]', 'text-white', 'shadow-lg');
         btn.classList.add('bg-white/50', 'text-slate-500');
       }});
       const activeBtn = document.getElementById('tab-' + brandKey);
-      activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
-      activeBtn.classList.remove('bg-white/50', 'text-slate-500');
+      if (activeBtn) {{
+        activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
+        activeBtn.classList.remove('bg-white/50', 'text-slate-500');
+      }}
     }}
   </script>
 </body>
@@ -1070,7 +1092,6 @@ def crawl_brand(page, bk, bn, url, mode, date_s, mx):
     print(f"[*] Analyzing: {bn} ({url})")
     try:
         page.goto(url, timeout=NAV_TIMEOUT_MS, wait_until="domcontentloaded")
-        # 안정화: lazy load / async 리소스 기다림
         try:
             page.wait_for_load_state("networkidle", timeout=8000)
         except Exception:
@@ -1105,9 +1126,11 @@ def main():
 
     today_snap = os.path.join(SNAP_DIR, f"hero_main_banners_{date_s}.csv")
     report_csv = os.path.join(OUT_DIR, f"hero_main_banners_{ts}.csv")
-    report_html = os.path.join("reports", "hero_main.html")
 
-    rows = []
+    # ✅ 최종 산출물은 항상 고정 파일명으로 (포털에서 참조 쉬움)
+    report_html = os.path.join(OUT_DIR, "hero_main.html")
+
+    rows: List[Banner] = []
 
     with sync_playwright() as pw:
         browser, context = launch(pw)
@@ -1142,9 +1165,11 @@ def main():
                         continue
                     break
 
+        # rows가 비어도 파일은 생성(사이트 깨짐 방지), 워크플로우는 성공 처리
         write_csv(today_snap, rows)
         write_csv(report_csv, rows)
         write_html(report_html, rows)
+
         print(f"[CSV] {report_csv}")
         print(f"[HTML] {report_html}")
         print(f"[ASSET_DIR] {os.path.abspath(ASSET_DIR)}")
@@ -1154,6 +1179,14 @@ def main():
             browser.close()
         except Exception:
             pass
+
+    # ✅ (핵심) GitHub Actions 실패 방지: 최종 파일 존재 여부만 체크
+    if not os.path.exists(report_html):
+        print("❌ hero_main.html not found after generation")
+        sys.exit(1)
+
+    print("✅ hero_main.html generated successfully")
+    sys.exit(0)
 
 
 if __name__ == "__main__":
