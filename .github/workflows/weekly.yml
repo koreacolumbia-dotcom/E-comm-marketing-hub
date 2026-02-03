@@ -26,29 +26,52 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          playwright install --with-deps chromium
 
-      - name: Run crawler
+      # --------------------------------------------------
+      # 1) 네이버 최저가 대시보드
+      # --------------------------------------------------
+      - name: Run Naver Lowest Price crawler
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: |
           python -u naver_crawl_columbia_c6c7_title_min.py \
             --limit 999999 \
-            --output_html index.html \
+            --output_html reports/naver_lowest_price.html \
             --history_dir . \
             --cache_dir .naver_cache
 
+      # --------------------------------------------------
+      # 2) 경쟁사 Hero 배너
+      # --------------------------------------------------
+      - name: Run Hero banner crawler
+        run: |
+          HTML_USE_ABSOLUTE_FILE_URL=0 \
+          OUT_DIR=reports \
+          python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
+
+      # --------------------------------------------------
+      # 3) 커뮤니티 VOC 분석 (DC)
+      # --------------------------------------------------
+      - name: Run External Signal (VOC)
+        run: |
+          python -u external_signal_combined.py
+
+      # --------------------------------------------------
+      # Commit & Push
+      # --------------------------------------------------
       - name: Commit & push results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add index.html result_*.csv .naver_cache || true
+          git add reports/ .naver_cache || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
           fi
 
-          git commit -m "Weekly auto update"
+          git commit -m "Weekly auto update (reports)"
           git push
