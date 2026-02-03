@@ -1,501 +1,530 @@
-﻿
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>Columbia M-OS Pro | Marketing Intelligent Hub</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-        :root { --brand: #002d72; --bg0: #f6f8fb; --bg1: #eef3f9; }
-        body { background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; min-height: 100vh; }
-        .glass-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }
-        .sidebar { background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }
-    </style>
+  <meta charset="UTF-8">
+  <title>Columbia M-OS Pro | External Signal (VOC)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root { --brand: #002d72; --bg0: #f6f8fb; --bg1: #eef3f9; }
+    body { background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; min-height: 100vh; }
+    .glass-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }
+    .sidebar { background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }
+  </style>
 </head>
 <body class="flex">
-    <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
-        <div class="flex items-center gap-4 mb-16 px-2">
-            <div class="w-12 h-12 bg-[#002d72] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
-                <i class="fa-solid fa-mountain-sun text-xl"></i>
-            </div>
-            <div>
-                <div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div>
-                <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Marketing Portal</div>
-            </div>
+  <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
+    <div class="flex items-center gap-4 mb-16 px-2">
+      <div class="w-12 h-12 bg-[#002d72] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
+        <i class="fa-solid fa-mountain-sun text-xl"></i>
+      </div>
+      <div>
+        <div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div>
+        <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Marketing Portal</div>
+      </div>
+    </div>
+    <nav class="space-y-4">
+      <div class="p-4 rounded-2xl bg-white shadow-sm text-[#002d72] font-black flex items-center gap-4">
+        <i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC 분석</span>
+      </div>
+      <div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4 hover:bg-white/50 transition-all cursor-not-allowed">
+        <i class="fa-solid fa-chart-line"></i> <span>시장 지수</span>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="flex-1 p-8 md:p-16">
+    <header class="flex flex-col md:flex-row md:items-center justify-between mb-16 gap-6">
+      <div>
+        <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">VOC Real-time Analysis</h1>
+        <p class="text-slate-500 text-lg font-medium italic">디시인사이드 등산 갤러리 브랜드 언급 데이터</p>
+      </div>
+      <div class="glass-card px-6 py-4 flex items-center gap-4">
+        <div class="flex h-3 w-3 relative">
+          <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
         </div>
-        <nav class="space-y-4">
-            <div class="p-4 rounded-2xl bg-white shadow-sm text-[#002d72] font-black flex items-center gap-4 cursor-pointer">
-                <i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC 분석</span>
-            </div>
-            <div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4 hover:bg-white/50 transition-all cursor-not-allowed">
-                <i class="fa-solid fa-chart-line"></i> <span>시장 지수</span>
-            </div>
-        </nav>
-    </aside>
+        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-03 18:14</span>
+      </div>
+    </header>
 
-    <main class="flex-1 p-8 md:p-16">
-        <header class="flex flex-col md:flex-row md:items-center justify-between mb-16 gap-6">
-            <div>
-                <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">VOC Real-time Analysis</h1>
-                <p class="text-slate-500 text-lg font-medium italic">디시인사이드 등산 갤러리 브랜드 언급 데이터</p>
-            </div>
-            <div class="glass-card px-6 py-4 flex items-center gap-4">
-                <div class="flex h-3 w-3 relative"><span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span></div>
-                <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-03 02:53</span>
-            </div>
-        </header>
+    <section class="glass-card p-10 mb-12">
+      <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-8 flex items-center gap-2">
+        <i class="fa-solid fa-hashtag"></i> Hot Keywords
+      </h3>
+      <div class="flex flex-wrap gap-3"><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># dc <span class="text-blue-600">162</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># official <span class="text-blue-600">162</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># App <span class="text-blue-600">162</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># com <span class="text-blue-600">89</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 진짜 <span class="text-blue-600">86</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 너무 <span class="text-blue-600">80</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 그냥 <span class="text-blue-600">78</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 등산 <span class="text-blue-600">77</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># https <span class="text-blue-600">65</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># youtube <span class="text-blue-600">58</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 많이 <span class="text-blue-600">55</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 눈이 <span class="text-blue-600">53</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 이거 <span class="text-blue-600">44</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 있는 <span class="text-blue-600">42</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 근데 <span class="text-blue-600">38</span></span></div>
+    </section>
 
-        <section class="glass-card p-10 mb-12">
-            <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-8 flex items-center gap-2">
-                <i class="fa-solid fa-hashtag"></i> Hot Keywords
-            </h3>
-            <div class="flex flex-wrap gap-3"><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># dc <span class="text-blue-600">159</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># official <span class="text-blue-600">159</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># App <span class="text-blue-600">159</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># com <span class="text-blue-600">87</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 그냥 <span class="text-blue-600">79</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 진짜 <span class="text-blue-600">77</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 등산 <span class="text-blue-600">73</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 너무 <span class="text-blue-600">72</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># https <span class="text-blue-600">63</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># youtube <span class="text-blue-600">58</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 많이 <span class="text-blue-600">53</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 눈이 <span class="text-blue-600">48</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 이거 <span class="text-blue-600">40</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 있는 <span class="text-blue-600">37</span></span><span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># 슈발 <span class="text-blue-600">37</span></span></div>
-        </section>
+    <section>
+      <div class="flex flex-wrap gap-2 mb-8">
+        
+            <button onclick="switchTab('컬럼비아')" id="tab-컬럼비아" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-[#002d72] text-white shadow-lg">
+                컬럼비아 <span class="ml-1 opacity-60 text-xs">1</span>
+            </button>
+            <button onclick="switchTab('노스페이스')" id="tab-노스페이스" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                노스페이스 <span class="ml-1 opacity-60 text-xs">2</span>
+            </button>
+            <button onclick="switchTab('파타고니아')" id="tab-파타고니아" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                파타고니아 <span class="ml-1 opacity-60 text-xs">6</span>
+            </button>
+            <button onclick="switchTab('아크테릭스')" id="tab-아크테릭스" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                아크테릭스 <span class="ml-1 opacity-60 text-xs">16</span>
+            </button>
+            <button onclick="switchTab('블랙야크')" id="tab-블랙야크" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                블랙야크 <span class="ml-1 opacity-60 text-xs">7</span>
+            </button>
+            <button onclick="switchTab('K2')" id="tab-K2" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                K2 <span class="ml-1 opacity-60 text-xs">3</span>
+            </button>
+            <button onclick="switchTab('캠프라인')" id="tab-캠프라인" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                캠프라인 <span class="ml-1 opacity-60 text-xs">4</span>
+            </button>
+            <button onclick="switchTab('살로몬')" id="tab-살로몬" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                살로몬 <span class="ml-1 opacity-60 text-xs">1</span>
+            </button>
+            <button onclick="switchTab('호카')" id="tab-호카" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                호카 <span class="ml-1 opacity-60 text-xs">3</span>
+            </button>
+      </div>
 
-        <section>
-            <div class="flex flex-wrap gap-2 mb-8">
+      <div class="min-h-[500px]">
+        
+            <div id="content-컬럼비아" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: grid;">
                 
-        <button onclick="switchTab('컬럼비아')" id="tab-컬럼비아" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-[#002d72] text-white shadow-lg">
-            컬럼비아 <span class="ml-1 opacity-60 text-xs">1</span>
-        </button>
-        <button onclick="switchTab('노스페이스')" id="tab-노스페이스" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-            노스페이스 <span class="ml-1 opacity-60 text-xs">2</span>
-        </button>
-        <button onclick="switchTab('파타고니아')" id="tab-파타고니아" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-            파타고니아 <span class="ml-1 opacity-60 text-xs">6</span>
-        </button>
-        <button onclick="switchTab('아크테릭스')" id="tab-아크테릭스" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-            아크테릭스 <span class="ml-1 opacity-60 text-xs">15</span>
-        </button>
-        <button onclick="switchTab('블랙야크')" id="tab-블랙야크" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-            블랙야크 <span class="ml-1 opacity-60 text-xs">6</span>
-        </button>
-        <button onclick="switchTab('K2')" id="tab-K2" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-            K2 <span class="ml-1 opacity-60 text-xs">3</span>
-        </button>
-        <button onclick="switchTab('캠프라인')" id="tab-캠프라인" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-            캠프라인 <span class="ml-1 opacity-60 text-xs">3</span>
-        </button>
-        <button onclick="switchTab('살로몬')" id="tab-살로몬" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-            살로몬 <span class="ml-1 opacity-60 text-xs">1</span>
-        </button>
-        <button onclick="switchTab('호카')" id="tab-호카" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-            호카 <span class="ml-1 opacity-60 text-xs">3</span>
-        </button>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아 뭐 살만한 거 있나 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 컬럼비아 뭐 살만한 거 있나?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312673&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
             </div>
-            
-            <div class="min-h-[500px]">
+            <div id="content-노스페이스" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
                 
-        <div id="content-컬럼비아" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: block;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아 뭐 살만한 거 있나 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 컬럼비아 뭐 살만한 거 있나?...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312673&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 노스페이스 스트림 12 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: [메모용] 흰색 계열 저용량 백팩 정리</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311986&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 노스페이스 어센드 라이트 15 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: [메모용] 흰색 계열 저용량 백팩 정리</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311986&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div id="content-노스페이스" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 노스페이스 스트림 12 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: [메모용] 흰색 계열 저용량 백팩 정리...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311986&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
+            <div id="content-파타고니아" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아r1에어후디 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 복장세팅 끝</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313069&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아꺼 살까했는데 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 알리 짭 r1 주문했습니다요</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312689&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 r1에어후디 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 햄들 등린이 템산거 봐주셈</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312513&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 r1에어 후디를 샀음 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 파타고니아 r1에어 후디를 샀음</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312359&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 후디니 좋음 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 파타고니아 후디니 좋음?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312128&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 돈없으면 파타고니아 사라 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 돈없으면 파타고니아 사라!</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312092&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 노스페이스 어센드 라이트 15 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: [메모용] 흰색 계열 저용량 백팩 정리...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311986&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
+            <div id="content-아크테릭스" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 이거차이거뭐예요 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 이거차이거뭐예요?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313877&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아, 그리고 관광객중 중국인 대부분이 아크테릭스네요 ㅋㅋㅋ "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 형님들 한국에 눈 많이 온다면서요?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313739&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 로고가 팔에 있는 옷 입으면 짝퉁취급 당하려나 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 로고가 팔에 있는 옷 입으면 짝퉁취...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313584&page=4" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 오스무브 드라이넷 긴팔 / 하의 + 아크테릭스 코막 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 복장세팅 끝</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313069&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 형들 아크테릭스 베타lt 사이즈 추천좀 ㅠㅠ "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 형들 아크테릭스 베타lt 사이즈 추천좀 ㅠㅠ</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312681&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 혹시 아크테릭스 헬리야드15<<이 가방도 등산용으로 사용 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 혹시 아크테릭스 헬리야드15<<이 가방도 등산...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312663&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 정식으로 나오면 아크테릭스고 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 짭크테릭스도 급이 있다</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312059&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스로 가라 ㅋㅋㅋ "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 짭크테릭스도 급이 있다</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312059&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 입고 저러는게 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 짱크 로고플레이 하는 놈들이 저래서 미개한거임</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312036&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 착장 아크테릭스 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등갤에서 욕 안먹는 방법</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312015&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 이야기 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크가 언제부터 로고플레이취급받음 ㅋㅋㅋㅋ</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312007&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스가 만드는 건 옷이라기보다는장비에 가깝습니다지난 20년간 핸드폰, 노트북같은 물건들은 발전을 해왔습니다그리고 분명히 계속해서 발전할겁니다하지만 옷은 어떨까요세련되고 멋있는걸 떠나서 기능을 본다면발전했을까요 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크가 언제부터 로고플레이취급받음 ㅋㅋㅋㅋ</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312007&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 입으면 뭐함 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 옷보다 걍 태가 중요하지... 일상복 입고도 ...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312002&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 키 165 정도에 스포츠 머리한 전형적인 중국인 아저씨들 가슴팍에 다 아크테릭스던데 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 외국가면 중국인 아저씨들이 아크 많이 입긴 하...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311999&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 풀셋이 많이 보이는 이유 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 풀셋이 많이 보이는 이유...jpg</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311996&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 500내외산가면서 아크테릭스를 머리부터 발끝까지 색별로 깔조합해가며 돌아다니네 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 뭔 죄다 산에 패션쇼하러가네</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311990&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div id="content-파타고니아" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아r1에어후디 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 복장세팅 끝...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313069&page=7" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
+            <div id="content-블랙야크" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 명산 100 입문해서 등산코스 찾아보는데 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 블랙야크 명산 100 입문해서 등산코스 찾아보...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313097&page=7" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 명산 100 입문해서 등산코스 찾아보는데 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 블랙야크 명산 100 입문해서 등산코스 찾아보...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313097&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 100대명산중이고, 지금 27개 함 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 100대명산중인데 등산어플 추천좀</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312369&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 최근 블랙야크 100대 명산 인증을 시작하고 부터 다음에 갈 산을 정할 때 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 오서산 다녀옴</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312151&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 상의 -> 블랙야크 그리드 집업티 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 러닝 지금 입는 거로 괜찮을까남</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312125&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 라이트팩15 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: [메모용] 흰색 계열 저용량 백팩 정리</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311986&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 343플래시팩15 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: [메모용] 흰색 계열 저용량 백팩 정리</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311986&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아꺼 살까했는데 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 알리 짭 r1 주문했습니다요...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312689&page=10" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
+            <div id="content-K2" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" K2 등정하는거 영상으로 보니까 지리네;; "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: K2 등정하는거 영상으로 보니까 지리네;;</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312519&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아 참고로 가족 할인으로 K2 아이더 50퍼 할인되요 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 겨울 산행에 뭐 사야하나요?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312496&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 험한산이면 그래도 네파, K2정도면 알잘딱이고 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 옷보다 걍 태가 중요하지... 일상복 입고도 ...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312002&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 r1에어후디 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 햄들 등린이 템산거 봐주셈...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312513&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
+            <div id="content-캠프라인" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 전투화     캠프라인 산티아고2 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 화대종주다녀왔습니다</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313379&page=5" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 전투화     캠프라인 산티아고2 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 화대종주다녀왔습니다</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313379&page=6" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 신발: 캠프라인 산티아고2 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 닥눈삼 하고 입문하려고 샀어</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312006&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 호카는,,신발이 안좋아요,,밑창이 구립니다,,한국산은 캠프라인 신어야지요,,젊은여성들은 디자인만 생각해서 문제네요,, "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 여자 등산 유튜버들 영상 존나 보기 싫은게</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311984&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 r1에어 후디를 샀음 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 파타고니아 r1에어 후디를 샀음...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312359&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
+            <div id="content-살로몬" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 그러면 킨 재스퍼나 살로몬 xt6 같은거 구매해서 일상에서도 신고 산에서도 겸용으로도 쓸만한가요 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 등산화 질문 드립니다</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313372&page=6" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 후디니 좋음 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 파타고니아 후디니 좋음?...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312128&page=17" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
+            <div id="content-호카" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 현재는 그냥 호카 본디8 집에 남는거 있어서 그거로 막 다녔어요 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 등산화 추천 부탁드립니다</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313557&page=4" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 현재 호카 고어텍스 고트스피드5 봤는데 재고가 없어서 "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 등산화 추천 부탁드립니다</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313557&page=4" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 호카는,,신발이 안좋아요,,밑창이 구립니다,,한국산은 캠프라인 신어야지요,,젊은여성들은 디자인만 생각해서 문제네요,, "</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 여자 등산 유튜버들 영상 존나 보기 싫은게</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311984&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 돈없으면 파타고니아 사라 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 돈없으면 파타고니아 사라!...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312092&page=17" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div id="content-아크테릭스" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아, 그리고 관광객중 중국인 대부분이 아크테릭스네요 ㅋㅋㅋ "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 형님들 한국에 눈 많이 온다면서요?...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313739&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 로고가 팔에 있는 옷 입으면 짝퉁취급 당하려나 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 로고가 팔에 있는 옷 입으면 짝퉁취...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313584&page=3" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 오스무브 드라이넷 긴팔 / 하의 + 아크테릭스 코막 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 복장세팅 끝...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313069&page=7" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 형들 아크테릭스 베타lt 사이즈 추천좀 ㅠㅠ "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 형들 아크테릭스 베타lt 사이즈 추천좀 ㅠㅠ...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312681&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 혹시 아크테릭스 헬리야드15<<이 가방도 등산용으로 사용 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 혹시 아크테릭스 헬리야드15<<이 가방도 등산...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312663&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 정식으로 나오면 아크테릭스고 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 짭크테릭스도 급이 있다...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312059&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스로 가라 ㅋㅋㅋ "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 짭크테릭스도 급이 있다...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312059&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 입고 저러는게 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 짱크 로고플레이 하는 놈들이 저래서 미개한거임...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312036&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 착장 아크테릭스 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등갤에서 욕 안먹는 방법...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312015&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 이야기 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크가 언제부터 로고플레이취급받음 ㅋㅋㅋㅋ...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312007&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스가 만드는 건 옷이라기보다는장비에 가깝습니다지난 20년간 핸드폰, 노트북같은 물건들은 발전을 해왔습니다그리고 분명히 계속해서 발전할겁니다하지만 옷은 어떨까요세련되고 멋있는걸 떠나서 기능을 본다면발전했을까요 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크가 언제부터 로고플레이취급받음 ㅋㅋㅋㅋ...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312007&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 입으면 뭐함 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 옷보다 걍 태가 중요하지... 일상복 입고도 ...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312002&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 키 165 정도에 스포츠 머리한 전형적인 중국인 아저씨들 가슴팍에 다 아크테릭스던데 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 외국가면 중국인 아저씨들이 아크 많이 입긴 하...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311999&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 풀셋이 많이 보이는 이유 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 풀셋이 많이 보이는 이유...jpg...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311996&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 500내외산가면서 아크테릭스를 머리부터 발끝까지 색별로 깔조합해가며 돌아다니네 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 뭔 죄다 산에 패션쇼하러가네...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311990&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div id="content-블랙야크" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 명산 100 입문해서 등산코스 찾아보는데 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 블랙야크 명산 100 입문해서 등산코스 찾아보...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313097&page=7" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 100대명산중이고, 지금 27개 함 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 100대명산중인데 등산어플 추천좀...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312369&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 최근 블랙야크 100대 명산 인증을 시작하고 부터 다음에 갈 산을 정할 때 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 오서산 다녀옴...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312151&page=17" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 상의 -> 블랙야크 그리드 집업티 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 러닝 지금 입는 거로 괜찮을까남...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312125&page=17" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 라이트팩15 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: [메모용] 흰색 계열 저용량 백팩 정리...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311986&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 343플래시팩15 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: [메모용] 흰색 계열 저용량 백팩 정리...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311986&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div id="content-K2" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" K2 등정하는거 영상으로 보니까 지리네;; "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: K2 등정하는거 영상으로 보니까 지리네;;...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312519&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아 참고로 가족 할인으로 K2 아이더 50퍼 할인되요 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 겨울 산행에 뭐 사야하나요?...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312496&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 험한산이면 그래도 네파, K2정도면 알잘딱이고 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 옷보다 걍 태가 중요하지... 일상복 입고도 ...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312002&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div id="content-캠프라인" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 전투화     캠프라인 산티아고2 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 화대종주다녀왔습니다...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313379&page=5" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 신발: 캠프라인 산티아고2 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 닥눈삼 하고 입문하려고 샀어...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=312006&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 호카는,,신발이 안좋아요,,밑창이 구립니다,,한국산은 캠프라인 신어야지요,,젊은여성들은 디자인만 생각해서 문제네요,, "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 여자 등산 유튜버들 영상 존나 보기 싫은게...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311984&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div id="content-살로몬" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 그러면 킨 재스퍼나 살로몬 xt6 같은거 구매해서 일상에서도 신고 산에서도 겸용으로도 쓸만한가요 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 등산화 질문 드립니다...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313372&page=5" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div id="content-호카" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-            
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 현재는 그냥 호카 본디8 집에 남는거 있어서 그거로 막 다녔어요 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 등산화 추천 부탁드립니다...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313557&page=3" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 현재 호카 고어텍스 고트스피드5 봤는데 재고가 없어서 "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 등산화 추천 부탁드립니다...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313557&page=3" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 호카는,,신발이 안좋아요,,밑창이 구립니다,,한국산은 캠프라인 신어야지요,,젊은여성들은 디자인만 생각해서 문제네요,, "</p>
-                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 여자 등산 유튜버들 영상 존나 보기 싫은게...</span>
-                    <a href="https://gall.dcinside.com/board/view/?id=climbing&no=311984&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                        원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-            </div>
-        </section>
-    </main>
+      </div>
+    </section>
+  </main>
 
-    <script>
-        function switchTab(brand) {
-            // 모든 컨텐츠 숨기기
-            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-            // 선택된 컨텐츠 보이기
-            document.getElementById('content-' + brand).style.display = 'grid';
-            
-            // 모든 버튼 스타일 초기화
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('bg-[#002d72]', 'text-white', 'shadow-lg');
-                btn.classList.add('bg-white/50', 'text-slate-500');
-            });
-            // 선택된 버튼 스타일 적용
-            const activeBtn = document.getElementById('tab-' + brand);
-            activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
-            activeBtn.classList.remove('bg-white/50', 'text-slate-500');
-        }
-    </script>
+  <script>
+    function switchTab(brand) {
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      const target = document.getElementById('content-' + brand);
+      if (target) target.style.display = 'grid';
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-[#002d72]', 'text-white', 'shadow-lg');
+        btn.classList.add('bg-white/50', 'text-slate-500');
+      });
+      const activeBtn = document.getElementById('tab-' + brand);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
+        activeBtn.classList.remove('bg-white/50', 'text-slate-500');
+      }
+    }
+  </script>
 </body>
 </html>
