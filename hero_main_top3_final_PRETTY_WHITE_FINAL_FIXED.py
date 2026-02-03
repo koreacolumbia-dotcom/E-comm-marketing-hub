@@ -11,10 +11,9 @@ Fixes:
 - generic_top_banners 스캔 범위 소폭 확장 + 스크롤 너지로 렌더 유도
 
 [추가 Fix - GitHub Actions 실패 원인 해결]
-- 기존에 hero_main_report_*.html 존재 여부를 검사하던(구버전 잔재) 로직 때문에,
-  실제로 reports/hero_main.html 생성 성공했는데도 실패 처리(exit 1) 되는 케이스가 있었음.
-- 이제는 최종 산출물(hero_main.html) 존재 여부만 체크하고,
-  rows가 비어도(일시적 크롤링 실패) HTML/CSV는 생성하고 워크플로우는 성공 처리(Exit 0).
+- 구버전 잔재(hero_main_report_*.html 검사/exit 1)를 완전 제거
+- reports/hero_main.html 생성 성공이면 무조건 success
+- rows가 비어도(일시적 크롤링 실패) HTML/CSV는 생성하고 exit 0
 """
 
 import os, re, csv, hashlib, urllib.parse, sys
@@ -58,8 +57,8 @@ USER_AGENT = os.environ.get(
 )
 
 # (옵션) HTML에 file:// 절대경로로 로컬이미지를 박을지 여부
-# - 기본 1(권장): HTML만 단독으로 옮겨도 이미지 안 깨짐
-# - 0: 기존처럼 assets/상대경로 (HTML+assets 폴더 세트로만 이동해야 함)
+# - 로컬에서 HTML 단독 이동/열기 목적이면 1 추천
+# - GitHub Pages(https) 배포면 file:// 로드가 브라우저 정책상 불가 → 반드시 0
 HTML_USE_ABSOLUTE_FILE_URL = os.environ.get("HTML_USE_ABSOLUTE_FILE_URL", "1") != "0"
 
 
@@ -316,12 +315,9 @@ def choose_title(*cands: str) -> str:
 
 
 # -----------------------------------------------------
-# (핵심) 로컬 파일을 HTML에서 깨지지 않게 file:// URL로 변환
+# (옵션) 로컬 파일을 HTML에서 깨지지 않게 file:// URL로 변환
 # -----------------------------------------------------
 def to_file_url(path: str) -> str:
-    """
-    Convert local path to file:// URL (works on Windows/macOS/Linux).
-    """
     try:
         p = Path(path).resolve()
         return p.as_uri()
@@ -405,13 +401,6 @@ def close_common_popups(page) -> None:
             except Exception:
                 pass
 
-def scroll_top(page):
-    try:
-        page.evaluate("window.scrollTo(0,0);")
-        page.wait_for_timeout(250)
-    except Exception:
-        pass
-
 def wait_first_visible(page, selectors, timeout_ms: int = 12000):
     for sel in selectors:
         try:
@@ -421,30 +410,18 @@ def wait_first_visible(page, selectors, timeout_ms: int = 12000):
             continue
     return None
 
-def get_active_swiper_index(slide) -> str:
-    try:
-        for attr in ["data-swiper-slide-index", "aria-label", "data-key", "data-banner-idx"]:
-            v = slide.get_attribute(attr)
-            if v:
-                return str(v)
-    except Exception:
-        pass
-    return ""
+def is_closed_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return "has been closed" in msg or "target page" in msg or "browser has been closed" in msg
 
-def click_locator_best_effort(loc) -> bool:
-    try:
-        loc.click(timeout=2500, force=True)
-        return True
-    except Exception:
-        pass
-    try:
-        parent = loc.locator("xpath=ancestor-or-self::*[self::button or self::a or @role='button' or contains(@class,'btn')][1]")
-        if parent.count():
-            parent.first.click(timeout=2500, force=True)
-            return True
-    except Exception:
-        pass
-    return False
+def launch(pw):
+    browser = pw.chromium.launch(headless=HEADLESS)
+    context = browser.new_context(
+        user_agent=USER_AGENT,
+        viewport={"width": 1440, "height": 900},
+        locale="ko-KR",
+    )
+    return browser, context
 
 
 # -----------------------------------------------------
@@ -718,6 +695,7 @@ def nepa_static(page, base_url: str, brand_key: str, brand_name: str, date_s: st
             break
 
     if not out:
+        # fallback: top area scan
         try:
             vw = page.viewport_size["width"] if page.viewport_size else 1440
             candidates = root.locator("section, div, a")
@@ -906,59 +884,47 @@ def write_csv(path: str, rows):
 
 def write_html(path: str, rows):
     os.makedirs(os.path.dirname(path), exist_ok=True)
+
     by_brand = {}
     for b in rows:
         by_brand.setdefault(b.brand_key, []).append(b)
 
     order = [bk for bk, _, _, _, _ in BRANDS]
-    active_brand_keys = [bk for bk in order if bk in by_brand]
+    active_brand_keys = [bk for bk in order if bk in by_brand] or [bk for bk, *_ in BRANDS]  # rows 비어도 탭은 유지
     now_str = kst_now().strftime('%Y-%m-%d %H:%M')
 
     tab_menu_html = ""
     content_area_html = ""
 
-    # rows가 비어도(일시적 크롤링 실패) HTML은 만들어서 포털에서 깨지지 않게
-    if not active_brand_keys:
-        tab_menu_html = """
-<button class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500">
-  No Data <span class="ml-1 opacity-60 text-xs">0</span>
-</button>
-"""
-        content_area_html = """
-<div class="glass-card p-10">
-  <div class="text-slate-800 font-black text-xl mb-3">데이터가 없습니다</div>
-  <div class="text-slate-500 font-medium">일시적으로 크롤링 결과가 비어있습니다. 다음 실행에서 자동으로 복구될 수 있어요.</div>
-</div>
-"""
-    else:
-        for i, bk in enumerate(active_brand_keys):
-            items = sorted(by_brand[bk], key=lambda x: x.rank)
-            brand_name = next((bn for k, bn, *rest in BRANDS if k == bk), bk)
-            active_class = "bg-[#002d72] text-white shadow-lg" if i == 0 else "bg-white/50 text-slate-500 hover:bg-white"
-            tab_menu_html += f"""
+    for i, bk in enumerate(active_brand_keys):
+        items = sorted(by_brand.get(bk, []), key=lambda x: x.rank)
+        brand_name = next((bn for k, bn, *rest in BRANDS if k == bk), bk)
+        active_class = "bg-[#002d72] text-white shadow-lg" if i == 0 else "bg-white/50 text-slate-500 hover:bg-white"
+
+        tab_menu_html += f"""
 <button onclick="switchTab('{bk}')" id="tab-{bk}" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm {active_class}">
   {brand_name} <span class="ml-1 opacity-60 text-xs">{len(items)}</span>
 </button>"""
 
-            display_style = "grid" if i == 0 else "none"
-            cards_html = ""
+        display_style = "grid" if i == 0 else "none"
+        cards_html = ""
 
+        if not items:
+            cards_html = """
+<div class="glass-card p-8 text-slate-500">
+  <div class="text-sm font-bold mb-2">데이터가 아직 없어요</div>
+  <div class="text-xs">해당 브랜드의 히어로 배너를 이번 실행에서 수집하지 못했습니다. (일시적 구조 변경/팝업/봇체크 가능)</div>
+</div>
+"""
+        else:
             for it in items:
                 img_src = ""
-
-                # 1) 로컬 이미지가 있으면 로컬을 우선
                 if it.img_local:
-                    local_path = os.path.join(OUT_DIR, it.img_local)  # it.img_local is like 'assets/xxx.jpg'
-                    if HTML_USE_ABSOLUTE_FILE_URL:
-                        img_src = to_file_url(local_path)
-                    else:
-                        img_src = it.img_local  # relative
-
-                # 2) 로컬이 없으면 원본 URL 사용
+                    local_path = os.path.join(OUT_DIR, it.img_local)
+                    img_src = to_file_url(local_path) if HTML_USE_ABSOLUTE_FILE_URL else it.img_local
                 if not img_src:
                     img_src = it.img_url or ""
 
-                # 링크/원본이미지 버튼
                 href = it.href or "#"
                 img_url_btn = it.img_url or img_src or "#"
 
@@ -984,7 +950,7 @@ def write_html(path: str, rows):
   </div>
 </div>"""
 
-            content_area_html += f"""
+        content_area_html += f"""
 <div id="content-{bk}" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: {display_style};">
   {cards_html}
 </div>"""
@@ -1051,13 +1017,14 @@ def write_html(path: str, rows):
   <script>
     function switchTab(brandKey) {{
       document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-      const tgt = document.getElementById('content-' + brandKey);
-      if (tgt) tgt.style.display = 'grid';
+      const t = document.getElementById('content-' + brandKey);
+      if (t) t.style.display = 'grid';
 
       document.querySelectorAll('.tab-btn').forEach(btn => {{
         btn.classList.remove('bg-[#002d72]', 'text-white', 'shadow-lg');
         btn.classList.add('bg-white/50', 'text-slate-500');
       }});
+
       const activeBtn = document.getElementById('tab-' + brandKey);
       if (activeBtn) {{
         activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
@@ -1070,19 +1037,6 @@ def write_html(path: str, rows):
 """
     with open(path, "w", encoding="utf-8") as f:
         f.write(full_html)
-
-def is_closed_error(e: Exception) -> bool:
-    msg = str(e).lower()
-    return "has been closed" in msg or "target page" in msg or "browser has been closed" in msg
-
-def launch(pw):
-    browser = pw.chromium.launch(headless=HEADLESS)
-    context = browser.new_context(
-        user_agent=USER_AGENT,
-        viewport={"width": 1440, "height": 900},
-        locale="ko-KR",
-    )
-    return browser, context
 
 
 # -----------------------------------------------------
@@ -1127,7 +1081,7 @@ def main():
     today_snap = os.path.join(SNAP_DIR, f"hero_main_banners_{date_s}.csv")
     report_csv = os.path.join(OUT_DIR, f"hero_main_banners_{ts}.csv")
 
-    # ✅ 최종 산출물은 항상 고정 파일명으로 (포털에서 참조 쉬움)
+    # ✅ 최종 산출물: 항상 reports/hero_main.html (OUT_DIR 기준)
     report_html = os.path.join(OUT_DIR, "hero_main.html")
 
     rows: List[Banner] = []
@@ -1165,7 +1119,7 @@ def main():
                         continue
                     break
 
-        # rows가 비어도 파일은 생성(사이트 깨짐 방지), 워크플로우는 성공 처리
+        # ✅ rows 비어도 결과 파일은 생성
         write_csv(today_snap, rows)
         write_csv(report_csv, rows)
         write_html(report_html, rows)
@@ -1180,9 +1134,9 @@ def main():
         except Exception:
             pass
 
-    # ✅ (핵심) GitHub Actions 실패 방지: 최종 파일 존재 여부만 체크
+    # ✅ 성공 조건: reports/hero_main.html만 존재하면 OK
     if not os.path.exists(report_html):
-        print("❌ hero_main.html not found after generation")
+        print(f"[FATAL] HTML not created: {report_html}")
         sys.exit(1)
 
     print("✅ hero_main.html generated successfully")
