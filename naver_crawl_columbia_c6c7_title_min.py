@@ -601,6 +601,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             data_name_en = _safe_attr(name_en.lower())
             data_name_ko = _safe_attr(name_ko.lower())
 
+            # ✅ 수정: 이미지 로딩 실패 시 'No Image' 플레이스홀더로 교체 (깨진 아이콘 방지)
             img_block = ""
             if img_final.strip():
                 img_block = f"""
@@ -608,7 +609,10 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
                   <img src="{_safe_attr(img_final)}" alt="{_safe_attr(name_en or name_ko)}"
                     class="w-full h-48 object-cover rounded-2xl border border-white/80 bg-white/60"
                     loading="lazy"
-                    onerror="this.style.display='none';" />
+                    onerror="this.classList.add('hidden'); if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" />
+                  <div class="hidden w-full h-48 rounded-2xl border border-white/80 bg-white/60 flex items-center justify-center">
+                    <i class="fa-solid fa-image text-slate-400 text-2xl"></i>
+                  </div>
                 </div>
                 """
 
@@ -729,6 +733,13 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     .overlay.show { display: flex; }
     .spinner { width: 56px; height: 56px; border-radius: 9999px; border: 6px solid rgba(0,0,0,0.08); border-top-color: rgba(0,45,114,0.95); animation: spin 0.9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== EMBED MODE (when inside iframe) ===== */
+    body.embedded aside { display:none !important; }
+    body.embedded header { display:none !important; }
+    body.embedded .sidebar { display:none !important; }
+    body.embedded main { padding: 24px !important; }
+    body.embedded .sticky { position: static !important; }
   </style>
 </head>
 <body class="flex">
@@ -1199,6 +1210,18 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     });
   });
 </script>
+
+<!-- ✅ EMBED MODE: iframe 감지 → body.embedded 클래스 부여 -->
+<script>
+  (function () {
+    try {
+      if (window.self !== window.top) document.body.classList.add("embedded");
+    } catch (e) {
+      document.body.classList.add("embedded");
+    }
+  })();
+</script>
+
 </body>
 </html>
 """
@@ -1448,4 +1471,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
