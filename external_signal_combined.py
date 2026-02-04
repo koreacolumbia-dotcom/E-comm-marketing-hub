@@ -222,6 +222,13 @@ def export_portal(brand_map, top_kws, out_path="reports/external_signal.html"):
     body {{ background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; min-height: 100vh; }}
     .glass-card {{ background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }}
     .sidebar {{ background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }}
+
+    /* ===== EMBED MODE (when inside iframe) ===== */
+    body.embedded aside {{ display:none !important; }}
+    body.embedded header {{ display:none !important; }}
+    body.embedded .sidebar {{ display:none !important; }}
+    body.embedded main {{ padding: 24px !important; }}
+    body.embedded .sticky {{ position: static !important; }}
   </style>
 </head>
 <body class="flex">
@@ -294,6 +301,16 @@ def export_portal(brand_map, top_kws, out_path="reports/external_signal.html"):
         activeBtn.classList.remove('bg-white/50', 'text-slate-500');
       }}
     }}
+  </script>
+
+  <script>
+    (function () {{
+      try {{
+        if (window.self !== window.top) document.body.classList.add("embedded");
+      }} catch (e) {{
+        document.body.classList.add("embedded");
+      }}
+    }})();
   </script>
 </body>
 </html>
