@@ -16,6 +16,11 @@ Fixes:
 - 구버전 잔재(hero_main_report_*.html 검사/exit 1)를 완전 제거
 - reports/hero_main.html 생성 성공이면 무조건 success
 - rows가 비어도(일시적 크롤링 실패) HTML/CSV는 생성하고 exit 0
+
+[추가 Fix - embed 모드 + No Image 근본 해결]
+- iframe 감지 시 body.embedded 클래스로 portal chrome(aside/header/sidebar) 숨김
+- GitHub Pages에서는 file:// 로드 불가 → GITHUB_ACTIONS 환경에서 REL(assets/) 모드 자동 강제
+- REL 모드에서 img src가 assets/<filename>로 정확히 들어가도록 수정
 """
 
 import os, re, csv, hashlib, urllib.parse, sys
@@ -61,7 +66,14 @@ USER_AGENT = os.environ.get(
 # (옵션) HTML에 file:// 절대경로로 로컬이미지를 박을지 여부
 # - 로컬에서 HTML 단독 이동/열기 목적이면 1 추천
 # - GitHub Pages(https) 배포면 file:// 로드가 브라우저 정책상 불가 → 반드시 0
-HTML_USE_ABSOLUTE_FILE_URL = os.environ.get("HTML_USE_ABSOLUTE_FILE_URL", "1") != "0"
+#
+# ✅ 자동 안전장치:
+# - GitHub Actions 환경(GITHUB_ACTIONS=true)이면 기본값을 0(REL)로 강제
+# - 로컬 실행은 기본값 1(ABS) 유지
+if "HTML_USE_ABSOLUTE_FILE_URL" in os.environ:
+    HTML_USE_ABSOLUTE_FILE_URL = os.environ.get("HTML_USE_ABSOLUTE_FILE_URL", "0") != "0"
+else:
+    HTML_USE_ABSOLUTE_FILE_URL = (os.environ.get("GITHUB_ACTIONS", "").lower() not in {"true", "1", "yes"})
 
 
 # -----------------------------------------------------
@@ -922,8 +934,8 @@ def write_html(path: str, rows):
             for it in items:
                 img_src = ""
                 if it.img_local:
-                    local_path = os.path.join(OUT_DIR, it.img_local)
-                    img_src = to_file_url(local_path) if HTML_USE_ABSOLUTE_FILE_URL else it.img_local
+                    local_path = os.path.join(ASSET_DIR, it.img_local)
+                    img_src = to_file_url(local_path) if HTML_USE_ABSOLUTE_FILE_URL else f"assets/{it.img_local}"
                 if not img_src:
                     img_src = it.img_url or ""
 
@@ -970,6 +982,17 @@ def write_html(path: str, rows):
     body {{ background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; min-height: 100vh; }}
     .glass-card {{ background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }}
     .sidebar {{ background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }}
+
+    /* ===== EMBED MODE (when inside iframe) ===== */
+    body.embedded aside {{ display:none !important; }}
+    body.embedded header {{ display:none !important; }}
+    body.embedded .sidebar {{ display:none !important; }}
+
+    /* iframe 안에서는 padding만 적당히 */
+    body.embedded main {{ padding: 24px !important; }}
+
+    /* 혹시 sticky 영향 있으면 */
+    body.embedded .sticky {{ position: static !important; }}
   </style>
 </head>
 <body class="flex">
@@ -1034,6 +1057,17 @@ def write_html(path: str, rows):
       }}
     }}
   </script>
+
+  <script>
+    (function () {{
+      try {{
+        if (window.self !== window.top) document.body.classList.add("embedded");
+      }} catch (e) {{
+        document.body.classList.add("embedded");
+      }}
+    }})();
+  </script>
+
 </body>
 </html>
 """
