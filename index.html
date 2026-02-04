@@ -80,13 +80,13 @@
 
   <!-- NAV -->
   <div class="space-y-3">
-    <div id="nav-price" class="nav-item active" data-key="price">
+    <div id="nav-price" class="nav-item active" data-key="price" data-target="reports/naver_lowest_price.html">
       <i class="fa-solid fa-won-sign"></i><span>네이버 최저가</span>
     </div>
-    <div id="nav-hero" class="nav-item" data-key="hero">
+    <div id="nav-hero" class="nav-item" data-key="hero" data-target="reports/hero_main.html">
       <i class="fa-solid fa-image"></i><span>경쟁사 Hero 배너</span>
     </div>
-    <div id="nav-voc" class="nav-item" data-key="voc">
+    <div id="nav-voc" class="nav-item" data-key="voc" data-target="reports/external_signal.html">
       <i class="fa-solid fa-tower-broadcast"></i><span>커뮤니티 VOC</span>
     </div>
   </div>
@@ -118,6 +118,37 @@
   </section>
 
 </main>
+
+<script>
+  (function () {
+    const frame = document.getElementById("frame");
+    const items = Array.from(document.querySelectorAll(".nav-item[data-target]"));
+
+    if (!frame || items.length === 0) return;
+
+    function setActive(activeEl) {
+      items.forEach(el => el.classList.remove("active"));
+      activeEl.classList.add("active");
+    }
+
+    function navigate(target, el) {
+      if (!target) return;
+      frame.src = target;
+      if (el) setActive(el);
+    }
+
+    items.forEach(el => {
+      el.addEventListener("click", () => {
+        navigate(el.getAttribute("data-target"), el);
+      });
+    });
+
+    // 첫 로딩 시: iframe src와 같은 메뉴를 active로 맞춤
+    const current = frame.getAttribute("src");
+    const match = items.find(el => el.getAttribute("data-target") === current);
+    if (match) setActive(match);
+  })();
+</script>
 
 </body>
 </html>
