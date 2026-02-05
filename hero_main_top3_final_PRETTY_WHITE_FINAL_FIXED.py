@@ -80,11 +80,23 @@ else:
 # Brands
 # -----------------------------------------------------
 BRANDS = [
+    # existing
     ("tnf", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", 3),
     ("nepa", "NEPA", "https://www.nplus.co.kr/main/main.asp?NaPm=ct%3Dmk68nx7b%7Cci%3Dcheckout%7Ctr%3Dds%7Ctrx%3Dnull%7Chk%3D2eb6245a50cfbdfae4c4e3e806691658fa257fa9", "nepa_static", 3),
     ("patagonia", "Patagonia", "https://www.patagonia.co.kr/", "patagonia_static_hero", 1),
     ("blackyak", "Black Yak", "https://www.byn.kr/blackyak?utm_source=naver&utm_medium=BSA&utm_campaign=BY_EC_250828_hyperpulse_PERF_NV_BSA&utm_content=PC_BY_EC_naver_BSA_250828_hyperpulse_homelink&utm_term=%EB%B8%94%EB%9E%99%EC%95%BC%ED%81%AC&NaPm=ct%3Dmhwxwfpl%7Cci%3DERbd1ca7ea%2Dc04a%2D11f0%2D935c%2Df6a058b83a4c%7Ctr%3Dbrnd%7Chk%3D07dc9aedc63b17fba956801b4aa26232c93036a5%7Cnacn%3DBOWtB0gPQcOt", "blackyak_swiper", 3),
     ("discovery", "Discovery", "https://www.discovery-expedition.com/?gf=A", "discovery_swiper", 3),
+
+    # added (generic top banner scan)
+    ("columbia", "Columbia", "https://www.columbiakorea.co.kr/main/main.asp", "generic", 3),
+    ("arcteryx", "Arc'teryx", "https://www.arcteryx.co.kr/", "generic", 3),
+    ("salomon", "Salomon", "https://salomon.co.kr/", "generic", 3),
+    ("snowpeak", "Snow Peak", "https://www.snowpeakstore.co.kr/", "generic", 3),
+    ("natgeo", "National Geographic", "https://www.natgeokorea.com/", "generic", 3),
+    ("kolonsport", "Kolon Sport", "https://www.kolonsport.com/", "generic", 3),
+    ("k2", "K2", "https://www.k2.co.kr/", "generic", 3),
+    ("montbell", "Montbell", "https://www.montbell.co.kr/", "generic", 3),
+    ("eider", "Eider", "https://www.eider.co.kr/", "generic", 3),
 ]
 
 
@@ -1101,6 +1113,8 @@ def crawl_brand(page, bk, bn, url, mode, date_s, mx):
         return blackyak_swiper(page, url, bk, bn, date_s, mx)
     elif mode == "discovery_swiper":
         return discovery_swiper(page, url, bk, bn, date_s, mx)
+    elif mode == "generic":
+        return generic_top_banners(page, url, bk, bn, date_s, mx)
     else:
         return generic_top_banners(page, url, bk, bn, date_s, mx)
 
