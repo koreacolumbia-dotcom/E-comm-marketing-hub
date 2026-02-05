@@ -53,12 +53,42 @@
       background: rgba(255,255,255,0.55);
       color:#334155;
     }
+
+    /* ===== Mobile Bottom Tab ===== */
+    .mo-tabbar{
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid rgba(255,255,255,0.85);
+    }
+    .mo-tab{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      padding: 10px 8px;
+      border-radius: 16px;
+      font-weight: 900;
+      transition: all .15s ease;
+      color:#94a3b8;
+      user-select:none;
+      cursor:pointer;
+    }
+    .mo-tab.active{
+      color: var(--brand);
+      background: rgba(0,45,114,0.06);
+    }
+
+    /* iOS safe area */
+    .safe-bottom{
+      padding-bottom: env(safe-area-inset-bottom);
+    }
   </style>
 </head>
 
 <body class="flex">
 
-<!-- ================= Sidebar ================= -->
+<!-- ================= Sidebar (PC) ================= -->
 <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
 
   <!-- BRAND -->
@@ -78,15 +108,15 @@
     </div>
   </div>
 
-  <!-- NAV -->
+  <!-- NAV (PC) -->
   <div class="space-y-3">
-    <div id="nav-price" class="nav-item active" data-key="price" data-target="reports/naver_lowest_price.html">
+    <div class="nav-item active" data-key="price" data-target="reports/naver_lowest_price.html" data-label="네이버 최저가">
       <i class="fa-solid fa-won-sign"></i><span>네이버 최저가</span>
     </div>
-    <div id="nav-hero" class="nav-item" data-key="hero" data-target="reports/hero_main.html">
+    <div class="nav-item" data-key="hero" data-target="reports/hero_main.html" data-label="경쟁사 Hero 배너">
       <i class="fa-solid fa-image"></i><span>경쟁사 Hero 배너</span>
     </div>
-    <div id="nav-voc" class="nav-item" data-key="voc" data-target="reports/external_signal.html">
+    <div class="nav-item" data-key="voc" data-target="reports/external_signal.html" data-label="커뮤니티 VOC">
       <i class="fa-solid fa-tower-broadcast"></i><span>커뮤니티 VOC</span>
     </div>
   </div>
@@ -97,9 +127,24 @@
 </aside>
 
 <!-- ================= Main ================= -->
-<main class="flex-1 p-6 md:p-10 lg:p-16">
+<main class="flex-1 p-4 md:p-10 lg:p-16 pb-24 lg:pb-0">
 
-  <header class="mb-8">
+  <!-- ===== Mobile Header (MO) ===== -->
+  <header class="lg:hidden mb-4">
+    <div class="glass-card px-4 py-3 flex items-center gap-3">
+      <img src="Columbia_logo.png" alt="Columbia" class="w-10 h-10 object-contain" />
+      <div class="flex-1">
+        <div class="text-sm font-black tracking-tight">CSK <span class="text-blue-600">E-COMM</span></div>
+        <div class="text-[10px] font-extrabold text-slate-400">AUTOMAITON MARKETING HUB</div>
+      </div>
+      <div class="text-[11px] font-black text-slate-700 px-3 py-1 rounded-full bg-white/70">
+        <span id="mo-current-label">네이버 최저가</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== Desktop Header (PC) ===== -->
+  <header class="hidden lg:block mb-8">
     <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900">
       Marketing Intelligent Hub
     </h1>
@@ -108,45 +153,81 @@
     </p>
   </header>
 
-  <section class="glass-card p-6">
+  <section class="glass-card p-4 md:p-6">
     <iframe
       id="frame"
       src="reports/naver_lowest_price.html"
-      class="w-full h-[75vh] rounded-2xl border-0 bg-white"
+      class="w-full rounded-2xl border-0 bg-white"
+      style="height: calc(100vh - 220px);"
       loading="eager">
     </iframe>
   </section>
 
 </main>
 
+<!-- ================= Mobile Bottom Tabbar (MO) ================= -->
+<nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
+  <div class="max-w-2xl mx-auto grid grid-cols-3 gap-2">
+    <div class="mo-tab active" data-key="price" data-target="reports/naver_lowest_price.html" data-label="네이버 최저가">
+      <i class="fa-solid fa-won-sign text-base"></i>
+      <div class="text-[10px]">최저가</div>
+    </div>
+    <div class="mo-tab" data-key="hero" data-target="reports/hero_main.html" data-label="경쟁사 Hero 배너">
+      <i class="fa-solid fa-image text-base"></i>
+      <div class="text-[10px]">Hero</div>
+    </div>
+    <div class="mo-tab" data-key="voc" data-target="reports/external_signal.html" data-label="커뮤니티 VOC">
+      <i class="fa-solid fa-tower-broadcast text-base"></i>
+      <div class="text-[10px]">VOC</div>
+    </div>
+  </div>
+</nav>
+
 <script>
   (function () {
     const frame = document.getElementById("frame");
-    const items = Array.from(document.querySelectorAll(".nav-item[data-target]"));
+    const pcItems = Array.from(document.querySelectorAll(".nav-item[data-target]"));
+    const moTabs  = Array.from(document.querySelectorAll(".mo-tab[data-target]"));
+    const moLabel = document.getElementById("mo-current-label");
 
-    if (!frame || items.length === 0) return;
+    const allNav = [...pcItems, ...moTabs];
+    if (!frame || allNav.length === 0) return;
 
-    function setActive(activeEl) {
-      items.forEach(el => el.classList.remove("active"));
-      activeEl.classList.add("active");
+    function setActiveByTarget(target) {
+      allNav.forEach(el => el.classList.remove("active"));
+      const matches = allNav.filter(el => el.getAttribute("data-target") === target);
+      matches.forEach(el => el.classList.add("active"));
+
+      const label = (matches[0] && matches[0].getAttribute("data-label")) || "";
+      if (moLabel && label) moLabel.textContent = label;
     }
 
-    function navigate(target, el) {
+    function navigate(target) {
       if (!target) return;
       frame.src = target;
-      if (el) setActive(el);
+      setActiveByTarget(target);
     }
 
-    items.forEach(el => {
+    // Click handlers (PC + MO)
+    allNav.forEach(el => {
       el.addEventListener("click", () => {
-        navigate(el.getAttribute("data-target"), el);
+        navigate(el.getAttribute("data-target"));
       });
     });
 
-    // 첫 로딩 시: iframe src와 같은 메뉴를 active로 맞춤
-    const current = frame.getAttribute("src");
-    const match = items.find(el => el.getAttribute("data-target") === current);
-    if (match) setActive(match);
+    // Initial sync
+    const initial = frame.getAttribute("src");
+    setActiveByTarget(initial);
+
+    // Responsive iframe height: mobile header + bottom tab 고려
+    function resizeFrame() {
+      // rough offsets: header(=~80) + card padding + bottom tab(=~88)
+      const isMobile = window.matchMedia("(max-width: 1023px)").matches;
+      const offset = isMobile ? 220 : 200;
+      frame.style.height = `calc(100vh - ${offset}px)`;
+    }
+    window.addEventListener("resize", resizeFrame);
+    resizeFrame();
   })();
 </script>
 
