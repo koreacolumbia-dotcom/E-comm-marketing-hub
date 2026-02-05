@@ -2,43 +2,128 @@
 # -*- coding: utf-8 -*-
 
 print("HERO SCRIPT NEW VERSION RUNNING", flush=True)
-      
+
 """
-hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
+hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py (+ PROGRESS + DEDUPE + DATES + IMG_META)
 
-Fixes:
-- (핵심) HTML에서 로컬 이미지 경로를 file:// 절대경로로 사용 → HTML만 따로 옮겨 열어도 이미지 안 깨짐
-- Hotlink/Referer 이슈 대응: 이미지 다운로드 시 Referer를 "페이지 URL"로 설정
-- goto 후 networkidle wait으로 lazy-load 안정화
-- generic_top_banners 스캔 범위 소폭 확장 + 스크롤 너지로 렌더 유도
-
-[추가 Fix - GitHub Actions 실패 원인 해결]
-- 구버전 잔재(hero_main_report_*.html 검사/exit 1)를 완전 제거
-- reports/hero_main.html 생성 성공이면 무조건 success
-- rows가 비어도(일시적 크롤링 실패) HTML/CSV는 생성하고 exit 0
-
-[추가 Fix - embed 모드 + No Image 근본 해결]
-- iframe 감지 시 body.embedded 클래스로 portal chrome(aside/header/sidebar) 숨김
-- GitHub Pages에서는 file:// 로드 불가 → GITHUB_ACTIONS 환경에서 REL(assets/) 모드 자동 강제
-- REL 모드에서 img src가 assets/<filename>로 정확히 들어가도록 수정
+추가된 개선:
+- (중복 다운로드 방지) img_url 단위 다운로드 캐시(IMG_URL_CACHE) 적용
+- (중복 배너 제거) 브랜드 내에서 동일 캠페인(정규화 href) / 동일 이미지(img_url) 중복 제거
+- (이미지 메타) 저장된 로컬 이미지의 width/height/bytes를 수집해서 CSV/HTML에 반영
+- (기획전 이름 정리) phpThumb/파일명/쿼리 기반 제목은 배제하고 텍스트 우선 + 정리 규칙 추가
+- (기획전 시작일/기간) href 페이지에서 날짜 패턴 탐색(옵션: FETCH_CAMPAIGN_DATES=1 기본)
+- (No Image 원인 기록) img_status 컬럼으로 추적 가능
 """
 
-import os, re, csv, hashlib, urllib.parse, sys
+import os, re, csv, hashlib, urllib.parse, sys, time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict
 import requests
 from pathlib import Path
+from contextlib import contextmanager
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError, Error as PWError
 
-# Pillow (image resize)
+# Pillow (image resize + meta)
 try:
     from PIL import Image
     from io import BytesIO
     PIL_OK = True
 except Exception:
     PIL_OK = False
+
+
+# -----------------------------------------------------
+# Progress (console)
+# -----------------------------------------------------
+class Progress:
+    def __init__(self, total: int):
+        self.total = max(int(total), 1)
+        self.done = 0
+        self.ok = 0
+        self.fail = 0
+        self.start_ts = time.time()
+        self.curr_brand = ""
+        self.curr_stage = ""
+        self.img_saved = 0
+        self.img_failed = 0
+
+    def _fmt_eta(self):
+        elapsed = time.time() - self.start_ts
+        if self.done <= 0:
+            return "ETA --:--"
+        rate = elapsed / self.done
+        remain = rate * (self.total - self.done)
+        mm = int(remain // 60)
+        ss = int(remain % 60)
+        return f"ETA {mm:02d}:{ss:02d}"
+
+    def _render(self):
+        elapsed = time.time() - self.start_ts
+        mm = int(elapsed // 60)
+        ss = int(elapsed % 60)
+        pct = int((self.done / self.total) * 100)
+
+        bar_w = 28
+        fill = int(bar_w * self.done / self.total)
+        bar = "█" * fill + "░" * (bar_w - fill)
+
+        msg = (
+            f"[{bar}] {pct:3d}%  "
+            f"{self.done}/{self.total}  "
+            f"OK:{self.ok} FAIL:{self.fail}  "
+            f"IMG:{self.img_saved} (fail:{self.img_failed})  "
+            f"{self._fmt_eta()}  "
+            f"({mm:02d}:{ss:02d})  "
+            f"{self.curr_brand} {self.curr_stage}"
+        )
+        sys.stdout.write("\r" + msg[:220].ljust(220))
+        sys.stdout.flush()
+
+    def set_stage(self, brand: str = "", stage: str = ""):
+        if brand:
+            self.curr_brand = brand
+        if stage:
+            self.curr_stage = stage
+        self._render()
+
+    def step_done(self, ok: bool):
+        self.done += 1
+        if ok:
+            self.ok += 1
+        else:
+            self.fail += 1
+        self.curr_stage = "done"
+        self._render()
+
+    def add_img(self, ok: bool):
+        if ok:
+            self.img_saved += 1
+        else:
+            self.img_failed += 1
+        self._render()
+
+    def newline(self):
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+
+PROG: Optional[Progress] = None
+
+
+@contextmanager
+def stage(brand_name: str, stage_name: str):
+    global PROG
+    if PROG:
+        PROG.set_stage(brand=brand_name, stage=stage_name)
+    t0 = time.time()
+    try:
+        yield
+    finally:
+        dt = time.time() - t0
+        if PROG:
+            PROG.set_stage(brand=brand_name, stage=f"{stage_name} ({dt:.1f}s)")
 
 
 # -----------------------------------------------------
@@ -57,19 +142,17 @@ WAIT_AFTER_GOTO_MS = int(os.environ.get("WAIT_AFTER_GOTO_MS", "1800"))
 MAX_IMG_WIDTH = int(os.environ.get("MAX_IMG_WIDTH", "1100"))  # px
 JPG_QUALITY = int(os.environ.get("JPG_QUALITY", "85"))
 
+# campaign date fetch
+FETCH_CAMPAIGN_DATES = os.environ.get("FETCH_CAMPAIGN_DATES", "1") != "0"
+DATE_FETCH_TIMEOUT_MS = int(os.environ.get("DATE_FETCH_TIMEOUT_MS", "12000"))
+
 USER_AGENT = os.environ.get(
     "USER_AGENT",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
 )
 
-# (옵션) HTML에 file:// 절대경로로 로컬이미지를 박을지 여부
-# - 로컬에서 HTML 단독 이동/열기 목적이면 1 추천
-# - GitHub Pages(https) 배포면 file:// 로드가 브라우저 정책상 불가 → 반드시 0
-#
-# ✅ 자동 안전장치:
-# - GitHub Actions 환경(GITHUB_ACTIONS=true)이면 기본값을 0(REL)로 강제
-# - 로컬 실행은 기본값 1(ABS) 유지
+# HTML local image path mode
 if "HTML_USE_ABSOLUTE_FILE_URL" in os.environ:
     HTML_USE_ABSOLUTE_FILE_URL = os.environ.get("HTML_USE_ABSOLUTE_FILE_URL", "0") != "0"
 else:
@@ -80,15 +163,12 @@ else:
 # Brands
 # -----------------------------------------------------
 BRANDS = [
-    # existing
     ("tnf", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", 3),
     ("nepa", "NEPA", "https://www.nplus.co.kr/main/main.asp?NaPm=ct%3Dmk68nx7b%7Cci%3Dcheckout%7Ctr%3Dds%7Ctrx%3Dnull%7Chk%3D2eb6245a50cfbdfae4c4e3e806691658fa257fa9", "nepa_static", 3),
     ("patagonia", "Patagonia", "https://www.patagonia.co.kr/", "patagonia_static_hero", 1),
     ("blackyak", "Black Yak", "https://www.byn.kr/blackyak?utm_source=naver&utm_medium=BSA&utm_campaign=BY_EC_250828_hyperpulse_PERF_NV_BSA&utm_content=PC_BY_EC_naver_BSA_250828_hyperpulse_homelink&utm_term=%EB%B8%94%EB%9E%99%EC%95%BC%ED%81%AC&NaPm=ct%3Dmhwxwfpl%7Cci%3DERbd1ca7ea%2Dc04a%2D11f0%2D935c%2Df6a058b83a4c%7Ctr%3Dbrnd%7Chk%3D07dc9aedc63b17fba956801b4aa26232c93036a5%7Cnacn%3DBOWtB0gPQcOt", "blackyak_swiper", 3),
     ("discovery", "Discovery", "https://www.discovery-expedition.com/?gf=A", "discovery_swiper", 3),
 
-    # added (generic top banner scan)
-    ("columbia", "Columbia", "https://www.columbiakorea.co.kr/main/main.asp", "generic", 3),
     ("arcteryx", "Arc'teryx", "https://www.arcteryx.co.kr/", "generic", 3),
     ("salomon", "Salomon", "https://salomon.co.kr/", "generic", 3),
     ("snowpeak", "Snow Peak", "https://www.snowpeakstore.co.kr/", "generic", 3),
@@ -113,6 +193,22 @@ class Banner:
     href: str
     img_url: str
     img_local: str
+
+    # added
+    href_clean: str = ""
+    plan_start: str = ""
+    plan_end: str = ""
+    img_w: int = 0
+    img_h: int = 0
+    img_bytes: int = 0
+    img_status: str = ""   # ok / download_fail / no_url / unknown
+
+
+# -----------------------------------------------------
+# Global caches / meta
+# -----------------------------------------------------
+IMG_URL_CACHE: Dict[str, str] = {}       # img_url -> local filename
+IMG_META: Dict[str, Tuple[int, int, int]] = {}  # local filename -> (w,h,bytes)
 
 
 # -----------------------------------------------------
@@ -171,6 +267,79 @@ def _extract_url_from_css(css: str) -> str:
         return s.strip()
     except Exception:
         return ""
+
+def is_junk_title(t: str) -> bool:
+    tl = (t or "").strip().lower()
+    if not tl:
+        return True
+    # 파일명/쿼리 기반 or 의미 없는 제목들
+    junk_tokens = [
+        "phpthumb", "src=/uploads", "w=1200", "q=80", "f=webp",
+        ".jpg", ".jpeg", ".png", ".webp", "data:image",
+        "main_mc", "kakaotalk_", "img_", "banner_", "thumb",
+    ]
+    if any(tok in tl for tok in junk_tokens):
+        # 단, 정상 문장인데 확장자만 포함된 케이스는 제외하고 싶지만
+        # 여기선 보수적으로 junk 처리
+        return True
+    # 해시처럼 생긴 값만 있는 경우
+    if re.fullmatch(r"[a-f0-9_\-]{18,}", tl):
+        return True
+    return False
+
+def clean_campaign_title(t: str) -> str:
+    t = norm_ws(t)
+    t = t.strip('"').strip("'").strip()
+    # 앞뒤에 파일명 느낌 제거
+    t = re.sub(r'^\s*["\']?|["\']?\s*$', '', t)
+    # 너무 길면 컷
+    return t[:90]
+
+def choose_title(*cands: str) -> str:
+    c = [norm_ws(x) for x in cands if norm_ws(x)]
+    c = [x for x in c if x.lower() not in {"next", "prev", "이전", "다음", "닫기"} and len(x) > 1]
+    # junk 후보 제거
+    c2 = [x for x in c if not is_junk_title(x)]
+    if c2:
+        c2.sort(key=lambda x: (len(x), x), reverse=True)
+        return clean_campaign_title(c2[0])
+    if c:
+        c.sort(key=lambda x: (len(x), x), reverse=True)
+        return clean_campaign_title(c[0])
+    return "메인 배너"
+
+def normalize_href(href: str) -> str:
+    """dedupe용: utm/fbclid/NaPm 등 제거한 canonical href"""
+    href = (href or "").strip()
+    if not href:
+        return ""
+    try:
+        sp = urllib.parse.urlsplit(href)
+        qs = urllib.parse.parse_qsl(sp.query, keep_blank_values=True)
+        drop_prefixes = ("utm_",)
+        drop_keys = {"fbclid", "gclid", "wbraid", "gbraid", "NaPm", "nacn", "sms_click", "igshid"}
+        kept = []
+        for k, v in qs:
+            kl = (k or "")
+            if any(kl.startswith(p) for p in drop_prefixes):
+                continue
+            if kl in drop_keys:
+                continue
+            kept.append((k, v))
+        new_q = urllib.parse.urlencode(kept, doseq=True)
+        sp2 = sp._replace(query=new_q, fragment="")
+        return urllib.parse.urlunsplit(sp2)
+    except Exception:
+        return href
+
+def get_any_alt_text(el) -> str:
+    try:
+        img = el.locator("img").first
+        if img.count():
+            return norm_ws(img.get_attribute("alt") or "")
+    except Exception:
+        pass
+    return ""
 
 def get_any_img_url(el, base_url: str) -> str:
     # 1) inline style background-image on self
@@ -322,23 +491,6 @@ def get_any_img_url(el, base_url: str) -> str:
 
     return ""
 
-def get_any_alt_text(el) -> str:
-    try:
-        img = el.locator("img").first
-        if img.count():
-            return norm_ws(img.get_attribute("alt") or "")
-    except Exception:
-        pass
-    return ""
-
-def choose_title(*cands: str) -> str:
-    c = [norm_ws(x) for x in cands if norm_ws(x)]
-    c = [x for x in c if x.lower() not in {"next", "prev", "이전", "다음", "닫기"} and len(x) > 1]
-    if not c:
-        return "메인 배너"
-    c.sort(key=lambda x: (len(x), x), reverse=True)
-    return c[0][:90]
-
 
 # -----------------------------------------------------
 # (옵션) 로컬 파일을 HTML에서 깨지지 않게 file:// URL로 변환
@@ -355,13 +507,13 @@ def to_file_url(path: str) -> str:
 
 
 # -----------------------------------------------------
-# Image download + resize
+# Image download + resize (+ cache + meta)
 # -----------------------------------------------------
 def download_bytes(url: str, referer: str = "") -> Optional[bytes]:
     try:
         headers = {"User-Agent": USER_AGENT}
         if referer:
-            headers["Referer"] = referer  # 중요: 이미지 URL이 아니라 '페이지 URL'
+            headers["Referer"] = referer
         r = requests.get(url, headers=headers, timeout=25)
         if r.status_code != 200 or not r.content:
             return None
@@ -369,9 +521,36 @@ def download_bytes(url: str, referer: str = "") -> Optional[bytes]:
     except Exception:
         return None
 
-def save_and_resize_image(img_url: str, brand_key: str, rank: int, referer: str = "") -> str:
+def _record_img_meta(local_path: str, fname: str):
+    try:
+        size_b = os.path.getsize(local_path)
+    except Exception:
+        size_b = 0
+
+    w = h = 0
+    if PIL_OK:
+        try:
+            im = Image.open(local_path)
+            w, h = im.size
+        except Exception:
+            w = h = 0
+    IMG_META[fname] = (int(w or 0), int(h or 0), int(size_b or 0))
+
+def save_and_resize_image(img_url: str, brand_key: str, rank: int, referer: str = "") -> Tuple[str, str]:
+    """
+    returns: (local_filename, status)
+      status: ok / download_fail / no_url / cached
+    """
+    global PROG, IMG_URL_CACHE
+
     if not img_url:
-        return ""
+        if PROG: PROG.add_img(False)
+        return "", "no_url"
+
+    # cache hit
+    if img_url in IMG_URL_CACHE and IMG_URL_CACHE[img_url]:
+        return IMG_URL_CACHE[img_url], "cached"
+
     os.makedirs(ASSET_DIR, exist_ok=True)
     out_ext = ".jpg" if PIL_OK else guess_ext(img_url)
     fname = safe_filename(f"{brand_key}_{rank}_{sha1(img_url)}", out_ext)
@@ -379,12 +558,21 @@ def save_and_resize_image(img_url: str, brand_key: str, rank: int, referer: str 
 
     content = download_bytes(img_url, referer=referer)
     if content is None:
-        return ""
+        if PROG: PROG.add_img(False)
+        return "", "download_fail"
 
+    # save (+ resize)
     if not PIL_OK:
-        with open(out_path, "wb") as f:
-            f.write(content)
-        return fname
+        try:
+            with open(out_path, "wb") as f:
+                f.write(content)
+            _record_img_meta(out_path, fname)
+            IMG_URL_CACHE[img_url] = fname
+            if PROG: PROG.add_img(True)
+            return fname, "ok"
+        except Exception:
+            if PROG: PROG.add_img(False)
+            return "", "download_fail"
 
     try:
         im = Image.open(BytesIO(content))
@@ -396,14 +584,22 @@ def save_and_resize_image(img_url: str, brand_key: str, rank: int, referer: str 
             new_h = int(h * (new_w / float(w)))
             im = im.resize((new_w, new_h), Image.LANCZOS)
         im.save(out_path, format="JPEG", quality=JPG_QUALITY, optimize=True)
-        return fname
+
+        _record_img_meta(out_path, fname)
+        IMG_URL_CACHE[img_url] = fname
+        if PROG: PROG.add_img(True)
+        return fname, "ok"
     except Exception:
         try:
             with open(out_path, "wb") as f:
                 f.write(content)
-            return fname
+            _record_img_meta(out_path, fname)
+            IMG_URL_CACHE[img_url] = fname
+            if PROG: PROG.add_img(True)
+            return fname, "ok"
         except Exception:
-            return ""
+            if PROG: PROG.add_img(False)
+            return "", "download_fail"
 
 
 # -----------------------------------------------------
@@ -448,6 +644,98 @@ def launch(pw):
         locale="ko-KR",
     )
     return browser, context
+
+
+# -----------------------------------------------------
+# Campaign date extraction
+# -----------------------------------------------------
+DATE_PATTERNS = [
+    # 2026.02.01 ~ 2026.02.10
+    re.compile(r"(\d{4}[./-]\d{1,2}[./-]\d{1,2})\s*(?:~|∼|–|-|—)\s*(\d{4}[./-]\d{1,2}[./-]\d{1,2})"),
+    # 2026.02.01 ~ 02.10 (end year omitted)
+    re.compile(r"(\d{4})[./-](\d{1,2})[./-](\d{1,2})\s*(?:~|∼|–|-|—)\s*(\d{1,2})[./-](\d{1,2})"),
+    # 2026-02-01부터 2026-02-10까지
+    re.compile(r"(\d{4}[./-]\d{1,2}[./-]\d{1,2}).{0,12}?(?:부터|~|∼|–|-|—).{0,12}?(\d{4}[./-]\d{1,2}[./-]\d{1,2}).{0,8}?(?:까지)?"),
+]
+
+def _norm_date(s: str) -> str:
+    s = (s or "").strip()
+    s = s.replace("/", "-").replace(".", "-")
+    # 2026-2-5 -> 2026-02-05
+    m = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", s)
+    if not m:
+        return s
+    y, mo, d = m.group(1), int(m.group(2)), int(m.group(3))
+    return f"{y}-{mo:02d}-{d:02d}"
+
+def extract_date_range_from_text(text: str) -> Tuple[str, str]:
+    t = text or ""
+    # whitespace normalize
+    t = re.sub(r"\s+", " ", t)
+
+    for pat in DATE_PATTERNS:
+        m = pat.search(t)
+        if not m:
+            continue
+        if pat.pattern.startswith(r"(\d{4})"):
+            # pattern2: y mo d ~ mo d
+            y = m.group(1)
+            mo1, d1 = int(m.group(2)), int(m.group(3))
+            mo2, d2 = int(m.group(4)), int(m.group(5))
+            s = f"{y}-{mo1:02d}-{d1:02d}"
+            e = f"{y}-{mo2:02d}-{d2:02d}"
+            return _norm_date(s), _norm_date(e)
+
+        s = _norm_date(m.group(1))
+        e = _norm_date(m.group(2))
+        return s, e
+
+    # 못 찾으면 빈값
+    return "", ""
+
+def fetch_campaign_dates(context, href: str) -> Tuple[str, str]:
+    """href 페이지에서 기간(시작/종료) 탐색"""
+    if not href:
+        return "", ""
+    if not FETCH_CAMPAIGN_DATES:
+        return "", ""
+
+    p = None
+    try:
+        p = context.new_page()
+        p.goto(href, timeout=DATE_FETCH_TIMEOUT_MS, wait_until="domcontentloaded")
+        try:
+            p.wait_for_load_state("networkidle", timeout=3000)
+        except Exception:
+            pass
+
+        # 너무 무겁게 전체 DOM을 다 긁지 말고, body 텍스트 우선
+        try:
+            body_text = p.locator("body").inner_text(timeout=2000)
+        except Exception:
+            body_text = ""
+
+        s, e = extract_date_range_from_text(body_text)
+
+        # fallback: meta/og/ld+json
+        if not s:
+            try:
+                html = p.content()
+            except Exception:
+                html = ""
+            s2, e2 = extract_date_range_from_text(html)
+            if s2:
+                s, e = s2, e2
+
+        return s, e
+    except Exception:
+        return "", ""
+    finally:
+        try:
+            if p:
+                p.close()
+        except Exception:
+            pass
 
 
 # -----------------------------------------------------
@@ -507,7 +795,7 @@ def tnf_slick(page, base_url: str, brand_key: str, brand_name: str, date_s: str,
     for it in items or []:
         href = abs_url(base_url, (it.get("href") or "").strip()) if it else ""
         img_url = abs_url(base_url, (it.get("img") or "").strip()) if it else ""
-        key = (href, img_url)
+        key = (normalize_href(href), img_url)
         if not href and not img_url:
             continue
         if key in seen:
@@ -523,9 +811,19 @@ def tnf_slick(page, base_url: str, brand_key: str, brand_name: str, date_s: str,
         img_url = abs_url(base_url, (it.get("img") or "").strip())
         alt = norm_ws(it.get("alt") or "")
         txt = norm_ws(it.get("txt") or "")
-        title = choose_title(alt, txt, "", urllib.parse.unquote((img_url or "").split("/")[-1]))
-        img_local = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ""
-        out.append(Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local))
+
+        title = choose_title(txt, alt)
+        img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+
+        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+        b.href_clean = normalize_href(href)
+        b.img_status = "ok" if img_local else st
+
+        if img_local and img_local in IMG_META:
+            w, h, sz = IMG_META[img_local]
+            b.img_w, b.img_h, b.img_bytes = w, h, sz
+
+        out.append(b)
         rank += 1
     return out
 
@@ -554,6 +852,7 @@ def discovery_swiper(page, base_url: str, brand_key: str, brand_name: str, date_
             if a.count():
                 href = abs_url(base_url, a.get_attribute("href") or "")
             img_url = get_any_img_url(sl, base_url)
+
             title_txt = ""
             try:
                 title_txt = norm_ws(sl.locator(".click_banner_main_name").first.inner_text() or "")
@@ -562,6 +861,7 @@ def discovery_swiper(page, base_url: str, brand_key: str, brand_name: str, date_
                     title_txt = norm_ws(sl.inner_text() or "")
                 except Exception:
                     title_txt = ""
+
             idx = 9999
             try:
                 v = sl.get_attribute("data-swiper-slide-index") or ""
@@ -569,14 +869,16 @@ def discovery_swiper(page, base_url: str, brand_key: str, brand_name: str, date_
                     idx = int(v.strip())
             except Exception:
                 pass
+
             if not href and not img_url:
                 continue
-            key = sha1("\n".join([href, img_url]))
+            key = sha1("\n".join([normalize_href(href), img_url]))
             candidates.append((idx, key, title_txt, href, img_url))
         except Exception:
             continue
 
     candidates.sort(key=lambda x: x[0])
+
     seen, rank = set(), 1
     for idx, key, title_txt, href, img_url in candidates:
         if rank > max_items:
@@ -584,11 +886,22 @@ def discovery_swiper(page, base_url: str, brand_key: str, brand_name: str, date_
         if key in seen:
             continue
         seen.add(key)
-        title = choose_title(title_txt, urllib.parse.unquote((img_url or "").split("/")[-1]))
-        img_local = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ""
-        out.append(Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local))
-        print(f" #{rank}: {title}")
+
+        title = choose_title(title_txt, get_any_alt_text(page.locator("body")))
+        img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+
+        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+        b.href_clean = normalize_href(href)
+        b.img_status = "ok" if img_local else st
+
+        if img_local and img_local in IMG_META:
+            w, h, sz = IMG_META[img_local]
+            b.img_w, b.img_h, b.img_bytes = w, h, sz
+
+        out.append(b)
+        print(f" #{rank}: {title}", flush=True)
         rank += 1
+
     return out
 
 def blackyak_swiper(page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
@@ -642,7 +955,7 @@ def blackyak_swiper(page, base_url: str, brand_key: str, brand_name: str, date_s
         if img.startswith("//"):
             img = "https:" + img
         img_url = abs_url(base_url, img)
-        key = (href, img_url)
+        key = (normalize_href(href), img_url)
         if not href and not img_url:
             continue
         if key in seen:
@@ -660,14 +973,24 @@ def blackyak_swiper(page, base_url: str, brand_key: str, brand_name: str, date_s
         img_url = it.get("_img_abs") or abs_url(base_url, it.get("img") or "")
         alt = norm_ws(it.get("alt") or "")
         txt = norm_ws(it.get("txt") or "")
-        title = choose_title(alt, txt, "", urllib.parse.unquote((img_url or "").split("/")[-1]))
-        img_local = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ""
-        out.append(Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local))
+
+        title = choose_title(txt, alt)
+        img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+
+        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+        b.href_clean = normalize_href(href)
+        b.img_status = "ok" if img_local else st
+
+        if img_local and img_local in IMG_META:
+            w, h, sz = IMG_META[img_local]
+            b.img_w, b.img_h, b.img_bytes = w, h, sz
+
+        out.append(b)
         rank += 1
     return out
 
 def nepa_static(page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
-    out = []
+    out: List[Banner] = []
     root = page
     try:
         for fr in page.frames:
@@ -689,6 +1012,7 @@ def nepa_static(page, base_url: str, brand_key: str, brand_name: str, date_s: st
         box = root.locator(cls).first
         if not box.count():
             return None
+
         img_url = get_any_img_url(box, base_url)
         href = ""
         try:
@@ -697,16 +1021,27 @@ def nepa_static(page, base_url: str, brand_key: str, brand_name: str, date_s: st
                 href = abs_url(base_url, a.get_attribute("href") or "")
         except Exception:
             pass
+
         title_txt = ""
         try:
             title_txt = norm_ws(box.inner_text() or "")
         except Exception:
             pass
-        title = choose_title(title_txt, urllib.parse.unquote((img_url or "").split("/")[-1]))
+
+        title = choose_title(title_txt, get_any_alt_text(box))
         if not img_url and not href:
             return None
-        img_local = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ""
-        return Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+
+        img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+
+        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+        b.href_clean = normalize_href(href)
+        b.img_status = "ok" if img_local else st
+
+        if img_local and img_local in IMG_META:
+            w, h, sz = IMG_META[img_local]
+            b.img_w, b.img_h, b.img_bytes = w, h, sz
+        return b
 
     rank = 1
     for idx in range(1, 30):
@@ -715,64 +1050,13 @@ def nepa_static(page, base_url: str, brand_key: str, brand_name: str, date_s: st
         b = extract_from_banner(idx, rank)
         if b:
             out.append(b)
-            print(f" #{rank}: {b.title}")
+            print(f" #{rank}: {b.title}", flush=True)
             rank += 1
         if idx >= 5 and len(out) >= max_items:
             break
 
     if not out:
-        # fallback: top area scan
-        try:
-            vw = page.viewport_size["width"] if page.viewport_size else 1440
-            candidates = root.locator("section, div, a")
-            cnt = min(candidates.count(), 260)
-            seen = set()
-            rank = 1
-            for i in range(cnt):
-                if rank > max_items:
-                    break
-                el = candidates.nth(i)
-                try:
-                    if not el.is_visible():
-                        continue
-                    bb = el.bounding_box()
-                    if not bb:
-                        continue
-                    if bb["y"] < -80 or bb["y"] > 700:
-                        continue
-                    if bb["width"] < vw * 0.60 or bb["height"] < 220:
-                        continue
-                    img_url = get_any_img_url(el, base_url)
-                    href = ""
-                    try:
-                        a = el.locator("a[href]").first
-                        if a.count():
-                            href = abs_url(base_url, a.get_attribute("href") or "")
-                    except Exception:
-                        pass
-                    if not img_url and not href:
-                        continue
-                    fp = sha1("\n".join([img_url or "", href or ""]))
-                    if fp in seen:
-                        continue
-                    seen.add(fp)
-                    title_txt = ""
-                    try:
-                        title_txt = norm_ws(el.locator("h1,h2,h3,strong,p").first.inner_text() or "")
-                    except Exception:
-                        pass
-                    title = choose_title(title_txt, urllib.parse.unquote((img_url or "").split("/")[-1]))
-                    img_local = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ""
-                    out.append(Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local))
-                    print(f" #{rank}: {title}")
-                    rank += 1
-                except Exception:
-                    continue
-        except Exception:
-            pass
-
-    if not out:
-        print(" - NEPA 배너를 못 찾았어요 (팝업/로봇체크/구조변경 가능). HEADLESS=0로 확인 추천")
+        print(" - NEPA 배너를 못 찾았어요 (팝업/로봇체크/구조변경 가능). HEADLESS=0로 확인 추천", flush=True)
     return out
 
 def patagonia_static_hero(page, base_url: str, brand_key: str, brand_name: str, date_s: str):
@@ -819,23 +1103,32 @@ def patagonia_static_hero(page, base_url: str, brand_key: str, brand_name: str, 
             continue
 
     if not best_img and not best_href:
-        print(" - 상단 히어로 탐지 실패")
+        print(" - 상단 히어로 탐지 실패", flush=True)
         return []
 
     title = choose_title(best_title, urllib.parse.unquote((best_img or "").split("/")[-1]))
-    img_local = save_and_resize_image(best_img, brand_key, 1, referer=base_url) if best_img else ""
-    print(f" #1: {title}")
-    return [Banner(date_s, brand_key, brand_name, 1, title, best_href, best_img, img_local)]
+    img_local, st = save_and_resize_image(best_img, brand_key, 1, referer=base_url) if best_img else ("", "no_url")
+
+    b = Banner(date_s, brand_key, brand_name, 1, title, best_href, best_img, img_local)
+    b.href_clean = normalize_href(best_href)
+    b.img_status = "ok" if img_local else st
+
+    if img_local and img_local in IMG_META:
+        w, h, sz = IMG_META[img_local]
+        b.img_w, b.img_h, b.img_bytes = w, h, sz
+
+    print(f" #1: {title}", flush=True)
+    return [b]
 
 def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name: str, date_s: str,
                         max_items: int, y_max: int = 1400):
-    out = []
+    out: List[Banner] = []
     try:
         vw = page_or_frame.viewport_size["width"] if getattr(page_or_frame, "viewport_size", None) else 1440
     except Exception:
         vw = 1440
 
-    # scroll nudges to force lazy render
+    # scroll nudges
     try:
         page_or_frame.evaluate("window.scrollTo(0, 150);")
         page_or_frame.wait_for_timeout(250)
@@ -868,6 +1161,7 @@ def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name
                 continue
             if bb["width"] < vw * 0.55 or bb["height"] < 180:
                 continue
+
             img_url = get_any_img_url(el, base_url)
             href = ""
             try:
@@ -877,46 +1171,123 @@ def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name
                     href = abs_url(base_url, a.get_attribute("href") or "")
             except Exception:
                 pass
+
             if not img_url and not href:
                 continue
-            fp = sha1("\n".join([img_url or "", href or ""]))
+
+            # local dedupe key (candidate-level)
+            fp = sha1("\n".join([normalize_href(href), img_url or ""]))
             if fp in seen:
                 continue
             seen.add(fp)
+
             title_txt = ""
             try:
                 title_txt = norm_ws(el.locator("h1,h2,h3,strong,p").first.inner_text() or "")
             except Exception:
                 pass
-            title = choose_title(title_txt, urllib.parse.unquote((img_url or "").split("/")[-1]))
-            img_local = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ""
-            out.append(Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local))
+            title = choose_title(title_txt, get_any_alt_text(el))
+
+            img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+
+            b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+            b.href_clean = normalize_href(href)
+            b.img_status = "ok" if img_local else st
+
+            if img_local and img_local in IMG_META:
+                w, h, sz = IMG_META[img_local]
+                b.img_w, b.img_h, b.img_bytes = w, h, sz
+
+            out.append(b)
             rank += 1
         except Exception:
             continue
+
     return out
+
+
+# -----------------------------------------------------
+# Dedupe + enrich (dates)
+# -----------------------------------------------------
+def dedupe_brand_rows(rows: List[Banner]) -> List[Banner]:
+    """브랜드 내 중복 제거: (href_clean 우선) / img_url 보조"""
+    if not rows:
+        return rows
+    rows_sorted = sorted(rows, key=lambda x: x.rank)
+
+    seen_href = set()
+    seen_img = set()
+    out = []
+    for b in rows_sorted:
+        hc = b.href_clean or normalize_href(b.href)
+        iu = (b.img_url or "").strip()
+
+        # href가 있으면 href 기준으로 강하게 dedupe
+        if hc:
+            if hc in seen_href:
+                continue
+            seen_href.add(hc)
+
+        # href가 없거나 빈 경우엔 img_url로라도 dedupe
+        if not hc and iu:
+            if iu in seen_img:
+                continue
+            seen_img.add(iu)
+
+        out.append(b)
+
+    # rank 재정렬(1..N)
+    for i, b in enumerate(out, start=1):
+        b.rank = i
+    return out
+
+def enrich_dates_for_rows(context, rows: List[Banner]) -> None:
+    if not FETCH_CAMPAIGN_DATES:
+        return
+    for b in rows:
+        if not b.href_clean and b.href:
+            b.href_clean = normalize_href(b.href)
+        # 날짜는 href_clean 우선
+        h = b.href_clean or b.href
+        if not h:
+            continue
+        s, e = fetch_campaign_dates(context, h)
+        b.plan_start = s
+        b.plan_end = e
 
 
 # -----------------------------------------------------
 # Output
 # -----------------------------------------------------
-def write_csv(path: str, rows):
+def write_csv(path: str, rows: List[Banner]):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(["date","brand_key","brand_name","rank","title","href","img_url","img_local"])
+        w.writerow([
+            "date","brand_key","brand_name","rank",
+            "title","href","href_clean",
+            "plan_start","plan_end",
+            "img_url","img_local","img_status",
+            "img_w","img_h","img_bytes"
+        ])
         for b in rows:
-            w.writerow([b.date,b.brand_key,b.brand_name,b.rank,b.title,b.href,b.img_url,b.img_local])
+            w.writerow([
+                b.date,b.brand_key,b.brand_name,b.rank,
+                b.title,b.href,b.href_clean,
+                b.plan_start,b.plan_end,
+                b.img_url,b.img_local,b.img_status,
+                b.img_w,b.img_h,b.img_bytes
+            ])
 
-def write_html(path: str, rows):
+def write_html(path: str, rows: List[Banner]):
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    by_brand = {}
+    by_brand: Dict[str, List[Banner]] = {}
     for b in rows:
         by_brand.setdefault(b.brand_key, []).append(b)
 
     order = [bk for bk, _, _, _, _ in BRANDS]
-    active_brand_keys = [bk for bk in order if bk in by_brand] or [bk for bk, *_ in BRANDS]  # rows 비어도 탭은 유지
+    active_brand_keys = [bk for bk in order if bk in by_brand] or [bk for bk, *_ in BRANDS]
     now_str = kst_now().strftime('%Y-%m-%d %H:%M')
 
     tab_menu_html = ""
@@ -951,8 +1322,24 @@ def write_html(path: str, rows):
                 if not img_src:
                     img_src = it.img_url or ""
 
-                href = it.href or "#"
+                href = it.href_clean or it.href or "#"
                 img_url_btn = it.img_url or img_src or "#"
+
+                date_txt = ""
+                if it.plan_start and it.plan_end:
+                    date_txt = f"{it.plan_start} ~ {it.plan_end}"
+                elif it.plan_start:
+                    date_txt = f"{it.plan_start}"
+                else:
+                    date_txt = ""
+
+                meta_txt = ""
+                if it.img_w and it.img_h:
+                    meta_txt = f"{it.img_w}×{it.img_h}"
+                    if it.img_bytes:
+                        meta_txt += f" · {int(it.img_bytes/1024):,}KB"
+                elif it.img_status and it.img_status != "ok":
+                    meta_txt = f"{it.img_status}"
 
                 cards_html += f"""
 <div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
@@ -964,7 +1351,13 @@ def write_html(path: str, rows):
     </span>
   </div>
   <div class="p-6 flex flex-col flex-1">
-    <h4 class="text-slate-800 font-bold text-sm mb-4 line-clamp-2 min-h-[40px]">"{it.title}"</h4>
+    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"{it.title}"</h4>
+
+    <div class="text-xs text-slate-500 mb-4">
+      <div>{date_txt}</div>
+      <div class="opacity-70">{meta_txt}</div>
+    </div>
+
     <div class="flex gap-2 mt-auto">
       <a href="{href}" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
         기획전 바로가기
@@ -995,15 +1388,10 @@ def write_html(path: str, rows):
     .glass-card {{ background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }}
     .sidebar {{ background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }}
 
-    /* ===== EMBED MODE (when inside iframe) ===== */
     body.embedded aside {{ display:none !important; }}
     body.embedded header {{ display:none !important; }}
     body.embedded .sidebar {{ display:none !important; }}
-
-    /* iframe 안에서는 padding만 적당히 */
     body.embedded main {{ padding: 24px !important; }}
-
-    /* 혹시 sticky 영향 있으면 */
     body.embedded .sticky {{ position: static !important; }}
   </style>
 </head>
@@ -1033,7 +1421,7 @@ def write_html(path: str, rows):
       <div>
         <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">Hero Banner Analysis</h1>
         <p class="text-slate-500 text-lg font-medium italic">주요 아웃도어 브랜드 메인 히어로 배너 실시간 모니터링</p>
-        <p class="text-slate-400 text-xs mt-3">로컬이미지 경로 모드: {"ABS(file://)" if HTML_USE_ABSOLUTE_FILE_URL else "REL(assets/)"} </p>
+        <p class="text-slate-400 text-xs mt-3">로컬이미지 경로 모드: {"ABS(file://)" if HTML_USE_ABSOLUTE_FILE_URL else "REL(assets/)"} · 날짜추출: {"ON" if FETCH_CAMPAIGN_DATES else "OFF"} </p>
       </div>
       <div class="glass-card px-6 py-4 flex items-center gap-4">
         <div class="flex h-3 w-3 relative"><span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span></div>
@@ -1091,35 +1479,40 @@ def write_html(path: str, rows):
 # Brand dispatcher
 # -----------------------------------------------------
 def crawl_brand(page, bk, bn, url, mode, date_s, mx):
-    print(f"[*] Analyzing: {bn} ({url})")
-    try:
-        page.goto(url, timeout=NAV_TIMEOUT_MS, wait_until="domcontentloaded")
-        try:
-            page.wait_for_load_state("networkidle", timeout=8000)
-        except Exception:
-            pass
-        page.wait_for_timeout(WAIT_AFTER_GOTO_MS)
-    except Exception as e:
-        print(f" - Goto failed: {e}")
-        return []
+    print(f"\n[*] Analyzing: {bn} ({url})", flush=True)
 
-    if mode == "tnf_slick":
-        return tnf_slick(page, url, bk, bn, date_s, mx)
-    elif mode == "nepa_static":
-        return nepa_static(page, url, bk, bn, date_s, mx)
-    elif mode == "patagonia_static_hero":
-        return patagonia_static_hero(page, url, bk, bn, date_s)
-    elif mode == "blackyak_swiper":
-        return blackyak_swiper(page, url, bk, bn, date_s, mx)
-    elif mode == "discovery_swiper":
-        return discovery_swiper(page, url, bk, bn, date_s, mx)
-    elif mode == "generic":
-        return generic_top_banners(page, url, bk, bn, date_s, mx)
-    else:
-        return generic_top_banners(page, url, bk, bn, date_s, mx)
+    with stage(bn, "goto"):
+        try:
+            page.goto(url, timeout=NAV_TIMEOUT_MS, wait_until="domcontentloaded")
+            try:
+                page.wait_for_load_state("networkidle", timeout=8000)
+            except Exception:
+                pass
+            page.wait_for_timeout(WAIT_AFTER_GOTO_MS)
+        except Exception as e:
+            print(f" - Goto failed: {e}", flush=True)
+            return []
+
+    with stage(bn, f"extract ({mode})"):
+        if mode == "tnf_slick":
+            return tnf_slick(page, url, bk, bn, date_s, mx)
+        elif mode == "nepa_static":
+            return nepa_static(page, url, bk, bn, date_s, mx)
+        elif mode == "patagonia_static_hero":
+            return patagonia_static_hero(page, url, bk, bn, date_s)
+        elif mode == "blackyak_swiper":
+            return blackyak_swiper(page, url, bk, bn, date_s, mx)
+        elif mode == "discovery_swiper":
+            return discovery_swiper(page, url, bk, bn, date_s, mx)
+        elif mode == "generic":
+            return generic_top_banners(page, url, bk, bn, date_s, mx)
+        else:
+            return generic_top_banners(page, url, bk, bn, date_s, mx)
 
 
 def main():
+    global PROG
+
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(ASSET_DIR, exist_ok=True)
     os.makedirs(SNAP_DIR, exist_ok=True)
@@ -1130,29 +1523,43 @@ def main():
 
     today_snap = os.path.join(SNAP_DIR, f"hero_main_banners_{date_s}.csv")
     report_csv = os.path.join(OUT_DIR, f"hero_main_banners_{ts}.csv")
-
-    # ✅ 최종 산출물: 항상 reports/hero_main.html (OUT_DIR 기준)
     report_html = os.path.join(OUT_DIR, "hero_main.html")
 
     rows: List[Banner] = []
 
+    # Progress init
+    PROG = Progress(total=len(BRANDS))
+    PROG.set_stage(stage="start")
+    PROG.newline()
+
     with sync_playwright() as pw:
         browser, context = launch(pw)
+
         for bk, bn, url, mode, mx in BRANDS:
             page = None
             attempt = 0
+            brand_ok = False
+            brand_rows: List[Banner] = []
+
             while attempt < 2:
                 attempt += 1
                 try:
+                    if PROG:
+                        PROG.set_stage(brand=bn, stage=f"open_page (try {attempt}/2)")
                     page = context.new_page()
-                    rows.extend(crawl_brand(page, bk, bn, url, mode, date_s, mx))
+
+                    got = crawl_brand(page, bk, bn, url, mode, date_s, mx)
+                    brand_rows.extend(got)
+
+                    brand_ok = True
                     try:
                         page.close()
                     except Exception:
                         pass
                     break
+
                 except (PWTimeoutError, PWError, Exception) as e:
-                    print(f" - Error: {e}")
+                    print(f"\n - Error: {e}", flush=True)
                     try:
                         if page:
                             page.close()
@@ -1165,31 +1572,44 @@ def main():
                             pass
                         browser, context = launch(pw)
                     if attempt < 2:
-                        print(" - Relaunching browser and retrying once...")
+                        print(" - Relaunching browser and retrying once...", flush=True)
                         continue
                     break
 
-        # ✅ rows 비어도 결과 파일은 생성
-        write_csv(today_snap, rows)
-        write_csv(report_csv, rows)
-        write_html(report_html, rows)
+            # ✅ 브랜드 단위 dedupe (중복 제거 후 rows에 합치기)
+            brand_rows = dedupe_brand_rows(brand_rows)
 
-        print(f"[CSV] {report_csv}")
-        print(f"[HTML] {report_html}")
-        print(f"[ASSET_DIR] {os.path.abspath(ASSET_DIR)}")
-        print(f"[HTML_USE_ABSOLUTE_FILE_URL] {HTML_USE_ABSOLUTE_FILE_URL}")
+            # ✅ 날짜 enrich (top3면 비용 감당 가능)
+            with stage(bn, "fetch_dates"):
+                enrich_dates_for_rows(context, brand_rows)
+
+            rows.extend(brand_rows)
+
+            if PROG:
+                PROG.step_done(ok=brand_ok)
+                PROG.newline()
+
+        with stage("OUTPUT", "write_csv/html"):
+            write_csv(today_snap, rows)
+            write_csv(report_csv, rows)
+            write_html(report_html, rows)
+
+        print(f"\n[CSV] {report_csv}", flush=True)
+        print(f"[HTML] {report_html}", flush=True)
+        print(f"[ASSET_DIR] {os.path.abspath(ASSET_DIR)}", flush=True)
+        print(f"[HTML_USE_ABSOLUTE_FILE_URL] {HTML_USE_ABSOLUTE_FILE_URL}", flush=True)
+        print(f"[FETCH_CAMPAIGN_DATES] {FETCH_CAMPAIGN_DATES}", flush=True)
 
         try:
             browser.close()
         except Exception:
             pass
 
-    # ✅ 성공 조건: reports/hero_main.html만 존재하면 OK
     if not os.path.exists(report_html):
-        print(f"[FATAL] HTML not created: {report_html}")
+        print(f"[FATAL] HTML not created: {report_html}", flush=True)
         sys.exit(1)
 
-    print("✅ hero_main.html generated successfully")
+    print("✅ hero_main.html generated successfully", flush=True)
     sys.exit(0)
 
 
