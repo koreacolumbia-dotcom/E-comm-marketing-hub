@@ -2,8 +2,8 @@ name: weekly-update
 
 on:
   schedule:
-    # 한국시간 월요일 09:00 (UTC 월요일 00:00)
-    - cron: "0 0 * * 1"
+    # 한국시간 매일 새벽 01:00 (UTC 전날 16:00)
+    - cron: "0 16 * * *"
   workflow_dispatch: {}
 
 # ✅ 동시 실행(겹침) 방지: 같은 워크플로우가 겹쳐 돌며 push 충돌나는 케이스 예방
