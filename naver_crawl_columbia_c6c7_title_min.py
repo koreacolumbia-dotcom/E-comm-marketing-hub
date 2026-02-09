@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-[운영 안정판 v8 - FULL FINAL]
+[운영 안정판 v8 - FULL FINAL + UI/ACCURACY PATCH]
 - 입력 CSV 자동 탐색
 - official_hashes.csv(공식 이미지) 우선 적용 → 네이버 이미지 fallback
 - 로그 강화 (flush)
@@ -15,7 +15,9 @@
 - Search/Apply/TabSwitch 모두 로딩 오버레이 표시
 - 검색 결과 0개면 "검색 결과가 없습니다" 표시
 - 이미지: 최종이미지URL(공식 우선) + 공식이미지URL + 네이버이미지URL 모두 저장
-- ✅ NEW: 최종이미지 없거나 네이버최저가 없으면 결과(HTML/CSV)에서 제외
+- ✅ 최종이미지 없거나 네이버최저가 없으면 결과(HTML/CSV)에서 제외
+- ✅ PATCH: 네이버 결과 정확도 강화(코드 매칭 우선 → 없으면 Columbia 키워드)
+- ✅ PATCH: 검색창 3개 → 1개 통합(UI 단순화)
 
 필수 환경변수:
 - NAVER_CLIENT_ID
@@ -158,15 +160,24 @@ def fetch_naver_shop_with_retry(
 
 def filter_items_for_accuracy(
     items: List[Dict[str, Any]],
+    style_code: str,
     min_price: Optional[int],
     max_price: Optional[int],
     exclude_malls: List[str],
 ) -> List[Dict[str, Any]]:
+    """
+    ✅ 정확도 강화 (누나/무관 상품 방지 핵심)
+    - 0) 기본 컷: 가격 범위/몰 제외/악성 키워드
+    - 1) 1차: title에 style_code 포함인 결과만
+    - 2) 2차(1차가 0개면): title에 Columbia/컬럼비아 포함인 결과만
+    - 3) 최후: cleaned 반환 (원하면 []로 바꿔 더 강하게 가능)
+    """
     if not items:
         return []
 
+    code_l = (style_code or "").strip().lower()
     lowered_excludes = [e.strip().lower() for e in exclude_malls if e.strip()]
-    out: List[Dict[str, Any]] = []
+    cleaned: List[Dict[str, Any]] = []
 
     for it in items:
         lp = _to_int_safe(it.get("lprice"), default=-1)
@@ -180,14 +191,33 @@ def filter_items_for_accuracy(
         if lowered_excludes and any(ex in mall for ex in lowered_excludes):
             continue
 
-        # (선택) 악성 노이즈 약간 컷 - 원하면 더 강하게 만들 수 있음
+        # 악성 노이즈 컷(액세서리/호환품 등)
         bad_terms = ["호환", "케이스", "필름", "스티커", "리필", "커버"]
         if any(t in title for t in bad_terms):
             continue
 
-        out.append(it)
+        cleaned.append(it)
 
-    return out
+    if not cleaned:
+        return []
+
+    # 1차: 코드 매칭
+    if code_l:
+        code_matched = [it for it in cleaned if code_l in strip_html_tags(it.get("title") or "").lower()]
+        if code_matched:
+            return code_matched
+
+    # 2차: 브랜드 매칭
+    brand_matched = []
+    for it in cleaned:
+        title = strip_html_tags(it.get("title") or "").lower()
+        if ("columbia" in title) or ("컬럼비아" in title):
+            brand_matched.append(it)
+    if brand_matched:
+        return brand_matched
+
+    # 최후 fallback
+    return cleaned
 
 
 def pick_lowest_item(items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -601,7 +631,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             data_name_en = _safe_attr(name_en.lower())
             data_name_ko = _safe_attr(name_ko.lower())
 
-            # ✅ 수정: 이미지 로딩 실패 시 'No Image' 플레이스홀더로 교체 (깨진 아이콘 방지)
+            # 이미지 로딩 실패 시 플레이스홀더
             img_block = ""
             if img_final.strip():
                 img_block = f"""
@@ -707,7 +737,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
 
     rows_json = json.dumps(rows, ensure_ascii=False)
 
-    # 토큰 치환용 HTML 템플릿 (f-string 아님: JS/CSS { } 안전)
     html_tpl = r"""<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -834,10 +863,11 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             상품명(영문/한글) 또는 상품코드로 필터링 —
             <span class="font-black text-slate-700">Search 버튼 또는 Enter로 적용</span>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input id="qNameEn" class="input-glass w-full font-bold text-slate-800" placeholder="상품명(영문) 검색 (ex. jacket, down, shorts...)" />
-            <input id="qNameKo" class="input-glass w-full font-bold text-slate-800" placeholder="상품명(한글) 검색 (예: 바람막이, 다운, 팬츠...)" />
-            <input id="qCode" class="input-glass w-full font-bold text-slate-800" placeholder="상품코드 검색 (ex. C7XXXX, C6XXXX...)" />
+
+          <!-- ✅ 검색창 통합 -->
+          <div class="grid grid-cols-1 gap-3">
+            <input id="qAll" class="input-glass w-full font-bold text-slate-800"
+              placeholder="상품명(영문/한글) 또는 상품코드로 필터링 (ex. jacket / 바람막이 / C7XXXX...)" />
           </div>
         </div>
 
@@ -863,7 +893,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
               <i class="fa-solid fa-magnifying-glass"></i> Search
             </button>
             <button onclick="onApplyClick()" class="px-6 py-4 bg-white/70 text-slate-700 font-black rounded-2xl hover:bg-white transition-colors border border-white flex items-center gap-2">
-              <i class="fa-solid fa-filter"></i> Apply
+              <i class="fa-solid fa-arrow-down-wide-short"></i> Apply Sort
             </button>
             <button onclick="resetAll()" class="px-6 py-4 bg-white/70 text-slate-700 font-black rounded-2xl hover:bg-white transition-colors border border-white flex items-center gap-2">
               <i class="fa-solid fa-rotate-left"></i> Reset
@@ -889,10 +919,9 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
 
   const quick = { diffpos: false, missing: false, topgap: false };
 
+  // ✅ 검색 state 단일화
   const state = {
-    qEn: "",
-    qKo: "",
-    qCode: "",
+    q: "",
     sortMode: "diffabs_desc",
     hasSearched: false
   };
@@ -980,6 +1009,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     onApplyClick();
   }
 
+  // ✅ 검색어 하나로 nameEn/nameKo/code 모두 매칭
   function passesFilters(card) {
     if (!state.hasSearched) return true;
 
@@ -990,11 +1020,10 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     const diffpos = card.getAttribute('data-diffpos') === '1';
     const codeRaw = card.getAttribute('data-code-raw') || '';
 
-    const okEn = !state.qEn || nameEn.includes(state.qEn);
-    const okKo = !state.qKo || nameKo.includes(state.qKo);
-    const okCode = !state.qCode || code.includes(state.qCode);
+    const q = state.q || "";
+    const ok = !q || nameEn.includes(q) || nameKo.includes(q) || code.includes(q);
 
-    if (!(okEn && okKo && okCode)) return false;
+    if (!ok) return false;
     if (quick.diffpos && !diffpos) return false;
     if (quick.missing && !missing) return false;
     if (quick.topgap && !TOP_GAP_CODES.includes(codeRaw)) return false;
@@ -1054,9 +1083,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
 
   function onSearchClick() {
     runWithOverlay("Searching...", () => {
-      state.qEn = (document.getElementById('qNameEn').value || '').trim().toLowerCase();
-      state.qKo = (document.getElementById('qNameKo').value || '').trim().toLowerCase();
-      state.qCode = (document.getElementById('qCode').value || '').trim().toLowerCase();
+      state.q = (document.getElementById('qAll').value || '').trim().toLowerCase();
       state.sortMode = (document.getElementById('sortMode').value || 'diffabs_desc');
       state.hasSearched = true;
       applyAll();
@@ -1064,7 +1091,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
   }
 
   function onApplyClick() {
-    runWithOverlay("Applying filters/sort...", () => {
+    runWithOverlay("Applying sort...", () => {
       state.sortMode = (document.getElementById('sortMode').value || 'diffabs_desc');
       applyAll();
     });
@@ -1077,12 +1104,11 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
         const chip = document.getElementById('chip-' + k);
         if (chip) chip.classList.remove('active');
       });
-      document.getElementById('qNameEn').value = '';
-      document.getElementById('qNameKo').value = '';
-      document.getElementById('qCode').value = '';
+
+      document.getElementById('qAll').value = '';
       document.getElementById('sortMode').value = 'diffabs_desc';
 
-      state.qEn = ""; state.qKo = ""; state.qCode = "";
+      state.q = "";
       state.sortMode = "diffabs_desc";
       state.hasSearched = false;
 
@@ -1151,9 +1177,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
   }
 
   function downloadBlob(filename, content, mime) {
-    /* Excel UTF-8 BOM for Excel */
     const withBom = '\ufeff' + content;
-
     const blob = new Blob([withBom], {type: mime});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1201,9 +1225,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
 
   document.addEventListener('DOMContentLoaded', () => {
     hydrateCardState();
-    bindEnterToSearch('qNameEn');
-    bindEnterToSearch('qNameKo');
-    bindEnterToSearch('qCode');
+    bindEnterToSearch('qAll');
 
     runWithOverlay("Rendering...", () => {
       applyAll();
@@ -1345,7 +1367,8 @@ def main():
             save_cache(args.cache_dir, style_code, items)
             log(f"    📡 API RETURN ({len(items)} items)")
 
-        items = filter_items_for_accuracy(items, args.min_price, args.max_price, exclude_malls)
+        # ✅ PATCH: style_code 기반 필터링
+        items = filter_items_for_accuracy(items, style_code, args.min_price, args.max_price, exclude_malls)
         best = pick_lowest_item(items)
         top3_items = pick_top_n_by_price(items, n=3)
 
@@ -1371,14 +1394,14 @@ def main():
         # ✅ 최종 이미지(공식 우선, 없으면 네이버)
         final_image = official_image if official_image else naver_image
 
-        # ✅ NEW: 최저가 없으면 결과에서 제외
+        # ✅ 최저가 없으면 결과에서 제외
         if not isinstance(naver_price, int):
             skipped_no_price += 1
             log("    ⛔ SKIP: naver_price missing")
             time.sleep(max(0.0, args.delay))
             continue
 
-        # ✅ NEW: 이미지 없으면 결과에서 제외
+        # ✅ 이미지 없으면 결과에서 제외
         if not final_image or not str(final_image).strip():
             skipped_no_img += 1
             log("    ⛔ SKIP: final_image missing")
