@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-[운영 안정판 v8 - FULL FINAL + UI/ACCURACY PATCH]
+[운영 안정판 v8 - FULL FINAL + UI/ACCURACY PATCH + IMAGE FIX + EXCLUDE CODES]
 - 입력 CSV 자동 탐색
 - official_hashes.csv(공식 이미지) 우선 적용 → 네이버 이미지 fallback
 - 로그 강화 (flush)
@@ -18,6 +18,9 @@
 - ✅ 최종이미지 없거나 네이버최저가 없으면 결과(HTML/CSV)에서 제외
 - ✅ PATCH: 네이버 결과 정확도 강화(코드 매칭 우선 → 없으면 Columbia 키워드)
 - ✅ PATCH: 검색창 3개 → 1개 통합(UI 단순화)
+- ✅ FIX: 무관(여자 모델/잡상품) 유입 차단: 코드/브랜드 둘 다 실패 시 fallback 금지 → 결과 제외
+- ✅ FIX: 이미지 안 잘리게 object-contain + 고정 박스
+- ✅ EXCLUDE: 특정 스타일코드 제외(기본: C71YLT371297, C71YLT371193) + --exclude_codes 옵션 지원
 
 필수 환경변수:
 - NAVER_CLIENT_ID
@@ -166,11 +169,11 @@ def filter_items_for_accuracy(
     exclude_malls: List[str],
 ) -> List[Dict[str, Any]]:
     """
-    ✅ 정확도 강화 (누나/무관 상품 방지 핵심)
+    ✅ 정확도 강화 (무관 상품/여자 모델컷 방지)
     - 0) 기본 컷: 가격 범위/몰 제외/악성 키워드
     - 1) 1차: title에 style_code 포함인 결과만
-    - 2) 2차(1차가 0개면): title에 Columbia/컬럼비아 포함인 결과만
-    - 3) 최후: cleaned 반환 (원하면 []로 바꿔 더 강하게 가능)
+    - 2) 2차: title에 Columbia/컬럼비아 포함인 결과만
+    - 3) ❌ 최후 fallback 제거: 위 조건 둘 다 실패면 [] 반환 (무관 이미지 차단)
     """
     if not items:
         return []
@@ -178,6 +181,14 @@ def filter_items_for_accuracy(
     code_l = (style_code or "").strip().lower()
     lowered_excludes = [e.strip().lower() for e in exclude_malls if e.strip()]
     cleaned: List[Dict[str, Any]] = []
+
+    bad_terms = [
+        # 악성 노이즈 컷(액세서리/호환품 등)
+        "호환", "케이스", "필름", "스티커", "리필", "커버",
+        # 모델컷/의류 카테고리 혼입(빈출)
+        "브라", "브래지어", "이너", "나시", "탑", "레깅스", "요가", "스포츠브라",
+        "속옷", "언더웨어", "비키니", "수영복",
+    ]
 
     for it in items:
         lp = _to_int_safe(it.get("lprice"), default=-1)
@@ -190,9 +201,6 @@ def filter_items_for_accuracy(
             continue
         if lowered_excludes and any(ex in mall for ex in lowered_excludes):
             continue
-
-        # 악성 노이즈 컷(액세서리/호환품 등)
-        bad_terms = ["호환", "케이스", "필름", "스티커", "리필", "커버"]
         if any(t in title for t in bad_terms):
             continue
 
@@ -216,8 +224,8 @@ def filter_items_for_accuracy(
     if brand_matched:
         return brand_matched
 
-    # 최후 fallback
-    return cleaned
+    # ✅ fallback 금지
+    return []
 
 
 def pick_lowest_item(items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -631,15 +639,17 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             data_name_en = _safe_attr(name_en.lower())
             data_name_ko = _safe_attr(name_ko.lower())
 
-            # 이미지 로딩 실패 시 플레이스홀더
+            # ✅ 이미지: 안 잘리게 object-contain + 고정 박스
             img_block = ""
             if img_final.strip():
                 img_block = f"""
                 <div class="mb-4">
-                  <img src="{_safe_attr(img_final)}" alt="{_safe_attr(name_en or name_ko)}"
-                    class="w-full h-48 object-cover rounded-2xl border border-white/80 bg-white/60"
-                    loading="lazy"
-                    onerror="this.classList.add('hidden'); if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" />
+                  <div class="w-full h-48 rounded-2xl border border-white/80 bg-white/60 flex items-center justify-center overflow-hidden">
+                    <img src="{_safe_attr(img_final)}" alt="{_safe_attr(name_en or name_ko)}"
+                      class="max-w-full max-h-full object-contain"
+                      loading="lazy"
+                      onerror="this.classList.add('hidden'); if(this.parentElement && this.parentElement.nextElementSibling) this.parentElement.nextElementSibling.classList.remove('hidden');" />
+                  </div>
                   <div class="hidden w-full h-48 rounded-2xl border border-white/80 bg-white/60 flex items-center justify-center">
                     <i class="fa-solid fa-image text-slate-400 text-2xl"></i>
                   </div>
@@ -1282,6 +1292,14 @@ def main():
 
     parser.add_argument("--limit", type=int, default=100, help="처리할 상위 행 개수(기본 100, 전체는 큰 숫자)")
     parser.add_argument("--official_hashes", default="official_hashes.csv", help="공식 이미지 해시 CSV 경로")
+
+    # ✅ 제외 코드 옵션(기본값에 사용자가 요청한 2개 코드 포함)
+    parser.add_argument(
+        "--exclude_codes",
+        default="C71YLT371297,C71YLT371193",
+        help="제외할 스타일코드(콤마구분). 기본: C71YLT371297,C71YLT371193",
+    )
+
     args = parser.parse_args()
 
     log("🚀 SCRIPT START")
@@ -1293,6 +1311,12 @@ def main():
     log(f"🔑 NAVER_CLIENT_SECRET: {'SET' if bool(client_secret) else 'MISSING'}")
     if not client_id or not client_secret:
         raise SystemExit("환경변수 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 을 먼저 설정해주세요.")
+
+    # ✅ 제외 코드 세트
+    exclude_codes = set()
+    if args.exclude_codes:
+        exclude_codes = {c.strip().upper() for c in args.exclude_codes.split(",") if c.strip()}
+    log(f"🚫 EXCLUDE_CODES: {sorted(list(exclude_codes)) if exclude_codes else 'NONE'}")
 
     # ✅ 공식 이미지 맵
     official_img_map = build_official_image_map(args.official_hashes)
@@ -1338,12 +1362,21 @@ def main():
     kept = 0
     skipped_no_price = 0
     skipped_no_img = 0
+    skipped_excluded = 0
 
     log(f"🚚 START FETCH: products={len(df):,} delay={args.delay}s cache_ttl={args.cache_ttl_hours}h")
 
     for i, (_, row) in enumerate(df.iterrows(), start=1):
         style_code = str(get_row_value(row, col_code, fallback_idx=1)).strip()
         if not style_code or style_code.lower() == "nan":
+            continue
+
+        code_u = style_code.upper()
+
+        # ✅ 요청한 스타일코드 제외
+        if exclude_codes and code_u in exclude_codes:
+            skipped_excluded += 1
+            log(f"    🚫 SKIP(EXCLUDED): {code_u}")
             continue
 
         name_en = get_row_value(row, col_name_en, fallback_idx=2)
@@ -1363,11 +1396,15 @@ def main():
             log(f"    ✅ CACHE HIT ({len(items)} items)")
         else:
             log("    ❌ CACHE MISS -> API CALL")
-            items = fetch_naver_shop_with_retry(style_code, client_id, client_secret, display=10)
+
+            # ✅ 정확도 위해 query에 Columbia를 같이 붙임(흔들림 감소)
+            q = f"Columbia {style_code}"
+            items = fetch_naver_shop_with_retry(q, client_id, client_secret, display=10)
+
             save_cache(args.cache_dir, style_code, items)
             log(f"    📡 API RETURN ({len(items)} items)")
 
-        # ✅ PATCH: style_code 기반 필터링
+        # ✅ PATCH: style_code 기반 필터링(코드/브랜드 실패 시 [] 반환)
         items = filter_items_for_accuracy(items, style_code, args.min_price, args.max_price, exclude_malls)
         best = pick_lowest_item(items)
         top3_items = pick_top_n_by_price(items, n=3)
@@ -1388,7 +1425,6 @@ def main():
         naver_image = choose_best_image(best, top3_items)
 
         # ✅ 공식 이미지 우선
-        code_u = style_code.upper()
         official_image = official_img_map.get(code_u, "")
 
         # ✅ 최종 이미지(공식 우선, 없으면 네이버)
@@ -1460,7 +1496,12 @@ def main():
 
         time.sleep(max(0.0, args.delay))
 
-    log(f"📌 SUMMARY: kept={kept:,} skip_no_price={skipped_no_price:,} skip_no_img={skipped_no_img:,}")
+    log(
+        f"📌 SUMMARY: kept={kept:,} "
+        f"skip_excluded={skipped_excluded:,} "
+        f"skip_no_price={skipped_no_price:,} "
+        f"skip_no_img={skipped_no_img:,}"
+    )
 
     out_csv = args.output_csv or f"result_{today_mmdd}.csv"
     res_df = pd.DataFrame(results)
