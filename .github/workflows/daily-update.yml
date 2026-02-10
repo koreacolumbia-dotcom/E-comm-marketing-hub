@@ -1,0 +1,129 @@
+name: daily-update
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Manual run reason (optional)"
+        required: false
+        default: "manual"
+  schedule:
+    # ✅ KST 08:00 = UTC 23:00 (전날)
+    - cron: "0 23 * * *"
+
+concurrency:
+  group: weekly-update-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Ensure reports dir
+        run: |
+          mkdir -p reports
+
+      - name: Run Naver Lowest Price crawler
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: |
+          python -u naver_crawl_columbia_c6c7_title_min.py \
+            --limit 999999 \
+            --output_html reports/naver_lowest_price.html \
+            --history_dir . \
+            --cache_dir .naver_cache
+
+      - name: Run Hero banner crawler
+        run: |
+          HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
+          test -f reports/hero_main.html
+
+      - name: Run External Signal (VOC)
+        run: |
+          python -u external_signal_combined.py
+          test -f reports/external_signal.html
+
+      - name: Stamp "Last updated" badge into reports HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          UPDATED_KST="$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')"
+          echo "Stamping updated time: ${UPDATED_KST}"
+
+          for f in reports/*.html; do
+            [ -f "$f" ] || continue
+
+            # 1) 기존 배지 제거(중복 방지)
+            perl -0777 -i -pe 's/<!-- AUTO_UPDATED_BADGE_START -->.*?<!-- AUTO_UPDATED_BADGE_END -->\s*//sg' "$f"
+
+            # 2) <body ...> 바로 다음에 배지 삽입
+            perl -0777 -i -pe '
+              my $badge = qq{
+<!-- AUTO_UPDATED_BADGE_START -->
+<style>
+  .auto-updated-badge-wrap{position:fixed;top:16px;right:16px;z-index:99999;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,Arial;}
+  .auto-updated-badge{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.78);backdrop-filter:blur(10px);border:1px solid rgba(15,23,42,.10);box-shadow:0 10px 30px rgba(15,23,42,.10);}
+  .auto-updated-dot{width:10px;height:10px;border-radius:999px;background:#22c55e;box-shadow:0 0 0 5px rgba(34,197,94,.15);}
+  .auto-updated-txt{display:flex;flex-direction:column;line-height:1.15}
+  .auto-updated-txt .t1{font-size:12px;font-weight:700;color:#0f172a;letter-spacing:-.2px}
+  .auto-updated-txt .t2{font-size:12px;color:rgba(15,23,42,.72);margin-top:2px}
+</style>
+<div class="auto-updated-badge-wrap" aria-label="Last updated badge">
+  <div class="auto-updated-badge">
+    <span class="auto-updated-dot"></span>
+    <div class="auto-updated-txt">
+      <div class="t1">마지막 업데이트</div>
+      <div class="t2">__UPDATED_KST__</div>
+    </div>
+  </div>
+</div>
+<!-- AUTO_UPDATED_BADGE_END -->
+              };
+              s{(<body\b[^>]*>)}{$1\n$badge}i;
+            ' "$f"
+
+            # 3) 안전하게 치환
+            perl -i -pe "s|__UPDATED_KST__|$UPDATED_KST|g" "$f"
+            echo "Stamped: $f"
+          done
+
+      - name: Commit & push results
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # ✅ 최신 main 먼저 당기기 (충돌 확률↓)
+          git pull --rebase origin main
+
+          git add reports/ .naver_cache || true
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Daily auto update (reports)"
+          git push origin main
