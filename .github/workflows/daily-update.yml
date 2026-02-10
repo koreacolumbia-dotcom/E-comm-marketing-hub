@@ -1,4 +1,4 @@
-name: daily-update
+name: Daily Update
 
 on:
   workflow_dispatch:
@@ -8,11 +8,11 @@ on:
         required: false
         default: "manual"
   schedule:
-    # ✅ KST 08:00 = UTC 23:00 (전날)
+    # KST 08:00 = UTC 23:00 (전날)
     - cron: "0 23 * * *"
 
 concurrency:
-  group: weekly-update-main
+  group: daily-update-main
   cancel-in-progress: false
 
 permissions:
@@ -68,18 +68,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           UPDATED_KST="$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')"
           echo "Stamping updated time: ${UPDATED_KST}"
 
           for f in reports/*.html; do
             [ -f "$f" ] || continue
 
-            # 1) 기존 배지 제거(중복 방지)
+            # 기존 배지 블록 제거 (중복 방지)
             perl -0777 -i -pe 's/<!-- AUTO_UPDATED_BADGE_START -->.*?<!-- AUTO_UPDATED_BADGE_END -->\s*//sg' "$f"
 
-            # 2) <body ...> 바로 다음에 배지 삽입
-            perl -0777 -i -pe '
-              my $badge = qq{
+            # 배지 블록 생성 (임시 파일)
+            cat > /tmp/_badge_block.html <<'EOF'
 <!-- AUTO_UPDATED_BADGE_START -->
 <style>
   .auto-updated-badge-wrap{position:fixed;top:16px;right:16px;z-index:99999;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,Arial;}
@@ -99,12 +99,17 @@ jobs:
   </div>
 </div>
 <!-- AUTO_UPDATED_BADGE_END -->
-              };
-              s{(<body\b[^>]*>)}{$1\n$badge}i;
+EOF
+
+            # 플레이스홀더 치환(안전)
+            perl -i -pe "s|__UPDATED_KST__|$UPDATED_KST|g" /tmp/_badge_block.html
+
+            # <body ...> 바로 다음에 배지 삽입
+            perl -0777 -i -pe '
+              my $ins = do { local $/; open my $fh, "<", "/tmp/_badge_block.html"; <$fh> };
+              s{(<body\b[^>]*>)}{$1\n$ins}i;
             ' "$f"
 
-            # 3) 안전하게 치환
-            perl -i -pe "s|__UPDATED_KST__|$UPDATED_KST|g" "$f"
             echo "Stamped: $f"
           done
 
@@ -115,7 +120,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # ✅ 최신 main 먼저 당기기 (충돌 확률↓)
+          # 최신 main 먼저 당기기 (충돌 확률↓)
           git pull --rebase origin main
 
           git add reports/ .naver_cache || true
