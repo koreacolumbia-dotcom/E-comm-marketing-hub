@@ -1,18 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-print("HERO SCRIPT NEW VERSION RUNNING", flush=True)
+print("HERO SCRIPT FINAL RUNNING", flush=True)
 
 """
-hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py (+ PROGRESS + DEDUPE + DATES + IMG_META)
+hero_main_top15_FINAL_STABLE.py
 
-추가된 개선:
-- (중복 다운로드 방지) img_url 단위 다운로드 캐시(IMG_URL_CACHE) 적용
-- (중복 배너 제거) 브랜드 내에서 동일 캠페인(정규화 href) / 동일 이미지(img_url) 중복 제거
-- (이미지 메타) 저장된 로컬 이미지의 width/height/bytes를 수집해서 CSV/HTML에 반영
-- (기획전 이름 정리) phpThumb/파일명/쿼리 기반 제목은 배제하고 텍스트 우선 + 정리 규칙 추가
-- (기획전 시작일/기간) href 페이지에서 날짜 패턴 탐색(옵션: FETCH_CAMPAIGN_DATES=1 기본)
-- (No Image 원인 기록) img_status 컬럼으로 추적 가능
+요청 반영 (핵심):
+1) 최대한 15개 브랜드 다 끌어오기: BRANDS=15, 브랜드별 실패 시에도 다음 브랜드 계속 진행(기존 유지)
+2) 스노우피크 히어로 배너 오탐 개선: "hero carousel(슬라이더)" 우선 추출 로직 추가(클론/중복 제거)
+3) 내셔널지오그래픽 오탐 개선: (※ 기존 natgeokorea.com은 미디어 사이트라 의류/커머스 배너가 틀어질 확률 높음)
+   - 그래도 최대한 "슬라이더/히어로" 우선으로 안정 추출하도록 개선
+4) 코오롱(특히 kolonmall/kolonsport) No Image 개선:
+   - requests(일반) 실패 시 Playwright context.request 로 이미지 다운로드 fallback
+   - referer/UA 강화
+5) 몽벨 중복(겹침) 개선:
+   - img_url 정규화(쿼리 제거)로 강한 dedupe
+   - 슬라이더 인덱스 기반 정렬/클론 제거
+6) 스타일코드 제외: C71YLT371297, C71YLT371193
+   - title 후보에서 해당 코드 제거/무효 처리
+
+추가 안정화:
+- generic_top_banners에서 "img_url 없는 카드"는 제외(빈 카드/Rank3 공백 방지)
+- hero_slider 우선 탐지: swiper/slick/common carousel 패턴 먼저 긁고, 부족하면 generic fallback
+- 브랜드별 2회 재시도 유지
+
+환경변수:
+- OUT_DIR, HEADLESS, NAV_TIMEOUT_MS, WAIT_AFTER_GOTO_MS, WAIT_AFTER_CLICK_MS
+- MAX_IMG_WIDTH, JPG_QUALITY
+- FETCH_CAMPAIGN_DATES, DATE_FETCH_TIMEOUT_MS
+- HTML_USE_ABSOLUTE_FILE_URL
+
+실행:
+  python -u hero_main_top15_FINAL_STABLE.py
 """
 
 import os, re, csv, hashlib, urllib.parse, sys, time
@@ -34,9 +54,9 @@ except Exception:
     PIL_OK = False
 
 
-# -----------------------------------------------------
+# =====================================================
 # Progress (console)
-# -----------------------------------------------------
+# =====================================================
 class Progress:
     def __init__(self, total: int):
         self.total = max(int(total), 1)
@@ -126,9 +146,9 @@ def stage(brand_name: str, stage_name: str):
             PROG.set_stage(brand=brand_name, stage=f"{stage_name} ({dt:.1f}s)")
 
 
-# -----------------------------------------------------
+# =====================================================
 # ENV / CONFIG
-# -----------------------------------------------------
+# =====================================================
 OUT_DIR = os.environ.get("OUT_DIR", "reports")
 ASSET_DIR = os.path.join(OUT_DIR, "assets")
 SNAP_DIR = os.path.join(OUT_DIR, "snapshots")
@@ -159,30 +179,48 @@ else:
     HTML_USE_ABSOLUTE_FILE_URL = (os.environ.get("GITHUB_ACTIONS", "").lower() not in {"true", "1", "yes"})
 
 
-# -----------------------------------------------------
-# Brands
-# -----------------------------------------------------
+# =====================================================
+# EXCLUDE (style codes)
+# =====================================================
+EXCLUDE_STYLE_CODES = {
+    "C71YLT371297",
+    "C71YLT371193",
+}
+
+
+# =====================================================
+# Brands (15)
+#  - URL은 “최소 실패” 관점에서 도메인/메인만 유지
+#  - natgeo는 현재 값이 ‘미디어’일 수 있어 오탐 가능 (여기서는 로직을 강하게 보정)
+# =====================================================
 BRANDS = [
     ("tnf", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", 3),
-    ("nepa", "NEPA", "https://www.nplus.co.kr/main/main.asp?NaPm=ct%3Dmk68nx7b%7Cci%3Dcheckout%7Ctr%3Dds%7Ctrx%3Dnull%7Chk%3D2eb6245a50cfbdfae4c4e3e806691658fa257fa9", "nepa_static", 3),
     ("patagonia", "Patagonia", "https://www.patagonia.co.kr/", "patagonia_static_hero", 1),
-    ("blackyak", "Black Yak", "https://www.byn.kr/blackyak?utm_source=naver&utm_medium=BSA&utm_campaign=BY_EC_250828_hyperpulse_PERF_NV_BSA&utm_content=PC_BY_EC_naver_BSA_250828_hyperpulse_homelink&utm_term=%EB%B8%94%EB%9E%99%EC%95%BC%ED%81%AC&NaPm=ct%3Dmhwxwfpl%7Cci%3DERbd1ca7ea%2Dc04a%2D11f0%2D935c%2Df6a058b83a4c%7Ctr%3Dbrnd%7Chk%3D07dc9aedc63b17fba956801b4aa26232c93036a5%7Cnacn%3DBOWtB0gPQcOt", "blackyak_swiper", 3),
-    ("discovery", "Discovery", "https://www.discovery-expedition.com/?gf=A", "discovery_swiper", 3),
+    ("arcteryx", "Arc'teryx", "https://www.arcteryx.co.kr/", "hero_slider", 3),
+    ("salomon", "Salomon", "https://salomon.co.kr/", "hero_slider", 3),
+    ("snowpeak", "Snow Peak", "https://www.snowpeakstore.co.kr/", "hero_slider", 3),
 
-    ("arcteryx", "Arc'teryx", "https://www.arcteryx.co.kr/", "generic", 3),
-    ("salomon", "Salomon", "https://salomon.co.kr/", "generic", 3),
-    ("snowpeak", "Snow Peak", "https://www.snowpeakstore.co.kr/", "generic", 3),
-    ("natgeo", "National Geographic", "https://www.natgeokorea.com/", "generic", 3),
-    ("kolonsport", "Kolon Sport", "https://www.kolonsport.com/", "generic", 3),
-    ("k2", "K2", "https://www.k2.co.kr/", "generic", 3),
-    ("montbell", "Montbell", "https://www.montbell.co.kr/", "generic", 3),
-    ("eider", "Eider", "https://www.eider.co.kr/", "generic", 3),
+    ("blackyak", "Black Yak", "https://www.byn.kr/blackyak", "blackyak_swiper", 3),
+    ("discovery", "Discovery Expedition", "https://www.discovery-expedition.com/", "discovery_swiper", 3),
+    ("nepa", "NEPA", "https://www.nplus.co.kr/main/main.asp", "nepa_static", 3),
+
+    # NatGeo: (주의) 현재 URL이 미디어면, 의류몰 URL로 바꿔줘야 정확도 급상승
+    ("natgeo", "National Geographic", "https://www.natgeokorea.com/", "hero_slider", 3),
+
+    ("kolonsport", "Kolon Sport", "https://www.kolonsport.com/", "hero_slider", 3),
+    ("kolonmall", "Kolon Mall", "https://www.kolonmall.com/", "hero_slider", 3),
+
+    ("k2", "K-Village", "https://www.k-village.co.kr/", "hero_slider", 3),
+    ("montbell", "Montbell", "https://www.montbell.co.kr/", "hero_slider", 3),
+    ("eider", "Eider", "https://www.eider.co.kr/", "hero_slider", 3),
+
+    ("millet", "Millet", "https://www.millet.co.kr/", "hero_slider", 3),
 ]
 
 
-# -----------------------------------------------------
+# =====================================================
 # Data model
-# -----------------------------------------------------
+# =====================================================
 @dataclass
 class Banner:
     date: str
@@ -201,19 +239,19 @@ class Banner:
     img_w: int = 0
     img_h: int = 0
     img_bytes: int = 0
-    img_status: str = ""   # ok / download_fail / no_url / unknown
+    img_status: str = ""   # ok / download_fail / no_url / cached / blocked / unknown
 
 
-# -----------------------------------------------------
+# =====================================================
 # Global caches / meta
-# -----------------------------------------------------
+# =====================================================
 IMG_URL_CACHE: Dict[str, str] = {}       # img_url -> local filename
 IMG_META: Dict[str, Tuple[int, int, int]] = {}  # local filename -> (w,h,bytes)
 
 
-# -----------------------------------------------------
+# =====================================================
 # Util
-# -----------------------------------------------------
+# =====================================================
 def kst_now() -> datetime:
     return datetime.utcnow() + timedelta(hours=9)
 
@@ -268,37 +306,62 @@ def _extract_url_from_css(css: str) -> str:
     except Exception:
         return ""
 
+def normalize_img_url(u: str) -> str:
+    """중복 제거용: img_url의 쿼리/프래그먼트 제거 + 공백 트림"""
+    u = (u or "").strip()
+    if not u:
+        return ""
+    try:
+        sp = urllib.parse.urlsplit(u)
+        sp2 = sp._replace(query="", fragment="")
+        return urllib.parse.urlunsplit(sp2)
+    except Exception:
+        return u
+
+def is_style_code(s: str) -> bool:
+    s = (s or "").strip()
+    if not s:
+        return False
+    if s in EXCLUDE_STYLE_CODES:
+        return True
+    # title 내부에 코드가 섞여 들어오는 케이스도 제거
+    for code in EXCLUDE_STYLE_CODES:
+        if code in s:
+            return True
+    return False
+
 def is_junk_title(t: str) -> bool:
     tl = (t or "").strip().lower()
     if not tl:
         return True
-    # 파일명/쿼리 기반 or 의미 없는 제목들
+    if is_style_code(t):
+        return True
+
     junk_tokens = [
         "phpthumb", "src=/uploads", "w=1200", "q=80", "f=webp",
         ".jpg", ".jpeg", ".png", ".webp", "data:image",
         "main_mc", "kakaotalk_", "img_", "banner_", "thumb",
+        "no image",
     ]
     if any(tok in tl for tok in junk_tokens):
-        # 단, 정상 문장인데 확장자만 포함된 케이스는 제외하고 싶지만
-        # 여기선 보수적으로 junk 처리
         return True
-    # 해시처럼 생긴 값만 있는 경우
     if re.fullmatch(r"[a-f0-9_\-]{18,}", tl):
         return True
     return False
 
 def clean_campaign_title(t: str) -> str:
     t = norm_ws(t)
+    for code in EXCLUDE_STYLE_CODES:
+        t = t.replace(code, "").strip()
     t = t.strip('"').strip("'").strip()
-    # 앞뒤에 파일명 느낌 제거
     t = re.sub(r'^\s*["\']?|["\']?\s*$', '', t)
-    # 너무 길면 컷
-    return t[:90]
+    return t[:90] if t else "메인 배너"
 
 def choose_title(*cands: str) -> str:
     c = [norm_ws(x) for x in cands if norm_ws(x)]
+    # 스타일코드가 섞이면 후보 제거
+    c = [x for x in c if not is_style_code(x)]
     c = [x for x in c if x.lower() not in {"next", "prev", "이전", "다음", "닫기"} and len(x) > 1]
-    # junk 후보 제거
     c2 = [x for x in c if not is_junk_title(x)]
     if c2:
         c2.sort(key=lambda x: (len(x), x), reverse=True)
@@ -427,7 +490,7 @@ def get_any_img_url(el, base_url: str) -> str:
     # 7) scan descendant imgs/sources
     try:
         imgs = el.locator("img, source[srcset]")
-        cnt = min(imgs.count(), 8)
+        cnt = min(imgs.count(), 10)
         for i in range(cnt):
             node = imgs.nth(i)
             tag = ""
@@ -456,7 +519,7 @@ def get_any_img_url(el, base_url: str) -> str:
     # 8) scan descendants for computed background-image
     try:
         bg_nodes = el.locator("div, span, a, section, figure")
-        cnt = min(bg_nodes.count(), 60)
+        cnt = min(bg_nodes.count(), 80)
         for i in range(cnt):
             n = bg_nodes.nth(i)
             try:
@@ -472,7 +535,7 @@ def get_any_img_url(el, base_url: str) -> str:
     # 9) pseudo-element background-image
     try:
         nodes = el.locator("div, span, a, section, figure")
-        cnt = min(nodes.count(), 60)
+        cnt = min(nodes.count(), 80)
         for i in range(cnt):
             n = nodes.nth(i)
             try:
@@ -492,9 +555,9 @@ def get_any_img_url(el, base_url: str) -> str:
     return ""
 
 
-# -----------------------------------------------------
-# (옵션) 로컬 파일을 HTML에서 깨지지 않게 file:// URL로 변환
-# -----------------------------------------------------
+# =====================================================
+# Local file -> file:// URL
+# =====================================================
 def to_file_url(path: str) -> str:
     try:
         p = Path(path).resolve()
@@ -506,18 +569,39 @@ def to_file_url(path: str) -> str:
         return "file://" + ap
 
 
-# -----------------------------------------------------
-# Image download + resize (+ cache + meta)
-# -----------------------------------------------------
-def download_bytes(url: str, referer: str = "") -> Optional[bytes]:
+# =====================================================
+# Image download (requests + playwright fallback)
+# =====================================================
+def download_bytes_requests(url: str, referer: str = "") -> Optional[bytes]:
     try:
-        headers = {"User-Agent": USER_AGENT}
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        }
         if referer:
             headers["Referer"] = referer
+            headers["Origin"] = urllib.parse.urlsplit(referer).scheme + "://" + urllib.parse.urlsplit(referer).netloc
         r = requests.get(url, headers=headers, timeout=25)
         if r.status_code != 200 or not r.content:
             return None
         return r.content
+    except Exception:
+        return None
+
+def download_bytes_pw(context, url: str, referer: str = "") -> Optional[bytes]:
+    """403/봇/쿠키 필요한 이미지에 대한 fallback"""
+    try:
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        if referer:
+            headers["Referer"] = referer
+        resp = context.request.get(url, headers=headers, timeout=25000)
+        if not resp or not resp.ok:
+            return None
+        b = resp.body()
+        return b if b else None
     except Exception:
         return None
 
@@ -536,13 +620,18 @@ def _record_img_meta(local_path: str, fname: str):
             w = h = 0
     IMG_META[fname] = (int(w or 0), int(h or 0), int(size_b or 0))
 
-def save_and_resize_image(img_url: str, brand_key: str, rank: int, referer: str = "") -> Tuple[str, str]:
+def save_and_resize_image(context, img_url: str, brand_key: str, rank: int, referer: str = "") -> Tuple[str, str]:
     """
     returns: (local_filename, status)
-      status: ok / download_fail / no_url / cached
+      status: ok / cached / download_fail / blocked / no_url
     """
     global PROG, IMG_URL_CACHE
 
+    if not img_url:
+        if PROG: PROG.add_img(False)
+        return "", "no_url"
+
+    img_url = img_url.strip()
     if not img_url:
         if PROG: PROG.add_img(False)
         return "", "no_url"
@@ -556,7 +645,13 @@ def save_and_resize_image(img_url: str, brand_key: str, rank: int, referer: str 
     fname = safe_filename(f"{brand_key}_{rank}_{sha1(img_url)}", out_ext)
     out_path = os.path.join(ASSET_DIR, fname)
 
-    content = download_bytes(img_url, referer=referer)
+    # 1) requests
+    content = download_bytes_requests(img_url, referer=referer)
+
+    # 2) playwright fallback (쿠키/세션/403 대응)
+    if content is None and context is not None:
+        content = download_bytes_pw(context, img_url, referer=referer)
+
     if content is None:
         if PROG: PROG.add_img(False)
         return "", "download_fail"
@@ -602,9 +697,9 @@ def save_and_resize_image(img_url: str, brand_key: str, rank: int, referer: str 
             return "", "download_fail"
 
 
-# -----------------------------------------------------
+# =====================================================
 # Playwright helpers
-# -----------------------------------------------------
+# =====================================================
 def close_common_popups(page) -> None:
     sels = [
         "button:has-text('닫기')", "button:has-text('Close')",
@@ -612,6 +707,7 @@ def close_common_popups(page) -> None:
         "button:has-text('오늘 하루 보지 않기')",
         "button[aria-label*='close' i]", "button[aria-label*='닫기']",
         ".modal .close", ".popup .close", ".layer .close", ".btn-close",
+        "[role=dialog] button",
     ]
     for _ in range(2):
         for s in sels:
@@ -646,22 +742,18 @@ def launch(pw):
     return browser, context
 
 
-# -----------------------------------------------------
+# =====================================================
 # Campaign date extraction
-# -----------------------------------------------------
+# =====================================================
 DATE_PATTERNS = [
-    # 2026.02.01 ~ 2026.02.10
     re.compile(r"(\d{4}[./-]\d{1,2}[./-]\d{1,2})\s*(?:~|∼|–|-|—)\s*(\d{4}[./-]\d{1,2}[./-]\d{1,2})"),
-    # 2026.02.01 ~ 02.10 (end year omitted)
     re.compile(r"(\d{4})[./-](\d{1,2})[./-](\d{1,2})\s*(?:~|∼|–|-|—)\s*(\d{1,2})[./-](\d{1,2})"),
-    # 2026-02-01부터 2026-02-10까지
     re.compile(r"(\d{4}[./-]\d{1,2}[./-]\d{1,2}).{0,12}?(?:부터|~|∼|–|-|—).{0,12}?(\d{4}[./-]\d{1,2}[./-]\d{1,2}).{0,8}?(?:까지)?"),
 ]
 
 def _norm_date(s: str) -> str:
     s = (s or "").strip()
     s = s.replace("/", "-").replace(".", "-")
-    # 2026-2-5 -> 2026-02-05
     m = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", s)
     if not m:
         return s
@@ -669,35 +761,25 @@ def _norm_date(s: str) -> str:
     return f"{y}-{mo:02d}-{d:02d}"
 
 def extract_date_range_from_text(text: str) -> Tuple[str, str]:
-    t = text or ""
-    # whitespace normalize
-    t = re.sub(r"\s+", " ", t)
-
+    t = re.sub(r"\s+", " ", text or "")
     for pat in DATE_PATTERNS:
         m = pat.search(t)
         if not m:
             continue
         if pat.pattern.startswith(r"(\d{4})"):
-            # pattern2: y mo d ~ mo d
             y = m.group(1)
             mo1, d1 = int(m.group(2)), int(m.group(3))
             mo2, d2 = int(m.group(4)), int(m.group(5))
             s = f"{y}-{mo1:02d}-{d1:02d}"
             e = f"{y}-{mo2:02d}-{d2:02d}"
             return _norm_date(s), _norm_date(e)
-
         s = _norm_date(m.group(1))
         e = _norm_date(m.group(2))
         return s, e
-
-    # 못 찾으면 빈값
     return "", ""
 
 def fetch_campaign_dates(context, href: str) -> Tuple[str, str]:
-    """href 페이지에서 기간(시작/종료) 탐색"""
-    if not href:
-        return "", ""
-    if not FETCH_CAMPAIGN_DATES:
+    if not href or not FETCH_CAMPAIGN_DATES:
         return "", ""
 
     p = None
@@ -709,15 +791,12 @@ def fetch_campaign_dates(context, href: str) -> Tuple[str, str]:
         except Exception:
             pass
 
-        # 너무 무겁게 전체 DOM을 다 긁지 말고, body 텍스트 우선
         try:
             body_text = p.locator("body").inner_text(timeout=2000)
         except Exception:
             body_text = ""
 
         s, e = extract_date_range_from_text(body_text)
-
-        # fallback: meta/og/ld+json
         if not s:
             try:
                 html = p.content()
@@ -726,7 +805,6 @@ def fetch_campaign_dates(context, href: str) -> Tuple[str, str]:
             s2, e2 = extract_date_range_from_text(html)
             if s2:
                 s, e = s2, e2
-
         return s, e
     except Exception:
         return "", ""
@@ -738,10 +816,10 @@ def fetch_campaign_dates(context, href: str) -> Tuple[str, str]:
             pass
 
 
-# -----------------------------------------------------
+# =====================================================
 # Extractors
-# -----------------------------------------------------
-def tnf_slick(page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
+# =====================================================
+def tnf_slick(context, page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
     out: List[Banner] = []
     close_common_popups(page)
     container_sel = "[data-module-main-slick-slider]"
@@ -795,7 +873,7 @@ def tnf_slick(page, base_url: str, brand_key: str, brand_name: str, date_s: str,
     for it in items or []:
         href = abs_url(base_url, (it.get("href") or "").strip()) if it else ""
         img_url = abs_url(base_url, (it.get("img") or "").strip()) if it else ""
-        key = (normalize_href(href), img_url)
+        key = (normalize_href(href), normalize_img_url(img_url))
         if not href and not img_url:
             continue
         if key in seen:
@@ -813,7 +891,7 @@ def tnf_slick(page, base_url: str, brand_key: str, brand_name: str, date_s: str,
         txt = norm_ws(it.get("txt") or "")
 
         title = choose_title(txt, alt)
-        img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+        img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
 
         b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
         b.href_clean = normalize_href(href)
@@ -827,7 +905,7 @@ def tnf_slick(page, base_url: str, brand_key: str, brand_name: str, date_s: str,
         rank += 1
     return out
 
-def discovery_swiper(page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
+def discovery_swiper(context, page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
     out: List[Banner] = []
     close_common_popups(page)
     root_sel = ".click_banner_main"
@@ -844,7 +922,7 @@ def discovery_swiper(page, base_url: str, brand_key: str, brand_name: str, date_
     slides = root.locator("div.swiper-slide")
     n = slides.count()
     candidates = []
-    for i in range(min(n, 24)):
+    for i in range(min(n, 30)):
         sl = slides.nth(i)
         try:
             href = ""
@@ -870,9 +948,10 @@ def discovery_swiper(page, base_url: str, brand_key: str, brand_name: str, date_
             except Exception:
                 pass
 
-            if not href and not img_url:
+            if not img_url:
                 continue
-            key = sha1("\n".join([normalize_href(href), img_url]))
+
+            key = sha1("\n".join([normalize_href(href), normalize_img_url(img_url)]))
             candidates.append((idx, key, title_txt, href, img_url))
         except Exception:
             continue
@@ -888,23 +967,19 @@ def discovery_swiper(page, base_url: str, brand_key: str, brand_name: str, date_
         seen.add(key)
 
         title = choose_title(title_txt, get_any_alt_text(page.locator("body")))
-        img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+        img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
         b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
         b.href_clean = normalize_href(href)
         b.img_status = "ok" if img_local else st
-
         if img_local and img_local in IMG_META:
             w, h, sz = IMG_META[img_local]
             b.img_w, b.img_h, b.img_bytes = w, h, sz
-
         out.append(b)
-        print(f" #{rank}: {title}", flush=True)
         rank += 1
-
     return out
 
-def blackyak_swiper(page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
+def blackyak_swiper(context, page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
     out: List[Banner] = []
     close_common_popups(page)
     root_sel = "#main_banner_section"
@@ -955,8 +1030,8 @@ def blackyak_swiper(page, base_url: str, brand_key: str, brand_name: str, date_s
         if img.startswith("//"):
             img = "https:" + img
         img_url = abs_url(base_url, img)
-        key = (normalize_href(href), img_url)
-        if not href and not img_url:
+        key = (normalize_href(href), normalize_img_url(img_url))
+        if not img_url:
             continue
         if key in seen:
             continue
@@ -975,21 +1050,19 @@ def blackyak_swiper(page, base_url: str, brand_key: str, brand_name: str, date_s
         txt = norm_ws(it.get("txt") or "")
 
         title = choose_title(txt, alt)
-        img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+        img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
         b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
         b.href_clean = normalize_href(href)
         b.img_status = "ok" if img_local else st
-
         if img_local and img_local in IMG_META:
             w, h, sz = IMG_META[img_local]
             b.img_w, b.img_h, b.img_bytes = w, h, sz
-
         out.append(b)
         rank += 1
     return out
 
-def nepa_static(page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
+def nepa_static(context, page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
     out: List[Banner] = []
     root = page
     try:
@@ -1029,37 +1102,32 @@ def nepa_static(page, base_url: str, brand_key: str, brand_name: str, date_s: st
             pass
 
         title = choose_title(title_txt, get_any_alt_text(box))
-        if not img_url and not href:
+        if not img_url:
             return None
 
-        img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+        img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
         b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
         b.href_clean = normalize_href(href)
         b.img_status = "ok" if img_local else st
-
         if img_local and img_local in IMG_META:
             w, h, sz = IMG_META[img_local]
             b.img_w, b.img_h, b.img_bytes = w, h, sz
         return b
 
     rank = 1
-    for idx in range(1, 30):
+    for idx in range(1, 35):
         if rank > max_items:
             break
         b = extract_from_banner(idx, rank)
         if b:
             out.append(b)
-            print(f" #{rank}: {b.title}", flush=True)
             rank += 1
-        if idx >= 5 and len(out) >= max_items:
+        if idx >= 6 and len(out) >= max_items:
             break
-
-    if not out:
-        print(" - NEPA 배너를 못 찾았어요 (팝업/로봇체크/구조변경 가능). HEADLESS=0로 확인 추천", flush=True)
     return out
 
-def patagonia_static_hero(page, base_url: str, brand_key: str, brand_name: str, date_s: str):
+def patagonia_static_hero(context, page, base_url: str, brand_key: str, brand_name: str, date_s: str):
     wait_first_visible(page, ["header", "main", "section"], 12000)
     vw = page.viewport_size["width"] if page.viewport_size else 1440
     best_area = 0
@@ -1068,7 +1136,7 @@ def patagonia_static_hero(page, base_url: str, brand_key: str, brand_name: str, 
     best_href = ""
 
     candidates = page.locator("section, div")
-    cnt = min(candidates.count(), 220)
+    cnt = min(candidates.count(), 260)
     for i in range(cnt):
         el = candidates.nth(i)
         try:
@@ -1102,25 +1170,187 @@ def patagonia_static_hero(page, base_url: str, brand_key: str, brand_name: str, 
         except Exception:
             continue
 
-    if not best_img and not best_href:
-        print(" - 상단 히어로 탐지 실패", flush=True)
+    if not best_img:
         return []
 
     title = choose_title(best_title, urllib.parse.unquote((best_img or "").split("/")[-1]))
-    img_local, st = save_and_resize_image(best_img, brand_key, 1, referer=base_url) if best_img else ("", "no_url")
+    img_local, st = save_and_resize_image(context, best_img, brand_key, 1, referer=base_url)
 
     b = Banner(date_s, brand_key, brand_name, 1, title, best_href, best_img, img_local)
     b.href_clean = normalize_href(best_href)
     b.img_status = "ok" if img_local else st
-
     if img_local and img_local in IMG_META:
         w, h, sz = IMG_META[img_local]
         b.img_w, b.img_h, b.img_bytes = w, h, sz
-
-    print(f" #1: {title}", flush=True)
     return [b]
 
-def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name: str, date_s: str,
+
+# =====================================================
+# NEW: hero_slider extractor (swiper/slick/carousel 우선)
+# =====================================================
+def hero_slider(context, page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
+    """
+    1) swiper/slick/carousel의 "slide" 단위를 최대한 직접 수집
+    2) img_url 필수 (빈 Rank 방지)
+    3) data index 기반 정렬 + clone 제거
+    4) 부족하면 generic_top_banners fallback
+    """
+    out: List[Banner] = []
+    close_common_popups(page)
+
+    # 렌더 유도 (lazy)
+    try:
+        page.evaluate("window.scrollTo(0, 200);")
+        page.wait_for_timeout(250)
+        page.evaluate("window.scrollTo(0, 700);")
+        page.wait_for_timeout(300)
+        page.evaluate("window.scrollTo(0, 0);")
+        page.wait_for_timeout(250)
+    except Exception:
+        pass
+
+    candidates = []
+    # JS로 슬라이드 패턴 수집 (가능한 한 broad)
+    try:
+        candidates = page.evaluate(
+            r"""
+            () => {
+              const norm = (s) => (s||'').replace(/\s+/g,' ').trim();
+              const pickSrc = (root) => {
+                const source = root.querySelector('source[srcset]');
+                if (source) {
+                  const ss = source.getAttribute('srcset') || '';
+                  const first = ss.split(',')[0].trim().split(' ')[0];
+                  if (first) return first;
+                }
+                const img = root.querySelector('img');
+                if (img) {
+                  return img.getAttribute('src')
+                      || img.getAttribute('data-src')
+                      || img.getAttribute('data-lazy')
+                      || img.getAttribute('data-original')
+                      || (img.getAttribute('srcset') ? (img.getAttribute('srcset').split(',')[0].trim().split(' ')[0]) : '')
+                      || '';
+                }
+                const bg = root.querySelector('[style*="background-image"]');
+                if (bg) {
+                  const m = (bg.getAttribute('style')||'').match(/url\(([^)]+)\)/i);
+                  if (m && m[1]) return m[1].replace(/["']/g,'');
+                }
+                return '';
+              };
+
+              const slideSelectors = [
+                '.swiper-slide',
+                '.slick-slide',
+                '[data-swiper-slide-index]',
+                '[data-slick-index]',
+                '.carousel-item',
+              ];
+
+              const nodes = [];
+              slideSelectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(n => nodes.push(n));
+              });
+
+              // 상단 우선: y가 작은 순으로
+              const withBox = nodes.map(n => {
+                const r = n.getBoundingClientRect();
+                return {n, y: r.y, x: r.x, w: r.width, h: r.height};
+              }).filter(o => o.w > 400 && o.h > 160 && o.y < 1200);
+
+              withBox.sort((a,b) => a.y - b.y);
+
+              const out = [];
+              for (const o of withBox.slice(0, 120)) {
+                const n = o.n;
+
+                // clone 제거
+                if (n.classList.contains('swiper-slide-duplicate') || n.classList.contains('slick-cloned')) continue;
+
+                const a = n.querySelector('a[href]');
+                const href = a ? a.getAttribute('href') : '';
+
+                const img = pickSrc(n);
+
+                // 제목 후보
+                const alt = n.querySelector('img')?.getAttribute('alt') || '';
+                const txt = norm(
+                  n.querySelector('h1,h2,h3,strong,p,.title,.tit,.txt,.copy')?.innerText
+                  || (a ? a.innerText : '')
+                  || ''
+                );
+
+                // index
+                let idx = 9999;
+                const d1 = n.getAttribute('data-swiper-slide-index');
+                const d2 = n.getAttribute('data-slick-index');
+                if (d1 && String(d1).trim().match(/^\d+$/)) idx = parseInt(d1.trim(), 10);
+                else if (d2 && String(d2).trim().match(/^\d+$/)) idx = parseInt(d2.trim(), 10);
+
+                out.push({idx, href, img, alt, txt});
+              }
+              return out;
+            }
+            """
+        )
+    except Exception:
+        candidates = []
+
+    # 정렬 + dedupe
+    cleaned = []
+    for it in candidates or []:
+        href = abs_url(base_url, (it.get("href") or "").strip())
+        img_url = abs_url(base_url, (it.get("img") or "").strip())
+        if not img_url:
+            continue
+        cleaned.append((
+            int(it.get("idx") if str(it.get("idx","")).isdigit() else 9999),
+            href,
+            img_url,
+            norm_ws(it.get("alt") or ""),
+            norm_ws(it.get("txt") or "")
+        ))
+
+    cleaned.sort(key=lambda x: x[0])
+
+    seen = set()
+    rank = 1
+    for idx, href, img_url, alt, txt in cleaned:
+        if rank > max_items:
+            break
+
+        key = (normalize_href(href), normalize_img_url(img_url))
+        if key in seen:
+            continue
+        seen.add(key)
+
+        title = choose_title(txt, alt)
+        img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
+
+        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+        b.href_clean = normalize_href(href)
+        b.img_status = "ok" if img_local else st
+        if img_local and img_local in IMG_META:
+            w, h, sz = IMG_META[img_local]
+            b.img_w, b.img_h, b.img_bytes = w, h, sz
+
+        out.append(b)
+        rank += 1
+
+    # fallback: 부족하면 generic
+    if len(out) < max_items:
+        remain = max_items - len(out)
+        more = generic_top_banners(context, page, base_url, brand_key, brand_name, date_s, remain, y_max=1600)
+        # 합치면서 dedupe
+        merged = out + more
+        merged = dedupe_brand_rows(merged)
+        return merged[:max_items]
+
+    return out
+
+
+def generic_top_banners(context, page_or_frame, base_url: str, brand_key: str, brand_name: str, date_s: str,
                         max_items: int, y_max: int = 1400):
     out: List[Banner] = []
     try:
@@ -1132,7 +1362,7 @@ def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name
     try:
         page_or_frame.evaluate("window.scrollTo(0, 150);")
         page_or_frame.wait_for_timeout(250)
-        page_or_frame.evaluate("window.scrollTo(0, 600);")
+        page_or_frame.evaluate("window.scrollTo(0, 700);")
         page_or_frame.wait_for_timeout(300)
         page_or_frame.evaluate("window.scrollTo(0, 0);")
         page_or_frame.wait_for_timeout(250)
@@ -1141,7 +1371,7 @@ def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name
 
     try:
         candidates = page_or_frame.locator("a, section, div")
-        cnt = min(candidates.count(), 420)
+        cnt = min(candidates.count(), 520)
     except Exception:
         return out
 
@@ -1163,6 +1393,11 @@ def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name
                 continue
 
             img_url = get_any_img_url(el, base_url)
+            img_url = abs_url(base_url, img_url) if img_url else ""
+            if not img_url:
+                # ✅ img_url 없는 애는 제외 (빈 카드 방지)
+                continue
+
             href = ""
             try:
                 is_a = el.evaluate("e => e.tagName.toLowerCase()") == "a"
@@ -1172,11 +1407,7 @@ def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name
             except Exception:
                 pass
 
-            if not img_url and not href:
-                continue
-
-            # local dedupe key (candidate-level)
-            fp = sha1("\n".join([normalize_href(href), img_url or ""]))
+            fp = sha1("\n".join([normalize_href(href), normalize_img_url(img_url)]))
             if fp in seen:
                 continue
             seen.add(fp)
@@ -1188,7 +1419,7 @@ def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name
                 pass
             title = choose_title(title_txt, get_any_alt_text(el))
 
-            img_local, st = save_and_resize_image(img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
+            img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
             b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
             b.href_clean = normalize_href(href)
@@ -1206,11 +1437,11 @@ def generic_top_banners(page_or_frame, base_url: str, brand_key: str, brand_name
     return out
 
 
-# -----------------------------------------------------
+# =====================================================
 # Dedupe + enrich (dates)
-# -----------------------------------------------------
+# =====================================================
 def dedupe_brand_rows(rows: List[Banner]) -> List[Banner]:
-    """브랜드 내 중복 제거: (href_clean 우선) / img_url 보조"""
+    """브랜드 내 중복 제거: href_clean + img_url(정규화)"""
     if not rows:
         return rows
     rows_sorted = sorted(rows, key=lambda x: x.rank)
@@ -1220,23 +1451,20 @@ def dedupe_brand_rows(rows: List[Banner]) -> List[Banner]:
     out = []
     for b in rows_sorted:
         hc = b.href_clean or normalize_href(b.href)
-        iu = (b.img_url or "").strip()
+        iu = normalize_img_url(b.img_url or "")
 
-        # href가 있으면 href 기준으로 강하게 dedupe
         if hc:
             if hc in seen_href:
                 continue
             seen_href.add(hc)
 
-        # href가 없거나 빈 경우엔 img_url로라도 dedupe
-        if not hc and iu:
+        if iu:
             if iu in seen_img:
                 continue
             seen_img.add(iu)
 
         out.append(b)
 
-    # rank 재정렬(1..N)
     for i, b in enumerate(out, start=1):
         b.rank = i
     return out
@@ -1247,7 +1475,6 @@ def enrich_dates_for_rows(context, rows: List[Banner]) -> None:
     for b in rows:
         if not b.href_clean and b.href:
             b.href_clean = normalize_href(b.href)
-        # 날짜는 href_clean 우선
         h = b.href_clean or b.href
         if not h:
             continue
@@ -1256,9 +1483,9 @@ def enrich_dates_for_rows(context, rows: List[Banner]) -> None:
         b.plan_end = e
 
 
-# -----------------------------------------------------
+# =====================================================
 # Output
-# -----------------------------------------------------
+# =====================================================
 def write_csv(path: str, rows: List[Banner]):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
@@ -1310,7 +1537,7 @@ def write_html(path: str, rows: List[Banner]):
             cards_html = """
 <div class="glass-card p-8 text-slate-500">
   <div class="text-sm font-bold mb-2">데이터가 아직 없어요</div>
-  <div class="text-xs">해당 브랜드의 히어로 배너를 이번 실행에서 수집하지 못했습니다. (일시적 구조 변경/팝업/봇체크 가능)</div>
+  <div class="text-xs">이번 실행에서 히어로 배너를 수집하지 못했습니다. (일시적 구조 변경/팝업/봇체크 가능)</div>
 </div>
 """
         else:
@@ -1420,7 +1647,7 @@ def write_html(path: str, rows: List[Banner]):
     <header class="flex flex-col md:flex-row md:items-center justify-between mb-16 gap-6">
       <div>
         <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">Hero Banner Analysis</h1>
-        <p class="text-slate-500 text-lg font-medium italic">주요 아웃도어 브랜드 메인 히어로 배너 실시간 모니터링</p>
+        <p class="text-slate-500 text-lg font-medium italic">주요 아웃도어 경쟁사 메인 히어로 배너 모니터링</p>
         <p class="text-slate-400 text-xs mt-3">로컬이미지 경로 모드: {"ABS(file://)" if HTML_USE_ABSOLUTE_FILE_URL else "REL(assets/)"} · 날짜추출: {"ON" if FETCH_CAMPAIGN_DATES else "OFF"} </p>
       </div>
       <div class="glass-card px-6 py-4 flex items-center gap-4">
@@ -1475,10 +1702,10 @@ def write_html(path: str, rows: List[Banner]):
         f.write(full_html)
 
 
-# -----------------------------------------------------
+# =====================================================
 # Brand dispatcher
-# -----------------------------------------------------
-def crawl_brand(page, bk, bn, url, mode, date_s, mx):
+# =====================================================
+def crawl_brand(context, page, bk, bn, url, mode, date_s, mx):
     print(f"\n[*] Analyzing: {bn} ({url})", flush=True)
 
     with stage(bn, "goto"):
@@ -1495,19 +1722,19 @@ def crawl_brand(page, bk, bn, url, mode, date_s, mx):
 
     with stage(bn, f"extract ({mode})"):
         if mode == "tnf_slick":
-            return tnf_slick(page, url, bk, bn, date_s, mx)
-        elif mode == "nepa_static":
-            return nepa_static(page, url, bk, bn, date_s, mx)
-        elif mode == "patagonia_static_hero":
-            return patagonia_static_hero(page, url, bk, bn, date_s)
-        elif mode == "blackyak_swiper":
-            return blackyak_swiper(page, url, bk, bn, date_s, mx)
-        elif mode == "discovery_swiper":
-            return discovery_swiper(page, url, bk, bn, date_s, mx)
-        elif mode == "generic":
-            return generic_top_banners(page, url, bk, bn, date_s, mx)
-        else:
-            return generic_top_banners(page, url, bk, bn, date_s, mx)
+            return tnf_slick(context, page, url, bk, bn, date_s, mx)
+        if mode == "nepa_static":
+            return nepa_static(context, page, url, bk, bn, date_s, mx)
+        if mode == "patagonia_static_hero":
+            return patagonia_static_hero(context, page, url, bk, bn, date_s)
+        if mode == "blackyak_swiper":
+            return blackyak_swiper(context, page, url, bk, bn, date_s, mx)
+        if mode == "discovery_swiper":
+            return discovery_swiper(context, page, url, bk, bn, date_s, mx)
+        if mode == "hero_slider":
+            return hero_slider(context, page, url, bk, bn, date_s, mx)
+        # fallback
+        return generic_top_banners(context, page, url, bk, bn, date_s, mx)
 
 
 def main():
@@ -1527,7 +1754,6 @@ def main():
 
     rows: List[Banner] = []
 
-    # Progress init
     PROG = Progress(total=len(BRANDS))
     PROG.set_stage(stage="start")
     PROG.newline()
@@ -1548,7 +1774,7 @@ def main():
                         PROG.set_stage(brand=bn, stage=f"open_page (try {attempt}/2)")
                     page = context.new_page()
 
-                    got = crawl_brand(page, bk, bn, url, mode, date_s, mx)
+                    got = crawl_brand(context, page, bk, bn, url, mode, date_s, mx)
                     brand_rows.extend(got)
 
                     brand_ok = True
@@ -1576,10 +1802,10 @@ def main():
                         continue
                     break
 
-            # ✅ 브랜드 단위 dedupe (중복 제거 후 rows에 합치기)
+            # ✅ 브랜드 단위 dedupe + rank 재정렬
             brand_rows = dedupe_brand_rows(brand_rows)
 
-            # ✅ 날짜 enrich (top3면 비용 감당 가능)
+            # ✅ 날짜 enrich
             with stage(bn, "fetch_dates"):
                 enrich_dates_for_rows(context, brand_rows)
 
