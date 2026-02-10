@@ -317,17 +317,19 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
 
     active_brands = [b for b in BRAND_LIST if len(brand_map.get(b, [])) > 0]
 
-    # ✅ Summary HTML
-    # top 12만 보여주고, 나머지는 스크롤 테이블로 표시
+    # ✅ Summary HTML (Top5 노출 + 나머지 접기/펼치기)
     if summary_df is None or summary_df.empty:
         summary_html = """
         <div class="text-slate-500 font-bold">요약 데이터가 없습니다.</div>
         """
     else:
-        # 표시용 테이블
-        rows_html = ""
-        for _, r in summary_df.iterrows():
-            rows_html += f"""
+        df = summary_df.copy()
+        top_n = 5
+        top_df = df.head(top_n)
+        rest_df = df.iloc[top_n:]
+
+        def row_html(r):
+            return f"""
             <tr class="border-b border-slate-100">
               <td class="py-3 pr-4 font-black text-slate-800">{r['brand']}</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">{int(r['posts_count'])}</td>
@@ -337,8 +339,37 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
             </tr>
             """
 
+        top_rows = "".join(row_html(r) for _, r in top_df.iterrows())
+        rest_rows = "".join(row_html(r) for _, r in rest_df.iterrows())
+
+        toggle_html = ""
+        if len(rest_df) > 0:
+            toggle_html = f"""
+            <div class="mt-5 flex items-center justify-between">
+              <div class="text-xs text-slate-400 font-bold">
+                Top {top_n} 노출 · 나머지 {len(rest_df)}개는 접혀있음
+              </div>
+              <button
+                id="summaryToggleBtn"
+                onclick="toggleSummaryRest()"
+                class="px-4 py-2 rounded-xl bg-white/70 border border-white text-slate-700 font-black text-xs hover:bg-white transition"
+              >
+                나머지 펼치기 <i class="fa-solid fa-chevron-down ml-2"></i>
+              </button>
+            </div>
+            <div id="summaryRestWrap" class="mt-4" style="display:none;">
+              <div class="overflow-x-auto rounded-2xl border border-white bg-white/35">
+                <table class="w-full text-sm">
+                  <tbody>
+                    {rest_rows}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            """
+
         summary_html = f"""
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto rounded-2xl border border-white bg-white/35">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-[11px] uppercase tracking-widest text-slate-400 border-b border-slate-100">
@@ -350,13 +381,13 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
               </tr>
             </thead>
             <tbody>
-              {rows_html}
+              {top_rows}
             </tbody>
           </table>
         </div>
+        {toggle_html}
         """
 
-    # 탭 메뉴/콘텐츠
     tab_menu_html = ""
     content_area_html = ""
 
@@ -393,11 +424,14 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
                     title_short += "..."
 
                 src = item.get("source", "")
-                src_badge = ""
                 if src == "comment(boosted_by_title)":
                     src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black">TITLE→COMMENT</span>'
+                elif src == "comment":
+                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black">COMMENT</span>'
+                elif src == "content":
+                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span>'
                 else:
-                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span>'
+                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span>'
 
                 sentence_cards += f"""
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
@@ -437,7 +471,6 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
     .glass-card {{ background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }}
     .sidebar {{ background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }}
 
-    /* ===== EMBED MODE (when inside iframe) ===== */
     body.embedded aside {{ display:none !important; }}
     body.embedded header {{ display:none !important; }}
     body.embedded .sidebar {{ display:none !important; }}
@@ -482,13 +515,12 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
       </div>
     </header>
 
-    <!-- ✅ SUMMARY (Hot Keywords 대체) -->
     <section class="glass-card p-10 mb-12">
       <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-6 flex items-center gap-2">
         <i class="fa-solid fa-chart-simple"></i> Mention Summary
       </h3>
       <div class="text-xs text-slate-500 font-bold mb-6">
-        Posts = 해당 브랜드가 1회 이상 언급된 글 수 · Title Hits = 제목 언급 글 수 · Comment Mentions = (제목에 브랜드 포함된 글에서) 댓글 언급 문장 수 · Total Mentions = 전체 문장 언급 수
+        Posts = 해당 브랜드가 1회 이상 언급된 글 수 · Title Hits = 제목 언급 글 수 · Comment Mentions = 댓글 언급 문장 수 · Total Mentions = 전체 문장 언급 수
       </div>
       {summary_html}
     </section>
@@ -518,6 +550,21 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
       if (activeBtn) {{
         activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
         activeBtn.classList.remove('bg-white/50', 'text-slate-500');
+      }}
+    }}
+
+    function toggleSummaryRest() {{
+      const wrap = document.getElementById('summaryRestWrap');
+      const btn = document.getElementById('summaryToggleBtn');
+      if (!wrap || !btn) return;
+
+      const opened = wrap.style.display !== 'none';
+      if (opened) {{
+        wrap.style.display = 'none';
+        btn.innerHTML = '나머지 펼치기 <i class="fa-solid fa-chevron-down ml-2"></i>';
+      }} else {{
+        wrap.style.display = 'block';
+        btn.innerHTML = '접기 <i class="fa-solid fa-chevron-up ml-2"></i>';
       }}
     }}
   </script>
