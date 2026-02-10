@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict, Tuple
 import urllib3
 
 # =================================================================
@@ -18,11 +18,40 @@ import urllib3
 KST = timezone(timedelta(hours=9))
 GALLERY_ID = "climbing"
 BASE_URL = "https://gall.dcinside.com"
-MAX_PAGES = 50
+MAX_PAGES = 100
 TARGET_DAYS = 7  # 최근 N일(오늘 포함) 데이터 대상
 
-# 분석 대상 브랜드
-BRAND_LIST = ["컬럼비아", "노스페이스", "파타고니아", "아크테릭스", "블랙야크", "K2", "캠프라인", "살로몬", "호카", "마무트"]
+# ✅ 분석 대상 브랜드 (기존 10 + 추가 15 = 총 25)
+# - 네가 말했던 15개를 여기 넣으면 됨. (지금은 “아웃도어 TOP” 기준으로 기본값 채워둠)
+BRAND_LIST = [
+    # 기존
+    "컬럼비아", "노스페이스", "파타고니아", "아크테릭스", "블랙야크",
+    "K2", "캠프라인", "살로몬", "호카", "마무트",
+
+    # 추가 15 (기본값 - 필요하면 네가 말한 브랜드로 교체/정리해줘)
+    "스노우피크", "내셔널지오그래픽", "디스커버리", "코오롱스포츠", "몬벨",
+    "네파", "아이더", "노스케이프", "밀레", "라푸마",
+    "헬리한센", "오스프리", "그레고리", "데상트", "나이키"
+]
+
+# ✅ 브랜드명 정규화(별칭/영문/약칭) 지원이 필요하면 여기에 추가
+# 예: "The North Face" / "TNF" -> "노스페이스"
+BRAND_ALIASES: Dict[str, List[str]] = {
+    "노스페이스": ["노페", "TNF", "The North Face", "NORTHFACE", "NORTH FACE"],
+    "아크테릭스": ["아크", "Arc'teryx", "ARCTERYX", "아크테릭"],
+    "파타고니아": ["파타", "Patagonia", "PATAGONIA"],
+    "살로몬": ["살로몬", "Salomon", "SALOMON"],
+    "스노우피크": ["Snow Peak", "SNOWPEAK", "Snowpeak"],
+    "내셔널지오그래픽": ["National Geographic", "NATIONALGEOGRAPHIC", "NATGEO", "NatGeo", "내지"],
+    "코오롱스포츠": ["Kolon Sport", "KOLONSPORT", "Kolonsport", "코오롱"],
+    "몽벨": ["몽벨", "Montbell", "MONTBELL"],
+    "디스커버리": ["Discovery", "DISCOVERY"],
+    "컬럼비아": ["Columbia", "COLUMBIA", "콜롬비아"],
+    "블랙야크": ["Black Yak", "BLACKYAK", "블야"],
+    "네파": ["NEPA"],
+    "아이더": ["EIDER"],
+    "데상트": ["Descente", "DESCENTE"],
+}
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 SESSION = requests.Session()
@@ -40,7 +69,7 @@ class Post:
 
 def crawl_dc_engine(days: int):
     start_date = (datetime.now(KST) - timedelta(days=days)).date()
-    posts = []
+    posts: List[Post] = []
     stop_signal = False
 
     print(f"🚀 [M-OS SYSTEM] DCInside '{GALLERY_ID}' 갤러리 분석 시작 (최근 {days}일)")
@@ -114,50 +143,207 @@ def crawl_dc_engine(days: int):
     return posts
 
 # =================================================================
-# 2. 데이터 분석
+# 2. 텍스트 분석 유틸
+# =================================================================
+def normalize_text(s: str) -> str:
+    return (s or "").strip()
+
+def split_sentences(text: str) -> List[str]:
+    if not text:
+        return []
+    # 문장 분리: 줄바꿈/마침/물음/느낌 등 기준
+    parts = re.split(r"[.!?\n]", text)
+    out = []
+    for p in parts:
+        p = p.strip()
+        if len(p) >= 4:
+            out.append(p)
+    return out
+
+def build_brand_patterns() -> Dict[str, re.Pattern]:
+    """
+    브랜드별 매칭 패턴(정규식) 생성:
+    - 기본 브랜드명 + 별칭들을 모두 OR로 묶고, 대소문자 무시
+    """
+    patterns = {}
+    for b in BRAND_LIST:
+        aliases = BRAND_ALIASES.get(b, [])
+        tokens = [re.escape(b)] + [re.escape(a) for a in aliases]
+        # 단어 경계는 한글/영문 혼합이라 완벽하지 않아서, 대신 "포함" 매칭을 정규식으로 구현
+        pat = re.compile(r"(" + "|".join(tokens) + r")", re.IGNORECASE)
+        patterns[b] = pat
+    return patterns
+
+def contains_brand(title: str, brand: str, patterns: Dict[str, re.Pattern]) -> bool:
+    return bool(patterns[brand].search(title or ""))
+
+def sentence_has_brand(sentence: str, brand: str, patterns: Dict[str, re.Pattern]) -> bool:
+    return bool(patterns[brand].search(sentence or ""))
+
+# =================================================================
+# 3. 데이터 분석
+#   - Hot Keywords 제거
+#   - 언급량 summary 생성
+#   - 제목에 브랜드가 있으면 댓글에서 브랜드 언급도 추가 수집(강제)
 # =================================================================
 def process_data(posts: List[Post]):
-    brand_map = {b: [] for b in BRAND_LIST}
-    word_pool = []
+    patterns = build_brand_patterns()
+
+    # brand_map: 브랜드별 수집 문장(출처 포함)
+    brand_map: Dict[str, List[dict]] = {b: [] for b in BRAND_LIST}
+
+    # summary counts
+    # - posts_count: 해당 브랜드가 언급된 "포스트 수"
+    # - title_hits: 제목에 언급된 포스트 수
+    # - comment_mentions: 댓글에서 브랜드 언급 문장 수
+    # - total_mentions: 전체(제목/본문/댓글)에서 브랜드가 포함된 문장 수
+    summary = {
+        b: {
+            "posts_count": 0,
+            "title_hits": 0,
+            "comment_mentions": 0,
+            "total_mentions": 0,
+        } for b in BRAND_LIST
+    }
 
     for p in posts:
-        full_text = f"{p.title}\n{p.content}\n{p.comments}"
+        title = normalize_text(p.title)
+        content = normalize_text(p.content)
+        comments = normalize_text(p.comments)
 
-        # 키워드 집계용
-        word_pool.extend(re.sub(r"[^가-힣a-zA-Z]", " ", full_text).split())
+        # 문장 단위
+        content_sents = split_sentences(content)
+        comment_sents = split_sentences(comments)
 
-        # 문장 단위 분할
-        sentences = re.split(r"[.!?\n]", full_text)
+        # ✅ 브랜드별로 “이 포스트에서 언급됐는지” 체크
+        post_has_brand = {b: False for b in BRAND_LIST}
+        title_has_brand = {b: False for b in BRAND_LIST}
+
+        # 1) 제목/본문/댓글 전체에서 기본 수집
+        full_text = f"{title}\n{content}\n{comments}"
+        full_sents = split_sentences(full_text)
+
         for b in BRAND_LIST:
-            for s in sentences:
-                s_clean = s.strip()
-                if b in s_clean and len(s_clean) > 5:
+            # 포스트 단위 카운트(하나라도 있으면 posts_count +1)
+            # - 먼저 제목 여부
+            if contains_brand(title, b, patterns):
+                title_has_brand[b] = True
+                summary[b]["title_hits"] += 1
+
+            # 문장 단위 수집(전체)
+            for s in full_sents:
+                if sentence_has_brand(s, b, patterns):
+                    if len(s) > 5:
+                        brand_map[b].append({
+                            "text": s,
+                            "url": p.url,
+                            "title": title,
+                            "source": "title/content/comments"
+                        })
+                        summary[b]["total_mentions"] += 1
+                        post_has_brand[b] = True
+
+        # 포스트 수 집계
+        for b in BRAND_LIST:
+            if post_has_brand[b]:
+                summary[b]["posts_count"] += 1
+
+        # 2) ✅ 요청: "제목에서 특정 브랜드 언급했으면 그 글의 댓글에서 브랜드 언급한것도 같이 끌어와줘"
+        # - 제목에 브랜드가 있던 글에 한해,
+        # - 댓글에서 해당 브랜드가 들어간 문장을 추가로 수집(강제)
+        for b in BRAND_LIST:
+            if not title_has_brand[b]:
+                continue
+
+            for s in comment_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 5:
                     brand_map[b].append({
-                        "text": s_clean,
+                        "text": s,
                         "url": p.url,
-                        "title": p.title
+                        "title": title,
+                        "source": "comment(boosted_by_title)"
                     })
+                    summary[b]["comment_mentions"] += 1
+                    summary[b]["total_mentions"] += 1
 
-    top_kws = pd.Series([w for w in word_pool if len(w) > 1]).value_counts().head(15).to_dict()
-    return brand_map, top_kws
+    # ✅ 브랜드별 결과 dedupe (같은 글/같은 문장 중복 제거)
+    for b in BRAND_LIST:
+        seen = set()
+        uniq = []
+        for item in brand_map[b]:
+            key = (item.get("url", ""), item.get("text", ""), item.get("source", ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            uniq.append(item)
+        brand_map[b] = uniq
+
+    # ✅ summary dataframe용 정렬키(총 언급량 desc)
+    summary_df = pd.DataFrame([
+        {
+            "brand": b,
+            "posts_count": summary[b]["posts_count"],
+            "title_hits": summary[b]["title_hits"],
+            "comment_mentions": summary[b]["comment_mentions"],
+            "total_mentions": summary[b]["total_mentions"],
+        }
+        for b in BRAND_LIST
+    ]).sort_values(["total_mentions", "posts_count"], ascending=False)
+
+    return brand_map, summary_df
 
 # =================================================================
-# 3. HTML 생성 (reports/external_signal.html 고정)
+# 4. HTML 생성 (reports/external_signal.html 고정)
+#   - Hot Keywords 제거 -> Summary로 대체
 # =================================================================
-def export_portal(brand_map, top_kws, out_path="reports/external_signal.html"):
+def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/external_signal.html"):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-
-    kw_html = "".join([
-        f'<span class="px-4 py-2 rounded-full bg-white/50 border border-white text-sm font-bold text-slate-600"># {k} <span class="text-blue-600">{v}</span></span>'
-        for k, v in (top_kws or {}).items()
-    ])
-
-    tab_menu_html = ""
-    content_area_html = ""
 
     active_brands = [b for b in BRAND_LIST if len(brand_map.get(b, [])) > 0]
 
-    # 데이터가 하나도 없으면, 빈 화면 대신 안내 카드
+    # ✅ Summary HTML
+    # top 12만 보여주고, 나머지는 스크롤 테이블로 표시
+    if summary_df is None or summary_df.empty:
+        summary_html = """
+        <div class="text-slate-500 font-bold">요약 데이터가 없습니다.</div>
+        """
+    else:
+        # 표시용 테이블
+        rows_html = ""
+        for _, r in summary_df.iterrows():
+            rows_html += f"""
+            <tr class="border-b border-slate-100">
+              <td class="py-3 pr-4 font-black text-slate-800">{r['brand']}</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">{int(r['posts_count'])}</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">{int(r['title_hits'])}</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">{int(r['comment_mentions'])}</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">{int(r['total_mentions'])}</td>
+            </tr>
+            """
+
+        summary_html = f"""
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-[11px] uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                <th class="py-3 pr-4">Brand</th>
+                <th class="py-3 pr-4">Posts</th>
+                <th class="py-3 pr-4">Title Hits</th>
+                <th class="py-3 pr-4">Comment Mentions</th>
+                <th class="py-3 pr-4">Total Mentions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows_html}
+            </tbody>
+          </table>
+        </div>
+        """
+
+    # 탭 메뉴/콘텐츠
+    tab_menu_html = ""
+    content_area_html = ""
+
     if not active_brands:
         tab_menu_html = """
         <div class="px-6 py-4 rounded-2xl bg-white/60 border border-white text-slate-500 font-bold">
@@ -186,16 +372,28 @@ def export_portal(brand_map, top_kws, out_path="reports/external_signal.html"):
             sentence_cards = ""
 
             for item in brand_map[brand]:
-                title_short = (item['title'] or "")[:25]
-                if len(item.get('title', '')) > 25:
+                title_short = (item.get('title') or "")[:28]
+                if len(item.get('title') or "") > 28:
                     title_short += "..."
+
+                src = item.get("source", "")
+                src_badge = ""
+                if src == "comment(boosted_by_title)":
+                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black">TITLE→COMMENT</span>'
+                else:
+                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span>'
 
                 sentence_cards += f"""
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" {item['text']} "</p>
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE {src_badge}</div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" {item.get('text','')} "</p>
+
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: {title_short}</span>
-                        <a href="{item['url']}" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="{item.get('url','')}" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -253,10 +451,11 @@ def export_portal(brand_map, top_kws, out_path="reports/external_signal.html"):
   </aside>
 
   <main class="flex-1 p-8 md:p-16">
-    <header class="flex flex-col md:flex-row md:items-center justify-between mb-16 gap-6">
+    <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
       <div>
         <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">VOC Real-time Analysis</h1>
         <p class="text-slate-500 text-lg font-medium italic">디시인사이드 등산 갤러리 브랜드 언급 데이터</p>
+        <p class="text-slate-400 text-xs mt-2 font-bold">기간: 최근 {TARGET_DAYS}일 · 최대 {MAX_PAGES}페이지 스캔</p>
       </div>
       <div class="glass-card px-6 py-4 flex items-center gap-4">
         <div class="flex h-3 w-3 relative">
@@ -267,11 +466,15 @@ def export_portal(brand_map, top_kws, out_path="reports/external_signal.html"):
       </div>
     </header>
 
+    <!-- ✅ SUMMARY (Hot Keywords 대체) -->
     <section class="glass-card p-10 mb-12">
-      <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-8 flex items-center gap-2">
-        <i class="fa-solid fa-hashtag"></i> Hot Keywords
+      <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-6 flex items-center gap-2">
+        <i class="fa-solid fa-chart-simple"></i> Mention Summary
       </h3>
-      <div class="flex flex-wrap gap-3">{kw_html}</div>
+      <div class="text-xs text-slate-500 font-bold mb-6">
+        Posts = 해당 브랜드가 1회 이상 언급된 글 수 · Title Hits = 제목 언급 글 수 · Comment Mentions = (제목에 브랜드 포함된 글에서) 댓글 언급 문장 수 · Total Mentions = 전체 문장 언급 수
+      </div>
+      {summary_html}
     </section>
 
     <section>
@@ -327,9 +530,8 @@ def export_portal(brand_map, top_kws, out_path="reports/external_signal.html"):
 if __name__ == "__main__":
     raw_data = crawl_dc_engine(days=TARGET_DAYS)
     if raw_data:
-        brand_map, top_kws = process_data(raw_data)
-        export_portal(brand_map, top_kws)
+        brand_map, summary_df = process_data(raw_data)
+        export_portal(brand_map, summary_df)
     else:
-        # 데이터가 0이어도 빈 HTML은 생성해주자 (Pages에서 깨지지 않게)
-        export_portal({b: [] for b in BRAND_LIST}, {})
+        export_portal({b: [] for b in BRAND_LIST}, pd.DataFrame())
         print("⚠️ 수집 데이터 0건 (빈 리포트 생성)")
