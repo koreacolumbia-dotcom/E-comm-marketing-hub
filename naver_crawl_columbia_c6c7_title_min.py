@@ -2,25 +2,23 @@
 # -*- coding: utf-8 -*-
 
 """
-[운영 안정판 v8 - FULL FINAL + UI/ACCURACY PATCH + IMAGE FIX + EXCLUDE CODES]
+[운영 안정판 v8 - FULL FINAL + TRIM + GRID(4COL) + CARD UI TUNING]
 - 입력 CSV 자동 탐색
 - official_hashes.csv(공식 이미지) 우선 적용 → 네이버 이미지 fallback
-- 로그 강화 (flush)
 - 네이버 쇼핑 API 최저가 + Top3 + Match 점수
 - 결과 CSV + HTML 대시보드 생성(정적)
-- 전일(가장 최신 result_*.csv) 대비 Δ최저가 표시
-- 캐시 hit/miss 로그
-- 상위 N개만 처리: 기본 100개 (--limit)
-- Search 버튼/Enter로만 검색 적용(검색 결과만 보이게)
-- Search/Apply/TabSwitch 모두 로딩 오버레이 표시
-- 검색 결과 0개면 "검색 결과가 없습니다" 표시
-- 이미지: 최종이미지URL(공식 우선) + 공식이미지URL + 네이버이미지URL 모두 저장
-- ✅ 최종이미지 없거나 네이버최저가 없으면 결과(HTML/CSV)에서 제외
-- ✅ PATCH: 네이버 결과 정확도 강화(코드 매칭 우선 → 없으면 Columbia 키워드)
-- ✅ PATCH: 검색창 3개 → 1개 통합(UI 단순화)
-- ✅ FIX: 무관(여자 모델/잡상품) 유입 차단: 코드/브랜드 둘 다 실패 시 fallback 금지 → 결과 제외
-- ✅ FIX: 이미지 안 잘리게 object-contain + 고정 박스
-- ✅ EXCLUDE: 특정 스타일코드 제외(기본: C71YLT371297, C71YLT371193) + --exclude_codes 옵션 지원
+- 전일(result_*.csv) 대비 Δ최저가 표시
+- 캐시(hit/miss) 지원
+- --limit 지원
+- ✅ 결과에서 제외: 네이버최저가 없으면 제외 / 이미지 없으면 제외
+- ✅ 정확도 강화: 코드 매칭 우선 → 브랜드(Columbia/컬럼비아) → 둘 다 실패면 제외(무관 유입 차단)
+- ✅ EXCLUDE_CODES 기본 포함 + 옵션 지원
+- ✅ UI: 검색창 1개 통합 + 로딩 오버레이
+- ✅ UI: 카드 높이 균일화 / 체크박스 위치(오른쪽 상단 고정) / 그리드 4열 옵션
+- ✅ NEW: --trim_images
+  - 원본(흰/투명) 여백 자동 크롭 → 로컬 파일 저장 → HTML은 file:// 절대경로로 표시
+  - HTML만 따로 옮겨 열어도 이미지 깨지지 않게 “로컬 파일 경로” 유지(절대경로)
+    (단, HTML을 다른 PC로 옮기면 이미지도 같이 옮겨야 함)
 
 필수 환경변수:
 - NAVER_CLIENT_ID
@@ -28,8 +26,8 @@
 
 실행:
   python -u naver_crawl_columbia_c6c7_title_min.py
-  python -u naver_crawl_columbia_c6c7_title_min.py --limit 100
   python -u naver_crawl_columbia_c6c7_title_min.py --limit 999999
+  python -u naver_crawl_columbia_c6c7_title_min.py --trim_images
 """
 
 import os
@@ -42,9 +40,15 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 import pandas as pd
+
+# Pillow (이미지 트리밍용)
+try:
+    from PIL import Image
+except Exception:
+    Image = None
 
 
 # -----------------------------
@@ -173,7 +177,7 @@ def filter_items_for_accuracy(
     - 0) 기본 컷: 가격 범위/몰 제외/악성 키워드
     - 1) 1차: title에 style_code 포함인 결과만
     - 2) 2차: title에 Columbia/컬럼비아 포함인 결과만
-    - 3) ❌ 최후 fallback 제거: 위 조건 둘 다 실패면 [] 반환 (무관 이미지 차단)
+    - 3) ❌ fallback 금지: 위 조건 둘 다 실패면 [] 반환
     """
     if not items:
         return []
@@ -183,9 +187,7 @@ def filter_items_for_accuracy(
     cleaned: List[Dict[str, Any]] = []
 
     bad_terms = [
-        # 악성 노이즈 컷(액세서리/호환품 등)
         "호환", "케이스", "필름", "스티커", "리필", "커버",
-        # 모델컷/의류 카테고리 혼입(빈출)
         "브라", "브래지어", "이너", "나시", "탑", "레깅스", "요가", "스포츠브라",
         "속옷", "언더웨어", "비키니", "수영복",
     ]
@@ -209,13 +211,11 @@ def filter_items_for_accuracy(
     if not cleaned:
         return []
 
-    # 1차: 코드 매칭
     if code_l:
         code_matched = [it for it in cleaned if code_l in strip_html_tags(it.get("title") or "").lower()]
         if code_matched:
             return code_matched
 
-    # 2차: 브랜드 매칭
     brand_matched = []
     for it in cleaned:
         title = strip_html_tags(it.get("title") or "").lower()
@@ -224,7 +224,6 @@ def filter_items_for_accuracy(
     if brand_matched:
         return brand_matched
 
-    # ✅ fallback 금지
     return []
 
 
@@ -270,7 +269,6 @@ def compute_confidence(style_code: str, best_item: Optional[Dict[str, Any]]) -> 
 
 
 def choose_best_image(best_item: Optional[Dict[str, Any]], top_items: List[Dict[str, Any]]) -> str:
-    """이미지 확보: 1) best_item.image 2) top_items 중 image 있는 첫 번째"""
     if best_item:
         img = (best_item.get("image") or "").strip()
         if img:
@@ -320,6 +318,153 @@ def save_cache(cache_dir: str, style_code: str, items: List[Dict[str, Any]]) -> 
             json.dump({"items": items, "saved_at": datetime.now().isoformat()}, f, ensure_ascii=False)
     except Exception:
         pass
+
+
+# -----------------------------
+# 이미지 다운로드 + 여백 트리밍
+# -----------------------------
+def _file_url(abs_path: str) -> str:
+    # Windows file:// URL
+    p = abs_path.replace("\\", "/")
+    if not p.startswith("/"):
+        p = "/" + p
+    return "file://" + p
+
+
+def _download_binary(url: str, referer: Optional[str], timeout_sec: int = 18, max_retries: int = 3) -> Optional[bytes]:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+    }
+    if referer:
+        headers["Referer"] = referer
+
+    for attempt in range(max_retries + 1):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout_sec) as res:
+                return res.read()
+        except Exception:
+            if attempt < max_retries:
+                time.sleep(0.6 * (2 ** attempt))
+                continue
+            return None
+    return None
+
+
+def _crop_whitespace_pil(im: "Image.Image", bg_thresh: int = 245, pad: int = 8) -> "Image.Image":
+    """
+    흰/투명 배경 여백 자동 크롭
+    - bg_thresh: 245 이상을 '거의 흰색'으로 간주
+    - pad: 크롭 후 여유 픽셀
+    """
+    if im.mode not in ("RGBA", "RGB", "LA", "L"):
+        im = im.convert("RGBA")
+
+    w, h = im.size
+    if w < 2 or h < 2:
+        return im
+
+    if im.mode == "RGBA":
+        rgba = im
+        # alpha가 너무 낮으면 배경으로 처리
+        px = rgba.getdata()
+        # 빠른 bbox 계산을 위해 스캔
+        minx, miny, maxx, maxy = w, h, -1, -1
+        for y in range(h):
+            row = px[y * w:(y + 1) * w]
+            for x, (r, g, b, a) in enumerate(row):
+                if a <= 8:
+                    continue
+                if r >= bg_thresh and g >= bg_thresh and b >= bg_thresh:
+                    continue
+                if x < minx: minx = x
+                if y < miny: miny = y
+                if x > maxx: maxx = x
+                if y > maxy: maxy = y
+        if maxx < 0:
+            return im
+    else:
+        rgb = im.convert("RGB")
+        px = rgb.getdata()
+        minx, miny, maxx, maxy = w, h, -1, -1
+        for y in range(h):
+            row = px[y * w:(y + 1) * w]
+            for x, (r, g, b) in enumerate(row):
+                if r >= bg_thresh and g >= bg_thresh and b >= bg_thresh:
+                    continue
+                if x < minx: minx = x
+                if y < miny: miny = y
+                if x > maxx: maxx = x
+                if y > maxy: maxy = y
+        if maxx < 0:
+            return im
+
+    # pad 적용
+    minx = max(0, minx - pad)
+    miny = max(0, miny - pad)
+    maxx = min(w - 1, maxx + pad)
+    maxy = min(h - 1, maxy + pad)
+
+    if minx >= maxx or miny >= maxy:
+        return im
+
+    return im.crop((minx, miny, maxx + 1, maxy + 1))
+
+
+def trim_image_to_local(
+    image_url: str,
+    out_dir: str,
+    file_stem: str,
+    referer: Optional[str] = None,
+    ttl_hours: int = 72,
+) -> Tuple[str, Optional[str]]:
+    """
+    image_url -> 로컬 파일 저장(여백 트리밍) -> file:// 절대경로 반환
+    반환: (file_url, local_abs_path or None)
+    """
+    if not image_url:
+        return "", None
+
+    if Image is None:
+        # Pillow가 없으면 그냥 원본 URL 사용
+        return image_url, None
+
+    os.makedirs(out_dir, exist_ok=True)
+    out_png = os.path.join(out_dir, f"{file_stem}.png")
+
+    # TTL 캐시
+    if os.path.exists(out_png):
+        age_sec = time.time() - os.path.getmtime(out_png)
+        if age_sec <= ttl_hours * 3600:
+            return _file_url(os.path.abspath(out_png)), os.path.abspath(out_png)
+
+    blob = _download_binary(image_url, referer=referer)
+    if not blob:
+        return image_url, None
+
+    try:
+        from io import BytesIO
+        im = Image.open(BytesIO(blob))
+        # EXIF 회전 보정
+        try:
+            from PIL import ImageOps
+            im = ImageOps.exif_transpose(im)
+        except Exception:
+            pass
+
+        im = im.convert("RGBA")
+        trimmed = _crop_whitespace_pil(im, bg_thresh=245, pad=10)
+
+        # 너무 과도하게 작아지는 것 방지(최소 면적 가드)
+        if trimmed.size[0] < 120 or trimmed.size[1] < 120:
+            trimmed = im
+
+        trimmed.save(out_png, format="PNG", optimize=True)
+        return _file_url(os.path.abspath(out_png)), os.path.abspath(out_png)
+
+    except Exception:
+        return image_url, None
 
 
 # -----------------------------
@@ -437,7 +582,6 @@ def build_official_image_map(csv_path: str) -> Dict[str, str]:
         log("🖼️ official_hashes: ProductImages rows not found (map empty)")
         return {}
 
-    # URL에서 코드 추출
     oh_prod["code"] = (
         oh_prod["image_url"]
         .astype(str)
@@ -445,7 +589,6 @@ def build_official_image_map(csv_path: str) -> Dict[str, str]:
         .str.upper()
     )
 
-    # URL에서 못 뽑으면 product_name 괄호에서 추출
     miss = oh_prod["code"].isna()
     if miss.any():
         oh_prod.loc[miss, "code"] = (
@@ -457,7 +600,6 @@ def build_official_image_map(csv_path: str) -> Dict[str, str]:
 
     oh_prod = oh_prod.dropna(subset=["code"]).copy()
 
-    # 해시로 노이즈 제거(0/빈값 제외) + 중복 제거
     if "aHash64" in oh_prod.columns:
         ah = oh_prod["aHash64"].astype(str).fillna("")
         oh_prod = oh_prod[(ah != "") & (ah != "0")]
@@ -486,7 +628,6 @@ def _safe_attr(s: str) -> str:
 
 
 def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
-    # 탭: C7 -> C6 -> 전체
     groups: Dict[str, List[Dict[str, Any]]] = {"C7": [], "C6": [], "전체": []}
     for r in rows:
         code = (r.get("코드") or "").upper()
@@ -497,9 +638,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
         groups["전체"].append(r)
 
     ordered_tabs = ["C7", "C6", "전체"]
-    active_tabs = [t for t in ordered_tabs if len(groups.get(t, [])) > 0]
-    if not active_tabs:
-        active_tabs = ["전체"]
+    active_tabs = [t for t in ordered_tabs if len(groups.get(t, [])) > 0] or ["전체"]
 
     total_cnt = len(rows)
     missing_cnt = sum(1 for r in rows if r.get("네이버최저가") is None)
@@ -543,6 +682,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             img_final = r.get("이미지URL", "") or ""
             img_official = r.get("공식이미지URL", "") or ""
             img_naver = r.get("네이버이미지URL", "") or ""
+            img_local = r.get("trimmed_local_path", "") or ""  # 로컬 저장 경로(절대)
 
             prev_naver = r.get("prev_naver")
             delta_naver = r.get("delta_naver")
@@ -626,7 +766,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             </details>
             """
 
-            # dataset attrs for sorting/filtering
             missing_flag = 1 if (naver is None) else 0
             diff_pos_flag = 1 if (isinstance(diff, int) and diff > 0) else 0
             diff_abs = abs(diff) if isinstance(diff, int) else -1
@@ -639,18 +778,29 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             data_name_en = _safe_attr(name_en.lower())
             data_name_ko = _safe_attr(name_ko.lower())
 
-            # ✅ 이미지: 안 잘리게 object-contain + 고정 박스
             img_block = ""
             if img_final.strip():
                 img_block = f"""
                 <div class="mb-4">
-                  <div class="w-full h-48 rounded-2xl border border-white/80 bg-white/60 flex items-center justify-center overflow-hidden">
-                    <img src="{_safe_attr(img_final)}" alt="{_safe_attr(name_en or name_ko)}"
-                      class="max-w-full max-h-full object-contain"
+                  <div class="w-full img-box rounded-2xl border border-white/80 bg-white/60 overflow-hidden relative">
+                    <!-- ✅ 체크박스: 카드 오른쪽 상단 고정 -->
+                    <label class="chk-float inline-flex items-center gap-2 text-[11px] font-black text-slate-700 cursor-pointer select-none">
+                      <input type="checkbox" class="w-4 h-4 accent-[#002d72] chk"
+                        onchange="toggleCheck('{_safe_attr(code)}', this.checked)" />
+                      CHECK
+                    </label>
+
+                    <img
+                      src="{_safe_attr(img_final)}"
+                      data-src-raw="{_safe_attr(r.get("raw_image_url","") or "")}"
+                      alt="{_safe_attr(name_en or name_ko)}"
+                      class="img-fit"
                       loading="lazy"
-                      onerror="this.classList.add('hidden'); if(this.parentElement && this.parentElement.nextElementSibling) this.parentElement.nextElementSibling.classList.remove('hidden');" />
+                      onclick="openImg('{_safe_attr(img_final)}', '{_safe_attr(img_local)}')"
+                      onerror="this.classList.add('hidden'); if(this.parentElement && this.parentElement.nextElementSibling) this.parentElement.nextElementSibling.classList.remove('hidden');"
+                    />
                   </div>
-                  <div class="hidden w-full h-48 rounded-2xl border border-white/80 bg-white/60 flex items-center justify-center">
+                  <div class="hidden w-full img-box rounded-2xl border border-white/80 bg-white/60 flex items-center justify-center">
                     <i class="fa-solid fa-image text-slate-400 text-2xl"></i>
                   </div>
                 </div>
@@ -660,7 +810,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             title_sub = _safe_attr(name_en) if name_ko else ""
 
             cards += f"""
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform card-item"
+            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform card-item flex flex-col"
               data-code="{data_code}" data-nameen="{data_name_en}" data-nameko="{data_name_ko}"
               data-missing="{missing_flag}" data-diffpos="{diff_pos_flag}"
               data-diff="{diff if isinstance(diff,int) else ''}" data-diffabs="{diff_abs}"
@@ -681,14 +831,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
                   </div>
 
                   {top3_block}
-                </div>
-
-                <div class="flex flex-col items-end gap-2">
-                  <label class="inline-flex items-center gap-2 text-[11px] font-black text-slate-600 cursor-pointer select-none">
-                    <input type="checkbox" class="w-4 h-4 accent-[#002d72] chk"
-                      onchange="toggleCheck('{_safe_attr(code)}', this.checked)" />
-                    CHECK
-                  </label>
                 </div>
               </div>
 
@@ -724,7 +866,8 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
                   oninput="saveMemo('{_safe_attr(code)}', this.value)"></textarea>
               </div>
 
-              <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+              <!-- ✅ footer 하단 고정(카드 높이 균일화 체감) -->
+              <div class="mt-auto flex items-center justify-between pt-4 border-t border-slate-100">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">가격차이: {diff_s}</span>
                 <a href="{_safe_attr(link)}" target="_blank"
                   class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
@@ -773,7 +916,43 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     .spinner { width: 56px; height: 56px; border-radius: 9999px; border: 6px solid rgba(0,0,0,0.08); border-top-color: rgba(0,45,114,0.95); animation: spin 0.9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ===== EMBED MODE (when inside iframe) ===== */
+    /* ✅ IMAGE: 트리밍 + 꽉 차 보이게 */
+    .img-box { height: 240px; }
+    @media (min-width: 1024px){ .img-box { height: 280px; } }
+    .img-fit {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;     /* 트리밍 후엔 contain으로도 꽉 차게 보임 */
+      transform: scale(1.03);
+      transition: transform .18s ease;
+      cursor: zoom-in;
+      display:block;
+    }
+    .img-fit:hover { transform: scale(1.10); }
+
+    /* ✅ CHECKBOX: 우상단 고정 + 가독성 */
+    .chk-float{
+      position:absolute;
+      top:12px;
+      right:12px;
+      z-index:5;
+      background: rgba(255,255,255,0.75);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 9999px;
+      padding: 8px 10px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    }
+
+    /* ✅ GRID 모드(3/4열) */
+    .grid-3 { }
+    .grid-4 { }
+    @media (min-width: 1024px){
+      .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+
+    /* ===== EMBED MODE ===== */
     body.embedded aside { display:none !important; }
     body.embedded header { display:none !important; }
     body.embedded .sidebar { display:none !important; }
@@ -859,7 +1038,14 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
         <button id="chip-diffpos" class="chip" onclick="toggleQuickFilter('diffpos')">Diff&gt;0만 보기</button>
         <button id="chip-missing" class="chip" onclick="toggleQuickFilter('missing')">미검색만 보기</button>
         <button id="chip-topgap" class="chip" onclick="toggleQuickFilter('topgap')">Top Gap(10)만 보기</button>
-        <div class="ml-auto text-xs font-black text-slate-500">현재 탭 기준 결과: <span id="matchCount" class="text-slate-900">-</span>개</div>
+
+        <!-- ✅ GRID 옵션 -->
+        <div class="ml-auto flex items-center gap-2">
+          <div class="text-xs font-black text-slate-500">Grid</div>
+          <button id="grid3" class="chip" onclick="setGridMode(3)">3열</button>
+          <button id="grid4" class="chip" onclick="setGridMode(4)">4열</button>
+          <div class="text-xs font-black text-slate-500">현재 탭 결과: <span id="matchCount" class="text-slate-900">-</span>개</div>
+        </div>
       </div>
     </section>
 
@@ -874,10 +1060,9 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             <span class="font-black text-slate-700">Search 버튼 또는 Enter로 적용</span>
           </div>
 
-          <!-- ✅ 검색창 통합 -->
           <div class="grid grid-cols-1 gap-3">
             <input id="qAll" class="input-glass w-full font-bold text-slate-800"
-              placeholder="상품명(영문/한글) 또는 상품코드로 필터링 (ex. jacket / 바람막이 / C7XXXX...)" />
+              placeholder="상품명(영문/한글) 또는 상품코드 (ex. jacket / 바람막이 / C7XXXX...)" />
           </div>
         </div>
 
@@ -893,8 +1078,8 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             <option value="naver_desc">네이버최저가 높은 순</option>
             <option value="official_desc">공식몰가 높은 순</option>
             <option value="code_asc">상품코드 오름차순</option>
-            <option value="delta_asc">Δ최저가 하락 큰 순(더 내려감)</option>
-            <option value="delta_desc">Δ최저가 상승 큰 순(더 오름)</option>
+            <option value="delta_asc">Δ최저가 하락 큰 순</option>
+            <option value="delta_desc">Δ최저가 상승 큰 순</option>
             <option value="conf_desc">Match 점수 높은 순</option>
           </select>
 
@@ -923,35 +1108,32 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     </section>
   </main>
 
+  <!-- ✅ IMAGE MODAL -->
+  <div id="imgModal" class="overlay" onclick="closeImg()">
+    <div class="glass-card p-4 max-w-[92vw] max-h-[92vh]" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-2 gap-2">
+        <div class="text-xs font-black text-slate-600" id="imgModalInfo"></div>
+        <button onclick="closeImg()" class="px-3 py-2 rounded-xl bg-white/70 border border-white font-black text-xs">닫기</button>
+      </div>
+      <img id="imgModalEl" src="" class="max-w-[88vw] max-h-[84vh] object-contain rounded-2xl bg-white" />
+    </div>
+  </div>
+
 <script>
   const ALL_ROWS = __ROWS_JSON__;
   const TOP_GAP_CODES = __TOP_GAP_CODES_JSON__;
-
   const quick = { diffpos: false, missing: false, topgap: false };
 
-  // ✅ 검색 state 단일화
-  const state = {
-    q: "",
-    sortMode: "diffabs_desc",
-    hasSearched: false
-  };
+  const state = { q: "", sortMode: "diffabs_desc", hasSearched: false, gridMode: 3 };
 
   const overlay = document.getElementById('overlay');
   const overlayMsg = document.getElementById('overlayMsg');
 
-  function showOverlay(msg) {
-    overlayMsg.textContent = msg || "잠시만요";
-    overlay.classList.add('show');
-  }
-  function hideOverlay() {
-    overlay.classList.remove('show');
-  }
+  function showOverlay(msg) { overlayMsg.textContent = msg || "잠시만요"; overlay.classList.add('show'); }
+  function hideOverlay() { overlay.classList.remove('show'); }
   function runWithOverlay(msg, fn) {
     showOverlay(msg);
-    setTimeout(() => {
-      try { fn(); }
-      finally { requestAnimationFrame(() => hideOverlay()); }
-    }, 0);
+    setTimeout(() => { try { fn(); } finally { requestAnimationFrame(() => hideOverlay()); } }, 0);
   }
 
   function getActiveTabName() {
@@ -959,7 +1141,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     if (!activeBtn) return null;
     return activeBtn.id.replace('tab-', '');
   }
-
   function getActiveContainer() {
     const tab = getActiveTabName();
     if (!tab) return null;
@@ -969,10 +1150,8 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
   function updateCount() {
     const container = getActiveContainer();
     if (!container) return;
-
     const visibleCards = container.querySelectorAll('.card-item:not([data-hidden="1"])');
     const cnt = visibleCards.length;
-
     document.getElementById('matchCount').innerText = cnt.toString();
 
     const noResults = document.getElementById('noResults');
@@ -984,30 +1163,19 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
 
   function keyCheck(code) { return 'chk_' + code; }
   function keyMemo(code) { return 'memo_' + code; }
-
-  function toggleCheck(code, checked) {
-    try { localStorage.setItem(keyCheck(code), checked ? '1' : '0'); } catch(e) {}
-  }
-  function saveMemo(code, text) {
-    try { localStorage.setItem(keyMemo(code), text || ''); } catch(e) {}
-  }
+  function toggleCheck(code, checked) { try { localStorage.setItem(keyCheck(code), checked ? '1' : '0'); } catch(e) {} }
+  function saveMemo(code, text) { try { localStorage.setItem(keyMemo(code), text || ''); } catch(e) {} }
 
   function hydrateCardState() {
     document.querySelectorAll('.card-item').forEach(card => {
       const code = card.getAttribute('data-code-raw') || '';
       const chk = card.querySelector('input.chk');
       if (chk) {
-        try {
-          const v = localStorage.getItem(keyCheck(code));
-          chk.checked = (v === '1');
-        } catch(e) {}
+        try { chk.checked = (localStorage.getItem(keyCheck(code)) === '1'); } catch(e) {}
       }
       const ta = card.querySelector('textarea');
       if (ta) {
-        try {
-          const v = localStorage.getItem(keyMemo(code));
-          if (v !== null) ta.value = v;
-        } catch(e) {}
+        try { const v = localStorage.getItem(keyMemo(code)); if (v !== null) ta.value = v; } catch(e) {}
       }
     });
   }
@@ -1019,7 +1187,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     onApplyClick();
   }
 
-  // ✅ 검색어 하나로 nameEn/nameKo/code 모두 매칭
   function passesFilters(card) {
     if (!state.hasSearched) return true;
 
@@ -1069,6 +1236,28 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     }
     cards.sort(cmp);
     cards.forEach(c => container.appendChild(c));
+  }
+
+  function applyGridMode() {
+    document.querySelectorAll('.tab-content').forEach(el => {
+      el.classList.remove('grid-3','grid-4');
+      el.classList.add(state.gridMode === 4 ? 'grid-4' : 'grid-3');
+    });
+
+    const b3 = document.getElementById('grid3');
+    const b4 = document.getElementById('grid4');
+    if (b3 && b4){
+      b3.classList.toggle('active', state.gridMode === 3);
+      b4.classList.toggle('active', state.gridMode === 4);
+    }
+    try { localStorage.setItem('gridMode', String(state.gridMode)); } catch(e){}
+  }
+
+  function setGridMode(n){
+    runWithOverlay("Applying grid...", () => {
+      state.gridMode = (n === 4 ? 4 : 3);
+      applyGridMode();
+    });
   }
 
   function applyAll() {
@@ -1126,6 +1315,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
         card.style.display = '';
         card.removeAttribute('data-hidden');
       });
+
       applyAll();
     });
   }
@@ -1154,7 +1344,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     const cols = [
       "코드","상품명(영문)","상품명(한글)","공식몰가",
       "네이버최저가","가격차이","최저가몰","링크",
-      "이미지URL","공식이미지URL","네이버이미지URL",
+      "원본이미지URL","이미지URL","공식이미지URL","네이버이미지URL",
       "confidence","prev_naver","delta_naver","checked","memo"
     ];
     const escape = (v) => {
@@ -1226,31 +1416,47 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     const el = document.getElementById(inputId);
     if (!el) return;
     el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        onSearchClick();
-      }
+      if (e.key === 'Enter') { e.preventDefault(); onSearchClick(); }
     });
+  }
+
+  // ✅ 이미지 모달: 로컬 경로가 있으면 표시 정보만
+  function openImg(src, localPath){
+    const m = document.getElementById('imgModal');
+    const el = document.getElementById('imgModalEl');
+    const info = document.getElementById('imgModalInfo');
+    el.src = src || '';
+    info.textContent = localPath ? ('trimmed: ' + localPath) : '';
+    m.classList.add('show');
+  }
+  function closeImg(){
+    const m = document.getElementById('imgModal');
+    const el = document.getElementById('imgModalEl');
+    const info = document.getElementById('imgModalInfo');
+    el.src = '';
+    info.textContent = '';
+    m.classList.remove('show');
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     hydrateCardState();
     bindEnterToSearch('qAll');
 
-    runWithOverlay("Rendering...", () => {
-      applyAll();
-    });
+    // gridMode restore
+    try {
+      const gm = localStorage.getItem('gridMode');
+      if (gm === '4') state.gridMode = 4;
+    } catch(e){}
+    applyGridMode();
+
+    runWithOverlay("Rendering...", () => { applyAll(); });
   });
 </script>
 
-<!-- ✅ EMBED MODE: iframe 감지 → body.embedded 클래스 부여 -->
 <script>
   (function () {
-    try {
-      if (window.self !== window.top) document.body.classList.add("embedded");
-    } catch (e) {
-      document.body.classList.add("embedded");
-    }
+    try { if (window.self !== window.top) document.body.classList.add("embedded"); }
+    catch (e) { document.body.classList.add("embedded"); }
   })();
 </script>
 
@@ -1293,12 +1499,16 @@ def main():
     parser.add_argument("--limit", type=int, default=100, help="처리할 상위 행 개수(기본 100, 전체는 큰 숫자)")
     parser.add_argument("--official_hashes", default="official_hashes.csv", help="공식 이미지 해시 CSV 경로")
 
-    # ✅ 제외 코드 옵션(기본값에 사용자가 요청한 2개 코드 포함)
     parser.add_argument(
         "--exclude_codes",
         default="C71YLT371297,C71YLT371193",
         help="제외할 스타일코드(콤마구분). 기본: C71YLT371297,C71YLT371193",
     )
+
+    # ✅ TRIM 옵션
+    parser.add_argument("--trim_images", action="store_true", help="이미지 여백 자동 트리밍 후 로컬 file://로 표시")
+    parser.add_argument("--image_dir", default=".trimmed_images", help="트리밍 이미지 저장 폴더")
+    parser.add_argument("--image_ttl_hours", type=int, default=72, help="트리밍 이미지 캐시 TTL(시간)")
 
     args = parser.parse_args()
 
@@ -1312,13 +1522,14 @@ def main():
     if not client_id or not client_secret:
         raise SystemExit("환경변수 NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 을 먼저 설정해주세요.")
 
-    # ✅ 제외 코드 세트
+    if args.trim_images and Image is None:
+        log("⚠️ --trim_images 요청됨, but Pillow(PIL) 미설치로 트리밍은 비활성 처리됩니다. (원본 URL 사용)")
+
     exclude_codes = set()
     if args.exclude_codes:
         exclude_codes = {c.strip().upper() for c in args.exclude_codes.split(",") if c.strip()}
     log(f"🚫 EXCLUDE_CODES: {sorted(list(exclude_codes)) if exclude_codes else 'NONE'}")
 
-    # ✅ 공식 이미지 맵
     official_img_map = build_official_image_map(args.official_hashes)
 
     input_path = pick_input_file(args.input)
@@ -1357,12 +1568,15 @@ def main():
 
     exclude_malls = [x.strip() for x in args.exclude_malls.split(",")] if args.exclude_malls else []
     log(f"🧪 FILTER: min_price={args.min_price} max_price={args.max_price} exclude_malls={exclude_malls}")
+    log(f"🖼️ TRIM: {'ON' if args.trim_images else 'OFF'} img_dir={args.image_dir}")
 
     results: List[Dict[str, Any]] = []
     kept = 0
     skipped_no_price = 0
     skipped_no_img = 0
     skipped_excluded = 0
+    trimmed_ok = 0
+    trimmed_fail = 0
 
     log(f"🚚 START FETCH: products={len(df):,} delay={args.delay}s cache_ttl={args.cache_ttl_hours}h")
 
@@ -1373,7 +1587,6 @@ def main():
 
         code_u = style_code.upper()
 
-        # ✅ 요청한 스타일코드 제외
         if exclude_codes and code_u in exclude_codes:
             skipped_excluded += 1
             log(f"    🚫 SKIP(EXCLUDED): {code_u}")
@@ -1396,15 +1609,11 @@ def main():
             log(f"    ✅ CACHE HIT ({len(items)} items)")
         else:
             log("    ❌ CACHE MISS -> API CALL")
-
-            # ✅ 정확도 위해 query에 Columbia를 같이 붙임(흔들림 감소)
             q = f"Columbia {style_code}"
             items = fetch_naver_shop_with_retry(q, client_id, client_secret, display=10)
-
             save_cache(args.cache_dir, style_code, items)
             log(f"    📡 API RETURN ({len(items)} items)")
 
-        # ✅ PATCH: style_code 기반 필터링(코드/브랜드 실패 시 [] 반환)
         items = filter_items_for_accuracy(items, style_code, args.min_price, args.max_price, exclude_malls)
         best = pick_lowest_item(items)
         top3_items = pick_top_n_by_price(items, n=3)
@@ -1421,28 +1630,44 @@ def main():
             naver_mall = best.get("mallName") or ""
             naver_title = strip_html_tags(best.get("title") or "")
 
-        # 네이버 이미지
         naver_image = choose_best_image(best, top3_items)
-
-        # ✅ 공식 이미지 우선
         official_image = official_img_map.get(code_u, "")
+        raw_final_image = official_image if official_image else naver_image
 
-        # ✅ 최종 이미지(공식 우선, 없으면 네이버)
-        final_image = official_image if official_image else naver_image
-
-        # ✅ 최저가 없으면 결과에서 제외
         if not isinstance(naver_price, int):
             skipped_no_price += 1
             log("    ⛔ SKIP: naver_price missing")
             time.sleep(max(0.0, args.delay))
             continue
 
-        # ✅ 이미지 없으면 결과에서 제외
-        if not final_image or not str(final_image).strip():
+        if not raw_final_image or not str(raw_final_image).strip():
             skipped_no_img += 1
             log("    ⛔ SKIP: final_image missing")
             time.sleep(max(0.0, args.delay))
             continue
+
+        # ✅ 트리밍 처리
+        final_image = raw_final_image
+        trimmed_local_abs = None
+        if args.trim_images and Image is not None:
+            file_stem = re.sub(r"[^A-Za-z0-9_\-]", "_", code_u)
+            # referer: 네이버 링크가 있으면 그걸 referer로 (이미지 hotlink 차단 완화)
+            referer = naver_link or None
+            trimmed_url, local_abs = trim_image_to_local(
+                raw_final_image,
+                out_dir=args.image_dir,
+                file_stem=file_stem,
+                referer=referer,
+                ttl_hours=args.image_ttl_hours,
+            )
+            if local_abs:
+                final_image = trimmed_url
+                trimmed_local_abs = local_abs
+                trimmed_ok += 1
+                log("    ✂️ TRIM OK")
+            else:
+                trimmed_fail += 1
+                log("    ✂️ TRIM FAIL (use raw url)")
 
         diff: Optional[int] = None
         if isinstance(official_price, int) and naver_price > 0:
@@ -1475,10 +1700,13 @@ def main():
             "최저가몰": naver_mall,
             "링크": naver_link,
 
-            # ✅ 이미지 3종 저장
-            "이미지URL": final_image,
+            # ✅ 이미지
+            "원본이미지URL": raw_final_image,
+            "이미지URL": final_image,            # trim이면 file://..., 아니면 원본 URL
             "공식이미지URL": official_image,
             "네이버이미지URL": naver_image,
+            "raw_image_url": raw_final_image,     # HTML data-src-raw 용
+            "trimmed_local_path": trimmed_local_abs or "",
 
             "naver_title": naver_title,
             "confidence": conf,
@@ -1491,7 +1719,7 @@ def main():
 
         log(
             f"    ✅ KEEP: naver={naver_price:,} diff={diff if diff is not None else '-'} "
-            f"match={conf}/5 img_final=Y (official={'Y' if bool(official_image) else 'N'}, naver={'Y' if bool(naver_image) else 'N'})"
+            f"match={conf}/5 img=Y trim={'Y' if trimmed_local_abs else 'N'}"
         )
 
         time.sleep(max(0.0, args.delay))
@@ -1500,26 +1728,20 @@ def main():
         f"📌 SUMMARY: kept={kept:,} "
         f"skip_excluded={skipped_excluded:,} "
         f"skip_no_price={skipped_no_price:,} "
-        f"skip_no_img={skipped_no_img:,}"
+        f"skip_no_img={skipped_no_img:,} "
+        f"trim_ok={trimmed_ok:,} trim_fail={trimmed_fail:,}"
     )
 
     out_csv = args.output_csv or f"result_{today_mmdd}.csv"
     res_df = pd.DataFrame(results)
 
-    # top3는 CSV에 JSON 문자열로 저장
     if "top3" in res_df.columns:
-        res_df["top3"] = res_df["top3"].apply(
-            lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, list) else ""
-        )
+        res_df["top3"] = res_df["top3"].apply(lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, list) else "")
 
-    # ✅ 엑셀 호환: utf-8-sig (BOM 포함)
     res_df.to_csv(out_csv, index=False, encoding="utf-8-sig")
     log(f"✅ CSV SAVED: {out_csv} (rows={len(res_df):,})")
 
-    meta = {
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "prev_csv_used": prev_csv_path,
-    }
+    meta = {"generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "prev_csv_used": prev_csv_path}
     html = build_html_portal(results, meta)
     with open(args.output_html, "w", encoding="utf-8-sig") as f:
         f.write(html)
