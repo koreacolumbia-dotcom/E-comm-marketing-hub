@@ -189,19 +189,13 @@ def sentence_has_brand(sentence: str, brand: str, patterns: Dict[str, re.Pattern
 def process_data(posts: List[Post]):
     patterns = build_brand_patterns()
 
-    # brand_map: 브랜드별 수집 문장(출처 포함)
     brand_map: Dict[str, List[dict]] = {b: [] for b in BRAND_LIST}
 
-    # summary counts
-    # - posts_count: 해당 브랜드가 언급된 "포스트 수"
-    # - title_hits: 제목에 언급된 포스트 수
-    # - comment_mentions: 댓글에서 브랜드 언급 문장 수
-    # - total_mentions: 전체(제목/본문/댓글)에서 브랜드가 포함된 문장 수
     summary = {
         b: {
             "posts_count": 0,
             "title_hits": 0,
-            "comment_mentions": 0,
+            "comment_mentions": 0,   # ✅ "댓글 언급 문장 수(전체)"
             "total_mentions": 0,
         } for b in BRAND_LIST
     }
@@ -211,62 +205,75 @@ def process_data(posts: List[Post]):
         content = normalize_text(p.content)
         comments = normalize_text(p.comments)
 
-        # 문장 단위
+        title_sents = [title] if title else []
         content_sents = split_sentences(content)
         comment_sents = split_sentences(comments)
 
-        # ✅ 브랜드별로 “이 포스트에서 언급됐는지” 체크
         post_has_brand = {b: False for b in BRAND_LIST}
         title_has_brand = {b: False for b in BRAND_LIST}
 
-        # 1) 제목/본문/댓글 전체에서 기본 수집
-        full_text = f"{title}\n{content}\n{comments}"
-        full_sents = split_sentences(full_text)
-
         for b in BRAND_LIST:
-            # 포스트 단위 카운트(하나라도 있으면 posts_count +1)
-            # - 먼저 제목 여부
+            # 1) Title hit (포스트 단위)
             if contains_brand(title, b, patterns):
                 title_has_brand[b] = True
                 summary[b]["title_hits"] += 1
+                post_has_brand[b] = True
 
-            # 문장 단위 수집(전체)
-            for s in full_sents:
-                if sentence_has_brand(s, b, patterns):
-                    if len(s) > 5:
-                        brand_map[b].append({
-                            "text": s,
-                            "url": p.url,
-                            "title": title,
-                            "source": "title/content/comments"
-                        })
-                        summary[b]["total_mentions"] += 1
-                        post_has_brand[b] = True
+            # 2) 제목 mentions
+            for s in title_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 3:
+                    brand_map[b].append({
+                        "text": s,
+                        "url": p.url,
+                        "title": title,
+                        "source": "title"
+                    })
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
 
-        # 포스트 수 집계
-        for b in BRAND_LIST:
-            if post_has_brand[b]:
-                summary[b]["posts_count"] += 1
+            # 3) 본문 mentions
+            for s in content_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                    brand_map[b].append({
+                        "text": s,
+                        "url": p.url,
+                        "title": title,
+                        "source": "content"
+                    })
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
 
-        # 2) ✅ 요청: "제목에서 특정 브랜드 언급했으면 그 글의 댓글에서 브랜드 언급한것도 같이 끌어와줘"
-        # - 제목에 브랜드가 있던 글에 한해,
-        # - 댓글에서 해당 브랜드가 들어간 문장을 추가로 수집(강제)
-        for b in BRAND_LIST:
-            if not title_has_brand[b]:
-                continue
-
+            # 4) ✅ 댓글 mentions (전체)
             for s in comment_sents:
                 if sentence_has_brand(s, b, patterns) and len(s) > 5:
                     brand_map[b].append({
                         "text": s,
                         "url": p.url,
                         "title": title,
-                        "source": "comment(boosted_by_title)"
+                        "source": "comment"
                     })
                     summary[b]["comment_mentions"] += 1
                     summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
 
-    # ✅ 브랜드별 결과 dedupe (같은 글/같은 문장 중복 제거)
+            # 5) (선택) 제목에 브랜드가 있으면 댓글 문장 추가 수집(부스트 표기만)
+            # - 카운트는 이미 comment에서 함
+            if title_has_brand[b]:
+                for s in comment_sents:
+                    if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                        brand_map[b].append({
+                            "text": s,
+                            "url": p.url,
+                            "title": title,
+                            "source": "comment(boosted_by_title)"
+                        })
+
+        # 포스트 수 집계(브랜드별 1회)
+        for b in BRAND_LIST:
+            if post_has_brand[b]:
+                summary[b]["posts_count"] += 1
+
+    # ✅ dedupe
     for b in BRAND_LIST:
         seen = set()
         uniq = []
@@ -278,7 +285,6 @@ def process_data(posts: List[Post]):
             uniq.append(item)
         brand_map[b] = uniq
 
-    # ✅ summary dataframe용 정렬키(총 언급량 desc)
     summary_df = pd.DataFrame([
         {
             "brand": b,
@@ -288,7 +294,17 @@ def process_data(posts: List[Post]):
             "total_mentions": summary[b]["total_mentions"],
         }
         for b in BRAND_LIST
-    ]).sort_values(["total_mentions", "posts_count"], ascending=False)
+    ])
+
+    # ✅ Posts=0 AND TitleHits=0 제거
+    summary_df = summary_df[~((summary_df["posts_count"] == 0) & (summary_df["title_hits"] == 0))].copy()
+
+    # ✅ 컬럼비아 맨 위 고정
+    summary_df["__pin_columbia"] = summary_df["brand"].apply(lambda x: 0 if x == "컬럼비아" else 1)
+    summary_df = summary_df.sort_values(
+        ["__pin_columbia", "total_mentions", "posts_count"],
+        ascending=[True, False, False]
+    ).drop(columns=["__pin_columbia"])
 
     return brand_map, summary_df
 
