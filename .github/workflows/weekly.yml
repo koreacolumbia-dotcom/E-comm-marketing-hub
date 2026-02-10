@@ -6,7 +6,6 @@ on:
     - cron: "0 23 * * *"
   workflow_dispatch: {}
 
-# ✅ 동시 실행(겹침) 방지
 concurrency:
   group: weekly-update-main
   cancel-in-progress: false
@@ -35,16 +34,10 @@ jobs:
           pip install -r requirements.txt
           playwright install --with-deps chromium
 
-      # --------------------------------------------------
-      # 0) reports 폴더 보장
-      # --------------------------------------------------
       - name: Ensure reports dir
         run: |
           mkdir -p reports
 
-      # --------------------------------------------------
-      # 1) 네이버 최저가 대시보드
-      # --------------------------------------------------
       - name: Run Naver Lowest Price crawler
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -56,42 +49,27 @@ jobs:
             --history_dir . \
             --cache_dir .naver_cache
 
-      # --------------------------------------------------
-      # 2) 경쟁사 Hero 배너
-      # --------------------------------------------------
       - name: Run Hero banner crawler
         run: |
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
           test -f reports/hero_main.html
 
-      # --------------------------------------------------
-      # 3) 커뮤니티 VOC 분석 (DC)
-      # --------------------------------------------------
       - name: Run External Signal (VOC)
         run: |
           python -u external_signal_combined.py
           test -f reports/external_signal.html
 
-      # --------------------------------------------------
-      # 4) ✅ "마지막 업데이트" 배지 자동 삽입 (KST 기준, 매번 갱신)
-      # --------------------------------------------------
       - name: Stamp "Last updated" badge into reports HTML
         shell: bash
         run: |
           set -euo pipefail
-
           UPDATED_KST="$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')"
-          UPDATED_ISO="$(TZ=Asia/Seoul date -Iseconds)"
-
-          echo "Stamping updated time: ${UPDATED_KST} (${UPDATED_ISO})"
+          echo "Stamping updated time: ${UPDATED_KST}"
 
           for f in reports/*.html; do
             [ -f "$f" ] || continue
-
-            # 1) 기존 배지 제거 (중복 방지)
             perl -0777 -i -pe 's/<!-- AUTO_UPDATED_BADGE_START -->.*?<!-- AUTO_UPDATED_BADGE_END -->\s*//sg' "$f"
 
-            # 2) <body ...> 바로 다음에 배지 삽입
             perl -0777 -i -pe '
               my $badge = qq{
 <!-- AUTO_UPDATED_BADGE_START -->
@@ -116,23 +94,23 @@ jobs:
 </div>
 <!-- AUTO_UPDATED_BADGE_END -->
               };
-              $badge =~ s/__UPDATED_KST__/__UPDATED_KST__/g;
               s{(<body\b[^>]*>)}{$1\n$badge}i;
             ' "$f"
 
-            # 3) 플레이스홀더 치환 (KST 문자열 + ISO를 data 속성에 남기고 싶으면 여기서 추가 가능)
-            perl -i -pe "s/__UPDATED_KST__/$UPDATED_KST/g" "$f"
-
+            # 안전하게 치환(구분자 변경)
+            perl -i -pe "s|__UPDATED_KST__|$UPDATED_KST|g" "$f"
             echo "Stamped: $f"
           done
 
-      # --------------------------------------------------
-      # Commit & Push
-      # --------------------------------------------------
       - name: Commit & push results
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # ✅ 먼저 최신 main 당겨서 정렬 (충돌 확률↓)
+          git pull --rebase origin main
 
           git add reports/ .naver_cache || true
 
@@ -142,7 +120,4 @@ jobs:
           fi
 
           git commit -m "Daily auto update (reports)"
-
-          git pull --rebase origin main
-
           git push origin main
