@@ -43,6 +43,13 @@ jobs:
         run: |
           mkdir -p reports
 
+      # ✅ 배지에 찍을 KST 시간(다음 스텝에서 사용)
+      - name: Set KST time (for badge)
+        id: set_time
+        shell: bash
+        run: |
+          echo "kst=$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')" >> $GITHUB_OUTPUT
+
       - name: Run Naver Lowest Price crawler
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -66,28 +73,111 @@ jobs:
 
       - name: Stamp "Last updated" badge into reports HTML (move to left sidebar)
         shell: bash
+        env:
+          UPDATED_KST: ${{ steps.set_time.outputs.kst }}
         run: |
           set -euo pipefail
-
-          UPDATED_KST="$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')"
           echo "Stamping updated time: ${UPDATED_KST}"
 
-          # ✅ 배지 HTML 템플릿을 base64(1줄)로 보관 → YAML 멀티라인/EOF 파싱 깨짐 방지
-          # - 라벨: "Last updated"
-          # - 위치: aside.sidebar 내부(로고 아래). 없으면 우상단 fixed fallback.
-          BADGE_B64="PCEtLSBBVVRPX1VQREFURURfQkFER0VfU1RBUlQgLS0+CjxzdHlsZT4KICAuYXV0by11cGRhdGVkLWJhZGdlLXdyYXB7cG9zaXRpb246c3RhdGljO3otaW5kZXg6OTk5OTk7Zm9udC1mYW1pbHk6dWktc2Fucy1zZXJpZiwgc3lzdGVtLXVpLCAtYXBwbGUtc3lzdGVtLCBTZWdvZSBVSSwgUm9ib3RvLCBBcHBsZSBTRCBHb3RoaWMgTmVvLCBOb3RvIFNhbnMgS1IsIEFyaWFsO21hcmdpbjoxMHB4IDAgMjJweCAwfQogIC5hdXRvLXVwZGF0ZWQtYmFkZ2V7ZGlzcGxheTpmbGV4O2dhcDoxMHB4O2FsaWduLWl0ZW1zOmNlbnRlcjtwYWRkaW5nOjEwcHggMTJweDtib3JkZXItcmFkaXVzOjE2cHg7YmFja2dyb3VuZDpyZ2JhKDI1NSwyNTUsMjU1LC43NSk7YmFja2Ryb3AtZmlsdGVyOmJsdXIoMTJweCk7Ym9yZGVyOjFweCBzb2xpZCByZ2JhKDE1LDIzLDQyLC4xMCk7Ym94LXNoYWRvdzowIDEwcHggMzBweCByZ2JhKDE1LDIzLDQyLC4wOCk7fQogIC5hdXRvLXVwZGF0ZWQtZG90e3dpZHRoOjEwcHg7aGVpZ2h0OjEwcHg7Ym9yZGVyLXJhZGl1czo5OTlweDtiYWNrZ3JvdW5kOiMyMmM1NWU7Ym94LXNoYWRvdzogMCAwIDAgNXB4IHJnYmEoMzQsMTk3LDk0LC4xNSk7fQogIC5hdXRvLXVwZGF0ZWQtdHh0e2Rpc3BsYXk6ZmxleDtmbGV4LWRpcmVjdGlvbjpjb2x1bW47bGluZS1oZWlnaHQ6MS4xNX0KICAuYXV0by11cGRhdGVkLXR4dCAudDF7Zm9udC1zaXplOjExcHg7Zm9udC13ZWlnaHQ6ODAwO2NvbG9yOiMwZjE3MmE7bGV0dGVyLXNwYWNpbmc6LS4ycHg7dGV4dC10cmFuc2Zvcm06dXBwZXJjYXNlfQogIC5hdXRvLXVwZGF0ZWQtdHh0IC50Mntmb250LXNpemU6MTFweDtjb2xvcjpyZ2JhKDE1LDIzLDQyLC43Mik7bWFyZ2luLXRvcDoycHh9Cjwvc3R5bGU+Cgo8ZGl2IGNsYXNzPSJhdXRvLXVwZGF0ZWQtYmFkZ2Utd3JhcCIgYXJpYS1sYWJlbD0iTGFzdCB1cGRhdGVkIGJhZGdlIj4KICA8ZGl2IGNsYXNzPSJhdXRvLXVwZGF0ZWQtYmFkZ2UiPgogICAgPHNwYW4gY2xhc3M9ImF1dG8tdXBkYXRlZC1kb3QiPjwvc3Bhbj4KICAgIDxkaXYgY2xhc3M9ImF1dG8tdXBkYXRlZC10eHQiPgogICAgICA8ZGl2IGNsYXNzPSJ0MSI+TGFzdCB1cGRhdGVkPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9InQyIj5fX1VQREFURURfS1NUX188L2Rpdj4KICAgIDwvZGl2PgogIDwvZGl2Pgo8L2Rpdj4KCjxzY3JpcHQ+CiAgKGZ1bmN0aW9uKCl7CiAgICBmdW5jdGlvbiBtb3VudCgpewogICAgICBjb25zdCBiYWRnZSA9IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJy5hdXRvLXVwZGF0ZWQtYmFkZ2Utd3JhcCcpOwogICAgICBpZighYmFkZ2UpIHJldHVybjsKCiAgICAgIGNvbnN0IHNpZGViYXIgPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yKCdhc2lkZS5zaWRlYmFyJyk7CiAgICAgIGlmKHNpZGViYXIpewogICAgICAgIC8v 로고 블록(대부분 sidebar 첫 번째 영역) 바로 아래에 배지 삽입\nICAgICAgICBjb25zdCBmaXJzdCA9IHNpZGViYXIuZmlyc3RFbGVtZW50Q2hpbGQ7CiAgICAgICAgaWYoZmlyc3QgJiYgZmlyc3QubmV4dFNpYmxpbmcpewogICAgICAgICAgc2lkZWJhci5pbnNlcnRCZWZvcmUoYmFkZ2UsIGZpcnN0Lm5leHRTaWJsaW5nKTsKICAgICAgICB9ZWxzZXsKICAgICAgICAgIHNpZGViYXIucHJlcGVuZChiYWRnZSk7CiAgICAgICAgfQogICAgICAgIGJhZGdlLnN0eWxlLnBvc2l0aW9uID0gJ3N0YXRpYyc7CiAgICAgICAgYmFkZ2Uuc3R5bGUudG9wID0gJyc7CiAgICAgICAgYmFkZ2Uuc3R5bGUucmlnaHQgPSAnJzsKICAgICAgICByZXR1cm47CiAgICAgIH0KCiAgICAgIC8v fallback: sidebar 없는 페이지\nICAgICAgYmFkZ2Uuc3R5bGUucG9zaXRpb24gPSAnZml4ZWQnOwogICAgICBiYWRnZS5zdHlsZS50b3AgPSAnMTZweCc7CiAgICAgIGJhZGdlLnN0eWxlLnJpZ2h0ID0gJzE2cHgnOwogICAgfQogICAgCiAgICBpZihkb2N1bWVudC5yZWFkeVN0YXRlID09PSAnbG9hZGluZycpewogICAgICBkb2N1bWVudC5hZGRFdmVudExpc3RlbmVyKCdET01Db250ZW50TG9hZGVkJywgbW91bnQpOwogICAgfWVsc2V7CiAgICAgIG1vdW50KCk7CiAgICB9CiAgfSkoKTsKPC9zY3JpcHQ+CjwhLS0gQVVUT19VUERBVEVEX0JBREdFX0VORCAtLT4="
+          # 1) 배지 템플릿 생성(placeholder 포함)
+          cat <<'EOF' > /tmp/_badge_block.html
+          <!-- AUTO_UPDATED_BADGE_START -->
+          <style>
+            .auto-updated-badge-wrap{
+              position:static; z-index:99999;
+              font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, Arial;
+              margin:10px 0 22px 0;
+            }
+            .auto-updated-badge{
+              display:flex; gap:10px; align-items:center;
+              padding:10px 12px; border-radius:16px;
+              background:rgba(255,255,255,.75);
+              backdrop-filter:blur(12px);
+              border:1px solid rgba(15,23,42,.10);
+              box-shadow:0 10px 30px rgba(15,23,42,.08);
+            }
+            .auto-updated-dot{
+              width:10px; height:10px; border-radius:999px;
+              background:#22c55e;
+              box-shadow:0 0 0 5px rgba(34,197,94,.15);
+            }
+            .auto-updated-txt{ display:flex; flex-direction:column; line-height:1.15; }
+            .auto-updated-txt .t1{
+              font-size:11px; font-weight:800; color:#0f172a;
+              letter-spacing:-.2px; text-transform:uppercase;
+            }
+            .auto-updated-txt .t2{
+              font-size:11px; color:rgba(15,23,42,.72);
+              margin-top:2px;
+            }
+          </style>
 
+          <div class="auto-updated-badge-wrap" aria-label="Last updated badge">
+            <div class="auto-updated-badge">
+              <span class="auto-updated-dot"></span>
+              <div class="auto-updated-txt">
+                <div class="t1">Last updated</div>
+                <div class="t2">__UPDATED_KST__</div>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            (function(){
+              function mount(){
+                const badge = document.querySelector('.auto-updated-badge-wrap');
+                if(!badge) return;
+
+                const sidebar = document.querySelector('aside.sidebar');
+                if(sidebar){
+                  // 로고 블록(대부분 sidebar 첫 요소) 바로 아래에 삽입
+                  const first = sidebar.firstElementChild;
+                  if(first && first.nextSibling){
+                    sidebar.insertBefore(badge, first.nextSibling);
+                  }else{
+                    sidebar.prepend(badge);
+                  }
+                  badge.style.position = 'static';
+                  badge.style.top = '';
+                  badge.style.right = '';
+                  return;
+                }
+
+                // fallback: sidebar 없는 페이지는 우상단 고정
+                badge.style.position = 'fixed';
+                badge.style.top = '16px';
+                badge.style.right = '16px';
+              }
+
+              if(document.readyState === 'loading'){
+                document.addEventListener('DOMContentLoaded', mount);
+              }else{
+                mount();
+              }
+            })();
+          </script>
+          <!-- AUTO_UPDATED_BADGE_END -->
+          EOF
+
+          # 2) placeholder 시간 치환
+          python - <<'PY'
+          import os
+          p = "/tmp/_badge_block.html"
+          with open(p, "r", encoding="utf-8") as f:
+            s = f.read()
+          s = s.replace("__UPDATED_KST__", os.environ["UPDATED_KST"])
+          with open(p, "w", encoding="utf-8") as f:
+            f.write(s)
+          PY
+
+          # 3) 각 reports/*.html에 주입
           for f in reports/*.html; do
             [ -f "$f" ] || continue
 
-            # 1) 기존 배지 제거(중복 방지)
+            # 중복 방지: 기존 블록 제거
             perl -0777 -i -pe 's/<!-- AUTO_UPDATED_BADGE_START -->.*?<!-- AUTO_UPDATED_BADGE_END -->\s*//sg' "$f"
 
-            # 2) 배지 생성 + 시간 치환
-            echo "$BADGE_B64" | base64 -d > /tmp/_badge_block.html
-            perl -i -pe "s|__UPDATED_KST__|$UPDATED_KST|g" /tmp/_badge_block.html
-
-            # 3) <body ...> 바로 다음에 삽입
+            # <body ...> 바로 다음에 삽입
             perl -0777 -i -pe '
               my $ins = do { local $/; open my $fh, "<", "/tmp/_badge_block.html"; <$fh> };
               s{(<body\b[^>]*>)}{$1\n$ins}i;
@@ -103,16 +193,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 1️⃣ 작업트리 임시 보관 (unstaged 포함)
           git stash push -u -m "actions-temp" || true
-
-          # 2️⃣ 최신 main 반영
           git pull --rebase origin main
-
-          # 3️⃣ 스태시 복원
           git stash pop || true
 
-          # 4️⃣ 변경사항 커밋
           git add reports/ .naver_cache || true
 
           if git diff --cached --quiet; then
