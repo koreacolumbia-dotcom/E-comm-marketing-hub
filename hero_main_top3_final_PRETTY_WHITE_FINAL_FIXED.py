@@ -45,6 +45,36 @@ from contextlib import contextmanager
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError, Error as PWError
 
+# ================================================================
+# Summary/meta export (Hub first-screen consumption)
+# - Writes/updates reports/summary.json (or alongside output html)
+# ================================================================
+import json
+from datetime import datetime, timezone, timedelta
+
+_KST = timezone(timedelta(hours=9))
+
+def _safe_mkdir(p: str):
+    os.makedirs(p, exist_ok=True)
+
+def _write_summary_json(out_dir: str, report_key: str, payload: dict):
+    """Merge-update a single summary.json file in out_dir."""
+    _safe_mkdir(out_dir)
+    path = os.path.join(out_dir, "summary.json")
+    data = {}
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+    except Exception:
+        data = {}
+    data[report_key] = payload
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def _now_kst_str():
+    return datetime.now(_KST).strftime("%Y-%m-%d %H:%M KST")
+
 # Pillow (image resize + meta)
 try:
     from PIL import Image
@@ -1516,6 +1546,7 @@ def write_html(path: str, rows: List[Banner]):
     order = [bk for bk, _, _, _, _ in BRANDS]
     active_brand_keys = [bk for bk in order if bk in by_brand] or [bk for bk, *_ in BRANDS]
     now_str = kst_now().strftime('%Y-%m-%d %H:%M')
+    period_label = f"조회 기간: 실행 시점 스냅샷(KST) · 전회 실행 대비(변경 감지) · {now_str} KST"
 
     tab_menu_html = ""
     content_area_html = ""
@@ -1648,6 +1679,7 @@ def write_html(path: str, rows: List[Banner]):
       <div>
         <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">Hero Banner Analysis</h1>
         <p class="text-slate-500 text-lg font-medium italic">주요 아웃도어 경쟁사 메인 히어로 배너 모니터링</p>
+        <p class="text-slate-500 text-sm mt-3">{period_label}</p>
         <p class="text-slate-400 text-xs mt-3">로컬이미지 경로 모드: {"ABS(file://)" if HTML_USE_ABSOLUTE_FILE_URL else "REL(assets/)"} · 날짜추출: {"ON" if FETCH_CAMPAIGN_DATES else "OFF"} </p>
       </div>
       <div class="glass-card px-6 py-4 flex items-center gap-4">
@@ -1819,6 +1851,19 @@ def main():
             write_csv(today_snap, rows)
             write_csv(report_csv, rows)
             write_html(report_html, rows)
+
+            # summary.json for Hub
+            out_dir = os.path.dirname(report_html) or "."
+            _write_summary_json(out_dir, "hero_main", {
+                "generated_at": _now_kst_str(),
+                "period": f"조회 기간: 실행 시점 스냅샷(KST) · 전회 실행 대비(변경 감지) · {kst_now().strftime('%Y-%m-%d %H:%M')} KST",
+                "html": os.path.basename(report_html),
+                "csv": os.path.basename(report_csv),
+                "brands": int(len(set([b.brand_key for b in rows]))),
+                "banners": int(len(rows)),
+                "no_image": int(sum(1 for b in rows if not (getattr(b, 'final_img_path', None) or getattr(b, 'img_url', None))))
+            })
+
 
         print(f"\n[CSV] {report_csv}", flush=True)
         print(f"[HTML] {report_html}", flush=True)
