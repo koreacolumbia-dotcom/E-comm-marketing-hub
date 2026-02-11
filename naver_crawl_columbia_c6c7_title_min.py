@@ -42,6 +42,14 @@ import urllib.error
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
+
+def _kst_now_str(fmt: str = "%Y-%m-%d %H:%M KST") -> str:
+    """Return current time string in KST without relying on pytz."""
+    import datetime as dt
+    kst = dt.timezone(dt.timedelta(hours=9))
+    return dt.datetime.now(kst).strftime(fmt)
+
+
 import pandas as pd
 
 # ================================================================
@@ -661,9 +669,9 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     # --- Period label (stable) ---
     # Some templates expect __PERIOD_LABEL__. Define it here to avoid NameError.
     try:
-        now_kst = datetime.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M KST")
+        now_kst = _kst_now_str(fmt="%Y-%m-%d %H:%M KST")
     except Exception:
-        now_kst = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        now_kst = _kst_now_str(fmt="%Y-%m-%d %H:%M")
     period_label = meta.get("period_label") or f"Execution snapshot · Compared to previous run · {now_kst}"
     meta["period_label"] = period_label
 
