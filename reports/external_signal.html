@@ -13,7 +13,6 @@
     .glass-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }
     .sidebar { background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }
 
-    /* ===== EMBED MODE (when inside iframe) ===== */
     body.embedded aside { display:none !important; }
     body.embedded header { display:none !important; }
     body.embedded .sidebar { display:none !important; }
@@ -22,6 +21,25 @@
   </style>
 </head>
 <body class="flex">
+<!-- AUTO_UPDATED_BADGE_START -->
+<style>
+  .auto-updated-badge-wrap{position:fixed;top:16px;right:16px;z-index:99999;font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, Arial;}
+  .auto-updated-badge{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.78);backdrop-filter:blur(10px);border:1px solid rgba(15,23,42,.10);box-shadow:0 10px 30px rgba(15,23,42,.10);}
+  .auto-updated-dot{width:10px;height:10px;border-radius:999px;background:#22c55e;box-shadow:0 0 0 5px rgba(34,197,94,.15);}
+  .auto-updated-txt{display:flex;flex-direction:column;line-height:1.15}
+  .auto-updated-txt .t1{font-size:12px;font-weight:700;color:#0f172a;letter-spacing:-.2px}
+  .auto-updated-txt .t2{font-size:12px;color:rgba(15,23,42,.72);margin-top:2px}
+</style>
+<div class="auto-updated-badge-wrap" aria-label="Last updated badge">
+  <div class="auto-updated-badge">
+    <span class="auto-updated-dot"></span>
+    <div class="auto-updated-txt">
+      <div class="t1">리지서에터</div>
+      <div class="t2">2026.02.11 (Wed) 10:28 KST</div>
+    </div>
+  </div>
+</div>
+<!-- AUTO_UPDATED_BADGE_END -->
   <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
     <div class="flex items-center gap-4 mb-16 px-2">
       <div class="w-12 h-12 bg-[#002d72] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
@@ -54,20 +72,19 @@
           <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
         </div>
-        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-10 17:01</span>
+        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-11 10:28</span>
       </div>
     </header>
 
-    <!-- ✅ SUMMARY (Hot Keywords 대체) -->
     <section class="glass-card p-10 mb-12">
       <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-6 flex items-center gap-2">
         <i class="fa-solid fa-chart-simple"></i> Mention Summary
       </h3>
       <div class="text-xs text-slate-500 font-bold mb-6">
-        Posts = 해당 브랜드가 1회 이상 언급된 글 수 · Title Hits = 제목 언급 글 수 · Comment Mentions = (제목에 브랜드 포함된 글에서) 댓글 언급 문장 수 · Total Mentions = 전체 문장 언급 수
+        Posts = 해당 브랜드가 1회 이상 언급된 글 수 · Title Hits = 제목 언급 글 수 · Comment Mentions = 댓글 언급 문장 수 · Total Mentions = 전체 문장 언급 수
       </div>
       
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto rounded-2xl border border-white bg-white/35">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-[11px] uppercase tracking-widest text-slate-400 border-b border-slate-100">
@@ -81,19 +98,35 @@
             <tbody>
               
             <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">아크테릭스</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">13</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">10</td>
+              <td class="py-3 pr-4 font-black text-slate-800">컬럼비아</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">5</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">14</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">5</td>
+            </tr>
+            
+            <tr class="border-b border-slate-100">
+              <td class="py-3 pr-4 font-black text-slate-800">아크테릭스</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">11</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">8</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">12</td>
             </tr>
             
             <tr class="border-b border-slate-100">
               <td class="py-3 pr-4 font-black text-slate-800">블랙야크</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">6</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">8</td>
+            </tr>
+            
+            <tr class="border-b border-slate-100">
+              <td class="py-3 pr-4 font-black text-slate-800">네파</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">5</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">3</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">7</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">5</td>
             </tr>
             
             <tr class="border-b border-slate-100">
@@ -104,30 +137,27 @@
               <td class="py-3 pr-4 text-blue-700 font-black">5</td>
             </tr>
             
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">컬럼비아</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">4</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">4</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">네파</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">4</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">2</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">4</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">호카</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">3</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">4</td>
-            </tr>
-            
+            </tbody>
+          </table>
+        </div>
+        
+            <div class="mt-5 flex items-center justify-between">
+              <div class="text-xs text-slate-400 font-bold">
+                Top 5 노출 · 나머지 8개는 접혀있음
+              </div>
+              <button
+                id="summaryToggleBtn"
+                onclick="toggleSummaryRest()"
+                class="px-4 py-2 rounded-xl bg-white/70 border border-white text-slate-700 font-black text-xs hover:bg-white transition"
+              >
+                나머지 펼치기 <i class="fa-solid fa-chevron-down ml-2"></i>
+              </button>
+            </div>
+            <div id="summaryRestWrap" class="mt-4" style="display:none;">
+              <div class="overflow-x-auto rounded-2xl border border-white bg-white/35">
+                <table class="w-full text-sm">
+                  <tbody>
+                    
             <tr class="border-b border-slate-100">
               <td class="py-3 pr-4 font-black text-slate-800">캠프라인</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">3</td>
@@ -161,6 +191,22 @@
             </tr>
             
             <tr class="border-b border-slate-100">
+              <td class="py-3 pr-4 font-black text-slate-800">호카</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">2</td>
+            </tr>
+            
+            <tr class="border-b border-slate-100">
+              <td class="py-3 pr-4 font-black text-slate-800">아이더</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">1</td>
+            </tr>
+            
+            <tr class="border-b border-slate-100">
               <td class="py-3 pr-4 font-black text-slate-800">밀레</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
@@ -176,113 +222,11 @@
               <td class="py-3 pr-4 text-blue-700 font-black">1</td>
             </tr>
             
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">노스페이스</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
             
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">마무트</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">스노우피크</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">내셔널지오그래픽</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">디스커버리</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">코오롱스포츠</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">몬벨</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">아이더</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">노스케이프</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">헬리한센</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">오스프리</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">그레고리</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">데상트</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">0</td>
-            </tr>
-            
-            </tbody>
-          </table>
-        </div>
         
     </section>
 
@@ -290,16 +234,16 @@
       <div class="flex flex-wrap gap-2 mb-8">
         
             <button onclick="switchTab('컬럼비아')" id="tab-컬럼비아" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-[#002d72] text-white shadow-lg">
-                컬럼비아 <span class="ml-1 opacity-60 text-xs">4</span>
+                컬럼비아 <span class="ml-1 opacity-60 text-xs">5</span>
             </button>
             <button onclick="switchTab('파타고니아')" id="tab-파타고니아" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
                 파타고니아 <span class="ml-1 opacity-60 text-xs">5</span>
             </button>
             <button onclick="switchTab('아크테릭스')" id="tab-아크테릭스" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-                아크테릭스 <span class="ml-1 opacity-60 text-xs">14</span>
+                아크테릭스 <span class="ml-1 opacity-60 text-xs">12</span>
             </button>
             <button onclick="switchTab('블랙야크')" id="tab-블랙야크" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-                블랙야크 <span class="ml-1 opacity-60 text-xs">7</span>
+                블랙야크 <span class="ml-1 opacity-60 text-xs">8</span>
             </button>
             <button onclick="switchTab('K2')" id="tab-K2" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
                 K2 <span class="ml-1 opacity-60 text-xs">3</span>
@@ -311,10 +255,13 @@
                 살로몬 <span class="ml-1 opacity-60 text-xs">3</span>
             </button>
             <button onclick="switchTab('호카')" id="tab-호카" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-                호카 <span class="ml-1 opacity-60 text-xs">4</span>
+                호카 <span class="ml-1 opacity-60 text-xs">2</span>
             </button>
             <button onclick="switchTab('네파')" id="tab-네파" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-                네파 <span class="ml-1 opacity-60 text-xs">4</span>
+                네파 <span class="ml-1 opacity-60 text-xs">5</span>
+            </button>
+            <button onclick="switchTab('아이더')" id="tab-아이더" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                아이더 <span class="ml-1 opacity-60 text-xs">1</span>
             </button>
             <button onclick="switchTab('밀레')" id="tab-밀레" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
                 밀레 <span class="ml-1 opacity-60 text-xs">1</span>
@@ -333,56 +280,70 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 짐까지 컬럼비아 아줌마인줄알앗는데 "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 티타니움 진짜 보추야?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315907&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아꺼 왤케 1키로 되구 그러냐 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 살 것들</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315757&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315757&page=4" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아 크레스트우드 미드컷 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등산 입문 족발 295인데 양말 뭐신음?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315476&page=4" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315476&page=5" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 친구 꼬드겨서 컬럼비아 크레스트우드 사게 하고 도이터 등산복바지도 사게함 ㅋㅋ 이날 이친구는 생에 첫등산이였는데 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 예전에 다녀온 앞산</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314946&page=9" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314946&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아는 먼가 미끄러울 삘 나네여 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 접지력 좋은 등산화 추천 부탁드려요</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314459&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314459&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -392,70 +353,70 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 블랙홀도 무겁고 다 벌려지고) "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 살 것들</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315757&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315757&page=4" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 난 블랙다이아몬드랑 파타고니아, 마운트 하드웨어 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 선호하는 등산 브랜드 뭐있음</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315444&page=4" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315444&page=6" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 r1 이거 뭐 죄다 품절이라냐 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 파타고니아 r1 이거 뭐 죄다 품절이라냐</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315240&page=7" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315240&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 나도 함 하자 파타고니아 할라고 코엑스 와봤는데 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 파타고니아 r1 이거 뭐 죄다 품절이라냐</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315240&page=7" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315240&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 파타고니아 리퓨지오 데이백 26리터 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 백팩 고민하고 있는데 추천 좀</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314606&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314606&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -465,196 +426,168 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크 아톰 후디랑 아크 베타 SL 바람막이랑 "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등산이 아니라 장비질을 시작한듯</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315906&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 당근 아크 짝퉁 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 당근 아크 짝퉁</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315783&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315783&page=3" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 감바(구 감마LT) 새상품 16이면 어때 "</p>
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 감바(구 감마LT) 새상품 16이면 어때? "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 감바(구 감마LT) 새상품 16이면 어때...</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315526&page=3" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315526&page=4" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크 리프 콜드lt 이거 포지션이 존나 애매하네 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 작년에 젤 잘 샀다고 생각하는 것과 그 반대</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315268&page=6" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315268&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 베타 고수님들 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 베타 고수님들</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315033&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315033&page=9" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 가스웨어 아크스토브 살까 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 가스웨어 아크스토브 살까</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314981&page=9" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314981&page=10" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 이분 아크 풀장착인데 등산 엄청 다님 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 체감온도 영하 36도 설악산 1박2일(유튭)</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314805&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314805&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 아톰이랑 베타sl 삼 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 아톰이랑 베타sl 삼</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314751&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314751&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 낼 등산 갈사람 아크테릭스 풀착 하구 갈라궁 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 낼 등산 갈사람 아크테릭스 풀착 하구 갈라궁</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314703&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314703&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 풀착장 하고 등산 가니 존예 20대녀들이 내려가서 한잔 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 풀착장 하고 등산 가니 존예 20대녀들이...</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314601&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314601&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 짭 구별좀 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 짭 구별좀</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314575&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314575&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 lt 자켓 당근에 올라왔는데 짭같음 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 짭 구별좀</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314575&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크 리프 68만 사기 당한거 "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크 리프 68만 사기 당한거</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313908&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아크테릭스 이거차이거뭐예요 "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아크테릭스 이거차이거뭐예요?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313877&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아, 그리고 관광객중 중국인 대부분이 아크테릭스네요 ㅋㅋㅋ "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 형님들 한국에 눈 많이 온다면서요?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313739&page=21" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314575&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -664,98 +597,112 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크껀데 울30%정도 들어가있어요 "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아부지가 울양말 주셨는데 쓸만한가요?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315943&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 m디펜더 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 바지 하나 질렀다 ㅜㅜ</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315512&page=3" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315512&page=5" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 등산화도산김에 블랙야크100대명산에 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: ㅈ뉴비 오늘 청계산에서 조난당할뻔했다..</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315052&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315052&page=9" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 루클라m백팩 28리터 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 백팩 고민하고 있는데 추천 좀</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314606&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314606&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크(BLACKYAK) 플래시팩AIR14_DG - 사이즈 & 후기 | 무신사 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 배낭 이런건 잘 안쓰냐?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314456&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314456&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 제품분류 :스포츠/레저 > 가방 브랜드 : 블랙야크(BLACKYAK) 제품번호 : 2BYKSXU904DG 제품 : 플래시팩AIR14_DG - 121,700 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 배낭 이런건 잘 안쓰냐?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314456&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314456&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 블랙야크 픙애시백 에어14 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 배낭 이런건 잘 안쓰냐?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314456&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314456&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 오늘은 경기도 연천과 철원에 걸친 블랙야크 명산100+ 겨울 고대산 눈꽃 산행을 다녀왔습니다 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 연천 고대산도 눈 많네</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314063&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314063&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -765,42 +712,42 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아마 여성최초 k2 14좌등반도 고미영등산가님이 차지했을거라 보는데 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 유투브 보다 울었다... 고 고미영님하늘에서 못다이...</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315026&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315026&page=10" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" K2 남녀공용 배낭 스트라이더 15L(STRIDER 15L)_Dyneema (Black) (KUS24B05Z1)_DJ - 패션플러스 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아울렛왔는데 배낭 이거엄더냐</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314674&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314674&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" K2 남녀공용 배낭 스트라이더 15L(STRIDER 15L)_Dyneema (Black) (KUS24B05Z1)_DJ "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아울렛왔는데 배낭 이거엄더냐</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314674&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314674&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -810,42 +757,42 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 찾아보니 국내에서 가장 잘 쳐주는게 캠프라인 같고, 블랙스톰은 너무 가성비 제품같아서, "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 캠라 마나슬루 아버지 선물 드리려는데 ㄱㅊ?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315274&page=6" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315274&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 캠프라인 릿지화 있고 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등산화 추천좀</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314434&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314434&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 5만에 샀고 캠프라인이랑 고민했는데 일상에서도 신을 생각이라 캠프라인 못 생겨서 거름 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 칸네토 삿워요</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314260&page=16" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314260&page=18" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -855,42 +802,42 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 살몬360미드 gtx 삿음  난 호카 아나카파 미드2 gtx 신는데 이거랑 비교하자면 살로몬이 좀더 가벼움 미드솔이 좀더 덜두터움 그리고 후크걸이가 2개밖에없더라고 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 쇼핑했어</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315859&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315859&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 암튼 디자인적으론 내거 호카도 좀 일상화로도 등산화스럽지않게 생겨서 맘에드는데 살로몬은 등산화스러우면서도 텍티컬화 스러운게 뭔가 멋졋음 남자다운멋이있음 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 쇼핑했어</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315859&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315859&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 살로몬 X 울트라 360 엣지 샀는데 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 살로몬 X 울트라 360 엣지 샀는데</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314840&page=10" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314840&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -900,56 +847,28 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 살몬360미드 gtx 삿음  난 호카 아나카파 미드2 gtx 신는데 이거랑 비교하자면 살로몬이 좀더 가벼움 미드솔이 좀더 덜두터움 그리고 후크걸이가 2개밖에없더라고 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 쇼핑했어</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315859&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315859&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 암튼 디자인적으론 내거 호카도 좀 일상화로도 등산화스럽지않게 생겨서 맘에드는데 살로몬은 등산화스러우면서도 텍티컬화 스러운게 뭔가 멋졋음 남자다운멋이있음 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 쇼핑했어</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315859&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 등산화가 없어서 호카 아라히 신고 갈려고 "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 지금 관악산 러닝화에 아이젠 없이 등산 가능?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313906&page=19" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 등산화가 없어서 호카 아라히 신고 갈려고 "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 지금 관악산 러닝화에 아이젠 없이 등산 가능?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=313906&page=20" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315859&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -959,56 +878,87 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 네파에서 만든 델타피크 원단 긴팔티 옴... "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 네파에서 만든 델타피크 원단 긴팔티 옴...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315886&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 네파 스토어 25퍼 쿠폰 주길래 샀다 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 네파 스토어 25퍼 쿠폰 주길래 샀다</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315314&page=5" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315314&page=7" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 미들레이어(네파나 제로그램 알파다이렉트 , r1) "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등린이 이제 좀 옷들 사입는 거 이해함</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315256&page=7" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315256&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 속리산 가려고하고 갤에서 검색해보니 네파 칸네토 추천하셔서 이거사려고합니다 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등산화 사이즈 이렇게 가면 되나요?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314695&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314695&page=13" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 네파 파워드라이 집업셔츠 3만원 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 네파 파워드라이 집업셔츠 3만원</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314365&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314365&page=16" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div id="content-아이더" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아이더애서 하나 아디다스 터렉스 하나 두족이나 벌써 삼 "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등산이 아니라 장비질을 시작한듯</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315906&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -1018,14 +968,14 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 밀레도 세일하네 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 밀레도 세일하네</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314768&page=11" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314768&page=12" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -1035,14 +985,14 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 좌파 아재 등산복이나 장비를 봐도 존나 오래된 라푸마 나 형형색색의 특이한 10년은 되보이는 싼마이옷이 대부분임 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등산은 좌파아재들이 제일 좋아하는 취미인듯</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315021&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315021&page=10" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -1052,42 +1002,42 @@
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 우연히 나이키에서 세일하길래 샀는데 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 정비잘된 동네뒷산이나 임도길 둘레길은 트레일러닝화 ...</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315788&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315788&page=3" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 나이키 에어, 아디다스 운동화 둘다 260 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 뉴비 칸네토 사이즈 추천좀</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315265&page=6" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=315265&page=8" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">MIXED</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
                     <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 지리산 나이키운동화신고  깡총깡총 뛰어올라가서 3시간걸렷는데 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 등산초보란 무어냐</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314429&page=14" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=314429&page=15" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
@@ -1111,6 +1061,21 @@
       if (activeBtn) {
         activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
         activeBtn.classList.remove('bg-white/50', 'text-slate-500');
+      }
+    }
+
+    function toggleSummaryRest() {
+      const wrap = document.getElementById('summaryRestWrap');
+      const btn = document.getElementById('summaryToggleBtn');
+      if (!wrap || !btn) return;
+
+      const opened = wrap.style.display !== 'none';
+      if (opened) {
+        wrap.style.display = 'none';
+        btn.innerHTML = '나머지 펼치기 <i class="fa-solid fa-chevron-down ml-2"></i>';
+      } else {
+        wrap.style.display = 'block';
+        btn.innerHTML = '접기 <i class="fa-solid fa-chevron-up ml-2"></i>';
       }
     }
   </script>
