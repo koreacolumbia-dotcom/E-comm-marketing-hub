@@ -658,6 +658,15 @@ def _safe_attr(s: str) -> str:
 
 
 def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
+    # --- Period label (stable) ---
+    # Some templates expect __PERIOD_LABEL__. Define it here to avoid NameError.
+    try:
+        now_kst = datetime.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M KST")
+    except Exception:
+        now_kst = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    period_label = meta.get("period_label") or f"Execution snapshot · Compared to previous run · {now_kst}"
+    meta["period_label"] = period_label
+
     groups: Dict[str, List[Dict[str, Any]]] = {"C7": [], "C6": [], "전체": []}
     for r in rows:
         code = (r.get("코드") or "").upper()
