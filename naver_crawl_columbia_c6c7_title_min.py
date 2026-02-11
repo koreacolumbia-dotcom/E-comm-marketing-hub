@@ -44,6 +44,36 @@ from typing import Dict, Any, List, Optional, Tuple
 
 import pandas as pd
 
+# ================================================================
+# Summary/meta export (Hub first-screen consumption)
+# - Writes/updates reports/summary.json (or alongside output html)
+# ================================================================
+import json
+from datetime import datetime, timezone, timedelta
+
+_KST = timezone(timedelta(hours=9))
+
+def _safe_mkdir(p: str):
+    os.makedirs(p, exist_ok=True)
+
+def _write_summary_json(out_dir: str, report_key: str, payload: dict):
+    """Merge-update a single summary.json file in out_dir."""
+    _safe_mkdir(out_dir)
+    path = os.path.join(out_dir, "summary.json")
+    data = {}
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+    except Exception:
+        data = {}
+    data[report_key] = payload
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def _now_kst_str():
+    return datetime.now(_KST).strftime("%Y-%m-%d %H:%M KST")
+
 # Pillow (이미지 트리밍용)
 try:
     from PIL import Image
@@ -993,6 +1023,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
       <div>
         <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">Naver Lowest Price Monitor</h1>
+  <div class=\"text-sm text-slate-500 mt-2\">__PERIOD_LABEL__</div>
         <p class="text-slate-500 text-lg font-medium italic">공식몰가 vs 네이버 쇼핑 최저가 자동 비교</p>
       </div>
       <div class="glass-card px-6 py-4 flex items-center gap-4">
@@ -1472,6 +1503,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             .replace("__MISSING_CNT__", str(missing_cnt))
             .replace("__TAB_MENU__", tab_menu_html)
             .replace("__CONTENT_AREA__", content_area_html)
+            .replace("__PERIOD_LABEL__", period_label)
             .replace("__ROWS_JSON__", rows_json)
             .replace("__TOP_GAP_CODES_JSON__", top_gap_codes_json)
             )
