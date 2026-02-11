@@ -101,9 +101,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # ✅ 최신 main 먼저 당기기 (충돌 확률↓)
+          # 1️⃣ 작업트리 임시 보관 (unstaged 포함)
+          git stash push -u -m "actions-temp" || true
+
+          # 2️⃣ 최신 main 반영
           git pull --rebase origin main
 
+          # 3️⃣ 스태시 복원
+          git stash pop || true
+
+          # 4️⃣ 변경사항 커밋
           git add reports/ .naver_cache || true
 
           if git diff --cached --quiet; then
