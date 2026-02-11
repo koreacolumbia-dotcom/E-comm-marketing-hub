@@ -12,6 +12,36 @@ from dataclasses import dataclass
 from typing import List, Dict, Tuple
 import urllib3
 
+# ================================================================
+# Summary/meta export (Hub first-screen consumption)
+# - Writes/updates reports/summary.json (or alongside output html)
+# ================================================================
+import json
+from datetime import datetime, timezone, timedelta
+
+_KST = timezone(timedelta(hours=9))
+
+def _safe_mkdir(p: str):
+    os.makedirs(p, exist_ok=True)
+
+def _write_summary_json(out_dir: str, report_key: str, payload: dict):
+    """Merge-update a single summary.json file in out_dir."""
+    _safe_mkdir(out_dir)
+    path = os.path.join(out_dir, "summary.json")
+    data = {}
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+    except Exception:
+        data = {}
+    data[report_key] = payload
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def _now_kst_str():
+    return datetime.now(_KST).strftime("%Y-%m-%d %H:%M KST")
+
 # =================================================================
 # 1. 크롤링 엔진
 # =================================================================
@@ -503,6 +533,7 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
     <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
       <div>
         <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">VOC Real-time Analysis</h1>
+  <div class=\"text-sm text-slate-500 mt-2\">__PERIOD_LABEL__</div>
         <p class="text-slate-500 text-lg font-medium italic">디시인사이드 등산 갤러리 브랜드 언급 데이터</p>
         <p class="text-slate-400 text-xs mt-2 font-bold">기간: 최근 {TARGET_DAYS}일 · 최대 {MAX_PAGES}페이지 스캔</p>
       </div>
