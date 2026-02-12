@@ -3,20 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CSK E-COMM | Marketing Intelligent Hub</title>
+  <title>CSK E-COMM | 오늘의 핵심 요약</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
-    body{ background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; min-height:100vh; }
-    .glass-card{ background: rgba(255,255,255,0.60); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }
-    .nav-item{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:16px; font-weight:800; color:rgba(15,23,42,.65); }
-    .nav-item:hover{ background: rgba(255,255,255,.70); }
-    .nav-active{ background: rgba(255,255,255,.92); color:#0f172a; box-shadow: 0 10px 30px rgba(15,23,42,.08); }
+    :root { --brand:#002d72; }
+    body{ background: transparent; font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; }
+    .glass-card{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }
     .badge{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(0,45,114,.08); color: var(--brand); }
-    .card-link{ transition: transform .15s ease, box-shadow .15s ease; }
+    .badge-soft{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(15,23,42,.06); color: rgba(15,23,42,.70); }
+    .card-link{ transition: transform .15s ease; }
     .card-link:hover{ transform: translateY(-2px); }
+    .risk-pill{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-weight:900; font-size:11px; }
+    .risk-dot{ width:8px; height:8px; border-radius:999px; }
+    .risk-high{ background: rgba(239,68,68,.10); color: rgba(239,68,68,1); }
+    .risk-high .risk-dot{ background: rgb(239,68,68); box-shadow: 0 0 0 5px rgba(239,68,68,.12); }
+    .risk-mid{ background: rgba(245,158,11,.12); color: rgba(180,83,9,1); }
+    .risk-mid .risk-dot{ background: rgb(245,158,11); box-shadow: 0 0 0 5px rgba(245,158,11,.12); }
+    .risk-low{ background: rgba(34,197,94,.12); color: rgba(22,163,74,1); }
+    .risk-low .risk-dot{ background: rgb(34,197,94); box-shadow: 0 0 0 5px rgba(34,197,94,.12); }
+    .risk-unk{ background: rgba(100,116,139,.12); color: rgba(51,65,85,1); }
+    .risk-unk .risk-dot{ background: rgb(100,116,139); box-shadow: 0 0 0 5px rgba(100,116,139,.12); }
+    .insight{ margin-top:14px; padding:12px 14px; border-radius:18px; background: rgba(255,255,255,.55); border: 1px solid rgba(15,23,42,0.05); }
   </style>
 </head>
 <body>
@@ -63,7 +72,7 @@
     <span class="auto-updated-dot"></span>
     <div class="auto-updated-txt">
       <div class="t1">Last updated</div>
-      <div class="t2">2026.02.12 (Thu) 10:38 KST</div>
+      <div class="t2">2026.02.12 (Thu) 16:05 KST</div>
     </div>
   </div>
 </div>
@@ -104,122 +113,136 @@
 </script>
 <!-- AUTO_UPDATED_BADGE_END -->
 
-  <div class="flex min-h-screen">
-    <aside class="sidebar w-[260px] px-6 py-8">
-      <div class="font-black text-[color:var(--brand)] text-xl">CSK <span class="text-slate-900">E-COMM</span></div>
-      <div class="mt-2 text-[11px] font-extrabold tracking-widest text-slate-400">AUTOMATION<br/>MARKETING HUB</div>
+  <div class="px-2 sm:px-6 py-6">
+    <div class="mb-6">
+      <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
+      <div class="text-slate-600 mt-2 text-sm sm:text-base">3개 자동 리포트에서 “오늘 조치할 것”만 빠르게</div>
+    </div>
 
-      <div class="mt-8 space-y-2">
-        <a class="nav-item nav-active" href="./index.html"><i class="fa-solid fa-chart-simple w-5 text-[color:var(--brand)]"></i> Summary</a>
-        <a class="nav-item" href="./naver_lowest_price.html"><i class="fa-solid fa-won-sign w-5 text-slate-500"></i> 네이버 최저가</a>
-        <a class="nav-item" href="./hero_main.html"><i class="fa-regular fa-image w-5 text-slate-500"></i> 경쟁사 Hero 배너</a>
-        <a class="nav-item" href="./external_signal.html"><i class="fa-solid fa-wave-square w-5 text-slate-500"></i> 커뮤니티 VOC</a>
-      </div>
-    </aside>
-
-    <main class="flex-1 px-10 py-10">
-      <div class="max-w-6xl">
-        <div class="flex items-end justify-between gap-6">
-          <div>
-            <h1 class="text-5xl font-black tracking-tight">Marketing Intelligent Hub</h1>
-            <div class="text-slate-600 mt-2">자동 업데이트 리포트 포털 (GitHub Actions → reports/)</div>
-          </div>
-          <div class="glass-card rounded-3xl px-5 py-4">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Last updated</div>
-            <div class="text-sm font-black text-slate-800 mt-1">2026.02.12 (Thu) 10:38 KST</div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- NAVER -->
+      <a class="glass-card card-link rounded-3xl p-6 block" href="./naver_lowest_price.html" target="_self">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">네이버 최저가</div>
+          <div class="flex items-center gap-2">
+            <span class="risk-pill risk-high"><span class="risk-dot"></span>RISK HIGH</span>
+            <span class="badge">Snapshot</span>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-10">
-          <a class="glass-card card-link rounded-3xl p-6 block" href="./naver_lowest_price.html">
-            <div class="flex items-center justify-between">
-              <div class="text-lg font-black">네이버 최저가</div>
-              <span class="badge">Snapshot</span>
-            </div>
-            <div class="mt-5 space-y-3">
-              
+        <div class="mt-5 space-y-3">
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">TOTAL</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">TOTAL</div>
             <div class="text-lg font-black text-slate-900">748</div>
           </div>
         
-              
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">DIFF > 0</div>
-            <div class="text-lg font-black text-slate-900">390</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">DIFF > 0</div>
+            <div class="text-lg font-black text-slate-900">390  ·  52%</div>
           </div>
         
-              
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">AVG GAP</div>
-            <div class="text-lg font-black text-slate-900">9,932원</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">AVG GAP</div>
+            <div class="text-lg font-black text-slate-900">9,933원</div>
           </div>
         
-            </div>
-            <div class="mt-5 text-xs text-slate-500">Snapshot (KST) · Δ vs previous run · 2026.02.12 (Thu) 11:26 KST</div>
-            <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
-          </a>
+        </div>
 
-          <a class="glass-card card-link rounded-3xl p-6 block" href="./hero_main.html">
-            <div class="flex items-center justify-between">
-              <div class="text-lg font-black">경쟁사 Hero 배너</div>
-              <span class="badge">Snapshot</span>
-            </div>
-            <div class="mt-5 space-y-3">
-              
+        
+          <div class="mt-4">
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">TOP 3</div>
+            <ul class="mt-2 space-y-1 text-sm font-bold text-slate-800"><li class="flex justify-between gap-3"><span class="truncate">M's Eddy Peak™ Hybrid Long Down Jacket  —  +389,430원</span></li><li class="flex justify-between gap-3"><span class="truncate">M's Bear Cone™ Down Jacket  —  +389,430원</span></li><li class="flex justify-between gap-3"><span class="truncate">M's Bear Cone™ Down Jacket  —  +389,430원</span></li></ul>
+          </div>
+        
+
+        <div class="insight">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">INSIGHT</div>
+          <div class="mt-2 text-sm font-extrabold text-slate-900">⚠️ 가격 역전 390건 (52%) — 영향 큼, Top 3 즉시 점검</div>
+        </div>
+
+        <div class="mt-4 text-xs text-slate-500">Snapshot (KST) · 2026.02.12 (Thu) 16:48 KST · source: result_0212.csv</div>
+        <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
+      </a>
+
+      <!-- HERO -->
+      <a class="glass-card card-link rounded-3xl p-6 block" href="./hero_main.html" target="_self">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">경쟁사 Hero 배너</div>
+          <span class="badge">Snapshot</span>
+        </div>
+
+        <div class="mt-5 space-y-3">
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">BRANDS</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">BRANDS</div>
             <div class="text-lg font-black text-slate-900">-</div>
           </div>
         
-              
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">BANNERS</div>
-            <div class="text-lg font-black text-slate-900">29</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">BANNERS</div>
+            <div class="text-lg font-black text-slate-900">26</div>
           </div>
         
-              
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">MISSING IMG</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">MISSING IMG</div>
             <div class="text-lg font-black text-slate-900">-</div>
           </div>
         
-            </div>
-            <div class="mt-5 text-xs text-slate-500">Snapshot (KST) · 2026.02.12 (Thu) 11:26 KST</div>
-            <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
-          </a>
+        </div>
 
-          <a class="glass-card card-link rounded-3xl p-6 block" href="./external_signal.html">
-            <div class="flex items-center justify-between">
-              <div class="text-lg font-black">커뮤니티 VOC</div>
-              <span class="badge">Last 7D</span>
-            </div>
-            <div class="mt-5 space-y-3">
-              
+        <div class="text-xs text-slate-500 mt-3">Top items: -</div>
+
+        <div class="insight">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">INSIGHT</div>
+          <div class="mt-2 text-sm font-extrabold text-slate-900">-</div>
+        </div>
+
+        <div class="mt-4 text-xs text-slate-500">Snapshot (KST) · 2026.02.12 (Thu) 16:48 KST · source: hero_main_banners_20260212_161052.csv</div>
+        <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
+      </a>
+
+      <!-- VOC -->
+      <a class="glass-card card-link rounded-3xl p-6 block" href="./external_signal.html" target="_self">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">커뮤니티 VOC</div>
+          <span class="badge-soft">Last 7D</span>
+        </div>
+
+        <div class="mt-5 space-y-3">
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">POSTS</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">POSTS</div>
             <div class="text-lg font-black text-slate-900">1</div>
           </div>
         
-              
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">MENTIONS</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">MENTIONS</div>
             <div class="text-lg font-black text-slate-900">2</div>
           </div>
         
-              
+          
           <div class="flex items-baseline justify-between gap-3">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">—</div>
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">—</div>
             <div class="text-lg font-black text-slate-900">—</div>
           </div>
         
-            </div>
-            <div class="mt-5 text-xs text-slate-500">Last 7D (KST)</div>
-            <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
-          </a>
         </div>
-      </div>
-    </main>
+
+        <div class="insight">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">INSIGHT</div>
+          <div class="mt-2 text-sm font-extrabold text-slate-900">최근 7일 기준: 게시글 1 · 언급 2</div>
+        </div>
+
+        <div class="mt-4 text-xs text-slate-500">Last 7D (KST)</div>
+        <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
+      </a>
+    </div>
   </div>
 </body>
 </html>
