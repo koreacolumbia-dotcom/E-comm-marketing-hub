@@ -20,6 +20,10 @@
   - HTML만 따로 옮겨 열어도 이미지 깨지지 않게 “로컬 파일 경로” 유지(절대경로)
     (단, HTML을 다른 PC로 옮기면 이미지도 같이 옮겨야 함)
 
+✅ EMBED(중복 UI 제거) 패치:
+- iframe이 아니어도 URL에 ?embed=1(or ?embedded=1)이면 embedded 모드 강제
+- embedded 모드면 리포트의 aside/header 숨김(허브 UI와 중복 방지)
+
 필수 환경변수:
 - NAVER_CLIENT_ID
 - NAVER_CLIENT_SECRET
@@ -405,9 +409,7 @@ def _crop_whitespace_pil(im: "Image.Image", bg_thresh: int = 245, pad: int = 8) 
 
     if im.mode == "RGBA":
         rgba = im
-        # alpha가 너무 낮으면 배경으로 처리
         px = rgba.getdata()
-        # 빠른 bbox 계산을 위해 스캔
         minx, miny, maxx, maxy = w, h, -1, -1
         for y in range(h):
             row = px[y * w:(y + 1) * w]
@@ -438,7 +440,6 @@ def _crop_whitespace_pil(im: "Image.Image", bg_thresh: int = 245, pad: int = 8) 
         if maxx < 0:
             return im
 
-    # pad 적용
     minx = max(0, minx - pad)
     miny = max(0, miny - pad)
     maxx = min(w - 1, maxx + pad)
@@ -465,13 +466,11 @@ def trim_image_to_local(
         return "", None
 
     if Image is None:
-        # Pillow가 없으면 그냥 원본 URL 사용
         return image_url, None
 
     os.makedirs(out_dir, exist_ok=True)
     out_png = os.path.join(out_dir, f"{file_stem}.png")
 
-    # TTL 캐시
     if os.path.exists(out_png):
         age_sec = time.time() - os.path.getmtime(out_png)
         if age_sec <= ttl_hours * 3600:
@@ -484,7 +483,6 @@ def trim_image_to_local(
     try:
         from io import BytesIO
         im = Image.open(BytesIO(blob))
-        # EXIF 회전 보정
         try:
             from PIL import ImageOps
             im = ImageOps.exif_transpose(im)
@@ -494,7 +492,6 @@ def trim_image_to_local(
         im = im.convert("RGBA")
         trimmed = _crop_whitespace_pil(im, bg_thresh=245, pad=10)
 
-        # 너무 과도하게 작아지는 것 방지(최소 면적 가드)
         if trimmed.size[0] < 120 or trimmed.size[1] < 120:
             trimmed = im
 
@@ -666,8 +663,6 @@ def _safe_attr(s: str) -> str:
 
 
 def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
-    # --- Period label (stable) ---
-    # Some templates expect __PERIOD_LABEL__. Define it here to avoid NameError.
     try:
         now_kst = _kst_now_str(fmt="%Y-%m-%d %H:%M KST")
     except Exception:
@@ -729,7 +724,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             img_final = r.get("이미지URL", "") or ""
             img_official = r.get("공식이미지URL", "") or ""
             img_naver = r.get("네이버이미지URL", "") or ""
-            img_local = r.get("trimmed_local_path", "") or ""  # 로컬 저장 경로(절대)
+            img_local = r.get("trimmed_local_path", "") or ""
 
             prev_naver = r.get("prev_naver")
             delta_naver = r.get("delta_naver")
@@ -830,7 +825,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
                 img_block = f"""
                 <div class="mb-4">
                   <div class="w-full img-box rounded-2xl border border-white/80 bg-white/60 overflow-hidden relative">
-                    <!-- ✅ 체크박스: 카드 오른쪽 상단 고정 -->
                     <label class="chk-float inline-flex items-center gap-2 text-[11px] font-black text-slate-700 cursor-pointer select-none">
                       <input type="checkbox" class="w-4 h-4 accent-[#002d72] chk"
                         onchange="toggleCheck('{_safe_attr(code)}', this.checked)" />
@@ -913,7 +907,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
                   oninput="saveMemo('{_safe_attr(code)}', this.value)"></textarea>
               </div>
 
-              <!-- ✅ footer 하단 고정(카드 높이 균일화 체감) -->
               <div class="mt-auto flex items-center justify-between pt-4 border-t border-slate-100">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">가격차이: {diff_s}</span>
                 <a href="{_safe_attr(link)}" target="_blank"
@@ -963,13 +956,12 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     .spinner { width: 56px; height: 56px; border-radius: 9999px; border: 6px solid rgba(0,0,0,0.08); border-top-color: rgba(0,45,114,0.95); animation: spin 0.9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ✅ IMAGE: 트리밍 + 꽉 차 보이게 */
     .img-box { height: 240px; }
     @media (min-width: 1024px){ .img-box { height: 280px; } }
     .img-fit {
       width: 100%;
       height: 100%;
-      object-fit: contain;     /* 트리밍 후엔 contain으로도 꽉 차게 보임 */
+      object-fit: contain;
       transform: scale(1.03);
       transition: transform .18s ease;
       cursor: zoom-in;
@@ -977,7 +969,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     }
     .img-fit:hover { transform: scale(1.10); }
 
-    /* ✅ CHECKBOX: 우상단 고정 + 가독성 */
     .chk-float{
       position:absolute;
       top:12px;
@@ -991,7 +982,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
       box-shadow: 0 10px 30px rgba(0,0,0,0.06);
     }
 
-    /* ✅ GRID 모드(3/4열) */
     .grid-3 { }
     .grid-4 { }
     @media (min-width: 1024px){
@@ -999,7 +989,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
       .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
 
-    /* ===== EMBED MODE ===== */
+    /* ===== EMBED MODE (중복 UI 제거) ===== */
     body.embedded aside { display:none !important; }
     body.embedded header { display:none !important; }
     body.embedded .sidebar { display:none !important; }
@@ -1040,7 +1030,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
       <div>
         <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">Naver Lowest Price Monitor</h1>
-  <div class=\"text-sm text-slate-500 mt-2\">__PERIOD_LABEL__</div>
+        <div class="text-sm text-slate-500 mt-2">__PERIOD_LABEL__</div>
         <p class="text-slate-500 text-lg font-medium italic">공식몰가 vs 네이버 쇼핑 최저가 자동 비교</p>
       </div>
       <div class="glass-card px-6 py-4 flex items-center gap-4">
@@ -1087,7 +1077,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
         <button id="chip-missing" class="chip" onclick="toggleQuickFilter('missing')">미검색만 보기</button>
         <button id="chip-topgap" class="chip" onclick="toggleQuickFilter('topgap')">Top Gap(10)만 보기</button>
 
-        <!-- ✅ GRID 옵션 -->
         <div class="ml-auto flex items-center gap-2">
           <div class="text-xs font-black text-slate-500">Grid</div>
           <button id="grid3" class="chip" onclick="setGridMode(3)">3열</button>
@@ -1156,7 +1145,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     </section>
   </main>
 
-  <!-- ✅ IMAGE MODAL -->
   <div id="imgModal" class="overlay" onclick="closeImg()">
     <div class="glass-card p-4 max-w-[92vw] max-h-[92vh]" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between mb-2 gap-2">
@@ -1468,7 +1456,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     });
   }
 
-  // ✅ 이미지 모달: 로컬 경로가 있으면 표시 정보만
   function openImg(src, localPath){
     const m = document.getElementById('imgModal');
     const el = document.getElementById('imgModalEl');
@@ -1490,7 +1477,6 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     hydrateCardState();
     bindEnterToSearch('qAll');
 
-    // gridMode restore
     try {
       const gm = localStorage.getItem('gridMode');
       if (gm === '4') state.gridMode = 4;
@@ -1501,10 +1487,23 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
   });
 </script>
 
+<!-- ✅✅✅ EMBED 판별 로직: iframe OR ?embed=1이면 embedded -->
 <script>
   (function () {
-    try { if (window.self !== window.top) document.body.classList.add("embedded"); }
-    catch (e) { document.body.classList.add("embedded"); }
+    const params = new URLSearchParams(window.location.search);
+    const forceEmbed =
+      params.get("embed") === "1" ||
+      params.get("embedded") === "1" ||
+      params.has("embed") ||
+      params.has("embedded");
+
+    let isIframe = false;
+    try { isIframe = (window.self !== window.top); }
+    catch (e) { isIframe = true; }
+
+    if (forceEmbed || isIframe) {
+      document.body.classList.add("embedded");
+    }
   })();
 </script>
 
@@ -1554,7 +1553,6 @@ def main():
         help="제외할 스타일코드(콤마구분). 기본: C71YLT371297,C71YLT371193",
     )
 
-    # ✅ TRIM 옵션
     parser.add_argument("--trim_images", action="store_true", help="이미지 여백 자동 트리밍 후 로컬 file://로 표시")
     parser.add_argument("--image_dir", default=".trimmed_images", help="트리밍 이미지 저장 폴더")
     parser.add_argument("--image_ttl_hours", type=int, default=72, help="트리밍 이미지 캐시 TTL(시간)")
@@ -1695,12 +1693,10 @@ def main():
             time.sleep(max(0.0, args.delay))
             continue
 
-        # ✅ 트리밍 처리
         final_image = raw_final_image
         trimmed_local_abs = None
         if args.trim_images and Image is not None:
             file_stem = re.sub(r"[^A-Za-z0-9_\-]", "_", code_u)
-            # referer: 네이버 링크가 있으면 그걸 referer로 (이미지 hotlink 차단 완화)
             referer = naver_link or None
             trimmed_url, local_abs = trim_image_to_local(
                 raw_final_image,
@@ -1749,12 +1745,11 @@ def main():
             "최저가몰": naver_mall,
             "링크": naver_link,
 
-            # ✅ 이미지
             "원본이미지URL": raw_final_image,
-            "이미지URL": final_image,            # trim이면 file://..., 아니면 원본 URL
+            "이미지URL": final_image,
             "공식이미지URL": official_image,
             "네이버이미지URL": naver_image,
-            "raw_image_url": raw_final_image,     # HTML data-src-raw 용
+            "raw_image_url": raw_final_image,
             "trimmed_local_path": trimmed_local_abs or "",
 
             "naver_title": naver_title,
