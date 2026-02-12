@@ -22,6 +22,12 @@
 <body class="flex">
 <!-- AUTO_UPDATED_BADGE_START -->
 <style>
+  /* pulse fallback (Tailwind 없어도 깜빡이게) */
+  @keyframes _pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.12); opacity: .55; }
+  }
+
   .auto-updated-badge-wrap{
     position:static; z-index:99999;
     font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, Arial;
@@ -39,6 +45,7 @@
     width:10px; height:10px; border-radius:999px;
     background:#22c55e;
     box-shadow:0 0 0 5px rgba(34,197,94,.15);
+    animation:_pulse 1.2s ease-in-out infinite;
   }
   .auto-updated-txt{ display:flex; flex-direction:column; line-height:1.15; }
   .auto-updated-txt .t1{
@@ -56,7 +63,7 @@
     <span class="auto-updated-dot"></span>
     <div class="auto-updated-txt">
       <div class="t1">Last updated</div>
-      <div class="t2">2026.02.12 (Thu) 08:40 KST</div>
+      <div class="t2">2026.02.12 (Thu) 10:38 KST</div>
     </div>
   </div>
 </div>
@@ -69,7 +76,7 @@
 
       const sidebar = document.querySelector('aside.sidebar');
       if(sidebar){
-        // 로고 블록(대부분 sidebar 첫 요소) 바로 아래에 삽입
+        // ✅ 좌측 바 상단: 로고 블록 바로 아래
         const first = sidebar.firstElementChild;
         if(first && first.nextSibling){
           sidebar.insertBefore(badge, first.nextSibling);
@@ -122,12 +129,12 @@
       <div>
         <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">Hero Banner Analysis</h1>
         <p class="text-slate-500 text-lg font-medium italic">주요 아웃도어 경쟁사 메인 히어로 배너 모니터링</p>
-        <p class="text-slate-500 text-sm mt-3">조회 기간: 실행 시점 스냅샷(KST) · 전회 실행 대비(변경 감지) · 2026-02-12 09:06 KST</p>
+        <p class="text-slate-500 text-sm mt-3">조회 기간: 실행 시점 스냅샷(KST) · 전회 실행 대비(변경 감지) · 2026-02-12 11:07 KST</p>
         <p class="text-slate-400 text-xs mt-3">로컬이미지 경로 모드: REL(assets/) · 날짜추출: ON </p>
       </div>
       <div class="glass-card px-6 py-4 flex items-center gap-4">
         <div class="flex h-3 w-3 relative"><span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span></div>
-        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-12 09:06</span>
+        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-12 11:07</span>
       </div>
     </header>
 
@@ -290,7 +297,7 @@
   
 <div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
   <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/arcteryx_1_826cd0dee3.jpg" class="w-full h-full object-cover"
+    <img src="assets/arcteryx_1_1972a83ad4.jpg" class="w-full h-full object-cover"
          onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
     <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
       RANK 1
@@ -308,7 +315,7 @@
       <a href="https://arcteryx.co.kr/products/category/54" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
         기획전 바로가기
       </a>
-      <a href="https://public.arcteryx.co.kr/images/banner/uQJTBlVKZWkz40ORHINBLOtQFb9bXPKQ5ksek3Qh.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+      <a href="https://public.arcteryx.co.kr/images/banner/9jsNEBbnciagBBTNYuwuEj1pREeM1GGl2zPtBlB6.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
         원본이미지
       </a>
     </div>
@@ -400,25 +407,25 @@
   
 <div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
   <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/snowpeak_1_8468160a47.jpg" class="w-full h-full object-cover"
+    <img src="assets/snowpeak_1_5b480abd88.jpg" class="w-full h-full object-cover"
          onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
     <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
       RANK 1
     </span>
   </div>
   <div class="p-6 flex flex-col flex-1">
-    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"가볍고 따뜻하게 오래도록 가장 실용적인 경량 다운"</h4>
+    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"일상 속 자연 with V 26 Spring Collection"</h4>
 
     <div class="text-xs text-slate-500 mb-4">
       <div></div>
-      <div class="opacity-70">1100×575 · 47KB</div>
+      <div class="opacity-70">1100×575 · 65KB</div>
     </div>
 
     <div class="flex gap-2 mt-auto">
-      <a href="http://snowpeakstore.co.kr/goods/event_sale.php?sno=547" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+      <a href="http://snowpeakstore.co.kr/goods/event_sale.php?sno=557" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
         기획전 바로가기
       </a>
-      <a href="https://snowpetr1909.cdn-nhncommerce.com/data/skin/front/260202/img/banner/e717e2727a1041ff7b05276f0d9efbdb_60787.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+      <a href="https://snowpetr1909.cdn-nhncommerce.com/data/skin/front/260212/img/banner/59e9891dc0c551a23058f21436f1ed89_72113.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
         원본이미지
       </a>
     </div>
@@ -426,40 +433,14 @@
 </div>
 <div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
   <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/snowpeak_2_0a5dc2a5c2.jpg" class="w-full h-full object-cover"
+    <img src="assets/snowpeak_2_92b1f13528.jpg" class="w-full h-full object-cover"
          onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
     <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
       RANK 2
     </span>
   </div>
   <div class="p-6 flex flex-col flex-1">
-    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"올 겨울을 빛낸 베스트 다운 컬렉션"</h4>
-
-    <div class="text-xs text-slate-500 mb-4">
-      <div></div>
-      <div class="opacity-70">1100×575 · 48KB</div>
-    </div>
-
-    <div class="flex gap-2 mt-auto">
-      <a href="http://snowpeakstore.co.kr/goods/event_sale.php?sno=542" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
-        기획전 바로가기
-      </a>
-      <a href="https://snowpetr1909.cdn-nhncommerce.com/data/skin/front/260202/img/banner/35c73021f50a3d199f2d9826777d4118_49560.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
-        원본이미지
-      </a>
-    </div>
-  </div>
-</div>
-<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
-  <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/snowpeak_3_36989c8285.jpg" class="w-full h-full object-cover"
-         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
-    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
-      RANK 3
-    </span>
-  </div>
-  <div class="p-6 flex flex-col flex-1">
-    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"포근한 무드를 완성하는 클랜드 시리즈"</h4>
+    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"뷔와 함께한 New 컬렉션 Special Event"</h4>
 
     <div class="text-xs text-slate-500 mb-4">
       <div></div>
@@ -467,10 +448,36 @@
     </div>
 
     <div class="flex gap-2 mt-auto">
-      <a href="http://snowpeakstore.co.kr/goods/event_sale.php?sno=552" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+      <a href="http://snowpeakstore.co.kr/goods/event_sale.php?sno=558" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
         기획전 바로가기
       </a>
-      <a href="https://snowpetr1909.cdn-nhncommerce.com/data/skin/front/260202/img/banner/8a0f3f49eb4ca6abb249a5921de778eb_27519.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+      <a href="https://snowpetr1909.cdn-nhncommerce.com/data/skin/front/260212/img/banner/e0cfe156e14b0115e3750d3596f20fbf_67049.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="assets/snowpeak_3_1fff6446ac.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 3
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"매일 입기 좋은 편안함 Sweat Collection"</h4>
+
+    <div class="text-xs text-slate-500 mb-4">
+      <div></div>
+      <div class="opacity-70">1100×575 · 44KB</div>
+    </div>
+
+    <div class="flex gap-2 mt-auto">
+      <a href="https://snowpeakstore.co.kr/goods/event_sale.php?sno=553" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://snowpetr1909.cdn-nhncommerce.com/data/skin/front/260212/img/banner/6720311294a2986df6ad75a36e7e4c98_14597.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
         원본이미지
       </a>
     </div>
@@ -672,36 +679,10 @@
 </div>
 <div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
   <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/kolonmall_2_f65975dc9b.jpg" class="w-full h-full object-cover"
+    <img src="assets/kolonmall_2_af4ce7e2ab.jpg" class="w-full h-full object-cover"
          onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
     <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
       RANK 2
-    </span>
-  </div>
-  <div class="p-6 flex flex-col flex-1">
-    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"고어텍스 재킷 윈드체이서"</h4>
-
-    <div class="text-xs text-slate-500 mb-4">
-      <div></div>
-      <div class="opacity-70">750×1000 · 228KB</div>
-    </div>
-
-    <div class="flex gap-2 mt-auto">
-      <a href="https://www.kolonmall.com/Special/252332" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
-        기획전 바로가기
-      </a>
-      <a href="https://images3.kolonmall.com/upload/banner/9fb7ebf4-90a6-4329-9a60-79905cfa404f/79dc5a2e-cb1b-4b17-b990-4b3ad5b48add.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
-        원본이미지
-      </a>
-    </div>
-  </div>
-</div>
-<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
-  <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/kolonmall_3_af4ce7e2ab.jpg" class="w-full h-full object-cover"
-         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
-    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
-      RANK 3
     </span>
   </div>
   <div class="p-6 flex flex-col flex-1">
@@ -722,30 +703,56 @@
     </div>
   </div>
 </div>
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="assets/kolonmall_3_8858656278.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 3
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"최고의 기술력과 품질의 골프웨어"</h4>
+
+    <div class="text-xs text-slate-500 mb-4">
+      <div></div>
+      <div class="opacity-70">750×1000 · 65KB</div>
+    </div>
+
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.kolonmall.com/Special/252427" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://images3.kolonmall.com/upload/banner/e1ccda45-90dd-48e8-aa7e-ade87ce4d45c/e9d369f1-4f30-4a73-8e23-c9c989f1e0fd.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
 </div>
 <div id="content-k2" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
   
 <div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
   <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/k2_1_013196da1d.jpg" class="w-full h-full object-cover"
+    <img src="assets/k2_1_d12c319649.jpg" class="w-full h-full object-cover"
          onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
     <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
       RANK 1
     </span>
   </div>
   <div class="p-6 flex flex-col flex-1">
-    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"DYNAFIT"</h4>
+    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"메인 배너"</h4>
 
     <div class="text-xs text-slate-500 mb-4">
       <div></div>
-      <div class="opacity-70">750×820 · 102KB</div>
+      <div class="opacity-70">1100×401 · 36KB</div>
     </div>
 
     <div class="flex gap-2 mt-auto">
       <a href="javascript:void(0)" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
         기획전 바로가기
       </a>
-      <a href="https://contents.k-village.co.kr/VSL_con/20260210/img/1770682491635.jpg/k2dims/optimize" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+      <a href="https://contents.k-village.co.kr/VSL_con/20260129/img/1769643150708.gif/k2dims/optimize" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
         원본이미지
       </a>
     </div>
@@ -918,10 +925,36 @@
 </div>
 <div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
   <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/millet_2_77051f5ba0.jpg" class="w-full h-full object-cover"
+    <img src="assets/millet_1_fe647da057.jpg" class="w-full h-full object-cover"
          onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
     <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
       RANK 2
+    </span>
+  </div>
+  <div class="p-6 flex flex-col flex-1">
+    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"메인 배너"</h4>
+
+    <div class="text-xs text-slate-500 mb-4">
+      <div></div>
+      <div class="opacity-70">350×247 · 14KB</div>
+    </div>
+
+    <div class="flex gap-2 mt-auto">
+      <a href="https://www.millet.co.kr/" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
+        기획전 바로가기
+      </a>
+      <a href="https://www.millet.co.kr/data/banner/C6aMmrxQdHxa77SQea9.t4yfucq60rc4.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
+        원본이미지
+      </a>
+    </div>
+  </div>
+</div>
+<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
+  <div class="relative aspect-[16/9] bg-slate-100">
+    <img src="assets/millet_2_77051f5ba0.jpg" class="w-full h-full object-cover"
+         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
+    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
+      RANK 3
     </span>
   </div>
   <div class="p-6 flex flex-col flex-1">
@@ -937,32 +970,6 @@
         기획전 바로가기
       </a>
       <a href="https://www.millet.co.kr/data/banner/Y9KnBC3L.s506aov2a81f.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
-        원본이미지
-      </a>
-    </div>
-  </div>
-</div>
-<div class="glass-card overflow-hidden hover:scale-[1.02] transition-transform flex flex-col">
-  <div class="relative aspect-[16/9] bg-slate-100">
-    <img src="assets/millet_3_db7c2f8eb3.jpg" class="w-full h-full object-cover"
-         onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=No+Image';">
-    <span class="absolute top-4 left-4 px-3 py-1 bg-black/60 text-white text-[10px] font-bold rounded-full backdrop-blur-md">
-      RANK 3
-    </span>
-  </div>
-  <div class="p-6 flex flex-col flex-1">
-    <h4 class="text-slate-800 font-bold text-sm mb-2 line-clamp-2 min-h-[40px]">"콜드제로 테크H"</h4>
-
-    <div class="text-xs text-slate-500 mb-4">
-      <div>2025-12-24 ~ 2026-01-31</div>
-      <div class="opacity-70">1100×451 · 66KB</div>
-    </div>
-
-    <div class="flex gap-2 mt-auto">
-      <a href="https://www.millet.co.kr/front/promo/event/291" target="_blank" class="flex-1 px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl text-center hover:bg-blue-600 transition-colors">
-        기획전 바로가기
-      </a>
-      <a href="https://www.millet.co.kr/data/banner/Y9KnBC3L.rhdtw6xu6rfo.jpg" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl text-center hover:bg-slate-200 transition-colors">
         원본이미지
       </a>
     </div>
