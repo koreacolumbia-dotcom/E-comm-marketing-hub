@@ -71,7 +71,15 @@ jobs:
           python -u external_signal_combined.py
           test -f reports/external_signal.html
 
-      - name: Stamp "Last updated" badge into reports HTML (move to left sidebar)
+      # ✅ Summary 생성 (reports/index.html)
+      - name: Build Summary (reports/index.html)
+        env:
+          UPDATED_KST: ${{ steps.set_time.outputs.kst }}
+        run: |
+          python -u build_summary.py
+          test -f reports/index.html
+
+      - name: Stamp "Last updated" badge into reports HTML (move to left sidebar + pulse)
         shell: bash
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
@@ -83,6 +91,12 @@ jobs:
           cat <<'EOF' > /tmp/_badge_block.html
           <!-- AUTO_UPDATED_BADGE_START -->
           <style>
+            /* pulse fallback (Tailwind 없어도 깜빡이게) */
+            @keyframes _pulse {
+              0%, 100% { transform: scale(1); opacity: 1; }
+              50% { transform: scale(1.12); opacity: .55; }
+            }
+
             .auto-updated-badge-wrap{
               position:static; z-index:99999;
               font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, Arial;
@@ -100,6 +114,7 @@ jobs:
               width:10px; height:10px; border-radius:999px;
               background:#22c55e;
               box-shadow:0 0 0 5px rgba(34,197,94,.15);
+              animation:_pulse 1.2s ease-in-out infinite;
             }
             .auto-updated-txt{ display:flex; flex-direction:column; line-height:1.15; }
             .auto-updated-txt .t1{
@@ -130,7 +145,7 @@ jobs:
 
                 const sidebar = document.querySelector('aside.sidebar');
                 if(sidebar){
-                  // 로고 블록(대부분 sidebar 첫 요소) 바로 아래에 삽입
+                  // ✅ 좌측 바 상단: 로고 블록 바로 아래
                   const first = sidebar.firstElementChild;
                   if(first && first.nextSibling){
                     sidebar.insertBefore(badge, first.nextSibling);
@@ -197,7 +212,7 @@ jobs:
           git pull --rebase origin main
           git stash pop || true
 
-          git add reports/ .naver_cache || true
+          git add reports/ .naver_cache build_summary.py || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
