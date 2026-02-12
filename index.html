@@ -124,8 +124,31 @@
     </div>
   </div>
 
-  <div class="mt-auto pt-10 text-[10px] text-slate-400 font-bold px-2">
-    © CSK E-COMM
+  <!-- ✅ Sidebar Footer Meta (Update / Period) -->
+  <div class="mt-auto pt-8 px-2">
+    <div class="glass-card p-4">
+      <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">Update</div>
+
+      <div class="mt-3 space-y-2">
+        <div class="flex items-center justify-between gap-3">
+          <div class="text-[10px] font-extrabold text-slate-400">업데이트</div>
+          <div id="sb-updated-at" class="text-[11px] font-black text-slate-700 text-right">-</div>
+        </div>
+
+        <div class="flex items-center justify-between gap-3">
+          <div class="text-[10px] font-extrabold text-slate-400">기간</div>
+          <div id="sb-period" class="text-[11px] font-black text-slate-700 text-right">-</div>
+        </div>
+
+        <div class="text-[9px] text-slate-400 font-bold mt-2">
+          기준: 최근 일주일(7D)
+        </div>
+      </div>
+    </div>
+
+    <div class="pt-4 text-[10px] text-slate-400 font-bold">
+      © CSK E-COMM
+    </div>
   </div>
 </aside>
 
@@ -234,6 +257,41 @@
     }
     window.addEventListener("resize", resizeFrame);
     resizeFrame();
+
+    // ✅ Sidebar footer: KST 기준 업데이트/기간(최근 7일)
+    function pad2(n){ return String(n).padStart(2, "0"); }
+
+    function kstNow() {
+      const now = new Date();
+      const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      return new Date(utc + (9 * 60 * 60000));
+    }
+
+    function fmtKst(dt, withTime=true) {
+      const y = dt.getFullYear();
+      const m = pad2(dt.getMonth()+1);
+      const d = pad2(dt.getDate());
+      if (!withTime) return `${y}.${m}.${d}`;
+      const hh = pad2(dt.getHours());
+      const mm = pad2(dt.getMinutes());
+      return `${y}.${m}.${d} ${hh}:${mm}`;
+    }
+
+    function setSidebarMeta() {
+      const elUpdated = document.getElementById("sb-updated-at");
+      const elPeriod  = document.getElementById("sb-period");
+      if (!elUpdated || !elPeriod) return;
+
+      const now = kstNow();
+      const end = new Date(now);
+      const start = new Date(now);
+      start.setDate(start.getDate() - 6); // 오늘 포함 최근 7일
+
+      elUpdated.textContent = fmtKst(now, true) + " KST";
+      elPeriod.textContent = `최근 7일 (${fmtKst(start,false)} ~ ${fmtKst(end,false)})`;
+    }
+
+    setSidebarMeta();
   })();
 </script>
 
