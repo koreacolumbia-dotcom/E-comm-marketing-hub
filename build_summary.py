@@ -2,23 +2,29 @@
 # -*- coding: utf-8 -*-
 
 """
-build_summary_ADV_FINAL_UPGRADED.py
-- Generates reports/index.html (embed-friendly)
-- Adds "Hero campaign keywords" by crawling landing pages from hero_main_banners_*.csv
+build_summary_ADV_FINAL_UPGRADED.py  (FINAL PATCHED)
 
-What’s new (Hero keywords):
-1) Finds landing URL column automatically (landing_url/link/url/href etc.)
-2) Crawls top N unique URLs (default 40) with:
-   - User-Agent, timeout, retries, small sleep
-   - Parses title / og:title / meta description / h1,h2 / text snippet
-3) Extracts keywords (Korean/English 2+ chars) with stopwords
-4) Writes:
-   - reports/index.html (Hero card shows Top Keywords)
-   - reports/hero_keywords.html (details)
-5) Caches results at reports/_cache_hero_pages.json
+- Generates reports/index.html (embed-friendly)
+- Adds "Hero campaign theme keywords" by using:
+  1) hero_main_banners_*.csv "title" (primary, always available)
+  2) (optional) crawl landing pages via href_clean/href (secondary enrichment)
+
+✅ Patched:
+- URL column detection includes: href_clean / href (from hero crawler output)
+- Title column detection prioritizes: title
+- Keyword extraction includes bigrams (2-word phrases) to surface "theme"
+- Hero card text shows: "현재 기획전 테마: ..."
+- Writes details: reports/hero_keywords.html
+- Caches crawled pages: reports/_cache_hero_pages.json
+
+Env:
+- HERO_CRAWL_LIMIT (default 40)
+- HERO_CRAWL_SLEEP (default 0.25)
+- HERO_CRAWL_TIMEOUT (default 8)
+- HERO_CRAWL_RETRIES (default 2)
 
 Notes:
-- If hero CSV does not include a landing URL column, it will fallback to using title-like columns only.
+- If requests/bs4 not installed, it still works with CSV title-only mode.
 """
 
 from __future__ import annotations
@@ -145,7 +151,6 @@ def _norm_url(u: str) -> str:
     u = (u or "").strip()
     if not u:
         return ""
-    # ignore obvious non-urls
     if u.lower() in ("nan", "none", "null"):
         return ""
     return u
@@ -202,8 +207,7 @@ def build_naver_metrics(repo_root: Path) -> Dict[str, Any]:
 
     lvl, lvl_cls = risk_level(diff_pos_ratio)
 
-    period = f"Snapshot (KST) · {now_kst_label()}"
-    period += f" · source: {latest.name}"
+    period = f"Snapshot (KST) · {now_kst_label()} · source: {latest.name}"
 
     insight = "-"
     if diff_pos_ratio is not None:
@@ -236,9 +240,9 @@ STOPWORDS_KO = set([
     "구매", "상품", "제품", "브랜드", "공식", "스토어", "쇼핑", "온라인", "몰",
 ])
 STOPWORDS_EN = set([
-    "sale","sales","event","events","promo","promotion","promotions","coupon","coupons",
-    "free","best","new","now","only","limited","official","store","shop","shopping",
-    "brand","brands","collection","collections","up","to","off","deal","deals",
+    "sale", "sales", "event", "events", "promo", "promotion", "promotions", "coupon", "coupons",
+    "free", "best", "new", "now", "only", "limited", "official", "store", "shop", "shopping",
+    "brand", "brands", "collection", "collections", "up", "to", "off", "deal", "deals",
 ])
 
 
@@ -268,25 +272,22 @@ def _fetch_page(url: str, timeout: int = 8, retries: int = 2) -> Optional[str]:
         "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.7",
         "Connection": "close",
     }
-    last_err = None
     for _ in range(max(1, retries + 1)):
         try:
             r = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
             if r.status_code >= 400:
-                last_err = f"HTTP {r.status_code}"
                 continue
             r.encoding = r.apparent_encoding or r.encoding
             return r.text
-        except Exception as e:
-            last_err = str(e)
+        except Exception:
             continue
     return None
 
 
 def _extract_page_signals(html: str) -> Dict[str, str]:
-    """Return key text signals from html (title, og:title, description, h1/h2, text snippet)."""
+    """Return key text signals from html (title, og:title, description, h1,h2, text snippet)."""
     if not html or BeautifulSoup is None:
-        return {"title":"", "og_title":"", "desc":"", "h":"", "snippet":""}
+        return {"title": "", "og_title": "", "desc": "", "h": "", "snippet": ""}
 
     soup = BeautifulSoup(html, "html.parser")
 
@@ -316,7 +317,6 @@ def _extract_page_signals(html: str) -> Dict[str, str]:
                 hs.append(t)
     h_text = " ".join(hs)
 
-    # snippet: visible-ish text, truncated
     body = soup.body
     snippet = ""
     if body:
@@ -324,20 +324,13 @@ def _extract_page_signals(html: str) -> Dict[str, str]:
         t = re.sub(r"\s+", " ", t)
         snippet = t[:600]
 
-    return {
-        "title": title,
-        "og_title": og_title,
-        "desc": desc,
-        "h": h_text,
-        "snippet": snippet,
-    }
+    return {"title": title, "og_title": og_title, "desc": desc, "h": h_text, "snippet": snippet}
 
 
 def _tokenize(text: str) -> List[str]:
     text = (text or "").lower()
-    # keep korean/english tokens 2+ chars
     tokens = re.findall(r"[a-z]{2,}|[가-힣]{2,}", text)
-    out = []
+    out: List[str] = []
     for t in tokens:
         if re.fullmatch(r"[a-z]{2,}", t):
             if t in STOPWORDS_EN:
@@ -350,17 +343,32 @@ def _tokenize(text: str) -> List[str]:
 
 
 def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[str, int]]:
+    """
+    ✅ Theme-first extractor:
+    - unigram + bigram(2-word) to capture "주제" (ex: 봄 아우터 / 다운 자켓 / trail running)
+    """
     flat: List[str] = []
     for tx in texts:
-        flat.extend(_tokenize(tx))
+        tokens = _tokenize(tx)
+        if not tokens:
+            continue
+        bigrams = [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens) - 1)]
+        flat.extend(tokens)
+        flat.extend(bigrams)
 
     if not flat:
         return []
 
     s = pd.Series(flat)
     vc = s.value_counts()
-    # optional: drop super-common junk
+
+    # noise drop
+    try:
+        vc = vc[~vc.index.str.contains(r"\b(http|https|www|img|banner)\b", case=False, regex=True)]
+    except Exception:
+        pass
     vc = vc[vc.index.map(lambda x: x not in ("www", "http", "https"))]
+
     return [(idx, int(val)) for idx, val in vc.head(top_n).items()]
 
 
@@ -379,10 +387,15 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
     df = _read_csv_any(p)
     banners = len(df)
 
-    c_brand = _col(df, ["brand", "브랜드", "site", "사이트"])
-    brands = int(df[c_brand].nunique()) if c_brand else None
+    c_brand = _col(df, ["brand", "브랜드", "site", "사이트", "brand_name", "brand_key"])
+    # brand_key도 포함되면 nunique가 의미있어서 fallback
+    if c_brand:
+        brands = int(df[c_brand].nunique())
+    else:
+        c_brand2 = _col(df, ["brand_key"])
+        brands = int(df[c_brand2].nunique()) if c_brand2 else None
 
-    c_img = _col(df, ["image_url", "img", "image", "이미지", "banner_image"])
+    c_img = _col(df, ["image_url", "img", "image", "이미지", "banner_image", "img_url"])
     missing_img = None
     if c_img:
         s = df[c_img].astype(str).str.strip().str.lower()
@@ -400,16 +413,23 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
     period = f"Snapshot (KST) · {now_kst_label()} · source: {p.name}"
 
     # --- Keyword extraction ---
-    # 1) Find URL column for landing pages
+    # ✅ URL column: include hero crawler output columns first
     c_url = _col(df, [
+        # hero crawler output
+        "href_clean", "href",
+        # generic
         "landing_url", "landing url", "landing",
         "link", "url", "href", "target_url", "target url", "page_url", "page url",
         "detail_url", "detail url", "event_url", "event url",
         "상품url", "기획전url", "기획전 url", "랜딩url", "랜딩 url"
     ])
 
-    # 2) Find title-like columns (fallback or additional signals)
-    c_title = _col(df, ["title", "banner_title", "headline", "copy", "text", "기획전명", "기획전", "캠페인명"])
+    # ✅ Title/text column: hero crawler output uses "title"
+    c_title = _col(df, [
+        "title",
+        "banner_title", "headline", "copy", "text",
+        "기획전명", "기획전", "캠페인명",
+    ])
 
     cache_path = reports_dir / "_cache_hero_pages.json"
     cache = _load_cache(cache_path)
@@ -419,17 +439,20 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
     crawled = 0
     cache_hits = 0
 
-    # Add title-like column texts first (helps even if crawling fails)
+    # Primary: CSV titles (always)
     if c_title:
         tcol = df[c_title].astype(str).fillna("").tolist()
         texts.extend([x for x in tcol if x and x.lower() not in ("nan", "none")])
 
-    # Crawl URLs if possible
+    # Secondary: crawl landing pages (optional)
     can_crawl = (requests is not None and BeautifulSoup is not None and c_url is not None)
+
+    timeout = int(os.environ.get("HERO_CRAWL_TIMEOUT", "8"))
+    retries = int(os.environ.get("HERO_CRAWL_RETRIES", "2"))
 
     if can_crawl:
         urls = df[c_url].astype(str).map(_norm_url).tolist()
-        uniq = []
+        uniq: List[str] = []
         seen = set()
         for u in urls:
             if not u:
@@ -442,49 +465,48 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
 
         for u in uniq:
             used_urls.append(u)
-            # cached?
+
             if u in cache and isinstance(cache[u], dict) and cache[u].get("_ts"):
                 sig = cache[u]
                 cache_hits += 1
             else:
-                html = _fetch_page(u)
+                html = _fetch_page(u, timeout=timeout, retries=retries)
                 sig = _extract_page_signals(html or "")
                 sig["_ts"] = now_kst_label()
                 cache[u] = sig
                 crawled += 1
-                # polite delay
                 time.sleep(max(0.0, float(crawl_sleep)))
 
-            # collect signals
             texts.extend([
-                sig.get("title",""),
-                sig.get("og_title",""),
-                sig.get("desc",""),
-                sig.get("h",""),
-                sig.get("snippet",""),
+                sig.get("title", ""),
+                sig.get("og_title", ""),
+                sig.get("desc", ""),
+                sig.get("h", ""),
+                sig.get("snippet", ""),
             ])
 
         _save_cache(cache_path, cache)
 
     keywords = _build_keywords_from_texts(texts, top_n=10)
 
-    # Build insights
+    # Insights
     insight = "-"
     if top_brands:
         t = ", ".join([f"{b}({n})" for b, n in top_brands])
-        insight = f"노출 상위 브랜드: {t}"
+        insight = f"노출 상위: {t}"
     if missing_img is not None and missing_img > 0:
         insight = f"{insight} · 이미지 누락 {missing_img}건"
 
+    # ✅ Theme-first card text
     kw_insight = "-"
     if keywords:
-        kw_insight = " / ".join([k for k, _ in keywords[:6]])
+        theme = " · ".join([k for k, _ in keywords[:6]])
         if can_crawl:
-            kw_insight = f"Top 키워드: {kw_insight} (crawl {crawled}, cache {cache_hits})"
+            kw_insight = f"현재 기획전 테마: {theme} (crawl {crawled}, cache {cache_hits})"
         else:
-            kw_insight = f"Top 키워드: {kw_insight} (CSV text 기반)"
+            kw_insight = f"현재 기획전 테마: {theme} (title 기반)"
 
-    # Write detailed keyword report
+    # detailed keyword report
     _write_hero_keywords_html(
         reports_dir=reports_dir,
         src_csv=p.name,
@@ -501,7 +523,7 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
         "banners": banners,
         "missing_img": missing_img,
         "top_brands": top_brands,
-        "keywords": keywords,         # [(kw, count)]
+        "keywords": keywords,
         "kw_insight": kw_insight,
         "period": period,
         "insight": insight,
@@ -529,7 +551,7 @@ def _write_hero_keywords_html(
     meta = f"""
     <div class="text-sm text-slate-700">
       <div><b>source</b>: {src_csv}</div>
-      <div><b>mode</b>: {"crawl + cache" if can_crawl else "csv-only (no landing url or deps missing)"}</div>
+      <div><b>mode</b>: {"crawl + cache" if can_crawl else "title-only (no deps or url column)"}</div>
       <div><b>crawl</b>: {crawled:,} · <b>cache hit</b>: {cache_hits:,} · <b>cache file</b>: {cache_path}</div>
       <div class="mt-1 text-slate-500">updated: {now_kst_label()}</div>
     </div>
@@ -546,7 +568,7 @@ def _write_hero_keywords_html(
 <body class="bg-slate-50 text-slate-900">
   <div class="max-w-5xl mx-auto px-4 py-8">
     <h1 class="text-3xl font-black">Hero Campaign Keywords</h1>
-    <p class="mt-2 text-slate-600">Hero 배너 랜딩페이지/텍스트에서 추출한 기획전 키워드 Top</p>
+    <p class="mt-2 text-slate-600">Hero 배너(title) + 랜딩페이지(선택) 기반 “기획전 테마” 키워드</p>
 
     <div class="mt-6 p-5 bg-white rounded-2xl shadow-sm border border-slate-200">
       {meta}
@@ -649,11 +671,6 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
     for b, n in hero.get("top_brands") or []:
         h_top.append(f"{b}  —  {fmt_int(n)} banners")
 
-    # Hero keywords formatting
-    h_kw = []
-    for k, c in hero.get("keywords") or []:
-        h_kw.append(f"{k}  —  {fmt_int(c)}")
-
     risk_label = naver.get("risk_label") or "-"
     risk_class = naver.get("risk_class") or "risk-unk"
 
@@ -738,9 +755,9 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
         {top_list(h_top)}
 
         <div class="insight">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">KEYWORDS</div>
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">THEME</div>
           <div class="mt-2 text-sm font-extrabold text-slate-900">{hero.get("kw_insight") or "-"}</div>
-          <div class="mt-3 text-xs text-slate-600 underline underline-offset-4">상세 키워드 보기: hero_keywords.html</div>
+          <div class="mt-3 text-xs text-slate-600 underline underline-offset-4">상세 보기: hero_keywords.html</div>
         </div>
 
         <div class="insight">
@@ -787,7 +804,6 @@ def main() -> None:
 
     naver = build_naver_metrics(repo_root)
 
-    # You can tune crawl limits via env:
     crawl_limit = int(os.environ.get("HERO_CRAWL_LIMIT", "40"))
     crawl_sleep = float(os.environ.get("HERO_CRAWL_SLEEP", "0.25"))
 
@@ -796,6 +812,7 @@ def main() -> None:
 
     out = reports_dir / "index.html"
     out.write_text(render_index_html(naver, hero, voc), encoding="utf-8")
+
     print(f"[OK] Wrote: {out}")
     print(f"[OK] Wrote: {reports_dir / 'hero_keywords.html'}")
     print(f"[OK] Cache: {reports_dir / '_cache_hero_pages.json'}")
