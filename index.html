@@ -110,7 +110,10 @@
 
   <!-- NAV (PC) -->
   <div class="space-y-3">
-    <div class="nav-item active" data-key="price" data-target="reports/naver_lowest_price.html" data-label="네이버 최저가">
+    <div class="nav-item active" data-key="summary" data-target="reports/index.html" data-label="Summary">
+      <i class="fa-solid fa-chart-simple"></i><span>Summary</span>
+    </div>
+    <div class="nav-item" data-key="price" data-target="reports/naver_lowest_price.html" data-label="네이버 최저가">
       <i class="fa-solid fa-won-sign"></i><span>네이버 최저가</span>
     </div>
     <div class="nav-item" data-key="hero" data-target="reports/hero_main.html" data-label="경쟁사 Hero 배너">
@@ -138,7 +141,7 @@
         <div class="text-[10px] font-extrabold text-slate-400">AUTOMAITON MARKETING HUB</div>
       </div>
       <div class="text-[11px] font-black text-slate-700 px-3 py-1 rounded-full bg-white/70">
-        <span id="mo-current-label">네이버 최저가</span>
+        <span id="mo-current-label">Summary</span>
       </div>
     </div>
   </header>
@@ -156,7 +159,7 @@
   <section class="glass-card p-4 md:p-6">
     <iframe
       id="frame"
-      src="reports/naver_lowest_price.html"
+      src="reports/index.html"
       class="w-full rounded-2xl border-0 bg-white"
       style="height: calc(100vh - 220px);"
       loading="eager">
@@ -167,8 +170,12 @@
 
 <!-- ================= Mobile Bottom Tabbar (MO) ================= -->
 <nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
-  <div class="max-w-2xl mx-auto grid grid-cols-3 gap-2">
-    <div class="mo-tab active" data-key="price" data-target="reports/naver_lowest_price.html" data-label="네이버 최저가">
+  <div class="max-w-2xl mx-auto grid grid-cols-4 gap-2">
+    <div class="mo-tab active" data-key="summary" data-target="reports/index.html" data-label="Summary">
+      <i class="fa-solid fa-chart-simple text-base"></i>
+      <div class="text-[10px]">Summary</div>
+    </div>
+    <div class="mo-tab" data-key="price" data-target="reports/naver_lowest_price.html" data-label="네이버 최저가">
       <i class="fa-solid fa-won-sign text-base"></i>
       <div class="text-[10px]">최저가</div>
     </div>
@@ -221,9 +228,8 @@
 
     // Responsive iframe height: mobile header + bottom tab 고려
     function resizeFrame() {
-      // rough offsets: header(=~80) + card padding + bottom tab(=~88)
       const isMobile = window.matchMedia("(max-width: 1023px)").matches;
-      const offset = isMobile ? 220 : 200;
+      const offset = isMobile ? 240 : 200;
       frame.style.height = `calc(100vh - ${offset}px)`;
     }
     window.addEventListener("resize", resizeFrame);
