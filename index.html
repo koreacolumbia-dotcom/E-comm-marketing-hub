@@ -277,18 +277,33 @@
       return `${y}.${m}.${d} ${hh}:${mm}`;
     }
 
-    function setSidebarMeta() {
+    async function setSidebarMeta() {
       const elUpdated = document.getElementById("sb-updated-at");
       const elPeriod  = document.getElementById("sb-period");
       if (!elUpdated || !elPeriod) return;
 
-      const now = kstNow();
-      const end = new Date(now);
-      const start = new Date(now);
-      start.setDate(start.getDate() - 6); // 오늘 포함 최근 7일
+      try {
+        // ✅ 파이썬이 생성하는 meta.json 읽기
+        const res = await fetch("reports/meta.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("meta.json not found");
+        const meta = await res.json();
 
-      elUpdated.textContent = fmtKst(now, true) + " KST";
-      elPeriod.textContent = `최근 7일 (${fmtKst(start,false)} ~ ${fmtKst(end,false)})`;
+        elUpdated.textContent = meta.updated_at_kst || "-";
+        elPeriod.textContent  = meta.period_text || "-";
+      } catch (e) {
+        // fallback: 기존 로직(현재시간)
+        const now = new Date();
+        const pad2 = (n)=> String(n).padStart(2,"0");
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const kst = new Date(utc + (9 * 60 * 60000));
+        const fmt = (d)=> `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())} KST`;
+        elUpdated.textContent = fmt(kst);
+
+        const end = new Date(kst);
+        const start = new Date(kst); start.setDate(start.getDate()-6);
+        const fmtD = (d)=> `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())}`;
+        elPeriod.textContent = `최근 7일 (${fmtD(start)} ~ ${fmtD(end)})`;
+      }
     }
 
     setSidebarMeta();
@@ -297,4 +312,5 @@
 
 </body>
 </html>
+
 
