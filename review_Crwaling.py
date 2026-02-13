@@ -42,7 +42,7 @@ import time
 import math
 import hashlib
 import pathlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 
 import requests
@@ -51,6 +51,8 @@ from dateutil import tz
 from tqdm import tqdm
 from PIL import Image, ImageDraw, ImageFont
 
+import json
+from pathlib import Path
 # ----------------------------
 # Settings
 # ----------------------------
@@ -1483,6 +1485,21 @@ def load_products_csv(path: pathlib.Path) -> pd.DataFrame:
         df["product_url"] = ""
 
     return df
+
+def write_meta_json(reports_dir: str = "reports", period_days: int = 7, tz_name: str = "Asia/Seoul"):
+    kst = tz.gettz(tz_name)
+    now = datetime.now(tz=kst)
+    end = now
+    start = now - timedelta(days=period_days - 1)
+
+    meta = {
+        "updated_at_kst": now.strftime("%Y.%m.%d %H:%M KST"),
+        "period_text": f"최근 {period_days}일 ({start.strftime('%Y.%m.%d')} ~ {end.strftime('%Y.%m.%d')})"
+    }
+
+    p = Path(reports_dir)
+    p.mkdir(parents=True, exist_ok=True)
+    (p / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def main():
     products = load_products_csv(CONFIG_DIR / "products.csv")
