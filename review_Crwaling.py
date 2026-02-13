@@ -2,15 +2,22 @@
 # -*- coding: utf-8 -*-
 
 """
-[FINAL - FULL INTEGRATED]
+[FINAL - FULL INTEGRATED | PATCHED]
 - Crema 리뷰 수집 (pagy.next 끝까지)
 - 불만 키워드 Top5 자동 추출(형태소 없이)
 - 100자+ 리뷰 텍스트 캡처 이미지(PIL) 자동 생성
 - 상품 이미지/리뷰 썸네일 다운로드 → site/assets 로컬 자산화
 - site/data/reviews.json, site/data/meta.json 생성
-- (중요) 사용자가 제공한 HTML 레이아웃 그대로 site/index.html 생성
+- (중요) 제공된 HTML 레이아웃 그대로 site/index.html 생성
   - demo JS 제거
   - JSON 로딩 렌더 JS로 교체
+
+[핵심 패치]
+✅ tqdm 미설치 환경에서도 동작 (fallback)
+✅ 회사망/프록시 환경 대응 (requests.Session trust_env=True)
+✅ 이미지 핫링크 방지(Referer 필요) 대응: 다운로드 시 Referer 전달
+✅ repo root 탐색 안정화 (PROJECT_ROOT env or 상위 폴더 탐색)
+✅ 중복 import 제거 / 안전성 개선
 
 필수 환경변수:
 - CREMA_SECURE_DEVICE_TOKEN
@@ -20,17 +27,7 @@
 - CREMA_WIDGET_ID (default 2)
 - CREMA_PER_PAGE (default 30)
 - OUTPUT_TZ (default Asia/Seoul)
-
-입력:
-- config/products.csv (product_code 필수, product_name/product_url optional)
-
-출력:
-- site/index.html
-- site/data/reviews.json
-- site/data/meta.json
-- site/assets/products/*
-- site/assets/reviews/*
-- site/assets/text_images/*
+- PROJECT_ROOT (repo root 경로 강제 지정, 권장)
 """
 
 from __future__ import annotations
@@ -39,7 +36,6 @@ import os
 import re
 import json
 import time
-import math
 import hashlib
 import pathlib
 from datetime import datetime, timedelta
@@ -48,19 +44,34 @@ from typing import Dict, Any, List, Optional, Tuple
 import requests
 import pandas as pd
 from dateutil import tz
-# from tqdm import tqdm
 from PIL import Image, ImageDraw, ImageFont
 
-import json
-from pathlib import Path
+# ----------------------------
+# tqdm (optional)
+# ----------------------------
+try:
+    from tqdm import tqdm  # type: ignore
+except Exception:
+    def tqdm(x, **kwargs):
+        return x
+
 # ----------------------------
 # Settings
 # ----------------------------
 
+def _get_int_env(key: str, default: int) -> int:
+    v = os.getenv(key, "").strip()
+    if not v:
+        return default
+    try:
+        return int(v)
+    except Exception:
+        return default
+
 DEFAULT_DOMAIN = os.getenv("CREMA_DOMAIN", "columbiakorea.co.kr").strip()
-DEFAULT_WIDGET_ID = int(os.getenv("CREMA_WIDGET_ID", "2"))
-DEFAULT_PER_PAGE = int(os.getenv("CREMA_PER_PAGE", "30"))
-OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul")
+DEFAULT_WIDGET_ID = _get_int_env("CREMA_WIDGET_ID", 2)
+DEFAULT_PER_PAGE = _get_int_env("CREMA_PER_PAGE", 30)
+OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
 
 SECURE_DEVICE_TOKEN = os.getenv("CREMA_SECURE_DEVICE_TOKEN", "").strip()
 if not SECURE_DEVICE_TOKEN:
@@ -68,8 +79,32 @@ if not SECURE_DEVICE_TOKEN:
 
 BASE_API = f"https://review8.cre.ma/api/{DEFAULT_DOMAIN}"
 
-# project root: scripts/ 아래에 이 파일이 있다고 가정 → parents[1] = repo root
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+# ----------------------------
+# Repo root discovery
+# ----------------------------
+
+def find_repo_root() -> pathlib.Path:
+    """
+    우선순위:
+    1) PROJECT_ROOT env
+    2) 현재 파일 기준 상위로 올라가며 config/products.csv 또는 .git 찾기
+    3) CWD
+    """
+    env_root = os.getenv("PROJECT_ROOT", "").strip()
+    if env_root:
+        p = pathlib.Path(env_root).expanduser().resolve()
+        return p
+
+    here = pathlib.Path(__file__).resolve()
+    for p in [here.parent] + list(here.parents):
+        if (p / "config" / "products.csv").exists():
+            return p
+        if (p / ".git").exists():
+            return p
+
+    return pathlib.Path.cwd().resolve()
+
+ROOT = find_repo_root()
 
 CONFIG_DIR = ROOT / "config"
 SITE_DIR = ROOT / "site"
@@ -88,12 +123,6 @@ for d in [SITE_DIR, SITE_DATA_DIR, ASSET_DIR, ASSET_PRODUCTS, ASSET_REVIEWS, ASS
 
 def now_kst() -> datetime:
     return datetime.now(tz=tz.gettz(OUTPUT_TZ))
-
-def parse_dt(s: str) -> Optional[datetime]:
-    try:
-        return datetime.fromisoformat(s)
-    except Exception:
-        return None
 
 def safe_filename(s: str) -> str:
     s = re.sub(r"[^A-Za-z0-9._-]+", "_", s)
@@ -116,25 +145,32 @@ class Http:
     def __init__(self, timeout: int = 30):
         self.s = requests.Session()
         self.timeout = timeout
+        # ✅ 프록시/회사망 환경에서 HTTP(S)_PROXY 환경변수 자동 사용
+        self.s.trust_env = True
 
     def get_json(
         self,
         url: str,
         params: Dict[str, Any],
         headers: Optional[Dict[str, str]] = None,
-        max_retries: int = 5,
-        backoff: float = 1.4,
+        max_retries: int = 6,
+        backoff: float = 1.6,
     ) -> Dict[str, Any]:
         headers = headers or {}
         headers.setdefault("Accept", "application/json, text/plain, */*")
-        headers.setdefault("User-Agent", "Mozilla/5.0")
+        headers.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        headers.setdefault("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8")
 
         last_err = None
         for i in range(max_retries):
             try:
                 r = self.s.get(url, params=params, headers=headers, timeout=self.timeout)
                 if r.status_code == 429:
-                    time.sleep((backoff ** i) * 0.8)
+                    time.sleep((backoff ** i) * 0.7)
+                    continue
+                # 403은 보통 차단/헤더 문제 → 빠르게 재시도하되, 너무 많이 두드리진 않음
+                if r.status_code == 403 and i < max_retries - 1:
+                    time.sleep((backoff ** i) * 0.6)
                     continue
                 r.raise_for_status()
                 return r.json()
@@ -150,8 +186,14 @@ class Http:
         headers: Optional[Dict[str, str]] = None,
         max_retries: int = 4,
     ) -> bool:
+        if not url:
+            return False
+
         headers = headers or {}
-        headers.setdefault("User-Agent", "Mozilla/5.0")
+        headers.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        headers.setdefault("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+        headers.setdefault("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8")
+
         try:
             out_path.parent.mkdir(parents=True, exist_ok=True)
             if out_path.exists() and out_path.stat().st_size > 1024:
@@ -160,15 +202,18 @@ class Http:
             for i in range(max_retries):
                 r = self.s.get(url, headers=headers, timeout=self.timeout, stream=True)
                 if r.status_code in (403, 404):
+                    # 403: referer 필요/차단, 404: 없음
                     return False
                 if r.status_code == 429:
-                    time.sleep(1.0 + i * 0.6)
+                    time.sleep(1.0 + i * 0.7)
                     continue
                 r.raise_for_status()
+
                 with open(out_path, "wb") as f:
                     for chunk in r.iter_content(chunk_size=1024 * 64):
                         if chunk:
                             f.write(chunk)
+
                 return out_path.exists() and out_path.stat().st_size > 0
         except Exception:
             return False
@@ -213,8 +258,13 @@ def fetch_all_pages(product_code: str, per: int, widget_id: int, hard_max_pages:
         nxt = pagy.get("next")
         if not nxt:
             break
-        page = int(nxt)
-        time.sleep(0.2)  # 서버 부담 완화
+
+        try:
+            page = int(nxt)
+        except Exception:
+            break
+
+        time.sleep(0.6)  # ✅ 0.2 → 0.6 (차단/429 완화)
     return out
 
 # ----------------------------
@@ -227,7 +277,6 @@ STOPWORDS = set("""
 """.split())
 
 def tokenize_ko(text: str) -> List[str]:
-    # 한글/영문/숫자 토큰, 길이>=2
     toks = re.findall(r"[가-힣A-Za-z0-9]+", (text or "").lower())
     return [t for t in toks if len(t) >= 2 and t not in STOPWORDS]
 
@@ -283,9 +332,6 @@ def classify_size_direction(text: str) -> str:
 # ----------------------------
 
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
-    """
-    공백 기준 wrap. (한국어 긴 문장 대응 위해 fallback: 글자 단위로도 분할)
-    """
     text = (text or "").strip()
     if not text:
         return [""]
@@ -307,7 +353,6 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, m
                 lines.append(cur)
                 cur = w
             else:
-                # 단어 자체가 너무 길면 글자 단위로 쪼갬
                 chunk = ""
                 for ch in w:
                     test2 = chunk + ch
@@ -326,7 +371,6 @@ def create_text_capture_image(review_id: str, product_name: str, score: int, cre
     """
     생성한 파일의 site 기준 상대경로 반환: assets/text_images/xxx.png
     """
-    # 캔버스 스타일
     W = 980
     PAD = 44
     HEADER_H = 120
@@ -338,7 +382,7 @@ def create_text_capture_image(review_id: str, product_name: str, score: int, cre
     out_name = safe_filename(sha1(str(review_id)) + ".png")
     out_path = ASSET_TEXT / out_name
 
-    # 폰트: 가능한 경우 나눔고딕(로컬 설치되어 있으면) → 없으면 default
+    # 폰트: NanumGothic.ttf 있으면 사용
     try:
         font_title = ImageFont.truetype("NanumGothic.ttf", 30)
         font_meta = ImageFont.truetype("NanumGothic.ttf", 22)
@@ -348,7 +392,6 @@ def create_text_capture_image(review_id: str, product_name: str, score: int, cre
         font_meta = ImageFont.load_default()
         font_body = ImageFont.load_default()
 
-    # 임시 캔버스에서 라인 계산
     tmp = Image.new("RGB", (W, 800), BG)
     dtmp = ImageDraw.Draw(tmp)
 
@@ -362,19 +405,16 @@ def create_text_capture_image(review_id: str, product_name: str, score: int, cre
     img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
 
-    # 카드 영역
     card_x0, card_y0 = PAD, PAD
     card_x1, card_y1 = W - PAD, H - PAD
     draw.rounded_rectangle([card_x0, card_y0, card_x1, card_y1], radius=28, fill=CARD)
 
-    # 헤더
     title = (product_name or "상품명 없음")[:40]
     meta = f"★ {score}  ·  {created_at[:10] if created_at else ''}  ·  review_id={review_id}"
 
     draw.text((card_x0 + 28, card_y0 + 24), title, font=font_title, fill=TXT)
     draw.text((card_x0 + 28, card_y0 + 70), meta, font=font_meta, fill=MUTED)
 
-    # 본문
     y = card_y0 + HEADER_H
     x = card_x0 + 28
     for ln in lines:
@@ -402,7 +442,6 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
     msg = (r.get("filtered_message") or "").strip()
     score = int(r.get("score") or 0)
 
-    # 옵션 사이즈: product_options '사이즈' 우선, 없으면 review_options '평소사이즈'
     opt_size = (po_map.get("사이즈") or ro_map.get("평소사이즈") or "").strip()
     opt_color = (po_map.get("컬러") or "").strip()
     fit_q = (ro_map.get("사이즈 어때요?") or "").strip()
@@ -410,7 +449,6 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
     product_name = (r.get("product_name") or "").strip() or (csv_name or "").strip()
     product_url = (r.get("product_url") or "").strip() or (csv_url or "").strip()
 
-    # tags
     tags: List[str] = []
     if score <= 2:
         tags.append("low")
@@ -431,7 +469,7 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
         "rating": score,
         "created_at": r.get("created_at"),
         "text": msg,
-        "source": "Official",  # Crema 자체는 공식몰/외부유입 섞일 수 있으나, 일단 Official로 둠
+        "source": "Official",
         "option_size": opt_size,
         "option_color": opt_color,
         "fit_q": fit_q,
@@ -439,7 +477,6 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
         "weight": ro_map.get("몸무게") or "",
         "tags": tags,
         "size_direction": size_dir,
-        # images
         "review_thumb_url": thumbs[0] if thumbs else "",
         "review_image_url": fulls[0] if fulls else "",
         "product_image_source_url": r.get("product_image_source_url") or "",
@@ -447,21 +484,26 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
     }
 
 # ----------------------------
-# Asset localization
+# Asset localization (with Referer)
 # ----------------------------
 
-def download_to_assets(url: str, kind_dir: pathlib.Path) -> str:
+def download_to_assets(url: str, kind_dir: pathlib.Path, referer: str = "") -> str:
     if not url or not isinstance(url, str) or not url.startswith("http"):
         return ""
     name = safe_filename(sha1(url) + url_ext(url))
     out_path = kind_dir / name
-    ok = http.download(url, out_path)
+
+    headers = {}
+    if referer:
+        headers["Referer"] = referer
+
+    ok = http.download(url, out_path, headers=headers if headers else None)
     if not ok:
         return ""
     return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
 
 # ----------------------------
-# HTML template (YOUR PROVIDED HTML, with JS replaced)
+# HTML template
 # ----------------------------
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
@@ -478,15 +520,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
-
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
       color:#0f172a;
       min-height:100vh;
     }
-
-    /* Glass system */
     .glass-card{
       background: rgba(255,255,255,0.55);
       backdrop-filter: blur(20px);
@@ -543,8 +582,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       border-color: rgba(0,45,114,1);
       box-shadow: 0 10px 30px rgba(0,45,114,0.15);
     }
-
-    /* Tab buttons */
     .tab-btn{
       padding: 10px 14px;
       border-radius: 18px;
@@ -562,8 +599,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       border-color: rgba(0,45,114,1);
       box-shadow: 0 10px 30px rgba(0,45,114,0.15);
     }
-
-    /* overlay */
     .overlay{
       position: fixed;
       inset:0;
@@ -582,8 +617,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       animation: spin .9s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg);} }
-
-    /* Tables */
     .tbl{
       width:100%;
       border-collapse: separate;
@@ -614,8 +647,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       vertical-align: top;
     }
     .tbl .muted{ color:#64748b; font-weight:800; font-size:12px; }
-
-    /* Review cards */
     .review-card{
       border-radius: 26px;
       background: rgba(255,255,255,0.55);
@@ -639,38 +670,19 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     .badge.neg{ background: rgba(239,68,68,0.10); color:#b91c1c; border-color: rgba(239,68,68,0.18); }
     .badge.pos{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
     .badge.size{ background: rgba(59,130,246,0.10); color:#1d4ed8; border-color: rgba(59,130,246,0.18); }
-
-    /* image */
     .img-box{ width:72px; height:72px; border-radius:18px; overflow:hidden; background: rgba(255,255,255,0.70); border:1px solid rgba(255,255,255,0.85); }
     .img-box img{ width:100%; height:100%; object-fit:cover; display:block; }
-
-    /* Two-pane layout for review list */
-    .review-list{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-    @media (min-width: 1024px){
-      .review-list{ grid-template-columns: 1fr 1fr; }
-    }
-
-    /* Embedded mode (optional) */
+    .review-list{ display:grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 1024px){ .review-list{ grid-template-columns: 1fr 1fr; } }
     body.embedded aside, body.embedded header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
-
-    /* clamp helpers */
-    .line-clamp-1{
-      overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
-    }
-    .line-clamp-2{
-      overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-    }
+    .line-clamp-1{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
+    .line-clamp-2{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
   </style>
 </head>
 
 <body class="flex">
 
-  <!-- overlay -->
   <div id="overlay" class="overlay">
     <div class="glass-card px-8 py-7 flex items-center gap-4">
       <div class="spinner"></div>
@@ -681,7 +693,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Sidebar -->
   <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
     <div class="flex items-center gap-4 mb-14 px-2">
       <div class="w-12 h-12 bg-[color:var(--brand)] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
@@ -710,7 +721,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </aside>
 
-  <!-- Main -->
   <main class="flex-1 p-8 md:p-14">
 
     <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
@@ -732,7 +742,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </header>
 
-    <!-- 0) Tabs -->
     <section class="mb-8">
       <div class="flex flex-wrap gap-2 items-center">
         <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
@@ -755,7 +764,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- 1) Summary -->
     <section class="mb-10">
       <div class="glass-card p-8">
         <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
@@ -790,7 +798,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- 2) Priority ranking -->
     <section class="mb-10">
       <div class="glass-card p-8">
         <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
@@ -821,7 +828,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- 3) Size issue structure -->
     <section class="mb-10">
       <div class="glass-card p-8">
         <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
@@ -866,7 +872,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- 4) Complaint keywords -->
     <section class="mb-10">
       <div class="glass-card p-8">
         <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
@@ -894,7 +899,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- 5) Evidence reviews -->
     <section class="mb-10">
       <div class="glass-card p-8">
         <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
@@ -913,7 +917,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
 
-    <!-- 6) Daily review feed -->
     <section class="mb-10">
       <div class="glass-card p-8">
         <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
@@ -959,9 +962,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   </main>
 
   <script>
-    // ----------------------------
-    // Overlay helpers
-    // ----------------------------
     const overlay = document.getElementById('overlay');
     const overlayMsg = document.getElementById('overlayMsg');
 
@@ -981,7 +981,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     }
     function runWithOverlay(msg, fn){
       showOverlay(msg);
-      setTimeout(() => { try { fn(); } finally { requestAnimationFrame(hideOverlay); } }, 0);
+      setTimeout(() => { Promise.resolve().then(fn).finally(() => requestAnimationFrame(hideOverlay)); }, 0);
     }
 
     function switchSourceTab(tab){
@@ -1023,15 +1023,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       });
     }
 
-    // Embedded mode
     (function () {
       try { if (window.self !== window.top) document.body.classList.add("embedded"); }
       catch (e) { document.body.classList.add("embedded"); }
     })();
 
-    // ----------------------------
-    // Data store (loaded from JSON)
-    // ----------------------------
     let META = null;
     let REVIEWS = [];
 
@@ -1045,32 +1041,25 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     const fmtDT = (iso) => {
       if (!iso) return "";
       const d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso);
       const pad2 = (n) => String(n).padStart(2,'0');
       return `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     };
 
     function asArr(x){ return Array.isArray(x) ? x : []; }
 
-    // ----------------------------
-    // Filtering by UI state
-    // ----------------------------
     function getFilteredReviews(){
       let rows = REVIEWS.slice();
 
-      // source tab: 현재 Crema는 일단 Official로 저장해둠.
-      // 네이버까지 붙이면, 여기서 source === "Naver" 필터가 동작하도록 JSON만 확장하면 됨.
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
 
-      // product dropdown
       const productCode = document.getElementById("productSelect")?.value || "";
       if (productCode) rows = rows.filter(r => r.product_code === productCode);
 
-      // size dropdown
       const sizeOpt = document.getElementById("sizeSelect")?.value || "";
       if (sizeOpt) rows = rows.filter(r => (r.option_size || "") === sizeOpt);
 
-      // query
       const q = (document.getElementById("qInput")?.value || "").trim().toLowerCase();
       if (q){
         rows = rows.filter(r =>
@@ -1081,29 +1070,23 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         );
       }
 
-      // chips
       if (uiState.chips.pos) rows = rows.filter(r => asArr(r.tags).includes("pos"));
       if (uiState.chips.size) rows = rows.filter(r => asArr(r.tags).includes("size"));
       if (uiState.chips.low) rows = rows.filter(r => (r.rating ?? 0) <= 2 || asArr(r.tags).includes("low"));
 
-      // sort
       const sort = document.getElementById("sortSelect")?.value || "upload";
       if (sort === "latest") rows.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
       else if (sort === "long") rows.sort((a,b) => ((b.text||"").length - (a.text||"").length));
       else if (sort === "low") rows.sort((a,b) => ((a.rating||0) - (b.rating||0)) || (new Date(b.created_at)-new Date(a.created_at)));
-      else rows.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)); // upload order
+      else rows.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
 
       return rows;
     }
 
-    // ----------------------------
-    // Metrics calc (real)
-    // ----------------------------
     function calcMetrics(reviews){
       const total = reviews.length || 1;
       const sizeMention = reviews.filter(r => asArr(r.tags).includes("size")).length;
 
-      // size direction split
       const sizeRows = reviews.filter(r => asArr(r.tags).includes("size"));
       const smallCnt = sizeRows.filter(r => r.size_direction === "too_small").length;
       const bigCnt = sizeRows.filter(r => r.size_direction === "too_big").length;
@@ -1111,7 +1094,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       const tooSmall = Math.round((smallCnt/denom)*100);
       const tooBig = 100 - tooSmall;
 
-      // product-level stats
       const byProd = new Map();
       for (const r of reviews){
         const code = r.product_code || "-";
@@ -1132,7 +1114,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         if (asArr(r.tags).includes("size")) g.sizeIssue += 1;
         if ((r.rating||0) <= 2) g.low += 1;
 
-        // issue keywords: meta.top5 + 간단 토큰 기반 (너무 과하면 UI 지저분해져서 상위만)
         if ((r.rating||0) <= 2){
           const words = (r.text||"").match(/[가-힣A-Za-z0-9]{2,}/g) || [];
           for (const w of words.slice(0, 40)){
@@ -1158,7 +1139,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       const rankLow  = rows.slice().sort((a,b)=> b.lowRate  - a.lowRate  || b.reviews - a.reviews);
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || b.reviews - a.reviews);
 
-      // size option table
       const sizeMap = new Map();
       for (const r of reviews){
         const sz = (r.option_size || "").trim();
@@ -1198,13 +1178,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       };
     }
 
-    // ----------------------------
-    // Renderers
-    // ----------------------------
     function renderHeader(){
       const runDate = META?.updated_at || "-";
       const dateRange = META?.date_range || "-";
-      document.getElementById("runDateSide").textContent = runDate.slice(0,10).replaceAll("-",".");
+      document.getElementById("runDateSide").textContent = String(runDate).slice(0,10).replaceAll("-",".");
       document.getElementById("dateRangeSide").textContent = dateRange;
       document.getElementById("headerMeta").textContent = `${runDate} · ${dateRange} · 주 1회 자동 업데이트(월 09:00)`;
     }
@@ -1270,14 +1247,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         </tr>
       `).join("");
 
-      // fitWords: meta에서 제공한 fit_words (없으면 기본)
       const fitWords = META?.fit_words || ["정사이즈","한치수 크게","한치수 작게","기장","소매","어깨","가슴","발볼"];
       const fit = document.getElementById("fitWords");
       fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
     }
 
     function renderKeywords(){
-      // liftWords / commonIssues / sizePhrases 는 meta에 기본 제공 (없으면 fallback)
       const liftWords = META?.low_keywords || [];
       const lift = document.getElementById("liftWords");
       lift.innerHTML = liftWords.slice(0,5).map(x => `
@@ -1367,7 +1342,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       list.sort((a,b) => ((b.text||"").length - (a.text||"").length) || (new Date(b.created_at)-new Date(a.created_at)));
       const pick = list.slice(0, 6);
-
       document.getElementById("evidenceList").innerHTML = pick.map(reviewCardHTML).join("");
     }
 
@@ -1426,9 +1400,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       sel.value = current;
     }
 
-    // ----------------------------
-    // Main render orchestrator
-    // ----------------------------
     function renderAll(){
       const filtered = getFilteredReviews();
       const metrics = calcMetrics(filtered);
@@ -1483,23 +1454,7 @@ def load_products_csv(path: pathlib.Path) -> pd.DataFrame:
         df["product_name"] = ""
     if "product_url" not in df.columns:
         df["product_url"] = ""
-
     return df
-
-def write_meta_json(reports_dir: str = "reports", period_days: int = 7, tz_name: str = "Asia/Seoul"):
-    kst = tz.gettz(tz_name)
-    now = datetime.now(tz=kst)
-    end = now
-    start = now - timedelta(days=period_days - 1)
-
-    meta = {
-        "updated_at_kst": now.strftime("%Y.%m.%d %H:%M KST"),
-        "period_text": f"최근 {period_days}일 ({start.strftime('%Y.%m.%d')} ~ {end.strftime('%Y.%m.%d')})"
-    }
-
-    p = Path(reports_dir)
-    p.mkdir(parents=True, exist_ok=True)
-    (p / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def main():
     products = load_products_csv(CONFIG_DIR / "products.csv")
@@ -1507,60 +1462,57 @@ def main():
 
     all_reviews: List[Dict[str, Any]] = []
 
-    print(f"[INFO] Products: {len(codes)}")
-    print(f"[INFO] Fetching crema reviews from: {BASE_API}")
-    print(f"[INFO] widget_id={DEFAULT_WIDGET_ID}, per={DEFAULT_PER_PAGE}")
+    print(f"[INFO] Repo root: {ROOT}", flush=True)
+    print(f"[INFO] Products: {len(codes)}", flush=True)
+    print(f"[INFO] Fetching crema reviews from: {BASE_API}", flush=True)
+    print(f"[INFO] widget_id={DEFAULT_WIDGET_ID}, per={DEFAULT_PER_PAGE}", flush=True)
 
-    # index for csv enrichment
-    meta_by_code = {row["product_code"]: {"name": row.get("product_name",""), "url": row.get("product_url","")} for _, row in products.iterrows()}
+    meta_by_code = {
+        row["product_code"]: {"name": row.get("product_name", ""), "url": row.get("product_url", "")}
+        for _, row in products.iterrows()
+    }
 
     for code in tqdm(codes, desc="Products"):
         revs = fetch_all_pages(product_code=code, per=DEFAULT_PER_PAGE, widget_id=DEFAULT_WIDGET_ID)
+        csv_name = meta_by_code.get(code, {}).get("name", "")
+        csv_url = meta_by_code.get(code, {}).get("url", "")
         for r in revs:
-            csv_name = meta_by_code.get(code, {}).get("name","")
-            csv_url = meta_by_code.get(code, {}).get("url","")
             all_reviews.append(flatten_review(r, csv_name=csv_name, csv_url=csv_url))
 
-    # dedupe by id
     df = pd.DataFrame(all_reviews)
     if len(df) == 0:
-        raise SystemExit("수집된 리뷰가 없습니다. 토큰/상품코드/접근 정책 확인 필요")
+        raise SystemExit("수집된 리뷰가 없습니다. 토큰/상품코드/접근 정책(403)/프록시 확인 필요")
 
     df = df.drop_duplicates(subset=["id"], keep="first").copy()
 
-    # asset localization + text image generation
-    local_product_images: Dict[str, str] = {}
-    local_review_thumbs: List[str] = []
-    text_images: List[str] = []
-
-    # date range
     created_list = df["created_at"].dropna().astype(str).tolist()
     dmin = min(created_list) if created_list else ""
     dmax = max(created_list) if created_list else ""
     date_range = f"{dmin[:10]} ~ {dmax[:10]}" if dmin and dmax else "-"
 
-    print("[INFO] Downloading images + generating text captures...")
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Assets"):
-        # product image: source_url 우선
-        prod_url = row.get("product_image_source_url") or row.get("product_image_url") or ""
-        pcode = row.get("product_code") or ""
-        prod_local = ""
+    print("[INFO] Downloading images + generating text captures...", flush=True)
 
-        # 제품별 1회만 다운로드해도 됨
+    local_product_images: Dict[str, str] = {}
+
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Assets"):
+        pcode = str(row.get("product_code") or "")
+        product_page = str(row.get("product_url") or "")
+
+        # product image (per product once)
+        prod_url = str(row.get("product_image_source_url") or row.get("product_image_url") or "")
         if pcode and pcode in local_product_images:
             prod_local = local_product_images[pcode]
         else:
-            prod_local = download_to_assets(prod_url, ASSET_PRODUCTS)
+            prod_local = download_to_assets(prod_url, ASSET_PRODUCTS, referer=product_page)
             if pcode:
                 local_product_images[pcode] = prod_local
 
-        # review thumb download
-        thumb_url = row.get("review_thumb_url") or ""
-        thumb_local = download_to_assets(thumb_url, ASSET_REVIEWS) if thumb_url else ""
-        local_review_thumbs.append(thumb_local)
+        # review thumb (Referer 포함)
+        thumb_url = str(row.get("review_thumb_url") or "")
+        thumb_local = download_to_assets(thumb_url, ASSET_REVIEWS, referer=product_page) if thumb_url else ""
 
-        # 100자+ 텍스트 캡처 이미지
-        text = row.get("text") or ""
+        # text capture
+        text = str(row.get("text") or "")
         cap = ""
         if len(text) >= 100:
             cap = create_text_capture_image(
@@ -1568,27 +1520,24 @@ def main():
                 product_name=str(row.get("product_name") or ""),
                 score=int(row.get("rating") or 0),
                 created_at=str(row.get("created_at") or ""),
-                text=str(text),
+                text=text,
             )
-        text_images.append(cap)
 
-        # backfill into df
         df.loc[row.name, "local_product_image"] = prod_local
         df.loc[row.name, "local_review_thumb"] = thumb_local
         df.loc[row.name, "text_image_path"] = cap
 
-    # complaint top5: low rating(<=2) texts
+    # complaint top5 (low rating <=2)
+    df["rating"] = pd.to_numeric(df["rating"], errors="coerce").fillna(0).astype(int)
+
     low_texts = df[df["rating"] <= 2]["text"].astype(str).tolist()
     complaint_top5 = top_terms(low_texts, topk=5)
 
-    # extra keyword packs for UI chips (optional, but looks good)
-    # - common_issues: top 10 from low texts
-    common_issues = [k for k,_ in top_terms(low_texts, topk=10)]
-    # - low_keywords: same as complaint_top5 (UI section 4-1 uses it)
+    common_issues = [k for k, _ in top_terms(low_texts, topk=10)]
     low_keywords = complaint_top5
-    # - size_phrases: top 10 tokens from size-tag reviews
+
     size_texts = df[df["tags"].apply(lambda x: isinstance(x, list) and ("size" in x))]["text"].astype(str).tolist()
-    size_phrases = [k for k,_ in top_terms(size_texts, topk=10)]
+    size_phrases = [k for k, _ in top_terms(size_texts, topk=10)]
 
     meta_json = {
         "updated_at": now_kst().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1601,11 +1550,16 @@ def main():
         "fit_words": ["정사이즈","한치수 크게","한치수 작게","타이트","넉넉","기장","소매","어깨","가슴","발볼"],
     }
 
-    # reviews.json: HTML이 사용하는 스키마로 export
-    out_reviews = []
+    out_reviews: List[Dict[str, Any]] = []
     for _, r in df.iterrows():
+        rid = r.get("id")
+        if isinstance(rid, str) and rid.isdigit():
+            rid_out: Any = int(rid)
+        else:
+            rid_out = rid
+
         out_reviews.append({
-            "id": int(r["id"]) if str(r["id"]).isdigit() else r["id"],
+            "id": rid_out,
             "product_code": r.get("product_code",""),
             "product_name": r.get("product_name",""),
             "product_url": r.get("product_url",""),
@@ -1624,16 +1578,15 @@ def main():
 
     (SITE_DATA_DIR / "meta.json").write_text(json.dumps(meta_json, ensure_ascii=False, indent=2), encoding="utf-8")
     (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[OK] meta.json / reviews.json saved under: {SITE_DATA_DIR}")
+    print(f"[OK] meta.json / reviews.json saved under: {SITE_DATA_DIR}", flush=True)
 
-    # write final HTML
     (SITE_DIR / "index.html").write_text(HTML_TEMPLATE, encoding="utf-8")
-    print(f"[OK] HTML saved: {SITE_DIR / 'index.html'}")
+    print(f"[OK] HTML saved: {SITE_DIR / 'index.html'}", flush=True)
 
-    print("\n[RUN RESULT]")
-    print(f"- Total reviews: {len(df)}")
-    print(f"- Date range: {date_range}")
-    print(f"- Complaint Top5: {complaint_top5}")
+    print("\n[RUN RESULT]", flush=True)
+    print(f"- Total reviews: {len(df)}", flush=True)
+    print(f"- Date range: {date_range}", flush=True)
+    print(f"- Complaint Top5: {complaint_top5}", flush=True)
 
 if __name__ == "__main__":
     main()
