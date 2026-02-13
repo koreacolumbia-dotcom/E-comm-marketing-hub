@@ -48,7 +48,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import requests
 import pandas as pd
 from dateutil import tz
-from tqdm import tqdm
+# from tqdm import tqdm
 from PIL import Image, ImageDraw, ImageFont
 
 import json
