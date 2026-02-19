@@ -24,6 +24,10 @@ UI Patch (requested):
 Added:
 - Crema VOC summary card (reports/voc_crema/index.html)
 
+Fixes in this version:
+- Remove "전체보기" tokens from HERO keyword summary (and "전체 보기" bigram)
+- Silence pandas warning by using non-capturing regex group in str.contains
+
 Env:
 - HERO_CRAWL_LIMIT (default 40)
 - HERO_CRAWL_SLEEP (default 0.25)
@@ -60,28 +64,6 @@ KST = timezone(timedelta(hours=9))
 # -----------------------
 def now_kst_label() -> str:
     return datetime.now(KST).strftime("%Y.%m.%d (%a) %H:%M KST")
-
-
-def write_reports_meta(reports_dir: Path) -> None:
-    """
-    ✅ reports/meta.json 생성
-    - index.html(포털) 사이드바에서 읽는 메타
-    - YML에서 test -f reports/meta.json 통과용
-    """
-    updated = os.environ.get("UPDATED_KST") or now_kst_label()
-
-    now = datetime.now(KST)
-    start = now - timedelta(days=6)
-    period_text = f"최근 7일 ({start.strftime('%Y.%m.%d')} ~ {now.strftime('%Y.%m.%d')})"
-
-    meta = {
-        "updated_at_kst": updated,
-        "period_text": period_text,
-    }
-
-    out = reports_dir / "meta.json"
-    out.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[OK] Wrote: {out}")
 
 
 def _read_csv_any(path: Path) -> pd.DataFrame:
@@ -215,6 +197,8 @@ STOPWORDS_KO = set([
     "기획전", "이벤트", "프로모션", "혜택", "할인", "특가", "쿠폰", "증정", "사은품",
     "오늘", "이번", "지금", "바로", "최대", "무료", "단독", "한정", "선착순",
     "구매", "상품", "제품", "브랜드", "공식", "스토어", "쇼핑", "온라인", "몰",
+    # ✅ UI/CTA 노이즈 제거
+    "전체보기",
 ])
 STOPWORDS_EN = set([
     "sale", "sales", "event", "events", "promo", "promotion", "promotions", "coupon", "coupons",
@@ -332,11 +316,19 @@ def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[
 
     s = pd.Series(flat)
     vc = s.value_counts()
+
+    # ✅ 노이즈 토큰/표현 제거 (전체보기, 전체 보기)
     try:
-        # ✅ warning 방지: capturing group -> non-capturing group
+        vc = vc[~vc.index.str.contains(r"(?:^전체보기$|^전체\s+보기$)", case=False, regex=True)]
+    except Exception:
+        pass
+
+    # ✅ URL/이미지/배너 관련 노이즈 제거 (non-capturing group로 warning 제거)
+    try:
         vc = vc[~vc.index.str.contains(r"\b(?:http|https|www|img|banner)\b", case=False, regex=True)]
     except Exception:
         pass
+
     vc = vc[vc.index.map(lambda x: x not in ("www", "http", "https"))]
     return [(idx, int(val)) for idx, val in vc.head(top_n).items()]
 
@@ -408,10 +400,6 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
     timeout = int(os.environ.get("HERO_CRAWL_TIMEOUT", "8"))
     retries = int(os.environ.get("HERO_CRAWL_RETRIES", "2"))
 
-    used_urls: List[str] = []
-    crawled = 0
-    cache_hits = 0
-
     if can_crawl:
         urls = df[c_url].astype(str).map(_norm_url).tolist()
         uniq: List[str] = []
@@ -424,17 +412,13 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
         uniq = uniq[: max(0, int(crawl_limit))]
 
         for u in uniq:
-            used_urls.append(u)
-
             if u in cache and isinstance(cache[u], dict) and cache[u].get("_ts"):
                 sig = cache[u]
-                cache_hits += 1
             else:
                 html = _fetch_page(u, timeout=timeout, retries=retries)
                 sig = _extract_page_signals(html or "")
                 sig["_ts"] = now_kst_label()
                 cache[u] = sig
-                crawled += 1
                 time.sleep(max(0.0, float(crawl_sleep)))
 
             texts.extend([
@@ -503,6 +487,12 @@ def _read_json_if_exists(p: Path) -> Optional[Dict[str, Any]]:
 
 
 def build_crema_metrics(reports_dir: Path) -> Dict[str, Any]:
+    """
+    Try to infer crema stats from:
+    - reports/voc_crema/site/data/meta.json  (preferred)
+    - reports/voc_crema/meta.json
+    - reports/voc_crema/site/data/reviews.json (fallback)
+    """
     base = reports_dir / "voc_crema"
 
     candidates = [
@@ -654,7 +644,9 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
     </div>
 
+    <!-- ✅ 4 cards -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <!-- NAVER -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">네이버 최저가</div>
@@ -676,6 +668,7 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
         </div>
       </div>
 
+      <!-- HERO -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">경쟁사 Hero 배너</div>
@@ -700,6 +693,7 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
         </div>
       </div>
 
+      <!-- VOC -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">커뮤니티 VOC</div>
@@ -719,6 +713,7 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
         </div>
       </div>
 
+      <!-- ✅ CREMA -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">Crema VOC</div>
@@ -760,11 +755,8 @@ def main() -> None:
 
     out = reports_dir / "index.html"
     out.write_text(render_index_html(naver, hero, voc, crema), encoding="utf-8")
+
     print(f"[OK] Wrote: {out}")
-
-    # ✅ 핵심: reports/meta.json 생성 (YML test 통과 + 포털 사이드바 표시)
-    write_reports_meta(reports_dir)
-
     if crema.get("source"):
         print(f"[OK] Crema meta source: {crema.get('source')}")
 
