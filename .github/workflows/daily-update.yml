@@ -98,8 +98,9 @@ jobs:
       # ----------------------------
       # 4) Crema VOC
       #   - crema_voc.py 가 --input 필수 → 반드시 제공
-      #   - out_dir는 reports/voc_crema로 고정
-      #   - 스크립트가 site/로 쓰더라도 reports/voc_crema로 자동 복사
+      #   - crema_voc.py는 --out_dir 미지원(현재 로그 기준) → 옵션 제거
+      #   - 기존 산출물 폴더 삭제로 "덮어쓰기 업데이트" 강제
+      #   - 결과가 site/로 생성되면 reports/voc_crema로 rsync(--delete) 동기화
       # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
         env:
@@ -141,28 +142,27 @@ jobs:
             echo "Top-level files:"
             ls -la
             echo "Find candidates:"
-            (find . -maxdepth 4 -type f -name "reviews.json" -print || true)
+            (find . -maxdepth 6 -type f -name "reviews.json" -print || true)
             exit 1
           fi
 
           echo "[INFO] Using input JSON: $INPUT_JSON"
 
-          # (1) 실행: out_dir로 생성 시도
-          python -u crema_voc.py \
-            --input "$INPUT_JSON" \
-            --out_dir reports/voc_crema || {
-              echo "crema_voc.py returned non-zero (will try to salvage outputs)"
-            }
+          # ✅ (1) 덮어쓰기 강제: 이전 산출물 제거
+          rm -rf reports/voc_crema || true
+          mkdir -p reports/voc_crema
 
-          # (2) 결과 경로 흡수(둘 중 하나만 있어도 OK)
-          if [ -f "reports/voc_crema/index.html" ]; then
-            echo "[OK] reports/voc_crema/index.html exists"
-          elif [ -f "site/index.html" ]; then
-            echo "[INFO] Found site/index.html. Syncing site/ -> reports/voc_crema/"
-            mkdir -p reports/voc_crema
-            rsync -a site/ reports/voc_crema/
+          # ✅ (2) 실행: --out_dir 같은 미지원 옵션 금지
+          python -u crema_voc.py --input "$INPUT_JSON"
+
+          # ✅ (3) 결과 동기화 (site/로 생성되는 경우가 많음)
+          if [ -f "site/index.html" ]; then
+            echo "[INFO] Found site/index.html. Syncing site/ -> reports/voc_crema/ (with --delete)"
+            rsync -a --delete site/ reports/voc_crema/
+          elif [ -f "reports/voc_crema/index.html" ]; then
+            echo "[INFO] Output already in reports/voc_crema/"
           else
-            echo "[ERROR] Neither reports/voc_crema/index.html nor site/index.html exists"
+            echo "[ERROR] Neither site/index.html nor reports/voc_crema/index.html exists"
             echo "--- ls -la ---"
             ls -la
             echo "--- ls -la site ---"
@@ -172,8 +172,9 @@ jobs:
             exit 1
           fi
 
-          # (3) 최종 검증
+          # ✅ (4) 최종 검증
           test -f reports/voc_crema/index.html
+
 
       # ----------------------------
       # 5) Summary 생성 (reports/index.html + reports/meta.json)
