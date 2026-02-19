@@ -95,13 +95,6 @@ jobs:
           python -u external_signal_combined.py
           test -f reports/external_signal.html
 
-      # ----------------------------
-      # 4) Crema VOC
-      #   - crema_voc.py 가 --input 필수 → 반드시 제공
-      #   - crema_voc.py는 --out_dir 미지원(현재 로그 기준) → 옵션 제거
-      #   - 기존 산출물 폴더 삭제로 "덮어쓰기 업데이트" 강제
-      #   - 결과가 site/로 생성되면 reports/voc_crema로 rsync(--delete) 동기화
-      # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
@@ -114,68 +107,33 @@ jobs:
         run: |
           set -euo pipefail
 
-          # (0) 입력 JSON 자동 탐색 (레포 내 reviews.json)
-          CANDIDATES=(
-            "data/reviews.json"
-            "config/reviews.json"
-            "reviews.json"
-            "site/data/reviews.json"
-          )
-
-          INPUT_JSON=""
-          for p in "${CANDIDATES[@]}"; do
-            if [ -f "$p" ]; then
-              INPUT_JSON="$p"
-              break
-            fi
-          done
-
-          # 그래도 없으면 레포 전체에서 1개 찾기
-          if [ -z "$INPUT_JSON" ]; then
-            INPUT_JSON="$(ls -1 **/reviews.json 2>/dev/null | head -n 1 || true)"
-          fi
-
-          if [ -z "$INPUT_JSON" ] || [ ! -f "$INPUT_JSON" ]; then
-            echo "[ERROR] reviews.json not found in repo. Put it in e.g. data/reviews.json"
-            echo "Repo root:"
-            pwd
-            echo "Top-level files:"
-            ls -la
-            echo "Find candidates:"
-            (find . -maxdepth 6 -type f -name "reviews.json" -print || true)
+          INPUT_JSON="site/data/reviews.json"
+          if [ ! -f "$INPUT_JSON" ]; then
+            echo "[ERROR] Missing input JSON: $INPUT_JSON"
+            ls -la site || true
+            ls -la site/data || true
             exit 1
           fi
-
           echo "[INFO] Using input JSON: $INPUT_JSON"
 
-          # ✅ (1) 덮어쓰기 강제: 이전 산출물 제거
+          # ✅ 덮어쓰기 강제: 이전 산출물 제거
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
 
-          # ✅ (2) 실행: --out_dir 같은 미지원 옵션 금지
+          # ✅ crema_voc.py는 --out_dir 미지원 → 옵션 제거하고 실행
           python -u crema_voc.py --input "$INPUT_JSON"
 
-          # ✅ (3) 결과 동기화 (site/로 생성되는 경우가 많음)
+          # ✅ 결과가 site/로 생성되는 걸 기준으로 reports/voc_crema로 동기화 (예전 파일 제거 포함)
           if [ -f "site/index.html" ]; then
-            echo "[INFO] Found site/index.html. Syncing site/ -> reports/voc_crema/ (with --delete)"
+            echo "[INFO] Syncing site/ -> reports/voc_crema/ (with --delete)"
             rsync -a --delete site/ reports/voc_crema/
-          elif [ -f "reports/voc_crema/index.html" ]; then
-            echo "[INFO] Output already in reports/voc_crema/"
           else
-            echo "[ERROR] Neither site/index.html nor reports/voc_crema/index.html exists"
-            echo "--- ls -la ---"
-            ls -la
-            echo "--- ls -la site ---"
+            echo "[ERROR] site/index.html not found after run"
             ls -la site || true
-            echo "--- ls -la reports ---"
-            ls -la reports || true
             exit 1
           fi
 
-          # ✅ (4) 최종 검증
           test -f reports/voc_crema/index.html
-
-
       # ----------------------------
       # 5) Summary 생성 (reports/index.html + reports/meta.json)
       # ----------------------------
