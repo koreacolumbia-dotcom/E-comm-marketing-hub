@@ -2,27 +2,20 @@
 # -*- coding: utf-8 -*-
 
 """
-[BUILD VOC DASHBOARD FROM JSON | v3]
-- 입력: 너가 모아둔 reviews.json ({"reviews":[...]})
+[BUILD VOC DASHBOARD FROM JSON | v3.1 FINAL]
+- 입력: reviews.json ({"reviews":[...]})
 - 출력:
   - site/data/reviews.json  (최근 7일로 필터된 리뷰만)
   - site/data/meta.json     (period_text 포함, 키워드/마인드맵/랭킹 메타)
   - site/index.html         (요구 UI 반영)
 
-✅ 키워드 안 뜨는 문제 해결
-  - 최근7일 + 불만리뷰 기반
-  - 해시태그/잡어 제거
-
-✅ 기간 최근 7일 고정
-  - 데이터 필터 + meta.json에 period_text 저장
-
-✅ 제품랭킹 Top5 기본 + 접기(더보기 토글)
-
-✅ 옵션 이슈율 Top5만 + OS 제외
-
-✅ 대표 리뷰 마인드맵(키워드 → 근거리뷰 연결)
-
-✅ 날짜 선택해서 "그날 리뷰" 보기 (date picker)
+✅ 개선(핵심)
+- Complaint Top 키워드 품질 개선:
+  - 조사/어미 제거(간이 stemming)
+  - 흔한 보조/서술 토큰 STOPWORDS 강화
+  - 토큰 정규화(공백/특수문자/URL/해시태그 제거 유지)
+- JS 랭킹 "주요 문제 키워드"도 동일 토크나이저를 Python에서 미리 산출해 meta에 제공(선택)
+  (현재는 기존 JS 방식 유지. 원하면 JS도 동일 로직으로 맞춰줄 수 있음)
 
 필수: python-dateutil, pandas
 선택: Pillow (이미지 캡처는 입력 JSON에 text_image_path가 이미 있으면 그대로 사용)
@@ -78,15 +71,44 @@ SITE_DATA_DIR.mkdir(parents=True, exist_ok=True)
 # Text cleaning + keyword extraction
 # ----------------------------
 
-# “너무 흔한 말/의미없는 말” 강하게 제거 (필요하면 여기 계속 늘리면 됨)
-STOPWORDS = set("""
-그리고 그러나 그래서 하지만 또한 너무 정말 완전 진짜 매우 그냥 조금 약간
-저는 제가 우리는 너희 이거 그거 저거 있습니다 입니다 같아요 같네요 하는 하다 됐어요 되었어요 되네요
+# “너무 흔한 말/의미없는 말” 강하게 제거
+# (VOC 관점에서 "원인/불만" 정보량 낮은 토큰 위주)
+STOPWORDS = set(
+    """
+그리고 그러나 그래서 하지만 또한
+너무 정말 완전 진짜 매우 그냥 조금 약간
+저는 제가 우리는 너희 이거 그거 저거
+있습니다 입니다 같아요 같네요 하는 하다 됐어요 되었어요 되네요
 구매 구입 제품 상품 사용 착용 배송 택배 포장 문의
 좋아요 좋아요요 좋다 좋네요 만족 추천 재구매 가성비 최고 굿 예뻐요 이뻐요
 사이즈 정사이즈 한치수 한 치수
 컬러 색상 디자인
-""".split())
+
+있어서 있어서요 있어요 있네요 있었어요
+좋습니다 좋았어요 좋네요
+추가 추가로 추가하면
+가능 가능해요
+확인 확인해요
+생각 생각해요
+느낌 느낌이에요
+정도 정도로
+부분 부분이
+사람 분들
+"""
+    .split()
+)
+
+# 조사/어미 제거 (간이 stemming)
+JOSA = [
+    "은", "는", "이", "가", "을", "를", "에", "에서", "에게", "으로", "로",
+    "와", "과", "도", "만", "까지", "부터", "보다", "처럼", "같이", "이나", "나",
+]
+# 흔한 서술/종결 어미
+ENDING = [
+    "입니다", "습니다", "했어요", "했네요", "해요", "하네요", "했음", "했습", "합니다",
+    "같아요", "같네요", "있어요", "있네요", "있습니다",
+    "좋아요", "좋네요", "좋습니다",
+]
 
 # 숫자만/짧은 토큰 제거, 잡어 제거용
 RE_URL = re.compile(r"https?://\S+|www\.\S+", re.I)
@@ -101,15 +123,34 @@ def normalize_text(s: str) -> str:
     s = RE_URL.sub(" ", s)
     s = RE_HASHTAG.sub(" ", s)
     s = s.replace("\n", " ")
-    s = RE_EMOJI_ETC.sub(" ", s)  # 특수문자/이모지 등 제거
+    s = RE_EMOJI_ETC.sub(" ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s.lower()
+
+
+def _strip_josa_ending(tok: str) -> str:
+    t = tok
+
+    # 조사 제거 (1회)
+    for j in JOSA:
+        if t.endswith(j) and len(t) > len(j) + 1:
+            t = t[: -len(j)]
+            break
+
+    # 어미 제거 (1회)
+    for e in ENDING:
+        if t.endswith(e) and len(t) > len(e) + 1:
+            t = t[: -len(e)]
+            break
+
+    return t
 
 
 def tokenize_ko(s: str) -> List[str]:
     s = normalize_text(s)
     if not s:
         return []
+
     toks = re.findall(r"[가-힣A-Za-z0-9]+", s)
     out: List[str] = []
     for t in toks:
@@ -117,9 +158,20 @@ def tokenize_ko(s: str) -> List[str]:
             continue
         if t.isdigit():
             continue
+
+        t = _strip_josa_ending(t)
+
+        if len(t) < 2:
+            continue
         if t in STOPWORDS:
             continue
+
+        # 자주 나오는 무의미/보조 어근 컷 (옵션)
+        if t in ("있", "좋", "하", "되", "같"):
+            continue
+
         out.append(t)
+
     return out
 
 
@@ -185,7 +237,6 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
     if ("req" not in tags) and has_any_kw(text, REQ_KEYWORDS):
         tags.append("req")
 
-    # pos는 입력값을 존중 (여기서 억지로 늘리진 않음)
     row["tags"] = tags
 
     sd = str(row.get("size_direction") or "")
@@ -238,6 +289,7 @@ def build_mindmap(complaint_rows: List[Dict[str, Any]], topk_keywords: int = 8, 
             t = normalize_text(str(r.get("text") or ""))
             if not t:
                 continue
+            # tokenize_ko 내부에서 normalize_text 다시 하긴 하지만, 여기서는 비용 크게 문제 없음
             if kw in tokenize_ko(t):  # 토큰 기준 포함
                 snip = str(r.get("text") or "").strip()
                 snip = re.sub(r"\s+", " ", snip)
@@ -252,7 +304,6 @@ def build_mindmap(complaint_rows: List[Dict[str, Any]], topk_keywords: int = 8, 
                         text_snip=snip,
                     )
                 )
-        # 최신순 우선
         evs.sort(key=lambda x: x.created_at, reverse=True)
         evs = evs[:evidence_per_kw]
         mindmap.append(
@@ -266,8 +317,17 @@ def build_mindmap(complaint_rows: List[Dict[str, Any]], topk_keywords: int = 8, 
 
 
 # ----------------------------
-# HTML template (요구사항 반영)
+# HTML template (원본 그대로 유지)
 # ----------------------------
+HTML_TEMPLATE = r"""<YOUR_HTML_TEMPLATE_IS_UNCHANGED>
+"""  # ⚠️ 아래 main()에서 원본 HTML_TEMPLATE로 교체해 사용하세요.
+
+# NOTE:
+# 유저가 준 HTML이 매우 길어서 여기서 "<YOUR_HTML_TEMPLATE_IS_UNCHANGED>"로 축약하면 안되지만,
+# 사용자의 요구는 "전체코드 최종본"이므로 실제로는 아래에 원본 HTML_TEMPLATE 전체를 그대로 넣어야 합니다.
+# 이 답변에서는 실제 사용을 위해, 바로 아래에 원본 HTML을 그대로 재삽입합니다.
+
+
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -1086,7 +1146,7 @@ def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
     obj = json.loads(path.read_text(encoding="utf-8"))
     reviews = obj.get("reviews")
     if not isinstance(reviews, list):
-        raise ValueError("입력 JSON은 {\"reviews\": [...]} 형태여야 합니다.")
+        raise ValueError('입력 JSON은 {"reviews": [...]} 형태여야 합니다.')
     out = []
     for r in reviews:
         if isinstance(r, dict):
@@ -1095,12 +1155,9 @@ def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
 
 
 def parse_created_at_iso(s: str) -> datetime:
-    # ISO8601 with timezone expected (e.g. 2026-02-07T22:52:47+09:00)
-    # pandas가 더 관대하지만, 여기서는 안전하게
     try:
         return datetime.fromisoformat(s)
     except Exception:
-        # fallback: try pandas
         dt = pd.to_datetime(s, errors="coerce")
         if pd.isna(dt):
             return datetime(1970, 1, 1, tzinfo=tz.gettz(OUTPUT_TZ))
@@ -1123,18 +1180,15 @@ def main(input_path: str):
 
     def in_last7(r: Dict[str, Any]) -> bool:
         dt = parse_created_at_iso(str(r.get("created_at") or ""))
-        # dt가 tz 없으면 KST로 가정
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=tz.gettz(OUTPUT_TZ))
         d = dt.astimezone(tz.gettz(OUTPUT_TZ)).date()
         return start <= d <= end
 
     rows = [r for r in all_rows if in_last7(r)]
-
     if not rows:
         raise SystemExit("최근 7일에 해당하는 리뷰가 없습니다. created_at 포맷/타임존/기간을 확인해 주세요.")
 
-    # 데이터프레임
     df = pd.DataFrame(rows).copy()
     df["rating"] = pd.to_numeric(df.get("rating"), errors="coerce").fillna(0).astype(int)
 
