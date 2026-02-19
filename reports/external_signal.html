@@ -21,86 +21,6 @@
   </style>
 </head>
 <body class="flex">
-<!-- AUTO_UPDATED_BADGE_START -->
-<style>
-  @keyframes _pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.12); opacity: .55; }
-  }
-  .auto-updated-badge-wrap{
-    position:static; z-index:99999;
-    font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, Arial;
-    margin:10px 0 22px 0;
-  }
-  .auto-updated-badge{
-    display:flex; gap:10px; align-items:center;
-    padding:10px 12px; border-radius:16px;
-    background:rgba(255,255,255,.75);
-    backdrop-filter:blur(12px);
-    border:1px solid rgba(15,23,42,.10);
-    box-shadow:0 10px 30px rgba(15,23,42,.08);
-  }
-  .auto-updated-dot{
-    width:10px; height:10px; border-radius:999px;
-    background:#22c55e;
-    box-shadow:0 0 0 5px rgba(34,197,94,.15);
-    animation:_pulse 1.2s ease-in-out infinite;
-  }
-  .auto-updated-txt{ display:flex; flex-direction:column; line-height:1.15; }
-  .auto-updated-txt .t1{
-    font-size:11px; font-weight:800; color:#0f172a;
-    letter-spacing:-.2px; text-transform:uppercase;
-  }
-  .auto-updated-txt .t2{
-    font-size:11px; color:rgba(15,23,42,.72);
-    margin-top:2px;
-  }
-</style>
-
-<div class="auto-updated-badge-wrap" aria-label="Last updated badge">
-  <div class="auto-updated-badge">
-    <span class="auto-updated-dot"></span>
-    <div class="auto-updated-txt">
-      <div class="t1">Last updated</div>
-      <div class="t2">2026.02.19 (Thu) 16:30 KST</div>
-    </div>
-  </div>
-</div>
-
-<script>
-  (function(){
-    function mount(){
-      const badge = document.querySelector('.auto-updated-badge-wrap');
-      if(!badge) return;
-
-      const sidebar = document.querySelector('aside.sidebar');
-      if(sidebar){
-        const first = sidebar.firstElementChild;
-        if(first && first.nextSibling){
-          sidebar.insertBefore(badge, first.nextSibling);
-        }else{
-          sidebar.prepend(badge);
-        }
-        badge.style.position = 'static';
-        badge.style.top = '';
-        badge.style.right = '';
-        return;
-      }
-
-      badge.style.position = 'fixed';
-      badge.style.top = '16px';
-      badge.style.right = '16px';
-    }
-
-    if(document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', mount);
-    }else{
-      mount();
-    }
-  })();
-</script>
-<!-- AUTO_UPDATED_BADGE_END -->
-
   <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
     <div class="flex items-center gap-4 mb-16 px-2">
       <div class="w-12 h-12 bg-[#002d72] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
@@ -134,7 +54,7 @@
           <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
         </div>
-        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-19 16:58</span>
+        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-20 08:48</span>
       </div>
     </header>
 
@@ -160,23 +80,15 @@
             <tbody>
               
             <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">파타고니아</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
+              <td class="py-3 pr-4 font-black text-slate-800">컬럼비아</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">3</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">3</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">1</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">4</td>
             </tr>
             
             <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">K2</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">1</td>
-            </tr>
-            
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">오스프리</td>
+              <td class="py-3 pr-4 font-black text-slate-800">아크테릭스</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
@@ -184,9 +96,17 @@
             </tr>
             
             <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">그레고리</td>
+              <td class="py-3 pr-4 font-black text-slate-800">내셔널지오그래픽</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
+              <td class="py-3 pr-4 text-blue-700 font-black">1</td>
+            </tr>
+            
+            <tr class="border-b border-slate-100">
+              <td class="py-3 pr-4 font-black text-slate-800">나이키</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
+              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
               <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
               <td class="py-3 pr-4 text-blue-700 font-black">1</td>
             </tr>
@@ -201,85 +121,127 @@
     <section>
       <div class="flex flex-wrap gap-2 mb-8">
         
-            <button onclick="switchTab('파타고니아')" id="tab-파타고니아" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-[#002d72] text-white shadow-lg">
-                파타고니아 <span class="ml-1 opacity-60 text-xs">1</span>
+            <button onclick="switchTab('컬럼비아')" id="tab-컬럼비아" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-[#002d72] text-white shadow-lg">
+                컬럼비아 <span class="ml-1 opacity-60 text-xs">4</span>
             </button>
-            <button onclick="switchTab('K2')" id="tab-K2" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-                K2 <span class="ml-1 opacity-60 text-xs">1</span>
+            <button onclick="switchTab('아크테릭스')" id="tab-아크테릭스" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                아크테릭스 <span class="ml-1 opacity-60 text-xs">1</span>
             </button>
-            <button onclick="switchTab('오스프리')" id="tab-오스프리" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-                오스프리 <span class="ml-1 opacity-60 text-xs">1</span>
+            <button onclick="switchTab('내셔널지오그래픽')" id="tab-내셔널지오그래픽" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                내셔널지오그래픽 <span class="ml-1 opacity-60 text-xs">1</span>
             </button>
-            <button onclick="switchTab('그레고리')" id="tab-그레고리" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
-                그레고리 <span class="ml-1 opacity-60 text-xs">1</span>
+            <button onclick="switchTab('나이키')" id="tab-나이키" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-white/50 text-slate-500 hover:bg-white">
+                나이키 <span class="ml-1 opacity-60 text-xs">1</span>
             </button>
       </div>
 
       <div class="min-h-[500px]">
         
-            <div id="content-파타고니아" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: grid;">
+            <div id="content-컬럼비아" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: grid;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아도 짭있냐? "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 컬럼비아도 짭있냐?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317959&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아 lf몰 병행수입 이런거 나이키병행처럼 짭임 "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 컬럼비아도 짭있냐?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317959&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아 티타늄은 얼마나 좋음? "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 컬럼비아 티타늄은 얼마나 좋음?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317920&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아 아줌마 퇴근길...gif "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 컬럼비아 아줌마 퇴근길...gif</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317916&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div id="content-아크테릭스" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+                
+                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
+                    </div>
+
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 아직 아크입고 산은 안가봤는데 "</p>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 아직 아크입고 산은 안가봤는데</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317933&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div id="content-내셔널지오그래픽" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
                       <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 원래 파타고니아 r1 에어 보다가 이건 뭐 재고도 없고 배짱 장사 개오져서 "</p>
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 19 08:35 스크랩 조회수 0 추천 0 댓글 0 2007년 경북 공장에서 일한 일반인 80년생 이종수 살,해당하면 조캣다 내 살다살다 그런 쓰레기 싸이코 싸패같은놈 처음봄 내 지인은 그런놈 안만나서 다행이라고 생각해라 원래 그놈 내지인한테 관심있었음 고추크면 뭐하노 개새끼 진짜 살,해당햇음좋겠다 한국인 아닌거들켰다 머 이런 괴상한말도 햇음 딴 쓰레기놈들도 디져라 그리고 어떤나이많은년이 이놈 눈 번들거리고 입술 벌겋게 번들거려서 무섭다했는데 그쓰레기년이 맞았네 생긴거도 이개놈 희한하게생김 눈코입졵나크고 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 동계 플리스 결국 고민 끝냈다</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317865&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 2007년 경북 공장에서 일한 일반인 80년생 이종...</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317805&page=3" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
                 </div>
             </div>
-            <div id="content-K2" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
+            <div id="content-나이키" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
                 
                 <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
                     <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
+                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
                     </div>
 
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 쪼렙 등산화 k2꺼 이정도면 무난하지? "</p>
+                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 컬럼비아 lf몰 병행수입 이런거 나이키병행처럼 짭임 "</p>
 
                     <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 쪼렙 등산화 k2꺼 이정도면 무난하지?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317828&page=2" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div id="content-오스프리" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-                
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 오스프리, 그레고리, 도이터 갤에서 평가 안좋음? "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 오스프리, 그레고리, 도이터 갤에서 평가 안좋음?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317839&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div id="content-그레고리" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: none;">
-                
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 오스프리, 그레고리, 도이터 갤에서 평가 안좋음? "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 오스프리, 그레고리, 도이터 갤에서 평가 안좋음?</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317839&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 컬럼비아도 짭있냐?</span>
+                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=317959&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
                             원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
                         </a>
                     </div>
