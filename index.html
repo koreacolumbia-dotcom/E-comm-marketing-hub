@@ -73,6 +73,7 @@
       color:#94a3b8;
       user-select:none;
       cursor:pointer;
+      white-space: nowrap;
     }
     .mo-tab.active{
       color: var(--brand);
@@ -121,6 +122,11 @@
     </div>
     <div class="nav-item" data-key="voc" data-target="reports/external_signal.html" data-label="커뮤니티 VOC">
       <i class="fa-solid fa-tower-broadcast"></i><span>커뮤니티 VOC</span>
+    </div>
+
+    <!-- ✅ NEW: Crema VOC -->
+    <div class="nav-item" data-key="crema" data-target="reports/voc_crema/index.html" data-label="Crema VOC">
+      <i class="fa-solid fa-comments"></i><span>Crema VOC</span>
     </div>
   </div>
 
@@ -193,7 +199,8 @@
 
 <!-- ================= Mobile Bottom Tabbar (MO) ================= -->
 <nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
-  <div class="max-w-2xl mx-auto grid grid-cols-4 gap-2">
+  <!-- ✅ 5 tabs now -->
+  <div class="max-w-2xl mx-auto grid grid-cols-5 gap-2">
     <div class="mo-tab active" data-key="summary" data-target="reports/index.html" data-label="Summary">
       <i class="fa-solid fa-chart-simple text-base"></i>
       <div class="text-[10px]">Summary</div>
@@ -209,6 +216,11 @@
     <div class="mo-tab" data-key="voc" data-target="reports/external_signal.html" data-label="커뮤니티 VOC">
       <i class="fa-solid fa-tower-broadcast text-base"></i>
       <div class="text-[10px]">VOC</div>
+    </div>
+    <!-- ✅ NEW: Crema tab -->
+    <div class="mo-tab" data-key="crema" data-target="reports/voc_crema/index.html" data-label="Crema VOC">
+      <i class="fa-solid fa-comments text-base"></i>
+      <div class="text-[10px]">Crema</div>
     </div>
   </div>
 </nav>
@@ -252,7 +264,7 @@
     // Responsive iframe height: mobile header + bottom tab 고려
     function resizeFrame() {
       const isMobile = window.matchMedia("(max-width: 1023px)").matches;
-      const offset = isMobile ? 240 : 200;
+      const offset = isMobile ? 260 : 200; // ✅ 약간 여유(5탭)
       frame.style.height = `calc(100vh - ${offset}px)`;
     }
     window.addEventListener("resize", resizeFrame);
@@ -260,22 +272,6 @@
 
     // ✅ Sidebar footer: KST 기준 업데이트/기간(최근 7일)
     function pad2(n){ return String(n).padStart(2, "0"); }
-
-    function kstNow() {
-      const now = new Date();
-      const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-      return new Date(utc + (9 * 60 * 60000));
-    }
-
-    function fmtKst(dt, withTime=true) {
-      const y = dt.getFullYear();
-      const m = pad2(dt.getMonth()+1);
-      const d = pad2(dt.getDate());
-      if (!withTime) return `${y}.${m}.${d}`;
-      const hh = pad2(dt.getHours());
-      const mm = pad2(dt.getMinutes());
-      return `${y}.${m}.${d} ${hh}:${mm}`;
-    }
 
     async function setSidebarMeta() {
       const elUpdated = document.getElementById("sb-updated-at");
@@ -291,9 +287,8 @@
         elUpdated.textContent = meta.updated_at_kst || "-";
         elPeriod.textContent  = meta.period_text || "-";
       } catch (e) {
-        // fallback: 기존 로직(현재시간)
+        // fallback: 현재시간
         const now = new Date();
-        const pad2 = (n)=> String(n).padStart(2,"0");
         const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
         const kst = new Date(utc + (9 * 60 * 60000));
         const fmt = (d)=> `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())} KST`;
@@ -312,5 +307,3 @@
 
 </body>
 </html>
-
-
