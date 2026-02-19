@@ -7,6 +7,10 @@ on:
         description: "Manual run reason (optional)"
         required: false
         default: "manual"
+      voc_only:
+        description: "Run VOC only?"
+        required: false
+        default: "false"
   schedule:
     # KST 08:00 = UTC 23:00 (전날)
     - cron: "0 23 * * *"
@@ -65,6 +69,7 @@ jobs:
       # 1) Naver Lowest Price
       # ----------------------------
       - name: Run Naver Lowest Price crawler
+        if: ${{ github.event.inputs.voc_only != 'true' }}
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
@@ -81,6 +86,7 @@ jobs:
       # 2) Hero banner
       # ----------------------------
       - name: Run Hero banner crawler
+        if: ${{ github.event.inputs.voc_only != 'true' }}
         run: |
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
@@ -90,11 +96,18 @@ jobs:
       # 3) External Signal (VOC)
       # ----------------------------
       - name: Run External Signal (VOC)
+        if: ${{ github.event.inputs.voc_only != 'true' }}
         run: |
           set -euo pipefail
           python -u external_signal_combined.py
           test -f reports/external_signal.html
 
+      # ----------------------------
+      # 4) Crema VOC (항상 실행)
+      #   - input: site/data/reviews.json (고정)
+      #   - reports/voc_crema는 매번 삭제 후 재생성(덮어쓰기)
+      #   - site/ 산출물을 rsync --delete 로 reports/voc_crema로 동기화
+      # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
@@ -134,10 +147,12 @@ jobs:
           fi
 
           test -f reports/voc_crema/index.html
+
       # ----------------------------
       # 5) Summary 생성 (reports/index.html + reports/meta.json)
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
+        if: ${{ github.event.inputs.voc_only != 'true' }}
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
         run: |
@@ -150,6 +165,7 @@ jobs:
       # 6) "Last updated" 배지: reports/*.html에 자동 주입
       # ----------------------------
       - name: Stamp "Last updated" badge into reports HTML
+        if: ${{ github.event.inputs.voc_only != 'true' }}
         shell: bash
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
@@ -261,8 +277,6 @@ jobs:
 
       # ----------------------------
       # 7) Commit & push results
-      #   - site/도 생성될 수 있어서 같이 add
-      #   - push 직전에 한번 더 rebase해서 경합 완화
       # ----------------------------
       - name: Commit & push results
         shell: bash
