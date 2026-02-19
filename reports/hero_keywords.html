@@ -9,12 +9,10 @@
 <body class="bg-slate-50 text-slate-900">
 <!-- AUTO_UPDATED_BADGE_START -->
 <style>
-  /* pulse fallback (Tailwind 없어도 깜빡이게) */
   @keyframes _pulse {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.12); opacity: .55; }
   }
-
   .auto-updated-badge-wrap{
     position:static; z-index:99999;
     font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, Arial;
@@ -50,7 +48,7 @@
     <span class="auto-updated-dot"></span>
     <div class="auto-updated-txt">
       <div class="t1">Last updated</div>
-      <div class="t2">2026.02.13 (Fri) 13:22 KST</div>
+      <div class="t2">2026.02.19 (Thu) 13:12 KST</div>
     </div>
   </div>
 </div>
@@ -63,7 +61,6 @@
 
       const sidebar = document.querySelector('aside.sidebar');
       if(sidebar){
-        // ✅ 좌측 바 상단: 로고 블록 바로 아래
         const first = sidebar.firstElementChild;
         if(first && first.nextSibling){
           sidebar.insertBefore(badge, first.nextSibling);
@@ -76,7 +73,6 @@
         return;
       }
 
-      // fallback: sidebar 없는 페이지는 우상단 고정
       badge.style.position = 'fixed';
       badge.style.top = '16px';
       badge.style.right = '16px';
@@ -91,7 +87,7 @@
 </script>
 <!-- AUTO_UPDATED_BADGE_END -->
 
-  <div class="max-w-5xl mx-auto px-4 py-8">
+<div class="max-w-5xl mx-auto px-4 py-8">
     <h1 class="text-3xl font-black">Hero Campaign Keywords</h1>
     <p class="mt-2 text-slate-600">Hero 배너(title) + 랜딩페이지(선택) 기반 “기획전 테마” 키워드</p>
 
