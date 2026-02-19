@@ -62,6 +62,28 @@ def now_kst_label() -> str:
     return datetime.now(KST).strftime("%Y.%m.%d (%a) %H:%M KST")
 
 
+def write_reports_meta(reports_dir: Path) -> None:
+    """
+    ✅ reports/meta.json 생성
+    - index.html(포털) 사이드바에서 읽는 메타
+    - YML에서 test -f reports/meta.json 통과용
+    """
+    updated = os.environ.get("UPDATED_KST") or now_kst_label()
+
+    now = datetime.now(KST)
+    start = now - timedelta(days=6)
+    period_text = f"최근 7일 ({start.strftime('%Y.%m.%d')} ~ {now.strftime('%Y.%m.%d')})"
+
+    meta = {
+        "updated_at_kst": updated,
+        "period_text": period_text,
+    }
+
+    out = reports_dir / "meta.json"
+    out.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[OK] Wrote: {out}")
+
+
 def _read_csv_any(path: Path) -> pd.DataFrame:
     try:
         return pd.read_csv(path, encoding="utf-8-sig")
@@ -311,7 +333,8 @@ def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[
     s = pd.Series(flat)
     vc = s.value_counts()
     try:
-        vc = vc[~vc.index.str.contains(r"\b(http|https|www|img|banner)\b", case=False, regex=True)]
+        # ✅ warning 방지: capturing group -> non-capturing group
+        vc = vc[~vc.index.str.contains(r"\b(?:http|https|www|img|banner)\b", case=False, regex=True)]
     except Exception:
         pass
     vc = vc[vc.index.map(lambda x: x not in ("www", "http", "https"))]
@@ -480,12 +503,6 @@ def _read_json_if_exists(p: Path) -> Optional[Dict[str, Any]]:
 
 
 def build_crema_metrics(reports_dir: Path) -> Dict[str, Any]:
-    """
-    Try to infer crema stats from:
-    - reports/voc_crema/site/data/meta.json  (preferred)
-    - reports/voc_crema/meta.json
-    - reports/voc_crema/site/data/reviews.json (fallback)
-    """
     base = reports_dir / "voc_crema"
 
     candidates = [
@@ -512,12 +529,6 @@ def build_crema_metrics(reports_dir: Path) -> Dict[str, Any]:
 
     if not meta:
         return out
-
-    # meta.json 형식(너 실행 로그 기준)
-    # - Total reviews: 6270
-    # - Date range: 2020-11-20 ~ 2026-02-19
-    # - Complaint Top5: [('사이즈', 10), ...]
-    # => json이 어떤 키로 저장됐는지 모를 수 있어서 폭넓게 대응
 
     def pick(*keys):
         for k in keys:
@@ -554,7 +565,6 @@ def _fmt_top5(x: Any) -> str:
     if not x:
         return "-"
     try:
-        # list of tuples: [("사이즈",10),...]
         if isinstance(x, list):
             parts = []
             for item in x[:5]:
@@ -564,7 +574,6 @@ def _fmt_top5(x: Any) -> str:
                     if k:
                         parts.append(f"{k}({c:,})")
                 elif isinstance(item, dict):
-                    # {"keyword":"사이즈","count":10} 같은 경우
                     k = str(item.get("keyword") or item.get("k") or "").strip()
                     c = item.get("count") or item.get("c")
                     try:
@@ -574,7 +583,6 @@ def _fmt_top5(x: Any) -> str:
                     if k and c is not None:
                         parts.append(f"{k}({c:,})")
             return " · ".join(parts) if parts else "-"
-        # string like "[('사이즈', 10), ...]"
         s = str(x)
         s = re.sub(r"[\[\]\(\)']", " ", s)
         s = re.sub(r"\s+", " ", s).strip()
@@ -646,9 +654,7 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
     </div>
 
-    <!-- ✅ 4 cards -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      <!-- NAVER -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">네이버 최저가</div>
@@ -670,7 +676,6 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
         </div>
       </div>
 
-      <!-- HERO -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">경쟁사 Hero 배너</div>
@@ -695,7 +700,6 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
         </div>
       </div>
 
-      <!-- VOC -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">커뮤니티 VOC</div>
@@ -715,7 +719,6 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
         </div>
       </div>
 
-      <!-- ✅ CREMA -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">Crema VOC</div>
@@ -757,8 +760,11 @@ def main() -> None:
 
     out = reports_dir / "index.html"
     out.write_text(render_index_html(naver, hero, voc, crema), encoding="utf-8")
-
     print(f"[OK] Wrote: {out}")
+
+    # ✅ 핵심: reports/meta.json 생성 (YML test 통과 + 포털 사이드바 표시)
+    write_reports_meta(reports_dir)
+
     if crema.get("source"):
         print(f"[OK] Crema meta source: {crema.get('source')}")
 
