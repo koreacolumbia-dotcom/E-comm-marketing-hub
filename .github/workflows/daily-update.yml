@@ -102,51 +102,27 @@ jobs:
           python -u external_signal_combined.py
           test -f reports/external_signal.html
 
-      # ----------------------------
-      # 4) Crema VOC (항상 실행)
-      #   - input: site/data/reviews.json (고정)
-      #   - reports/voc_crema는 매번 삭제 후 재생성(덮어쓰기)
-      #   - site/ 산출물을 rsync --delete 로 reports/voc_crema로 동기화
-      # ----------------------------
-      - name: Run Crema VOC (reviews + images + dashboard)
+      - name: Run Crema VOC (collect + build)
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
-          CREMA_DOMAIN: columbiakorea.co.kr
-          CREMA_WIDGET_ID: "2"
-          CREMA_PER_PAGE: "30"
           OUTPUT_TZ: Asia/Seoul
           PROJECT_ROOT: ${{ github.workspace }}
         shell: bash
         run: |
           set -euo pipefail
 
-          INPUT_JSON="site/data/reviews.json"
-          if [ ! -f "$INPUT_JSON" ]; then
-            echo "[ERROR] Missing input JSON: $INPUT_JSON"
-            ls -la site || true
-            ls -la site/data || true
-            exit 1
-          fi
-          echo "[INFO] Using input JSON: $INPUT_JSON"
+          # 1) 리뷰 수집해서 site/data/reviews.json 갱신
+          python -u review_Crwaling.py
 
-          # ✅ 덮어쓰기 강제: 이전 산출물 제거
+          # 2) VOC 대시보드 빌드
+          python -u crema_voc.py --input site/data/reviews.json
+
+          # 3) reports로 동기화(덮어쓰기)
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
-
-          # ✅ crema_voc.py는 --out_dir 미지원 → 옵션 제거하고 실행
-          python -u crema_voc.py --input "$INPUT_JSON"
-
-          # ✅ 결과가 site/로 생성되는 걸 기준으로 reports/voc_crema로 동기화 (예전 파일 제거 포함)
-          if [ -f "site/index.html" ]; then
-            echo "[INFO] Syncing site/ -> reports/voc_crema/ (with --delete)"
-            rsync -a --delete site/ reports/voc_crema/
-          else
-            echo "[ERROR] site/index.html not found after run"
-            ls -la site || true
-            exit 1
-          fi
-
+          rsync -a --delete site/ reports/voc_crema/
           test -f reports/voc_crema/index.html
+
 
       # ----------------------------
       # 5) Summary 생성 (reports/index.html + reports/meta.json)
