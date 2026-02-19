@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH)
+build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH + CREMA CARD)
 
 - Generates reports/index.html (embed-friendly)
 - Adds "Hero campaign theme keywords" by using:
@@ -19,7 +19,10 @@ UI Patch (requested):
 - Remove subtitle: “3개 자동 리포트에서 …”
 - Remove INSIGHT sections from Naver/Hero/VOC
 - Remove "Snapshot (KST)" text from period labels
-- Make Open report a centered bottom button, aligned consistently across all 3 cards
+- Make Open report a centered bottom button, aligned consistently across all cards
+
+Added:
+- Crema VOC summary card (reports/voc_crema/index.html)
 
 Env:
 - HERO_CRAWL_LIMIT (default 40)
@@ -111,17 +114,6 @@ def fmt_won(x: Any) -> str:
         return "-"
 
 
-def fmt_won_signed(x: Any) -> str:
-    try:
-        if x is None or (isinstance(x, float) and pd.isna(x)):
-            return "-"
-        v = int(round(float(x)))
-        sign = "+" if v > 0 else ""
-        return f"{sign}{v:,}원"
-    except Exception:
-        return "-"
-
-
 def risk_level(diff_pos_ratio: Optional[float]) -> Tuple[str, str]:
     if diff_pos_ratio is None:
         return ("-", "risk-unk")
@@ -130,15 +122,6 @@ def risk_level(diff_pos_ratio: Optional[float]) -> Tuple[str, str]:
     if diff_pos_ratio >= 0.30:
         return ("MID", "risk-mid")
     return ("LOW", "risk-low")
-
-
-def safe_str(x: Any) -> str:
-    if x is None:
-        return ""
-    try:
-        return str(x)
-    except Exception:
-        return ""
 
 
 def _norm_url(u: str) -> str:
@@ -257,7 +240,6 @@ def _fetch_page(url: str, timeout: int = 8, retries: int = 2) -> Optional[str]:
 
 
 def _extract_page_signals(html: str) -> Dict[str, str]:
-    """Return key text signals from html (title, og:title, description, h1,h2, text snippet)."""
     if not html or BeautifulSoup is None:
         return {"title": "", "og_title": "", "desc": "", "h": "", "snippet": ""}
 
@@ -314,10 +296,6 @@ def _tokenize(text: str) -> List[str]:
 
 
 def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[str, int]]:
-    """
-    Theme-first extractor:
-    - unigram + bigram(2-word)
-    """
     flat: List[str] = []
     for tx in texts:
         tokens = _tokenize(tx)
@@ -332,13 +310,11 @@ def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[
 
     s = pd.Series(flat)
     vc = s.value_counts()
-
     try:
         vc = vc[~vc.index.str.contains(r"\b(http|https|www|img|banner)\b", case=False, regex=True)]
     except Exception:
         pass
     vc = vc[vc.index.map(lambda x: x not in ("www", "http", "https"))]
-
     return [(idx, int(val)) for idx, val in vc.head(top_n).items()]
 
 
@@ -382,7 +358,6 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
         s = df[c_img].astype(str).str.strip().str.lower()
         missing_img = int((s.eq("") | s.eq("nan") | s.eq("none")).sum())
 
-    # URL column
     c_url = _col(df, [
         "href_clean", "href",
         "landing_url", "landing url", "landing",
@@ -391,7 +366,6 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
         "상품url", "기획전url", "기획전 url", "랜딩url", "랜딩 url"
     ])
 
-    # Title/text column
     c_title = _col(df, [
         "title",
         "banner_title", "headline", "copy", "text",
@@ -403,14 +377,11 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
 
     texts: List[str] = []
 
-    # Primary: CSV titles
     if c_title:
         tcol = df[c_title].astype(str).fillna("").tolist()
         texts.extend([x for x in tcol if x and x.lower() not in ("nan", "none")])
 
-    # Secondary: crawl landing pages (optional) — still allowed, but we do NOT surface crawl/cache wording in summary UI
     can_crawl = (requests is not None and BeautifulSoup is not None and c_url is not None)
-
     timeout = int(os.environ.get("HERO_CRAWL_TIMEOUT", "8"))
     retries = int(os.environ.get("HERO_CRAWL_RETRIES", "2"))
 
@@ -456,18 +427,6 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
     keywords = _build_keywords_from_texts(texts, top_n=10)
     kw_text = _format_keywords_with_counts(keywords, take=6)
 
-    # Keep detailed keyword report file (optional), but do not show "상세보기" line on summary card
-    _write_hero_keywords_html(
-        reports_dir=reports_dir,
-        src_csv=p.name,
-        keywords=keywords,
-        used_urls=used_urls,
-        can_crawl=can_crawl,
-        crawled=crawled,
-        cache_hits=cache_hits,
-        cache_path=cache_path.name,
-    )
-
     return {
         "brands": brands,
         "banners": banners,
@@ -476,79 +435,6 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
         "kw_text": kw_text,
         "updated": now_kst_label(),
     }
-
-
-def _write_hero_keywords_html(
-    reports_dir: Path,
-    src_csv: str,
-    keywords: List[Tuple[str, int]],
-    used_urls: List[str],
-    can_crawl: bool,
-    crawled: int,
-    cache_hits: int,
-    cache_path: str,
-) -> None:
-    rows = ""
-    for k, c in keywords:
-        rows += f"<tr><td class='py-2 pr-4 font-extrabold'>{k}</td><td class='py-2 text-right'>{c:,}</td></tr>"
-
-    url_list = ""
-    for u in used_urls[:40]:
-        url_list += (
-            f"<li class='truncate'><a class='text-blue-700 font-bold' href='{u}' target='_blank' rel='noreferrer'>"
-            f"{u}</a></li>"
-        )
-
-    meta = f"""
-    <div class="text-sm text-slate-700">
-      <div><b>source</b>: {src_csv}</div>
-      <div><b>mode</b>: {"crawl + cache" if can_crawl else "title-only (no deps or url column)"}</div>
-      <div><b>crawl</b>: {crawled:,} · <b>cache hit</b>: {cache_hits:,} · <b>cache file</b>: {cache_path}</div>
-      <div class="mt-1 text-slate-500">updated: {now_kst_label()}</div>
-    </div>
-    """
-
-    html = f"""<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Hero Campaign Keywords</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 text-slate-900">
-  <div class="max-w-5xl mx-auto px-4 py-8">
-    <h1 class="text-3xl font-black">Hero Campaign Keywords</h1>
-    <p class="mt-2 text-slate-600">Hero 배너(title) + 랜딩페이지(선택) 기반 키워드</p>
-
-    <div class="mt-6 p-5 bg-white rounded-2xl shadow-sm border border-slate-200">
-      {meta}
-    </div>
-
-    <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200">
-        <h2 class="text-lg font-black">Top Keywords</h2>
-        <table class="mt-3 w-full text-sm">
-          <thead class="text-slate-500">
-            <tr><th class="py-2 text-left">Keyword</th><th class="py-2 text-right">Count</th></tr>
-          </thead>
-          <tbody>{rows or "<tr><td class='py-2' colspan='2'>키워드가 없습니다 (데이터/컬럼 확인 필요)</td></tr>"}</tbody>
-        </table>
-      </div>
-
-      <div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-200">
-        <h2 class="text-lg font-black">Crawled URLs (sample)</h2>
-        <ul class="mt-3 space-y-2 text-sm">{url_list or "<li class='text-slate-500'>URL이 없거나 크롤링 비활성</li>"}</ul>
-      </div>
-    </div>
-  </div>
-</body>
-</html>
-"""
-    try:
-        (reports_dir / "hero_keywords.html").write_text(html, encoding="utf-8")
-    except Exception:
-        pass
 
 
 # -----------------------
@@ -582,9 +468,125 @@ def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
 
 
 # -----------------------
+# Crema metrics (best-effort)
+# -----------------------
+def _read_json_if_exists(p: Path) -> Optional[Dict[str, Any]]:
+    try:
+        if p.exists() and p.is_file():
+            return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return None
+
+
+def build_crema_metrics(reports_dir: Path) -> Dict[str, Any]:
+    """
+    Try to infer crema stats from:
+    - reports/voc_crema/site/data/meta.json  (preferred)
+    - reports/voc_crema/meta.json
+    - reports/voc_crema/site/data/reviews.json (fallback)
+    """
+    base = reports_dir / "voc_crema"
+
+    candidates = [
+        base / "site" / "data" / "meta.json",
+        base / "meta.json",
+        base / "site" / "data" / "reviews.json",
+    ]
+
+    meta = None
+    used = None
+    for c in candidates:
+        meta = _read_json_if_exists(c)
+        if meta is not None:
+            used = c
+            break
+
+    out = {
+        "total_reviews": None,
+        "date_range": None,
+        "complaint_top5": None,
+        "updated": now_kst_label(),
+        "source": str(used) if used else None,
+    }
+
+    if not meta:
+        return out
+
+    # meta.json 형식(너 실행 로그 기준)
+    # - Total reviews: 6270
+    # - Date range: 2020-11-20 ~ 2026-02-19
+    # - Complaint Top5: [('사이즈', 10), ...]
+    # => json이 어떤 키로 저장됐는지 모를 수 있어서 폭넓게 대응
+
+    def pick(*keys):
+        for k in keys:
+            if k in meta and meta[k] is not None:
+                return meta[k]
+        return None
+
+    total = pick("total_reviews", "total", "reviews_total", "review_total", "count", "n_reviews")
+    if isinstance(total, str):
+        try:
+            total = int(re.sub(r"[^\d]", "", total) or "0")
+        except Exception:
+            total = None
+    if isinstance(total, (int, float)):
+        out["total_reviews"] = int(total)
+
+    dr = pick("date_range", "range", "period", "dateRange", "date_range_text")
+    if isinstance(dr, str) and dr.strip():
+        out["date_range"] = dr.strip()
+    else:
+        start = pick("date_start", "start_date", "from")
+        end = pick("date_end", "end_date", "to")
+        if start and end:
+            out["date_range"] = f"{start} ~ {end}"
+
+    top5 = pick("complaint_top5", "complaintTop5", "top5", "complaints_top5")
+    if top5 is not None:
+        out["complaint_top5"] = top5
+
+    return out
+
+
+def _fmt_top5(x: Any) -> str:
+    if not x:
+        return "-"
+    try:
+        # list of tuples: [("사이즈",10),...]
+        if isinstance(x, list):
+            parts = []
+            for item in x[:5]:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    k = str(item[0]).strip()
+                    c = int(item[1])
+                    if k:
+                        parts.append(f"{k}({c:,})")
+                elif isinstance(item, dict):
+                    # {"keyword":"사이즈","count":10} 같은 경우
+                    k = str(item.get("keyword") or item.get("k") or "").strip()
+                    c = item.get("count") or item.get("c")
+                    try:
+                        c = int(c)
+                    except Exception:
+                        c = None
+                    if k and c is not None:
+                        parts.append(f"{k}({c:,})")
+            return " · ".join(parts) if parts else "-"
+        # string like "[('사이즈', 10), ...]"
+        s = str(x)
+        s = re.sub(r"[\[\]\(\)']", " ", s)
+        s = re.sub(r"\s+", " ", s).strip()
+        return s[:140] + ("…" if len(s) > 140 else "")
+    except Exception:
+        return "-"
+
+
+# -----------------------
 # HTML render (embed-friendly)
 # -----------------------
-def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str, Any]) -> str:
+def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str, Any], crema: Dict[str, Any]) -> str:
     def stat(label: str, value: str) -> str:
         return f"""
           <div class="flex items-baseline justify-between gap-3">
@@ -596,7 +598,6 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
     risk_label = naver.get("risk_label") or "-"
     risk_class = naver.get("risk_class") or "risk-unk"
 
-    # Button (consistent placement)
     def open_btn(href: str) -> str:
         return f"""
           <a href="{href}" target="_self"
@@ -606,6 +607,10 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
             Open report
           </a>
         """
+
+    crema_total = fmt_int(crema.get("total_reviews"))
+    crema_range = crema.get("date_range") or "-"
+    crema_top5 = _fmt_top5(crema.get("complaint_top5"))
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -641,7 +646,8 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- ✅ 4 cards -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
       <!-- NAVER -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
@@ -708,6 +714,26 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
           {open_btn("./external_signal.html")}
         </div>
       </div>
+
+      <!-- ✅ CREMA -->
+      <div class="glass-card rounded-3xl p-6 flex flex-col">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">Crema VOC</div>
+          <span class="badge-soft">Reviews</span>
+        </div>
+
+        <div class="mt-5 space-y-3">
+          {stat("TOTAL REVIEWS", crema_total)}
+          {stat("DATE RANGE", crema_range)}
+          {stat("TOP5", crema_top5)}
+        </div>
+
+        <div class="mt-4 text-xs text-slate-500">updated: {crema.get("updated") or ""}</div>
+
+        <div class="mt-auto">
+          {open_btn("./voc_crema/index.html")}
+        </div>
+      </div>
     </div>
   </div>
 </body>
@@ -727,13 +753,14 @@ def main() -> None:
 
     hero = build_hero_metrics(reports_dir, crawl_limit=crawl_limit, crawl_sleep=crawl_sleep)
     voc = build_voc_metrics(reports_dir)
+    crema = build_crema_metrics(reports_dir)
 
     out = reports_dir / "index.html"
-    out.write_text(render_index_html(naver, hero, voc), encoding="utf-8")
+    out.write_text(render_index_html(naver, hero, voc, crema), encoding="utf-8")
 
     print(f"[OK] Wrote: {out}")
-    print(f"[OK] Wrote: {reports_dir / 'hero_keywords.html'}")
-    print(f"[OK] Cache: {reports_dir / '_cache_hero_pages.json'}")
+    if crema.get("source"):
+        print(f"[OK] Crema meta source: {crema.get('source')}")
 
 
 if __name__ == "__main__":
