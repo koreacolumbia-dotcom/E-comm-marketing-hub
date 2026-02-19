@@ -2,341 +2,145 @@
 # -*- coding: utf-8 -*-
 
 """
-[FINAL - FULL INTEGRATED | PATCHED v2]
-- Crema 리뷰 수집 (pagy.next 끝까지)
-- 불만 키워드 Top5 자동 추출(형태소 없이)
-- 100자+ 리뷰 텍스트 캡처 이미지(PIL) 자동 생성
-- 상품 이미지/리뷰 썸네일 다운로드 → site/assets 로컬 자산화
-- site/data/reviews.json, site/data/meta.json 생성
-- (중요) 제공된 HTML 레이아웃 그대로 site/index.html 생성
-  - demo JS 제거
-  - JSON 로딩 렌더 JS로 교체
+[BUILD VOC DASHBOARD FROM JSON | v3]
+- 입력: 너가 모아둔 reviews.json ({"reviews":[...]})
+- 출력:
+  - site/data/reviews.json  (최근 7일로 필터된 리뷰만)
+  - site/data/meta.json     (period_text 포함, 키워드/마인드맵/랭킹 메타)
+  - site/index.html         (요구 UI 반영)
 
-[추가 핵심 패치]
-✅ (중요) Crema API 404(Not Found) 발생 product_code는 스킵하고 전체 수집 계속
-✅ 스킵된 product_code 목록/카운트 meta.json에 기록
-✅ 단일 product_code에서 반복 실패 시(429/403/네트워크)도 “상품 단위”로 스킵 옵션 제공
+✅ 키워드 안 뜨는 문제 해결
+  - 최근7일 + 불만리뷰 기반
+  - 해시태그/잡어 제거
 
-필수 환경변수:
-- CREMA_SECURE_DEVICE_TOKEN
+✅ 기간 최근 7일 고정
+  - 데이터 필터 + meta.json에 period_text 저장
 
-선택 환경변수:
-- CREMA_DOMAIN (default columbiakorea.co.kr)
-- CREMA_WIDGET_ID (default 2)
-- CREMA_PER_PAGE (default 30)
-- OUTPUT_TZ (default Asia/Seoul)
-- PROJECT_ROOT (repo root 경로 강제 지정, 권장)
-- SKIP_FREEGIFT_PREFIX (default 0)  # 1이면 freegift_ 접두 상품코드 자동 제외
-- FAIL_OPEN_PER_PRODUCT (default 1) # 1이면 상품 단위 에러시 스킵(운영용), 0이면 즉시 실패(디버그용)
+✅ 제품랭킹 Top5 기본 + 접기(더보기 토글)
+
+✅ 옵션 이슈율 Top5만 + OS 제외
+
+✅ 대표 리뷰 마인드맵(키워드 → 근거리뷰 연결)
+
+✅ 날짜 선택해서 "그날 리뷰" 보기 (date picker)
+
+필수: python-dateutil, pandas
+선택: Pillow (이미지 캡처는 입력 JSON에 text_image_path가 이미 있으면 그대로 사용)
 """
 
 from __future__ import annotations
 
-import os
-import re
+import argparse
 import json
-import time
-import hashlib
+import os
 import pathlib
-from datetime import datetime
-from typing import Dict, Any, List, Optional, Tuple
+import re
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Tuple
 
-import requests
 import pandas as pd
 from dateutil import tz
-from PIL import Image, ImageDraw, ImageFont
 
-# ----------------------------
-# tqdm (optional)
-# ----------------------------
-try:
-    from tqdm import tqdm  # type: ignore
-except Exception:
-    def tqdm(x, **kwargs):
-        return x
 
 # ----------------------------
 # Settings
 # ----------------------------
-
-def _get_int_env(key: str, default: int) -> int:
-    v = os.getenv(key, "").strip()
-    if not v:
-        return default
-    try:
-        return int(v)
-    except Exception:
-        return default
-
-def _get_bool_env(key: str, default: bool) -> bool:
-    v = os.getenv(key, "").strip().lower()
-    if v in ("1", "true", "yes", "y", "on"):
-        return True
-    if v in ("0", "false", "no", "n", "off"):
-        return False
-    return default
-
-DEFAULT_DOMAIN = os.getenv("CREMA_DOMAIN", "columbiakorea.co.kr").strip()
-DEFAULT_WIDGET_ID = _get_int_env("CREMA_WIDGET_ID", 2)
-DEFAULT_PER_PAGE = _get_int_env("CREMA_PER_PAGE", 30)
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
 
-SKIP_FREEGIFT_PREFIX = _get_bool_env("SKIP_FREEGIFT_PREFIX", False)
-FAIL_OPEN_PER_PRODUCT = _get_bool_env("FAIL_OPEN_PER_PRODUCT", True)
-
-SECURE_DEVICE_TOKEN = os.getenv("CREMA_SECURE_DEVICE_TOKEN", "").strip()
-if not SECURE_DEVICE_TOKEN:
-    raise SystemExit("ERROR: CREMA_SECURE_DEVICE_TOKEN 환경변수가 필요합니다.")
-
-BASE_API = f"https://review8.cre.ma/api/{DEFAULT_DOMAIN}"
-
-# ----------------------------
-# Repo root discovery
-# ----------------------------
-
-def find_repo_root() -> pathlib.Path:
-    """
-    우선순위:
-    1) PROJECT_ROOT env
-    2) 현재 파일 기준 상위로 올라가며 config/products.csv 또는 .git 찾기
-    3) CWD
-    """
-    env_root = os.getenv("PROJECT_ROOT", "").strip()
-    if env_root:
-        p = pathlib.Path(env_root).expanduser().resolve()
-        return p
-
-    here = pathlib.Path(__file__).resolve()
-    for p in [here.parent] + list(here.parents):
-        if (p / "config" / "products.csv").exists():
-            return p
-        if (p / ".git").exists():
-            return p
-
-    return pathlib.Path.cwd().resolve()
-
-ROOT = find_repo_root()
-
-CONFIG_DIR = ROOT / "config"
-SITE_DIR = ROOT / "site"
-SITE_DATA_DIR = SITE_DIR / "data"
-ASSET_DIR = SITE_DIR / "assets"
-ASSET_PRODUCTS = ASSET_DIR / "products"
-ASSET_REVIEWS = ASSET_DIR / "reviews"
-ASSET_TEXT = ASSET_DIR / "text_images"
-
-for d in [SITE_DIR, SITE_DATA_DIR, ASSET_DIR, ASSET_PRODUCTS, ASSET_REVIEWS, ASSET_TEXT]:
-    d.mkdir(parents=True, exist_ok=True)
-
-# ----------------------------
-# Helpers
-# ----------------------------
 
 def now_kst() -> datetime:
     return datetime.now(tz=tz.gettz(OUTPUT_TZ))
 
-def safe_filename(s: str) -> str:
-    s = re.sub(r"[^A-Za-z0-9._-]+", "_", s)
-    return s[:180]
 
-def sha1(s: str) -> str:
-    return hashlib.sha1(s.encode("utf-8")).hexdigest()
+def find_repo_root() -> pathlib.Path:
+    env_root = os.getenv("PROJECT_ROOT", "").strip()
+    if env_root:
+        return pathlib.Path(env_root).expanduser().resolve()
 
-def url_ext(url: str) -> str:
-    m = re.search(r"\.(jpg|jpeg|png|webp)(\?|$)", url, re.I)
-    if m:
-        return "." + m.group(1).lower()
-    return ".webp"
+    here = pathlib.Path(__file__).resolve()
+    for p in [here.parent] + list(here.parents):
+        if (p / "site").exists():
+            return p
+        if (p / ".git").exists():
+            return p
+    return pathlib.Path.cwd().resolve()
 
-# ----------------------------
-# HTTP with retry + download
-# ----------------------------
 
-class Http:
-    def __init__(self, timeout: int = 30):
-        self.s = requests.Session()
-        self.timeout = timeout
-        # ✅ 프록시/회사망 환경에서 HTTP(S)_PROXY 환경변수 자동 사용
-        self.s.trust_env = True
+ROOT = find_repo_root()
+SITE_DIR = ROOT / "site"
+SITE_DATA_DIR = SITE_DIR / "data"
+SITE_DIR.mkdir(parents=True, exist_ok=True)
+SITE_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    def get_json(
-        self,
-        url: str,
-        params: Dict[str, Any],
-        headers: Optional[Dict[str, str]] = None,
-        max_retries: int = 6,
-        backoff: float = 1.6,
-    ) -> Dict[str, Any]:
-        headers = headers or {}
-        headers.setdefault("Accept", "application/json, text/plain, */*")
-        headers.setdefault(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        )
-        headers.setdefault("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8")
-
-        last_err: Optional[Exception] = None
-        for i in range(max_retries):
-            try:
-                r = self.s.get(url, params=params, headers=headers, timeout=self.timeout)
-
-                # ✅ 핵심: 404는 해당 상품코드에 리뷰 리소스가 없음 → 스킵 가능하도록 빈 응답 반환
-                if r.status_code == 404:
-                    return {"reviews": [], "pagy": {"next": None}, "_http_status": 404}
-
-                if r.status_code == 429:
-                    time.sleep((backoff ** i) * 0.7)
-                    continue
-
-                # 403은 보통 차단/헤더 문제 → 빠르게 재시도하되, 너무 많이 두드리진 않음
-                if r.status_code == 403 and i < max_retries - 1:
-                    time.sleep((backoff ** i) * 0.6)
-                    continue
-
-                r.raise_for_status()
-                j = r.json()
-                if isinstance(j, dict):
-                    j["_http_status"] = r.status_code
-                return j
-            except Exception as e:
-                last_err = e
-                time.sleep(backoff ** i)
-
-        raise RuntimeError(f"GET failed: {url} params={params} err={last_err}")
-
-    def download(
-        self,
-        url: str,
-        out_path: pathlib.Path,
-        headers: Optional[Dict[str, str]] = None,
-        max_retries: int = 4,
-    ) -> bool:
-        if not url:
-            return False
-
-        headers = headers or {}
-        headers.setdefault(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        )
-        headers.setdefault("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
-        headers.setdefault("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8")
-
-        try:
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            if out_path.exists() and out_path.stat().st_size > 1024:
-                return True
-
-            for i in range(max_retries):
-                r = self.s.get(url, headers=headers, timeout=self.timeout, stream=True)
-                if r.status_code in (403, 404):
-                    # 403: referer 필요/차단, 404: 없음
-                    return False
-                if r.status_code == 429:
-                    time.sleep(1.0 + i * 0.7)
-                    continue
-                r.raise_for_status()
-
-                with open(out_path, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=1024 * 64):
-                        if chunk:
-                            f.write(chunk)
-
-                return out_path.exists() and out_path.stat().st_size > 0
-        except Exception:
-            return False
-
-http = Http()
 
 # ----------------------------
-# Crema API
+# Text cleaning + keyword extraction
 # ----------------------------
 
-def crema_reviews(product_code: str, page: int, per: int, widget_id: int) -> Dict[str, Any]:
-    url = f"{BASE_API}/reviews"
-    params = {
-        "secure_device_token": SECURE_DEVICE_TOKEN,
-        "fields": (
-            "has_media,total_product_media_reviews_count,"
-            "reviews.evaluation_type_options,reviews.ai_summary,"
-            "reviews.with_parent_reviews,reviews.review_options"
-        ),
-        "product_code": product_code,
-        "widget_id": widget_id,
-        "app": 0,
-        "iframe": 1,
-        "widget_style": "list_v3",
-        "page": page,
-        "per": per,
-    }
-    headers = {"Referer": f"https://review8.cre.ma/v2/{DEFAULT_DOMAIN}/product_reviews/list_v3"}
-    return http.get_json(url, params=params, headers=headers)
-
-def fetch_all_pages(product_code: str, per: int, widget_id: int, hard_max_pages: int = 300) -> List[Dict[str, Any]]:
-    out: List[Dict[str, Any]] = []
-    page = 1
-    for _ in range(hard_max_pages):
-        data = crema_reviews(product_code=product_code, page=page, per=per, widget_id=widget_id)
-
-        # 404 처리: Http.get_json이 이미 빈 응답을 주지만, 혹시 모르니 안전장치
-        if isinstance(data, dict) and data.get("_http_status") == 404:
-            break
-
-        reviews = data.get("reviews") or []
-        out.extend(reviews)
-
-        pagy = data.get("pagy") or {}
-        nxt = pagy.get("next")
-        if not nxt:
-            break
-
-        try:
-            page = int(nxt)
-        except Exception:
-            break
-
-        time.sleep(0.6)  # ✅ 0.2 → 0.6 (차단/429 완화)
-    return out
-
-# ----------------------------
-# Keyword extraction (no morphology)
-# ----------------------------
-
+# “너무 흔한 말/의미없는 말” 강하게 제거 (필요하면 여기 계속 늘리면 됨)
 STOPWORDS = set("""
-그리고 그러나 그래서 하지만 또한 너무 정말 완전 진짜 매우 그냥 조금 약간 저는 제가 우리는 너희 이거 그거 저거
-있습니다 입니다 같아요 같네요 하는 하다 됐어요 되었어요 되네요 구매 구입 제품 상품 사용
+그리고 그러나 그래서 하지만 또한 너무 정말 완전 진짜 매우 그냥 조금 약간
+저는 제가 우리는 너희 이거 그거 저거 있습니다 입니다 같아요 같네요 하는 하다 됐어요 되었어요 되네요
+구매 구입 제품 상품 사용 착용 배송 택배 포장 문의
+좋아요 좋아요요 좋다 좋네요 만족 추천 재구매 가성비 최고 굿 예뻐요 이뻐요
+사이즈 정사이즈 한치수 한 치수
+컬러 색상 디자인
 """.split())
 
-def tokenize_ko(text: str) -> List[str]:
-    toks = re.findall(r"[가-힣A-Za-z0-9]+", (text or "").lower())
-    return [t for t in toks if len(t) >= 2 and t not in STOPWORDS]
+# 숫자만/짧은 토큰 제거, 잡어 제거용
+RE_URL = re.compile(r"https?://\S+|www\.\S+", re.I)
+RE_HASHTAG = re.compile(r"#[A-Za-z0-9가-힣_]+")
+RE_EMOJI_ETC = re.compile(r"[^\w\s가-힣]", re.UNICODE)
+
+
+def normalize_text(s: str) -> str:
+    s = (s or "").strip()
+    if not s:
+        return ""
+    s = RE_URL.sub(" ", s)
+    s = RE_HASHTAG.sub(" ", s)
+    s = s.replace("\n", " ")
+    s = RE_EMOJI_ETC.sub(" ", s)  # 특수문자/이모지 등 제거
+    s = re.sub(r"\s+", " ", s).strip()
+    return s.lower()
+
+
+def tokenize_ko(s: str) -> List[str]:
+    s = normalize_text(s)
+    if not s:
+        return []
+    toks = re.findall(r"[가-힣A-Za-z0-9]+", s)
+    out: List[str] = []
+    for t in toks:
+        if len(t) < 2:
+            continue
+        if t.isdigit():
+            continue
+        if t in STOPWORDS:
+            continue
+        out.append(t)
+    return out
+
 
 def top_terms(texts: List[str], topk: int = 5) -> List[Tuple[str, int]]:
     freq: Dict[str, int] = {}
     for tx in texts:
         for tok in tokenize_ko(tx):
             freq[tok] = freq.get(tok, 0) + 1
-    items = sorted(freq.items(), key=lambda x: x[1], reverse=True)
-    return items[:topk]
+    return sorted(freq.items(), key=lambda x: x[1], reverse=True)[:topk]
+
 
 # ----------------------------
-# Tagging rules (simple, deterministic)
+# Rule tagging (보강용)
 # ----------------------------
-
 SIZE_KEYWORDS = [
-    "사이즈", "정사이즈", "한치수", "한 치수", "작아요", "작다", "커요", "크다",
-    "핏", "낙낙", "타이트", "여유", "끼", "기장", "소매", "어깨", "가슴", "발볼"
+    "사이즈", "정사이즈", "작아요", "작다", "커요", "크다", "핏", "타이트", "여유",
+    "끼", "기장", "소매", "어깨", "가슴", "발볼", "헐렁", "오버"
 ]
+REQ_KEYWORDS = ["개선", "아쉬", "불편", "했으면", "추가", "보완", "수정", "필요", "요청", "교환", "반품"]
+COMPLAINT_HINTS = ["불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악", "실망", "문제"]
 
-POS_KEYWORDS = [
-    "만족", "좋아요", "좋다", "예뻐", "이쁘", "추천", "재구매", "가성비",
-    "편해", "편안", "따뜻", "가볍", "최고", "빠르", "잘샀"
-]
-
-REQ_KEYWORDS = [
-    "개선", "아쉬", "불편", "바랐", "했으면", "추가", "보완", "수정", "필요",
-    "요청", "문의", "교환", "반품"
-]
 
 def has_any_kw(text: str, kws: List[str]) -> bool:
     t = (text or "").replace(" ", "")
@@ -345,11 +149,8 @@ def has_any_kw(text: str, kws: List[str]) -> bool:
             return True
     return False
 
+
 def classify_size_direction(text: str) -> str:
-    """
-    too_small / too_big / other
-    (형태소 없이 규칙 기반)
-    """
     t = (text or "").replace(" ", "")
     small_kw = ["작아", "작다", "타이트", "끼", "조인다", "짧다", "좁다", "발볼좁", "어깨좁", "가슴좁"]
     big_kw = ["커", "크다", "넉넉", "오버", "길다", "넓다", "헐렁", "부해"]
@@ -361,185 +162,112 @@ def classify_size_direction(text: str) -> str:
             return "too_big"
     return "other"
 
-# ----------------------------
-# PIL text image (100+ chars)
-# ----------------------------
 
-def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
-    text = (text or "").strip()
-    if not text:
-        return [""]
+def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
+    """입력 JSON tags를 존중하되, 없거나 약하면 규칙으로 보강."""
+    text = str(row.get("text") or "")
+    rating = int(row.get("rating") or 0)
 
-    words = text.split()
-    lines: List[str] = []
-    cur = ""
+    tags = row.get("tags")
+    if not isinstance(tags, list):
+        tags = []
 
-    def text_w(s: str) -> int:
-        bbox = draw.textbbox((0, 0), s, font=font)
-        return bbox[2] - bbox[0]
-
-    for w in words:
-        test = (cur + " " + w).strip()
-        if text_w(test) <= max_width:
-            cur = test
-        else:
-            if cur:
-                lines.append(cur)
-                cur = w
-            else:
-                chunk = ""
-                for ch in w:
-                    test2 = chunk + ch
-                    if text_w(test2) <= max_width:
-                        chunk = test2
-                    else:
-                        if chunk:
-                            lines.append(chunk)
-                        chunk = ch
-                cur = chunk
-    if cur:
-        lines.append(cur)
-    return lines
-
-def create_text_capture_image(review_id: str, product_name: str, score: int, created_at: str, text: str) -> str:
-    """
-    생성한 파일의 site 기준 상대경로 반환: assets/text_images/xxx.png
-    """
-    W = 980
-    PAD = 44
-    HEADER_H = 120
-    BG = (246, 248, 251)
-    CARD = (255, 255, 255)
-    TXT = (15, 23, 42)
-    MUTED = (100, 116, 139)
-
-    out_name = safe_filename(sha1(str(review_id)) + ".png")
-    out_path = ASSET_TEXT / out_name
-
-    # 폰트: NanumGothic.ttf 있으면 사용
-    try:
-        font_title = ImageFont.truetype("NanumGothic.ttf", 30)
-        font_meta = ImageFont.truetype("NanumGothic.ttf", 22)
-        font_body = ImageFont.truetype("NanumGothic.ttf", 26)
-    except Exception:
-        font_title = ImageFont.load_default()
-        font_meta = ImageFont.load_default()
-        font_body = ImageFont.load_default()
-
-    tmp = Image.new("RGB", (W, 800), BG)
-    dtmp = ImageDraw.Draw(tmp)
-
-    max_text_width = W - PAD * 2
-    lines = wrap_text(dtmp, text, font_body, max_text_width)
-
-    line_h = 34
-    body_h = max(240, len(lines) * line_h + 40)
-    H = HEADER_H + body_h + PAD
-
-    img = Image.new("RGB", (W, H), BG)
-    draw = ImageDraw.Draw(img)
-
-    card_x0, card_y0 = PAD, PAD
-    card_x1, card_y1 = W - PAD, H - PAD
-    draw.rounded_rectangle([card_x0, card_y0, card_x1, card_y1], radius=28, fill=CARD)
-
-    title = (product_name or "상품명 없음")[:40]
-    meta = f"★ {score}  ·  {created_at[:10] if created_at else ''}  ·  review_id={review_id}"
-
-    draw.text((card_x0 + 28, card_y0 + 24), title, font=font_title, fill=TXT)
-    draw.text((card_x0 + 28, card_y0 + 70), meta, font=font_meta, fill=MUTED)
-
-    y = card_y0 + HEADER_H
-    x = card_x0 + 28
-    for ln in lines:
-        draw.text((x, y), ln, font=font_body, fill=TXT)
-        y += line_h
-
-    img.save(out_path)
-    return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
-
-# ----------------------------
-# Flatten review
-# ----------------------------
-
-def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> Dict[str, Any]:
-    images = r.get("images") or []
-    thumbs = [img.get("thumbnail_url") for img in images if img.get("thumbnail_url")]
-    fulls = [img.get("url") for img in images if img.get("url")]
-
-    ro = r.get("review_options") or []
-    ro_map = {x.get("name"): x.get("value") for x in ro if x.get("name")}
-
-    po = r.get("product_options") or []
-    po_map = {x.get("name"): x.get("value") for x in po if x.get("name")}
-
-    msg = (r.get("filtered_message") or "").strip()
-    score = int(r.get("score") or 0)
-
-    opt_size = (po_map.get("사이즈") or ro_map.get("평소사이즈") or "").strip()
-    opt_color = (po_map.get("컬러") or "").strip()
-    fit_q = (ro_map.get("사이즈 어때요?") or "").strip()
-
-    product_name = (r.get("product_name") or "").strip() or (csv_name or "").strip()
-    product_url = (r.get("product_url") or "").strip() or (csv_url or "").strip()
-
-    tags: List[str] = []
-    if score <= 2:
+    # low
+    if rating <= 2 and "low" not in tags:
         tags.append("low")
-    if has_any_kw(msg, SIZE_KEYWORDS) or fit_q in ("조금 작아요", "작아요", "조금 커요", "커요"):
+
+    # size
+    fit_q = str(row.get("fit_q") or "")
+    if ("size" not in tags) and (has_any_kw(text, SIZE_KEYWORDS) or fit_q in ("조금 작아요", "작아요", "조금 커요", "커요")):
         tags.append("size")
-    if has_any_kw(msg, POS_KEYWORDS) and score >= 4:
-        tags.append("pos")
-    if has_any_kw(msg, REQ_KEYWORDS):
+
+    # req
+    if ("req" not in tags) and has_any_kw(text, REQ_KEYWORDS):
         tags.append("req")
 
-    size_dir = classify_size_direction(msg)
+    # pos는 입력값을 존중 (여기서 억지로 늘리진 않음)
+    row["tags"] = tags
 
-    return {
-        "id": r.get("id"),
-        "product_code": r.get("product_code"),
-        "product_name": product_name,
-        "product_url": product_url,
-        "rating": score,
-        "created_at": r.get("created_at"),
-        "text": msg,
-        "source": "Official",
-        "option_size": opt_size,
-        "option_color": opt_color,
-        "fit_q": fit_q,
-        "height": ro_map.get("키") or "",
-        "weight": ro_map.get("몸무게") or "",
-        "tags": tags,
-        "size_direction": size_dir,
-        "review_thumb_url": thumbs[0] if thumbs else "",
-        "review_image_url": fulls[0] if fulls else "",
-        "product_image_source_url": r.get("product_image_source_url") or "",
-        "product_image_url": r.get("product_image_url") or "",
-    }
+    sd = str(row.get("size_direction") or "")
+    if sd not in ("too_small", "too_big", "other"):
+        row["size_direction"] = classify_size_direction(text)
 
-# ----------------------------
-# Asset localization (with Referer)
-# ----------------------------
+    return row
 
-def download_to_assets(url: str, kind_dir: pathlib.Path, referer: str = "") -> str:
-    if not url or not isinstance(url, str) or not url.startswith("http"):
-        return ""
-    name = safe_filename(sha1(url) + url_ext(url))
-    out_path = kind_dir / name
 
-    headers: Dict[str, str] = {}
-    if referer:
-        headers["Referer"] = referer
+def is_complaint(row: Dict[str, Any]) -> bool:
+    """불만리뷰 정의: 최근7일 내에서 아래 중 하나면 포함
+    - rating<=2
+    - tags에 low/req 포함
+    - 텍스트에 불만 힌트(품질/불량 등) 포함 + rating<=3
+    """
+    rating = int(row.get("rating") or 0)
+    tags = row.get("tags") or []
+    text = str(row.get("text") or "")
 
-    ok = http.download(url, out_path, headers=headers if headers else None)
-    if not ok:
-        return ""
-    return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
+    if rating <= 2:
+        return True
+    if isinstance(tags, list) and ("low" in tags or "req" in tags):
+        return True
+    if rating <= 3 and has_any_kw(text, COMPLAINT_HINTS):
+        return True
+    return False
+
 
 # ----------------------------
-# HTML template
+# Mindmap builder (keyword -> evidence reviews)
 # ----------------------------
+@dataclass
+class Evidence:
+    id: Any
+    product_name: str
+    product_code: str
+    created_at: str
+    rating: int
+    text_snip: str
 
+
+def build_mindmap(complaint_rows: List[Dict[str, Any]], topk_keywords: int = 8, evidence_per_kw: int = 4):
+    texts = [str(r.get("text") or "") for r in complaint_rows]
+    kw_counts = top_terms(texts, topk=topk_keywords)
+
+    mindmap = []
+    for kw, cnt in kw_counts:
+        evs: List[Evidence] = []
+        for r in complaint_rows:
+            t = normalize_text(str(r.get("text") or ""))
+            if not t:
+                continue
+            if kw in tokenize_ko(t):  # 토큰 기준 포함
+                snip = str(r.get("text") or "").strip()
+                snip = re.sub(r"\s+", " ", snip)
+                snip = snip[:120] + ("…" if len(snip) > 120 else "")
+                evs.append(
+                    Evidence(
+                        id=r.get("id"),
+                        product_name=str(r.get("product_name") or r.get("product_code") or "-"),
+                        product_code=str(r.get("product_code") or "-"),
+                        created_at=str(r.get("created_at") or ""),
+                        rating=int(r.get("rating") or 0),
+                        text_snip=snip,
+                    )
+                )
+        # 최신순 우선
+        evs.sort(key=lambda x: x.created_at, reverse=True)
+        evs = evs[:evidence_per_kw]
+        mindmap.append(
+            {
+                "keyword": kw,
+                "count": cnt,
+                "evidence": [e.__dict__ for e in evs],
+            }
+        )
+    return mindmap
+
+
+# ----------------------------
+# HTML template (요구사항 반영)
+# ----------------------------
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -547,7 +275,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VOC Dashboard | Official + Naver Reviews</title>
 
-  <!-- Tailwind + FontAwesome -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
@@ -557,154 +284,55 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
-      color:#0f172a;
-      min-height:100vh;
+      color:#0f172a; min-height:100vh;
     }
-    .glass-card{
-      background: rgba(255,255,255,0.55);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.75);
-      border-radius: 30px;
-      box-shadow: 0 20px 50px rgba(0,45,114,0.05);
-    }
-    .sidebar{
-      background: rgba(255,255,255,0.70);
-      backdrop-filter: blur(15px);
-      border-right: 1px solid rgba(255,255,255,0.80);
-    }
-    .summary-card{
-      border-radius: 26px;
-      background: rgba(255,255,255,0.55);
-      border: 1px solid rgba(255,255,255,0.75);
-      backdrop-filter: blur(18px);
-      box-shadow: 0 20px 50px rgba(0,45,114,0.05);
-      padding: 18px 20px;
-    }
-    .small-label{
-      font-size: 10px;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      font-weight: 900;
-    }
-    .input-glass{
-      background: rgba(255,255,255,0.65);
-      border: 1px solid rgba(255,255,255,0.80);
-      border-radius: 18px;
-      padding: 12px 14px;
-      outline: none;
-      font-weight: 800;
-      color:#0f172a;
-    }
-    .input-glass:focus{
-      box-shadow: 0 0 0 4px rgba(0,45,114,0.10);
-      border-color: rgba(0,45,114,0.25);
-    }
-    .chip{
-      border-radius: 9999px;
-      padding: 10px 14px;
-      font-weight: 900;
-      font-size: 12px;
-      border: 1px solid rgba(255,255,255,0.85);
-      background: rgba(255,255,255,0.60);
-      color:#334155;
-      cursor:pointer;
-      user-select:none;
-    }
-    .chip.active{
-      background: rgba(0,45,114,0.95);
-      color:#fff;
-      border-color: rgba(0,45,114,1);
-      box-shadow: 0 10px 30px rgba(0,45,114,0.15);
-    }
-    .tab-btn{
-      padding: 10px 14px;
-      border-radius: 18px;
-      font-weight: 900;
-      font-size: 12px;
-      border: 1px solid rgba(255,255,255,0.85);
-      background: rgba(255,255,255,0.60);
-      color:#475569;
-      transition: all .15s ease;
-    }
+    .glass-card{ background: rgba(255,255,255,0.55); backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.75); border-radius: 30px;
+      box-shadow: 0 20px 50px rgba(0,45,114,0.05); }
+    .sidebar{ background: rgba(255,255,255,0.70); backdrop-filter: blur(15px);
+      border-right: 1px solid rgba(255,255,255,0.80); }
+    .summary-card{ border-radius: 26px; background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.75); backdrop-filter: blur(18px);
+      box-shadow: 0 20px 50px rgba(0,45,114,0.05); padding: 18px 20px; }
+    .small-label{ font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 900; }
+    .input-glass{ background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.80);
+      border-radius: 18px; padding: 12px 14px; outline: none; font-weight: 800; color:#0f172a; }
+    .input-glass:focus{ box-shadow: 0 0 0 4px rgba(0,45,114,0.10); border-color: rgba(0,45,114,0.25); }
+    .chip{ border-radius: 9999px; padding: 10px 14px; font-weight: 900; font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.60);
+      color:#334155; cursor:pointer; user-select:none; }
+    .chip.active{ background: rgba(0,45,114,0.95); color:#fff; border-color: rgba(0,45,114,1);
+      box-shadow: 0 10px 30px rgba(0,45,114,0.15); }
+    .tab-btn{ padding: 10px 14px; border-radius: 18px; font-weight: 900; font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.60);
+      color:#475569; transition: all .15s ease; }
     .tab-btn:hover{ background: rgba(255,255,255,0.90); }
-    .tab-btn.active{
-      background: rgba(0,45,114,0.95);
-      color:#fff;
-      border-color: rgba(0,45,114,1);
-      box-shadow: 0 10px 30px rgba(0,45,114,0.15);
-    }
-    .overlay{
-      position: fixed;
-      inset:0;
-      background: rgba(255,255,255,0.65);
-      backdrop-filter: blur(10px);
-      display:none;
-      align-items:center;
-      justify-content:center;
-      z-index:9999;
-    }
+    .tab-btn.active{ background: rgba(0,45,114,0.95); color:#fff; border-color: rgba(0,45,114,1);
+      box-shadow: 0 10px 30px rgba(0,45,114,0.15); }
+    .overlay{ position: fixed; inset:0; background: rgba(255,255,255,0.65); backdrop-filter: blur(10px);
+      display:none; align-items:center; justify-content:center; z-index:9999; }
     .overlay.show{ display:flex; }
-    .spinner{
-      width:56px;height:56px;border-radius:9999px;
-      border:6px solid rgba(0,0,0,0.08);
-      border-top-color: rgba(0,45,114,0.95);
-      animation: spin .9s linear infinite;
-    }
+    .spinner{ width:56px;height:56px;border-radius:9999px; border:6px solid rgba(0,0,0,0.08);
+      border-top-color: rgba(0,45,114,0.95); animation: spin .9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg);} }
-    .tbl{
-      width:100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      overflow:hidden;
-      border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.85);
-      background: rgba(255,255,255,0.55);
-    }
-    .tbl th{
-      font-size: 11px;
-      letter-spacing: .22em;
-      text-transform: uppercase;
-      font-weight: 900;
-      color:#475569;
-      background: rgba(255,255,255,0.75);
-      padding: 14px 14px;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-    .tbl td{
-      padding: 14px 14px;
-      border-top: 1px solid rgba(255,255,255,0.75);
-      font-weight: 800;
-      color:#0f172a;
-      font-size: 13px;
-      vertical-align: top;
-    }
+    .tbl{ width:100%; border-collapse: separate; border-spacing: 0; overflow:hidden; border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.55); }
+    .tbl th{ font-size: 11px; letter-spacing: .22em; text-transform: uppercase; font-weight: 900;
+      color:#475569; background: rgba(255,255,255,0.75); padding: 14px 14px; position: sticky; top: 0; z-index: 1; }
+    .tbl td{ padding: 14px 14px; border-top: 1px solid rgba(255,255,255,0.75); font-weight: 800;
+      color:#0f172a; font-size: 13px; vertical-align: top; }
     .tbl .muted{ color:#64748b; font-weight:800; font-size:12px; }
-    .review-card{
-      border-radius: 26px;
-      background: rgba(255,255,255,0.55);
-      border: 1px solid rgba(255,255,255,0.80);
-      backdrop-filter: blur(18px);
-      box-shadow: 0 16px 42px rgba(0,45,114,0.04);
-      padding: 18px 18px;
-    }
-    .badge{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      padding: 6px 10px;
-      border-radius: 9999px;
-      font-size: 11px;
-      font-weight: 900;
-      border: 1px solid rgba(255,255,255,0.85);
-      background: rgba(255,255,255,0.65);
-      color:#334155;
-    }
+    .review-card{ border-radius: 26px; background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.80); backdrop-filter: blur(18px);
+      box-shadow: 0 16px 42px rgba(0,45,114,0.04); padding: 18px 18px; }
+    .badge{ display:inline-flex; align-items:center; gap:6px; padding: 6px 10px; border-radius: 9999px;
+      font-size: 11px; font-weight: 900; border: 1px solid rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.65); color:#334155; }
     .badge.neg{ background: rgba(239,68,68,0.10); color:#b91c1c; border-color: rgba(239,68,68,0.18); }
     .badge.pos{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
     .badge.size{ background: rgba(59,130,246,0.10); color:#1d4ed8; border-color: rgba(59,130,246,0.18); }
-    .img-box{ width:72px; height:72px; border-radius:18px; overflow:hidden; background: rgba(255,255,255,0.70); border:1px solid rgba(255,255,255,0.85); }
+    .img-box{ width:72px; height:72px; border-radius:18px; overflow:hidden; background: rgba(255,255,255,0.70);
+      border:1px solid rgba(255,255,255,0.85); }
     .img-box img{ width:100%; height:100%; object-fit:cover; display:block; }
     .review-list{ display:grid; grid-template-columns: 1fr; gap: 14px; }
     @media (min-width: 1024px){ .review-list{ grid-template-columns: 1fr 1fr; } }
@@ -716,7 +344,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 </head>
 
 <body class="flex">
-
   <div id="overlay" class="overlay">
     <div class="glass-card px-8 py-7 flex items-center gap-4">
       <div class="spinner"></div>
@@ -751,12 +378,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <div class="mt-auto pt-8 text-xs font-bold text-slate-500">
       <div class="small-label text-blue-600 mb-2">Snapshot</div>
       <div>수집일: <span id="runDateSide" class="font-black text-slate-700">-</span></div>
-      <div class="mt-2">기간: <span id="dateRangeSide" class="font-black text-slate-700">-</span></div>
+      <div class="mt-2">기간: <span id="periodTextSide" class="font-black text-slate-700">-</span></div>
     </div>
   </aside>
 
   <main class="flex-1 p-8 md:p-14">
-
     <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
       <div>
         <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
@@ -806,7 +432,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
           </div>
           <div class="text-xs font-black text-slate-500">
-            * JSON 데이터 기반 자동 산출
+            * 최근 7일 고정 + 불만리뷰 기반 키워드
           </div>
         </div>
 
@@ -820,7 +446,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           <div class="summary-card">
             <div class="small-label text-red-600 mb-2">1-2) Complaint Top 5</div>
             <div id="topComplaints" class="mt-2 flex flex-wrap gap-2"></div>
-            <div class="text-xs font-bold text-slate-500 mt-3">저평점(≤2) 텍스트 기반 자동 추출</div>
+            <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 불만리뷰(저평점/불만태그/불만표현) 기반</div>
           </div>
 
           <div class="summary-card">
@@ -837,12 +463,17 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
           <div>
             <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
+            <div class="text-xs font-bold text-slate-500 mt-1">Top5 기본 노출(접기/펼치기)</div>
           </div>
           <div class="flex gap-2">
             <button class="chip active" id="rank-size" onclick="switchRankMode('size')">2-1) 사이즈 이슈율</button>
             <button class="chip" id="rank-low" onclick="switchRankMode('low')">2-2) 저평점 비중</button>
             <button class="chip" id="rank-both" onclick="switchRankMode('both')">2-3) 교집합</button>
           </div>
+        </div>
+
+        <div class="flex items-center justify-end mb-3">
+          <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
         </div>
 
         <div class="overflow-auto">
@@ -882,6 +513,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
           <div class="summary-card lg:col-span-2">
             <div class="small-label text-blue-600 mb-2">3-2) 옵션(사이즈)별 이슈율</div>
+            <div class="text-xs font-bold text-slate-500 mb-2">Top5만 + OS 제외</div>
             <div class="overflow-auto mt-3">
               <table class="tbl min-w-[820px]">
                 <thead>
@@ -910,44 +542,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div class="glass-card p-8">
         <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
           <div>
-            <div class="small-label text-blue-600 mb-2">4. 반복 불만 키워드 분석</div>
+            <div class="small-label text-blue-600 mb-2">4. 대표 리뷰 마인드맵</div>
+            <div class="text-xs font-bold text-slate-500 mt-1">키워드 → 근거 리뷰 연결</div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div class="summary-card">
-            <div class="small-label text-red-600 mb-2">4-1) 저평점 키워드</div>
-            <div id="liftWords" class="mt-3 space-y-2"></div>
-          </div>
-
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">4-2) 제품 공통 문제 키워드</div>
-            <div id="commonIssues" class="mt-3 flex flex-wrap gap-2"></div>
-          </div>
-
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">4-3) 사이즈 이슈 반복 표현</div>
-            <div id="sizePhrases" class="mt-3 flex flex-wrap gap-2"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="mb-10">
-      <div class="glass-card p-8">
-        <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-          <div>
-            <div class="small-label text-blue-600 mb-2">5. 대표 근거 리뷰</div>
-          </div>
-
-          <div class="flex gap-2">
-            <button class="chip active" id="ev-size" onclick="switchEvidence('size')">5-1) 사이즈 이슈</button>
-            <button class="chip" id="ev-low" onclick="switchEvidence('low')">5-2) 저평점</button>
-            <button class="chip" id="ev-req" onclick="switchEvidence('req')">5-3) 개선 요청</button>
-          </div>
-        </div>
-
-        <div id="evidenceList" class="review-list"></div>
+        <div id="mindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
       </div>
     </section>
 
@@ -957,26 +557,24 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           <div>
             <div class="small-label text-blue-600 mb-2">Daily Feed</div>
             <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
-            <div class="text-sm font-bold text-slate-500 mt-2">기본은 “전체 노출”, 필터는 최소화</div>
+            <div class="text-sm font-bold text-slate-500 mt-2">최근 7일 범위 내에서 날짜 선택 가능</div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-6">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-6">
+          <input id="daySelect" type="date" class="input-glass" onchange="renderAll()" />
           <select id="productSelect" class="input-glass" onchange="renderAll()">
             <option value="">제품 선택 (전체)</option>
           </select>
-
           <select id="sizeSelect" class="input-glass" onchange="renderAll()">
             <option value="">옵션 사이즈 (전체)</option>
           </select>
-
           <select id="sortSelect" class="input-glass" onchange="renderAll()">
             <option value="upload">정렬: 업로드 순 (기본)</option>
             <option value="latest">최신순</option>
             <option value="long">리뷰 길이 긴 순</option>
             <option value="low">저평점순</option>
           </select>
-
           <input id="qInput" class="input-glass" placeholder="텍스트 검색(옵션)" oninput="renderAll()" />
         </div>
 
@@ -989,8 +587,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     </section>
 
     <footer class="text-xs font-bold text-slate-500 pb-8">
-      * 데이터 소스: Crema API(JSON).<br/>
-      * 리뷰 텍스트 100자 이상은 PIL로 캡처 이미지를 자동 생성하여 표시합니다.
+      * 데이터 소스: reviews.json (최근 7일로 필터링 후 렌더).<br/>
+      * 키워드: 최근 7일 불만리뷰 기반 + 해시태그/잡어 제거.
     </footer>
 
   </main>
@@ -1003,16 +601,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       sourceTab: 'combined',
       chips: { daily:true, pos:false, size:false, low:false },
       rankMode: 'size',
-      evidenceMode: 'size'
+      rankExpanded: false, // ✅ Top5 기본
     };
 
     function showOverlay(msg){
       overlayMsg.textContent = msg || '잠시만요';
       overlay.classList.add('show');
     }
-    function hideOverlay(){
-      overlay.classList.remove('show');
-    }
+    function hideOverlay(){ overlay.classList.remove('show'); }
     function runWithOverlay(msg, fn){
       showOverlay(msg);
       setTimeout(() => { Promise.resolve().then(fn).finally(() => requestAnimationFrame(hideOverlay)); }, 0);
@@ -1047,14 +643,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       });
     }
 
-    function switchEvidence(mode){
-      runWithOverlay('Switching evidence...', () => {
-        uiState.evidenceMode = mode;
-        document.getElementById('ev-size').classList.toggle('active', mode==='size');
-        document.getElementById('ev-low').classList.toggle('active', mode==='low');
-        document.getElementById('ev-req').classList.toggle('active', mode==='req');
-        renderAll();
-      });
+    function toggleRankingExpand(){
+      uiState.rankExpanded = !uiState.rankExpanded;
+      const btn = document.getElementById("rankToggleBtn");
+      btn.textContent = uiState.rankExpanded ? "접기" : "Top5만 보기";
+      btn.classList.toggle("active", uiState.rankExpanded);
+      renderAll();
     }
 
     (function () {
@@ -1087,6 +681,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
+
+      // ✅ 날짜 선택: YYYY-MM-DD 일치
+      const day = (document.getElementById("daySelect")?.value || "").trim();
+      if (day){
+        rows = rows.filter(r => String(r.created_at || "").slice(0,10) === day);
+      }
 
       const productCode = document.getElementById("productSelect")?.value || "";
       if (productCode) rows = rows.filter(r => r.product_code === productCode);
@@ -1146,13 +746,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         const g = byProd.get(code);
         g.reviews += 1;
         if (asArr(r.tags).includes("size")) g.sizeIssue += 1;
-        if ((r.rating||0) <= 2) g.low += 1;
+        if ((r.rating||0) <= 2 || asArr(r.tags).includes("low")) g.low += 1;
 
-        if ((r.rating||0) <= 2){
+        // ✅ 문제 키워드(불만리뷰 기반)
+        if ((r.rating||0) <= 2 || asArr(r.tags).includes("low") || asArr(r.tags).includes("req")){
           const words = (r.text||"").match(/[가-힣A-Za-z0-9]{2,}/g) || [];
-          for (const w of words.slice(0, 40)){
+          for (const w of words.slice(0, 50)){
             const k = w.toLowerCase();
             if (k.length < 2) continue;
+            if (["제품","상품","구매","배송","택배","사이즈"].includes(k)) continue;
             g.issueKwds.set(k, (g.issueKwds.get(k)||0) + 1);
           }
         }
@@ -1173,10 +775,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       const rankLow  = rows.slice().sort((a,b)=> b.lowRate  - a.lowRate  || b.reviews - a.reviews);
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || b.reviews - a.reviews);
 
+      // ✅ 옵션(사이즈) 이슈율: Top5 + OS 제외
       const sizeMap = new Map();
       for (const r of reviews){
         const sz = (r.option_size || "").trim();
         if (!sz) continue;
+        if (sz.toUpperCase() === "OS") continue;
         if (!sizeMap.has(sz)){
           sizeMap.set(sz, { sz, cnt:0, small:0, big:0, other:0 });
         }
@@ -1190,7 +794,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           o.other += 1;
         }
       }
-      const sizeOpts = Array.from(sizeMap.values())
+      let sizeOpts = Array.from(sizeMap.values())
         .sort((a,b)=> b.cnt - a.cnt)
         .map(x => {
           const cnt = Math.max(1, x.cnt);
@@ -1200,24 +804,24 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           return { sz:x.sz, cnt:x.cnt, small:smallP, big:bigP, ok:okP };
         });
 
+      sizeOpts = sizeOpts.slice(0, 5);
+
       return {
         total,
         sizeMentionRate: Math.round((sizeMention/total)*100),
         tooSmall,
         tooBig,
-        rankSize,
-        rankLow,
-        rankBoth,
+        rankSize, rankLow, rankBoth,
         sizeOpts
       };
     }
 
     function renderHeader(){
       const runDate = META?.updated_at || "-";
-      const dateRange = META?.date_range || "-";
+      const periodText = META?.period_text || META?.date_range || "-";
       document.getElementById("runDateSide").textContent = String(runDate).slice(0,10).replaceAll("-",".");
-      document.getElementById("dateRangeSide").textContent = dateRange;
-      document.getElementById("headerMeta").textContent = `${runDate} · ${dateRange} · 주 1회 자동 업데이트(월 09:00)`;
+      document.getElementById("periodTextSide").textContent = periodText;
+      document.getElementById("headerMeta").textContent = `${runDate} · ${periodText} · 주 1회 자동 업데이트(월 09:00)`;
     }
 
     function renderSummary(metrics){
@@ -1243,8 +847,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       else if (uiState.rankMode === "low") rows = metrics.rankLow;
       else rows = metrics.rankBoth;
 
+      const maxRows = uiState.rankExpanded ? Math.min(rows.length, 50) : Math.min(rows.length, 5);
       const tbody = document.getElementById("rankingBody");
-      tbody.innerHTML = rows.slice(0, 50).map(r => `
+
+      tbody.innerHTML = rows.slice(0, maxRows).map(r => `
         <tr>
           <td>
             <div class="flex items-center gap-3">
@@ -1286,23 +892,38 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
     }
 
-    function renderKeywords(){
-      const liftWords = META?.low_keywords || [];
-      const lift = document.getElementById("liftWords");
-      lift.innerHTML = liftWords.slice(0,5).map(x => `
-        <div class="flex items-center justify-between">
-          <span class="badge neg">#${esc(x[0])}</span>
-          <span class="muted">${esc(x[1])}</span>
-        </div>
-      `).join("");
+    function renderMindmap(){
+      const mm = META?.mindmap || [];
+      const root = document.getElementById("mindmap");
+      if (!mm.length){
+        root.innerHTML = `<div class="summary-card lg:col-span-3"><div class="text-sm font-black text-slate-700">마인드맵 데이터가 없습니다.</div></div>`;
+        return;
+      }
 
-      const common = document.getElementById("commonIssues");
-      const commonIssues = META?.common_issues || (META?.complaint_top5 || []).map(x=>x[0]);
-      common.innerHTML = commonIssues.map(w => `<span class="badge neg">#${esc(w)}</span>`).join("");
+      root.innerHTML = mm.map(node => {
+        const ev = node.evidence || [];
+        const items = ev.map(e => `
+          <div class="mt-2 p-3 rounded-2xl bg-white/60 border border-white/80">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-black text-slate-800 line-clamp-1">${esc(e.product_name)}</div>
+              <div class="text-[11px] font-black text-slate-500">★ ${esc(e.rating)} · ${esc(String(e.created_at||"").slice(0,10))}</div>
+            </div>
+            <div class="text-[11px] font-bold text-slate-500 mt-1">code: ${esc(e.product_code)} · id: ${esc(e.id)}</div>
+            <div class="text-xs font-extrabold text-slate-700 mt-2 leading-relaxed">${esc(e.text_snip || "")}</div>
+          </div>
+        `).join("");
 
-      const sizeP = document.getElementById("sizePhrases");
-      const sizePhrases = META?.size_phrases || ["정사이즈","작아요","커요","타이트","넉넉","기장","소매","어깨","발볼"];
-      sizeP.innerHTML = sizePhrases.map(w => `<span class="badge size">#${esc(w)}</span>`).join("");
+        return `
+          <div class="summary-card">
+            <div class="flex items-center justify-between">
+              <span class="badge neg">#${esc(node.keyword)}</span>
+              <span class="text-xs font-black text-slate-500">${esc(node.count)}x</span>
+            </div>
+            <div class="text-xs font-bold text-slate-500 mt-2">근거 리뷰</div>
+            ${items || `<div class="text-xs font-bold text-slate-400 mt-2">-</div>`}
+          </div>
+        `;
+      }).join("");
     }
 
     function reviewCardHTML(r){
@@ -1312,6 +933,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       if (t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> #긍정키워드</span>`);
       if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> #size_issue</span>`);
       if ((r.rating||0) <= 2 || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> #low_rating</span>`);
+      if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> #개선요청</span>`);
       if (r.text_image_path) tags.push(`<span class="badge"><i class="fa-solid fa-image"></i> #100자+이미지</span>`);
 
       const prodImg = r.local_product_image
@@ -1324,10 +946,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       const textImg = r.text_image_path
         ? `<img src="${esc(r.text_image_path)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" />`
-        : `<div class="rounded-2xl border border-white/80 bg-white/60 p-3 flex items-center gap-3">
-             <i class="fa-solid fa-image text-slate-400"></i>
-             <div class="text-xs font-bold text-slate-500">해당 없음</div>
-           </div>`;
+        : ``;
 
       return `
         <div class="review-card">
@@ -1337,7 +956,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
               <div class="min-w-0">
                 <div class="font-black text-slate-900 line-clamp-1">${esc(r.product_name || r.product_code)}</div>
                 <div class="text-xs font-bold text-slate-500 mt-1">
-                  code: ${esc(r.product_code)} · source: ${esc(r.source || "-")}
+                  code: ${esc(r.product_code)} · source: ${esc(r.source || "-")} · id: ${esc(r.id)}
                 </div>
               </div>
             </div>
@@ -1357,33 +976,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           </div>
 
           ${reviewThumb ? `<div class="mt-3">${reviewThumb}</div>` : ``}
-
-          <div class="mt-4">
-            <div class="small-label text-blue-600 mb-2">100+ TEXT IMAGE</div>
-            ${textImg}
-          </div>
+          ${textImg ? `<div class="mt-4"><div class="small-label text-blue-600 mb-2">100+ TEXT IMAGE</div>${textImg}</div>` : ``}
         </div>
       `;
-    }
-
-    function renderEvidence(reviews){
-      const mode = uiState.evidenceMode;
-      let list = reviews.slice();
-
-      if (mode === "size") list = list.filter(r => asArr(r.tags).includes("size"));
-      else if (mode === "low") list = list.filter(r => (r.rating||0) <= 2 || asArr(r.tags).includes("low"));
-      else list = list.filter(r => asArr(r.tags).includes("req"));
-
-      list.sort((a,b) => ((b.text||"").length - (a.text||"").length) || (new Date(b.created_at)-new Date(a.created_at)));
-      const pick = list.slice(0, 6);
-      document.getElementById("evidenceList").innerHTML = pick.map(reviewCardHTML).join("");
     }
 
     function renderDailyFeed(reviews){
       const container = document.getElementById("dailyFeed");
       const no = document.getElementById("noResults");
 
-      const rows = reviews.slice(0, 18);
+      const rows = reviews.slice(0, 30);
       if (!rows.length){
         container.innerHTML = "";
         no.classList.remove("hidden");
@@ -1441,11 +1043,11 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       renderHeader();
       renderProductSelect();
       renderSizeSelect();
+
       renderSummary(metrics);
       renderRanking(metrics);
       renderSizeStructure(metrics);
-      renderKeywords();
-      renderEvidence(filtered);
+      renderMindmap();
       renderDailyFeed(filtered);
     }
 
@@ -1459,8 +1061,13 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         META = meta;
         REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
 
-        renderProductSelect();
-        renderSizeSelect();
+        // 날짜 선택 min/max 세팅(최근7일 범위)
+        const dayInput = document.getElementById("daySelect");
+        if (dayInput && META?.period_start && META?.period_end){
+          dayInput.min = META.period_start;
+          dayInput.max = META.period_end;
+        }
+
         renderAll();
       });
     }
@@ -1471,194 +1078,131 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 </html>
 """
 
+
 # ----------------------------
-# Main
+# Main builder
 # ----------------------------
+def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
+    obj = json.loads(path.read_text(encoding="utf-8"))
+    reviews = obj.get("reviews")
+    if not isinstance(reviews, list):
+        raise ValueError("입력 JSON은 {\"reviews\": [...]} 형태여야 합니다.")
+    out = []
+    for r in reviews:
+        if isinstance(r, dict):
+            out.append(ensure_tags_and_direction(r))
+    return out
 
-def load_products_csv(path: pathlib.Path) -> pd.DataFrame:
-    if not path.exists():
-        raise FileNotFoundError(f"products.csv not found: {path}")
-    df = pd.read_csv(path, dtype=str).fillna("")
-    if "product_code" not in df.columns:
-        raise ValueError("products.csv에 product_code 컬럼이 필요합니다.")
-    df["product_code"] = df["product_code"].astype(str).str.strip()
-    df = df[df["product_code"] != ""].copy()
 
-    if "product_name" not in df.columns:
-        df["product_name"] = ""
-    if "product_url" not in df.columns:
-        df["product_url"] = ""
-    return df
+def parse_created_at_iso(s: str) -> datetime:
+    # ISO8601 with timezone expected (e.g. 2026-02-07T22:52:47+09:00)
+    # pandas가 더 관대하지만, 여기서는 안전하게
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
+        # fallback: try pandas
+        dt = pd.to_datetime(s, errors="coerce")
+        if pd.isna(dt):
+            return datetime(1970, 1, 1, tzinfo=tz.gettz(OUTPUT_TZ))
+        if dt.tzinfo is None:
+            return dt.to_pydatetime().replace(tzinfo=tz.gettz(OUTPUT_TZ))
+        return dt.to_pydatetime()
 
-def main():
-    products = load_products_csv(CONFIG_DIR / "products.csv")
-    codes = products["product_code"].dropna().unique().tolist()
 
-    # optional: freegift_ 계열 제외
-    if SKIP_FREEGIFT_PREFIX:
-        codes = [c for c in codes if not str(c).lower().startswith("freegift_")]
+def main(input_path: str):
+    inp = pathlib.Path(input_path).expanduser().resolve()
+    if not inp.exists():
+        raise FileNotFoundError(f"input not found: {inp}")
 
-    all_reviews: List[Dict[str, Any]] = []
+    all_rows = read_reviews_json(inp)
 
-    print(f"[INFO] Repo root: {ROOT}", flush=True)
-    print(f"[INFO] Products: {len(codes)}", flush=True)
-    print(f"[INFO] Fetching crema reviews from: {BASE_API}", flush=True)
-    print(f"[INFO] widget_id={DEFAULT_WIDGET_ID}, per={DEFAULT_PER_PAGE}", flush=True)
-    print(f"[INFO] fail_open_per_product={int(FAIL_OPEN_PER_PRODUCT)}", flush=True)
-    print(f"[INFO] skip_freegift_prefix={int(SKIP_FREEGIFT_PREFIX)}", flush=True)
+    # ✅ 최근 7일 고정 (KST)
+    now = now_kst()
+    start = (now - timedelta(days=6)).date()  # 오늘 포함 7일
+    end = now.date()
 
-    meta_by_code = {
-        row["product_code"]: {"name": row.get("product_name", ""), "url": row.get("product_url", "")}
-        for _, row in products.iterrows()
-    }
+    def in_last7(r: Dict[str, Any]) -> bool:
+        dt = parse_created_at_iso(str(r.get("created_at") or ""))
+        # dt가 tz 없으면 KST로 가정
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=tz.gettz(OUTPUT_TZ))
+        d = dt.astimezone(tz.gettz(OUTPUT_TZ)).date()
+        return start <= d <= end
 
-    skipped_404: List[str] = []
-    skipped_other: List[str] = []
+    rows = [r for r in all_rows if in_last7(r)]
 
-    for code in tqdm(codes, desc="Products"):
-        code_str = str(code)
+    if not rows:
+        raise SystemExit("최근 7일에 해당하는 리뷰가 없습니다. created_at 포맷/타임존/기간을 확인해 주세요.")
 
-        try:
-            revs = fetch_all_pages(product_code=code_str, per=DEFAULT_PER_PAGE, widget_id=DEFAULT_WIDGET_ID)
-        except RuntimeError as e:
-            msg = str(e)
-            if FAIL_OPEN_PER_PRODUCT:
-                # 404/403/429/네트워크 등 상품 단위로 스킵하고 계속 (운영용)
-                if "404" in msg or "Not Found" in msg:
-                    skipped_404.append(code_str)
-                    print(f"[WARN] 404 Not Found - skip product_code={code_str}", flush=True)
-                    continue
-                skipped_other.append(code_str)
-                print(f"[WARN] product failed - skip product_code={code_str} err={msg[:200]}", flush=True)
-                continue
-            # 디버그 모드면 즉시 실패
-            raise
+    # 데이터프레임
+    df = pd.DataFrame(rows).copy()
+    df["rating"] = pd.to_numeric(df.get("rating"), errors="coerce").fillna(0).astype(int)
 
-        # 리뷰가 0개면 그냥 다음 상품
-        if not revs:
-            continue
+    # ✅ 불만리뷰 기반 키워드 (최근7일 내)
+    complaint_df = df[df.apply(lambda x: is_complaint(x.to_dict()), axis=1)].copy()
+    complaint_texts = complaint_df["text"].astype(str).tolist()
+    complaint_top5 = top_terms(complaint_texts, topk=5)
 
-        csv_name = meta_by_code.get(code_str, {}).get("name", "")
-        csv_url = meta_by_code.get(code_str, {}).get("url", "")
-        for r in revs:
-            all_reviews.append(flatten_review(r, csv_name=csv_name, csv_url=csv_url))
-
-    df = pd.DataFrame(all_reviews)
-    if len(df) == 0:
-        raise SystemExit("수집된 리뷰가 없습니다. 토큰/상품코드/접근 정책(403)/프록시/404 상품코드 확인 필요")
-
-    df = df.drop_duplicates(subset=["id"], keep="first").copy()
-
-    created_list = df["created_at"].dropna().astype(str).tolist()
-    dmin = min(created_list) if created_list else ""
-    dmax = max(created_list) if created_list else ""
-    date_range = f"{dmin[:10]} ~ {dmax[:10]}" if dmin and dmax else "-"
-
-    print("[INFO] Downloading images + generating text captures...", flush=True)
-
-    local_product_images: Dict[str, str] = {}
-
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Assets"):
-        pcode = str(row.get("product_code") or "")
-        product_page = str(row.get("product_url") or "")
-
-        # product image (per product once)
-        prod_url = str(row.get("product_image_source_url") or row.get("product_image_url") or "")
-        if pcode and pcode in local_product_images:
-            prod_local = local_product_images[pcode]
-        else:
-            prod_local = download_to_assets(prod_url, ASSET_PRODUCTS, referer=product_page)
-            if pcode:
-                local_product_images[pcode] = prod_local
-
-        # review thumb (Referer 포함)
-        thumb_url = str(row.get("review_thumb_url") or "")
-        thumb_local = download_to_assets(thumb_url, ASSET_REVIEWS, referer=product_page) if thumb_url else ""
-
-        # text capture
-        text = str(row.get("text") or "")
-        cap = ""
-        if len(text) >= 100:
-            cap = create_text_capture_image(
-                review_id=str(row.get("id")),
-                product_name=str(row.get("product_name") or ""),
-                score=int(row.get("rating") or 0),
-                created_at=str(row.get("created_at") or ""),
-                text=text,
-            )
-
-        df.loc[row.name, "local_product_image"] = prod_local
-        df.loc[row.name, "local_review_thumb"] = thumb_local
-        df.loc[row.name, "text_image_path"] = cap
-
-    # complaint top5 (low rating <=2)
-    df["rating"] = pd.to_numeric(df["rating"], errors="coerce").fillna(0).astype(int)
-
-    low_texts = df[df["rating"] <= 2]["text"].astype(str).tolist()
-    complaint_top5 = top_terms(low_texts, topk=5)
-
-    common_issues = [k for k, _ in top_terms(low_texts, topk=10)]
-    low_keywords = complaint_top5
-
-    size_texts = df[df["tags"].apply(lambda x: isinstance(x, list) and ("size" in x))]["text"].astype(str).tolist()
+    # (옵션) size phrases도 최근7일 내 size 태그 기반
+    size_df = df[df["tags"].apply(lambda x: isinstance(x, list) and ("size" in x))].copy()
+    size_texts = size_df["text"].astype(str).tolist()
     size_phrases = [k for k, _ in top_terms(size_texts, topk=10)]
 
-    meta_json = {
-        "updated_at": now_kst().strftime("%Y-%m-%d %H:%M:%S"),
-        "date_range": date_range,
+    # mindmap
+    mindmap = build_mindmap(complaint_df.to_dict(orient="records"), topk_keywords=8, evidence_per_kw=4)
+
+    period_text = f"최근 7일 ({start.isoformat()} ~ {end.isoformat()})"
+
+    meta = {
+        "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "period_text": period_text,
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
         "total_reviews": int(len(df)),
         "complaint_top5": complaint_top5,
-        "common_issues": common_issues,
-        "low_keywords": low_keywords,
         "size_phrases": size_phrases,
         "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼"],
-        "skipped_404_count": len(skipped_404),
-        "skipped_other_count": len(skipped_other),
-        "skipped_404_product_codes": skipped_404[:500],
-        "skipped_other_product_codes": skipped_other[:500],
+        "mindmap": mindmap,
     }
 
-    out_reviews: List[Dict[str, Any]] = []
-    for _, r in df.iterrows():
-        rid = r.get("id")
-        if isinstance(rid, str) and rid.isdigit():
-            rid_out: Any = int(rid)
-        else:
-            rid_out = rid
+    # ✅ 출력 JSON (최근7일로 필터된 것만)
+    out_reviews = []
+    for r in df.to_dict(orient="records"):
+        out_reviews.append(
+            {
+                "id": r.get("id"),
+                "product_code": r.get("product_code", ""),
+                "product_name": r.get("product_name", ""),
+                "product_url": r.get("product_url", ""),
+                "rating": int(r.get("rating") or 0),
+                "created_at": r.get("created_at", ""),
+                "text": r.get("text", ""),
+                "source": r.get("source", "Official"),
+                "option_size": r.get("option_size", ""),
+                "option_color": r.get("option_color", ""),
+                "tags": r.get("tags", []),
+                "size_direction": r.get("size_direction", "other"),
+                "local_product_image": r.get("local_product_image", ""),
+                "local_review_thumb": r.get("local_review_thumb", ""),
+                "text_image_path": r.get("text_image_path", ""),
+            }
+        )
 
-        out_reviews.append({
-            "id": rid_out,
-            "product_code": r.get("product_code", ""),
-            "product_name": r.get("product_name", ""),
-            "product_url": r.get("product_url", ""),
-            "rating": int(r.get("rating") or 0),
-            "created_at": r.get("created_at", ""),
-            "text": r.get("text", ""),
-            "source": r.get("source", "Official"),
-            "option_size": r.get("option_size", ""),
-            "option_color": r.get("option_color", ""),
-            "tags": r.get("tags", []),
-            "size_direction": r.get("size_direction", "other"),
-            "local_product_image": r.get("local_product_image", ""),
-            "local_review_thumb": r.get("local_review_thumb", ""),
-            "text_image_path": r.get("text_image_path", ""),
-        })
-
-    (SITE_DATA_DIR / "meta.json").write_text(json.dumps(meta_json, ensure_ascii=False, indent=2), encoding="utf-8")
+    (SITE_DATA_DIR / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[OK] meta.json / reviews.json saved under: {SITE_DATA_DIR}", flush=True)
-
     (SITE_DIR / "index.html").write_text(HTML_TEMPLATE, encoding="utf-8")
-    print(f"[OK] HTML saved: {SITE_DIR / 'index.html'}", flush=True)
 
-    print("\n[RUN RESULT]", flush=True)
-    print(f"- Total reviews: {len(df)}", flush=True)
-    print(f"- Date range: {date_range}", flush=True)
-    print(f"- Complaint Top5: {complaint_top5}", flush=True)
-    if skipped_404:
-        print(f"- Skipped 404: {len(skipped_404)} (example: {skipped_404[:10]})", flush=True)
-    if skipped_other:
-        print(f"- Skipped other errors: {len(skipped_other)} (example: {skipped_other[:10]})", flush=True)
+    print("[OK] Build done")
+    print(f"- Input: {inp}")
+    print(f"- Output meta: {SITE_DATA_DIR / 'meta.json'}")
+    print(f"- Output reviews: {SITE_DATA_DIR / 'reviews.json'}")
+    print(f"- Output html: {SITE_DIR / 'index.html'}")
+    print(f"- Period: {period_text}")
+    print(f"- Complaint Top5: {complaint_top5}")
+
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--input", required=True, help="path to reviews.json (your aggregated JSON)")
+    args = ap.parse_args()
+    main(args.input)
