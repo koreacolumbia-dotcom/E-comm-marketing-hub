@@ -97,7 +97,8 @@ jobs:
 
       # ----------------------------
       # 4) Crema VOC
-      #   - 스크립트가 reports로 쓰면 그대로 사용
+      #   - crema_voc.py 가 --input 필수 → 반드시 제공
+      #   - out_dir는 reports/voc_crema로 고정
       #   - 스크립트가 site/로 쓰더라도 reports/voc_crema로 자동 복사
       # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
@@ -108,28 +109,65 @@ jobs:
           CREMA_PER_PAGE: "30"
           OUTPUT_TZ: Asia/Seoul
           PROJECT_ROOT: ${{ github.workspace }}
+        shell: bash
         run: |
           set -euo pipefail
 
-          # (1) 우선 네가 원래 의도했던 out_dir로 실행
-          # 스크립트가 이 옵션을 무시해도 아래에서 흡수함
-          python -u crema_voc.py --out_dir reports/voc_crema || {
-            echo "crema_voc.py returned non-zero (will try to salvage outputs)"
-          }
+          # (0) 입력 JSON 자동 탐색 (레포 내 reviews.json)
+          CANDIDATES=(
+            "data/reviews.json"
+            "config/reviews.json"
+            "reviews.json"
+            "site/data/reviews.json"
+          )
+
+          INPUT_JSON=""
+          for p in "${CANDIDATES[@]}"; do
+            if [ -f "$p" ]; then
+              INPUT_JSON="$p"
+              break
+            fi
+          done
+
+          # 그래도 없으면 레포 전체에서 1개 찾기
+          if [ -z "$INPUT_JSON" ]; then
+            INPUT_JSON="$(ls -1 **/reviews.json 2>/dev/null | head -n 1 || true)"
+          fi
+
+          if [ -z "$INPUT_JSON" ] || [ ! -f "$INPUT_JSON" ]; then
+            echo "[ERROR] reviews.json not found in repo. Put it in e.g. data/reviews.json"
+            echo "Repo root:"
+            pwd
+            echo "Top-level files:"
+            ls -la
+            echo "Find candidates:"
+            (find . -maxdepth 4 -type f -name "reviews.json" -print || true)
+            exit 1
+          fi
+
+          echo "[INFO] Using input JSON: $INPUT_JSON"
+
+          # (1) 실행: out_dir로 생성 시도
+          python -u crema_voc.py \
+            --input "$INPUT_JSON" \
+            --out_dir reports/voc_crema || {
+              echo "crema_voc.py returned non-zero (will try to salvage outputs)"
+            }
 
           # (2) 결과 경로 흡수(둘 중 하나만 있어도 OK)
-          # A) reports/voc_crema/index.html이 있으면 그대로 통과
           if [ -f "reports/voc_crema/index.html" ]; then
             echo "[OK] reports/voc_crema/index.html exists"
-          # B) site/index.html로 생성되는 경우 → reports/voc_crema로 복사
           elif [ -f "site/index.html" ]; then
             echo "[INFO] Found site/index.html. Syncing site/ -> reports/voc_crema/"
             mkdir -p reports/voc_crema
             rsync -a site/ reports/voc_crema/
           else
             echo "[ERROR] Neither reports/voc_crema/index.html nor site/index.html exists"
+            echo "--- ls -la ---"
             ls -la
+            echo "--- ls -la site ---"
             ls -la site || true
+            echo "--- ls -la reports ---"
             ls -la reports || true
             exit 1
           fi
