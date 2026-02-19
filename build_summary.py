@@ -2,29 +2,30 @@
 # -*- coding: utf-8 -*-
 
 """
-build_summary_ADV_FINAL_UPGRADED.py  (FINAL PATCHED)
+build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH)
 
 - Generates reports/index.html (embed-friendly)
 - Adds "Hero campaign theme keywords" by using:
   1) hero_main_banners_*.csv "title" (primary, always available)
   2) (optional) crawl landing pages via href_clean/href (secondary enrichment)
 
-✅ Patched:
-- URL column detection includes: href_clean / href (from hero crawler output)
-- Title column detection prioritizes: title
-- Keyword extraction includes bigrams (2-word phrases) to surface "theme"
-- Hero card text shows: "현재 기획전 테마: ..."
-- Writes details: reports/hero_keywords.html
-- Caches crawled pages: reports/_cache_hero_pages.json
+UI Patch (requested):
+- Remove TOP 3 blocks on all cards
+- Change HERO theme label to "주요 기획전 키워드"
+- Remove "현재 기획전 테마:" prefix
+- Show keyword counts like: 키워드(12) · 키워드(9) ...
+- Remove "상세 보기" line
+- Remove crawl/cache wording from summary card
+- Remove subtitle: “3개 자동 리포트에서 …”
+- Remove INSIGHT sections from Naver/Hero/VOC
+- Remove "Snapshot (KST)" text from period labels
+- Make Open report a centered bottom button, aligned consistently across all 3 cards
 
 Env:
 - HERO_CRAWL_LIMIT (default 40)
 - HERO_CRAWL_SLEEP (default 0.25)
 - HERO_CRAWL_TIMEOUT (default 8)
 - HERO_CRAWL_RETRIES (default 2)
-
-Notes:
-- If requests/bs4 not installed, it still works with CSV title-only mode.
 """
 
 from __future__ import annotations
@@ -74,13 +75,6 @@ def _pick_latest(pattern: str) -> Optional[Path]:
     return files[0]
 
 
-def _pick_latest_n(pattern: str, n: int = 2) -> List[Path]:
-    files = [Path(p) for p in glob.glob(pattern)]
-    files = [p for p in files if p.is_file()]
-    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return files[:n]
-
-
 def _col(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
     cols = {str(c).strip().lower(): c for c in df.columns}
     for cand in candidates:
@@ -103,7 +97,7 @@ def fmt_pct(x: Any, digits: int = 0) -> str:
     try:
         if x is None or (isinstance(x, float) and pd.isna(x)):
             return "-"
-        return f"{float(x)*100:.{digits}f}%"
+        return f"{float(x) * 100:.{digits}f}%"
     except Exception:
         return "-"
 
@@ -163,25 +157,25 @@ def build_naver_metrics(repo_root: Path) -> Dict[str, Any]:
     latest = _pick_latest(str(repo_root / "result_*.csv"))
     if not latest:
         return {
-            "total": None, "diff_pos": None, "diff_pos_ratio": None, "avg_gap": None,
-            "top_gap": [], "avg_delta": None,
-            "period": f"Snapshot (KST) · {now_kst_label()}",
-            "insight": "-",
-            "risk_label": "-", "risk_class": "risk-unk",
+            "total": None,
+            "diff_pos": None,
+            "diff_pos_ratio": None,
+            "avg_gap": None,
+            "avg_delta": None,
+            "risk_label": "-",
+            "risk_class": "risk-unk",
+            "updated": now_kst_label(),
         }
 
     df = _read_csv_any(latest)
     total = len(df)
 
     c_gap = _col(df, ["가격차이", "gap", "diff"])
-    c_code = _col(df, ["구드", "code", "sku", "상품코드"])
-    c_name = _col(df, ["상품명(영문)", "상품명(한글)", "name", "title", "상품명"])
     c_prev_delta = _col(df, ["prev_naver_delta", "prev delta", "delta_prev"])
 
     diff_pos = None
     diff_pos_ratio = None
     avg_gap = None
-    top_gap: List[Dict[str, Any]] = []
     avg_delta = None
 
     if c_gap:
@@ -190,16 +184,6 @@ def build_naver_metrics(repo_root: Path) -> Dict[str, Any]:
         diff_pos_ratio = (diff_pos / total) if total else None
         avg_gap = float(gap_s.dropna().mean()) if gap_s.dropna().size else None
 
-        tmp = df.copy()
-        tmp["_gap"] = gap_s
-        tmp = tmp[tmp["_gap"].notna() & (tmp["_gap"] > 0)].sort_values("_gap", ascending=False).head(3)
-        for _, r in tmp.iterrows():
-            top_gap.append({
-                "code": safe_str(r[c_code]) if c_code else "",
-                "name": safe_str(r[c_name]) if c_name else "",
-                "gap": float(r["_gap"]) if pd.notna(r["_gap"]) else None,
-            })
-
     if c_prev_delta:
         d = pd.to_numeric(df[c_prev_delta], errors="coerce").dropna()
         if d.size:
@@ -207,27 +191,15 @@ def build_naver_metrics(repo_root: Path) -> Dict[str, Any]:
 
     lvl, lvl_cls = risk_level(diff_pos_ratio)
 
-    period = f"Snapshot (KST) · {now_kst_label()} · source: {latest.name}"
-
-    insight = "-"
-    if diff_pos_ratio is not None:
-        insight = f"가격 역전 {fmt_int(diff_pos)}건 ({fmt_pct(diff_pos_ratio)}) — Top GAP 3개 우선 확인 권장"
-        if lvl == "HIGH":
-            insight = f"⚠️ 가격 역전 {fmt_int(diff_pos)}건 ({fmt_pct(diff_pos_ratio)}) — 영향 큼, Top 3 즉시 점검"
-    if avg_delta is not None:
-        insight += f" · 평균 Δ {fmt_won_signed(avg_delta)}"
-
     return {
         "total": total,
         "diff_pos": diff_pos,
         "diff_pos_ratio": diff_pos_ratio,
         "avg_gap": avg_gap,
+        "avg_delta": avg_delta,
         "risk_label": lvl,
         "risk_class": lvl_cls,
-        "top_gap": top_gap,
-        "avg_delta": avg_delta,
-        "period": period,
-        "insight": insight,
+        "updated": now_kst_label(),
     }
 
 
@@ -308,7 +280,6 @@ def _extract_page_signals(html: str) -> Dict[str, str]:
     if md and md.get("content"):
         desc = str(md.get("content")).strip()
 
-    # headings
     hs = []
     for tag in ["h1", "h2"]:
         for h in soup.find_all(tag)[:3]:
@@ -344,15 +315,15 @@ def _tokenize(text: str) -> List[str]:
 
 def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[str, int]]:
     """
-    ✅ Theme-first extractor:
-    - unigram + bigram(2-word) to capture "주제" (ex: 봄 아우터 / 다운 자켓 / trail running)
+    Theme-first extractor:
+    - unigram + bigram(2-word)
     """
     flat: List[str] = []
     for tx in texts:
         tokens = _tokenize(tx)
         if not tokens:
             continue
-        bigrams = [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens) - 1)]
+        bigrams = [f"{tokens[i]} {tokens[i + 1]}" for i in range(len(tokens) - 1)]
         flat.extend(tokens)
         flat.extend(bigrams)
 
@@ -362,7 +333,6 @@ def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[
     s = pd.Series(flat)
     vc = s.value_counts()
 
-    # noise drop
     try:
         vc = vc[~vc.index.str.contains(r"\b(http|https|www|img|banner)\b", case=False, regex=True)]
     except Exception:
@@ -372,23 +342,34 @@ def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[
     return [(idx, int(val)) for idx, val in vc.head(top_n).items()]
 
 
+def _format_keywords_with_counts(keywords: List[Tuple[str, int]], take: int = 6) -> str:
+    if not keywords:
+        return "-"
+    parts = []
+    for k, c in keywords[: max(0, int(take))]:
+        k = (k or "").strip()
+        if not k:
+            continue
+        parts.append(f"{k}({c:,})")
+    return " · ".join(parts) if parts else "-"
+
+
 def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: float = 0.25) -> Dict[str, Any]:
     p = _pick_latest(str(reports_dir / "hero_main_banners_*.csv"))
     if not p:
         return {
-            "brands": None, "banners": None, "missing_img": None,
-            "top_brands": [],
+            "brands": None,
+            "banners": None,
+            "missing_img": None,
             "keywords": [],
-            "period": f"Snapshot (KST) · {now_kst_label()}",
-            "insight": "-",
-            "kw_insight": "-",
+            "kw_text": "-",
+            "updated": now_kst_label(),
         }
 
     df = _read_csv_any(p)
     banners = len(df)
 
     c_brand = _col(df, ["brand", "브랜드", "site", "사이트", "brand_name", "brand_key"])
-    # brand_key도 포함되면 nunique가 의미있어서 fallback
     if c_brand:
         brands = int(df[c_brand].nunique())
     else:
@@ -401,30 +382,16 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
         s = df[c_img].astype(str).str.strip().str.lower()
         missing_img = int((s.eq("") | s.eq("nan") | s.eq("none")).sum())
 
-    # top brands by count
-    top_brands: List[Tuple[str, int]] = []
-    if c_brand:
-        vc = df[c_brand].astype(str).str.strip()
-        vc = vc[vc.ne("") & vc.ne("nan") & vc.ne("none")]
-        if len(vc):
-            top = vc.value_counts().head(3)
-            top_brands = [(idx, int(val)) for idx, val in top.items()]
-
-    period = f"Snapshot (KST) · {now_kst_label()} · source: {p.name}"
-
-    # --- Keyword extraction ---
-    # ✅ URL column: include hero crawler output columns first
+    # URL column
     c_url = _col(df, [
-        # hero crawler output
         "href_clean", "href",
-        # generic
         "landing_url", "landing url", "landing",
-        "link", "url", "href", "target_url", "target url", "page_url", "page url",
+        "link", "url", "target_url", "target url", "page_url", "page url",
         "detail_url", "detail url", "event_url", "event url",
         "상품url", "기획전url", "기획전 url", "랜딩url", "랜딩 url"
     ])
 
-    # ✅ Title/text column: hero crawler output uses "title"
+    # Title/text column
     c_title = _col(df, [
         "title",
         "banner_title", "headline", "copy", "text",
@@ -435,33 +402,32 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
     cache = _load_cache(cache_path)
 
     texts: List[str] = []
-    used_urls: List[str] = []
-    crawled = 0
-    cache_hits = 0
 
-    # Primary: CSV titles (always)
+    # Primary: CSV titles
     if c_title:
         tcol = df[c_title].astype(str).fillna("").tolist()
         texts.extend([x for x in tcol if x and x.lower() not in ("nan", "none")])
 
-    # Secondary: crawl landing pages (optional)
+    # Secondary: crawl landing pages (optional) — still allowed, but we do NOT surface crawl/cache wording in summary UI
     can_crawl = (requests is not None and BeautifulSoup is not None and c_url is not None)
 
     timeout = int(os.environ.get("HERO_CRAWL_TIMEOUT", "8"))
     retries = int(os.environ.get("HERO_CRAWL_RETRIES", "2"))
+
+    used_urls: List[str] = []
+    crawled = 0
+    cache_hits = 0
 
     if can_crawl:
         urls = df[c_url].astype(str).map(_norm_url).tolist()
         uniq: List[str] = []
         seen = set()
         for u in urls:
-            if not u:
-                continue
-            if u in seen:
+            if not u or u in seen:
                 continue
             seen.add(u)
             uniq.append(u)
-        uniq = uniq[:max(0, int(crawl_limit))]
+        uniq = uniq[: max(0, int(crawl_limit))]
 
         for u in uniq:
             used_urls.append(u)
@@ -488,25 +454,9 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
         _save_cache(cache_path, cache)
 
     keywords = _build_keywords_from_texts(texts, top_n=10)
+    kw_text = _format_keywords_with_counts(keywords, take=6)
 
-    # Insights
-    insight = "-"
-    if top_brands:
-        t = ", ".join([f"{b}({n})" for b, n in top_brands])
-        insight = f"노출 상위: {t}"
-    if missing_img is not None and missing_img > 0:
-        insight = f"{insight} · 이미지 누락 {missing_img}건"
-
-    # ✅ Theme-first card text
-    kw_insight = "-"
-    if keywords:
-        theme = " · ".join([k for k, _ in keywords[:6]])
-        if can_crawl:
-            kw_insight = f"현재 기획전 테마: {theme} (crawl {crawled}, cache {cache_hits})"
-        else:
-            kw_insight = f"현재 기획전 테마: {theme} (title 기반)"
-
-    # detailed keyword report
+    # Keep detailed keyword report file (optional), but do not show "상세보기" line on summary card
     _write_hero_keywords_html(
         reports_dir=reports_dir,
         src_csv=p.name,
@@ -522,11 +472,9 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
         "brands": brands,
         "banners": banners,
         "missing_img": missing_img,
-        "top_brands": top_brands,
         "keywords": keywords,
-        "kw_insight": kw_insight,
-        "period": period,
-        "insight": insight,
+        "kw_text": kw_text,
+        "updated": now_kst_label(),
     }
 
 
@@ -546,7 +494,10 @@ def _write_hero_keywords_html(
 
     url_list = ""
     for u in used_urls[:40]:
-        url_list += f"<li class='truncate'><a class='text-blue-700 font-bold' href='{u}' target='_blank' rel='noreferrer'>{u}</a></li>"
+        url_list += (
+            f"<li class='truncate'><a class='text-blue-700 font-bold' href='{u}' target='_blank' rel='noreferrer'>"
+            f"{u}</a></li>"
+        )
 
     meta = f"""
     <div class="text-sm text-slate-700">
@@ -568,7 +519,7 @@ def _write_hero_keywords_html(
 <body class="bg-slate-50 text-slate-900">
   <div class="max-w-5xl mx-auto px-4 py-8">
     <h1 class="text-3xl font-black">Hero Campaign Keywords</h1>
-    <p class="mt-2 text-slate-600">Hero 배너(title) + 랜딩페이지(선택) 기반 “기획전 테마” 키워드</p>
+    <p class="mt-2 text-slate-600">Hero 배너(title) + 랜딩페이지(선택) 기반 키워드</p>
 
     <div class="mt-6 p-5 bg-white rounded-2xl shadow-sm border border-slate-200">
       {meta}
@@ -614,7 +565,7 @@ def _parse_first_int(pattern: str, text: str) -> Optional[int]:
 def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
     p = reports_dir / "external_signal.html"
     if not p.exists():
-        return {"posts": None, "mentions": None, "period": "Last 7D (KST)", "insight": "-"}
+        return {"posts": None, "mentions": None, "range": "최근 7일", "updated": now_kst_label()}
 
     txt = p.read_text(encoding="utf-8", errors="ignore")
 
@@ -627,11 +578,7 @@ def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
         or _parse_first_int(r"게시글[^0-9]*([0-9,]+)", txt)
     )
 
-    insight = "-"
-    if posts is not None or mentions is not None:
-        insight = f"최근 7일 기준: 게시글 {fmt_int(posts)} · 언급 {fmt_int(mentions)}"
-
-    return {"posts": posts, "mentions": mentions, "period": "Last 7D (KST)", "insight": insight}
+    return {"posts": posts, "mentions": mentions, "range": "최근 7일", "updated": now_kst_label()}
 
 
 # -----------------------
@@ -646,33 +593,19 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
           </div>
         """
 
-    def top_list(items: List[str]) -> str:
-        if not items:
-            return '<div class="text-xs text-slate-500 mt-3">Top items: -</div>'
-        lis = "".join([f'<li class="flex justify-between gap-3"><span class="truncate">{s}</span></li>' for s in items])
-        return f"""
-          <div class="mt-4">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">TOP 3</div>
-            <ul class="mt-2 space-y-1 text-sm font-bold text-slate-800">{lis}</ul>
-          </div>
-        """
-
-    # Naver top items formatting
-    n_top = []
-    for it in naver.get("top_gap") or []:
-        code = (it.get("code") or "").strip()
-        name = (it.get("name") or "").strip()
-        gap = it.get("gap")
-        left = f"{code} · {name}" if code and name else (name or code or "-")
-        n_top.append(f"{left}  —  {fmt_won_signed(gap)}")
-
-    # Hero top brands formatting
-    h_top = []
-    for b, n in hero.get("top_brands") or []:
-        h_top.append(f"{b}  —  {fmt_int(n)} banners")
-
     risk_label = naver.get("risk_label") or "-"
     risk_class = naver.get("risk_class") or "risk-unk"
+
+    # Button (consistent placement)
+    def open_btn(href: str) -> str:
+        return f"""
+          <a href="{href}" target="_self"
+             class="mt-6 w-full inline-flex items-center justify-center rounded-2xl px-4 py-3
+                    bg-[color:var(--brand)] text-white font-black text-sm
+                    shadow-sm hover:opacity-95 active:opacity-90 transition">
+            Open report
+          </a>
+        """
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -689,8 +622,6 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
     .glass-card{{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }}
     .badge{{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(0,45,114,.08); color: var(--brand); }}
     .badge-soft{{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(15,23,42,.06); color: rgba(15,23,42,.70); }}
-    .card-link{{ transition: transform .15s ease; }}
-    .card-link:hover{{ transform: translateY(-2px); }}
     .risk-pill{{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-weight:900; font-size:11px; }}
     .risk-dot{{ width:8px; height:8px; border-radius:999px; }}
     .risk-high{{ background: rgba(239,68,68,.10); color: rgba(239,68,68,1); }}
@@ -701,24 +632,22 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
     .risk-low .risk-dot{{ background: rgb(34,197,94); box-shadow: 0 0 0 5px rgba(34,197,94,.12); }}
     .risk-unk{{ background: rgba(100,116,139,.12); color: rgba(51,65,85,1); }}
     .risk-unk .risk-dot{{ background: rgb(100,116,139); box-shadow: 0 0 0 5px rgba(100,116,139,.12); }}
-    .insight{{ margin-top:14px; padding:12px 14px; border-radius:18px; background: rgba(255,255,255,.55); border: 1px solid rgba(15,23,42,0.05); }}
+    .subtle{{ margin-top:14px; padding:12px 14px; border-radius:18px; background: rgba(255,255,255,.55); border: 1px solid rgba(15,23,42,0.05); }}
   </style>
 </head>
 <body>
   <div class="px-2 sm:px-6 py-6">
     <div class="mb-6">
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
-      <div class="text-slate-600 mt-2 text-sm sm:text-base">3개 자동 리포트에서 “오늘 조치할 것”만 빠르게</div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- NAVER -->
-      <a class="glass-card card-link rounded-3xl p-6 block" href="./naver_lowest_price.html" target="_self">
+      <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">네이버 최저가</div>
           <div class="flex items-center gap-2">
             <span class="risk-pill {risk_class}"><span class="risk-dot"></span>RISK {risk_label}</span>
-            <span class="badge">Snapshot</span>
           </div>
         </div>
 
@@ -728,19 +657,15 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
           {stat("AVG GAP", fmt_won(naver.get("avg_gap")))}
         </div>
 
-        {top_list(n_top)}
+        <div class="mt-4 text-xs text-slate-500">updated: {naver.get("updated") or ""}</div>
 
-        <div class="insight">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">INSIGHT</div>
-          <div class="mt-2 text-sm font-extrabold text-slate-900">{naver.get("insight") or "-"}</div>
+        <div class="mt-auto">
+          {open_btn("./naver_lowest_price.html")}
         </div>
-
-        <div class="mt-4 text-xs text-slate-500">{naver.get("period") or ""}</div>
-        <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
-      </a>
+      </div>
 
       <!-- HERO -->
-      <a class="glass-card card-link rounded-3xl p-6 block" href="./hero_main.html" target="_self">
+      <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">경쟁사 Hero 배너</div>
           <span class="badge">Snapshot</span>
@@ -752,28 +677,23 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
           {stat("MISSING IMG", fmt_int(hero.get("missing_img")))}
         </div>
 
-        {top_list(h_top)}
-
-        <div class="insight">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">THEME</div>
-          <div class="mt-2 text-sm font-extrabold text-slate-900">{hero.get("kw_insight") or "-"}</div>
-          <div class="mt-3 text-xs text-slate-600 underline underline-offset-4">상세 보기: hero_keywords.html</div>
+        <div class="subtle">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">주요 기획전 키워드</div>
+          <div class="mt-2 text-sm font-extrabold text-slate-900">{hero.get("kw_text") or "-"}</div>
         </div>
 
-        <div class="insight">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">INSIGHT</div>
-          <div class="mt-2 text-sm font-extrabold text-slate-900">{hero.get("insight") or "-"}</div>
-        </div>
+        <div class="mt-4 text-xs text-slate-500">updated: {hero.get("updated") or ""}</div>
 
-        <div class="mt-4 text-xs text-slate-500">{hero.get("period") or ""}</div>
-        <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
-      </a>
+        <div class="mt-auto">
+          {open_btn("./hero_main.html")}
+        </div>
+      </div>
 
       <!-- VOC -->
-      <a class="glass-card card-link rounded-3xl p-6 block" href="./external_signal.html" target="_self">
+      <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">커뮤니티 VOC</div>
-          <span class="badge-soft">Last 7D</span>
+          <span class="badge-soft">{voc.get("range") or "최근 7일"}</span>
         </div>
 
         <div class="mt-5 space-y-3">
@@ -782,14 +702,12 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
           {stat("—", "—")}
         </div>
 
-        <div class="insight">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">INSIGHT</div>
-          <div class="mt-2 text-sm font-extrabold text-slate-900">{voc.get("insight") or "-"}</div>
-        </div>
+        <div class="mt-4 text-xs text-slate-500">updated: {voc.get("updated") or ""}</div>
 
-        <div class="mt-4 text-xs text-slate-500">{voc.get("period") or ""}</div>
-        <div class="mt-4 text-sm font-black text-[color:var(--brand)]">Open report →</div>
-      </a>
+        <div class="mt-auto">
+          {open_btn("./external_signal.html")}
+        </div>
+      </div>
     </div>
   </div>
 </body>
