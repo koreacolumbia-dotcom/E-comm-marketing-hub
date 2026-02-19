@@ -8,7 +8,7 @@ on:
         required: false
         default: "manual"
       voc_only:
-        description: "Run VOC only?"
+        description: "Run VOC only? (true/false)"
         required: false
         default: "false"
   schedule:
@@ -50,7 +50,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # hero 배너 크롤러에서 playwright 쓰는 경우 대비
           playwright install --with-deps chromium
 
       - name: Ensure reports dir
@@ -66,10 +65,10 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       # ----------------------------
-      # 1) Naver Lowest Price
+      # 1) Naver Lowest Price (FULL RUN에서만)
       # ----------------------------
       - name: Run Naver Lowest Price crawler
-        if: ${{ github.event.inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
@@ -83,52 +82,72 @@ jobs:
           test -f reports/naver_lowest_price.html
 
       # ----------------------------
-      # 2) Hero banner
+      # 2) Hero banner (FULL RUN에서만)
       # ----------------------------
       - name: Run Hero banner crawler
-        if: ${{ github.event.inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
         run: |
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
           test -f reports/hero_main.html
 
       # ----------------------------
-      # 3) External Signal (VOC)
+      # 3) External Signal (FULL RUN에서만)
       # ----------------------------
       - name: Run External Signal (VOC)
-        if: ${{ github.event.inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
         run: |
           set -euo pipefail
           python -u external_signal_combined.py
           test -f reports/external_signal.html
 
-      - name: Run Crema VOC (collect + build)
+      # ----------------------------
+      # 4) Crema VOC (항상 실행)
+      #   - 입력 JSON: site/data/reviews.json (네 레포 경로 고정)
+      #   - 덮어쓰기 강제: reports/voc_crema 초기화 + rsync --delete
+      # ----------------------------
+      - name: Run Crema VOC (build from JSON)
         env:
-          CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
           OUTPUT_TZ: Asia/Seoul
           PROJECT_ROOT: ${{ github.workspace }}
         shell: bash
         run: |
           set -euo pipefail
 
-          # 1) 리뷰 수집해서 site/data/reviews.json 갱신
-          python -u review_Crwaling.py
+          INPUT_JSON="site/data/reviews.json"
+          if [ ! -f "$INPUT_JSON" ]; then
+            echo "[ERROR] Missing input JSON: $INPUT_JSON"
+            ls -la site || true
+            ls -la site/data || true
+            exit 1
+          fi
+          echo "[INFO] Using input JSON: $INPUT_JSON"
 
-          # 2) VOC 대시보드 빌드
-          python -u crema_voc.py --input site/data/reviews.json
-
-          # 3) reports로 동기화(덮어쓰기)
+          # ✅ 덮어쓰기 강제: 이전 산출물 제거
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
-          rsync -a --delete site/ reports/voc_crema/
+
+          # ✅ crema_voc.py는 --out_dir 미지원 → 옵션 없이 실행
+          python -u crema_voc.py --input "$INPUT_JSON"
+
+          # ✅ site/ 산출물을 reports/voc_crema로 미러링 (삭제 포함)
+          if [ -f "site/index.html" ]; then
+            echo "[INFO] Syncing site/ -> reports/voc_crema/ (with --delete)"
+            rsync -a --delete site/ reports/voc_crema/
+          else
+            echo "[ERROR] site/index.html not found after run"
+            ls -la site || true
+            exit 1
+          fi
+
           test -f reports/voc_crema/index.html
 
-
       # ----------------------------
-      # 5) Summary 생성 (reports/index.html + reports/meta.json)
+      # 5) Summary 생성 (FULL RUN에서만)
+      #   - voc_only=true면 summary는 건드리지 않음(기존 유지)
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
-        if: ${{ github.event.inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
         run: |
@@ -138,10 +157,10 @@ jobs:
           test -f reports/meta.json
 
       # ----------------------------
-      # 6) "Last updated" 배지: reports/*.html에 자동 주입
+      # 6) "Last updated" 배지 주입 (FULL RUN에서만)
       # ----------------------------
       - name: Stamp "Last updated" badge into reports HTML
-        if: ${{ github.event.inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
         shell: bash
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
@@ -152,38 +171,13 @@ jobs:
           cat <<'EOF' > /tmp/_badge_block.html
           <!-- AUTO_UPDATED_BADGE_START -->
           <style>
-            @keyframes _pulse {
-              0%, 100% { transform: scale(1); opacity: 1; }
-              50% { transform: scale(1.12); opacity: .55; }
-            }
-            .auto-updated-badge-wrap{
-              position:static; z-index:99999;
-              font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, Arial;
-              margin:10px 0 22px 0;
-            }
-            .auto-updated-badge{
-              display:flex; gap:10px; align-items:center;
-              padding:10px 12px; border-radius:16px;
-              background:rgba(255,255,255,.75);
-              backdrop-filter:blur(12px);
-              border:1px solid rgba(15,23,42,.10);
-              box-shadow:0 10px 30px rgba(15,23,42,.08);
-            }
-            .auto-updated-dot{
-              width:10px; height:10px; border-radius:999px;
-              background:#22c55e;
-              box-shadow:0 0 0 5px rgba(34,197,94,.15);
-              animation:_pulse 1.2s ease-in-out infinite;
-            }
+            @keyframes _pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: .55; } }
+            .auto-updated-badge-wrap{ position:static; z-index:99999; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, Arial; margin:10px 0 22px 0; }
+            .auto-updated-badge{ display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:16px; background:rgba(255,255,255,.75); backdrop-filter:blur(12px); border:1px solid rgba(15,23,42,.10); box-shadow:0 10px 30px rgba(15,23,42,.08); }
+            .auto-updated-dot{ width:10px; height:10px; border-radius:999px; background:#22c55e; box-shadow:0 0 0 5px rgba(34,197,94,.15); animation:_pulse 1.2s ease-in-out infinite; }
             .auto-updated-txt{ display:flex; flex-direction:column; line-height:1.15; }
-            .auto-updated-txt .t1{
-              font-size:11px; font-weight:800; color:#0f172a;
-              letter-spacing:-.2px; text-transform:uppercase;
-            }
-            .auto-updated-txt .t2{
-              font-size:11px; color:rgba(15,23,42,.72);
-              margin-top:2px;
-            }
+            .auto-updated-txt .t1{ font-size:11px; font-weight:800; color:#0f172a; letter-spacing:-.2px; text-transform:uppercase; }
+            .auto-updated-txt .t2{ font-size:11px; color:rgba(15,23,42,.72); margin-top:2px; }
           </style>
 
           <div class="auto-updated-badge-wrap" aria-label="Last updated badge">
@@ -201,31 +195,22 @@ jobs:
               function mount(){
                 const badge = document.querySelector('.auto-updated-badge-wrap');
                 if(!badge) return;
-
                 const sidebar = document.querySelector('aside.sidebar');
                 if(sidebar){
                   const first = sidebar.firstElementChild;
-                  if(first && first.nextSibling){
-                    sidebar.insertBefore(badge, first.nextSibling);
-                  }else{
-                    sidebar.prepend(badge);
-                  }
+                  if(first && first.nextSibling){ sidebar.insertBefore(badge, first.nextSibling); }
+                  else{ sidebar.prepend(badge); }
                   badge.style.position = 'static';
                   badge.style.top = '';
                   badge.style.right = '';
                   return;
                 }
-
                 badge.style.position = 'fixed';
                 badge.style.top = '16px';
                 badge.style.right = '16px';
               }
-
-              if(document.readyState === 'loading'){
-                document.addEventListener('DOMContentLoaded', mount);
-              }else{
-                mount();
-              }
+              if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', mount); }
+              else{ mount(); }
             })();
           </script>
           <!-- AUTO_UPDATED_BADGE_END -->
@@ -234,11 +219,8 @@ jobs:
           python - <<'PY'
           import os
           p = "/tmp/_badge_block.html"
-          with open(p, "r", encoding="utf-8") as f:
-            s = f.read()
-          s = s.replace("__UPDATED_KST__", os.environ["UPDATED_KST"])
-          with open(p, "w", encoding="utf-8") as f:
-            f.write(s)
+          s = open(p, "r", encoding="utf-8").read().replace("__UPDATED_KST__", os.environ["UPDATED_KST"])
+          open(p, "w", encoding="utf-8").write(s)
           PY
 
           for f in reports/*.html; do
@@ -253,6 +235,7 @@ jobs:
 
       # ----------------------------
       # 7) Commit & push results
+      #   - voc_only=true면 voc_crema만 바뀌어도 커밋됨
       # ----------------------------
       - name: Commit & push results
         shell: bash
