@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-[FINAL - FULL INTEGRATED | PATCHED]
+[FINAL - FULL INTEGRATED | PATCHED v2]
 - Crema 리뷰 수집 (pagy.next 끝까지)
 - 불만 키워드 Top5 자동 추출(형태소 없이)
 - 100자+ 리뷰 텍스트 캡처 이미지(PIL) 자동 생성
@@ -12,12 +12,10 @@
   - demo JS 제거
   - JSON 로딩 렌더 JS로 교체
 
-[핵심 패치]
-✅ tqdm 미설치 환경에서도 동작 (fallback)
-✅ 회사망/프록시 환경 대응 (requests.Session trust_env=True)
-✅ 이미지 핫링크 방지(Referer 필요) 대응: 다운로드 시 Referer 전달
-✅ repo root 탐색 안정화 (PROJECT_ROOT env or 상위 폴더 탐색)
-✅ 중복 import 제거 / 안전성 개선
+[추가 핵심 패치]
+✅ (중요) Crema API 404(Not Found) 발생 product_code는 스킵하고 전체 수집 계속
+✅ 스킵된 product_code 목록/카운트 meta.json에 기록
+✅ 단일 product_code에서 반복 실패 시(429/403/네트워크)도 “상품 단위”로 스킵 옵션 제공
 
 필수 환경변수:
 - CREMA_SECURE_DEVICE_TOKEN
@@ -28,6 +26,8 @@
 - CREMA_PER_PAGE (default 30)
 - OUTPUT_TZ (default Asia/Seoul)
 - PROJECT_ROOT (repo root 경로 강제 지정, 권장)
+- SKIP_FREEGIFT_PREFIX (default 0)  # 1이면 freegift_ 접두 상품코드 자동 제외
+- FAIL_OPEN_PER_PRODUCT (default 1) # 1이면 상품 단위 에러시 스킵(운영용), 0이면 즉시 실패(디버그용)
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ import json
 import time
 import hashlib
 import pathlib
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
 import requests
@@ -68,10 +68,21 @@ def _get_int_env(key: str, default: int) -> int:
     except Exception:
         return default
 
+def _get_bool_env(key: str, default: bool) -> bool:
+    v = os.getenv(key, "").strip().lower()
+    if v in ("1", "true", "yes", "y", "on"):
+        return True
+    if v in ("0", "false", "no", "n", "off"):
+        return False
+    return default
+
 DEFAULT_DOMAIN = os.getenv("CREMA_DOMAIN", "columbiakorea.co.kr").strip()
 DEFAULT_WIDGET_ID = _get_int_env("CREMA_WIDGET_ID", 2)
 DEFAULT_PER_PAGE = _get_int_env("CREMA_PER_PAGE", 30)
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
+
+SKIP_FREEGIFT_PREFIX = _get_bool_env("SKIP_FREEGIFT_PREFIX", False)
+FAIL_OPEN_PER_PRODUCT = _get_bool_env("FAIL_OPEN_PER_PRODUCT", True)
 
 SECURE_DEVICE_TOKEN = os.getenv("CREMA_SECURE_DEVICE_TOKEN", "").strip()
 if not SECURE_DEVICE_TOKEN:
@@ -158,25 +169,39 @@ class Http:
     ) -> Dict[str, Any]:
         headers = headers or {}
         headers.setdefault("Accept", "application/json, text/plain, */*")
-        headers.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        headers.setdefault(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        )
         headers.setdefault("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8")
 
-        last_err = None
+        last_err: Optional[Exception] = None
         for i in range(max_retries):
             try:
                 r = self.s.get(url, params=params, headers=headers, timeout=self.timeout)
+
+                # ✅ 핵심: 404는 해당 상품코드에 리뷰 리소스가 없음 → 스킵 가능하도록 빈 응답 반환
+                if r.status_code == 404:
+                    return {"reviews": [], "pagy": {"next": None}, "_http_status": 404}
+
                 if r.status_code == 429:
                     time.sleep((backoff ** i) * 0.7)
                     continue
+
                 # 403은 보통 차단/헤더 문제 → 빠르게 재시도하되, 너무 많이 두드리진 않음
                 if r.status_code == 403 and i < max_retries - 1:
                     time.sleep((backoff ** i) * 0.6)
                     continue
+
                 r.raise_for_status()
-                return r.json()
+                j = r.json()
+                if isinstance(j, dict):
+                    j["_http_status"] = r.status_code
+                return j
             except Exception as e:
                 last_err = e
                 time.sleep(backoff ** i)
+
         raise RuntimeError(f"GET failed: {url} params={params} err={last_err}")
 
     def download(
@@ -190,7 +215,10 @@ class Http:
             return False
 
         headers = headers or {}
-        headers.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        headers.setdefault(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        )
         headers.setdefault("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
         headers.setdefault("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8")
 
@@ -241,9 +269,7 @@ def crema_reviews(product_code: str, page: int, per: int, widget_id: int) -> Dic
         "page": page,
         "per": per,
     }
-    headers = {
-        "Referer": f"https://review8.cre.ma/v2/{DEFAULT_DOMAIN}/product_reviews/list_v3"
-    }
+    headers = {"Referer": f"https://review8.cre.ma/v2/{DEFAULT_DOMAIN}/product_reviews/list_v3"}
     return http.get_json(url, params=params, headers=headers)
 
 def fetch_all_pages(product_code: str, per: int, widget_id: int, hard_max_pages: int = 300) -> List[Dict[str, Any]]:
@@ -251,6 +277,11 @@ def fetch_all_pages(product_code: str, per: int, widget_id: int, hard_max_pages:
     page = 1
     for _ in range(hard_max_pages):
         data = crema_reviews(product_code=product_code, page=page, per=per, widget_id=widget_id)
+
+        # 404 처리: Http.get_json이 이미 빈 응답을 주지만, 혹시 모르니 안전장치
+        if isinstance(data, dict) and data.get("_http_status") == 404:
+            break
+
         reviews = data.get("reviews") or []
         out.extend(reviews)
 
@@ -293,15 +324,18 @@ def top_terms(texts: List[str], topk: int = 5) -> List[Tuple[str, int]]:
 # ----------------------------
 
 SIZE_KEYWORDS = [
-    "사이즈","정사이즈","한치수","한 치수","작아요","작다","커요","크다","핏","낙낙","타이트","여유","끼","기장","소매","어깨","가슴","발볼"
+    "사이즈", "정사이즈", "한치수", "한 치수", "작아요", "작다", "커요", "크다",
+    "핏", "낙낙", "타이트", "여유", "끼", "기장", "소매", "어깨", "가슴", "발볼"
 ]
 
 POS_KEYWORDS = [
-    "만족","좋아요","좋다","예뻐","이쁘","추천","재구매","가성비","편해","편안","따뜻","가볍","최고","빠르","잘샀"
+    "만족", "좋아요", "좋다", "예뻐", "이쁘", "추천", "재구매", "가성비",
+    "편해", "편안", "따뜻", "가볍", "최고", "빠르", "잘샀"
 ]
 
 REQ_KEYWORDS = [
-    "개선","아쉬","불편","바랐","했으면","추가","보완","수정","필요","요청","문의","교환","반품"
+    "개선", "아쉬", "불편", "바랐", "했으면", "추가", "보완", "수정", "필요",
+    "요청", "문의", "교환", "반품"
 ]
 
 def has_any_kw(text: str, kws: List[str]) -> bool:
@@ -317,8 +351,8 @@ def classify_size_direction(text: str) -> str:
     (형태소 없이 규칙 기반)
     """
     t = (text or "").replace(" ", "")
-    small_kw = ["작아","작다","타이트","끼","조인다","짧다","좁다","발볼좁","어깨좁","가슴좁"]
-    big_kw = ["커","크다","넉넉","오버","길다","넓다","헐렁","부해"]
+    small_kw = ["작아", "작다", "타이트", "끼", "조인다", "짧다", "좁다", "발볼좁", "어깨좁", "가슴좁"]
+    big_kw = ["커", "크다", "넉넉", "오버", "길다", "넓다", "헐렁", "부해"]
     for kw in small_kw:
         if kw in t:
             return "too_small"
@@ -493,7 +527,7 @@ def download_to_assets(url: str, kind_dir: pathlib.Path, referer: str = "") -> s
     name = safe_filename(sha1(url) + url_ext(url))
     out_path = kind_dir / name
 
-    headers = {}
+    headers: Dict[str, str] = {}
     if referer:
         headers["Referer"] = referer
 
@@ -1460,28 +1494,58 @@ def main():
     products = load_products_csv(CONFIG_DIR / "products.csv")
     codes = products["product_code"].dropna().unique().tolist()
 
+    # optional: freegift_ 계열 제외
+    if SKIP_FREEGIFT_PREFIX:
+        codes = [c for c in codes if not str(c).lower().startswith("freegift_")]
+
     all_reviews: List[Dict[str, Any]] = []
 
     print(f"[INFO] Repo root: {ROOT}", flush=True)
     print(f"[INFO] Products: {len(codes)}", flush=True)
     print(f"[INFO] Fetching crema reviews from: {BASE_API}", flush=True)
     print(f"[INFO] widget_id={DEFAULT_WIDGET_ID}, per={DEFAULT_PER_PAGE}", flush=True)
+    print(f"[INFO] fail_open_per_product={int(FAIL_OPEN_PER_PRODUCT)}", flush=True)
+    print(f"[INFO] skip_freegift_prefix={int(SKIP_FREEGIFT_PREFIX)}", flush=True)
 
     meta_by_code = {
         row["product_code"]: {"name": row.get("product_name", ""), "url": row.get("product_url", "")}
         for _, row in products.iterrows()
     }
 
+    skipped_404: List[str] = []
+    skipped_other: List[str] = []
+
     for code in tqdm(codes, desc="Products"):
-        revs = fetch_all_pages(product_code=code, per=DEFAULT_PER_PAGE, widget_id=DEFAULT_WIDGET_ID)
-        csv_name = meta_by_code.get(code, {}).get("name", "")
-        csv_url = meta_by_code.get(code, {}).get("url", "")
+        code_str = str(code)
+
+        try:
+            revs = fetch_all_pages(product_code=code_str, per=DEFAULT_PER_PAGE, widget_id=DEFAULT_WIDGET_ID)
+        except RuntimeError as e:
+            msg = str(e)
+            if FAIL_OPEN_PER_PRODUCT:
+                # 404/403/429/네트워크 등 상품 단위로 스킵하고 계속 (운영용)
+                if "404" in msg or "Not Found" in msg:
+                    skipped_404.append(code_str)
+                    print(f"[WARN] 404 Not Found - skip product_code={code_str}", flush=True)
+                    continue
+                skipped_other.append(code_str)
+                print(f"[WARN] product failed - skip product_code={code_str} err={msg[:200]}", flush=True)
+                continue
+            # 디버그 모드면 즉시 실패
+            raise
+
+        # 리뷰가 0개면 그냥 다음 상품
+        if not revs:
+            continue
+
+        csv_name = meta_by_code.get(code_str, {}).get("name", "")
+        csv_url = meta_by_code.get(code_str, {}).get("url", "")
         for r in revs:
             all_reviews.append(flatten_review(r, csv_name=csv_name, csv_url=csv_url))
 
     df = pd.DataFrame(all_reviews)
     if len(df) == 0:
-        raise SystemExit("수집된 리뷰가 없습니다. 토큰/상품코드/접근 정책(403)/프록시 확인 필요")
+        raise SystemExit("수집된 리뷰가 없습니다. 토큰/상품코드/접근 정책(403)/프록시/404 상품코드 확인 필요")
 
     df = df.drop_duplicates(subset=["id"], keep="first").copy()
 
@@ -1547,7 +1611,11 @@ def main():
         "common_issues": common_issues,
         "low_keywords": low_keywords,
         "size_phrases": size_phrases,
-        "fit_words": ["정사이즈","한치수 크게","한치수 작게","타이트","넉넉","기장","소매","어깨","가슴","발볼"],
+        "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼"],
+        "skipped_404_count": len(skipped_404),
+        "skipped_other_count": len(skipped_other),
+        "skipped_404_product_codes": skipped_404[:500],
+        "skipped_other_product_codes": skipped_other[:500],
     }
 
     out_reviews: List[Dict[str, Any]] = []
@@ -1560,20 +1628,20 @@ def main():
 
         out_reviews.append({
             "id": rid_out,
-            "product_code": r.get("product_code",""),
-            "product_name": r.get("product_name",""),
-            "product_url": r.get("product_url",""),
+            "product_code": r.get("product_code", ""),
+            "product_name": r.get("product_name", ""),
+            "product_url": r.get("product_url", ""),
             "rating": int(r.get("rating") or 0),
-            "created_at": r.get("created_at",""),
-            "text": r.get("text",""),
-            "source": r.get("source","Official"),
-            "option_size": r.get("option_size",""),
-            "option_color": r.get("option_color",""),
+            "created_at": r.get("created_at", ""),
+            "text": r.get("text", ""),
+            "source": r.get("source", "Official"),
+            "option_size": r.get("option_size", ""),
+            "option_color": r.get("option_color", ""),
             "tags": r.get("tags", []),
-            "size_direction": r.get("size_direction","other"),
-            "local_product_image": r.get("local_product_image",""),
-            "local_review_thumb": r.get("local_review_thumb",""),
-            "text_image_path": r.get("text_image_path",""),
+            "size_direction": r.get("size_direction", "other"),
+            "local_product_image": r.get("local_product_image", ""),
+            "local_review_thumb": r.get("local_review_thumb", ""),
+            "text_image_path": r.get("text_image_path", ""),
         })
 
     (SITE_DATA_DIR / "meta.json").write_text(json.dumps(meta_json, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1587,6 +1655,10 @@ def main():
     print(f"- Total reviews: {len(df)}", flush=True)
     print(f"- Date range: {date_range}", flush=True)
     print(f"- Complaint Top5: {complaint_top5}", flush=True)
+    if skipped_404:
+        print(f"- Skipped 404: {len(skipped_404)} (example: {skipped_404[:10]})", flush=True)
+    if skipped_other:
+        print(f"- Skipped other errors: {len(skipped_other)} (example: {skipped_other[:10]})", flush=True)
 
 if __name__ == "__main__":
     main()
