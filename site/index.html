@@ -162,7 +162,7 @@
             <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
           </div>
           <div class="text-xs font-black text-slate-500">
-            * 최근 7일 고정 + 불만리뷰 기반 키워드
+            * 최근 7일 고정 + 키워드(긍/부정 분리)
           </div>
         </div>
 
@@ -174,9 +174,15 @@
           </div>
 
           <div class="summary-card">
-            <div class="small-label text-red-600 mb-2">1-2) Complaint Top 5</div>
-            <div id="topComplaints" class="mt-2 flex flex-wrap gap-2"></div>
-            <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 불만리뷰(저평점/불만태그/불만표현) 기반</div>
+            <div class="small-label text-red-600 mb-2">1-2) Keywords Top 5</div>
+
+            <div class="text-[11px] font-black text-slate-500 mt-2">NEG (불만)</div>
+            <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
+
+            <div class="text-[11px] font-black text-slate-500 mt-4">POS (긍정)</div>
+            <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
+
+            <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 리뷰 기반(중립어/관용어 제거 + 긍/부정 분리)</div>
           </div>
 
           <div class="summary-card">
@@ -318,7 +324,7 @@
 
     <footer class="text-xs font-bold text-slate-500 pb-8">
       * 데이터 소스: reviews.json (최근 7일로 필터링 후 렌더).<br/>
-      * 키워드: 최근 7일 불만리뷰 기반 + 해시태그/잡어 제거.
+      * 키워드: 최근 7일 리뷰 기반 + 중립어 제거 + 긍/부정 분리.
     </footer>
 
   </main>
@@ -331,7 +337,7 @@
       sourceTab: 'combined',
       chips: { daily:true, pos:false, size:false, low:false },
       rankMode: 'size',
-      rankExpanded: false, // ✅ Top5 기본
+      rankExpanded: false,
     };
 
     function showOverlay(msg){
@@ -412,7 +418,6 @@
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
 
-      // ✅ 날짜 선택: YYYY-MM-DD 일치
       const day = (document.getElementById("daySelect")?.value || "").trim();
       if (day){
         rows = rows.filter(r => String(r.created_at || "").slice(0,10) === day);
@@ -478,7 +483,7 @@
         if (asArr(r.tags).includes("size")) g.sizeIssue += 1;
         if ((r.rating||0) <= 2 || asArr(r.tags).includes("low")) g.low += 1;
 
-        // ✅ 문제 키워드(불만리뷰 기반)
+        // 문제 키워드(간단 로직 유지)
         if ((r.rating||0) <= 2 || asArr(r.tags).includes("low") || asArr(r.tags).includes("req")){
           const words = (r.text||"").match(/[가-힣A-Za-z0-9]{2,}/g) || [];
           for (const w of words.slice(0, 50)){
@@ -505,7 +510,6 @@
       const rankLow  = rows.slice().sort((a,b)=> b.lowRate  - a.lowRate  || b.reviews - a.reviews);
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || b.reviews - a.reviews);
 
-      // ✅ 옵션(사이즈) 이슈율: Top5 + OS 제외
       const sizeMap = new Map();
       for (const r of reviews){
         const sz = (r.option_size || "").trim();
@@ -557,9 +561,14 @@
     function renderSummary(metrics){
       document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
 
-      const top = META?.complaint_top5 || [];
-      const el = document.getElementById("topComplaints");
-      el.innerHTML = top.map(([k,c]) => `<span class="badge neg">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
+      const topNeg = META?.neg_top5 || [];
+      const topPos = META?.pos_top5 || [];
+
+      document.getElementById("topNeg").innerHTML =
+        topNeg.map(([k,c]) => `<span class="badge neg">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
+
+      document.getElementById("topPos").innerHTML =
+        topPos.map(([k,c]) => `<span class="badge pos">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
 
       const top3 = metrics.rankSize.slice(0,3);
       const ol = document.getElementById("priorityTop3");
@@ -638,7 +647,7 @@
               <div class="text-xs font-black text-slate-800 line-clamp-1">${esc(e.product_name)}</div>
               <div class="text-[11px] font-black text-slate-500">★ ${esc(e.rating)} · ${esc(String(e.created_at||"").slice(0,10))}</div>
             </div>
-            <div class="text-[11px] font-bold text-slate-500 mt-1">code: ${esc(e.product_code)} · id: ${esc(e.id)}</div>
+            <div class="text-[11px] font-black text-slate-500 mt-1">code: ${esc(e.product_code)} · id: ${esc(e.id)}</div>
             <div class="text-xs font-extrabold text-slate-700 mt-2 leading-relaxed">${esc(e.text_snip || "")}</div>
           </div>
         `).join("");
@@ -791,7 +800,6 @@
         META = meta;
         REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
 
-        // 날짜 선택 min/max 세팅(최근7일 범위)
         const dayInput = document.getElementById("daySelect");
         if (dayInput && META?.period_start && META?.period_end){
           dayInput.min = META.period_start;
