@@ -64,12 +64,13 @@
     .img-box{ width:72px; height:72px; border-radius:18px; overflow:hidden; background: rgba(255,255,255,0.70);
       border:1px solid rgba(255,255,255,0.85); }
     .img-box img{ width:100%; height:100%; object-fit:cover; display:block; }
-    .review-list{ display:grid; grid-template-columns: 1fr; gap: 14px; }
-    @media (min-width: 1024px){ .review-list{ grid-template-columns: 1fr 1fr; } }
     body.embedded aside, body.embedded header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
     .line-clamp-1{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
     .line-clamp-2{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .line-clamp-3{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
+    .kw-chip{ cursor:pointer; }
+    .kw-chip:hover{ transform: translateY(-1px); }
   </style>
 </head>
 
@@ -100,8 +101,8 @@
       <div class="text-sm font-black text-slate-900">주 1회</div>
       <div class="text-xs font-bold text-slate-500 mt-2">월요일 오전 9시 (KST)</div>
       <div class="mt-4 text-xs font-bold text-slate-500">
-        * 이 레이아웃은 정적 HTML. <br/>
-        실제 데이터는 JSON(data/meta.json, data/reviews.json)에서 로드됩니다.
+        * 정적 HTML<br/>
+        * JSON(data/meta.json, data/reviews.json) 로드
       </div>
     </div>
 
@@ -113,214 +114,227 @@
   </aside>
 
   <main class="flex-1 p-8 md:p-14">
-    <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
-      <div>
-        <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-          Official몰 & Naver 리뷰 VOC 대시보드
-        </h1>
-        <div id="headerMeta" class="text-sm text-slate-500 font-bold">
-          - · - · 주 1회 자동 업데이트(월 09:00)
-        </div>
-      </div>
+    <!-- ✅ 전체 가로폭 제한 -->
+    <div class="max-w-[1320px] mx-auto">
 
-      <div class="glass-card px-6 py-4 flex items-center gap-4">
-        <div class="flex h-3 w-3 relative">
-          <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
-        </div>
-        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">VOC Snapshot</span>
-      </div>
-    </header>
-
-    <section class="mb-8">
-      <div class="flex flex-wrap gap-2 items-center">
-        <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
-          Combined <span class="ml-2 opacity-70">공식몰+네이버(1탭)</span>
-        </button>
-        <button class="tab-btn" data-tab="official" onclick="switchSourceTab('official')">
-          Official Mall
-        </button>
-        <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
-          Naver
-        </button>
-
-        <div class="ml-auto flex items-center gap-3">
-          <div class="small-label text-blue-600">View</div>
-          <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">당일 업로드 순</button>
-          <button class="chip" id="chip-pos" onclick="toggleChip('pos')">긍정 키워드 포함</button>
-          <button class="chip" id="chip-size" onclick="toggleChip('size')">사이즈 이슈만</button>
-          <button class="chip" id="chip-low" onclick="toggleChip('low')">저평점만</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="mb-10">
-      <div class="glass-card p-8">
-        <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-          <div>
-            <div class="small-label text-blue-600 mb-2">1. Summary</div>
-            <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
-          </div>
-          <div class="text-xs font-black text-slate-500">
-            * 최근 7일 고정 + (카테고리 stopwords + 이슈클러스터 + 부정게이트)
+      <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
+        <div>
+          <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
+            Official몰 & Naver 리뷰 VOC 대시보드
+          </h1>
+          <div id="headerMeta" class="text-sm text-slate-500 font-bold">
+            - · - · 주 1회 자동 업데이트(월 09:00)
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">1-1) Size mention</div>
-            <div class="text-3xl font-black"><span id="sizeMentionRate">-</span>%</div>
-            <div class="text-xs font-bold text-slate-500 mt-2">전체 리뷰 중 사이즈 관련 언급 비중</div>
+        <div class="glass-card px-6 py-4 flex items-center gap-4">
+          <div class="flex h-3 w-3 relative">
+            <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
           </div>
+          <span class="text-sm font-black text-slate-800 tracking-widest uppercase">VOC Snapshot</span>
+        </div>
+      </header>
 
-          <div class="summary-card">
-            <div class="small-label text-red-600 mb-2">1-2) Complaint Top 5</div>
-            <div id="topComplaints" class="mt-2 flex flex-wrap gap-2"></div>
-            <div id="complaintSub" class="text-xs font-bold text-slate-500 mt-3">-</div>
-          </div>
+      <section class="mb-8">
+        <div class="flex flex-wrap gap-2 items-center">
+          <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
+            Combined <span class="ml-2 opacity-70">공식몰+네이버(1탭)</span>
+          </button>
+          <button class="tab-btn" data-tab="official" onclick="switchSourceTab('official')">
+            Official Mall
+          </button>
+          <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
+            Naver
+          </button>
 
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">1-3) Priority Top 3</div>
-            <ol id="priorityTop3" class="mt-2 space-y-2"></ol>
-            <div class="text-xs font-bold text-slate-500 mt-3">개선 필요 제품 Top 3(사이즈 이슈율)</div>
+          <div class="ml-auto flex items-center gap-3">
+            <div class="small-label text-blue-600">View</div>
+            <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">당일 업로드 순</button>
+            <button class="chip" id="chip-pos" onclick="toggleChip('pos')">긍정 키워드 포함</button>
+            <button class="chip" id="chip-size" onclick="toggleChip('size')">사이즈 이슈만</button>
+            <button class="chip" id="chip-low" onclick="toggleChip('low')">저평점만</button>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="mb-10">
-      <div class="glass-card p-8">
-        <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-          <div>
-            <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
-            <div class="text-xs font-bold text-slate-500 mt-1">Top5 기본 노출(접기/펼치기)</div>
-          </div>
-          <div class="flex gap-2">
-            <button class="chip active" id="rank-size" onclick="switchRankMode('size')">2-1) 사이즈 이슈율</button>
-            <button class="chip" id="rank-low" onclick="switchRankMode('low')">2-2) 저평점 비중</button>
-            <button class="chip" id="rank-both" onclick="switchRankMode('both')">2-3) 교집합</button>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-end mb-3">
-          <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
-        </div>
-
-        <div class="overflow-auto">
-          <table class="tbl min-w-[980px]">
-            <thead>
-              <tr>
-                <th class="text-left">제품명</th>
-                <th class="text-left">리뷰 수</th>
-                <th class="text-left">사이즈 이슈율</th>
-                <th class="text-left">저평점 비중</th>
-                <th class="text-left">주요 문제 키워드</th>
-              </tr>
-            </thead>
-            <tbody id="rankingBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section class="mb-10">
-      <div class="glass-card p-8">
-        <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-          <div>
-            <div class="small-label text-blue-600 mb-2">3. 사이즈 이슈 구조 분석</div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">3-1) small vs big</div>
-            <div class="flex items-center justify-between mt-3">
-              <span class="badge size">too_small <span id="tooSmall">-</span>%</span>
-              <span class="badge size">too_big <span id="tooBig">-</span>%</span>
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">1. Summary</div>
+              <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
             </div>
-            <div class="text-xs font-bold text-slate-500 mt-3">규칙 기반 자동 분류</div>
+            <div class="text-xs font-black text-slate-500">
+              * 최근 7일 고정 + 중립/관용구 제거 + 긍/부정 분리
+            </div>
           </div>
 
-          <div class="summary-card lg:col-span-2">
-            <div class="small-label text-blue-600 mb-2">3-2) 옵션(사이즈)별 이슈율</div>
-            <div class="text-xs font-bold text-slate-500 mb-2">Top5만 + OS 제외</div>
-            <div class="overflow-auto mt-3">
-              <table class="tbl min-w-[820px]">
-                <thead>
-                  <tr>
-                    <th class="text-left">옵션 사이즈</th>
-                    <th class="text-left">리뷰 수</th>
-                    <th class="text-left">too_small</th>
-                    <th class="text-left">too_big</th>
-                    <th class="text-left">정사이즈/기타</th>
-                  </tr>
-                </thead>
-                <tbody id="sizeOptBody"></tbody>
-              </table>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="summary-card">
+              <div class="small-label text-blue-600 mb-2">1-1) Size mention</div>
+              <div class="text-3xl font-black"><span id="sizeMentionRate">-</span>%</div>
+              <div class="text-xs font-bold text-slate-500 mt-2">전체 리뷰 중 사이즈 관련 언급 비중</div>
+            </div>
+
+            <div class="summary-card">
+              <div class="small-label text-slate-700 mb-2">1-2) Keywords Top 5</div>
+
+              <div class="text-xs font-black text-slate-500 mt-1">NEG (불만)</div>
+              <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
+
+              <div class="text-xs font-black text-slate-500 mt-4">POS (공감/강점)</div>
+              <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
+
+              <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 기반(중립/관용구 제거 + 클릭→해당 리뷰 이동)</div>
+            </div>
+
+            <div class="summary-card">
+              <div class="small-label text-blue-600 mb-2">1-3) Priority Top 3</div>
+              <ol id="priorityTop3" class="mt-2 space-y-2"></ol>
+              <div class="text-xs font-bold text-slate-500 mt-3">개선 필요 제품 Top 3(사이즈 이슈율)</div>
             </div>
           </div>
         </div>
+      </section>
 
-        <div class="summary-card mt-4">
-          <div class="small-label text-blue-600 mb-2">3-3) 핏 관련 반복 표현</div>
-          <div id="fitWords" class="flex flex-wrap gap-2 mt-2"></div>
-        </div>
-      </div>
-    </section>
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
+              <div class="text-xs font-bold text-slate-500 mt-1">Top5 기본 노출(접기/펼치기)</div>
+            </div>
+            <div class="flex gap-2">
+              <button class="chip active" id="rank-size" onclick="switchRankMode('size')">2-1) 사이즈 이슈율</button>
+              <button class="chip" id="rank-low" onclick="switchRankMode('low')">2-2) 저평점 비중</button>
+              <button class="chip" id="rank-both" onclick="switchRankMode('both')">2-3) 교집합</button>
+            </div>
+          </div>
 
-    <section class="mb-10">
-      <div class="glass-card p-8">
-        <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-          <div>
-            <div class="small-label text-blue-600 mb-2">4. 대표 리뷰 마인드맵</div>
-            <div class="text-xs font-bold text-slate-500 mt-1">키워드 → 근거 리뷰 연결</div>
+          <div class="flex items-center justify-end mb-3">
+            <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
+          </div>
+
+          <div class="overflow-auto">
+            <table class="tbl min-w-[980px]">
+              <thead>
+                <tr>
+                  <th class="text-left">제품명</th>
+                  <th class="text-left">리뷰 수</th>
+                  <th class="text-left">사이즈 이슈율</th>
+                  <th class="text-left">저평점 비중</th>
+                  <th class="text-left">주요 키워드</th>
+                </tr>
+              </thead>
+              <tbody id="rankingBody"></tbody>
+            </table>
           </div>
         </div>
+      </section>
 
-        <div id="mindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
-      </div>
-    </section>
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">3. 사이즈 이슈 구조 분석</div>
+            </div>
+          </div>
 
-    <section class="mb-10">
-      <div class="glass-card p-8">
-        <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-          <div>
-            <div class="small-label text-blue-600 mb-2">Daily Feed</div>
-            <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
-            <div class="text-sm font-bold text-slate-500 mt-2">최근 7일 범위 내에서 날짜 선택 가능</div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="summary-card">
+              <div class="small-label text-blue-600 mb-2">3-1) small vs big</div>
+              <div class="flex items-center justify-between mt-3">
+                <span class="badge size">too_small <span id="tooSmall">-</span>%</span>
+                <span class="badge size">too_big <span id="tooBig">-</span>%</span>
+              </div>
+              <div class="text-xs font-bold text-slate-500 mt-3">규칙 기반 자동 분류</div>
+            </div>
+
+            <div class="summary-card lg:col-span-2">
+              <div class="small-label text-blue-600 mb-2">3-2) 옵션(사이즈)별 이슈율</div>
+              <div class="text-xs font-bold text-slate-500 mb-2">Top5만 + OS 제외</div>
+              <div class="overflow-auto mt-3">
+                <table class="tbl min-w-[820px]">
+                  <thead>
+                    <tr>
+                      <th class="text-left">옵션 사이즈</th>
+                      <th class="text-left">리뷰 수</th>
+                      <th class="text-left">too_small</th>
+                      <th class="text-left">too_big</th>
+                      <th class="text-left">정사이즈/기타</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sizeOptBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-card mt-4">
+            <div class="small-label text-blue-600 mb-2">3-3) 핏 관련 반복 표현</div>
+            <div id="fitWords" class="flex flex-wrap gap-2 mt-2"></div>
           </div>
         </div>
+      </section>
 
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-6">
-          <input id="daySelect" type="date" class="input-glass" onchange="renderAll()" />
-          <select id="productSelect" class="input-glass" onchange="renderAll()">
-            <option value="">제품 선택 (전체)</option>
-          </select>
-          <select id="sizeSelect" class="input-glass" onchange="renderAll()">
-            <option value="">옵션 사이즈 (전체)</option>
-          </select>
-          <select id="sortSelect" class="input-glass" onchange="renderAll()">
-            <option value="upload">정렬: 업로드 순 (기본)</option>
-            <option value="latest">최신순</option>
-            <option value="long">리뷰 길이 긴 순</option>
-            <option value="low">저평점순</option>
-          </select>
-          <input id="qInput" class="input-glass" placeholder="텍스트 검색(옵션)" oninput="renderAll()" />
+      <!-- ✅ 섹션 4 교체: 제품별(최근 1년) 누적 긍/부정 키워드 마인드맵 -->
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
+              <div class="text-xs font-bold text-slate-500 mt-1">최근 1년 누적 · 제품별 긍/부정 키워드</div>
+            </div>
+          </div>
+
+          <div id="productMindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
         </div>
+      </section>
 
-        <div id="dailyFeed" class="space-y-4"></div>
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">Daily Feed</div>
+              <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
+              <div class="text-sm font-bold text-slate-500 mt-2">최근 7일 범위 내에서 날짜 선택 가능</div>
+            </div>
+          </div>
 
-        <div class="hidden review-card text-center" id="noResults">
-          <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
+          <div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-6">
+            <input id="daySelect" type="date" class="input-glass" onchange="renderAll()" />
+            <select id="productSelect" class="input-glass" onchange="renderAll()">
+              <option value="">제품 선택 (전체)</option>
+            </select>
+            <select id="sizeSelect" class="input-glass" onchange="renderAll()">
+              <option value="">옵션 사이즈 (전체)</option>
+            </select>
+            <select id="sortSelect" class="input-glass" onchange="renderAll()">
+              <option value="upload">정렬: 업로드 순 (기본)</option>
+              <option value="latest">최신순</option>
+              <option value="long">리뷰 길이 긴 순</option>
+              <option value="low">저평점순</option>
+            </select>
+            <input id="qInput" class="input-glass" placeholder="텍스트 검색(옵션)" oninput="renderAll()" />
+          </div>
+
+          <!-- ✅ 3열 그리드 -->
+          <div id="dailyFeed" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+
+          <div class="hidden review-card text-center" id="noResults">
+            <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <footer class="text-xs font-bold text-slate-500 pb-8">
-      * 데이터 소스: reviews.json (최근 7일로 필터링 후 렌더).<br/>
-      * 키워드: 최근 7일 불만리뷰 기반 + 카테고리 공통 중립어 자동 제거 + 이슈클러스터 기반.
-    </footer>
+      <footer class="text-xs font-bold text-slate-500 pb-8">
+        * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
+        * 섹션4: 최근 1년 누적(제품별 POS/NEG 키워드).<br/>
+        * 키워드: 중립/관용구/제품코드성 단어 제거 + 제품군별 자동 stopwords 학습.
+      </footer>
 
+    </div>
   </main>
 
   <script>
@@ -331,7 +345,8 @@
       sourceTab: 'combined',
       chips: { daily:true, pos:false, size:false, low:false },
       rankMode: 'size',
-      rankExpanded: false, // ✅ Top5 기본
+      rankExpanded: false,
+      pendingScrollReviewId: null,
     };
 
     function showOverlay(msg){
@@ -406,6 +421,29 @@
 
     function asArr(x){ return Array.isArray(x) ? x : []; }
 
+    function applyKeywordAndScroll(keyword, reviewId){
+      const q = document.getElementById("qInput");
+      if (q) q.value = keyword || "";
+      uiState.pendingScrollReviewId = reviewId || null;
+      renderAll();
+    }
+
+    function tryScrollToReview(){
+      const id = uiState.pendingScrollReviewId;
+      if (!id) return;
+      uiState.pendingScrollReviewId = null;
+
+      // DOM 렌더가 끝난 뒤 스크롤
+      requestAnimationFrame(() => {
+        const el = document.getElementById("review-" + String(id));
+        if (el){
+          el.scrollIntoView({behavior:"smooth", block:"start"});
+          el.classList.add("ring-4","ring-blue-200");
+          setTimeout(()=> el.classList.remove("ring-4","ring-blue-200"), 1800);
+        }
+      });
+    }
+
     function getFilteredReviews(){
       let rows = REVIEWS.slice();
 
@@ -469,7 +507,8 @@
             reviews: 0,
             sizeIssue: 0,
             low: 0,
-            issueKwds: new Map()
+            kwPos: new Map(),
+            kwNeg: new Map(),
           });
         }
         const g = byProd.get(code);
@@ -477,34 +516,20 @@
         if (asArr(r.tags).includes("size")) g.sizeIssue += 1;
         if ((r.rating||0) <= 2 || asArr(r.tags).includes("low")) g.low += 1;
 
-        // (fallback) issue keywords - JS 방식은 보조로만 남김
-        if ((r.rating||0) <= 2 || asArr(r.tags).includes("low") || asArr(r.tags).includes("req")){
-          const words = (r.text||"").match(/[가-힣A-Za-z0-9]{2,}/g) || [];
-          for (const w of words.slice(0, 50)){
-            const k = w.toLowerCase();
-            if (k.length < 2) continue;
-            if (["제품","상품","구매","사이즈","배송","택배","포장"].includes(k)) continue;
-            g.issueKwds.set(k, (g.issueKwds.get(k)||0) + 1);
-          }
-        }
+        // 제품별 "주요 키워드": meta에서 제공한 pos/neg 토큰(이미 정제됨)을 활용
+        const pkw = asArr(r.pos_keywords);
+        const nkw = asArr(r.neg_keywords);
+        for (const k of pkw) g.kwPos.set(k, (g.kwPos.get(k)||0) + 1);
+        for (const k of nkw) g.kwNeg.set(k, (g.kwNeg.get(k)||0) + 1);
       }
 
       const rows = Array.from(byProd.values()).map(g => {
         const sizeRate = Math.round((g.sizeIssue / Math.max(1,g.reviews))*100);
         const lowRate  = Math.round((g.low / Math.max(1,g.reviews))*100);
 
-        // ✅ Python 정제 키워드 우선
-        const pyKw = (META && META.product_issue_keywords && META.product_issue_keywords[g.product_code])
-          ? META.product_issue_keywords[g.product_code]
-          : null;
-
-        const kwds = (pyKw && pyKw.length)
-          ? pyKw.slice(0,4).join(", ")
-          : Array.from(g.issueKwds.entries())
-              .sort((a,b)=>b[1]-a[1])
-              .slice(0,4)
-              .map(x=>x[0])
-              .join(", ");
+        const posTop = Array.from(g.kwPos.entries()).sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>`+${x[0]}`).join(" ");
+        const negTop = Array.from(g.kwNeg.entries()).sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>`-${x[0]}`).join(" ");
+        const kwds = (posTop || negTop) ? `${posTop}${posTop && negTop ? " · " : ""}${negTop}` : "-";
 
         return { ...g, sizeRate, lowRate, kwds };
       });
@@ -513,7 +538,7 @@
       const rankLow  = rows.slice().sort((a,b)=> b.lowRate  - a.lowRate  || b.reviews - a.reviews);
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || b.reviews - a.reviews);
 
-      // ✅ 옵션(사이즈) 이슈율: Top5 + OS 제외
+      // 옵션(사이즈) 이슈율: Top5 + OS 제외
       const sizeMap = new Map();
       for (const r of reviews){
         const sz = (r.option_size || "").trim();
@@ -565,15 +590,27 @@
     function renderSummary(metrics){
       document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
 
-      // ✅ Complaint Top5 = 대표 이슈 기반(원인 기반) 우선, 없으면 neg_top5 fallback
-      const issue = META?.primary_issue || "quality";
-      const top = META?.primary_issue_top5?.length ? META.primary_issue_top5 : (META?.neg_top5 || []);
-      const el = document.getElementById("topComplaints");
-      el.innerHTML = top.map(([k,c]) => `<span class="badge neg">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
+      // NEG / POS TOP5 (클릭 -> 검색 + 스크롤)
+      const neg = META?.neg_top5 || [];
+      const pos = META?.pos_top5 || [];
+      const posEx = META?.pos_examples || {};
 
-      const sub = document.getElementById("complaintSub");
-      const map = {size:"사이즈", quality:"품질", shipping:"배송", cs:"CS"};
-      sub.textContent = `최근 7일 불만리뷰 기반 · 대표 이슈: ${map[issue] || issue}`;
+      const elNeg = document.getElementById("topNeg");
+      elNeg.innerHTML = neg.map(([k,c, rid]) => `
+        <span class="badge neg kw-chip" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
+          #${esc(k)} <span class="opacity-70">${esc(c)}</span>
+        </span>
+      `).join("");
+
+      const elPos = document.getElementById("topPos");
+      elPos.innerHTML = pos.map(([k,c, rid]) => {
+        const ex = (posEx && posEx[k] && posEx[k][0]) ? posEx[k][0].snip : "";
+        return `
+          <span class="badge pos kw-chip" title="${esc(ex)}" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
+            #${esc(k)} <span class="opacity-70">${esc(c)}</span>
+          </span>
+        `;
+      }).join("");
 
       const top3 = metrics.rankSize.slice(0,3);
       const ol = document.getElementById("priorityTop3");
@@ -636,35 +673,50 @@
       fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
     }
 
-    function renderMindmap(){
-      const mm = META?.mindmap || [];
-      const root = document.getElementById("mindmap");
+    function renderProductMindmap(){
+      const mm = META?.product_mindmap_1y || [];
+      const root = document.getElementById("productMindmap");
       if (!mm.length){
         root.innerHTML = `<div class="summary-card lg:col-span-3"><div class="text-sm font-black text-slate-700">마인드맵 데이터가 없습니다.</div></div>`;
         return;
       }
 
-      root.innerHTML = mm.map(node => {
-        const ev = node.evidence || [];
-        const items = ev.map(e => `
-          <div class="mt-2 p-3 rounded-2xl bg-white/60 border border-white/80">
-            <div class="flex items-center justify-between">
-              <div class="text-xs font-black text-slate-800 line-clamp-1">${esc(e.product_name)}</div>
-              <div class="text-[11px] font-black text-slate-500">★ ${esc(e.rating)} · ${esc(String(e.created_at||"").slice(0,10))}</div>
-            </div>
-            <div class="text-[11px] font-black text-slate-500 mt-1">code: ${esc(e.product_code)} · id: ${esc(e.id)}</div>
-            <div class="text-xs font-extrabold text-slate-700 mt-2 leading-relaxed">${esc(e.text_snip || "")}</div>
-          </div>
+      root.innerHTML = mm.map(p => {
+        const img = p.local_product_image
+          ? `<img src="${esc(p.local_product_image)}" alt="" class="w-14 h-14 rounded-2xl object-cover border border-white/80 bg-white/60" />`
+          : `<div class="w-14 h-14 rounded-2xl flex items-center justify-center text-[10px] text-slate-400 border border-white/80 bg-white/60">NO IMAGE</div>`;
+
+        const pos = (p.pos_keywords || []).map(x => `
+          <span class="badge pos kw-chip" onclick="applyKeywordAndScroll('${esc(x.k)}','${esc(x.rid||"")}')">
+            #${esc(x.k)} <span class="opacity-70">${esc(x.c)}</span>
+          </span>
+        `).join("");
+
+        const neg = (p.neg_keywords || []).map(x => `
+          <span class="badge neg kw-chip" onclick="applyKeywordAndScroll('${esc(x.k)}','${esc(x.rid||"")}')">
+            #${esc(x.k)} <span class="opacity-70">${esc(x.c)}</span>
+          </span>
         `).join("");
 
         return `
           <div class="summary-card">
-            <div class="flex items-center justify-between">
-              <span class="badge neg">#${esc(node.keyword)}</span>
-              <span class="text-xs font-black text-slate-500">${esc(node.count)}x</span>
+            <div class="flex items-start gap-3">
+              ${img}
+              <div class="min-w-0">
+                <div class="font-black text-slate-900 line-clamp-2">${esc(p.product_name || p.product_code)}</div>
+                <div class="text-[11px] font-black text-slate-500 mt-1">code: ${esc(p.product_code)} · 1y reviews: ${esc(p.review_cnt_1y)}</div>
+              </div>
             </div>
-            <div class="text-xs font-bold text-slate-500 mt-2">근거 리뷰</div>
-            ${items || `<div class="text-xs font-bold text-slate-400 mt-2">-</div>`}
+
+            <div class="mt-4">
+              <div class="text-xs font-black text-slate-500">POS</div>
+              <div class="mt-2 flex flex-wrap gap-2">${pos || `<span class="text-xs font-bold text-slate-400">-</span>`}</div>
+            </div>
+
+            <div class="mt-4">
+              <div class="text-xs font-black text-slate-500">NEG</div>
+              <div class="mt-2 flex flex-wrap gap-2">${neg || `<span class="text-xs font-bold text-slate-400">-</span>`}</div>
+            </div>
           </div>
         `;
       }).join("");
@@ -693,7 +745,7 @@
         : ``;
 
       return `
-        <div class="review-card">
+        <div class="review-card" id="review-${esc(r.id)}">
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <div class="img-box">${prodImg}</div>
@@ -715,7 +767,7 @@
             ${tags.join("")}
           </div>
 
-          <div class="mt-3 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words">
+          <div class="mt-3 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words line-clamp-3">
             ${esc(r.text || "")}
           </div>
 
@@ -791,8 +843,10 @@
       renderSummary(metrics);
       renderRanking(metrics);
       renderSizeStructure(metrics);
-      renderMindmap();
+      renderProductMindmap();
       renderDailyFeed(filtered);
+
+      tryScrollToReview();
     }
 
     async function boot(){
