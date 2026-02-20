@@ -116,7 +116,7 @@ jobs:
 
       # ----------------------------
       # 4) Crema VOC
-      # - 원래 로직 유지: 기본/스케줄은 항상 실행
+      # - 기본/스케줄: 실행
       # - voc_only=true면 이것만 실행
       # - blog_only=true면 스킵
       # ----------------------------
@@ -139,14 +139,11 @@ jobs:
           fi
           echo "[INFO] Using input JSON: $INPUT_JSON"
 
-          # ✅ 덮어쓰기 강제: 이전 산출물 제거
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
 
-          # ✅ crema_voc.py는 --out_dir 미지원 → 옵션 제거
           python -u crema_voc.py --input "$INPUT_JSON"
 
-          # ✅ site/ 결과를 reports/voc_crema로 완전 동기화(삭제 포함)
           if [ -f "site/index.html" ]; then
             echo "[INFO] Syncing site/ -> reports/voc_crema/ (with --delete)"
             rsync -a --delete site/ reports/voc_crema/
@@ -159,25 +156,27 @@ jobs:
           test -f reports/voc_crema/index.html
 
       # ----------------------------
-      # 4.5) Naver Blog VOC (NEW)
+      # 4.5) Naver Blog VOC
       # - 기본/스케줄: 실행 (단, voc_only=true면 스킵)
       # - blog_only=true면 이것만 실행되도록 다른 스텝들이 위에서 스킵됨
+      # ✅ FIX: NAVER_CLIENT_ID/SECRET env 주입
       # ----------------------------
       - name: Run Naver Blog VOC (Columbia mentions)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
         shell: bash
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
-          # ✅ 덮어쓰기 강제
           rm -rf reports/voc_blog || true
           mkdir -p reports/voc_blog
 
-          # 필요 시 쿼리/수량은 여기서 조정
           python -u build_blog_voc_report.py \
             --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말" \
             --days 60 \
-            --per-query 40 \
+            --per-query 100 \
             --headless \
             --out-dir reports/voc_blog
 
@@ -208,7 +207,7 @@ jobs:
           set -euo pipefail
           echo "Stamping updated time: ${UPDATED_KST}"
           # (기존 배지 주입 스크립트는 네가 쓰던 그대로 여기에 유지하면 됨)
-          # ... (생략: 너가 이미 갖고 있는 block 그대로 붙여넣기)
+          # ... (생략)
 
       # ----------------------------
       # 7) Commit & push results
