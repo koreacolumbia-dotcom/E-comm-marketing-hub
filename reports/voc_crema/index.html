@@ -162,7 +162,7 @@
             <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
           </div>
           <div class="text-xs font-black text-slate-500">
-            * 최근 7일 고정 + 키워드(긍/부정 분리)
+            * 최근 7일 고정 + (카테고리 stopwords + 이슈클러스터 + 부정게이트)
           </div>
         </div>
 
@@ -174,15 +174,9 @@
           </div>
 
           <div class="summary-card">
-            <div class="small-label text-red-600 mb-2">1-2) Keywords Top 5</div>
-
-            <div class="text-[11px] font-black text-slate-500 mt-2">NEG (불만)</div>
-            <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
-
-            <div class="text-[11px] font-black text-slate-500 mt-4">POS (긍정)</div>
-            <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
-
-            <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 리뷰 기반(중립어/관용어 제거 + 긍/부정 분리)</div>
+            <div class="small-label text-red-600 mb-2">1-2) Complaint Top 5</div>
+            <div id="topComplaints" class="mt-2 flex flex-wrap gap-2"></div>
+            <div id="complaintSub" class="text-xs font-bold text-slate-500 mt-3">-</div>
           </div>
 
           <div class="summary-card">
@@ -324,7 +318,7 @@
 
     <footer class="text-xs font-bold text-slate-500 pb-8">
       * 데이터 소스: reviews.json (최근 7일로 필터링 후 렌더).<br/>
-      * 키워드: 최근 7일 리뷰 기반 + 중립어 제거 + 긍/부정 분리.
+      * 키워드: 최근 7일 불만리뷰 기반 + 카테고리 공통 중립어 자동 제거 + 이슈클러스터 기반.
     </footer>
 
   </main>
@@ -337,7 +331,7 @@
       sourceTab: 'combined',
       chips: { daily:true, pos:false, size:false, low:false },
       rankMode: 'size',
-      rankExpanded: false,
+      rankExpanded: false, // ✅ Top5 기본
     };
 
     function showOverlay(msg){
@@ -483,13 +477,13 @@
         if (asArr(r.tags).includes("size")) g.sizeIssue += 1;
         if ((r.rating||0) <= 2 || asArr(r.tags).includes("low")) g.low += 1;
 
-        // 문제 키워드(간단 로직 유지)
+        // (fallback) issue keywords - JS 방식은 보조로만 남김
         if ((r.rating||0) <= 2 || asArr(r.tags).includes("low") || asArr(r.tags).includes("req")){
           const words = (r.text||"").match(/[가-힣A-Za-z0-9]{2,}/g) || [];
           for (const w of words.slice(0, 50)){
             const k = w.toLowerCase();
             if (k.length < 2) continue;
-            if (["제품","상품","구매","배송","택배","사이즈"].includes(k)) continue;
+            if (["제품","상품","구매","사이즈","배송","택배","포장"].includes(k)) continue;
             g.issueKwds.set(k, (g.issueKwds.get(k)||0) + 1);
           }
         }
@@ -498,11 +492,20 @@
       const rows = Array.from(byProd.values()).map(g => {
         const sizeRate = Math.round((g.sizeIssue / Math.max(1,g.reviews))*100);
         const lowRate  = Math.round((g.low / Math.max(1,g.reviews))*100);
-        const kwds = Array.from(g.issueKwds.entries())
-          .sort((a,b)=>b[1]-a[1])
-          .slice(0,4)
-          .map(x=>x[0])
-          .join(", ");
+
+        // ✅ Python 정제 키워드 우선
+        const pyKw = (META && META.product_issue_keywords && META.product_issue_keywords[g.product_code])
+          ? META.product_issue_keywords[g.product_code]
+          : null;
+
+        const kwds = (pyKw && pyKw.length)
+          ? pyKw.slice(0,4).join(", ")
+          : Array.from(g.issueKwds.entries())
+              .sort((a,b)=>b[1]-a[1])
+              .slice(0,4)
+              .map(x=>x[0])
+              .join(", ");
+
         return { ...g, sizeRate, lowRate, kwds };
       });
 
@@ -510,6 +513,7 @@
       const rankLow  = rows.slice().sort((a,b)=> b.lowRate  - a.lowRate  || b.reviews - a.reviews);
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || b.reviews - a.reviews);
 
+      // ✅ 옵션(사이즈) 이슈율: Top5 + OS 제외
       const sizeMap = new Map();
       for (const r of reviews){
         const sz = (r.option_size || "").trim();
@@ -561,14 +565,15 @@
     function renderSummary(metrics){
       document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
 
-      const topNeg = META?.neg_top5 || [];
-      const topPos = META?.pos_top5 || [];
+      // ✅ Complaint Top5 = 대표 이슈 기반(원인 기반) 우선, 없으면 neg_top5 fallback
+      const issue = META?.primary_issue || "quality";
+      const top = META?.primary_issue_top5?.length ? META.primary_issue_top5 : (META?.neg_top5 || []);
+      const el = document.getElementById("topComplaints");
+      el.innerHTML = top.map(([k,c]) => `<span class="badge neg">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
 
-      document.getElementById("topNeg").innerHTML =
-        topNeg.map(([k,c]) => `<span class="badge neg">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
-
-      document.getElementById("topPos").innerHTML =
-        topPos.map(([k,c]) => `<span class="badge pos">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
+      const sub = document.getElementById("complaintSub");
+      const map = {size:"사이즈", quality:"품질", shipping:"배송", cs:"CS"};
+      sub.textContent = `최근 7일 불만리뷰 기반 · 대표 이슈: ${map[issue] || issue}`;
 
       const top3 = metrics.rankSize.slice(0,3);
       const ol = document.getElementById("priorityTop3");
