@@ -2,20 +2,25 @@
 # -*- coding: utf-8 -*-
 
 """
-[BUILD NAVER BLOG COLUMBIA MENTION REPORT | v2.0]
-요구사항 반영:
-- 긍/부정 분리/키워드 분리 없음
-- "컬럼비아/콜롬비아/Columbia" 언급된 글이면 전부 수집 (본문 기준)
-- 기간: 기본 60일(2개월) 넉넉히
-- 리포트에서 기간(시작/끝) 선택 가능 (프론트에서 필터)
+[FINAL] NAVER BLOG VOC (Columbia mentions) | v3.0
 
-기술:
-- Playwright로 네이버 블로그 검색 결과 수집 → 포스트 본문 추출(iframe/SE에디터 대응)
-- 광고성/협찬/체험단 문구 감지 후 is_sponsored 마킹
-- 출력:
-  - reports/voc_blog/data/posts.json
-  - reports/voc_blog/data/meta.json
-  - reports/voc_blog/index.html (glass-card + Tailwind)
+목표
+- 네이버 블로그에서 "컬럼비아/콜롬비아/Columbia" 언급 글을 60일(기본)치 수집
+- 긍/부정 분류 없음: 언급 기반으로 모두 수집
+- 리포트에서 기간(시작/끝) 선택 필터 제공
+- GitHub Actions headless 환경에서 0건 방지 위해:
+  - 후보 수집은 Naver OpenAPI(blog search) 사용 (필수: NAVER_CLIENT_ID/SECRET)
+  - 본문/제목/OG 추출은 Playwright 사용
+
+출력
+- <out_dir>/index.html
+- <out_dir>/data/posts.json
+- <out_dir>/data/meta.json
+
+실행 예시
+python build_blog_voc_report.py \
+  --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 패딩" "콜롬비아 자켓" \
+  --days 60 --per-query 100 --out-dir reports/voc_blog --headless
 """
 
 import argparse
@@ -25,32 +30,24 @@ import re
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Tuple
-from urllib.parse import quote
+from urllib.parse import urlencode
 
+import requests
 from dateutil import parser as dtparser
 from playwright.sync_api import sync_playwright
 
+
 KST = timezone(timedelta(hours=9))
 
-# -----------------------------
-# Heuristics / Lexicons
-# -----------------------------
+# ============== Settings ==============
 
-# "컬럼비아 언급" 필터(본문 기준)
-BRAND_MARKERS = [
-    "콜롬비아",
-    "컬럼비아",
-    "Columbia",
-    "COLUMBIA",
-]
+BRAND_MARKERS = ["콜롬비아", "컬럼비아", "Columbia", "COLUMBIA"]
 
-# 광고/협찬 감지
 SPONSORED_MARKERS = [
     "광고", "협찬", "체험단", "소정의 원고료", "파트너스", "제공받아", "지원받아",
     "무상 제공", "유료 광고", "포스팅 비용", "원고료", "업체로부터",
 ]
 
-# 불용어 (간단 키워드맵 용)
 STOPWORDS = set("""
 그리고 그러나 하지만 그래서 또한 정말 너무 진짜 약간 그냥 조금 매우 완전
 제품 사용 구매 후기 리뷰 느낌 생각 정도 경우 부분 이번 오늘 어제 요즘
@@ -61,45 +58,49 @@ STOPWORDS = set("""
 
 WORD_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
 
+# ====================================
 
-# -----------------------------
-# Data models
-# -----------------------------
 
 @dataclass
 class BlogPost:
     query: str
     title: str
     url: str
-    published_at: str  # ISO (KST)
-    collected_at: str  # ISO (KST)
+    published_at: str  # ISO KST
+    collected_at: str  # ISO KST
     is_sponsored: bool
     sponsored_markers: List[str]
     has_columbia: bool
     brand_markers_found: List[str]
     raw_text_len: int
     excerpt: str
-    text_preview: str  # 너무 길면 앞부분만(리포트/디버그용)
+    text_preview: str
+    source: str  # "naver_api+playwright"
 
-
-# -----------------------------
-# Utilities
-# -----------------------------
 
 def ensure_dir(p: str) -> None:
     os.makedirs(p, exist_ok=True)
 
+
 def now_kst() -> datetime:
     return datetime.now(tz=KST)
+
 
 def iso(dt: datetime) -> str:
     return dt.astimezone(KST).isoformat()
 
-def fmt_kst(dt: datetime) -> str:
-    return dt.astimezone(KST).strftime("%Y.%m.%d %H:%M KST")
 
 def safe_text(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
+
+
+def fmt_kst(dt: datetime) -> str:
+    return dt.astimezone(KST).strftime("%Y.%m.%d %H:%M KST")
+
+
+def strip_html(s: str) -> str:
+    return safe_text(re.sub(r"<[^>]+>", "", s or ""))
+
 
 def detect_sponsored(text: str) -> Tuple[bool, List[str]]:
     found = []
@@ -109,6 +110,7 @@ def detect_sponsored(text: str) -> Tuple[bool, List[str]]:
             found.append(m)
     return (len(found) > 0), sorted(list(set(found)))
 
+
 def detect_brand(text: str) -> Tuple[bool, List[str]]:
     found = []
     t = text or ""
@@ -117,6 +119,7 @@ def detect_brand(text: str) -> Tuple[bool, List[str]]:
             found.append(m)
     found = sorted(list(set(found)))
     return (len(found) > 0), found
+
 
 def keyword_map_from_texts(texts: List[str], topn: int = 40) -> List[Tuple[str, int]]:
     freq: Dict[str, int] = {}
@@ -131,51 +134,90 @@ def keyword_map_from_texts(texts: List[str], topn: int = 40) -> List[Tuple[str, 
     items = sorted(freq.items(), key=lambda x: x[1], reverse=True)
     return items[:topn]
 
-def parse_naver_date(date_text: str, fallback: datetime) -> datetime:
+
+# ==========================
+# Naver OpenAPI candidates
+# ==========================
+
+def fetch_candidates_via_naver_api(
+    queries: List[str],
+    per_query: int,
+    sort: str = "date",
+) -> List[Dict[str, Any]]:
     """
-    네이버 블로그 검색 결과 날짜 텍스트:
-    - "2026.02.19."
-    - "3일 전", "2시간 전", "1주 전", "1개월 전" 등
+    Naver Blog Search OpenAPI:
+    - https://openapi.naver.com/v1/search/blog.json
+    Note: API에 정확한 published date 필드가 없을 수 있어 후보 단계에서 느슨하게 잡고,
+          실제 페이지 scrape 후 published_at을 확정/필터링한다.
     """
-    t = safe_text(date_text)
-    if not t:
-        return fallback
+    cid = os.getenv("NAVER_CLIENT_ID", "").strip()
+    csec = os.getenv("NAVER_CLIENT_SECRET", "").strip()
+    if not cid or not csec:
+        raise RuntimeError("Missing NAVER_CLIENT_ID / NAVER_CLIENT_SECRET env")
 
-    m = re.search(r"(\d{4})\.(\d{2})\.(\d{2})", t)
-    if m:
-        y, mo, d = map(int, m.groups())
-        return datetime(y, mo, d, 0, 0, tzinfo=KST)
+    headers = {
+        "X-Naver-Client-Id": cid,
+        "X-Naver-Client-Secret": csec,
+    }
 
-    now = fallback.astimezone(KST)
-    m = re.search(r"(\d+)\s*분\s*전", t)
-    if m:
-        return now - timedelta(minutes=int(m.group(1)))
-    m = re.search(r"(\d+)\s*시간\s*전", t)
-    if m:
-        return now - timedelta(hours=int(m.group(1)))
-    m = re.search(r"(\d+)\s*일\s*전", t)
-    if m:
-        return now - timedelta(days=int(m.group(1)))
-    m = re.search(r"(\d+)\s*주\s*전", t)
-    if m:
-        return now - timedelta(weeks=int(m.group(1)))
-    m = re.search(r"(\d+)\s*개월\s*전", t)
-    if m:
-        return now - timedelta(days=int(m.group(1)) * 30)
+    collected: List[Dict[str, Any]] = []
 
-    return fallback
+    for q in queries:
+        got = 0
+        start = 1
+        # start 최대 1000
+        while got < per_query and start <= 1000:
+            display = min(100, per_query - got)
+            params = {
+                "query": q,
+                "display": display,
+                "start": start,
+                "sort": sort,
+            }
+            url = "https://openapi.naver.com/v1/search/blog.json?" + urlencode(params)
+            r = requests.get(url, headers=headers, timeout=25)
+            r.raise_for_status()
+            data = r.json()
+
+            items = data.get("items", []) or []
+            if not items:
+                break
+
+            for it in items:
+                link = (it.get("link") or "").strip()
+                title = strip_html(it.get("title") or "")
+                desc = strip_html(it.get("description") or "")
+
+                if not link.startswith("http"):
+                    continue
+
+                collected.append({
+                    "query": q,
+                    "title": title or "(제목 없음)",
+                    "url": link,
+                    "snippet": desc,
+                })
+                got += 1
+                if got >= per_query:
+                    break
+
+            start += display
+
+    # URL dedup
+    seen = set()
+    uniq = []
+    for x in collected:
+        u = x["url"]
+        if u in seen:
+            continue
+        seen.add(u)
+        uniq.append(x)
+    return uniq
 
 
-# -----------------------------
-# Playwright extraction
-# -----------------------------
-
-def naver_blog_search_url(query: str, start: int = 1) -> str:
-    q = quote(query)
-    return f"https://search.naver.com/search.naver?where=blog&sm=tab_pge&query={q}&start={start}"
-
-def normalize_blog_url(url: str) -> str:
-    return (url or "").strip()
+# ==========================
+# Playwright extractors
+# ==========================
 
 def get_mainframe_post_url(page) -> Optional[str]:
     try:
@@ -191,14 +233,67 @@ def get_mainframe_post_url(page) -> Optional[str]:
     except Exception:
         return None
 
+
+def extract_title(page) -> str:
+    for sel in ["meta[property='og:title']", "meta[name='twitter:title']"]:
+        try:
+            el = page.query_selector(sel)
+            if el:
+                c = el.get_attribute("content")
+                if c and c.strip():
+                    return safe_text(c)
+        except Exception:
+            pass
+    try:
+        return safe_text(page.title())
+    except Exception:
+        return ""
+
+
+def extract_published_from_dom(page) -> Optional[datetime]:
+    """
+    네이버 블로그 발행일은 템플릿마다 달라서 후보 셀렉터 여러개 시도.
+    실패하면 None.
+    """
+    selectors = [
+        "span.se_publishDate",
+        "p.date",
+        "span.date",
+        "span#se_publishDate",
+        "time",
+        "meta[property='article:published_time']",
+    ]
+    for sel in selectors:
+        try:
+            el = page.query_selector(sel)
+            if not el:
+                continue
+            if sel.startswith("meta"):
+                v = el.get_attribute("content") or ""
+            else:
+                v = el.inner_text() or ""
+            v = safe_text(v)
+            if not v:
+                continue
+            # dateutil로 최대한 파싱
+            try:
+                dt = dtparser.parse(v)
+                if not dt.tzinfo:
+                    dt = dt.replace(tzinfo=KST)
+                return dt.astimezone(KST)
+            except Exception:
+                continue
+        except Exception:
+            continue
+    return None
+
+
 def extract_post_text_from_dom(page) -> str:
-    """
-    에디터 유형별 본문 셀렉터 후보를 순회하고 가장 길게 잡히는 텍스트를 본문으로 채택
-    """
     candidates = [
         ".se-main-container",
         "#postViewArea",
         "article",
+        "div#contentArea",
     ]
     text_chunks: List[str] = []
     for sel in candidates:
@@ -217,36 +312,18 @@ def extract_post_text_from_dom(page) -> str:
         return text_chunks[0]
 
     try:
-        bt = page.inner_text("body", timeout=2000)
-        return safe_text(bt)
+        return safe_text(page.inner_text("body", timeout=2000))
     except Exception:
         return ""
 
-def extract_title(page) -> str:
-    title = ""
-    for sel in ["meta[property='og:title']", "meta[name='twitter:title']"]:
-        try:
-            el = page.query_selector(sel)
-            if el:
-                c = el.get_attribute("content")
-                if c and c.strip():
-                    title = safe_text(c)
-                    break
-        except Exception:
-            pass
-    if not title:
-        try:
-            title = safe_text(page.title())
-        except Exception:
-            title = ""
-    return title
 
-def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, str, str]:
+def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, str, str, Optional[datetime]]:
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
     final_url = url
     title = ""
     text = ""
+    pub_dt = None
 
     try:
         page.goto(url, wait_until="domcontentloaded")
@@ -259,8 +336,9 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, st
             final_url = page.url
 
         title = extract_title(page)
+        pub_dt = extract_published_from_dom(page)
         text = extract_post_text_from_dom(page)
-        return final_url or url, title, text
+        return final_url or url, title, text, pub_dt
 
     finally:
         try:
@@ -268,105 +346,10 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, st
         except Exception:
             pass
 
-def scrape_search_results(play, queries: List[str], cutoff: datetime, per_query: int, headless: bool) -> List[Dict[str, Any]]:
-    """
-    네이버 검색 '블로그' 탭 결과에서 후보 URL 수집.
-    """
-    collected: List[Dict[str, Any]] = []
 
-    browser = play.chromium.launch(headless=headless)
-    context = browser.new_context(
-        locale="ko-KR",
-        user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"),
-        viewport={"width": 1280, "height": 900},
-    )
-
-    try:
-        for q in queries:
-            got = 0
-            start = 1
-            safety_pages = 0
-
-            while got < per_query and safety_pages < 12:
-                safety_pages += 1
-                url = naver_blog_search_url(q, start=start)
-                page = context.new_page()
-                page.set_default_timeout(20000)
-
-                try:
-                    page.goto(url, wait_until="domcontentloaded")
-                    page.wait_for_timeout(600)
-
-                    cards = page.query_selector_all("a.title_link")
-
-                    for a in cards:
-                        if got >= per_query:
-                            break
-
-                        href = normalize_blog_url(a.get_attribute("href") or "")
-                        title = safe_text(a.inner_text() or "")
-
-                        if not href.startswith("http"):
-                            continue
-                        if "blog.naver.com" not in href and "m.blog.naver.com" not in href and "post.naver.com" not in href:
-                            continue
-
-                        # 카드 주변에서 날짜 텍스트 추정
-                        date_text = ""
-                        try:
-                            parent = a.evaluate_handle("node => node.closest('div, li, article')")
-                            parent_el = parent.as_element() if parent else None
-                            if parent_el:
-                                for sel in ["span.sub_time", "span.time", "span.date", "span.sub"]:
-                                    el = parent_el.query_selector(sel)
-                                    if el:
-                                        tt = safe_text(el.inner_text() or "")
-                                        if tt:
-                                            date_text = tt
-                                            break
-                        except Exception:
-                            pass
-
-                        pub_dt = parse_naver_date(date_text, now_kst())
-                        if pub_dt < cutoff:
-                            continue
-
-                        collected.append({
-                            "query": q,
-                            "title": title,
-                            "url": href,
-                            "published_at": iso(pub_dt),
-                        })
-                        got += 1
-
-                    start += 10
-                finally:
-                    try:
-                        page.close()
-                    except Exception:
-                        pass
-
-    finally:
-        context.close()
-        browser.close()
-
-    # URL 중복 제거
-    seen = set()
-    uniq = []
-    for x in collected:
-        u = x["url"]
-        if u in seen:
-            continue
-        seen.add(u)
-        uniq.append(x)
-    return uniq
-
-
-# -----------------------------
-# HTML report generator (기간 선택 가능)
-# -----------------------------
+# ==========================
+# HTML report (same UI)
+# ==========================
 
 def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
     posts_json = json.dumps(posts, ensure_ascii=False)
@@ -453,7 +436,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 <body class="p-4 md:p-8">
   <div class="max-w-7xl mx-auto">
 
-    <!-- Header -->
     <div class="glass-card p-6 md:p-8">
       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
@@ -462,7 +444,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
             네이버 블로그 언급 모니터링 (Columbia)
           </h1>
           <p class="muted font-semibold mt-2">
-            최근 2개월치(기본) 후보를 수집한 뒤, <span class="font-black">본문에 콜롬비아/Columbia가 실제로 언급된 글만</span> 남깁니다.
+            최근 2개월치(기본) 후보를 수집한 뒤, <span class="font-black">본문/제목에 콜롬비아/Columbia가 실제로 언급된 글만</span> 남깁니다.
           </p>
         </div>
 
@@ -478,7 +460,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         </div>
       </div>
 
-      <!-- Controls -->
       <div class="mt-6 feed-card p-4">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div class="flex flex-wrap items-center gap-3">
@@ -491,23 +472,20 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
-            <button id="btnHideSponsored" class="btn">
-              협찬 숨기기
-            </button>
+            <button id="btnHideSponsored" class="btn">협찬 숨기기</button>
             <span class="kbd">COL-MENTION</span>
           </div>
         </div>
 
         <div class="mt-3 text-xs font-semibold muted">
-          * 이 화면의 기간 필터는 <span class="font-black">이미 수집된 60일 데이터 안에서</span>만 동작합니다.
+          * 이 화면의 기간 필터는 <span class="font-black">이미 수집된 {meta.get("days", 60)}일 데이터 안에서</span>만 동작합니다.
+          <span class="ml-2">| candidates: <span class="font-black">{meta.get("debug",{}).get("candidates_total","-")}</span></span>
+          <span class="ml-2">| saved: <span class="font-black">{meta.get("counts",{}).get("posts","-")}</span></span>
         </div>
       </div>
     </div>
 
-    <!-- Main grid -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
-
-      <!-- Left: Summary -->
       <aside class="lg:col-span-4 space-y-6">
         <div class="glass-card p-6">
           <div class="flex items-center justify-between">
@@ -540,23 +518,19 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           <ul class="mt-3 space-y-2 text-sm font-semibold muted">
             <li>• 카드 클릭 → 원문 새 탭 + 아래 상세로 스크롤</li>
             <li>• “협찬 숨기기”로 내돈내산 성향 글만 보정 가능</li>
-            <li>• 기간은 프론트 필터(빠름). 수집 기간 자체를 늘리려면 파이썬 실행 시 days를 늘려</li>
+            <li>• 수집 커버리지 개선: 쿼리/ per-query를 늘려서 후보를 넓히면 됨</li>
           </ul>
         </div>
       </aside>
 
-      <!-- Right: Feed + Detail -->
       <section class="lg:col-span-8 space-y-6">
-
         <div class="glass-card p-6">
           <div class="flex items-end justify-between gap-3">
             <div>
               <div class="text-xl font-black">Feed</div>
               <div class="muted text-sm font-semibold mt-1">Columbia 언급 블로그 글 리스트</div>
             </div>
-            <div class="text-sm font-black muted">
-              정렬: <span class="kbd">최근 → 과거</span>
-            </div>
+            <div class="text-sm font-black muted">정렬: <span class="kbd">최근 → 과거</span></div>
           </div>
 
           <div class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="feedGrid"></div>
@@ -567,7 +541,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           <div class="muted text-sm font-semibold mt-1">본문 미리보기(앞부분) + 메타 확인</div>
           <div class="mt-5 space-y-4" id="detailList"></div>
         </div>
-
       </section>
     </div>
   </div>
@@ -606,7 +579,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
   }}
 
   function parseDateInput(v) {{
-    // v: YYYY-MM-DD
     if (!v) return null;
     const t = new Date(v + "T00:00:00");
     if (isNaN(t.getTime())) return null;
@@ -618,7 +590,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
     if (isNaN(d.getTime())) return false;
     if (start && d < start) return false;
     if (end) {{
-      // end inclusive
       const end2 = new Date(end.getTime());
       end2.setHours(23,59,59,999);
       if (d > end2) return false;
@@ -674,7 +645,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       box.appendChild(el);
     }});
 
-    // clear word chip
     const clear = document.createElement("div");
     clear.className = "badge cursor-pointer hover:opacity-80";
     clear.innerHTML = "단어 필터 해제";
@@ -782,13 +752,11 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           </div>
         </div>
       `;
-
       box.appendChild(wrap);
     }});
   }}
 
   function initDateControls() {{
-    // 기본: 최근 60일
     const all = POSTS.slice().sort((a,b)=> (b.published_at||"").localeCompare(a.published_at||""));
     const newest = all[0]?.published_at || null;
     const newestDate = newest ? new Date(newest) : new Date();
@@ -841,19 +809,18 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 """
 
 
-# -----------------------------
-# Main pipeline
-# -----------------------------
+# ==========================
+# main
+# ==========================
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--queries", nargs="+", required=True, help="네이버 블로그 검색어 리스트")
-    ap.add_argument("--days", type=int, default=60, help="최근 N일(기본 60일)")
-    ap.add_argument("--per-query", type=int, default=40, help="검색어당 후보 글 수(필터링 고려해 넉넉히)")
+    ap.add_argument("--queries", nargs="+", required=True, help="블로그 검색어 리스트")
+    ap.add_argument("--days", type=int, default=60, help="최근 N일(기본 60)")
+    ap.add_argument("--per-query", type=int, default=100, help="쿼리당 후보 수(기본 100)")
     ap.add_argument("--headless", action="store_true", help="headless 모드")
     ap.add_argument("--out-dir", default=os.path.join("reports", "voc_blog"), help="출력 디렉토리")
-    ap.add_argument("--require-brand", action="store_true", default=True,
-                    help="본문에 콜롬비아/Columbia 언급이 반드시 있어야 포함(기본 True)")
+    ap.add_argument("--require-brand", action="store_true", default=True, help="브랜드 언급 필수(기본 True)")
     args = ap.parse_args()
 
     out_dir = args.out_dir
@@ -863,17 +830,22 @@ def main():
     collected_at = now_kst()
     cutoff = collected_at - timedelta(days=args.days - 1)
 
-    with sync_playwright() as play:
-        # 1) Search candidates
-        candidates = scrape_search_results(
-            play=play,
-            queries=args.queries,
-            cutoff=cutoff,
-            per_query=args.per_query,
-            headless=args.headless
-        )
+    # 1) candidates via OpenAPI
+    candidates = fetch_candidates_via_naver_api(args.queries, per_query=args.per_query, sort="date")
+    print(f"[INFO] candidates_total={len(candidates)} (per_query={args.per_query}) cutoff={cutoff.isoformat()}")
 
-        # 2) Scrape posts
+    # 2) scrape content via Playwright
+    posts: List[BlogPost] = []
+    debug = {
+        "candidates_total": len(candidates),
+        "scraped_ok": 0,
+        "scraped_fail": 0,
+        "brand_kept": 0,
+        "cutoff_filtered": 0,
+        "empty_text": 0,
+    }
+
+    with sync_playwright() as play:
         browser = play.chromium.launch(headless=args.headless)
         context = browser.new_context(
             locale="ko-KR",
@@ -882,42 +854,51 @@ def main():
                         "Chrome/120.0.0.0 Safari/537.36"),
             viewport={"width": 1280, "height": 900},
         )
-
-        posts: List[BlogPost] = []
         try:
             for c in candidates:
                 q = c["query"]
-                base_title = c.get("title") or ""
                 url = c["url"]
-                pub_iso = c.get("published_at") or iso(collected_at)
+                base_title = c.get("title") or "(제목 없음)"
+                snippet = c.get("snippet") or ""
 
                 try:
-                    pub_dt = dtparser.isoparse(pub_iso).astimezone(KST)
+                    final_url, page_title, text, pub_dt = scrape_one_post(context, url=url)
+                    debug["scraped_ok"] += 1
                 except Exception:
-                    pub_dt = collected_at
-
-                if pub_dt < cutoff:
+                    debug["scraped_fail"] += 1
                     continue
 
-                final_url, page_title, text = scrape_one_post(context, url=url)
+                title = safe_text(page_title) if page_title else safe_text(base_title)
                 text = text or ""
-                page_title = safe_text(page_title) if page_title else ""
-                title = page_title or base_title or "(제목 없음)"
+                if len(safe_text(text)) == 0:
+                    debug["empty_text"] += 1
 
-                has_brand, brand_found = detect_brand(title + " " + text)
+                # 발행일 필터: pub_dt 추출 실패하면 "수집일"로 대체(너무 엄격하면 0됨)
+                if pub_dt is None:
+                    pub_dt = collected_at
+                else:
+                    if pub_dt < cutoff:
+                        debug["cutoff_filtered"] += 1
+                        continue
+
+                # 브랜드 언급 판단: 본문이 비면(추출 실패) title+snippet에서라도 통과시켜 0 방지
+                combined_for_brand = f"{title} {text} {snippet}"
+                has_brand, brand_found = detect_brand(combined_for_brand)
+
                 if args.require_brand and not has_brand:
                     continue
 
-                is_sp, sp_markers = detect_sponsored(title + " " + text)
+                debug["brand_kept"] += 1
 
-                # excerpt/preview
-                cleaned = safe_text(text)
-                excerpt = cleaned[:160] if cleaned else "(본문 추출 실패)"
-                preview = cleaned[:1200] if cleaned else "(본문 추출 실패)"
+                is_sp, sp_markers = detect_sponsored(f"{title} {text} {snippet}")
+
+                cleaned = safe_text(text) if text else ""
+                excerpt = cleaned[:160] if cleaned else safe_text(snippet)[:160] if snippet else "(본문 추출 실패)"
+                preview = cleaned[:1200] if cleaned else safe_text(snippet)[:1200] if snippet else "(본문 추출 실패)"
 
                 posts.append(BlogPost(
                     query=q,
-                    title=title,
+                    title=title or "(제목 없음)",
                     url=final_url or url,
                     published_at=iso(pub_dt),
                     collected_at=iso(collected_at),
@@ -925,21 +906,20 @@ def main():
                     sponsored_markers=sp_markers,
                     has_columbia=has_brand,
                     brand_markers_found=brand_found,
-                    raw_text_len=len(text),
+                    raw_text_len=len(text or ""),
                     excerpt=excerpt,
                     text_preview=preview,
+                    source="naver_api+playwright",
                 ))
 
         finally:
             context.close()
             browser.close()
 
-    # 3) Meta + word map (본문 기반, 분류 아님)
-    texts_for_words = [p.text_preview for p in posts if p.text_preview]
-    top_words = keyword_map_from_texts(texts_for_words, topn=40)
+    print(f"[INFO] posts_saved={len(posts)} debug={debug}")
 
-    cnt_posts = len(posts)
-    cnt_sponsored = sum(1 for p in posts if p.is_sponsored)
+    # 3) meta
+    top_words = keyword_map_from_texts([p.text_preview for p in posts], topn=40)
 
     meta = {
         "updated_at_kst": fmt_kst(collected_at),
@@ -947,32 +927,33 @@ def main():
         "days": args.days,
         "queries": args.queries,
         "counts": {
-            "posts": cnt_posts,
-            "sponsored_posts": cnt_sponsored,
+            "posts": len(posts),
+            "sponsored_posts": sum(1 for p in posts if p.is_sponsored),
         },
         "top_words": top_words,
         "brand_markers": BRAND_MARKERS,
-        "note": "이 리포트는 긍/부정 분류가 아니라, Columbia 언급 블로그 포스트 수집/필터링 결과입니다.",
+        "note": "긍/부정 분류가 아닌 Columbia 언급 블로그 포스트 수집/필터링 결과입니다.",
+        "debug": debug,
     }
 
     posts_dicts = [asdict(p) for p in posts]
 
-    # 4) Write JSON
+    # 4) write outputs
     with open(os.path.join(data_dir, "posts.json"), "w", encoding="utf-8") as f:
         json.dump({"posts": posts_dicts}, f, ensure_ascii=False, indent=2)
 
     with open(os.path.join(data_dir, "meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
-    # 5) Write HTML
     html = build_report_html(meta=meta, posts=posts_dicts)
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
-    print("[OK] Blog mention report generated:")
+    print("[OK] Blog report generated:")
     print(f" - {os.path.join(out_dir, 'index.html')}")
     print(f" - {os.path.join(data_dir, 'posts.json')}")
     print(f" - {os.path.join(data_dir, 'meta.json')}")
+
 
 if __name__ == "__main__":
     main()
