@@ -610,27 +610,36 @@
     function renderSummary(metrics){
       document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
 
-      // ✅ v5: meta에서 pos_top5 / neg_top5 제공 (형식: [k,c,rid])
-      const neg = META?.neg_top5 || [];
-      const pos = META?.pos_top5 || [];
-      const posEx = META?.pos_examples || {};
+      // ✅ meta.json 기준 키
+      const neg = (META?.keywords_top5?.neg || []);
+      const pos = (META?.keywords_top5?.pos || []);
+      const ev = (META?.keyword_evidence || {});
+
+      // 칩 클릭 -> (1) 검색어 세팅 (2) 근거 리뷰 id로 스크롤
+      const mkChip = (k,c,mode) => {
+        const cls = (mode==="pos") ? "badge pos kw-chip" : "badge neg kw-chip";
+        const evi = (mode==="pos") ? (ev.pos?.[k] || []) : (ev.neg?.[k] || []);
+        const rid = (evi[0]?.id ?? null);
+        const title = (evi[0]?.text_snip ?? "");
+        const onclick = rid!=null ? `onclick="applyKeywordAndScroll('${esc(k)}','${esc(rid)}')"` : `onclick="applyKeywordAndScroll('${esc(k)}','')"` ;
+        return `<span class="${cls}" title="${esc(title)}" ${onclick}>#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`;
+      };
 
       const elNeg = document.getElementById("topNeg");
-      elNeg.innerHTML = neg.map(([k,c, rid]) => `
-        <span class="badge neg kw-chip" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
-          #${esc(k)} <span class="opacity-70">${esc(c)}</span>
-        </span>
-      `).join("");
+      elNeg.innerHTML = neg.map(([k,c]) => mkChip(k,c,"neg")).join("");
 
       const elPos = document.getElementById("topPos");
-      elPos.innerHTML = pos.map(([k,c, rid]) => {
-        const ex = (posEx && posEx[k] && posEx[k][0]) ? posEx[k][0].snip : "";
-        return `
-          <span class="badge pos kw-chip" title="${esc(ex)}" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
-            #${esc(k)} <span class="opacity-70">${esc(c)}</span>
-          </span>
-        `;
-      }).join("");
+      elPos.innerHTML = pos.map(([k,c]) => mkChip(k,c,"pos")).join("");
+
+      const top3 = metrics.rankSize.slice(0,3);
+      const ol = document.getElementById("priorityTop3");
+      ol.innerHTML = top3.map(r => `
+        <li class="flex items-center justify-between gap-3">
+          <span class="font-black text-slate-900">${esc(r.product_name)}</span>
+          <span class="badge size">Size ${r.sizeRate}%</span>
+        </li>
+      `).join("");
+    }).join("");
 
       const top3 = metrics.rankSize.slice(0,3);
       const ol = document.getElementById("priorityTop3");
@@ -695,12 +704,56 @@
 
     // ✅ v5: Product Mindmap = 문장형 (POS/NEG 각 2개)
     function renderProductMindmap(){
-      const mm = META?.product_mindmap_1y || [];
+      const mm = (META?.product_keyword_map_1y || []);
       const root = document.getElementById("productMindmap");
       if (!mm.length){
         root.innerHTML = `<div class="summary-card lg:col-span-3"><div class="text-sm font-black text-slate-700">마인드맵 데이터가 없습니다.</div></div>`;
         return;
       }
+
+      const mkSent = (label, s) => {
+        if(!s) return '';
+        const rid = (s.id ?? null);
+        const onclick = rid!=null ? `onclick="applyKeywordAndScroll('', '${esc(rid)}')"` : '';
+        return `
+          <div class="mt-2">
+            <div class="text-[11px] font-black text-slate-500">${esc(label)} · ★ ${esc(s.rating ?? '')} · ${esc(fmtDT(s.created_at || ''))}</div>
+            <div class="mt-1 text-sm font-extrabold text-slate-800 leading-relaxed break-words cursor-pointer" ${onclick}>${esc(s.snip || '')}</div>
+          </div>
+        `;
+      };
+
+      root.innerHTML = mm.map(p => {
+        const img = p.local_product_image
+          ? `<img src="${esc(p.local_product_image)}" alt="" class="w-14 h-14 rounded-2xl object-cover border border-white/80 bg-white/60" />`
+          : `<div class="w-14 h-14 rounded-2xl flex items-center justify-center text-[10px] text-slate-400 border border-white/80 bg-white/60">NO IMAGE</div>`;
+
+        const posS = (p.pos_sentences || []);
+        const negS = (p.neg_sentences || []);
+
+        const posBlock = posS.length
+          ? posS.map(s => mkSent("POS", s)).join("")
+          : `<div class="text-xs font-bold text-slate-400 mt-2">POS 문장 없음</div>`;
+
+        const negBlock = negS.length
+          ? negS.map(s => mkSent("NEG", s)).join("")
+          : `<div class="text-xs font-bold text-slate-400 mt-2">NEG 문장 없음</div>`;
+
+        return `
+          <div class="summary-card">
+            <div class="flex items-start gap-3">
+              ${img}
+              <div class="min-w-0">
+                <div class="font-black text-slate-900 line-clamp-2">${esc(p.product_name || p.product_code)}</div>
+                <div class="text-[11px] font-black text-slate-500 mt-1">code: ${esc(p.product_code)} · 1y reviews: ${esc(p.reviews_1y)}</div>
+              </div>
+            </div>
+            <div class="mt-4">${posBlock}</div>
+            <div class="mt-4">${negBlock}</div>
+          </div>
+        `;
+      }).join("");
+    }
 
       const sentenceBlock = (mode, s) => {
         const color = (mode==="pos") ? "text-emerald-700" : "text-red-700";
@@ -867,6 +920,12 @@
       sel.value = current;
     }
 
+    
+    function openReviewPage(url){
+      if(!url) return;
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+    
     function renderAll(){
       const filtered = getFilteredReviews();
       const metrics = calcMetrics(filtered);
@@ -905,6 +964,16 @@
     }
 
     document.addEventListener("DOMContentLoaded", boot);
+
+    document.addEventListener("click", (e) => {
+      const t = e.target;
+      if(!t) return;
+      // 키워드 칩/링크 클릭 시 카드 onclick 전파 방지
+      if (t.closest && (t.closest(".kw-chip") || t.closest("a"))) {
+        e.stopPropagation();
+      }
+    }, true);
+    
   </script>
 </body>
 </html>
