@@ -2,27 +2,22 @@
 # -*- coding: utf-8 -*-
 
 """
-[VOC DASHBOARD | v4.0 FINAL]
-입력: reviews.json ({"reviews":[...]})  ※ "created_at" ISO 권장
-출력:
-  - site/data/reviews.json   : 최근 7일 필터된 리뷰
-  - site/data/meta.json      : 기간/키워드/마인드맵/랭킹 메타
-  - site/index.html          : UI(키워드 클릭→리뷰로 스크롤, 3열 데일리피드, 컨테이너 폭 제한)
+[BUILD VOC DASHBOARD FROM JSON | v4.0 FINAL]
+- 입력: reviews.json ({"reviews":[...]}), created_at ISO 권장
+- 출력:
+  - site/data/reviews.json  (최근 7일로 필터된 리뷰만)
+  - site/data/meta.json     (기간/키워드/클러스터/제품별 1y 키워드맵 등)
+  - site/index.html         (요구 UI 반영: DailyFeed 3열, 키워드 클릭→리뷰 이동, '주요 키워드' 등)
 
-핵심 반영 ✅
-1) 최근 7일 고정 수집 (KST)
-2) 키워드(긍/부정) 명확 분리
-   - NEG: 불만리뷰(저평점/불만태그/불만표현) 기반
-   - POS: 긍정리뷰(고평점/긍정태그) 기반
-   - 중립/관용구/의미없는 단어(#구입, #같은, #기본, #제품, #배송 등) 강하게 제거
-   - "제품군(추정 카테고리)"별 자동 STOPWORDS 학습(자주 나오는 중립어 자동 제거)
-3) 키워드 칩 클릭하면 해당 키워드 포함 리뷰로 이동(스크롤) + 검색 자동 적용
-   - POS 키워드는 "무엇이 좋은지" 짧은 예시(근거 리뷰 1~2개)도 함께 제공
-4) '개선 우선순위 제품 랭킹' 컬럼명: "주요 문제 키워드" → "주요 키워드"
-   - 제품별로 최근7일 기준, NEG/POS 키워드 중립 제거 후 상위 표현 제공
-5) 4. 대표 리뷰 마인드맵 → "제품별(최근 1년) 누적 긍/부정 키워드 마인드맵"으로 교체
-   - 제품 사진 포함
-   - 제품별 POS/NEG Top 키워드(누적) + 클릭시 해당 제품/키워드 리뷰로 스크롤
+핵심 개선
+1) 최근 7일 고정 + KST 처리
+2) 긍/부정 키워드 명확 분리
+3) 제품군/카테고리별 STOPWORDS 자동학습(=자주 나오는 중립어 자동 제거)
+4) 이슈 클러스터링(사이즈/품질/배송/CS/가격/디자인/기능)
+5) Complaint Top5는 '원인' 중심(중립/관용구 제거)
+6) 랭킹 '주요 문제 키워드' → '주요 키워드'
+7) 4번 섹션: 제품별(최근 1년) POS/NEG 키워드 맵 + 이미지 + 클릭 시 리뷰로 이동(최근7일 범위 내)
+8) Daily Feed: 가로폭 줄이고 3개씩(반응형) + 카드에 anchor 부여
 
 필수: python-dateutil, pandas
 """
@@ -36,7 +31,7 @@ import pathlib
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple, Optional, Iterable
+from typing import Any, Dict, List, Tuple, Optional
 
 import pandas as pd
 from dateutil import tz
@@ -46,6 +41,38 @@ from dateutil import tz
 # Settings
 # ----------------------------
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
+
+# 자동 STOPWORDS 학습 파라미터
+AUTO_STOP_MIN_DF = 0.30      # 전체 문서(리뷰) 중 30% 이상 등장하면 후보
+AUTO_STOP_MIN_PRODUCTS = 0.25  # 제품 수 기준 25% 이상 제품에 등장하면 후보
+AUTO_STOP_POLARITY_MARGIN = 0.20  # pos/neg 비율이 너무 비슷하면(중립) 제거
+AUTO_STOP_MAX_ADD = 120      # 너무 많이 추가되는 것 방지
+
+# 키워드 추출 파라미터
+TOPK_POS = 5
+TOPK_NEG = 5
+TOPK_COMPLAINT = 5
+
+# 클러스터(원인) 정의: 토큰 기준 매칭(공백 제거한 원문에도 보조 매칭)
+CLUSTERS = {
+    "size": ["사이즈", "정사이즈", "작", "크", "타이트", "헐렁", "끼", "기장", "소매", "어깨", "가슴", "발볼", "핏"],
+    "quality": ["품질", "불량", "하자", "찢", "구멍", "실밥", "오염", "변색", "냄새", "마감", "내구", "퀄리티"],
+    "shipping": ["배송", "택배", "출고", "도착", "지연", "늦", "빠르", "포장", "파손"],
+    "cs": ["문의", "응대", "고객", "cs", "교환", "반품", "환불", "처리", "as"],
+    "price": ["가격", "비싸", "싸", "가성비", "할인", "쿠폰", "대비"],
+    "design": ["디자인", "색", "컬러", "예쁘", "멋", "스타일", "핏감"],
+    "function": ["수납", "넣", "포켓", "공간", "가볍", "무게", "따뜻", "보온", "방수", "기능", "편하", "착용감", "그립"],
+}
+
+# 제품군(카테고리) 간이 규칙(자동 STOPWORDS를 "카테고리별"로도 학습)
+CATEGORY_RULES = [
+    ("bag", re.compile(r"(backpack|rucksack|bag|pouch|shoulder|packable|duffel|tote|힙색|백팩|가방|파우치|숄더)", re.I)),
+    ("shoe", re.compile(r"(shoe|boot|chukka|sneaker|omni|heat|신발|부츠|워커)", re.I)),
+    ("top", re.compile(r"(fleece|jacket|hood|tee|turtle|shirt|상의|자켓|플리스|후드|티|터틀)", re.I)),
+    ("bottom", re.compile(r"(pant|short|skirt|하의|바지|팬츠|쇼츠)", re.I)),
+    ("glove", re.compile(r"(glove|장갑)", re.I)),
+]
+DEFAULT_CATEGORY = "other"
 
 
 def now_kst() -> datetime:
@@ -74,27 +101,26 @@ SITE_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ----------------------------
-# Text cleaning + keyword extraction
+# Text cleaning + tokenizer
 # ----------------------------
 
-# 강한 기본 STOPWORDS (중립/관용구/정보량 낮은 단어)
+# “너무 흔한 말/의미없는 말” 기본 STOPWORDS (여기에 '구입/구매/같은/기존' 같은 중립어도 기본 포함)
 BASE_STOPWORDS = set(
     """
-그리고 그러나 그래서 하지만 또한 또한요
-너무 정말 완전 진짜 매우 그냥 조금 약간 살짝
-저는 제가 우리는 너희 이거 그거 저거 여기 저기
+그리고 그러나 그래서 하지만 또한
+너무 정말 완전 진짜 매우 그냥 조금 약간
+저는 제가 우리는 너희 이거 그거 저거
 있습니다 입니다 같아요 같네요 하는 하다 됐어요 되었어요 되네요
-구매 구입 구입해 구입해서 샀어요 샀습니다 구매했 구매해서
-제품 상품 물건 아이템
-사용 착용 써보니 써보고 써봤
-배송 택배 포장 출고 도착 빠르 빠르게
-문의 응대 cs 상담 교환 반품 환불 처리
-좋아요 좋다 좋네요 좋습니다 만족 추천 재구매 가성비 최고 굿 예뻐요 이뻐요
-기본 같은 그냥 그럭저럭 무난 무난해
-사이즈 정사이즈 한치수 한 치수
+구매 구입 구입해 구매해 샀어요 샀습니다 주문 주문했
+제품 상품 물건
+사용 착용 입어 신어 써봤
+배송 택배 포장
+문의
+좋아요 좋다 좋네요 만족 추천 재구매 가성비 최고 굿 예뻐요 이뻐요
+정사이즈 한치수 한 치수
 컬러 색상 디자인
 있어서 있어서요 있어요 있네요 있었어요
-좋습니다 좋았어요 좋네요
+좋습니다 좋았어요
 추가 추가로 추가하면
 가능 가능해요
 확인 확인해요
@@ -103,6 +129,9 @@ BASE_STOPWORDS = set(
 정도 정도로
 부분 부분이
 사람 분들
+기존 같은 동일 비슷 비슷한 원래
+이번 이번엔 이번에
+그냥그냥
 """
     .split()
 )
@@ -115,55 +144,11 @@ JOSA = [
 ENDING = [
     "입니다", "습니다", "했어요", "했네요", "해요", "하네요", "했음", "했습", "합니다",
     "같아요", "같네요", "있어요", "있네요", "있습니다",
-    "좋아요", "좋네요", "좋습니다",
 ]
 
 RE_URL = re.compile(r"https?://\S+|www\.\S+", re.I)
 RE_HASHTAG = re.compile(r"#[A-Za-z0-9가-힣_]+")
 RE_EMOJI_ETC = re.compile(r"[^\w\s가-힣]", re.UNICODE)
-
-# "이슈 단어"는 자동 STOPWORDS 학습에서 보호(지워지면 안 됨)
-ISSUE_KEEP = set(
-    """
-사이즈 작다 작아 작아요 크다 커요 커요다 크다요
-타이트 끼다 조이다 좁다 짧다 길다 넓다 헐렁 오버
-품질 불량 하자 실밥 구멍 찢어 오염 변색 냄새
-미끄럽 누수 물샘
-배송 지연 늦다 느리다 포장 파손
-응대 cs 불친절 교환 반품 환불
-색상 차이 프린트 이염
-"""
-    .split()
-)
-
-# POS/NEG 힌트(태그 보강/분류 보강용)
-POS_HINTS = [
-    "가볍", "편하", "따뜻", "튼튼", "예쁘", "귀엽", "잘맞", "좋", "만족", "추천", "재구매",
-    "수납", "많이들어", "넉넉", "견고", "부드럽", "포근", "핏좋", "깔끔", "방수", "방풍"
-]
-NEG_HINTS = [
-    "불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악",
-    "실망", "문제", "불편", "아쉽", "개선", "교환", "반품", "환불", "늦", "지연", "파손", "불친절"
-]
-
-# 이슈 클러스터 (키워드가 "원인 기반"으로 깔끔하게 모이도록)
-CLUSTERS: Dict[str, List[str]] = {
-    "size": ["사이즈", "정사이즈", "작아", "작다", "커", "크다", "타이트", "끼", "조이", "짧", "길", "넓", "헐렁", "오버", "핏", "기장", "소매", "어깨", "가슴", "발볼"],
-    "quality": ["품질", "불량", "하자", "실밥", "구멍", "찢", "변색", "오염", "냄새", "이염", "마감", "내구", "튼튼"],
-    "shipping": ["배송", "택배", "포장", "지연", "늦", "파손", "누락", "오배송"],
-    "cs": ["cs", "상담", "응대", "불친절", "교환", "반품", "환불", "처리", "문의"],
-}
-
-# 제품군/카테고리 추정(데이터에 category가 없다면, product_name 기반으로 대략)
-CATEGORY_RULES: Dict[str, List[str]] = {
-    "bag": ["backpack", "rucksack", "packable", "bag", "shoulder", "sling", "tote", "pouch", "mini", "pack"],
-    "shoe": ["shoe", "shoes", "chukka", "sneaker", "boot", "boots", "sandals", "slip", "runner"],
-    "top": ["fleece", "hood", "hoodie", "jacket", "half", "snap", "turtleneck", "tee", "shirt", "sweater", "knit"],
-    "bottom": ["pant", "pants", "short", "shorts", "skirt", "legging"],
-    "glove": ["glove", "mitten"],
-    "sock": ["sock", "socks"],
-    "etc": [],
-}
 
 
 def normalize_text(s: str) -> str:
@@ -191,20 +176,20 @@ def _strip_josa_ending(tok: str) -> str:
     return t
 
 
-def looks_like_model_token(t: str) -> bool:
-    # 모델명/코드/영문+숫자 혼합 장토큰(키워드로는 잡음일 때가 많음)
-    if len(t) >= 10 and re.search(r"[A-Za-z]", t) and re.search(r"\d", t):
-        return True
-    if len(t) >= 12 and t.isalnum():
-        return True
-    return False
+def detect_category(product_name: str, product_code: str = "") -> str:
+    s = f"{product_name} {product_code}"
+    for cat, rx in CATEGORY_RULES:
+        if rx.search(s):
+            return cat
+    return DEFAULT_CATEGORY
 
 
-def tokenize_ko(s: str, stopwords: set) -> List[str]:
+def tokenize_ko(s: str, stopwords: Optional[set] = None) -> List[str]:
     s = normalize_text(s)
     if not s:
         return []
 
+    sw = stopwords or BASE_STOPWORDS
     toks = re.findall(r"[가-힣A-Za-z0-9]+", s)
     out: List[str] = []
 
@@ -215,17 +200,13 @@ def tokenize_ko(s: str, stopwords: set) -> List[str]:
             continue
 
         t = _strip_josa_ending(t)
-
         if len(t) < 2:
             continue
-        if t in stopwords:
+        if t in sw:
             continue
 
-        # 자주 나오는 의미 없는 어근 컷
-        if t in ("있", "좋", "하", "되", "같"):
-            continue
-
-        if looks_like_model_token(t):
+        # 보조 어근 컷(정보량 낮음)
+        if t in ("있", "좋", "하", "되", "같", "되었", "했", "해", "함"):
             continue
 
         out.append(t)
@@ -233,157 +214,31 @@ def tokenize_ko(s: str, stopwords: set) -> List[str]:
     return out
 
 
-def top_terms(texts: List[str], stopwords: set, topk: int = 5) -> List[Tuple[str, int]]:
-    freq: Dict[str, int] = {}
-    for tx in texts:
-        for tok in tokenize_ko(tx, stopwords=stopwords):
-            freq[tok] = freq.get(tok, 0) + 1
-    return sorted(freq.items(), key=lambda x: x[1], reverse=True)[:topk]
-
-
-def guess_category(product_name: str) -> str:
-    n = normalize_text(product_name)
-    for cat, keys in CATEGORY_RULES.items():
-        if not keys:
-            continue
-        for k in keys:
-            if k in n:
-                return cat
-    return "etc"
-
-
-def build_dynamic_stopwords(
-    rows: List[Dict[str, Any]],
-    base: set,
-    *,
-    per_category: bool = True,
-    max_global: int = 25,
-    max_per_cat: int = 12,
-    df_ratio_threshold: float = 0.35,
-) -> set:
-    """
-    "자주 나오는 중립어" 자동 제거:
-      - (문서빈도 DF)/(문서수) 가 높고, ISSUE_KEEP에 없으면 stopword 후보
-      - 카테고리별로도 동일하게 수행(제품군별 관용구 제거)
-    """
-    stop = set(base)
-
-    # 글로벌 DF
-    doc_cnt = 0
-    df: Dict[str, int] = {}
-    for r in rows:
-        text = str(r.get("text") or "")
-        toks = set(tokenize_ko(text, stopwords=stop))  # base 기준 1차
-        if not toks:
-            continue
-        doc_cnt += 1
-        for t in toks:
-            df[t] = df.get(t, 0) + 1
-
-    if doc_cnt > 0:
-        candidates = []
-        for t, c in df.items():
-            if t in ISSUE_KEEP:
-                continue
-            ratio = c / doc_cnt
-            if ratio >= df_ratio_threshold:
-                candidates.append((t, c, ratio))
-        candidates.sort(key=lambda x: (x[2], x[1]), reverse=True)
-        for t, _, _ in candidates[:max_global]:
-            stop.add(t)
-
-    if not per_category:
-        return stop
-
-    # 카테고리별 DF
-    by_cat: Dict[str, List[Dict[str, Any]]] = {}
-    for r in rows:
-        cat = guess_category(str(r.get("product_name") or ""))
-        by_cat.setdefault(cat, []).append(r)
-
-    for cat, items in by_cat.items():
-        doc_cnt = 0
-        df_cat: Dict[str, int] = {}
-        for r in items:
-            text = str(r.get("text") or "")
-            toks = set(tokenize_ko(text, stopwords=stop))
-            if not toks:
-                continue
-            doc_cnt += 1
-            for t in toks:
-                df_cat[t] = df_cat.get(t, 0) + 1
-        if doc_cnt <= 0:
-            continue
-
-        candidates = []
-        for t, c in df_cat.items():
-            if t in ISSUE_KEEP:
-                continue
-            ratio = c / doc_cnt
-            if ratio >= 0.40:  # cat는 더 강하게
-                candidates.append((t, c, ratio))
-        candidates.sort(key=lambda x: (x[2], x[1]), reverse=True)
-
-        for t, _, _ in candidates[:max_per_cat]:
-            stop.add(t)
-
-    return stop
-
-
-def cluster_counts_from_texts(texts: List[str]) -> Dict[str, int]:
-    out = {k: 0 for k in CLUSTERS.keys()}
-    for tx in texts:
-        t = normalize_text(tx).replace(" ", "")
-        for cname, kws in CLUSTERS.items():
-            for kw in kws:
-                if kw.replace(" ", "") in t:
-                    out[cname] += 1
-                    break
-    return out
-
-
-def example_snips_for_keyword(rows: List[Dict[str, Any]], keyword: str, limit: int = 2) -> List[Dict[str, Any]]:
-    """
-    POS 키워드는 "뭐가 좋은지" 같이 보여줘야 하므로
-    해당 키워드가 포함된 리뷰의 짧은 근거 스니펫을 제공.
-    """
-    kw = normalize_text(keyword)
-    out: List[Dict[str, Any]] = []
-    for r in rows:
-        txt = str(r.get("text") or "")
-        if kw and kw in normalize_text(txt):
-            snip = re.sub(r"\s+", " ", txt).strip()
-            snip = snip[:70] + ("…" if len(snip) > 70 else "")
-            out.append(
-                {
-                    "id": r.get("id"),
-                    "product_code": r.get("product_code"),
-                    "product_name": r.get("product_name"),
-                    "created_at": str(r.get("created_at") or "")[:10],
-                    "rating": int(r.get("rating") or 0),
-                    "snip": snip,
-                }
-            )
-        if len(out) >= limit:
-            break
-    return out
-
-
 # ----------------------------
-# Rule tagging (보강용)
+# Tags / complaint / sentiment seed
 # ----------------------------
 SIZE_KEYWORDS = [
     "사이즈", "정사이즈", "작아요", "작다", "커요", "크다", "핏", "타이트", "여유",
     "끼", "기장", "소매", "어깨", "가슴", "발볼", "헐렁", "오버"
 ]
 REQ_KEYWORDS = ["개선", "아쉬", "불편", "했으면", "추가", "보완", "수정", "필요", "요청", "교환", "반품", "환불"]
-COMPLAINT_HINTS = NEG_HINTS
+COMPLAINT_HINTS = ["불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악", "실망", "문제", "불편"]
+
+# 긍정 시드(토큰 매칭): 기능/수납/가벼움/편안함이 NEG로 잘못 들어가는 걸 방지
+POS_SEEDS = [
+    "가볍", "무게", "편하", "편안", "착용감", "수납", "포켓", "공간", "넣", "따뜻", "보온", "방수", "튼튼", "견고", "퀄리티", "만족", "예쁘", "멋",
+    "좋", "좋아", "잘", "잘맞", "잘맞아", "딱", "깔끔", "마감", "신발", "쿠션"
+]
+NEG_SEEDS = [
+    "불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "최악", "별로", "실망", "불편", "문제", "아쉽", "작", "크", "타이트", "헐렁",
+    "지연", "늦", "파손", "응대", "환불", "교환", "반품"
+]
 
 
 def has_any_kw(text: str, kws: List[str]) -> bool:
-    t = (text or "").replace(" ", "").lower()
+    t = (text or "").replace(" ", "")
     for kw in kws:
-        if kw.replace(" ", "").lower() in t:
+        if kw.replace(" ", "") in t:
             return True
     return False
 
@@ -402,7 +257,6 @@ def classify_size_direction(text: str) -> str:
 
 
 def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
-    """입력 JSON tags를 존중하되, 없거나 약하면 규칙으로 보강."""
     text = str(row.get("text") or "")
     rating = int(row.get("rating") or 0)
 
@@ -413,10 +267,6 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
     # low
     if rating <= 2 and "low" not in tags:
         tags.append("low")
-
-    # pos (명확하게: 고평점 + 긍정 힌트/또는 기존 pos 태그)
-    if rating >= 4 and "pos" not in tags and has_any_kw(text, POS_HINTS):
-        tags.append("pos")
 
     # size
     fit_q = str(row.get("fit_q") or "")
@@ -437,11 +287,6 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def is_complaint(row: Dict[str, Any]) -> bool:
-    """불만리뷰 정의:
-    - rating<=2
-    - tags에 low/req 포함
-    - rating<=3 + 불만 힌트(품질/불량 등) 포함
-    """
     rating = int(row.get("rating") or 0)
     tags = row.get("tags") or []
     text = str(row.get("text") or "")
@@ -456,960 +301,443 @@ def is_complaint(row: Dict[str, Any]) -> bool:
 
 
 def is_positive(row: Dict[str, Any]) -> bool:
+    """
+    POS 정의:
+    - rating >= 4 이면서 complaint 아님
+    - 또는 rating == 3 이더라도 POS_SEEDS가 강하게 있고 NEG_SEEDS가 거의 없으면 POS로 취급(중립→POS 보정)
+    """
     rating = int(row.get("rating") or 0)
-    tags = row.get("tags") or []
     text = str(row.get("text") or "")
-    if isinstance(tags, list) and "pos" in tags:
+    if is_complaint(row):
+        return False
+    if rating >= 4:
         return True
-    if rating >= 4 and has_any_kw(text, POS_HINTS):
-        return True
+    if rating == 3:
+        t = normalize_text(text)
+        p = sum(1 for w in POS_SEEDS if w in t)
+        n = sum(1 for w in NEG_SEEDS if w in t)
+        return p >= 2 and n == 0
     return False
 
 
 # ----------------------------
-# Product mindmap (최근 1년 누적, 제품별 POS/NEG 키워드)
+# Auto stopwords learning
 # ----------------------------
-def build_product_mindmap_1y(
-    rows_1y: List[Dict[str, Any]],
-    stopwords: set,
-    *,
-    topk_kw: int = 6,
-    max_products: int = 18,
+def learn_auto_stopwords(rows: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """
+    rows(최근7일) 기준으로
+    - global + category별 중립 토큰 자동 STOPWORDS 학습
+    - 중립 기준:
+      * 문서 빈도 높음(DF) + 제품 분산 높음 + pos/neg 비율이 비슷(=정보량 낮음)
+    """
+    if not rows:
+        return {"global": [], "by_category": {}}
+
+    # 라벨링(최근7일 기준)
+    pos_rows = [r for r in rows if is_positive(r)]
+    neg_rows = [r for r in rows if is_complaint(r)]
+
+    # 제품 집합
+    prod_all = set(str(r.get("product_code") or "-") for r in rows)
+    prod_n = max(1, len(prod_all))
+
+    # 토큰 통계(글로벌)
+    def build_stats(sub_rows: List[Dict[str, Any]]) -> Tuple[Dict[str, int], Dict[str, set], Dict[str, int]]:
+        freq: Dict[str, int] = {}
+        df: Dict[str, set] = {}
+        prod_df: Dict[str, set] = {}
+        for r in sub_rows:
+            pid = str(r.get("id"))
+            pcode = str(r.get("product_code") or "-")
+            toks = set(tokenize_ko(str(r.get("text") or ""), stopwords=BASE_STOPWORDS))
+            for t in toks:
+                df.setdefault(t, set()).add(pid)
+                prod_df.setdefault(t, set()).add(pcode)
+            # freq는 토큰 수(중복 포함)로, DF는 set로
+            for t in tokenize_ko(str(r.get("text") or ""), stopwords=BASE_STOPWORDS):
+                freq[t] = freq.get(t, 0) + 1
+        df_cnt = {k: len(v) for k, v in df.items()}
+        prod_cnt = {k: len(v) for k, v in prod_df.items()}
+        return freq, prod_cnt, df_cnt
+
+    pos_freq, pos_prod_cnt, pos_df = build_stats(pos_rows)
+    neg_freq, neg_prod_cnt, neg_df = build_stats(neg_rows)
+
+    # 전체 DF / 제품 DF
+    all_ids = set(str(r.get("id")) for r in rows)
+    all_n = max(1, len(all_ids))
+
+    # all df: pos_df U neg_df (근사)
+    all_df = {}
+    all_prod_cnt = {}
+    keys = set(pos_df.keys()) | set(neg_df.keys())
+    for k in keys:
+        all_df[k] = pos_df.get(k, 0) + neg_df.get(k, 0)  # pos/neg 리뷰가 겹치는 id는 거의 없다고 가정
+        all_prod_cnt[k] = len(set(
+            ([] if k not in pos_prod_cnt else [None])  # dummy
+        ))
+
+    # 제품 DF는 따로 계산(정확하게)
+    prod_df_map: Dict[str, set] = {}
+    for r in rows:
+        pcode = str(r.get("product_code") or "-")
+        toks = set(tokenize_ko(str(r.get("text") or ""), stopwords=BASE_STOPWORDS))
+        for t in toks:
+            prod_df_map.setdefault(t, set()).add(pcode)
+    prod_cnt_map = {k: len(v) for k, v in prod_df_map.items()}
+
+    auto_global: List[str] = []
+    for t, dfc in sorted(all_df.items(), key=lambda x: x[1], reverse=True):
+        df_ratio = dfc / all_n
+        prod_ratio = prod_cnt_map.get(t, 0) / prod_n
+        if df_ratio < AUTO_STOP_MIN_DF:
+            continue
+        if prod_ratio < AUTO_STOP_MIN_PRODUCTS:
+            continue
+        p = pos_freq.get(t, 0)
+        n = neg_freq.get(t, 0)
+        total = p + n
+        if total < 6:
+            continue
+        # polarity: neg 비율
+        neg_ratio = n / total if total else 0.0
+        # 너무 중립(0.5 근처)이면 제거
+        if abs(neg_ratio - 0.5) <= AUTO_STOP_POLARITY_MARGIN:
+            auto_global.append(t)
+        if len(auto_global) >= AUTO_STOP_MAX_ADD:
+            break
+
+    # category별
+    by_cat: Dict[str, List[str]] = {}
+    cat_groups: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        cat = detect_category(str(r.get("product_name") or ""), str(r.get("product_code") or ""))
+        cat_groups.setdefault(cat, []).append(r)
+
+    for cat, group in cat_groups.items():
+        if len(group) < 12:
+            by_cat[cat] = []
+            continue
+        # group 내부에서 token DF 높은 것
+        ids = [str(r.get("id")) for r in group]
+        n_docs = max(1, len(ids))
+        prod_set = set(str(r.get("product_code") or "-") for r in group)
+        n_prod = max(1, len(prod_set))
+
+        token_docs: Dict[str, set] = {}
+        token_prods: Dict[str, set] = {}
+        token_pos: Dict[str, int] = {}
+        token_neg: Dict[str, int] = {}
+
+        for r in group:
+            pid = str(r.get("id"))
+            pcode = str(r.get("product_code") or "-")
+            ispos = is_positive(r)
+            isneg = is_complaint(r)
+            toks_unique = set(tokenize_ko(str(r.get("text") or ""), stopwords=BASE_STOPWORDS))
+            toks_all = tokenize_ko(str(r.get("text") or ""), stopwords=BASE_STOPWORDS)
+
+            for t in toks_unique:
+                token_docs.setdefault(t, set()).add(pid)
+                token_prods.setdefault(t, set()).add(pcode)
+            for t in toks_all:
+                if ispos:
+                    token_pos[t] = token_pos.get(t, 0) + 1
+                if isneg:
+                    token_neg[t] = token_neg.get(t, 0) + 1
+
+        cand = []
+        for t, ds in token_docs.items():
+            df_ratio = len(ds) / n_docs
+            prod_ratio = len(token_prods.get(t, set())) / n_prod
+            if df_ratio < 0.35:
+                continue
+            if prod_ratio < 0.30:
+                continue
+            p = token_pos.get(t, 0)
+            n = token_neg.get(t, 0)
+            total = p + n
+            if total < 6:
+                continue
+            neg_ratio = n / total if total else 0.0
+            if abs(neg_ratio - 0.5) <= 0.22:
+                cand.append(t)
+        by_cat[cat] = cand[:80]
+
+    return {"global": auto_global, "by_category": by_cat}
+
+
+def build_stopwords_for_row(row: Dict[str, Any], auto_sw: Dict[str, Any]) -> set:
+    sw = set(BASE_STOPWORDS)
+    sw.update(set(auto_sw.get("global") or []))
+    cat = detect_category(str(row.get("product_name") or ""), str(row.get("product_code") or ""))
+    sw.update(set((auto_sw.get("by_category") or {}).get(cat) or []))
+    return sw
+
+
+# ----------------------------
+# Keyword extraction (pos/neg/complaint)
+# ----------------------------
+def top_terms(
+    rows: List[Dict[str, Any]],
+    topk: int,
+    auto_sw: Dict[str, Any],
+    which: str,
+) -> List[Tuple[str, int]]:
+    """
+    which: "pos" | "neg" | "complaint"
+    - pos: is_positive
+    - neg: is_complaint
+    - complaint: is_complaint + 클러스터/원인 기반으로 더 강하게 정제(중립/관용 제거)
+    """
+    freq: Dict[str, int] = {}
+    for r in rows:
+        if which == "pos" and not is_positive(r):
+            continue
+        if which in ("neg", "complaint") and not is_complaint(r):
+            continue
+
+        sw = build_stopwords_for_row(r, auto_sw)
+        text = str(r.get("text") or "")
+        toks = tokenize_ko(text, stopwords=sw)
+
+        # complaint는 NEG_SEEDS(원인)와 클러스터 키워드에 가중
+        if which == "complaint":
+            tnorm = normalize_text(text)
+            for t in toks:
+                w = 1
+                # 원인/클러스터 힌트면 가중
+                if any(seed in t for seed in NEG_SEEDS):
+                    w += 1
+                if any(any(k in t for k in kws) for kws in CLUSTERS.values()):
+                    w += 1
+                # POS_SEEDS 계열(가볍/수납 등)은 complaint에서 제외(오탐 방지)
+                if any(seed in t for seed in POS_SEEDS):
+                    continue
+                freq[t] = freq.get(t, 0) + w
+        else:
+            for t in toks:
+                # pos에서 neg seed가 강하면 제외
+                if which == "pos" and any(seed in t for seed in NEG_SEEDS):
+                    continue
+                # neg에서 pos seed가 강하면 제외(“수납력 좋다” 같은 오탐 방지)
+                if which == "neg" and any(seed in t for seed in POS_SEEDS):
+                    continue
+                freq[t] = freq.get(t, 0) + 1
+
+    return sorted(freq.items(), key=lambda x: x[1], reverse=True)[:topk]
+
+
+def assign_cluster(text: str) -> List[str]:
+    """
+    리뷰 1건에 대해 원인 클러스터 여러개 가능
+    """
+    tnorm = normalize_text(text).replace(" ", "")
+    hits = []
+    for c, kws in CLUSTERS.items():
+        for k in kws:
+            if k.replace(" ", "") in tnorm:
+                hits.append(c)
+                break
+    # 아무것도 없으면 빈
+    return hits
+
+
+# ----------------------------
+# Evidence / anchors for click
+# ----------------------------
+@dataclass
+class Evidence:
+    id: Any
+    product_name: str
+    product_code: str
+    created_at: str
+    rating: int
+    text_snip: str
+
+
+def build_keyword_evidence(
+    rows: List[Dict[str, Any]],
+    keywords: List[str],
+    auto_sw: Dict[str, Any],
+    filter_fn,
+    evidence_per_kw: int = 4,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    키워드별 근거 리뷰(id 포함). UI에서 클릭하면 #rev-{id} 로 이동.
+    """
+    out: Dict[str, List[Evidence]] = {k: [] for k in keywords}
+    for r in rows:
+        if not filter_fn(r):
+            continue
+        sw = build_stopwords_for_row(r, auto_sw)
+        toks = set(tokenize_ko(str(r.get("text") or ""), stopwords=sw))
+        for k in keywords:
+            if k in toks:
+                snip = re.sub(r"\s+", " ", str(r.get("text") or "").strip())
+                snip = snip[:140] + ("…" if len(snip) > 140 else "")
+                out[k].append(
+                    Evidence(
+                        id=r.get("id"),
+                        product_name=str(r.get("product_name") or r.get("product_code") or "-"),
+                        product_code=str(r.get("product_code") or "-"),
+                        created_at=str(r.get("created_at") or ""),
+                        rating=int(r.get("rating") or 0),
+                        text_snip=snip,
+                    )
+                )
+    # 정렬/슬라이스
+    out2: Dict[str, List[Dict[str, Any]]] = {}
+    for k, evs in out.items():
+        evs.sort(key=lambda x: x.created_at, reverse=True)
+        out2[k] = [e.__dict__ for e in evs[:evidence_per_kw]]
+    return out2
+
+
+# ----------------------------
+# Product-level 1y keyword map (POS/NEG)
+# ----------------------------
+def build_product_keyword_map_1y(
+    all_rows_1y: List[Dict[str, Any]],
+    last7_rows: List[Dict[str, Any]],
+    auto_sw_last7: Dict[str, Any],
+    per_side_topk: int = 6,
 ) -> List[Dict[str, Any]]:
     """
-    제품별로 1년 누적 POS/NEG 키워드를 뽑아 마인드맵 카드로 사용
-    - 제품은 1년 리뷰수 기준 상위 max_products 노출
+    제품별(최근 1년) POS/NEG 키워드 맵
+    - 키워드는 1y로 집계
+    - 클릭 이동은 last7에 존재하는 리뷰 id만 연결(없으면 evidence 비움)
     """
     by_prod: Dict[str, List[Dict[str, Any]]] = {}
-    for r in rows_1y:
+    for r in all_rows_1y:
         code = str(r.get("product_code") or "-")
         by_prod.setdefault(code, []).append(r)
 
-    # 제품 선정: 1년 리뷰수 상위
-    prods = sorted(by_prod.items(), key=lambda kv: len(kv[1]), reverse=True)[:max_products]
+    # last7에서 증거(클릭 가능)용 인덱스
+    last7_by_prod: Dict[str, List[Dict[str, Any]]] = {}
+    for r in last7_rows:
+        code = str(r.get("product_code") or "-")
+        last7_by_prod.setdefault(code, []).append(r)
 
-    out: List[Dict[str, Any]] = []
-    for code, items in prods:
-        name = str(items[0].get("product_name") or code)
-        img = str(items[0].get("local_product_image") or "")
+    out = []
+    for code, rows in by_prod.items():
+        # 대표 메타
+        sample = rows[0]
+        pname = str(sample.get("product_name") or code)
+        img = str(sample.get("local_product_image") or "")
+        # 1y 키워드: auto stopwords는 last7에서 학습된 것으로 사용(일관성)
+        pos_terms_1y = top_terms(rows, per_side_topk, auto_sw_last7, which="pos")
+        neg_terms_1y = top_terms(rows, per_side_topk, auto_sw_last7, which="neg")
 
-        pos_texts = [str(x.get("text") or "") for x in items if is_positive(x) and not is_complaint(x)]
-        neg_texts = [str(x.get("text") or "") for x in items if is_complaint(x)]
+        pos_keys = [k for k, _ in pos_terms_1y]
+        neg_keys = [k for k, _ in neg_terms_1y]
 
-        pos_top = top_terms(pos_texts, stopwords=stopwords, topk=topk_kw) if pos_texts else []
-        neg_top = top_terms(neg_texts, stopwords=stopwords, topk=topk_kw) if neg_texts else []
-
-        # 키워드별 대표 리뷰(1개) id 연결(클릭 -> 스크롤)
-        def first_review_id_containing(keyword: str, pool: List[Dict[str, Any]]) -> Optional[Any]:
-            kw = normalize_text(keyword)
-            for rr in pool:
-                if kw in normalize_text(str(rr.get("text") or "")):
-                    return rr.get("id")
-            return None
-
-        pos_kw = []
-        for k, c in pos_top:
-            rid = first_review_id_containing(k, items)
-            pos_kw.append({"k": k, "c": c, "rid": rid})
-
-        neg_kw = []
-        for k, c in neg_top:
-            rid = first_review_id_containing(k, items)
-            neg_kw.append({"k": k, "c": c, "rid": rid})
+        # 클릭 증거는 last7에서만 연결
+        l7 = last7_by_prod.get(code, [])
+        pos_evi = build_keyword_evidence(
+            l7,
+            pos_keys,
+            auto_sw_last7,
+            filter_fn=lambda r: is_positive(r),
+            evidence_per_kw=2,
+        )
+        neg_evi = build_keyword_evidence(
+            l7,
+            neg_keys,
+            auto_sw_last7,
+            filter_fn=lambda r: is_complaint(r),
+            evidence_per_kw=2,
+        )
 
         out.append(
             {
                 "product_code": code,
-                "product_name": name,
+                "product_name": pname,
                 "local_product_image": img,
-                "review_cnt_1y": len(items),
-                "pos_keywords": pos_kw,
-                "neg_keywords": neg_kw,
+                "reviews_1y": len(rows),
+                "pos": [[k, int(c)] for k, c in pos_terms_1y],
+                "neg": [[k, int(c)] for k, c in neg_terms_1y],
+                "pos_evidence": pos_evi,
+                "neg_evidence": neg_evi,
             }
         )
 
-    return out
+    # 정렬: 최근1y 리뷰 수 많은 순
+    out.sort(key=lambda x: x.get("reviews_1y", 0), reverse=True)
+    return out[:24]  # 너무 길어지면 UI 무거움 방지
 
 
 # ----------------------------
-# HTML template
+# HTML template loader + patch
 # ----------------------------
-HTML_TEMPLATE = r"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VOC Dashboard | Official + Naver Reviews</title>
+def load_html_template() -> str:
+    """
+    기존 너의 HTML을 그대로 쓰되(길어서 여기서 재정의 안 함),
+    site/template.html 있으면 그걸 읽고, 없으면 현재 site/index.html을 템플릿으로 사용.
+    (둘 다 없으면 최소 템플릿 fallback)
+    """
+    tpl1 = SITE_DIR / "template.html"
+    if tpl1.exists():
+        return tpl1.read_text(encoding="utf-8")
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    idx = SITE_DIR / "index.html"
+    if idx.exists():
+        return idx.read_text(encoding="utf-8")
 
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
-    body{
-      background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      color:#0f172a; min-height:100vh;
-    }
-    .glass-card{ background: rgba(255,255,255,0.55); backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.75); border-radius: 30px;
-      box-shadow: 0 20px 50px rgba(0,45,114,0.05); }
-    .sidebar{ background: rgba(255,255,255,0.70); backdrop-filter: blur(15px);
-      border-right: 1px solid rgba(255,255,255,0.80); }
-    .summary-card{ border-radius: 26px; background: rgba(255,255,255,0.55);
-      border: 1px solid rgba(255,255,255,0.75); backdrop-filter: blur(18px);
-      box-shadow: 0 20px 50px rgba(0,45,114,0.05); padding: 18px 20px; }
-    .small-label{ font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 900; }
-    .input-glass{ background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.80);
-      border-radius: 18px; padding: 12px 14px; outline: none; font-weight: 800; color:#0f172a; }
-    .input-glass:focus{ box-shadow: 0 0 0 4px rgba(0,45,114,0.10); border-color: rgba(0,45,114,0.25); }
-    .chip{ border-radius: 9999px; padding: 10px 14px; font-weight: 900; font-size: 12px;
-      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.60);
-      color:#334155; cursor:pointer; user-select:none; }
-    .chip.active{ background: rgba(0,45,114,0.95); color:#fff; border-color: rgba(0,45,114,1);
-      box-shadow: 0 10px 30px rgba(0,45,114,0.15); }
-    .tab-btn{ padding: 10px 14px; border-radius: 18px; font-weight: 900; font-size: 12px;
-      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.60);
-      color:#475569; transition: all .15s ease; }
-    .tab-btn:hover{ background: rgba(255,255,255,0.90); }
-    .tab-btn.active{ background: rgba(0,45,114,0.95); color:#fff; border-color: rgba(0,45,114,1);
-      box-shadow: 0 10px 30px rgba(0,45,114,0.15); }
-    .overlay{ position: fixed; inset:0; background: rgba(255,255,255,0.65); backdrop-filter: blur(10px);
-      display:none; align-items:center; justify-content:center; z-index:9999; }
-    .overlay.show{ display:flex; }
-    .spinner{ width:56px;height:56px;border-radius:9999px; border:6px solid rgba(0,0,0,0.08);
-      border-top-color: rgba(0,45,114,0.95); animation: spin .9s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg);} }
-    .tbl{ width:100%; border-collapse: separate; border-spacing: 0; overflow:hidden; border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.55); }
-    .tbl th{ font-size: 11px; letter-spacing: .22em; text-transform: uppercase; font-weight: 900;
-      color:#475569; background: rgba(255,255,255,0.75); padding: 14px 14px; position: sticky; top: 0; z-index: 1; }
-    .tbl td{ padding: 14px 14px; border-top: 1px solid rgba(255,255,255,0.75); font-weight: 800;
-      color:#0f172a; font-size: 13px; vertical-align: top; }
-    .tbl .muted{ color:#64748b; font-weight:800; font-size:12px; }
-    .review-card{ border-radius: 26px; background: rgba(255,255,255,0.55);
-      border: 1px solid rgba(255,255,255,0.80); backdrop-filter: blur(18px);
-      box-shadow: 0 16px 42px rgba(0,45,114,0.04); padding: 18px 18px; }
-    .badge{ display:inline-flex; align-items:center; gap:6px; padding: 6px 10px; border-radius: 9999px;
-      font-size: 11px; font-weight: 900; border: 1px solid rgba(255,255,255,0.85);
-      background: rgba(255,255,255,0.65); color:#334155; }
-    .badge.neg{ background: rgba(239,68,68,0.10); color:#b91c1c; border-color: rgba(239,68,68,0.18); }
-    .badge.pos{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
-    .badge.size{ background: rgba(59,130,246,0.10); color:#1d4ed8; border-color: rgba(59,130,246,0.18); }
-    .img-box{ width:72px; height:72px; border-radius:18px; overflow:hidden; background: rgba(255,255,255,0.70);
-      border:1px solid rgba(255,255,255,0.85); }
-    .img-box img{ width:100%; height:100%; object-fit:cover; display:block; }
-    body.embedded aside, body.embedded header { display:none !important; }
-    body.embedded main{ padding: 24px !important; }
-    .line-clamp-1{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; }
-    .line-clamp-2{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
-    .line-clamp-3{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
-    .kw-chip{ cursor:pointer; }
-    .kw-chip:hover{ transform: translateY(-1px); }
-  </style>
-</head>
+    # fallback (최소)
+    return "<!doctype html><html><head><meta charset='utf-8'><title>VOC</title></head><body><h1>VOC</h1></body></html>"
 
-<body class="flex">
-  <div id="overlay" class="overlay">
-    <div class="glass-card px-8 py-7 flex items-center gap-4">
-      <div class="spinner"></div>
-      <div>
-        <div class="text-sm font-black text-slate-900">Processing...</div>
-        <div id="overlayMsg" class="text-xs font-bold text-slate-500 mt-1">잠시만요</div>
-      </div>
-    </div>
-  </div>
 
-  <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
-    <div class="flex items-center gap-4 mb-14 px-2">
-      <div class="w-12 h-12 bg-[color:var(--brand)] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
-        <i class="fa-solid fa-comments text-xl"></i>
-      </div>
-      <div>
-        <div class="text-xl font-black tracking-tighter italic">VOC <span class="text-blue-600 font-extrabold">HUB</span></div>
-        <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Official + Naver Reviews</div>
-      </div>
-    </div>
+def patch_html(html: str) -> str:
+    """
+    요청 UI 패치:
+    - main 폭 제한 + 중앙 정렬
+    - Daily feed 3열 grid
+    - '주요 문제 키워드' → '주요 키워드'
+    - 4번 섹션을 제품별 1y 키워드맵 렌더링 컨테이너로 변경 (id 유지/교체)
+    - 키워드 칩 클릭시 scrollToReview(id)
+    """
+    # 1) main 폭 제한
+    html = html.replace(
+        '<main class="flex-1 p-8 md:p-14">',
+        '<main class="flex-1 p-6 md:p-10 w-full"><div class="mx-auto w-full max-w-[1280px]">',
+    )
+    # footer 이후 닫기 추가 (이미 있으면 중복 방지)
+    if "</main>" in html and "</div></main>" not in html:
+        html = html.replace("</main>", "</div></main>")
 
-    <div class="glass-card p-5">
-      <div class="small-label text-blue-600 mb-2">Schedule</div>
-      <div class="text-sm font-black text-slate-900">주 1회</div>
-      <div class="text-xs font-bold text-slate-500 mt-2">월요일 오전 9시 (KST)</div>
-      <div class="mt-4 text-xs font-bold text-slate-500">
-        * 정적 HTML<br/>
-        * JSON(data/meta.json, data/reviews.json) 로드
-      </div>
-    </div>
+    # 2) dailyFeed 컨테이너: space-y -> grid
+    html = html.replace('id="dailyFeed" class="space-y-4"', 'id="dailyFeed" class="review-grid"')
 
-    <div class="mt-auto pt-8 text-xs font-bold text-slate-500">
-      <div class="small-label text-blue-600 mb-2">Snapshot</div>
-      <div>수집일: <span id="runDateSide" class="font-black text-slate-700">-</span></div>
-      <div class="mt-2">기간: <span id="periodTextSide" class="font-black text-slate-700">-</span></div>
-    </div>
-  </aside>
+    # 3) CSS grid 추가/수정: review-list 대신 review-grid (3열)
+    inject_css = """
+    .review-grid{ display:grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
+    """
+    html = html.replace("</style>", inject_css + "\n</style>")
 
-  <main class="flex-1 p-8 md:p-14">
-    <!-- ✅ 전체 가로폭 제한 -->
-    <div class="max-w-[1320px] mx-auto">
+    # 4) 랭킹 헤더 텍스트
+    html = html.replace("주요 문제 키워드", "주요 키워드")
 
-      <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
-        <div>
-          <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-            Official몰 & Naver 리뷰 VOC 대시보드
-          </h1>
-          <div id="headerMeta" class="text-sm text-slate-500 font-bold">
-            - · - · 주 1회 자동 업데이트(월 09:00)
-          </div>
-        </div>
+    # 5) 4번 섹션 문구 교체 (컨테이너 id는 mindmap 유지하되 내용 렌더링을 제품맵으로 사용)
+    html = html.replace("4. 대표 리뷰 마인드맵", "4. 제품별 긍/부정 키워드 맵 (최근 1년)")
 
-        <div class="glass-card px-6 py-4 flex items-center gap-4">
-          <div class="flex h-3 w-3 relative">
-            <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
-          </div>
-          <span class="text-sm font-black text-slate-800 tracking-widest uppercase">VOC Snapshot</span>
-        </div>
-      </header>
-
-      <section class="mb-8">
-        <div class="flex flex-wrap gap-2 items-center">
-          <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
-            Combined <span class="ml-2 opacity-70">공식몰+네이버(1탭)</span>
-          </button>
-          <button class="tab-btn" data-tab="official" onclick="switchSourceTab('official')">
-            Official Mall
-          </button>
-          <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
-            Naver
-          </button>
-
-          <div class="ml-auto flex items-center gap-3">
-            <div class="small-label text-blue-600">View</div>
-            <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">당일 업로드 순</button>
-            <button class="chip" id="chip-pos" onclick="toggleChip('pos')">긍정 키워드 포함</button>
-            <button class="chip" id="chip-size" onclick="toggleChip('size')">사이즈 이슈만</button>
-            <button class="chip" id="chip-low" onclick="toggleChip('low')">저평점만</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="mb-10">
-        <div class="glass-card p-8">
-          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-            <div>
-              <div class="small-label text-blue-600 mb-2">1. Summary</div>
-              <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
-            </div>
-            <div class="text-xs font-black text-slate-500">
-              * 최근 7일 고정 + 중립/관용구 제거 + 긍/부정 분리
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div class="summary-card">
-              <div class="small-label text-blue-600 mb-2">1-1) Size mention</div>
-              <div class="text-3xl font-black"><span id="sizeMentionRate">-</span>%</div>
-              <div class="text-xs font-bold text-slate-500 mt-2">전체 리뷰 중 사이즈 관련 언급 비중</div>
-            </div>
-
-            <div class="summary-card">
-              <div class="small-label text-slate-700 mb-2">1-2) Keywords Top 5</div>
-
-              <div class="text-xs font-black text-slate-500 mt-1">NEG (불만)</div>
-              <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
-
-              <div class="text-xs font-black text-slate-500 mt-4">POS (공감/강점)</div>
-              <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
-
-              <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 기반(중립/관용구 제거 + 클릭→해당 리뷰 이동)</div>
-            </div>
-
-            <div class="summary-card">
-              <div class="small-label text-blue-600 mb-2">1-3) Priority Top 3</div>
-              <ol id="priorityTop3" class="mt-2 space-y-2"></ol>
-              <div class="text-xs font-bold text-slate-500 mt-3">개선 필요 제품 Top 3(사이즈 이슈율)</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="mb-10">
-        <div class="glass-card p-8">
-          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-            <div>
-              <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
-              <div class="text-xs font-bold text-slate-500 mt-1">Top5 기본 노출(접기/펼치기)</div>
-            </div>
-            <div class="flex gap-2">
-              <button class="chip active" id="rank-size" onclick="switchRankMode('size')">2-1) 사이즈 이슈율</button>
-              <button class="chip" id="rank-low" onclick="switchRankMode('low')">2-2) 저평점 비중</button>
-              <button class="chip" id="rank-both" onclick="switchRankMode('both')">2-3) 교집합</button>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-end mb-3">
-            <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
-          </div>
-
-          <div class="overflow-auto">
-            <table class="tbl min-w-[980px]">
-              <thead>
-                <tr>
-                  <th class="text-left">제품명</th>
-                  <th class="text-left">리뷰 수</th>
-                  <th class="text-left">사이즈 이슈율</th>
-                  <th class="text-left">저평점 비중</th>
-                  <th class="text-left">주요 키워드</th>
-                </tr>
-              </thead>
-              <tbody id="rankingBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="mb-10">
-        <div class="glass-card p-8">
-          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-            <div>
-              <div class="small-label text-blue-600 mb-2">3. 사이즈 이슈 구조 분석</div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div class="summary-card">
-              <div class="small-label text-blue-600 mb-2">3-1) small vs big</div>
-              <div class="flex items-center justify-between mt-3">
-                <span class="badge size">too_small <span id="tooSmall">-</span>%</span>
-                <span class="badge size">too_big <span id="tooBig">-</span>%</span>
-              </div>
-              <div class="text-xs font-bold text-slate-500 mt-3">규칙 기반 자동 분류</div>
-            </div>
-
-            <div class="summary-card lg:col-span-2">
-              <div class="small-label text-blue-600 mb-2">3-2) 옵션(사이즈)별 이슈율</div>
-              <div class="text-xs font-bold text-slate-500 mb-2">Top5만 + OS 제외</div>
-              <div class="overflow-auto mt-3">
-                <table class="tbl min-w-[820px]">
-                  <thead>
-                    <tr>
-                      <th class="text-left">옵션 사이즈</th>
-                      <th class="text-left">리뷰 수</th>
-                      <th class="text-left">too_small</th>
-                      <th class="text-left">too_big</th>
-                      <th class="text-left">정사이즈/기타</th>
-                    </tr>
-                  </thead>
-                  <tbody id="sizeOptBody"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div class="summary-card mt-4">
-            <div class="small-label text-blue-600 mb-2">3-3) 핏 관련 반복 표현</div>
-            <div id="fitWords" class="flex flex-wrap gap-2 mt-2"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ✅ 섹션 4 교체: 제품별(최근 1년) 누적 긍/부정 키워드 마인드맵 -->
-      <section class="mb-10">
-        <div class="glass-card p-8">
-          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-            <div>
-              <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
-              <div class="text-xs font-bold text-slate-500 mt-1">최근 1년 누적 · 제품별 긍/부정 키워드</div>
-            </div>
-          </div>
-
-          <div id="productMindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
-        </div>
-      </section>
-
-      <section class="mb-10">
-        <div class="glass-card p-8">
-          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-            <div>
-              <div class="small-label text-blue-600 mb-2">Daily Feed</div>
-              <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
-              <div class="text-sm font-bold text-slate-500 mt-2">최근 7일 범위 내에서 날짜 선택 가능</div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-6">
-            <input id="daySelect" type="date" class="input-glass" onchange="renderAll()" />
-            <select id="productSelect" class="input-glass" onchange="renderAll()">
-              <option value="">제품 선택 (전체)</option>
-            </select>
-            <select id="sizeSelect" class="input-glass" onchange="renderAll()">
-              <option value="">옵션 사이즈 (전체)</option>
-            </select>
-            <select id="sortSelect" class="input-glass" onchange="renderAll()">
-              <option value="upload">정렬: 업로드 순 (기본)</option>
-              <option value="latest">최신순</option>
-              <option value="long">리뷰 길이 긴 순</option>
-              <option value="low">저평점순</option>
-            </select>
-            <input id="qInput" class="input-glass" placeholder="텍스트 검색(옵션)" oninput="renderAll()" />
-          </div>
-
-          <!-- ✅ 3열 그리드 -->
-          <div id="dailyFeed" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
-
-          <div class="hidden review-card text-center" id="noResults">
-            <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
-          </div>
-        </div>
-      </section>
-
-      <footer class="text-xs font-bold text-slate-500 pb-8">
-        * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
-        * 섹션4: 최근 1년 누적(제품별 POS/NEG 키워드).<br/>
-        * 키워드: 중립/관용구/제품코드성 단어 제거 + 제품군별 자동 stopwords 학습.
-      </footer>
-
-    </div>
-  </main>
-
-  <script>
-    const overlay = document.getElementById('overlay');
-    const overlayMsg = document.getElementById('overlayMsg');
-
-    const uiState = {
-      sourceTab: 'combined',
-      chips: { daily:true, pos:false, size:false, low:false },
-      rankMode: 'size',
-      rankExpanded: false,
-      pendingScrollReviewId: null,
-    };
-
-    function showOverlay(msg){
-      overlayMsg.textContent = msg || '잠시만요';
-      overlay.classList.add('show');
-    }
-    function hideOverlay(){ overlay.classList.remove('show'); }
-    function runWithOverlay(msg, fn){
-      showOverlay(msg);
-      setTimeout(() => { Promise.resolve().then(fn).finally(() => requestAnimationFrame(hideOverlay)); }, 0);
-    }
-
-    function switchSourceTab(tab){
-      runWithOverlay('Switching source...', () => {
-        uiState.sourceTab = tab;
-        document.querySelectorAll('.tab-btn').forEach(b => {
-          b.classList.toggle('active', b.getAttribute('data-tab') === tab);
-        });
-        renderAll();
-      });
-    }
-
-    function toggleChip(key){
-      runWithOverlay('Applying filter...', () => {
-        uiState.chips[key] = !uiState.chips[key];
-        const el = document.getElementById('chip-' + key);
-        if (el) el.classList.toggle('active', uiState.chips[key]);
-        renderAll();
-      });
-    }
-
-    function switchRankMode(mode){
-      runWithOverlay('Switching ranking...', () => {
-        uiState.rankMode = mode;
-        document.getElementById('rank-size').classList.toggle('active', mode==='size');
-        document.getElementById('rank-low').classList.toggle('active', mode==='low');
-        document.getElementById('rank-both').classList.toggle('active', mode==='both');
-        renderAll();
-      });
-    }
-
-    function toggleRankingExpand(){
-      uiState.rankExpanded = !uiState.rankExpanded;
-      const btn = document.getElementById("rankToggleBtn");
-      btn.textContent = uiState.rankExpanded ? "접기" : "Top5만 보기";
-      btn.classList.toggle("active", uiState.rankExpanded);
-      renderAll();
-    }
-
-    (function () {
-      try { if (window.self !== window.top) document.body.classList.add("embedded"); }
-      catch (e) { document.body.classList.add("embedded"); }
-    })();
-
-    let META = null;
-    let REVIEWS = [];
-
-    const esc = (s) => String(s ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-
-    const fmtDT = (iso) => {
-      if (!iso) return "";
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return String(iso);
-      const pad2 = (n) => String(n).padStart(2,'0');
-      return `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-    };
-
-    function asArr(x){ return Array.isArray(x) ? x : []; }
-
-    function applyKeywordAndScroll(keyword, reviewId){
-      const q = document.getElementById("qInput");
-      if (q) q.value = keyword || "";
-      uiState.pendingScrollReviewId = reviewId || null;
-      renderAll();
-    }
-
-    function tryScrollToReview(){
-      const id = uiState.pendingScrollReviewId;
-      if (!id) return;
-      uiState.pendingScrollReviewId = null;
-
-      // DOM 렌더가 끝난 뒤 스크롤
-      requestAnimationFrame(() => {
-        const el = document.getElementById("review-" + String(id));
-        if (el){
-          el.scrollIntoView({behavior:"smooth", block:"start"});
-          el.classList.add("ring-4","ring-blue-200");
-          setTimeout(()=> el.classList.remove("ring-4","ring-blue-200"), 1800);
-        }
-      });
-    }
-
-    function getFilteredReviews(){
-      let rows = REVIEWS.slice();
-
-      if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
-      if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
-
-      const day = (document.getElementById("daySelect")?.value || "").trim();
-      if (day){
-        rows = rows.filter(r => String(r.created_at || "").slice(0,10) === day);
+    # 6) 스크롤 함수 삽입: </script> 앞에
+    scroll_js = """
+    function scrollToReview(id){
+      if(!id && id !== 0) return;
+      const el = document.getElementById('rev-' + String(id));
+      if(el){
+        el.scrollIntoView({behavior:'smooth', block:'start'});
+        el.classList.add('ring-4','ring-blue-200');
+        setTimeout(()=>el.classList.remove('ring-4','ring-blue-200'), 1400);
       }
-
-      const productCode = document.getElementById("productSelect")?.value || "";
-      if (productCode) rows = rows.filter(r => r.product_code === productCode);
-
-      const sizeOpt = document.getElementById("sizeSelect")?.value || "";
-      if (sizeOpt) rows = rows.filter(r => (r.option_size || "") === sizeOpt);
-
-      const q = (document.getElementById("qInput")?.value || "").trim().toLowerCase();
-      if (q){
-        rows = rows.filter(r =>
-          (r.product_name || "").toLowerCase().includes(q) ||
-          (r.product_code || "").toLowerCase().includes(q) ||
-          (r.text || "").toLowerCase().includes(q) ||
-          (r.option_size || "").toLowerCase().includes(q)
-        );
-      }
-
-      if (uiState.chips.pos) rows = rows.filter(r => asArr(r.tags).includes("pos"));
-      if (uiState.chips.size) rows = rows.filter(r => asArr(r.tags).includes("size"));
-      if (uiState.chips.low) rows = rows.filter(r => (r.rating ?? 0) <= 2 || asArr(r.tags).includes("low"));
-
-      const sort = document.getElementById("sortSelect")?.value || "upload";
-      if (sort === "latest") rows.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-      else if (sort === "long") rows.sort((a,b) => ((b.text||"").length - (a.text||"").length));
-      else if (sort === "low") rows.sort((a,b) => ((a.rating||0) - (b.rating||0)) || (new Date(b.created_at)-new Date(a.created_at)));
-      else rows.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-
-      return rows;
     }
+    """
+    html = html.replace("</script>\n</body>", scroll_js + "\n</script>\n</body>")
 
-    function calcMetrics(reviews){
-      const total = reviews.length || 1;
-      const sizeMention = reviews.filter(r => asArr(r.tags).includes("size")).length;
-
-      const sizeRows = reviews.filter(r => asArr(r.tags).includes("size"));
-      const smallCnt = sizeRows.filter(r => r.size_direction === "too_small").length;
-      const bigCnt = sizeRows.filter(r => r.size_direction === "too_big").length;
-      const denom = Math.max(1, smallCnt + bigCnt);
-      const tooSmall = Math.round((smallCnt/denom)*100);
-      const tooBig = 100 - tooSmall;
-
-      const byProd = new Map();
-      for (const r of reviews){
-        const code = r.product_code || "-";
-        if (!byProd.has(code)){
-          byProd.set(code, {
-            product_code: code,
-            product_name: r.product_name || code,
-            product_url: r.product_url || "",
-            local_product_image: r.local_product_image || "",
-            reviews: 0,
-            sizeIssue: 0,
-            low: 0,
-            kwPos: new Map(),
-            kwNeg: new Map(),
-          });
-        }
-        const g = byProd.get(code);
-        g.reviews += 1;
-        if (asArr(r.tags).includes("size")) g.sizeIssue += 1;
-        if ((r.rating||0) <= 2 || asArr(r.tags).includes("low")) g.low += 1;
-
-        // 제품별 "주요 키워드": meta에서 제공한 pos/neg 토큰(이미 정제됨)을 활용
-        const pkw = asArr(r.pos_keywords);
-        const nkw = asArr(r.neg_keywords);
-        for (const k of pkw) g.kwPos.set(k, (g.kwPos.get(k)||0) + 1);
-        for (const k of nkw) g.kwNeg.set(k, (g.kwNeg.get(k)||0) + 1);
-      }
-
-      const rows = Array.from(byProd.values()).map(g => {
-        const sizeRate = Math.round((g.sizeIssue / Math.max(1,g.reviews))*100);
-        const lowRate  = Math.round((g.low / Math.max(1,g.reviews))*100);
-
-        const posTop = Array.from(g.kwPos.entries()).sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>`+${x[0]}`).join(" ");
-        const negTop = Array.from(g.kwNeg.entries()).sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>`-${x[0]}`).join(" ");
-        const kwds = (posTop || negTop) ? `${posTop}${posTop && negTop ? " · " : ""}${negTop}` : "-";
-
-        return { ...g, sizeRate, lowRate, kwds };
-      });
-
-      const rankSize = rows.slice().sort((a,b)=> b.sizeRate - a.sizeRate || b.reviews - a.reviews);
-      const rankLow  = rows.slice().sort((a,b)=> b.lowRate  - a.lowRate  || b.reviews - a.reviews);
-      const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || b.reviews - a.reviews);
-
-      // 옵션(사이즈) 이슈율: Top5 + OS 제외
-      const sizeMap = new Map();
-      for (const r of reviews){
-        const sz = (r.option_size || "").trim();
-        if (!sz) continue;
-        if (sz.toUpperCase() === "OS") continue;
-        if (!sizeMap.has(sz)){
-          sizeMap.set(sz, { sz, cnt:0, small:0, big:0, other:0 });
-        }
-        const o = sizeMap.get(sz);
-        o.cnt += 1;
-        if (asArr(r.tags).includes("size")){
-          if (r.size_direction === "too_small") o.small += 1;
-          else if (r.size_direction === "too_big") o.big += 1;
-          else o.other += 1;
-        } else {
-          o.other += 1;
-        }
-      }
-      let sizeOpts = Array.from(sizeMap.values())
-        .sort((a,b)=> b.cnt - a.cnt)
-        .map(x => {
-          const cnt = Math.max(1, x.cnt);
-          const smallP = Math.round((x.small/cnt)*100);
-          const bigP = Math.round((x.big/cnt)*100);
-          const okP = Math.max(0, 100 - smallP - bigP);
-          return { sz:x.sz, cnt:x.cnt, small:smallP, big:bigP, ok:okP };
-        });
-
-      sizeOpts = sizeOpts.slice(0, 5);
-
-      return {
-        total,
-        sizeMentionRate: Math.round((sizeMention/total)*100),
-        tooSmall,
-        tooBig,
-        rankSize, rankLow, rankBoth,
-        sizeOpts
-      };
-    }
-
-    function renderHeader(){
-      const runDate = META?.updated_at || "-";
-      const periodText = META?.period_text || META?.date_range || "-";
-      document.getElementById("runDateSide").textContent = String(runDate).slice(0,10).replaceAll("-",".");
-      document.getElementById("periodTextSide").textContent = periodText;
-      document.getElementById("headerMeta").textContent = `${runDate} · ${periodText} · 주 1회 자동 업데이트(월 09:00)`;
-    }
-
-    function renderSummary(metrics){
-      document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
-
-      // NEG / POS TOP5 (클릭 -> 검색 + 스크롤)
-      const neg = META?.neg_top5 || [];
-      const pos = META?.pos_top5 || [];
-      const posEx = META?.pos_examples || {};
-
-      const elNeg = document.getElementById("topNeg");
-      elNeg.innerHTML = neg.map(([k,c, rid]) => `
-        <span class="badge neg kw-chip" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
-          #${esc(k)} <span class="opacity-70">${esc(c)}</span>
-        </span>
-      `).join("");
-
-      const elPos = document.getElementById("topPos");
-      elPos.innerHTML = pos.map(([k,c, rid]) => {
-        const ex = (posEx && posEx[k] && posEx[k][0]) ? posEx[k][0].snip : "";
-        return `
-          <span class="badge pos kw-chip" title="${esc(ex)}" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
-            #${esc(k)} <span class="opacity-70">${esc(c)}</span>
-          </span>
-        `;
-      }).join("");
-
-      const top3 = metrics.rankSize.slice(0,3);
-      const ol = document.getElementById("priorityTop3");
-      ol.innerHTML = top3.map(r => `
-        <li class="flex items-center justify-between gap-3">
-          <span class="font-black text-slate-900">${esc(r.product_name)}</span>
-          <span class="badge size">Size ${r.sizeRate}%</span>
-        </li>
-      `).join("");
-    }
-
-    function renderRanking(metrics){
-      let rows = [];
-      if (uiState.rankMode === "size") rows = metrics.rankSize;
-      else if (uiState.rankMode === "low") rows = metrics.rankLow;
-      else rows = metrics.rankBoth;
-
-      const maxRows = uiState.rankExpanded ? Math.min(rows.length, 50) : Math.min(rows.length, 5);
-      const tbody = document.getElementById("rankingBody");
-
-      tbody.innerHTML = rows.slice(0, maxRows).map(r => `
-        <tr>
-          <td>
-            <div class="flex items-center gap-3">
-              <div class="img-box">
-                ${r.local_product_image ? `<img src="${esc(r.local_product_image)}" alt="">` : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`}
-              </div>
-              <div>
-                <div class="font-black text-slate-900">${esc(r.product_name)}</div>
-                <div class="muted">code: ${esc(r.product_code)}</div>
-                ${r.product_url ? `<a href="${esc(r.product_url)}" target="_blank" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>` : ``}
-              </div>
-            </div>
-          </td>
-          <td class="muted">${r.reviews}</td>
-          <td><span class="badge size">${r.sizeRate}%</span></td>
-          <td><span class="badge neg">${r.lowRate}%</span></td>
-          <td class="muted">${esc(r.kwds || "-")}</td>
-        </tr>
-      `).join("");
-    }
-
-    function renderSizeStructure(metrics){
-      document.getElementById("tooSmall").textContent = metrics.tooSmall;
-      document.getElementById("tooBig").textContent = metrics.tooBig;
-
-      const sizeBody = document.getElementById("sizeOptBody");
-      sizeBody.innerHTML = metrics.sizeOpts.map(x => `
-        <tr>
-          <td class="font-black">${esc(x.sz)}</td>
-          <td class="muted">${x.cnt}</td>
-          <td><span class="badge size">${x.small}%</span></td>
-          <td><span class="badge size">${x.big}%</span></td>
-          <td class="muted">${x.ok}%</td>
-        </tr>
-      `).join("");
-
-      const fitWords = META?.fit_words || ["정사이즈","한치수 크게","한치수 작게","기장","소매","어깨","가슴","발볼"];
-      const fit = document.getElementById("fitWords");
-      fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
-    }
-
-    function renderProductMindmap(){
-      const mm = META?.product_mindmap_1y || [];
-      const root = document.getElementById("productMindmap");
-      if (!mm.length){
-        root.innerHTML = `<div class="summary-card lg:col-span-3"><div class="text-sm font-black text-slate-700">마인드맵 데이터가 없습니다.</div></div>`;
-        return;
-      }
-
-      root.innerHTML = mm.map(p => {
-        const img = p.local_product_image
-          ? `<img src="${esc(p.local_product_image)}" alt="" class="w-14 h-14 rounded-2xl object-cover border border-white/80 bg-white/60" />`
-          : `<div class="w-14 h-14 rounded-2xl flex items-center justify-center text-[10px] text-slate-400 border border-white/80 bg-white/60">NO IMAGE</div>`;
-
-        const pos = (p.pos_keywords || []).map(x => `
-          <span class="badge pos kw-chip" onclick="applyKeywordAndScroll('${esc(x.k)}','${esc(x.rid||"")}')">
-            #${esc(x.k)} <span class="opacity-70">${esc(x.c)}</span>
-          </span>
-        `).join("");
-
-        const neg = (p.neg_keywords || []).map(x => `
-          <span class="badge neg kw-chip" onclick="applyKeywordAndScroll('${esc(x.k)}','${esc(x.rid||"")}')">
-            #${esc(x.k)} <span class="opacity-70">${esc(x.c)}</span>
-          </span>
-        `).join("");
-
-        return `
-          <div class="summary-card">
-            <div class="flex items-start gap-3">
-              ${img}
-              <div class="min-w-0">
-                <div class="font-black text-slate-900 line-clamp-2">${esc(p.product_name || p.product_code)}</div>
-                <div class="text-[11px] font-black text-slate-500 mt-1">code: ${esc(p.product_code)} · 1y reviews: ${esc(p.review_cnt_1y)}</div>
-              </div>
-            </div>
-
-            <div class="mt-4">
-              <div class="text-xs font-black text-slate-500">POS</div>
-              <div class="mt-2 flex flex-wrap gap-2">${pos || `<span class="text-xs font-bold text-slate-400">-</span>`}</div>
-            </div>
-
-            <div class="mt-4">
-              <div class="text-xs font-black text-slate-500">NEG</div>
-              <div class="mt-2 flex flex-wrap gap-2">${neg || `<span class="text-xs font-bold text-slate-400">-</span>`}</div>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    function reviewCardHTML(r){
-      const tags = [];
-      const t = asArr(r.tags);
-
-      if (t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> #긍정키워드</span>`);
-      if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> #size_issue</span>`);
-      if ((r.rating||0) <= 2 || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> #low_rating</span>`);
-      if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> #개선요청</span>`);
-      if (r.text_image_path) tags.push(`<span class="badge"><i class="fa-solid fa-image"></i> #100자+이미지</span>`);
-
-      const prodImg = r.local_product_image
-        ? `<img src="${esc(r.local_product_image)}" alt="">`
-        : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
-
-      const reviewThumb = r.local_review_thumb
-        ? `<img src="${esc(r.local_review_thumb)}" class="w-full max-h-56 object-contain rounded-lg bg-slate-50" />`
-        : ``;
-
-      const textImg = r.text_image_path
-        ? `<img src="${esc(r.text_image_path)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" />`
-        : ``;
-
-      return `
-        <div class="review-card" id="review-${esc(r.id)}">
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="img-box">${prodImg}</div>
-              <div class="min-w-0">
-                <div class="font-black text-slate-900 line-clamp-1">${esc(r.product_name || r.product_code)}</div>
-                <div class="text-xs font-bold text-slate-500 mt-1">
-                  code: ${esc(r.product_code)} · source: ${esc(r.source || "-")} · id: ${esc(r.id)}
-                </div>
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="text-xs font-black text-slate-700">★ ${esc(r.rating)}</div>
-              <div class="text-[11px] font-bold text-slate-500 mt-1">${esc(fmtDT(r.created_at))}</div>
-            </div>
-          </div>
-
-          <div class="mt-3 flex flex-wrap gap-2">
-            ${(r.option_size ? `<span class="badge">옵션: ${esc(r.option_size)}</span>` : ``)}
-            ${tags.join("")}
-          </div>
-
-          <div class="mt-3 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words line-clamp-3">
-            ${esc(r.text || "")}
-          </div>
-
-          ${reviewThumb ? `<div class="mt-3">${reviewThumb}</div>` : ``}
-          ${textImg ? `<div class="mt-4"><div class="small-label text-blue-600 mb-2">100+ TEXT IMAGE</div>${textImg}</div>` : ``}
-        </div>
-      `;
-    }
-
-    function renderDailyFeed(reviews){
-      const container = document.getElementById("dailyFeed");
-      const no = document.getElementById("noResults");
-
-      const rows = reviews.slice(0, 30);
-      if (!rows.length){
-        container.innerHTML = "";
-        no.classList.remove("hidden");
-        return;
-      }
-      no.classList.add("hidden");
-      container.innerHTML = rows.map(reviewCardHTML).join("");
-    }
-
-    function renderProductSelect(){
-      const sel = document.getElementById("productSelect");
-      if (!sel) return;
-      const current = sel.value;
-
-      const map = new Map();
-      for (const r of REVIEWS){
-        const code = r.product_code || "";
-        if (!code) continue;
-        if (!map.has(code)) map.set(code, r.product_name || code);
-      }
-
-      const options = [`<option value="">제품 선택 (전체)</option>`].concat(
-        Array.from(map.entries()).sort((a,b)=> String(a[1]).localeCompare(String(b[1]))).map(([code,name]) =>
-          `<option value="${esc(code)}">${esc(name)} (${esc(code)})</option>`
-        )
-      ).join("");
-
-      sel.innerHTML = options;
-      sel.value = current;
-    }
-
-    function renderSizeSelect(){
-      const sel = document.getElementById("sizeSelect");
-      if (!sel) return;
-      const current = sel.value;
-
-      const set = new Set();
-      for (const r of REVIEWS){
-        const sz = (r.option_size || "").trim();
-        if (sz) set.add(sz);
-      }
-      const opts = Array.from(set).sort((a,b)=> String(a).localeCompare(String(b)));
-
-      sel.innerHTML = [`<option value="">옵션 사이즈 (전체)</option>`]
-        .concat(opts.map(sz => `<option value="${esc(sz)}">${esc(sz)}</option>`))
-        .join("");
-
-      sel.value = current;
-    }
-
-    function renderAll(){
-      const filtered = getFilteredReviews();
-      const metrics = calcMetrics(filtered);
-
-      renderHeader();
-      renderProductSelect();
-      renderSizeSelect();
-
-      renderSummary(metrics);
-      renderRanking(metrics);
-      renderSizeStructure(metrics);
-      renderProductMindmap();
-      renderDailyFeed(filtered);
-
-      tryScrollToReview();
-    }
-
-    async function boot(){
-      runWithOverlay("Loading data...", async () => {
-        const [meta, reviews] = await Promise.all([
-          fetch("data/meta.json", {cache:"no-store"}).then(r => r.json()),
-          fetch("data/reviews.json", {cache:"no-store"}).then(r => r.json())
-        ]);
-
-        META = meta;
-        REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
-
-        const dayInput = document.getElementById("daySelect");
-        if (dayInput && META?.period_start && META?.period_end){
-          dayInput.min = META.period_start;
-          dayInput.max = META.period_end;
-        }
-
-        renderAll();
-      });
-    }
-
-    document.addEventListener("DOMContentLoaded", boot);
-  </script>
-</body>
-</html>
-"""
+    return html
 
 
 # ----------------------------
@@ -1439,24 +767,15 @@ def parse_created_at_iso(s: str) -> datetime:
         return dt.to_pydatetime()
 
 
-def within_days(row: Dict[str, Any], start_d, end_d) -> bool:
-    dt = parse_created_at_iso(str(row.get("created_at") or ""))
+def in_date_range_kst(dt: datetime, start_d, end_d) -> bool:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=tz.gettz(OUTPUT_TZ))
     d = dt.astimezone(tz.gettz(OUTPUT_TZ)).date()
     return start_d <= d <= end_d
 
 
-def first_review_id_for_term(rows: List[Dict[str, Any]], term: str) -> Optional[Any]:
-    kw = normalize_text(term)
-    for r in rows:
-        if kw in normalize_text(str(r.get("text") or "")):
-            return r.get("id")
-    return None
-
-
 # ----------------------------
-# Main builder
+# Main
 # ----------------------------
 def main(input_path: str):
     inp = pathlib.Path(input_path).expanduser().resolve()
@@ -1467,109 +786,107 @@ def main(input_path: str):
 
     now = now_kst()
 
-    # ✅ 최근 7일
-    start7 = (now - timedelta(days=6)).date()  # 오늘 포함 7일
+    # ✅ 최근 7일 고정(오늘 포함 7일)
+    start7 = (now - timedelta(days=6)).date()
     end7 = now.date()
-    rows7 = [r for r in all_rows if within_days(r, start7, end7)]
+
+    # ✅ 최근 1년(제품별 키워드맵)
+    start1y = (now - timedelta(days=365)).date()
+    end1y = now.date()
+
+    rows7 = []
+    rows1y = []
+    for r in all_rows:
+        dt = parse_created_at_iso(str(r.get("created_at") or ""))
+        if in_date_range_kst(dt, start7, end7):
+            rows7.append(r)
+        if in_date_range_kst(dt, start1y, end1y):
+            rows1y.append(r)
+
     if not rows7:
         raise SystemExit("최근 7일에 해당하는 리뷰가 없습니다. created_at 포맷/타임존/기간을 확인해 주세요.")
 
-    # ✅ 최근 1년(섹션4 누적)
-    start1y = (now - timedelta(days=365)).date()
-    end1y = end7
-    rows1y = [r for r in all_rows if within_days(r, start1y, end1y)]
-
-    # ✅ 제품군/카테고리별 자동 stopwords 학습(최근 1년 기반이 더 안정적)
-    stopwords = build_dynamic_stopwords(rows1y if rows1y else rows7, BASE_STOPWORDS, per_category=True)
-
-    # DataFrame (최근7일)
+    # rating 정규화
     df7 = pd.DataFrame(rows7).copy()
     df7["rating"] = pd.to_numeric(df7.get("rating"), errors="coerce").fillna(0).astype(int)
 
-    # ----------------------------
-    # NEG/POS 키워드 Top5 (최근7일)
-    # ----------------------------
-    complaint_rows7 = [r for r in rows7 if is_complaint(r)]
-    positive_rows7 = [r for r in rows7 if is_positive(r) and not is_complaint(r)]
+    # ✅ AUTO STOPWORDS 학습(최근7일 기준)
+    auto_sw = learn_auto_stopwords(rows7)
 
-    neg_texts = [str(r.get("text") or "") for r in complaint_rows7]
-    pos_texts = [str(r.get("text") or "") for r in positive_rows7]
+    # ✅ POS/NEG 키워드
+    pos_top = top_terms(rows7, TOPK_POS, auto_sw, which="pos")
+    neg_top = top_terms(rows7, TOPK_NEG, auto_sw, which="neg")
+    complaint_top = top_terms(rows7, TOPK_COMPLAINT, auto_sw, which="complaint")
 
-    neg_top5 = top_terms(neg_texts, stopwords=stopwords, topk=5) if neg_texts else []
-    pos_top5 = top_terms(pos_texts, stopwords=stopwords, topk=5) if pos_texts else []
+    pos_keys = [k for k, _ in pos_top]
+    neg_keys = [k for k, _ in neg_top]
+    complaint_keys = [k for k, _ in complaint_top]
 
-    # 클릭 이동용 대표 review id 연결 + POS 예시 스니펫
-    neg_top5_pack = []
-    for k, c in neg_top5:
-        rid = first_review_id_for_term(rows7, k)
-        neg_top5_pack.append([k, c, rid])
+    # ✅ 근거 리뷰(클릭 이동용)
+    pos_evidence = build_keyword_evidence(rows7, pos_keys, auto_sw, filter_fn=is_positive, evidence_per_kw=3)
+    neg_evidence = build_keyword_evidence(rows7, neg_keys, auto_sw, filter_fn=is_complaint, evidence_per_kw=3)
+    complaint_evidence = build_keyword_evidence(rows7, complaint_keys, auto_sw, filter_fn=is_complaint, evidence_per_kw=3)
 
-    pos_top5_pack = []
-    pos_examples: Dict[str, List[Dict[str, Any]]] = {}
-    for k, c in pos_top5:
-        rid = first_review_id_for_term(rows7, k)
-        pos_top5_pack.append([k, c, rid])
-        pos_examples[k] = example_snips_for_keyword(positive_rows7, k, limit=2)
+    # ✅ 클러스터 집계(원인 구조)
+    cluster_counts: Dict[str, int] = {k: 0 for k in CLUSTERS.keys()}
+    for r in rows7:
+        if not is_complaint(r):
+            continue
+        hits = assign_cluster(str(r.get("text") or ""))
+        for h in hits:
+            cluster_counts[h] = cluster_counts.get(h, 0) + 1
 
-    # ----------------------------
-    # 최근7일: 제품별 pos/neg 토큰(랭킹 "주요 키워드"에 사용)
-    # ----------------------------
-    def attach_pos_neg_keywords_per_review(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        out = []
-        for r in rows:
-            txt = str(r.get("text") or "")
-            toks = tokenize_ko(txt, stopwords=stopwords)
-            # 리뷰 단위에서는 top 몇개만 붙여서 JS에서 제품 누적하기 쉽게
-            # POS 리뷰면 pos_keywords에, NEG(complaint)이면 neg_keywords에
-            if is_complaint(r):
-                r["neg_keywords"] = toks[:6]
-                r["pos_keywords"] = []
-            elif is_positive(r):
-                r["pos_keywords"] = toks[:6]
-                r["neg_keywords"] = []
-            else:
-                r["pos_keywords"] = []
-                r["neg_keywords"] = []
-            out.append(r)
-        return out
+    # ✅ size phrases(최근7일 size 태그 기반)
+    size_rows = [r for r in rows7 if isinstance(r.get("tags"), list) and ("size" in r.get("tags"))]
+    size_phrases = top_terms(size_rows, topk=10, auto_sw=auto_sw, which="neg")  # size 이슈는 neg 토큰에서 더 잘 나옴
+    size_phrases = [k for k, _ in size_phrases]
 
-    rows7_enriched = attach_pos_neg_keywords_per_review(rows7)
-    df7 = pd.DataFrame(rows7_enriched).copy()
-    df7["rating"] = pd.to_numeric(df7.get("rating"), errors="coerce").fillna(0).astype(int)
+    # ✅ 제품별(최근 1년) POS/NEG 키워드맵
+    product_map_1y = build_product_keyword_map_1y(rows1y, rows7, auto_sw_last7=auto_sw, per_side_topk=6)
 
-    # ----------------------------
-    # size phrases (최근7일 내 size 태그 기반)
-    # ----------------------------
-    size_df7 = df7[df7["tags"].apply(lambda x: isinstance(x, list) and ("size" in x))].copy()
-    size_texts = size_df7["text"].astype(str).tolist()
-    size_phrases = [k for k, _ in top_terms(size_texts, stopwords=stopwords, topk=10)] if len(size_texts) else []
-
-    # ----------------------------
-    # 섹션4: 제품별 1년 누적 마인드맵
-    # ----------------------------
-    product_mindmap_1y = build_product_mindmap_1y(rows1y, stopwords=stopwords, topk_kw=6, max_products=18)
-
-    # 기간 텍스트
+    # ✅ period text
     period_text = f"최근 7일 ({start7.isoformat()} ~ {end7.isoformat()})"
 
+    # ✅ meta
     meta = {
         "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         "period_text": period_text,
         "period_start": start7.isoformat(),
         "period_end": end7.isoformat(),
         "total_reviews": int(len(df7)),
-        "neg_top5": neg_top5_pack,
-        "pos_top5": pos_top5_pack,
-        "pos_examples": pos_examples,
+        # 상단 키워드(분리)
+        "keywords_top5": {
+            "pos": [[k, int(c)] for k, c in pos_top],
+            "neg": [[k, int(c)] for k, c in neg_top],
+        },
+        # complaint top (원인 중심)
+        "complaint_top5": [[k, int(c)] for k, c in complaint_top],
+        # evidence (클릭 이동용: id)
+        "keyword_evidence": {
+            "pos": pos_evidence,
+            "neg": neg_evidence,
+            "complaint": complaint_evidence,
+        },
+        # auto stopwords (디버깅/확인용)
+        "auto_stopwords": auto_sw,
+        # clusters
+        "clusters": cluster_counts,
         "size_phrases": size_phrases,
-        "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼"],
-        "product_mindmap_1y": product_mindmap_1y,
-        "debug_stopwords_size": int(len(stopwords)),
+        "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼", "수납", "가벼움"],
+        # 제품별 1y POS/NEG 키워드맵
+        "product_keyword_map_1y": product_map_1y,
     }
 
-    # ✅ 출력 JSON (최근7일만)
+    # ✅ 출력 reviews.json(최근7일만)
     out_reviews = []
     for r in df7.to_dict(orient="records"):
+        # pos 태그 보강(프론트 필터용)
+        tags = r.get("tags", [])
+        if not isinstance(tags, list):
+            tags = []
+        if is_positive(r) and "pos" not in tags:
+            tags.append("pos")
+
         out_reviews.append(
             {
                 "id": r.get("id"),
@@ -1582,20 +899,143 @@ def main(input_path: str):
                 "source": r.get("source", "Official"),
                 "option_size": r.get("option_size", ""),
                 "option_color": r.get("option_color", ""),
-                "tags": r.get("tags", []),
+                "tags": tags,
                 "size_direction": r.get("size_direction", "other"),
                 "local_product_image": r.get("local_product_image", ""),
                 "local_review_thumb": r.get("local_review_thumb", ""),
                 "text_image_path": r.get("text_image_path", ""),
-                # ✅ JS 제품 누적용(랭킹 "주요 키워드")
-                "pos_keywords": r.get("pos_keywords", []),
-                "neg_keywords": r.get("neg_keywords", []),
             }
         )
 
+    # ✅ HTML 템플릿: 너 기존 템플릿을 읽어서 패치
+    html = load_html_template()
+    html = patch_html(html)
+
+    # ✅ JS 렌더링 패치(키워드 섹션 + 제품맵 + 클릭 이동 + 카드 anchor + 랭킹 키워드)
+    # - 기존 HTML/JS 구조를 유지하면서 필요한 함수만 "치환"하는 방식
+    # - 너가 쓰던 id들(topComplaints, mindmap, dailyFeed 등) 그대로 활용
+
+    # 1) Summary: Complaint Top5 대신, keywords_top5(pos/neg) 같이 렌더링하도록 topComplaints 쪽을 교체
+    #    (기존 topComplaints id 그대로 사용)
+    html = re.sub(
+        r"const top = META\?\.\s*complaint_top5\s*\|\|\s*\[\];\s*const el = document\.getElementById\(\"topComplaints\"\);\s*el\.innerHTML = .*?;\s*",
+        """
+      // ✅ 1-2) KEYWORDS TOP 5 (POS/NEG 분리)
+      const el = document.getElementById("topComplaints");
+      const pos = (META?.keywords_top5?.pos || []);
+      const neg = (META?.keywords_top5?.neg || []);
+      const ev = (META?.keyword_evidence || {});
+      const mkChip = (k,c,mode) => {
+        const cls = (mode==="pos") ? "badge pos" : "badge neg";
+        const evi = (mode==="pos") ? (ev.pos?.[k]||[]) : (ev.neg?.[k]||[]);
+        const targetId = (evi[0]?.id ?? null);
+        const onclick = (targetId!=null) ? `onclick="scrollToReview('${targetId}')"` : "";
+        return `<span class="${cls}" style="cursor:pointer" ${onclick}>#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`;
+      };
+
+      const posHtml = pos.map(([k,c]) => mkChip(k,c,"pos")).join("");
+      const negHtml = neg.map(([k,c]) => mkChip(k,c,"neg")).join("");
+
+      el.innerHTML = `
+        <div class="text-[11px] font-black text-slate-500 mb-2">NEG(불만)</div>
+        <div class="flex flex-wrap gap-2 mb-4">${negHtml || '<span class="text-xs font-bold text-slate-400">-</span>'}</div>
+        <div class="text-[11px] font-black text-slate-500 mb-2">POS(긍정)</div>
+        <div class="flex flex-wrap gap-2">${posHtml || '<span class="text-xs font-bold text-slate-400">-</span>'}</div>
+      `;
+        """,
+        html,
+        flags=re.S,
+    )
+
+    # 2) Daily feed 카드에 anchor id 부여(rev-{id})
+    html = html.replace(
+        '<div class="review-card">',
+        '<div class="review-card" id="rev-${esc(r.id)}">',
+    )
+
+    # 3) 4번 섹션(mindmap) 렌더링을 제품별 1y 키워드맵으로 교체
+    #    기존 renderMindmap() 함수 내용을 치환
+    html = re.sub(
+        r"function renderMindmap\(\)\{.*?\}\n\n",
+        r"""
+    function renderMindmap(){
+      // ✅ 제품별(최근 1년) POS/NEG 키워드맵
+      const items = META?.product_keyword_map_1y || [];
+      const root = document.getElementById("mindmap");
+      if(!items.length){
+        root.innerHTML = `<div class="summary-card lg:col-span-3"><div class="text-sm font-black text-slate-700">제품별 키워드맵 데이터가 없습니다.</div></div>`;
+        return;
+      }
+
+      const ev = META?.keyword_evidence || {};
+
+      const chip = (mode, k, c, eviList) => {
+        const cls = mode==="pos" ? "badge pos" : "badge neg";
+        const targetId = (eviList && eviList[0] && eviList[0].id!=null) ? eviList[0].id : null;
+        const onclick = targetId!=null ? `onclick="scrollToReview('${targetId}')"` : "";
+        return `<span class="${cls}" style="cursor:pointer" ${onclick}>#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`;
+      };
+
+      root.innerHTML = items.map(p => {
+        const img = p.local_product_image
+          ? `<img src="${esc(p.local_product_image)}" alt="" class="w-12 h-12 rounded-2xl object-cover border border-white/80" />`
+          : `<div class="w-12 h-12 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center text-[10px] text-slate-400">NO</div>`;
+
+        const pos = p.pos || [];
+        const neg = p.neg || [];
+
+        const posE = p.pos_evidence || {};
+        const negE = p.neg_evidence || {};
+
+        const posHtml = pos.map(([k,c]) => chip("pos", k, c, posE[k]||[])).join("");
+        const negHtml = neg.map(([k,c]) => chip("neg", k, c, negE[k]||[])).join("");
+
+        return `
+          <div class="summary-card">
+            <div class="flex items-center gap-3">
+              ${img}
+              <div class="min-w-0">
+                <div class="font-black text-slate-900 line-clamp-1">${esc(p.product_name || p.product_code)}</div>
+                <div class="text-xs font-bold text-slate-500 mt-1">code: ${esc(p.product_code)} · 1y reviews: ${esc(p.reviews_1y)}</div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <div class="text-[11px] font-black text-slate-500 mb-2">POS</div>
+              <div class="flex flex-wrap gap-2">${posHtml || '<span class="text-xs font-bold text-slate-400">-</span>'}</div>
+            </div>
+
+            <div class="mt-4">
+              <div class="text-[11px] font-black text-slate-500 mb-2">NEG</div>
+              <div class="flex flex-wrap gap-2">${negHtml || '<span class="text-xs font-bold text-slate-400">-</span>'}</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+        """,
+        html,
+        flags=re.S,
+    )
+
+    # 4) 랭킹의 kwds(주요 키워드)도 동일 토크나이저 기반으로 meta에서 미리 산출하려면 확장 가능하지만,
+    #    현재는 JS에서 뽑는 방식 유지(다만 "중립어" 제거가 필요)
+    #    → JS쪽 issueKwds 필터를 강화 (구매/제품/같은/기존 등 추가 제거)
+    html = html.replace(
+        'if (["제품","상품","구매","배송","택배","사이즈"].includes(k)) continue;',
+        'if (["제품","상품","구매","구입","주문","배송","택배","사이즈","기존","같은","원래","이번"].includes(k)) continue;'
+    )
+
+    # 5) 키워드 섹션 안내문 업데이트(컴플레인→키워드 분리)
+    html = html.replace(
+        "* 최근 7일 고정 + 불만리뷰 기반 키워드",
+        "* 최근 7일 리뷰 기반(중립/관용 제거 + POS/NEG 분리 + 클러스터링)"
+    )
+
+    # write outputs
     (SITE_DATA_DIR / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
-    (SITE_DIR / "index.html").write_text(HTML_TEMPLATE, encoding="utf-8")
+    (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
 
     print("[OK] Build done")
     print(f"- Input: {inp}")
@@ -1603,10 +1043,9 @@ def main(input_path: str):
     print(f"- Output reviews: {SITE_DATA_DIR / 'reviews.json'}")
     print(f"- Output html: {SITE_DIR / 'index.html'}")
     print(f"- Period: {period_text}")
-    print(f"- NEG Top5: {neg_top5_pack}")
-    print(f"- POS Top5: {pos_top5_pack}")
-    print(f"- Stopwords size: {len(stopwords)}")
-    print(f"- Product mindmap(1y): {len(product_mindmap_1y)} products")
+    print(f"- POS Top5: {pos_top}")
+    print(f"- NEG Top5: {neg_top}")
+    print(f"- Complaint Top5: {complaint_top}")
 
 
 if __name__ == "__main__":
