@@ -71,12 +71,11 @@
     .line-clamp-3{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
     .kw-chip{ cursor:pointer; }
     .kw-chip:hover{ transform: translateY(-1px); }
-  
+
     .review-grid{ display:grid; grid-template-columns: 1fr; gap: 14px; }
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
-    
-</style>
+  </style>
 </head>
 
 <body class="flex">
@@ -119,7 +118,6 @@
   </aside>
 
   <main class="flex-1 p-6 md:p-10 w-full"><div class="mx-auto w-full max-w-[1280px]">
-    <!-- ✅ 전체 가로폭 제한 -->
     <div class="max-w-[1320px] mx-auto">
 
       <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
@@ -191,7 +189,7 @@
               <div class="text-xs font-black text-slate-500 mt-4">POS (공감/강점)</div>
               <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
 
-              <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 기반(중립/관용구 제거 + 클릭→해당 리뷰 이동)</div>
+              <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 기반(클릭→해당 리뷰 이동)</div>
             </div>
 
             <div class="summary-card">
@@ -283,13 +281,12 @@
         </div>
       </section>
 
-      <!-- ✅ 섹션 4 교체: 제품별(최근 1년) 누적 긍/부정 키워드 마인드맵 -->
       <section class="mb-10">
         <div class="glass-card p-8">
           <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
             <div>
               <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
-              <div class="text-xs font-bold text-slate-500 mt-1">최근 1년 누적 · 제품별 긍/부정 키워드</div>
+              <div class="text-xs font-bold text-slate-500 mt-1">최근 1년 누적 · 제품별 대표 문장(POS/NEG)</div>
             </div>
           </div>
 
@@ -324,8 +321,7 @@
             <input id="qInput" class="input-glass" placeholder="텍스트 검색(옵션)" oninput="renderAll()" />
           </div>
 
-          <!-- ✅ 3열 그리드 -->
-          <div id="dailyFeed" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+          <div id="dailyFeed" class="review-grid"></div>
 
           <div class="hidden review-card text-center" id="noResults">
             <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
@@ -335,12 +331,12 @@
 
       <footer class="text-xs font-bold text-slate-500 pb-8">
         * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
-        * 섹션4: 최근 1년 누적(제품별 POS/NEG 키워드).<br/>
+        * 섹션4: 최근 1년 누적(제품별 POS/NEG 대표 문장).<br/>
         * 키워드: 중립/관용구/제품코드성 단어 제거 + 제품군별 자동 stopwords 학습.
       </footer>
 
     </div>
-  </div></main>
+  </div></div></main>
 
   <script>
     const overlay = document.getElementById('overlay');
@@ -438,7 +434,6 @@
       if (!id) return;
       uiState.pendingScrollReviewId = null;
 
-      // DOM 렌더가 끝난 뒤 스크롤
       requestAnimationFrame(() => {
         const el = document.getElementById("review-" + String(id));
         if (el){
@@ -447,6 +442,36 @@
           setTimeout(()=> el.classList.remove("ring-4","ring-blue-200"), 1800);
         }
       });
+    }
+
+    // ✅ v5: DailyFeed 카드 클릭 → 필터 세팅 + 해당 리뷰로 이동
+    function jumpToReview(payload){
+      if (!payload) return;
+
+      // 소스탭 자동
+      if (payload.source === "Official") uiState.sourceTab = "official";
+      else if (payload.source === "Naver") uiState.sourceTab = "naver";
+      else uiState.sourceTab = "combined";
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-tab') === uiState.sourceTab);
+      });
+
+      // 날짜/제품/옵션
+      const dayEl = document.getElementById("daySelect");
+      if (dayEl && payload.created_at){
+        dayEl.value = String(payload.created_at).slice(0,10);
+      }
+      const prodEl = document.getElementById("productSelect");
+      if (prodEl) prodEl.value = payload.product_code || "";
+
+      const sizeEl = document.getElementById("sizeSelect");
+      if (sizeEl) sizeEl.value = payload.option_size || "";
+
+      const qEl = document.getElementById("qInput");
+      if (qEl) qEl.value = "";
+
+      uiState.pendingScrollReviewId = payload.id || null;
+      renderAll();
     }
 
     function getFilteredReviews(){
@@ -520,22 +545,12 @@
         g.reviews += 1;
         if (asArr(r.tags).includes("size")) g.sizeIssue += 1;
         if ((r.rating||0) <= 2 || asArr(r.tags).includes("low")) g.low += 1;
-
-        // 제품별 "주요 키워드": meta에서 제공한 pos/neg 토큰(이미 정제됨)을 활용
-        const pkw = asArr(r.pos_keywords);
-        const nkw = asArr(r.neg_keywords);
-        for (const k of pkw) g.kwPos.set(k, (g.kwPos.get(k)||0) + 1);
-        for (const k of nkw) g.kwNeg.set(k, (g.kwNeg.get(k)||0) + 1);
       }
 
       const rows = Array.from(byProd.values()).map(g => {
         const sizeRate = Math.round((g.sizeIssue / Math.max(1,g.reviews))*100);
         const lowRate  = Math.round((g.low / Math.max(1,g.reviews))*100);
-
-        const posTop = Array.from(g.kwPos.entries()).sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>`+${x[0]}`).join(" ");
-        const negTop = Array.from(g.kwNeg.entries()).sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>`-${x[0]}`).join(" ");
-        const kwds = (posTop || negTop) ? `${posTop}${posTop && negTop ? " · " : ""}${negTop}` : "-";
-
+        const kwds = "-";
         return { ...g, sizeRate, lowRate, kwds };
       });
 
@@ -543,7 +558,7 @@
       const rankLow  = rows.slice().sort((a,b)=> b.lowRate  - a.lowRate  || b.reviews - a.reviews);
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || b.reviews - a.reviews);
 
-      // 옵션(사이즈) 이슈율: Top5 + OS 제외
+      // 옵션(사이즈) 이슈율 Top5 + OS 제외
       const sizeMap = new Map();
       for (const r of reviews){
         const sz = (r.option_size || "").trim();
@@ -562,6 +577,7 @@
           o.other += 1;
         }
       }
+
       let sizeOpts = Array.from(sizeMap.values())
         .sort((a,b)=> b.cnt - a.cnt)
         .map(x => {
@@ -570,9 +586,8 @@
           const bigP = Math.round((x.big/cnt)*100);
           const okP = Math.max(0, 100 - smallP - bigP);
           return { sz:x.sz, cnt:x.cnt, small:smallP, big:bigP, ok:okP };
-        });
-
-      sizeOpts = sizeOpts.slice(0, 5);
+        })
+        .slice(0, 5);
 
       return {
         total,
@@ -586,7 +601,7 @@
 
     function renderHeader(){
       const runDate = META?.updated_at || "-";
-      const periodText = META?.period_text || META?.date_range || "-";
+      const periodText = META?.period_text || "-";
       document.getElementById("runDateSide").textContent = String(runDate).slice(0,10).replaceAll("-",".");
       document.getElementById("periodTextSide").textContent = periodText;
       document.getElementById("headerMeta").textContent = `${runDate} · ${periodText} · 주 1회 자동 업데이트(월 09:00)`;
@@ -595,7 +610,7 @@
     function renderSummary(metrics){
       document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
 
-      // NEG / POS TOP5 (클릭 -> 검색 + 스크롤)
+      // ✅ v5: meta에서 pos_top5 / neg_top5 제공 (형식: [k,c,rid])
       const neg = META?.neg_top5 || [];
       const pos = META?.pos_top5 || [];
       const posEx = META?.pos_examples || {};
@@ -678,6 +693,7 @@
       fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
     }
 
+    // ✅ v5: Product Mindmap = 문장형 (POS/NEG 각 2개)
     function renderProductMindmap(){
       const mm = META?.product_mindmap_1y || [];
       const root = document.getElementById("productMindmap");
@@ -686,22 +702,29 @@
         return;
       }
 
+      const sentenceBlock = (mode, s) => {
+        const color = (mode==="pos") ? "text-emerald-700" : "text-red-700";
+        const bg = "bg-white/55 border border-white/80";
+        const onclick = (s?.id!=null) ? `onclick="applyKeywordAndScroll('', '${esc(s.id)}')"` : "";
+        return `
+          <div class="mt-2 p-3 rounded-2xl ${bg} cursor-pointer" ${onclick}>
+            <div class="text-xs font-black ${color}">
+              ${mode.toUpperCase()} · ★ ${esc(s.rating ?? "-")} · ${esc(fmtDT(s.created_at))}
+            </div>
+            <div class="text-sm font-extrabold text-slate-800 leading-relaxed mt-2">
+              ${esc(s.text || "-")}
+            </div>
+          </div>
+        `;
+      };
+
       root.innerHTML = mm.map(p => {
         const img = p.local_product_image
           ? `<img src="${esc(p.local_product_image)}" alt="" class="w-14 h-14 rounded-2xl object-cover border border-white/80 bg-white/60" />`
           : `<div class="w-14 h-14 rounded-2xl flex items-center justify-center text-[10px] text-slate-400 border border-white/80 bg-white/60">NO IMAGE</div>`;
 
-        const pos = (p.pos_keywords || []).map(x => `
-          <span class="badge pos kw-chip" onclick="applyKeywordAndScroll('${esc(x.k)}','${esc(x.rid||"")}')">
-            #${esc(x.k)} <span class="opacity-70">${esc(x.c)}</span>
-          </span>
-        `).join("");
-
-        const neg = (p.neg_keywords || []).map(x => `
-          <span class="badge neg kw-chip" onclick="applyKeywordAndScroll('${esc(x.k)}','${esc(x.rid||"")}')">
-            #${esc(x.k)} <span class="opacity-70">${esc(x.c)}</span>
-          </span>
-        `).join("");
+        const pos = (p.pos_sentences || []).slice(0,2);
+        const neg = (p.neg_sentences || []).slice(0,2);
 
         return `
           <div class="summary-card">
@@ -709,18 +732,16 @@
               ${img}
               <div class="min-w-0">
                 <div class="font-black text-slate-900 line-clamp-2">${esc(p.product_name || p.product_code)}</div>
-                <div class="text-[11px] font-black text-slate-500 mt-1">code: ${esc(p.product_code)} · 1y reviews: ${esc(p.review_cnt_1y)}</div>
+                <div class="text-[11px] font-black text-slate-500 mt-1">code: ${esc(p.product_code)} · 1y reviews: ${esc(p.reviews_1y)}</div>
               </div>
             </div>
 
             <div class="mt-4">
-              <div class="text-xs font-black text-slate-500">POS</div>
-              <div class="mt-2 flex flex-wrap gap-2">${pos || `<span class="text-xs font-bold text-slate-400">-</span>`}</div>
+              ${pos.length ? pos.map(s => sentenceBlock("pos", s)).join("") : `<div class="text-xs font-bold text-slate-400 mt-2">POS 문장 없음</div>`}
             </div>
 
             <div class="mt-4">
-              <div class="text-xs font-black text-slate-500">NEG</div>
-              <div class="mt-2 flex flex-wrap gap-2">${neg || `<span class="text-xs font-bold text-slate-400">-</span>`}</div>
+              ${neg.length ? neg.map(s => sentenceBlock("neg", s)).join("") : `<div class="text-xs font-bold text-slate-400 mt-2">NEG 문장 없음</div>`}
             </div>
           </div>
         `;
@@ -728,10 +749,10 @@
     }
 
     function reviewCardHTML(r){
-      const tags = [];
       const t = asArr(r.tags);
+      const tags = [];
 
-      if (t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> #긍정키워드</span>`);
+      if (t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> #긍정</span>`);
       if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> #size_issue</span>`);
       if ((r.rating||0) <= 2 || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> #low_rating</span>`);
       if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> #개선요청</span>`);
@@ -749,8 +770,17 @@
         ? `<img src="${esc(r.text_image_path)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" />`
         : ``;
 
+      const payload = {
+        id: r.id,
+        source: r.source,
+        created_at: r.created_at,
+        product_code: r.product_code,
+        option_size: r.option_size
+      };
+
       return `
-        <div class="review-card" id="review-${esc(r.id)}">
+        <div class="review-card cursor-pointer hover:shadow-lg transition" id="review-${esc(r.id)}"
+             onclick='jumpToReview(${JSON.stringify(payload).replaceAll("'", "\\'")})'>
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <div class="img-box">${prodImg}</div>
@@ -875,17 +905,6 @@
     }
 
     document.addEventListener("DOMContentLoaded", boot);
-  
-    function scrollToReview(id){
-      if(!id && id !== 0) return;
-      const el = document.getElementById('rev-' + String(id));
-      if(el){
-        el.scrollIntoView({behavior:'smooth', block:'start'});
-        el.classList.add('ring-4','ring-blue-200');
-        setTimeout(()=>el.classList.remove('ring-4','ring-blue-200'), 1400);
-      }
-    }
-    
-</script>
+  </script>
 </body>
 </html>
