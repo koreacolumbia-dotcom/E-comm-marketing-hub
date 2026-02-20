@@ -7,14 +7,25 @@ on:
         description: "Manual run reason (optional)"
         required: false
         default: "manual"
+
       voc_only:
-        description: "Run VOC only?"
+        description: "Run Crema VOC only?"
         required: true
         default: "false"
         type: choice
         options:
           - "false"
           - "true"
+
+      blog_only:
+        description: "Run Blog VOC only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
   schedule:
     # KST 08:00 = UTC 23:00 (전날)
     - cron: "0 23 * * *"
@@ -70,7 +81,7 @@ jobs:
       # 1) Naver Lowest Price
       # ----------------------------
       - name: Run Naver Lowest Price crawler
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
@@ -87,7 +98,7 @@ jobs:
       # 2) Hero banner
       # ----------------------------
       - name: Run Hero banner crawler
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         run: |
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
@@ -97,16 +108,20 @@ jobs:
       # 3) External Signal (VOC)
       # ----------------------------
       - name: Run External Signal (VOC)
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         run: |
           set -euo pipefail
           python -u external_signal_combined.py
           test -f reports/external_signal.html
 
       # ----------------------------
-      # 4) Crema VOC (always runs)
+      # 4) Crema VOC
+      # - 원래 로직 유지: 기본/스케줄은 항상 실행
+      # - voc_only=true면 이것만 실행
+      # - blog_only=true면 스킵
       # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.blog_only != 'true' }}
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
           OUTPUT_TZ: Asia/Seoul
@@ -144,10 +159,35 @@ jobs:
           test -f reports/voc_crema/index.html
 
       # ----------------------------
-      # 5) Summary (skip on voc_only=true)
+      # 4.5) Naver Blog VOC (NEW)
+      # - 기본/스케줄: 실행 (단, voc_only=true면 스킵)
+      # - blog_only=true면 이것만 실행되도록 다른 스텝들이 위에서 스킵됨
+      # ----------------------------
+      - name: Run Naver Blog VOC (Columbia mentions)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # ✅ 덮어쓰기 강제
+          rm -rf reports/voc_blog || true
+          mkdir -p reports/voc_blog
+
+          # 필요 시 쿼리/수량은 여기서 조정
+          python -u build_blog_voc_report.py \
+            --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말" \
+            --days 60 \
+            --per-query 40 \
+            --headless \
+            --out-dir reports/voc_blog
+
+          test -f reports/voc_blog/index.html
+
+      # ----------------------------
+      # 5) Summary (skip on voc_only=true or blog_only=true)
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
         run: |
@@ -157,10 +197,10 @@ jobs:
           test -f reports/meta.json
 
       # ----------------------------
-      # 6) Badge stamp (skip on voc_only=true)
+      # 6) Badge stamp (skip on voc_only=true or blog_only=true)
       # ----------------------------
       - name: Stamp "Last updated" badge into reports HTML
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         shell: bash
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
