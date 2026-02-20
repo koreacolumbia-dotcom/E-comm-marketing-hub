@@ -71,7 +71,12 @@
     .line-clamp-3{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
     .kw-chip{ cursor:pointer; }
     .kw-chip:hover{ transform: translateY(-1px); }
-  </style>
+  
+    .review-grid{ display:grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
+    
+</style>
 </head>
 
 <body class="flex">
@@ -113,7 +118,7 @@
     </div>
   </aside>
 
-  <main class="flex-1 p-8 md:p-14">
+  <main class="flex-1 p-6 md:p-10 w-full"><div class="mx-auto w-full max-w-[1280px]">
     <!-- ✅ 전체 가로폭 제한 -->
     <div class="max-w-[1320px] mx-auto">
 
@@ -335,7 +340,7 @@
       </footer>
 
     </div>
-  </main>
+  </div></main>
 
   <script>
     const overlay = document.getElementById('overlay');
@@ -870,6 +875,17 @@
     }
 
     document.addEventListener("DOMContentLoaded", boot);
-  </script>
+  
+    function scrollToReview(id){
+      if(!id && id !== 0) return;
+      const el = document.getElementById('rev-' + String(id));
+      if(el){
+        el.scrollIntoView({behavior:'smooth', block:'start'});
+        el.classList.add('ring-4','ring-blue-200');
+        setTimeout(()=>el.classList.remove('ring-4','ring-blue-200'), 1400);
+      }
+    }
+    
+</script>
 </body>
 </html>
