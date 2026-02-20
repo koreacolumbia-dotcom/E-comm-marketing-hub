@@ -2,23 +2,21 @@
 # -*- coding: utf-8 -*-
 
 """
-[BUILD VOC DASHBOARD FROM JSON | v3.1 FINAL]
+[BUILD VOC DASHBOARD FROM JSON | v3.2 FINAL]
 - 입력: reviews.json ({"reviews":[...]})
 - 출력:
   - site/data/reviews.json  (최근 7일로 필터된 리뷰만)
-  - site/data/meta.json     (period_text 포함, 키워드/마인드맵/랭킹 메타)
+  - site/data/meta.json     (period_text 포함, 긍정/부정 키워드/마인드맵/랭킹 메타)
   - site/index.html         (요구 UI 반영)
 
 ✅ 개선(핵심)
-- Complaint Top 키워드 품질 개선:
-  - 조사/어미 제거(간이 stemming)
-  - 흔한 보조/서술 토큰 STOPWORDS 강화
-  - 토큰 정규화(공백/특수문자/URL/해시태그 제거 유지)
-- JS 랭킹 "주요 문제 키워드"도 동일 토크나이저를 Python에서 미리 산출해 meta에 제공(선택)
-  (현재는 기존 JS 방식 유지. 원하면 JS도 동일 로직으로 맞춰줄 수 있음)
+- 최근 7일 고정 (KST)
+- 키워드 "긍정/부정" 명확 분리
+  - NEG(불만) 키워드 Top5: 불만리뷰 풀 기반 + 중립/관용어 강력 제거 + POS 빈발 토큰 페널티
+  - POS(긍정) 키워드 Top5: 긍정리뷰 풀 기반 + 중립/관용어 제거
+- "기존/같은/동일/그냥/원래/기본" 같은 토큰은 키워드 후보에서 제거
 
 필수: python-dateutil, pandas
-선택: Pillow (이미지 캡처는 입력 JSON에 text_image_path가 이미 있으면 그대로 사용)
 """
 
 from __future__ import annotations
@@ -79,13 +77,16 @@ STOPWORDS = set(
 너무 정말 완전 진짜 매우 그냥 조금 약간
 저는 제가 우리는 너희 이거 그거 저거
 있습니다 입니다 같아요 같네요 하는 하다 됐어요 되었어요 되네요
+
 구매 구입 제품 상품 사용 착용 배송 택배 포장 문의
-좋아요 좋아요요 좋다 좋네요 만족 추천 재구매 가성비 최고 굿 예뻐요 이뻐요
+
+좋아요 좋다 좋네요 만족 추천 재구매 가성비 최고 굿 예뻐요 이뻐요
+좋습니다 좋았어요
+
 사이즈 정사이즈 한치수 한 치수
 컬러 색상 디자인
 
 있어서 있어서요 있어요 있네요 있었어요
-좋습니다 좋았어요 좋네요
 추가 추가로 추가하면
 가능 가능해요
 확인 확인해요
@@ -94,6 +95,15 @@ STOPWORDS = set(
 정도 정도로
 부분 부분이
 사람 분들
+
+# ✅ 중립/관용(키워드 후보에서 제거)
+기존 기존에 기존과
+같은 같게 같고 같아서 같지만
+동일 동일한 비슷 비슷한
+원래 기본 기본적
+예전 이전
+계속 계속해서
+그냥
 """
     .split()
 )
@@ -110,10 +120,13 @@ ENDING = [
     "좋아요", "좋네요", "좋습니다",
 ]
 
-# 숫자만/짧은 토큰 제거, 잡어 제거용
 RE_URL = re.compile(r"https?://\S+|www\.\S+", re.I)
 RE_HASHTAG = re.compile(r"#[A-Za-z0-9가-힣_]+")
 RE_EMOJI_ETC = re.compile(r"[^\w\s가-힣]", re.UNICODE)
+
+# ✅ 긍/부정 힌트(보조)
+POS_CUES = ["만족", "추천", "재구매", "예쁘", "좋", "최고", "가성비", "편하", "딱", "완벽", "훌륭"]
+NEG_CUES = ["불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악", "실망", "문제", "불편", "아쉽"]
 
 
 def normalize_text(s: str) -> str:
@@ -175,12 +188,50 @@ def tokenize_ko(s: str) -> List[str]:
     return out
 
 
-def top_terms(texts: List[str], topk: int = 5) -> List[Tuple[str, int]]:
+def freq_terms(texts: List[str]) -> Dict[str, int]:
     freq: Dict[str, int] = {}
     for tx in texts:
         for tok in tokenize_ko(tx):
             freq[tok] = freq.get(tok, 0) + 1
+    return freq
+
+
+def top_terms(texts: List[str], topk: int = 5) -> List[Tuple[str, int]]:
+    freq = freq_terms(texts)
     return sorted(freq.items(), key=lambda x: x[1], reverse=True)[:topk]
+
+
+def top_terms_polarized(
+    neg_texts: List[str],
+    pos_texts: List[str],
+    topk: int = 5,
+    min_count: int = 2,
+    pos_penalty_ratio: float = 0.60,
+) -> List[Tuple[str, int]]:
+    """
+    NEG 키워드: neg에서 자주 나오고 pos에서는 상대적으로 덜 나오는 토큰 우선.
+    - min_count 미만은 제거(노이즈 컷)
+    - pos에서 neg의 일정 비율 이상 나오면 제외(= 긍정/중립 빈발 토큰 차단)
+    """
+    neg_f = freq_terms(neg_texts)
+    pos_f = freq_terms(pos_texts)
+
+    scored: List[Tuple[str, float, int, int]] = []
+    for tok, ncnt in neg_f.items():
+        if ncnt < min_count:
+            continue
+        pcnt = pos_f.get(tok, 0)
+
+        # ✅ POS에 너무 많이 나오면 NEG에서 제외
+        if pcnt >= int(ncnt * pos_penalty_ratio) and pcnt >= 2:
+            continue
+
+        # 간단 점수: neg 비중 + pos 패널티
+        score = (ncnt / (pcnt + 1.0)) * (1.0 + (ncnt >= 4))
+        scored.append((tok, score, ncnt, pcnt))
+
+    scored.sort(key=lambda x: (x[1], x[2]), reverse=True)
+    return [(t, ncnt) for (t, _, ncnt, _) in scored[:topk]]
 
 
 # ----------------------------
@@ -237,6 +288,16 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
     if ("req" not in tags) and has_any_kw(text, REQ_KEYWORDS):
         tags.append("req")
 
+    # ✅ pos (명확한 긍정 풀 분리용)
+    # - rating>=4 AND (개선요청/저평점 아님) AND (부정 힌트가 강하지 않음)
+    if rating >= 4 and ("low" not in tags) and ("req" not in tags) and (not has_any_kw(text, COMPLAINT_HINTS)):
+        if "pos" not in tags:
+            tags.append("pos")
+    else:
+        # rating 기반으로 pos가 잘못 붙어있으면 제거(안전)
+        if "pos" in tags and (rating <= 3 or "req" in tags or "low" in tags):
+            tags = [t for t in tags if t != "pos"]
+
     row["tags"] = tags
 
     sd = str(row.get("size_direction") or "")
@@ -247,7 +308,7 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def is_complaint(row: Dict[str, Any]) -> bool:
-    """불만리뷰 정의: 최근7일 내에서 아래 중 하나면 포함
+    """불만리뷰 정의(최근7일 내에서 아래 중 하나면 포함)
     - rating<=2
     - tags에 low/req 포함
     - 텍스트에 불만 힌트(품질/불량 등) 포함 + rating<=3
@@ -261,6 +322,19 @@ def is_complaint(row: Dict[str, Any]) -> bool:
     if isinstance(tags, list) and ("low" in tags or "req" in tags):
         return True
     if rating <= 3 and has_any_kw(text, COMPLAINT_HINTS):
+        return True
+    return False
+
+
+def is_positive(row: Dict[str, Any]) -> bool:
+    """긍정리뷰 풀: pos 태그가 있거나 rating>=4 (단, req/low 제외)"""
+    rating = int(row.get("rating") or 0)
+    tags = row.get("tags") or []
+    if not isinstance(tags, list):
+        tags = []
+    if "pos" in tags:
+        return True
+    if rating >= 4 and ("req" not in tags) and ("low" not in tags):
         return True
     return False
 
@@ -289,8 +363,7 @@ def build_mindmap(complaint_rows: List[Dict[str, Any]], topk_keywords: int = 8, 
             t = normalize_text(str(r.get("text") or ""))
             if not t:
                 continue
-            # tokenize_ko 내부에서 normalize_text 다시 하긴 하지만, 여기서는 비용 크게 문제 없음
-            if kw in tokenize_ko(t):  # 토큰 기준 포함
+            if kw in tokenize_ko(t):
                 snip = str(r.get("text") or "").strip()
                 snip = re.sub(r"\s+", " ", snip)
                 snip = snip[:120] + ("…" if len(snip) > 120 else "")
@@ -317,17 +390,8 @@ def build_mindmap(complaint_rows: List[Dict[str, Any]], topk_keywords: int = 8, 
 
 
 # ----------------------------
-# HTML template (원본 그대로 유지)
+# HTML template
 # ----------------------------
-HTML_TEMPLATE = r"""<YOUR_HTML_TEMPLATE_IS_UNCHANGED>
-"""  # ⚠️ 아래 main()에서 원본 HTML_TEMPLATE로 교체해 사용하세요.
-
-# NOTE:
-# 유저가 준 HTML이 매우 길어서 여기서 "<YOUR_HTML_TEMPLATE_IS_UNCHANGED>"로 축약하면 안되지만,
-# 사용자의 요구는 "전체코드 최종본"이므로 실제로는 아래에 원본 HTML_TEMPLATE 전체를 그대로 넣어야 합니다.
-# 이 답변에서는 실제 사용을 위해, 바로 아래에 원본 HTML을 그대로 재삽입합니다.
-
-
 HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -492,7 +556,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
           </div>
           <div class="text-xs font-black text-slate-500">
-            * 최근 7일 고정 + 불만리뷰 기반 키워드
+            * 최근 7일 고정 + 키워드(긍/부정 분리)
           </div>
         </div>
 
@@ -504,9 +568,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           </div>
 
           <div class="summary-card">
-            <div class="small-label text-red-600 mb-2">1-2) Complaint Top 5</div>
-            <div id="topComplaints" class="mt-2 flex flex-wrap gap-2"></div>
-            <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 불만리뷰(저평점/불만태그/불만표현) 기반</div>
+            <div class="small-label text-red-600 mb-2">1-2) Keywords Top 5</div>
+
+            <div class="text-[11px] font-black text-slate-500 mt-2">NEG (불만)</div>
+            <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
+
+            <div class="text-[11px] font-black text-slate-500 mt-4">POS (긍정)</div>
+            <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
+
+            <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 리뷰 기반(중립어/관용어 제거 + 긍/부정 분리)</div>
           </div>
 
           <div class="summary-card">
@@ -648,7 +718,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     <footer class="text-xs font-bold text-slate-500 pb-8">
       * 데이터 소스: reviews.json (최근 7일로 필터링 후 렌더).<br/>
-      * 키워드: 최근 7일 불만리뷰 기반 + 해시태그/잡어 제거.
+      * 키워드: 최근 7일 리뷰 기반 + 중립어 제거 + 긍/부정 분리.
     </footer>
 
   </main>
@@ -661,7 +731,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       sourceTab: 'combined',
       chips: { daily:true, pos:false, size:false, low:false },
       rankMode: 'size',
-      rankExpanded: false, // ✅ Top5 기본
+      rankExpanded: false,
     };
 
     function showOverlay(msg){
@@ -742,7 +812,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
 
-      // ✅ 날짜 선택: YYYY-MM-DD 일치
       const day = (document.getElementById("daySelect")?.value || "").trim();
       if (day){
         rows = rows.filter(r => String(r.created_at || "").slice(0,10) === day);
@@ -808,7 +877,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         if (asArr(r.tags).includes("size")) g.sizeIssue += 1;
         if ((r.rating||0) <= 2 || asArr(r.tags).includes("low")) g.low += 1;
 
-        // ✅ 문제 키워드(불만리뷰 기반)
+        // 문제 키워드(간단 로직 유지)
         if ((r.rating||0) <= 2 || asArr(r.tags).includes("low") || asArr(r.tags).includes("req")){
           const words = (r.text||"").match(/[가-힣A-Za-z0-9]{2,}/g) || [];
           for (const w of words.slice(0, 50)){
@@ -835,7 +904,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       const rankLow  = rows.slice().sort((a,b)=> b.lowRate  - a.lowRate  || b.reviews - a.reviews);
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || b.reviews - a.reviews);
 
-      // ✅ 옵션(사이즈) 이슈율: Top5 + OS 제외
       const sizeMap = new Map();
       for (const r of reviews){
         const sz = (r.option_size || "").trim();
@@ -887,9 +955,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     function renderSummary(metrics){
       document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
 
-      const top = META?.complaint_top5 || [];
-      const el = document.getElementById("topComplaints");
-      el.innerHTML = top.map(([k,c]) => `<span class="badge neg">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
+      const topNeg = META?.neg_top5 || [];
+      const topPos = META?.pos_top5 || [];
+
+      document.getElementById("topNeg").innerHTML =
+        topNeg.map(([k,c]) => `<span class="badge neg">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
+
+      document.getElementById("topPos").innerHTML =
+        topPos.map(([k,c]) => `<span class="badge pos">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>`).join("");
 
       const top3 = metrics.rankSize.slice(0,3);
       const ol = document.getElementById("priorityTop3");
@@ -968,7 +1041,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
               <div class="text-xs font-black text-slate-800 line-clamp-1">${esc(e.product_name)}</div>
               <div class="text-[11px] font-black text-slate-500">★ ${esc(e.rating)} · ${esc(String(e.created_at||"").slice(0,10))}</div>
             </div>
-            <div class="text-[11px] font-bold text-slate-500 mt-1">code: ${esc(e.product_code)} · id: ${esc(e.id)}</div>
+            <div class="text-[11px] font-black text-slate-500 mt-1">code: ${esc(e.product_code)} · id: ${esc(e.id)}</div>
             <div class="text-xs font-extrabold text-slate-700 mt-2 leading-relaxed">${esc(e.text_snip || "")}</div>
           </div>
         `).join("");
@@ -1121,7 +1194,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         META = meta;
         REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
 
-        // 날짜 선택 min/max 세팅(최근7일 범위)
         const dayInput = document.getElementById("daySelect");
         if (dayInput && META?.period_start && META?.period_end){
           dayInput.min = META.period_start;
@@ -1192,17 +1264,25 @@ def main(input_path: str):
     df = pd.DataFrame(rows).copy()
     df["rating"] = pd.to_numeric(df.get("rating"), errors="coerce").fillna(0).astype(int)
 
-    # ✅ 불만리뷰 기반 키워드 (최근7일 내)
+    # ✅ 불만/긍정 풀 분리
     complaint_df = df[df.apply(lambda x: is_complaint(x.to_dict()), axis=1)].copy()
-    complaint_texts = complaint_df["text"].astype(str).tolist()
-    complaint_top5 = top_terms(complaint_texts, topk=5)
+    positive_df = df[df.apply(lambda x: is_positive(x.to_dict()), axis=1)].copy()
 
-    # (옵션) size phrases도 최근7일 내 size 태그 기반
+    neg_texts = complaint_df["text"].astype(str).tolist()
+    pos_texts = positive_df["text"].astype(str).tolist()
+
+    # ✅ NEG Top5: POS 빈발 토큰을 페널티/제외하여 "불만" 순도 올림
+    neg_top5 = top_terms_polarized(neg_texts=neg_texts, pos_texts=pos_texts, topk=5, min_count=2, pos_penalty_ratio=0.60)
+
+    # ✅ POS Top5: 긍정 풀 기반
+    pos_top5 = top_terms(pos_texts, topk=5)
+
+    # size phrases: 최근7일 내 size 태그 기반
     size_df = df[df["tags"].apply(lambda x: isinstance(x, list) and ("size" in x))].copy()
     size_texts = size_df["text"].astype(str).tolist()
     size_phrases = [k for k, _ in top_terms(size_texts, topk=10)]
 
-    # mindmap
+    # mindmap (불만 기반)
     mindmap = build_mindmap(complaint_df.to_dict(orient="records"), topk_keywords=8, evidence_per_kw=4)
 
     period_text = f"최근 7일 ({start.isoformat()} ~ {end.isoformat()})"
@@ -1213,7 +1293,8 @@ def main(input_path: str):
         "period_start": start.isoformat(),
         "period_end": end.isoformat(),
         "total_reviews": int(len(df)),
-        "complaint_top5": complaint_top5,
+        "neg_top5": neg_top5,
+        "pos_top5": pos_top5,
         "size_phrases": size_phrases,
         "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼"],
         "mindmap": mindmap,
@@ -1252,7 +1333,8 @@ def main(input_path: str):
     print(f"- Output reviews: {SITE_DATA_DIR / 'reviews.json'}")
     print(f"- Output html: {SITE_DIR / 'index.html'}")
     print(f"- Period: {period_text}")
-    print(f"- Complaint Top5: {complaint_top5}")
+    print(f"- NEG Top5: {neg_top5}")
+    print(f"- POS Top5: {pos_top5}")
 
 
 if __name__ == "__main__":
