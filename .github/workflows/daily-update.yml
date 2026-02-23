@@ -283,7 +283,7 @@ jobs:
           fi
 
       # ----------------------------
-      # ✅ Success Email (send links)
+      # ✅ Success Email (send links or full HTML)
       # ----------------------------
       - name: Send success email (links)
         if: ${{ success() }}
@@ -298,17 +298,40 @@ jobs:
           MODE_DAILY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}
           MODE_VOC_ONLY:   ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
           MODE_BLOG_ONLY:  ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
+
+          # ✅ report HTML to embed
+          DAILY_DIGEST_HTML_PATH: reports/daily_digest/index.html
+
         run: |
           set -euo pipefail
+
           echo "[DEBUG] SMTP_HOST=${SMTP_HOST:-}"
           echo "[DEBUG] SMTP_PORT=${SMTP_PORT:-}"
           echo "[DEBUG] DAILY_RECIPIENTS=${DAILY_RECIPIENTS:-}"
           echo "[DEBUG] HUB_URL=${HUB_URL:-}"
+          echo "[DEBUG] DAILY_DIGEST_HTML_PATH=${DAILY_DIGEST_HTML_PATH:-}"
 
           : "${SMTP_HOST:?Missing vars.SMTP_HOST (e.g. smtp.gmail.com)}"
           : "${SMTP_PORT:?Missing vars.SMTP_PORT (e.g. 587)}"
           : "${SMTP_USER:?Missing secrets.SMTP_USER}"
           : "${SMTP_PASS:?Missing secrets.SMTP_PASS}"
           : "${DAILY_RECIPIENTS:?Missing vars.DAILY_RECIPIENTS}"
+
+          # HUB_URL은 선택값 (없어도 메일은 발송)
+          if [ -z "${HUB_URL:-}" ]; then
+            echo "[WARN] HUB_URL is empty (vars.HUB_URL not set). Email will be sent without hub link."
+          fi
+
+          # report html 존재 여부 로그
+          if [ -f "${DAILY_DIGEST_HTML_PATH}" ]; then
+            echo "[OK] Found report HTML: ${DAILY_DIGEST_HTML_PATH}"
+            ls -la reports/daily_digest || true
+          else
+            echo "[WARN] Report HTML not found at ${DAILY_DIGEST_HTML_PATH}"
+            echo "---- ls reports ----"
+            ls -la reports || true
+            echo "---- find daily digest html ----"
+            find . -maxdepth 3 -name "daily_digest_live*.html" -o -name "index.html" | head -n 50 || true
+          fi
 
           python -u scripts/send_daily_email.py
