@@ -83,7 +83,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      # ✅ NEW: Google Service Account JSON -> file + env
+      # ✅ Google Service Account JSON -> file + env
       # - Secret: GOOGLE_SA_JSON (서비스계정 JSON 전체)
       - name: Write Google Service Account JSON (GA4)
         shell: bash
@@ -122,8 +122,20 @@ jobs:
       - name: Run Daily Digest report
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         shell: bash
+        env:
+          # ✅ FIX: daily_digest_live_final.py가 요구하는 값들 주입
+          # - GA4_PROPERTY_ID는 Secret 또는 Variable 둘 중 하나로 관리 가능
+          GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
+          # (선택) 보고서 기간을 env로 받는 경우만 사용
+          GA4_START_DATE: ${{ vars.GA4_START_DATE }}
+          GA4_END_DATE: ${{ vars.GA4_END_DATE }}
         run: |
           set -euo pipefail
+
+          if [ -z "${GA4_PROPERTY_ID:-}" ]; then
+            echo "[ERROR] GA4_PROPERTY_ID is empty. Set secrets.GA4_PROPERTY_ID (or change to vars.GA4_PROPERTY_ID)."
+            exit 1
+          fi
 
           rm -rf reports/daily_digest || true
           mkdir -p reports/daily_digest
@@ -274,8 +286,6 @@ jobs:
 
       # ----------------------------
       # ✅ Success Email (send links)
-      # - schedule: send
-      # - dispatch: send (daily_only/voc_only/blog_only 포함)
       # ----------------------------
       - name: Send success email (links)
         if: ${{ success() }}
