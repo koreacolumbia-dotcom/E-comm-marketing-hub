@@ -83,20 +83,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      # ✅ Google Service Account JSON -> file + env
-      # - Secret: GOOGLE_SA_JSON (서비스계정 JSON 전체)
-      - name: Write Google Service Account JSON (GA4)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -n "${{ secrets.GOOGLE_SA_JSON }}" ]; then
-            echo '${{ secrets.GOOGLE_SA_JSON }}' > /tmp/ga_sa.json
-            echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json" >> $GITHUB_ENV
-            echo "[INFO] GOOGLE_APPLICATION_CREDENTIALS set to /tmp/ga_sa.json"
-          else
-            echo "[WARN] secrets.GOOGLE_SA_JSON is not set. GA4 steps may fail."
-          fi
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -119,13 +105,17 @@ jobs:
       # - schedule: runs
       # - dispatch: runs when daily_only=true OR normal run (none true)
       # =========================================================
+      #
+      # ✅ FIX(중요):
+      # - google.auth.default()가 ADC를 못 찾아서 터졌기 때문에
+      #   "daily step 안에서" 서비스계정 JSON -> 파일 생성 + env export까지 확정 처리.
+      #
       - name: Run Daily Digest report
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         shell: bash
         env:
-          # ✅ FIX: daily_digest_live_final.py가 요구하는 값들 주입
-          # - GA4_PROPERTY_ID는 Secret 또는 Variable 둘 중 하나로 관리 가능
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
           # (선택) 보고서 기간을 env로 받는 경우만 사용
           GA4_START_DATE: ${{ vars.GA4_START_DATE }}
           GA4_END_DATE: ${{ vars.GA4_END_DATE }}
@@ -136,6 +126,23 @@ jobs:
             echo "[ERROR] GA4_PROPERTY_ID is empty. Set secrets.GA4_PROPERTY_ID (or change to vars.GA4_PROPERTY_ID)."
             exit 1
           fi
+
+          if [ -z "${GOOGLE_SA_JSON:-}" ]; then
+            echo "[ERROR] GOOGLE_SA_JSON is empty. Set secrets.GOOGLE_SA_JSON (service account JSON)."
+            exit 1
+          fi
+
+          # ✅ 멀티라인 JSON 안전하게 파일로 저장
+          cat > /tmp/ga_sa.json << 'EOF'
+${GOOGLE_SA_JSON}
+EOF
+
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
+
+          # ✅ sanity check (비밀 내용 출력 없음)
+          test -f "$GOOGLE_APPLICATION_CREDENTIALS"
+          python -c "import json; json.load(open('/tmp/ga_sa.json')); print('JSON_OK')"
+          python -c "import os; print('ADC_PATH_OK' if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') else 'ADC_PATH_MISSING')"
 
           rm -rf reports/daily_digest || true
           mkdir -p reports/daily_digest
