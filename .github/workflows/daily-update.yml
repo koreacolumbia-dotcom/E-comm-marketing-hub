@@ -83,6 +83,20 @@ jobs:
         with:
           python-version: "3.11"
 
+      # ✅ NEW: Google Service Account JSON -> file + env
+      # - Secret: GOOGLE_SA_JSON (서비스계정 JSON 전체)
+      - name: Write Google Service Account JSON (GA4)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ secrets.GOOGLE_SA_JSON }}" ]; then
+            echo '${{ secrets.GOOGLE_SA_JSON }}' > /tmp/ga_sa.json
+            echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json" >> $GITHUB_ENV
+            echo "[INFO] GOOGLE_APPLICATION_CREDENTIALS set to /tmp/ga_sa.json"
+          else
+            echo "[WARN] secrets.GOOGLE_SA_JSON is not set. GA4 steps may fail."
+          fi
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
