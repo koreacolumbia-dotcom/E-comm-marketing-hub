@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-[NAVER BLOG VOC] Columbia brand monitoring | v4.0 FINAL (Upgrades 1~4)
+[NAVER BLOG VOC] Columbia brand monitoring | v4.1 FINAL (Upgrades 1~4)
 - FIXED: Python f-string + JS template literal `${...}` escaping
+- FIXED: JS 파싱 에러 원인 제거 (engageHtml에 잘못 남아있던 `${...}` 제거)
 
 ✅ 1) VOC scoring + highlight sentences
 ✅ 2) URL cache + early stop
@@ -551,6 +552,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
     # ⚠️ IMPORTANT:
     # Python f-string 안에서 JS 템플릿 `${...}`를 쓰려면
     # `{` `}`를 모두 `{{` `}}`로 이스케이프해야 함.
+    # (아래는 전부 처리되어 있고, engageHtml은 JS쪽에서 `${}` 없이 계산하도록 변경함)
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -1032,7 +1034,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         ? `<div class="mt-2 text-xs font-black badge badge-ad">협찬/광고: ${{escapeHtml((p.sponsored_markers||[]).join(", "))}}</div>`
         : ``;
 
-      // ✅ FIXED: outer ${...} -> ${{...}}
       const vocLine = `<div class="mt-2 flex flex-wrap gap-2">
         <span class="badge badge-voc">VOC ${{p.voc_score||0}}</span>
         ${{(p.voc_tags||[]).slice(0,6).map(t=> `<span class="badge">${{escapeHtml(t)}}</span>`).join("")}}
@@ -1044,12 +1045,13 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
       const img = p.og_image ? `<img src="${{escapeHtml(p.og_image)}}" class="w-full rounded-2xl border border-white/70 mt-4" loading="lazy" />` : "";
 
+      // ✅ FIXED: engageHtml을 JS에서 "그냥 문자열"로 계산 (파싱 에러 제거)
       const engage = [];
       if (p.like_count !== null && p.like_count !== undefined) engage.push("좋아요 " + p.like_count);
       if (p.comment_count !== null && p.comment_count !== undefined) engage.push("댓글 " + p.comment_count);
-
-      // ✅ FIXED: outer ${...} -> ${{...}}
-      const engageHtml = ${{(engage.length ? `<span class="mx-2">·</span><span class="font-black">${{escapeHtml(engage.join(" / "))}}</span>` : "")}};
+      const engageHtml = engage.length
+        ? `<span class="mx-2">·</span><span class="font-black">${{escapeHtml(engage.join(" / "))}}</span>`
+        : "";
 
       wrap.innerHTML = `
         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
