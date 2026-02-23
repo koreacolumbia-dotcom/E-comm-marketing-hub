@@ -3,9 +3,10 @@
 
 """
 [NAVER BLOG VOC] Columbia brand monitoring | v4.0 FINAL (Upgrades 1~4)
+- FIXED: Python f-string + JS template literal `${...}` escaping
 
 ✅ 1) VOC scoring + highlight sentences
-✅ 2) URL cache + early stop (brand_target / voc_target)
+✅ 2) URL cache + early stop
 ✅ 3) Meta enrichment (blog_name/author/og:image + best-effort engagement)
 ✅ 4) Dashboard summary cards (New today, VOC top, issue types top, 7d vs 60d)
 
@@ -13,14 +14,11 @@ Outputs:
 - <out_dir>/index.html
 - <out_dir>/data/posts.json
 - <out_dir>/data/meta.json
-- <out_dir>/data/seen_urls.json  (cache)
+- <out_dir>/data/seen_urls.json
 
 Requires env:
 - NAVER_CLIENT_ID
 - NAVER_CLIENT_SECRET
-
-Notes:
-- Naver blog DOM varies. Extraction is best-effort; cache prevents repeated re-scrapes.
 """
 
 import argparse
@@ -28,7 +26,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import urlencode
 
@@ -72,8 +70,8 @@ NEGATIVE_CONTEXT = [
 ]
 
 SKU_PATTERNS = [
-    re.compile(r"\bC[0-9A-Z]{6,}\b"),     # ex) C66YM9726MUL
-    re.compile(r"\bYM[0-9A-Z]{4,}\b"),    # extra safety
+    re.compile(r"\bC[0-9A-Z]{6,}\b"),
+    re.compile(r"\bYM[0-9A-Z]{4,}\b"),
 ]
 
 SPONSORED_MARKERS = [
@@ -82,7 +80,7 @@ SPONSORED_MARKERS = [
 ]
 
 # =======================
-# VOC rules (Upgrade #1)
+# VOC rules
 # =======================
 
 VOC_TAG_RULES = {
@@ -111,15 +109,10 @@ VOC_TAG_RULES = {
     ],
 }
 
-# Negative sentiment hints (lightweight)
 NEG_SENTIMENT = [
     "별로", "아쉽", "불만", "실망", "후회", "문제", "최악", "짜증", "안되", "안 돼", "안됨",
-    "못", "힘들", "불편", "그러다", "망",
+    "못", "힘들", "불편",
 ]
-
-# =======================
-# NLP-ish helpers
-# =======================
 
 WORD_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
 STOPWORDS = set("""
@@ -150,15 +143,6 @@ def strip_html(s: str) -> str:
 def fmt_kst(dt: datetime) -> str:
     return dt.astimezone(KST).strftime("%Y.%m.%d %H:%M KST")
 
-def date_only(dt_iso: str) -> str:
-    try:
-        d = dtparser.parse(dt_iso)
-        if not d.tzinfo:
-            d = d.replace(tzinfo=KST)
-        return d.astimezone(KST).strftime("%Y-%m-%d")
-    except Exception:
-        return ""
-
 def detect_sponsored(text: str) -> Tuple[bool, List[str]]:
     found = []
     t = text or ""
@@ -179,11 +163,6 @@ def keyword_map_from_texts(texts: List[str], topn: int = 40) -> List[Tuple[str, 
             freq[lw] = freq.get(lw, 0) + 1
     items = sorted(freq.items(), key=lambda x: x[1], reverse=True)
     return items[:topn]
-
-
-# =======================
-# Brand decision
-# =======================
 
 def has_any(patterns: List[str], text: str) -> List[str]:
     found = []
@@ -208,14 +187,12 @@ def is_brand_columbia(title: str, body: str, snippet: str) -> Tuple[bool, List[s
     title = title or ""
     body = body or ""
     snippet = snippet or ""
-
     combined = f"{title}\n{snippet}\n{body}"
     combined_l = combined.lower()
 
     strong_found = has_any(BRAND_STRONG, combined) + has_any([s.lower() for s in BRAND_STRONG], combined_l)
     strong_found = sorted(list(set([x for x in strong_found if x])))
 
-    # negative context blocks ONLY if no strong marker
     if not strong_found:
         if contains_any_keywords(combined, NEGATIVE_CONTEXT) or contains_any_keywords(combined_l, [x.lower() for x in NEGATIVE_CONTEXT]):
             return False, [], "negative_context"
@@ -234,21 +211,14 @@ def is_brand_columbia(title: str, body: str, snippet: str) -> Tuple[bool, List[s
 
     return False, [], "no_context"
 
-
-# =======================
-# VOC scoring (Upgrade #1)
-# =======================
-
 def split_sentences(text: str) -> List[str]:
     t = (text or "").strip()
     if not t:
         return []
     parts = [p.strip() for p in SENT_SPLIT_RE.split(t) if p and p.strip()]
-    # secondary split by newline if needed
     out = []
     for p in parts:
         out.extend([x.strip() for x in re.split(r"[\n\r]+", p) if x.strip()])
-    # trim huge
     return [x for x in out if len(x) >= 8]
 
 def voc_tags_for_text(text: str) -> List[str]:
@@ -260,17 +230,10 @@ def voc_tags_for_text(text: str) -> List[str]:
     return tags
 
 def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[str], List[Dict[str, Any]]]:
-    """
-    Returns:
-      score (0~100ish),
-      tags,
-      highlights [{sent, score, tags}]
-    """
     combined = f"{title}\n{snippet}\n{text}"
     tags = voc_tags_for_text(combined)
 
     score = 0
-    # base tag weights
     tag_weights = {
         "QUALITY_DEFECT": 22,
         "EXCHANGE_RETURN_AS": 18,
@@ -282,18 +245,14 @@ def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[s
     for t in tags:
         score += tag_weights.get(t, 6)
 
-    # sentiment hints
     if any(k in combined for k in NEG_SENTIMENT):
         score += 10
 
-    # hard triggers
     hard = ["불량", "하자", "교환", "반품", "환불", "AS", "A/S", "오배송", "누락", "지연", "지퍼", "이염", "누수"]
     hard_hits = sum(1 for k in hard if k in combined)
     score += min(18, hard_hits * 4)
-
     score = max(0, min(120, score))
 
-    # highlights: score each sentence
     highlights = []
     sents = split_sentences(text or snippet or "")
     for s in sents:
@@ -305,19 +264,13 @@ def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[s
             ss += 6
         hh = sum(1 for k in hard if k in s)
         ss += min(12, hh * 3)
-
         if ss >= 10:
             highlights.append({"sent": safe_text(s)[:240], "score": int(ss), "tags": stags})
 
     highlights.sort(key=lambda x: x["score"], reverse=True)
     highlights = highlights[:6]
-
     return int(score), tags, highlights
 
-
-# ==========================
-# Naver OpenAPI candidates
-# ==========================
 
 def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str = "date") -> List[Dict[str, Any]]:
     cid = os.getenv("NAVER_CLIENT_ID", "").strip()
@@ -357,7 +310,6 @@ def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str
                     break
             start += display
 
-    # URL dedup
     seen = set()
     uniq = []
     for x in collected:
@@ -368,10 +320,6 @@ def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str
         uniq.append(x)
     return uniq
 
-
-# ==========================
-# Playwright extractors (Meta upgrade #3)
-# ==========================
 
 def get_mainframe_post_url(page) -> Optional[str]:
     try:
@@ -412,23 +360,13 @@ def extract_og_image(page) -> str:
 
 def extract_site_name(page) -> str:
     v = extract_meta_content(page, "meta[property='og:site_name']")
-    if v:
-        return v
-    # best-effort fallback
-    try:
-        h = safe_text(page.inner_text("body", timeout=1200))
-        if "네이버 블로그" in h:
-            return "네이버 블로그"
-    except Exception:
-        pass
-    return ""
+    return v or ""
 
 def extract_author(page) -> str:
-    for sel in ["meta[name='author']", "meta[property='article:author']", "meta[property='og:article:author']"]:
+    for sel in ["meta[name='author']", "meta[property='article:author']"]:
         v = extract_meta_content(page, sel)
         if v:
             return v
-    # fallback: common naver UI
     try:
         for sel in ["a.nick", "span.nick", "div.blog_name a", "div.blog_name"]:
             el = page.query_selector(sel)
@@ -454,11 +392,8 @@ def extract_published_from_dom(page) -> Optional[datetime]:
             el = page.query_selector(sel)
             if not el:
                 continue
-            if sel.startswith("meta"):
-                v = el.get_attribute("content") or ""
-            else:
-                v = el.inner_text() or ""
-            v = safe_text(v)
+            v = el.get_attribute("content") if sel.startswith("meta") else el.inner_text()
+            v = safe_text(v or "")
             if not v:
                 continue
             try:
@@ -473,16 +408,10 @@ def extract_published_from_dom(page) -> Optional[datetime]:
     return None
 
 def extract_engagement_best_effort(page) -> Tuple[Optional[int], Optional[int]]:
-    """
-    Best-effort: likes/sympathy + comments count (if visible).
-    Highly variable on Naver; return None if not found.
-    """
     like_cnt = None
     cmt_cnt = None
     try:
-        # Try common labels
-        body = page.inner_text("body", timeout=1200)
-        body = body.replace(",", "")
+        body = page.inner_text("body", timeout=1200).replace(",", "")
         m = re.search(r"(공감|좋아요)\s*([0-9]{1,6})", body)
         if m:
             like_cnt = int(m.group(2))
@@ -494,20 +423,13 @@ def extract_engagement_best_effort(page) -> Tuple[Optional[int], Optional[int]]:
     return like_cnt, cmt_cnt
 
 def extract_post_text_from_dom(page) -> str:
-    candidates = [
-        ".se-main-container",
-        "#postViewArea",
-        "article",
-        "div#contentArea",
-        "div#post-area",
-    ]
+    candidates = [".se-main-container", "#postViewArea", "article", "div#contentArea", "div#post-area"]
     text_chunks: List[str] = []
     for sel in candidates:
         try:
             el = page.query_selector(sel)
             if el:
-                t = el.inner_text(timeout=2500)
-                t = safe_text(t)
+                t = safe_text(el.inner_text(timeout=2500))
                 if len(t) >= 80:
                     text_chunks.append(t)
         except Exception:
@@ -565,10 +487,6 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Dict[str, Any
             pass
 
 
-# ==========================
-# Cache (Upgrade #2)
-# ==========================
-
 def load_seen_urls(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         return {"version": 1, "seen": {}}
@@ -594,57 +512,45 @@ def is_seen(seen_db: Dict[str, Any], url: str) -> bool:
     return url in (seen_db.get("seen", {}) or {})
 
 
-# ==========================
-# Data model
-# ==========================
-
 @dataclass
 class BlogPost:
-    # basic
     query: str
     title: str
     url: str
     published_at: str
     collected_at: str
 
-    # ad
     is_sponsored: bool
     sponsored_markers: List[str]
 
-    # brand
     is_columbia_brand: bool
     brand_markers_found: List[str]
     brand_reason: str
 
-    # meta (Upgrade #3)
     blog_site_name: str
     author: str
     og_image: str
     like_count: Optional[int]
     comment_count: Optional[int]
 
-    # text
     raw_text_len: int
     excerpt: str
     text_preview: str
 
-    # voc (Upgrade #1)
     voc_score: int
     voc_tags: List[str]
     voc_highlights: List[Dict[str, Any]]
 
-    # source
-    source: str  # "naver_api+playwright"
+    source: str
 
-
-# ==========================
-# HTML report (Upgrade #4)
-# ==========================
 
 def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
     posts_json = json.dumps(posts, ensure_ascii=False)
     meta_json = json.dumps(meta, ensure_ascii=False)
 
+    # ⚠️ IMPORTANT:
+    # Python f-string 안에서 JS 템플릿 `${...}`를 쓰려면
+    # `{` `}`를 모두 `{{` `}}`로 이스케이프해야 함.
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -725,7 +631,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
 <body class="p-4 md:p-8">
   <div class="max-w-7xl mx-auto">
-
     <div class="glass-card p-6 md:p-8">
       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
@@ -750,7 +655,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         </div>
       </div>
 
-      <!-- Controls -->
       <div class="mt-6 feed-card p-4">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div class="flex flex-wrap items-center gap-3">
@@ -787,7 +691,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       </div>
     </div>
 
-    <!-- Summary Cards (Upgrade #4) -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6" id="summaryCards"></div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
@@ -824,7 +727,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
             </div>
             <div class="text-sm font-black muted">정렬: <span class="kbd">최근</span></div>
           </div>
-
           <div class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="feedGrid"></div>
         </div>
 
@@ -948,7 +850,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       if ((p.voc_score||0) >= vocMin()) vocOver += 1;
     }});
 
-    // 7d vs 60d voc ratio
     const end = state.end ? new Date(state.end.getTime()) : new Date();
     const start7 = new Date(end.getTime()); start7.setDate(start7.getDate()-6);
     const start60 = new Date(end.getTime()); start60.setDate(start60.getDate()-59);
@@ -1131,9 +1032,10 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         ? `<div class="mt-2 text-xs font-black badge badge-ad">협찬/광고: ${{escapeHtml((p.sponsored_markers||[]).join(", "))}}</div>`
         : ``;
 
+      // ✅ FIXED: outer ${...} -> ${{...}}
       const vocLine = `<div class="mt-2 flex flex-wrap gap-2">
         <span class="badge badge-voc">VOC ${{p.voc_score||0}}</span>
-        ${(p.voc_tags||[]).slice(0,6).map(t=> `<span class="badge">${{escapeHtml(t)}}</span>`).join("")}
+        ${{(p.voc_tags||[]).slice(0,6).map(t=> `<span class="badge">${{escapeHtml(t)}}</span>`).join("")}}
       </div>`;
 
       const hl = (p.voc_highlights || []).map(h => {{
@@ -1146,6 +1048,9 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       if (p.like_count !== null && p.like_count !== undefined) engage.push("좋아요 " + p.like_count);
       if (p.comment_count !== null && p.comment_count !== undefined) engage.push("댓글 " + p.comment_count);
 
+      // ✅ FIXED: outer ${...} -> ${{...}}
+      const engageHtml = ${{(engage.length ? `<span class="mx-2">·</span><span class="font-black">${{escapeHtml(engage.join(" / "))}}</span>` : "")}};
+
       wrap.innerHTML = `
         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div class="flex-1">
@@ -1156,7 +1061,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
               작성자: <span class="font-black">${{escapeHtml(p.author||"-")}}</span>
               <span class="mx-2">·</span>
               메타: <span class="font-black">${{escapeHtml(p.blog_site_name||"-")}}</span>
-              ${(engage.length ? `<span class="mx-2">·</span><span class="font-black">${{escapeHtml(engage.join(" / "))}}</span>` : "")}
+              ${{engageHtml}}
             </div>
             ${{sponsoredLine}}
             ${{vocLine}}
@@ -1170,7 +1075,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         <div class="mt-4">
           <div class="text-sm font-black">VOC 하이라이트</div>
           <div class="mt-2">
-            ${hl || `<div class="muted font-semibold">하이라이트가 없습니다. (VOC 신호 약함)</div>`}
+            ${{hl || `<div class="muted font-semibold">하이라이트가 없습니다. (VOC 신호 약함)</div>`}}
           </div>
         </div>
 
@@ -1181,7 +1086,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           </div>
         </div>
 
-        ${img}
+        ${{img}}
       `;
       box.appendChild(wrap);
     }});
@@ -1250,10 +1155,6 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 """
 
 
-# ==========================
-# main
-# ==========================
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--queries", nargs="+", required=True)
@@ -1261,11 +1162,11 @@ def main():
     ap.add_argument("--per-query", type=int, default=60)
     ap.add_argument("--headless", action="store_true")
     ap.add_argument("--out-dir", default=os.path.join("reports", "voc_blog"))
-    ap.add_argument("--max-scrape", type=int, default=220, help="Playwright로 열어볼 최대 후보수")
-    ap.add_argument("--brand-target", type=int, default=140, help="브랜드 글 N개 확보하면 early stop")
-    ap.add_argument("--voc-target", type=int, default=60, help="VOC 글 N개(점수>=voc-min) 확보하면 early stop")
-    ap.add_argument("--voc-min", type=int, default=20, help="VOC로 간주할 최소 점수(early stop 기준)")
-    ap.add_argument("--force-rescrape-seen", action="store_true", help="캐시 무시하고 재스크랩")
+    ap.add_argument("--max-scrape", type=int, default=220)
+    ap.add_argument("--brand-target", type=int, default=140)
+    ap.add_argument("--voc-target", type=int, default=60)
+    ap.add_argument("--voc-min", type=int, default=20)
+    ap.add_argument("--force-rescrape-seen", action="store_true")
     args = ap.parse_args()
 
     out_dir = args.out_dir
@@ -1275,19 +1176,17 @@ def main():
     collected_at = now_kst()
     cutoff = collected_at - timedelta(days=args.days - 1)
 
-    # cache
     seen_path = os.path.join(data_dir, "seen_urls.json")
     seen_db = load_seen_urls(seen_path)
 
-    # 1) candidates
     candidates = fetch_candidates_via_naver_api(args.queries, per_query=args.per_query, sort="date")
     print(f"[INFO] candidates_total={len(candidates)} (per_query={args.per_query}) cutoff={cutoff.isoformat()}")
 
-    # 2) scrape with early stop + cache
-    posts: List[BlogPost] = []
+    candidates = candidates[: args.max_scrape]
+
     debug = {
         "candidates_total": len(candidates),
-        "scrape_target": min(len(candidates), args.max_scrape),
+        "scrape_target": len(candidates),
         "scraped_ok": 0,
         "scraped_fail": 0,
         "skipped_seen": 0,
@@ -1301,8 +1200,7 @@ def main():
         "early_stop_voc": 0,
     }
 
-    candidates = candidates[: args.max_scrape]
-
+    posts: List[BlogPost] = []
     brand_kept = 0
     voc_kept = 0
 
@@ -1336,21 +1234,15 @@ def main():
                 final_url = s.get("final_url") or url
                 title = safe_text(s.get("title") or base_title)
                 text = s.get("text") or ""
-                pub_dt = s.get("pub_dt")
+                pub_dt = s.get("pub_dt") or collected_at
 
                 if len(safe_text(text)) == 0:
                     debug["empty_text"] += 1
 
-                # pub_dt guard
-                if pub_dt is None:
-                    pub_dt = collected_at
-                else:
-                    if pub_dt < (collected_at - timedelta(days=args.days + 7)) or pub_dt > (collected_at + timedelta(days=3)):
-                        pub_dt = collected_at
-                    if pub_dt < cutoff:
-                        debug["cutoff_filtered"] += 1
-                        mark_seen(seen_db, url, iso(collected_at))
-                        continue
+                if pub_dt < cutoff:
+                    debug["cutoff_filtered"] += 1
+                    mark_seen(seen_db, url, iso(collected_at))
+                    continue
 
                 ok, markers, reason = is_brand_columbia(title=title, body=text, snippet=snippet)
                 if not ok:
@@ -1363,7 +1255,6 @@ def main():
                     mark_seen(seen_db, url, iso(collected_at))
                     continue
 
-                # brand kept
                 debug["brand_kept"] += 1
                 brand_kept += 1
 
@@ -1411,13 +1302,11 @@ def main():
                 posts.append(p)
                 mark_seen(seen_db, url, iso(collected_at))
 
-                # Early stop (Upgrade #2)
                 if brand_kept >= args.brand_target:
                     debug["early_stop_brand"] = 1
                     if voc_kept >= args.voc_target:
                         debug["early_stop_voc"] = 1
                         break
-
         finally:
             try:
                 context.close()
@@ -1428,46 +1317,19 @@ def main():
             except Exception:
                 pass
 
-    # save cache
     save_seen_urls(seen_path, seen_db)
 
-    # sort posts by published desc
     posts.sort(key=lambda x: x.published_at, reverse=True)
 
-    # 3) meta + analytics (Upgrade #4)
     top_words = keyword_map_from_texts([p.text_preview for p in posts], topn=40)
 
-    # tag freq
     tag_freq: Dict[str, int] = {}
     for p in posts:
         for t in (p.voc_tags or []):
             tag_freq[t] = tag_freq.get(t, 0) + 1
     tag_top = sorted(tag_freq.items(), key=lambda x: x[1], reverse=True)[:15]
 
-    # top VOC posts
     top_voc = sorted(posts, key=lambda x: x.voc_score, reverse=True)[:12]
-
-    # 7D vs 60D compare
-    end_dt = collected_at
-    start7 = end_dt - timedelta(days=6)
-    start60 = end_dt - timedelta(days=59)
-
-    def in_range(dt_iso: str, a: datetime, b: datetime) -> bool:
-        try:
-            d = dtparser.parse(dt_iso)
-            if not d.tzinfo:
-                d = d.replace(tzinfo=KST)
-            d = d.astimezone(KST)
-            return (d >= a) and (d <= b)
-        except Exception:
-            return False
-
-    def voc_ratio(a: datetime, b: datetime, voc_min: int) -> float:
-        subset = [p for p in posts if in_range(p.published_at, a, b)]
-        if not subset:
-            return 0.0
-        voc_n = sum(1 for p in subset if p.voc_score >= voc_min)
-        return round((voc_n / len(subset)) * 100, 1)
 
     meta = {
         "updated_at_kst": fmt_kst(collected_at),
@@ -1490,19 +1352,12 @@ def main():
             {"title": p.title, "url": p.url, "voc_score": p.voc_score, "voc_tags": p.voc_tags[:5], "published_at": p.published_at}
             for p in top_voc
         ],
-        "compare": {
-            "voc_ratio_7d": voc_ratio(start7, end_dt, args.voc_min),
-            "voc_ratio_60d": voc_ratio(start60, end_dt, args.voc_min),
-        },
-        "note": "콜롬비아(국가/원두) 노이즈 제거 + VOC 스코어/하이라이트 + 캐시/early stop + 요약카드",
         "debug": debug,
     }
 
-    # 4) write outputs (+ alias keys)
     posts_dicts: List[Dict[str, Any]] = []
     for p in posts:
         d = asdict(p)
-        # alias keys for robustness
         d["publishedAt"] = d.get("published_at")
         d["collectedAt"] = d.get("collected_at")
         posts_dicts.append(d)
@@ -1520,11 +1375,7 @@ def main():
         f.write(html)
 
     print(f"[OK] posts_saved={len(posts)} voc_posts={meta['counts']['voc_posts']} debug={debug}")
-    print("[OK] Blog report generated:")
-    print(f" - {os.path.join(out_dir, 'index.html')}")
-    print(f" - {os.path.join(data_dir, 'posts.json')}")
-    print(f" - {os.path.join(data_dir, 'meta.json')}")
-    print(f" - {seen_path}")
+    print(f"[OK] {os.path.join(out_dir, 'index.html')}")
 
 
 if __name__ == "__main__":
