@@ -177,6 +177,11 @@
         <div class="nav-item active" data-key="summary" data-target="reports/index.html" data-label="Summary">
           <i class="fa-solid fa-chart-simple"></i><span>Summary</span>
         </div>
+
+        <!-- ✅ NEW: Daily Report -->
+        <div class="nav-item" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Report">
+          <i class="fa-solid fa-calendar-day"></i><span>Daily Report</span>
+        </div>
       </div>
     </div>
 
@@ -286,11 +291,18 @@
 
 <!-- ================= Mobile Bottom Tabbar (MO) ================= -->
 <nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
-  <div class="max-w-2xl mx-auto grid grid-cols-6 gap-2">
+  <div class="max-w-2xl mx-auto grid grid-cols-7 gap-2">
     <div class="mo-tab active" data-key="summary" data-target="reports/index.html" data-label="Summary">
       <i class="fa-solid fa-chart-simple text-base"></i>
       <div class="text-[10px]">요약</div>
     </div>
+
+    <!-- ✅ NEW: Daily -->
+    <div class="mo-tab" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Report">
+      <i class="fa-solid fa-calendar-day text-base"></i>
+      <div class="text-[10px]">데일리</div>
+    </div>
+
     <div class="mo-tab" data-key="price" data-target="reports/naver_lowest_price.html" data-label="네이버 최저가">
       <i class="fa-solid fa-won-sign text-base"></i>
       <div class="text-[10px]">최저가</div>
@@ -326,10 +338,11 @@
     if (!frame || allNav.length === 0) return;
 
     // ✅ 탭별 meta.json 경로 (운영 안정성)
-    // - summary/price/hero/voc: 공용 meta.json(= summary 빌드 산출물) 기준
+    // - summary/price/hero/voc/daily: 공용 meta.json(= summary 빌드 산출물) 기준
     // - crema/blog: 각 리포트 data/meta.json 사용
     const META_PATH_BY_KEY = {
       summary: "reports/meta.json",
+      daily:   "reports/meta.json",
       price:   "reports/meta.json",
       hero:    "reports/meta.json",
       voc:     "reports/meta.json",
