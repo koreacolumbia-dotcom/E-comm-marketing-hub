@@ -312,23 +312,3 @@ jobs:
           : "${DAILY_RECIPIENTS:?Missing vars.DAILY_RECIPIENTS}"
 
           python -u scripts/send_daily_email.py
-
-      - name: Send failure alert email
-        if: ${{ failure() }}
-        env:
-          SMTP_HOST: ${{ vars.SMTP_HOST }}
-          SMTP_PORT: ${{ vars.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          ALERT_RECIPIENT: ${{ secrets.ALERT_RECIPIENT }}
-          HUB_URL: ${{ vars.HUB_URL }}
-          KST_STAMP: ${{ steps.set_time.outputs.kst }}
-          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          : "${SMTP_HOST:?Missing vars.SMTP_HOST}"
-          : "${SMTP_PORT:?Missing vars.SMTP_PORT}"
-          : "${SMTP_USER:?Missing secrets.SMTP_USER}"
-          : "${SMTP_PASS:?Missing secrets.SMTP_PASS}"
-          : "${ALERT_RECIPIENT:?Missing secrets.ALERT_RECIPIENT}"
-          python -u scripts/send_alert_email.py
