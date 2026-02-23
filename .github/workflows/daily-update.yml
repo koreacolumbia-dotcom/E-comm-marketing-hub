@@ -8,6 +8,16 @@ on:
         required: false
         default: "manual"
 
+      # ✅ NEW: Daily report only
+      daily_only:
+        description: "Run Daily Digest report only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
       voc_only:
         description: "Run Crema VOC only?"
         required: true
@@ -77,11 +87,42 @@ jobs:
           echo "kst=$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')" >> $GITHUB_OUTPUT
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
+      # =========================================================
+      # ✅ NEW) Daily Digest Report (runs by default on schedule)
+      # - daily_only=true 이면 이것만 실행
+      # - voc_only/blog_only=true 여도 (원하면) 이건 실행되게 유지
+      #   (만약 voc_only/blog_only 때는 데일리도 스킵하고 싶으면 if 조건에서 제외하면 됨)
+      # =========================================================
+      - name: Run Daily Digest report
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf reports/daily_digest || true
+          mkdir -p reports/daily_digest
+
+          # 1) out-dir 옵션이 있으면 사용, 없으면 그냥 실행 (레포/스크립트 상황에 안전)
+          python -u daily_digest_live_final_with_pdp_trend_no_categorytrend_rpimg_styled_like_build_blog.py --out-dir reports/daily_digest \
+            || python -u daily_digest_live_final_with_pdp_trend_no_categorytrend_rpimg_styled_like_build_blog.py
+
+          # 결과물 존재 체크: 아래 중 하나는 있어야 통과
+          if [ -f "reports/daily_digest/index.html" ]; then
+            echo "[OK] reports/daily_digest/index.html"
+          elif [ -f "reports/daily_digest.html" ]; then
+            echo "[OK] reports/daily_digest.html"
+          else
+            echo "[ERROR] Daily digest output not found."
+            echo "reports tree:"
+            find reports -maxdepth 3 -type f | sed 's/^/ - /'
+            exit 1
+          fi
+
       # ----------------------------
       # 1) Naver Lowest Price
       # ----------------------------
       - name: Run Naver Lowest Price crawler
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' && true) || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
@@ -98,7 +139,7 @@ jobs:
       # 2) Hero banner
       # ----------------------------
       - name: Run Hero banner crawler
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' && true) || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         run: |
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
@@ -108,7 +149,7 @@ jobs:
       # 3) External Signal (VOC)
       # ----------------------------
       - name: Run External Signal (VOC)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ (github.event_name != 'workflow_dispatch' && true) || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         run: |
           set -euo pipefail
           python -u external_signal_combined.py
@@ -119,9 +160,10 @@ jobs:
       # - 기본/스케줄: 실행
       # - voc_only=true면 이것만 실행
       # - blog_only=true면 스킵
+      # - daily_only=true면 스킵
       # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.blog_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.blog_only != 'true') }}
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
           OUTPUT_TZ: Asia/Seoul
@@ -159,10 +201,10 @@ jobs:
       # 4.5) Naver Blog VOC
       # - 기본/스케줄: 실행 (단, voc_only=true면 스킵)
       # - blog_only=true면 이것만 실행되도록 다른 스텝들이 위에서 스킵됨
-      # ✅ FIX: NAVER_CLIENT_ID/SECRET env 주입
+      # - daily_only=true면 스킵
       # ----------------------------
       - name: Run Naver Blog VOC (Columbia mentions)
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true') }}
         shell: bash
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -183,10 +225,10 @@ jobs:
           test -f reports/voc_blog/index.html
 
       # ----------------------------
-      # 5) Summary (skip on voc_only=true or blog_only=true)
+      # 5) Summary (skip on voc_only/blog_only/daily_only)
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
         run: |
@@ -196,10 +238,10 @@ jobs:
           test -f reports/meta.json
 
       # ----------------------------
-      # 6) Badge stamp (skip on voc_only=true or blog_only=true)
+      # 6) Badge stamp (skip on voc_only/blog_only/daily_only)
       # ----------------------------
       - name: Stamp "Last updated" badge into reports HTML
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         shell: bash
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
