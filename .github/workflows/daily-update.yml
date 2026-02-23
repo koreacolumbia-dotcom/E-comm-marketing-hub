@@ -288,7 +288,6 @@ jobs:
       - name: Send success email (links)
         if: ${{ success() }}
         env:
-          SMTP_PROVIDER: ${{ vars.SMTP_PROVIDER }}
           SMTP_HOST: ${{ vars.SMTP_HOST }}
           SMTP_PORT: ${{ vars.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
@@ -301,15 +300,22 @@ jobs:
           MODE_BLOG_ONLY:  ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
         run: |
           set -euo pipefail
+          echo "[DEBUG] SMTP_HOST=${SMTP_HOST:-}"
+          echo "[DEBUG] SMTP_PORT=${SMTP_PORT:-}"
+          echo "[DEBUG] DAILY_RECIPIENTS=${DAILY_RECIPIENTS:-}"
+          echo "[DEBUG] HUB_URL=${HUB_URL:-}"
+
+          : "${SMTP_HOST:?Missing vars.SMTP_HOST (e.g. smtp.gmail.com)}"
+          : "${SMTP_PORT:?Missing vars.SMTP_PORT (e.g. 587)}"
+          : "${SMTP_USER:?Missing secrets.SMTP_USER}"
+          : "${SMTP_PASS:?Missing secrets.SMTP_PASS}"
+          : "${DAILY_RECIPIENTS:?Missing vars.DAILY_RECIPIENTS}"
+
           python -u scripts/send_daily_email.py
 
-      # ----------------------------
-      # ✅ Failure Alert Email
-      # ----------------------------
       - name: Send failure alert email
         if: ${{ failure() }}
         env:
-          SMTP_PROVIDER: ${{ vars.SMTP_PROVIDER }}
           SMTP_HOST: ${{ vars.SMTP_HOST }}
           SMTP_PORT: ${{ vars.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
@@ -320,4 +326,9 @@ jobs:
           GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          : "${SMTP_HOST:?Missing vars.SMTP_HOST}"
+          : "${SMTP_PORT:?Missing vars.SMTP_PORT}"
+          : "${SMTP_USER:?Missing secrets.SMTP_USER}"
+          : "${SMTP_PASS:?Missing secrets.SMTP_PASS}"
+          : "${ALERT_RECIPIENT:?Missing secrets.ALERT_RECIPIENT}"
           python -u scripts/send_alert_email.py
