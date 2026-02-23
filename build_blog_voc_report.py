@@ -2,19 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-[NAVER BLOG VOC] Columbia brand monitoring | v4.2 FINAL
+[NAVER BLOG VOC] Columbia brand monitoring | v4.1 FINAL
 
-✅ FIX 0) Frontend posts shape-safe:
-   - supports: []  OR  {posts:[...]}  OR  {items:[...]}  OR  {posts:{items:[...]}}
-   - fetches data/posts.json & data/meta.json (no huge inline JS)
-   - prevents "POSTS.filter is not a function" crash
-
-✅ UX 1) Default view range = last 7 days (collection stays 60 days)
-✅ UX 2) Apply shows loading overlay spinner
-✅ 1) VOC scoring + highlight sentences
-✅ 2) URL cache + early stop
-✅ 3) Meta enrichment (blog_name/author/og:image + best-effort engagement)
-✅ 4) Dashboard summary cards (New today, VOC top, issue types top, 7d vs 60d)
+핵심 수정:
+- (중요) Python f-string + JS template literal 충돌 제거: `${...}` 거의 미사용, 문자열 치환 방식 사용
+- 기본 기간: 최근 7일 (Reset 7D / Reset 60D)
+- 적용 버튼: 로딩 오버레이 표시
+- NAVER 블로그 UI 잡음 텍스트 대량 제거 (본문 정제)
+- 불필요한 "Columbia" 동음이의(대학/지역/강/경제뉴스 등) 강한 제외 룰 추가
 
 Outputs:
 - <out_dir>/index.html
@@ -40,6 +35,7 @@ import requests
 from dateutil import parser as dtparser
 from playwright.sync_api import sync_playwright
 
+
 KST = timezone(timedelta(hours=9))
 
 # =======================
@@ -47,9 +43,9 @@ KST = timezone(timedelta(hours=9))
 # =======================
 
 BRAND_STRONG = [
-    "컬럼비아", "Columbia", "COLUMBIA",
-    "Columbia Sportswear", "sportswear",
-    "콜롬비아코리아", "columbiakorea", "columbiakorea.co.kr",
+    "컬럼비아", "콜롬비아", "Columbia", "COLUMBIA",
+    "Columbia Sportswear", "COLUMBIA SPORTSWEAR",
+    "columbiakorea", "columbiakorea.co.kr",
     "옴니히트", "omni-heat", "omni heat", "omniheat",
     "옴니위크", "omni-wick", "omni wick", "omniwick",
     "아웃드라이", "outdry",
@@ -58,6 +54,7 @@ BRAND_STRONG = [
     "타이타늄", "titanium",
 ]
 
+# 아웃도어/의류 문맥이 있어야 "브랜드"로 인정(약한 토큰만 있을 경우)
 OUTDOOR_CONTEXT = [
     "자켓", "재킷", "패딩", "다운", "후리스", "플리스", "바람막이", "윈드브레이커",
     "등산", "트레킹", "하이킹", "캠핑", "아웃도어", "방수", "방풍", "발수", "보온", "보냉",
@@ -66,13 +63,18 @@ OUTDOOR_CONTEXT = [
     "신발", "부츠", "트레킹화", "등산화",
     "사이즈", "핏", "착용", "착샷", "코디",
     "매장", "구매", "구입", "세일", "할인",
+    "수선", "as", "a/s", "교환", "반품", "환불",
 ]
 
-# "Colombia(국가)" / 커피 / 영화 등 문맥 오탐 방지
-NEGATIVE_CONTEXT = [
-    "페소", "COP", "환율", "관세", "대사관", "보고타", "남미", "국경", "과세환율", "통관", "무역",
-    "원두", "커피", "핸드드립", "드립", "에스프레소", "로스팅", "게이샤", "바리스타",
-    "줄거리", "결말", "영화", "드라마", "넷플릭스", "해킹", "로그인", "접속",
+# "컬럼비아" 동음이의 강한 제외(대학/지역/강/정치경제 뉴스/영화사 등)
+HARD_EXCLUDE = [
+    "컬럼비아대학교", "컬럼비아 대학교", "Columbia University",
+    "브리티시컬럼비아", "브리티시 컬럼비아", "British Columbia",
+    "컬럼비아강", "컬럼비아 강", "Columbia River",
+    "컬럼비아 빙원", "Columbia Icefield",
+    "컬럼비아 픽처스", "Columbia Pictures",
+    "컬럼비아 로스쿨", "Columbia Law",
+    "보고타", "콜롬비아(국가)", "콜롬비아 경제", "콜롬비아 페소", "COP", "관세", "WTO",
 ]
 
 SKU_PATTERNS = [
@@ -96,17 +98,17 @@ VOC_TAG_RULES = {
     ],
     "QUALITY_DEFECT": [
         "불량", "하자", "박음질", "실밥", "찢", "뜯", "올풀", "마감", "지퍼", "고장",
-        "누수", "방수", "이염", "변색", "냄새", "털빠짐", "보풀", "약해", "내구",
+        "누수", "이염", "변색", "냄새", "털빠짐", "보풀", "내구",
     ],
     "DELIVERY": [
         "배송", "지연", "늦", "파손", "누락", "오배송", "포장", "택배", "도착",
     ],
     "PRICE_PROMO": [
         "가격", "비싸", "가성비", "세일", "할인", "쿠폰", "프로모션", "적립", "포인트",
-        "최저가", "정가", "환불가", "가격차",
+        "최저가", "정가", "가격차",
     ],
     "EXCHANGE_RETURN_AS": [
-        "교환", "반품", "환불", "AS", "A/S", "수선", "고객센터", "센터", "접수",
+        "교환", "반품", "환불", "AS", "A/S", "수선", "고객센터", "접수",
         "처리", "불친절", "응대",
     ],
     "WARMTH_WATERPROOF": [
@@ -130,6 +132,13 @@ STOPWORDS = set("""
 
 SENT_SPLIT_RE = re.compile(r"(?<=[\.\!\?\n\r])\s+|(?<=다\.)\s+|(?<=요\.)\s+|(?<=니다\.)\s+|(?<=함\.)\s+")
 
+# NAVER 블로그 UI 잡음 제거용
+NAVER_NOISE_PATTERNS = [
+    "NAVER 블로그", "블로그 검색", "이 블로그에서 검색", "공감", "공유하기", "메뉴", "바로가기",
+    "본문 바로가기", "내 블로그", "이웃블로그", "블로그 홈", "로그인", "사용자 링크",
+    "프롤로그", "서재", "안부", "이웃추가", "카테고리", "전체보기",
+    "목록열기", "새 댓글", "첫 댓글", "댓글",
+]
 
 def ensure_dir(p: str) -> None:
     os.makedirs(p, exist_ok=True)
@@ -166,11 +175,14 @@ def keyword_map_from_texts(texts: List[str], topn: int = 40) -> List[Tuple[str, 
                 continue
             if len(lw) < 2:
                 continue
+            # naver 잡음 단어도 많이 나오니 컷
+            if lw in {"naver", "블로그", "바로가기", "메뉴", "공감", "공유하기"}:
+                continue
             freq[lw] = freq.get(lw, 0) + 1
     items = sorted(freq.items(), key=lambda x: x[1], reverse=True)
     return items[:topn]
 
-def has_any(patterns: List[str], text: str) -> List[str]:
+def has_any_str(text: str, patterns: List[str]) -> List[str]:
     found = []
     t = text or ""
     for p in patterns:
@@ -185,7 +197,7 @@ def has_sku(text: str) -> bool:
             return True
     return False
 
-def contains_any_keywords(text: str, kws: List[str]) -> bool:
+def contains_any(text: str, kws: List[str]) -> bool:
     t = text or ""
     return any(k in t for k in kws)
 
@@ -196,23 +208,28 @@ def is_brand_columbia(title: str, body: str, snippet: str) -> Tuple[bool, List[s
     combined = f"{title}\n{snippet}\n{body}"
     combined_l = combined.lower()
 
-    strong_found = has_any(BRAND_STRONG, combined) + has_any([s.lower() for s in BRAND_STRONG], combined_l)
+    # 1) 동음이의 강제 제외
+    if contains_any(combined, HARD_EXCLUDE) or contains_any(combined_l, [x.lower() for x in HARD_EXCLUDE]):
+        return False, [], "hard_exclude"
+
+    # 2) 강한 마커
+    strong_found = has_any_str(combined, BRAND_STRONG)
     strong_found = sorted(list(set([x for x in strong_found if x])))
 
-    if not strong_found:
-        if contains_any_keywords(combined, NEGATIVE_CONTEXT) or contains_any_keywords(combined_l, [x.lower() for x in NEGATIVE_CONTEXT]):
-            return False, [], "negative_context"
-
     if strong_found:
+        # 강한 마커라도 "대학/지역/강" 문맥이면 제외 (추가 안전)
+        if "university" in combined_l or "british columbia" in combined_l or "columbia river" in combined_l:
+            return False, [], "hard_exclude_en"
         return True, strong_found[:6], "strong_marker"
 
-    if ("콜롬비아" not in combined) and ("columbia" not in combined_l):
+    # 3) 약한 토큰(컬럼비아/columbia)만 있을 때: 아웃도어 문맥 or SKU가 있어야 통과
+    if ("컬럼비아" not in combined) and ("columbia" not in combined_l) and ("콜롬비아" not in combined):
         return False, [], "no_brand_token"
 
     if has_sku(combined):
         return True, ["SKU"], "sku_match"
 
-    if contains_any_keywords(combined, OUTDOOR_CONTEXT) or contains_any_keywords(combined_l, [x.lower() for x in OUTDOOR_CONTEXT]):
+    if contains_any(combined, OUTDOOR_CONTEXT) or contains_any(combined_l, [x.lower() for x in OUTDOOR_CONTEXT]):
         return True, ["context"], "outdoor_context"
 
     return False, [], "no_context"
@@ -363,8 +380,7 @@ def extract_og_image(page) -> str:
     return extract_meta_content(page, "meta[property='og:image']")
 
 def extract_site_name(page) -> str:
-    v = extract_meta_content(page, "meta[property='og:site_name']")
-    return v or ""
+    return extract_meta_content(page, "meta[property='og:site_name']") or ""
 
 def extract_author(page) -> str:
     for sel in ["meta[name='author']", "meta[property='article:author']"]:
@@ -448,6 +464,26 @@ def extract_post_text_from_dom(page) -> str:
     except Exception:
         return ""
 
+def clean_naver_noise_text(raw: str) -> str:
+    if not raw:
+        return ""
+    lines = [x.strip() for x in re.split(r"[\r\n]+", raw) if x and x.strip()]
+    out = []
+    for ln in lines:
+        # 너무 짧은 UI 라인 제거
+        if len(ln) <= 2:
+            continue
+        # nav/noise 키워드 포함 라인 제거
+        if any(k in ln for k in NAVER_NOISE_PATTERNS):
+            continue
+        # “사용자 링크 / 메뉴…” 같은 토큰 뭉치 제거
+        if len(ln) >= 40 and sum(1 for k in NAVER_NOISE_PATTERNS if k in ln) >= 2:
+            continue
+        out.append(ln)
+    text = " ".join(out)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
 def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Dict[str, Any]:
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
@@ -479,7 +515,10 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Dict[str, Any
         out["og_image"] = extract_og_image(page)
         out["site_name"] = extract_site_name(page)
         out["author"] = extract_author(page)
-        out["text"] = extract_post_text_from_dom(page)
+
+        raw_text = extract_post_text_from_dom(page)
+        out["text"] = clean_naver_noise_text(raw_text)
+
         like_cnt, cmt_cnt = extract_engagement_best_effort(page)
         out["like_count"] = like_cnt
         out["comment_count"] = cmt_cnt
@@ -545,9 +584,8 @@ class BlogPost:
 
     source: str
 
-def build_report_html() -> str:
-    # NOTE: data is fetched from ./data/meta.json and ./data/posts.json
-    return """<!doctype html>
+
+HTML_TEMPLATE = """<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -599,7 +637,7 @@ def build_report_html() -> str:
       color: #334155;
       font-weight: 900;
     }
-    input[type="date"] {
+    input[type="date"]{
       background: rgba(255,255,255,0.75);
       border: 1px solid rgba(255,255,255,0.9);
       border-radius: 16px;
@@ -607,7 +645,7 @@ def build_report_html() -> str:
       font-weight: 900;
       color:#0f172a;
     }
-    .btn {
+    .btn{
       padding: 10px 14px;
       border-radius: 16px;
       font-weight: 900;
@@ -615,44 +653,44 @@ def build_report_html() -> str:
       border: 1px solid rgba(255,255,255,0.9);
       transition: all .15s ease;
     }
-    .btn:hover { background: #fff; }
-    .btn:disabled { opacity:.55; cursor:not-allowed; }
-    .lineclamp4 {
+    .btn:hover{ background: #fff; }
+    .lineclamp4{
       display: -webkit-box;
       -webkit-line-clamp: 4;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
 
-    /* Loading overlay */
-    .loading-overlay{
+    /* 로딩 오버레이 */
+    .loading-mask{
       position: fixed;
       inset: 0;
-      background: rgba(248,250,252,0.72);
+      background: rgba(248, 250, 252, 0.75);
       backdrop-filter: blur(8px);
+      z-index: 9999;
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 9999;
+      padding: 24px;
     }
+    .loading-mask.show{ display:flex; }
     .spinner{
-      width: 42px;
-      height: 42px;
+      width: 44px; height: 44px;
       border-radius: 999px;
-      border: 4px solid rgba(0,0,0,0.10);
+      border: 4px solid rgba(15,23,42,0.12);
       border-top-color: rgba(0,45,114,0.85);
       animation: spin 0.9s linear infinite;
     }
-    @keyframes spin{ to { transform: rotate(360deg); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 
 <body class="p-4 md:p-8">
-  <div class="loading-overlay" id="loading">
-    <div class="glass-card px-6 py-5 flex items-center gap-4">
+  <div class="loading-mask" id="loadingMask">
+    <div class="glass-card p-6 flex items-center gap-4">
       <div class="spinner"></div>
       <div>
-        <div class="text-sm font-black">필터 적용 중…</div>
+        <div class="text-sm font-black">필터 적용 중...</div>
         <div class="text-xs font-semibold muted mt-1">잠시만요</div>
       </div>
     </div>
@@ -691,10 +729,8 @@ def build_report_html() -> str:
             <div class="muted font-black">~</div>
             <input id="dateEnd" type="date" />
             <button id="btnApply" class="btn">적용</button>
-
-            <button id="btn7d" class="btn">최근 7일</button>
-            <button id="btn30d" class="btn">최근 30일</button>
-            <button id="btn60d" class="btn">최근 60일</button>
+            <button id="btnReset7" class="btn">최근 7일</button>
+            <button id="btnReset60" class="btn">최근 60일</button>
 
             <div class="ml-2 flex items-center gap-2">
               <span class="text-sm font-black muted">VOC≥</span>
@@ -763,6 +799,10 @@ def build_report_html() -> str:
   </div>
 
 <script>
+  // 데이터 주입(치환)
+  const META = __META_JSON__;
+  const POSTS = __POSTS_JSON__;
+
   const $ = (id) => document.getElementById(id);
 
   function escapeHtml(s) {
@@ -774,20 +814,24 @@ def build_report_html() -> str:
       .replaceAll("'","&#039;");
   }
 
-  function showLoading(on) {
-    const el = $("loading");
-    if (!el) return;
-    el.style.display = on ? "flex" : "none";
+  function showLoading(msg){
+    const m = $("loadingMask");
+    if(!m) return;
+    m.classList.add("show");
+  }
+  function hideLoading(){
+    const m = $("loadingMask");
+    if(!m) return;
+    m.classList.remove("show");
   }
 
   function toDateOnly(iso) {
     try {
       const d = new Date(iso);
-      if (isNaN(d.getTime())) return "";
       const y = d.getFullYear();
       const m = String(d.getMonth()+1).padStart(2,"0");
       const da = String(d.getDate()).padStart(2,"0");
-      return `${y}-${m}-${da}`;
+      return y + "-" + m + "-" + da;
     } catch (e) {
       return "";
     }
@@ -817,27 +861,6 @@ def build_report_html() -> str:
     }
     return true;
   }
-
-  function normalizePosts(payload) {
-    // supports: [] OR {posts:[]} OR {items:[]} OR {posts:{items:[]}}
-    if (Array.isArray(payload)) return payload;
-
-    if (payload && Array.isArray(payload.posts)) return payload.posts;
-    if (payload && Array.isArray(payload.items)) return payload.items;
-
-    if (payload && payload.posts && Array.isArray(payload.posts.items)) return payload.posts.items;
-
-    // fallback: try find first array field
-    if (payload && typeof payload === "object") {
-      for (const k of Object.keys(payload)) {
-        if (Array.isArray(payload[k])) return payload[k];
-      }
-    }
-    return [];
-  }
-
-  let META = null;
-  let POSTS = [];
 
   let state = {
     hideSponsored: false,
@@ -876,23 +899,16 @@ def build_report_html() -> str:
   }
 
   function renderHeader() {
-    $("updatedAt").textContent = (META && META.updated_at_kst) ? META.updated_at_kst : "-";
-    $("periodText").textContent = (META && META.period_text) ? META.period_text : "-";
+    $("updatedAt").textContent = META.updated_at_kst || "-";
+    $("periodText").textContent = META.period_text || "-";
 
-    const dbg = (META && META.debug) ? META.debug : null;
-    if (dbg) {
-      $("debugLine").innerHTML = `
-        candidates: <span class="font-black">${escapeHtml(dbg.candidates_total ?? "-")}</span>
-        <span class="mx-2">|</span>
-        scraped_ok: <span class="font-black">${escapeHtml(dbg.scraped_ok ?? "-")}</span>
-        <span class="mx-2">|</span>
-        kept_brand: <span class="font-black">${escapeHtml(dbg.brand_kept ?? "-")}</span>
-        <span class="mx-2">|</span>
-        saved: <span class="font-black">${escapeHtml((META.counts && META.counts.posts) ?? "-")}</span>
-      `;
-    } else {
-      $("debugLine").textContent = "-";
-    }
+    const dbg = META.debug || {};
+    const counts = META.counts || {};
+    $("debugLine").innerHTML =
+      'candidates: <span class="font-black">' + escapeHtml(dbg.candidates_total ?? "-") + '</span>' +
+      '<span class="mx-2">|</span> scraped_ok: <span class="font-black">' + escapeHtml(dbg.scraped_ok ?? "-") + '</span>' +
+      '<span class="mx-2">|</span> kept_brand: <span class="font-black">' + escapeHtml(dbg.brand_kept ?? "-") + '</span>' +
+      '<span class="mx-2">|</span> saved: <span class="font-black">' + escapeHtml(counts.posts ?? "-") + '</span>';
   }
 
   function renderSummaryCards() {
@@ -900,14 +916,18 @@ def build_report_html() -> str:
     box.innerHTML = "";
 
     const listAll = filteredPosts();
-    const today = new Date();
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+
+    // 수집일 기준 new today (KST 로컬)
+    const now = new Date();
+    const todayKey = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
 
     let newToday = 0;
+    let sponsored = 0;
     let vocOver = 0;
 
     listAll.forEach(p => {
       if (toDateOnly(p.collected_at) === todayKey) newToday += 1;
+      if (p.is_sponsored) sponsored += 1;
       if ((p.voc_score||0) >= vocMin()) vocOver += 1;
     });
 
@@ -926,7 +946,7 @@ def build_report_html() -> str:
     const r60 = ratio(start60);
 
     const cards = [
-      { title: "Posts", value: String(listAll.length), sub: "현재 필터 기준" },
+      { title: "Posts", value: String(listAll.length), sub: "필터 기준" },
       { title: "New Today", value: String(newToday), sub: "수집일 기준" },
       { title: "VOC (≥" + vocMin() + ")", value: String(vocOver), sub: "VOC 감지" },
       { title: "VOC Ratio", value: r7 + "%", sub: "7D vs 60D: " + r60 + "%" },
@@ -935,11 +955,10 @@ def build_report_html() -> str:
     cards.forEach(c => {
       const el = document.createElement("div");
       el.className = "glass-card p-5";
-      el.innerHTML = `
-        <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">${escapeHtml(c.title)}</div>
-        <div class="text-3xl font-black mt-2">${escapeHtml(c.value)}</div>
-        <div class="muted text-sm font-semibold mt-1">${escapeHtml(c.sub)}</div>
-      `;
+      el.innerHTML =
+        '<div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">' + escapeHtml(c.title) + '</div>' +
+        '<div class="text-3xl font-black mt-2">' + escapeHtml(c.value) + '</div>' +
+        '<div class="muted text-sm font-semibold mt-1">' + escapeHtml(c.sub) + '</div>';
       box.appendChild(el);
     });
   }
@@ -950,7 +969,7 @@ def build_report_html() -> str:
     const list = filteredPosts().slice().sort((a,b)=> (b.voc_score||0)-(a.voc_score||0)).slice(0, 8);
 
     if (list.length === 0) {
-      box.innerHTML = `<div class="muted font-semibold">VOC 항목이 없습니다.</div>`;
+      box.innerHTML = '<div class="muted font-semibold">VOC 항목이 없습니다.</div>';
       return;
     }
 
@@ -958,14 +977,14 @@ def build_report_html() -> str:
       const hl = (p.voc_highlights || [])[0]?.sent || p.excerpt || "";
       const el = document.createElement("div");
       el.className = "feed-card p-4";
-      el.innerHTML = `
-        <div class="flex items-start justify-between gap-2">
-          <div class="font-black text-sm leading-snug">${escapeHtml(p.title||"(제목 없음)")}</div>
-          <div class="badge badge-voc">VOC ${p.voc_score||0}</div>
-        </div>
-        <div class="mt-2 text-xs font-semibold muted lineclamp4">${escapeHtml(hl)}</div>
-        <div class="mt-2 text-xs font-black muted">${escapeHtml((p.voc_tags||[]).slice(0,3).join(", "))}</div>
-      `;
+      el.innerHTML =
+        '<div class="flex items-start justify-between gap-2">' +
+          '<div class="font-black text-sm leading-snug">' + escapeHtml(p.title||"(제목 없음)") + '</div>' +
+          '<div class="badge badge-voc">VOC ' + (p.voc_score||0) + '</div>' +
+        '</div>' +
+        '<div class="mt-2 text-xs font-semibold muted lineclamp4">' + escapeHtml(hl) + '</div>' +
+        '<div class="mt-2 text-xs font-black muted">' + escapeHtml((p.voc_tags||[]).slice(0,3).join(", ")) + '</div>';
+
       el.addEventListener("click", ()=> {
         window.open(p.url, "_blank", "noopener,noreferrer");
       });
@@ -988,16 +1007,16 @@ def build_report_html() -> str:
     const clear = document.createElement("div");
     clear.className = "badge cursor-pointer hover:opacity-80";
     clear.textContent = "태그 해제";
-    clear.addEventListener("click", ()=> { state.tag = null; renderAllFast(); });
+    clear.addEventListener("click", ()=> { state.tag = null; renderAll(); });
     box.appendChild(clear);
 
     items.forEach(([t,c]) => {
       const el = document.createElement("div");
       el.className = "badge cursor-pointer hover:opacity-80";
-      el.innerHTML = `${escapeHtml(t)} · ${c}`;
+      el.innerHTML = escapeHtml(t) + " · " + c;
       el.addEventListener("click", ()=> {
         state.tag = t;
-        renderAllFast();
+        renderAll();
       });
       box.appendChild(el);
     });
@@ -1006,15 +1025,14 @@ def build_report_html() -> str:
   function renderWords() {
     const box = $("wordChips");
     box.innerHTML = "";
-    const words = ((META && META.top_words) ? META.top_words : []).slice(0, 16);
-
+    const words = (META.top_words || []).slice(0, 16);
     words.forEach(([w,c]) => {
       const el = document.createElement("div");
       el.className = "badge cursor-pointer hover:opacity-80";
-      el.innerHTML = `${escapeHtml(w)} · ${c}`;
+      el.innerHTML = escapeHtml(w) + " · " + c;
       el.addEventListener("click", () => {
         state.word = w;
-        renderAllFast();
+        renderAll();
       });
       box.appendChild(el);
     });
@@ -1022,7 +1040,7 @@ def build_report_html() -> str:
     const clear = document.createElement("div");
     clear.className = "badge cursor-pointer hover:opacity-80";
     clear.textContent = "단어 해제";
-    clear.addEventListener("click", ()=> { state.word = null; renderAllFast(); });
+    clear.addEventListener("click", ()=> { state.word = null; renderAll(); });
     box.appendChild(clear);
   }
 
@@ -1032,7 +1050,7 @@ def build_report_html() -> str:
     const list = filteredPosts().slice().sort((a,b)=> (b.published_at||"").localeCompare(a.published_at||""));
 
     if (list.length === 0) {
-      grid.innerHTML = `<div class="muted font-semibold">조건에 맞는 글이 없습니다.</div>`;
+      grid.innerHTML = '<div class="muted font-semibold">조건에 맞는 글이 없습니다.</div>';
       return;
     }
 
@@ -1041,34 +1059,26 @@ def build_report_html() -> str:
       card.className = "feed-card p-4 cursor-pointer hover:translate-y-[-1px] transition";
 
       const badges = [];
-      badges.push(`<span class="badge badge-brand">Brand OK</span>`);
-      if (p.is_sponsored) badges.push(`<span class="badge badge-ad">협찬</span>`);
+      badges.push('<span class="badge badge-brand">Brand OK</span>');
+      if (p.is_sponsored) badges.push('<span class="badge badge-ad">협찬</span>');
       const vs = p.voc_score || 0;
-      if (vs >= vocMin()) badges.push(`<span class="badge badge-voc">VOC ${vs}</span>`);
+      if (vs >= vocMin()) badges.push('<span class="badge badge-voc">VOC ' + vs + '</span>');
       const tags = (p.voc_tags || []).slice(0,2).join(", ");
-      if (tags) badges.push(`<span class="badge">tags: ${escapeHtml(tags)}</span>`);
+      if (tags) badges.push('<span class="badge">tags: ' + escapeHtml(tags) + '</span>');
 
       const metaLine = [];
       if (p.author) metaLine.push(p.author);
       if (p.blog_site_name) metaLine.push(p.blog_site_name);
       const metaText = metaLine.join(" · ");
 
-      card.innerHTML = `
-        <div class="flex items-start justify-between gap-2">
-          <div class="font-black text-base leading-snug">${escapeHtml(p.title||"(제목 없음)")}</div>
-          <div class="text-[11px] font-black muted whitespace-nowrap">${fmtDate(p.published_at)}</div>
-        </div>
-
-        <div class="mt-2 flex flex-wrap gap-2">${badges.join("")}</div>
-
-        <div class="mt-3 text-sm font-semibold muted lineclamp4">
-          ${escapeHtml(p.excerpt || "")}
-        </div>
-
-        <div class="mt-3 text-[12px] font-black muted">
-          ${escapeHtml(metaText)}
-        </div>
-      `;
+      card.innerHTML =
+        '<div class="flex items-start justify-between gap-2">' +
+          '<div class="font-black text-base leading-snug">' + escapeHtml(p.title||"(제목 없음)") + '</div>' +
+          '<div class="text-[11px] font-black muted whitespace-nowrap">' + fmtDate(p.published_at) + '</div>' +
+        '</div>' +
+        '<div class="mt-2 flex flex-wrap gap-2">' + badges.join("") + '</div>' +
+        '<div class="mt-3 text-sm font-semibold muted lineclamp4">' + escapeHtml(p.excerpt || "") + '</div>' +
+        '<div class="mt-3 text-[12px] font-black muted">' + escapeHtml(metaText) + '</div>';
 
       card.addEventListener("click", () => {
         window.open(p.url, "_blank", "noopener,noreferrer");
@@ -1091,141 +1101,130 @@ def build_report_html() -> str:
       wrap.className = "feed-card p-5";
 
       const sponsoredLine = p.is_sponsored
-        ? `<div class="mt-2 text-xs font-black badge badge-ad">협찬/광고: ${escapeHtml((p.sponsored_markers||[]).join(", "))}</div>`
-        : ``;
+        ? '<div class="mt-2 text-xs font-black badge badge-ad">협찬/광고: ' + escapeHtml((p.sponsored_markers||[]).join(", ")) + '</div>'
+        : '';
 
-      const vocLine = `<div class="mt-2 flex flex-wrap gap-2">
-        <span class="badge badge-voc">VOC ${p.voc_score||0}</span>
-        ${(p.voc_tags||[]).slice(0,6).map(t=> `<span class="badge">${escapeHtml(t)}</span>`).join("")}
-      </div>`;
+      const tagBadges = (p.voc_tags||[]).slice(0,6).map(t => '<span class="badge">' + escapeHtml(t) + '</span>').join("");
+
+      const vocLine =
+        '<div class="mt-2 flex flex-wrap gap-2">' +
+          '<span class="badge badge-voc">VOC ' + (p.voc_score||0) + '</span>' +
+          tagBadges +
+        '</div>';
 
       const hl = (p.voc_highlights || []).map(h => {
-        return `<div class="mt-2 text-sm font-semibold muted">• ${escapeHtml(h.sent)} <span class="badge ml-2">+${h.score}</span></div>`;
+        return '<div class="mt-2 text-sm font-semibold muted">• ' + escapeHtml(h.sent) +
+               ' <span class="badge ml-2">+' + (h.score||0) + '</span></div>';
       }).join("");
 
-      const img = p.og_image ? `<img src="${escapeHtml(p.og_image)}" class="w-full rounded-2xl border border-white/70 mt-4" loading="lazy" />` : "";
+      const img = p.og_image
+        ? '<img src="' + escapeHtml(p.og_image) + '" class="w-full rounded-2xl border border-white/70 mt-4" loading="lazy" />'
+        : "";
 
       const engage = [];
       if (p.like_count !== null && p.like_count !== undefined) engage.push("좋아요 " + p.like_count);
       if (p.comment_count !== null && p.comment_count !== undefined) engage.push("댓글 " + p.comment_count);
-      const engageHtml = engage.length ? `<span class="mx-2">·</span><span class="font-black">${escapeHtml(engage.join(" / "))}</span>` : "";
 
-      wrap.innerHTML = `
-        <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-          <div class="flex-1">
-            <div class="text-lg font-black leading-snug">${escapeHtml(p.title||"(제목 없음)")}</div>
-            <div class="mt-2 text-sm font-semibold muted">
-              발행: <span class="font-black">${fmtDate(p.published_at)}</span>
-              <span class="mx-2">·</span>
-              작성자: <span class="font-black">${escapeHtml(p.author||"-")}</span>
-              <span class="mx-2">·</span>
-              메타: <span class="font-black">${escapeHtml(p.blog_site_name||"-")}</span>
-              ${engageHtml}
-            </div>
-            ${sponsoredLine}
-            ${vocLine}
-          </div>
+      const engageHtml = engage.length ? ('<span class="mx-2">·</span><span class="font-black">' + escapeHtml(engage.join(" / ")) + '</span>') : "";
 
-          <a class="link text-sm" href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer">
-            원문 열기 <i class="fa-solid fa-arrow-up-right-from-square"></i>
-          </a>
-        </div>
+      wrap.innerHTML =
+        '<div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">' +
+          '<div class="flex-1">' +
+            '<div class="text-lg font-black leading-snug">' + escapeHtml(p.title||"(제목 없음)") + '</div>' +
+            '<div class="mt-2 text-sm font-semibold muted">' +
+              '발행: <span class="font-black">' + fmtDate(p.published_at) + '</span>' +
+              '<span class="mx-2">·</span>' +
+              '작성자: <span class="font-black">' + escapeHtml(p.author||"-") + '</span>' +
+              '<span class="mx-2">·</span>' +
+              '메타: <span class="font-black">' + escapeHtml(p.blog_site_name||"-") + '</span>' +
+              engageHtml +
+            '</div>' +
+            sponsoredLine +
+            vocLine +
+          '</div>' +
+          '<a class="link text-sm" href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener noreferrer">' +
+            '원문 열기 <i class="fa-solid fa-arrow-up-right-from-square"></i>' +
+          '</a>' +
+        '</div>' +
 
-        <div class="mt-4">
-          <div class="text-sm font-black">VOC 하이라이트</div>
-          <div class="mt-2">
-            ${hl || `<div class="muted font-semibold">하이라이트가 없습니다. (VOC 신호 약함)</div>`}
-          </div>
-        </div>
+        '<div class="mt-4">' +
+          '<div class="text-sm font-black">VOC 하이라이트</div>' +
+          '<div class="mt-2">' + (hl || '<div class="muted font-semibold">하이라이트가 없습니다. (VOC 신호 약함)</div>') + '</div>' +
+        '</div>' +
 
-        <div class="mt-4">
-          <div class="text-sm font-black">본문 미리보기</div>
-          <div class="mt-2 text-sm font-semibold muted whitespace-pre-line">
-            ${escapeHtml(p.text_preview||"")}
-          </div>
-        </div>
+        '<div class="mt-4">' +
+          '<div class="text-sm font-black">본문 미리보기</div>' +
+          '<div class="mt-2 text-sm font-semibold muted whitespace-pre-line">' + escapeHtml(p.text_preview||"") + '</div>' +
+        '</div>' +
 
-        ${img}
-      `;
+        img;
+
       box.appendChild(wrap);
     });
   }
 
-  function setRangeByDays(days) {
+  function initDateControls() {
     const all = POSTS.slice().sort((a,b)=> (b.published_at||"").localeCompare(a.published_at||""));
     const newestIso = all[0]?.published_at || null;
     const newestDate = newestIso ? new Date(newestIso) : new Date();
-    const end = new Date(newestDate.getTime());
-    const start = new Date(newestDate.getTime());
-    start.setDate(start.getDate() - (days-1));
 
-    $("dateStart").value = toDateOnly(start);
-    $("dateEnd").value = toDateOnly(end);
-
-    state.start = parseDateInput($("dateStart").value);
-    state.end = parseDateInput($("dateEnd").value);
-  }
-
-  function bindControls() {
-    $("btnApply").addEventListener("click", async () => {
-      showLoading(true);
-      disableControls(true);
-      await new Promise(r => setTimeout(r, 60)); // paint spinner
-
+    function setRange(days){
+      const end = new Date(newestDate.getTime());
+      const start = new Date(newestDate.getTime());
+      start.setDate(start.getDate() - (days-1));
+      $("dateStart").value = toDateOnly(start.toISOString());
+      $("dateEnd").value = toDateOnly(end.toISOString());
       state.start = parseDateInput($("dateStart").value);
       state.end = parseDateInput($("dateEnd").value);
+    }
 
-      renderAllFast();
+    // ✅ 기본: 최근 7일
+    setRange(7);
 
-      disableControls(false);
-      showLoading(false);
+    $("btnApply").addEventListener("click", () => {
+      showLoading();
+      setTimeout(() => {
+        state.start = parseDateInput($("dateStart").value);
+        state.end = parseDateInput($("dateEnd").value);
+        renderAll();
+        hideLoading();
+      }, 50);
     });
 
-    $("btn7d").addEventListener("click", async () => {
-      showLoading(true); disableControls(true);
-      await new Promise(r => setTimeout(r, 60));
-      setRangeByDays(7);
-      renderAllFast();
-      disableControls(false); showLoading(false);
+    $("btnReset7").addEventListener("click", () => {
+      showLoading();
+      setTimeout(() => {
+        setRange(7);
+        renderAll();
+        hideLoading();
+      }, 50);
     });
 
-    $("btn30d").addEventListener("click", async () => {
-      showLoading(true); disableControls(true);
-      await new Promise(r => setTimeout(r, 60));
-      setRangeByDays(30);
-      renderAllFast();
-      disableControls(false); showLoading(false);
-    });
-
-    $("btn60d").addEventListener("click", async () => {
-      showLoading(true); disableControls(true);
-      await new Promise(r => setTimeout(r, 60));
-      setRangeByDays(60);
-      renderAllFast();
-      disableControls(false); showLoading(false);
+    $("btnReset60").addEventListener("click", () => {
+      showLoading();
+      setTimeout(() => {
+        setRange(60);
+        renderAll();
+        hideLoading();
+      }, 50);
     });
 
     $("btnHideSponsored").addEventListener("click", () => {
       state.hideSponsored = !state.hideSponsored;
       $("btnHideSponsored").textContent = state.hideSponsored ? "협찬 보이기" : "협찬 숨기기";
-      renderAllFast();
+      renderAll();
     });
 
     $("btnVocOnly").addEventListener("click", () => {
       state.vocOnly = !state.vocOnly;
       $("btnVocOnly").textContent = state.vocOnly ? "전체 보기" : "VOC만 보기";
-      renderAllFast();
+      renderAll();
     });
 
-    $("vocMin").addEventListener("change", renderAllFast);
+    $("vocMin").addEventListener("change", renderAll);
   }
 
-  function disableControls(on) {
-    ["btnApply","btn7d","btn30d","btn60d","btnHideSponsored","btnVocOnly","vocMin","dateStart","dateEnd"]
-      .forEach(id => { const el = $(id); if (el) el.disabled = !!on; });
-  }
-
-  function renderAllFast() {
+  function renderAll() {
     renderHeader();
     renderSummaryCards();
     renderTopVoc();
@@ -1235,42 +1234,22 @@ def build_report_html() -> str:
     renderDetails();
   }
 
-  async function loadData() {
-    // important: cache-bust on GitHub Pages
-    const q = `?t=${Date.now()}`;
-    const [metaRes, postsRes] = await Promise.all([
-      fetch("./data/meta.json" + q, { cache: "no-store" }),
-      fetch("./data/posts.json" + q, { cache: "no-store" }),
-    ]);
-
-    const meta = metaRes.ok ? await metaRes.json() : null;
-    const postsPayload = postsRes.ok ? await postsRes.json() : [];
-    return { meta, posts: normalizePosts(postsPayload) };
-  }
-
-  (async function boot() {
-    showLoading(true);
-    try {
-      const { meta, posts } = await loadData();
-      META = meta;
-      POSTS = posts || [];
-
-      // default range = last 7 days (even if collected 60 days)
-      setRangeByDays(7);
-
-      bindControls();
-      renderAllFast();
-    } catch (e) {
-      console.error(e);
-      $("debugLine").innerHTML = `<span class="font-black text-red-700">데이터 로드 실패</span> — posts.json/meta.json 경로 또는 JSON 형식을 확인해줘`;
-    } finally {
-      showLoading(false);
-    }
-  })();
+  renderHeader();
+  initDateControls();
+  renderAll();
 </script>
 </body>
 </html>
 """
+
+
+def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
+    # template 치환 방식으로 f-string 충돌 방지
+    meta_json = json.dumps(meta, ensure_ascii=False)
+    posts_json = json.dumps(posts, ensure_ascii=False)
+    html = HTML_TEMPLATE.replace("__META_JSON__", meta_json).replace("__POSTS_JSON__", posts_json)
+    return html
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -1310,7 +1289,7 @@ def main():
         "cutoff_filtered": 0,
         "empty_text": 0,
         "brand_kept": 0,
-        "brand_reject_negative_context": 0,
+        "brand_reject_hard_exclude": 0,
         "brand_reject_no_context": 0,
         "brand_reject_no_token": 0,
         "early_stop_brand": 0,
@@ -1363,8 +1342,8 @@ def main():
 
                 ok, markers, reason = is_brand_columbia(title=title, body=text, snippet=snippet)
                 if not ok:
-                    if reason == "negative_context":
-                        debug["brand_reject_negative_context"] += 1
+                    if reason.startswith("hard_exclude"):
+                        debug["brand_reject_hard_exclude"] += 1
                     elif reason == "no_context":
                         debug["brand_reject_no_context"] += 1
                     else:
@@ -1419,7 +1398,6 @@ def main():
                 posts.append(p)
                 mark_seen(seen_db, url, iso(collected_at))
 
-                # early stop (brand + voc)
                 if brand_kept >= args.brand_target:
                     debug["early_stop_brand"] = 1
                     if voc_kept >= args.voc_target:
@@ -1480,7 +1458,6 @@ def main():
         d["collectedAt"] = d.get("collected_at")
         posts_dicts.append(d)
 
-    # ✅ IMPORTANT: write in a shape-safe way for any frontend
     posts_root = {"posts": posts_dicts, "items": posts_dicts}
 
     with open(os.path.join(data_dir, "posts.json"), "w", encoding="utf-8") as f:
@@ -1489,12 +1466,13 @@ def main():
     with open(os.path.join(data_dir, "meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
-    html = build_report_html()
+    html = build_report_html(meta=meta, posts=posts_dicts)
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
     print(f"[OK] posts_saved={len(posts)} voc_posts={meta['counts']['voc_posts']} debug={debug}")
     print(f"[OK] {os.path.join(out_dir, 'index.html')}")
+
 
 if __name__ == "__main__":
     main()
