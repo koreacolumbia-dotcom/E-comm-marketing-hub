@@ -2,10 +2,15 @@
 # -*- coding: utf-8 -*-
 
 """
-[NAVER BLOG VOC] Columbia brand monitoring | v4.1 FINAL (Upgrades 1~4)
-- FIXED: Python f-string + JS template literal `${...}` escaping
-- FIXED: JS 파싱 에러 원인 제거 (engageHtml에 잘못 남아있던 `${...}` 제거)
+[NAVER BLOG VOC] Columbia brand monitoring | v4.2 FINAL
 
+✅ FIX 0) Frontend posts shape-safe:
+   - supports: []  OR  {posts:[...]}  OR  {items:[...]}  OR  {posts:{items:[...]}}
+   - fetches data/posts.json & data/meta.json (no huge inline JS)
+   - prevents "POSTS.filter is not a function" crash
+
+✅ UX 1) Default view range = last 7 days (collection stays 60 days)
+✅ UX 2) Apply shows loading overlay spinner
 ✅ 1) VOC scoring + highlight sentences
 ✅ 2) URL cache + early stop
 ✅ 3) Meta enrichment (blog_name/author/og:image + best-effort engagement)
@@ -35,7 +40,6 @@ import requests
 from dateutil import parser as dtparser
 from playwright.sync_api import sync_playwright
 
-
 KST = timezone(timedelta(hours=9))
 
 # =======================
@@ -64,6 +68,7 @@ OUTDOOR_CONTEXT = [
     "매장", "구매", "구입", "세일", "할인",
 ]
 
+# "Colombia(국가)" / 커피 / 영화 등 문맥 오탐 방지
 NEGATIVE_CONTEXT = [
     "페소", "COP", "환율", "관세", "대사관", "보고타", "남미", "국경", "과세환율", "통관", "무역",
     "원두", "커피", "핸드드립", "드립", "에스프레소", "로스팅", "게이샤", "바리스타",
@@ -272,7 +277,6 @@ def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[s
     highlights = highlights[:6]
     return int(score), tags, highlights
 
-
 def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str = "date") -> List[Dict[str, Any]]:
     cid = os.getenv("NAVER_CLIENT_ID", "").strip()
     csec = os.getenv("NAVER_CLIENT_SECRET", "").strip()
@@ -320,7 +324,6 @@ def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str
         seen.add(u)
         uniq.append(x)
     return uniq
-
 
 def get_mainframe_post_url(page) -> Optional[str]:
     try:
@@ -487,7 +490,6 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Dict[str, Any
         except Exception:
             pass
 
-
 def load_seen_urls(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         return {"version": 1, "seen": {}}
@@ -511,7 +513,6 @@ def mark_seen(seen_db: Dict[str, Any], url: str, collected_at_iso: str) -> None:
 
 def is_seen(seen_db: Dict[str, Any], url: str) -> bool:
     return url in (seen_db.get("seen", {}) or {})
-
 
 @dataclass
 class BlogPost:
@@ -544,16 +545,9 @@ class BlogPost:
 
     source: str
 
-
-def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
-    posts_json = json.dumps(posts, ensure_ascii=False)
-    meta_json = json.dumps(meta, ensure_ascii=False)
-
-    # ⚠️ IMPORTANT:
-    # Python f-string 안에서 JS 템플릿 `${...}`를 쓰려면
-    # `{` `}`를 모두 `{{` `}}`로 이스케이프해야 함.
-    # (아래는 전부 처리되어 있고, engageHtml은 JS쪽에서 `${}` 없이 계산하도록 변경함)
-    return f"""<!doctype html>
+def build_report_html() -> str:
+    # NOTE: data is fetched from ./data/meta.json and ./data/posts.json
+    return """<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -563,40 +557,40 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root {{ --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }}
-    body{{
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+    body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
       color:#0f172a;
       min-height:100vh;
-    }}
-    .glass-card{{
+    }
+    .glass-card{
       background: rgba(255,255,255,0.60);
       backdrop-filter: blur(18px);
       border: 1px solid rgba(255,255,255,0.75);
       border-radius: 28px;
       box-shadow: 0 20px 50px rgba(0,45,114,0.06);
-    }}
-    .feed-card {{
+    }
+    .feed-card {
       border-radius: 20px;
       background: rgba(255,255,255,0.78);
       border: 1px solid rgba(255,255,255,0.85);
       box-shadow: 0 10px 25px rgba(0,45,114,0.05);
-    }}
-    .muted {{ color:#64748b; }}
-    .badge {{
+    }
+    .muted { color:#64748b; }
+    .badge {
       display:inline-flex; align-items:center;
       padding: 3px 10px; border-radius:999px;
       font-size: 11px; font-weight: 900;
       background: rgba(15,23,42,0.06);
       color:#0f172a;
-    }}
-    .badge-ad {{ background: rgba(234,179,8,0.14); color: rgb(161,98,7); }}
-    .badge-brand {{ background: rgba(37,99,235,0.10); color: rgb(30,64,175); }}
-    .badge-voc {{ background: rgba(239,68,68,0.10); color: rgb(153,27,27); }}
-    .link {{ color: var(--brand); font-weight: 900; }}
-    .link:hover {{ text-decoration: underline; }}
-    .kbd {{
+    }
+    .badge-ad { background: rgba(234,179,8,0.14); color: rgb(161,98,7); }
+    .badge-brand { background: rgba(37,99,235,0.10); color: rgb(30,64,175); }
+    .badge-voc { background: rgba(239,68,68,0.10); color: rgb(153,27,27); }
+    .link { color: var(--brand); font-weight: 900; }
+    .link:hover { text-decoration: underline; }
+    .kbd {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size: 12px;
       padding: 2px 8px;
@@ -604,34 +598,66 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       background: rgba(15,23,42,0.06);
       color: #334155;
       font-weight: 900;
-    }}
-    input[type="date"] {{
+    }
+    input[type="date"] {
       background: rgba(255,255,255,0.75);
       border: 1px solid rgba(255,255,255,0.9);
       border-radius: 16px;
       padding: 10px 12px;
       font-weight: 900;
       color:#0f172a;
-    }}
-    .btn {{
+    }
+    .btn {
       padding: 10px 14px;
       border-radius: 16px;
       font-weight: 900;
       background: rgba(255,255,255,0.75);
       border: 1px solid rgba(255,255,255,0.9);
       transition: all .15s ease;
-    }}
-    .btn:hover {{ background: #fff; }}
-    .lineclamp4 {{
+    }
+    .btn:hover { background: #fff; }
+    .btn:disabled { opacity:.55; cursor:not-allowed; }
+    .lineclamp4 {
       display: -webkit-box;
       -webkit-line-clamp: 4;
       -webkit-box-orient: vertical;
       overflow: hidden;
-    }}
+    }
+
+    /* Loading overlay */
+    .loading-overlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(248,250,252,0.72);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .spinner{
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 4px solid rgba(0,0,0,0.10);
+      border-top-color: rgba(0,45,114,0.85);
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin{ to { transform: rotate(360deg); } }
   </style>
 </head>
 
 <body class="p-4 md:p-8">
+  <div class="loading-overlay" id="loading">
+    <div class="glass-card px-6 py-5 flex items-center gap-4">
+      <div class="spinner"></div>
+      <div>
+        <div class="text-sm font-black">필터 적용 중…</div>
+        <div class="text-xs font-semibold muted mt-1">잠시만요</div>
+      </div>
+    </div>
+  </div>
+
   <div class="max-w-7xl mx-auto">
     <div class="glass-card p-6 md:p-8">
       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -665,7 +691,10 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
             <div class="muted font-black">~</div>
             <input id="dateEnd" type="date" />
             <button id="btnApply" class="btn">적용</button>
-            <button id="btnReset" class="btn">최근 60일</button>
+
+            <button id="btn7d" class="btn">최근 7일</button>
+            <button id="btn30d" class="btn">최근 30일</button>
+            <button id="btn60d" class="btn">최근 60일</button>
 
             <div class="ml-2 flex items-center gap-2">
               <span class="text-sm font-black muted">VOC≥</span>
@@ -681,15 +710,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           </div>
         </div>
 
-        <div class="mt-3 text-xs font-semibold muted">
-          candidates: <span class="font-black">{meta.get("debug",{}).get("candidates_total","-")}</span>
-          <span class="mx-2">|</span>
-          scraped_ok: <span class="font-black">{meta.get("debug",{}).get("scraped_ok","-")}</span>
-          <span class="mx-2">|</span>
-          kept_brand: <span class="font-black">{meta.get("debug",{}).get("brand_kept","-")}</span>
-          <span class="mx-2">|</span>
-          saved: <span class="font-black">{meta.get("counts",{}).get("posts","-")}</span>
-        </div>
+        <div class="mt-3 text-xs font-semibold muted" id="debugLine">-</div>
       </div>
     </div>
 
@@ -742,241 +763,280 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
   </div>
 
 <script>
-  const META = {meta_json};
-  const POSTS = {posts_json};
-
   const $ = (id) => document.getElementById(id);
 
-  function escapeHtml(s) {{
+  function escapeHtml(s) {
     return String(s||"")
       .replaceAll("&","&amp;")
       .replaceAll("<","&lt;")
       .replaceAll(">","&gt;")
       .replaceAll('"',"&quot;")
       .replaceAll("'","&#039;");
-  }}
+  }
 
-  function toDateOnly(iso) {{
-    try {{
+  function showLoading(on) {
+    const el = $("loading");
+    if (!el) return;
+    el.style.display = on ? "flex" : "none";
+  }
+
+  function toDateOnly(iso) {
+    try {
       const d = new Date(iso);
+      if (isNaN(d.getTime())) return "";
       const y = d.getFullYear();
       const m = String(d.getMonth()+1).padStart(2,"0");
       const da = String(d.getDate()).padStart(2,"0");
-      return `${{y}}-${{m}}-${{da}}`;
-    }} catch (e) {{
+      return `${y}-${m}-${da}`;
+    } catch (e) {
       return "";
-    }}
-  }}
+    }
+  }
 
-  function fmtDate(iso) {{
+  function fmtDate(iso) {
     const d = toDateOnly(iso);
     if (!d) return "-";
     return d.replaceAll("-", ".");
-  }}
+  }
 
-  function parseDateInput(v) {{
+  function parseDateInput(v) {
     if (!v) return null;
     const t = new Date(v + "T00:00:00");
     if (isNaN(t.getTime())) return null;
     return t;
-  }}
+  }
 
-  function inRange(postIso, start, end) {{
+  function inRange(postIso, start, end) {
     const d = new Date(postIso);
     if (isNaN(d.getTime())) return false;
     if (start && d < start) return false;
-    if (end) {{
+    if (end) {
       const end2 = new Date(end.getTime());
       end2.setHours(23,59,59,999);
       if (d > end2) return false;
-    }}
+    }
     return true;
-  }}
+  }
 
-  let state = {{
+  function normalizePosts(payload) {
+    // supports: [] OR {posts:[]} OR {items:[]} OR {posts:{items:[]}}
+    if (Array.isArray(payload)) return payload;
+
+    if (payload && Array.isArray(payload.posts)) return payload.posts;
+    if (payload && Array.isArray(payload.items)) return payload.items;
+
+    if (payload && payload.posts && Array.isArray(payload.posts.items)) return payload.posts.items;
+
+    // fallback: try find first array field
+    if (payload && typeof payload === "object") {
+      for (const k of Object.keys(payload)) {
+        if (Array.isArray(payload[k])) return payload[k];
+      }
+    }
+    return [];
+  }
+
+  let META = null;
+  let POSTS = [];
+
+  let state = {
     hideSponsored: false,
     vocOnly: false,
     start: null,
     end: null,
     word: null,
     tag: null,
-  }};
+  };
 
-  function vocMin() {{
+  function vocMin() {
     const v = parseInt(($("vocMin")?.value || "20"), 10);
     if (isNaN(v)) return 20;
     return Math.max(0, Math.min(120, v));
-  }}
+  }
 
-  function filteredPosts() {{
+  function filteredPosts() {
     const minV = vocMin();
-    return POSTS.filter(p => {{
+    return POSTS.filter(p => {
       if (state.hideSponsored && p.is_sponsored) return false;
       if (!inRange(p.published_at, state.start, state.end)) return false;
 
       if (state.vocOnly && (p.voc_score || 0) < minV) return false;
 
-      if (state.tag) {{
+      if (state.tag) {
         const tags = p.voc_tags || [];
         if (!tags.includes(state.tag)) return false;
-      }}
+      }
 
       if (!state.word) return true;
       const w = state.word.toLowerCase();
       const t = (p.text_preview || "").toLowerCase();
       const title = (p.title || "").toLowerCase();
       return t.includes(w) || title.includes(w);
-    }});
-  }}
+    });
+  }
 
-  function renderHeader() {{
-    $("updatedAt").textContent = META.updated_at_kst || "-";
-    $("periodText").textContent = META.period_text || "-";
-  }}
+  function renderHeader() {
+    $("updatedAt").textContent = (META && META.updated_at_kst) ? META.updated_at_kst : "-";
+    $("periodText").textContent = (META && META.period_text) ? META.period_text : "-";
 
-  function renderSummaryCards() {{
+    const dbg = (META && META.debug) ? META.debug : null;
+    if (dbg) {
+      $("debugLine").innerHTML = `
+        candidates: <span class="font-black">${escapeHtml(dbg.candidates_total ?? "-")}</span>
+        <span class="mx-2">|</span>
+        scraped_ok: <span class="font-black">${escapeHtml(dbg.scraped_ok ?? "-")}</span>
+        <span class="mx-2">|</span>
+        kept_brand: <span class="font-black">${escapeHtml(dbg.brand_kept ?? "-")}</span>
+        <span class="mx-2">|</span>
+        saved: <span class="font-black">${escapeHtml((META.counts && META.counts.posts) ?? "-")}</span>
+      `;
+    } else {
+      $("debugLine").textContent = "-";
+    }
+  }
+
+  function renderSummaryCards() {
     const box = $("summaryCards");
     box.innerHTML = "";
 
     const listAll = filteredPosts();
     const today = new Date();
-    const todayKey = `${{today.getFullYear()}}-${{String(today.getMonth()+1).padStart(2,"0")}}-${{String(today.getDate()).padStart(2,"0")}}`;
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
 
     let newToday = 0;
-    let sponsored = 0;
     let vocOver = 0;
 
-    listAll.forEach(p => {{
+    listAll.forEach(p => {
       if (toDateOnly(p.collected_at) === todayKey) newToday += 1;
-      if (p.is_sponsored) sponsored += 1;
       if ((p.voc_score||0) >= vocMin()) vocOver += 1;
-    }});
+    });
 
     const end = state.end ? new Date(state.end.getTime()) : new Date();
     const start7 = new Date(end.getTime()); start7.setDate(start7.getDate()-6);
     const start60 = new Date(end.getTime()); start60.setDate(start60.getDate()-59);
 
-    function ratio(rangeStart) {{
+    function ratio(rangeStart) {
       const subset = POSTS.filter(p => inRange(p.published_at, rangeStart, end));
       if (subset.length === 0) return 0;
       const n = subset.filter(p => (p.voc_score||0) >= vocMin()).length;
       return Math.round((n / subset.length) * 1000) / 10;
-    }}
+    }
 
     const r7 = ratio(start7);
     const r60 = ratio(start60);
 
     const cards = [
-      {{ title: "Posts", value: String(listAll.length), sub: "필터 기준" }},
-      {{ title: "New Today", value: String(newToday), sub: "수집일 기준" }},
-      {{ title: "VOC (≥" + vocMin() + ")", value: String(vocOver), sub: "VOC 감지" }},
-      {{ title: "VOC Ratio", value: r7 + "%", sub: "7D vs 60D: " + r60 + "%" }},
+      { title: "Posts", value: String(listAll.length), sub: "현재 필터 기준" },
+      { title: "New Today", value: String(newToday), sub: "수집일 기준" },
+      { title: "VOC (≥" + vocMin() + ")", value: String(vocOver), sub: "VOC 감지" },
+      { title: "VOC Ratio", value: r7 + "%", sub: "7D vs 60D: " + r60 + "%" },
     ];
 
-    cards.forEach(c => {{
+    cards.forEach(c => {
       const el = document.createElement("div");
       el.className = "glass-card p-5";
       el.innerHTML = `
-        <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">${{escapeHtml(c.title)}}</div>
-        <div class="text-3xl font-black mt-2">${{escapeHtml(c.value)}}</div>
-        <div class="muted text-sm font-semibold mt-1">${{escapeHtml(c.sub)}}</div>
+        <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">${escapeHtml(c.title)}</div>
+        <div class="text-3xl font-black mt-2">${escapeHtml(c.value)}</div>
+        <div class="muted text-sm font-semibold mt-1">${escapeHtml(c.sub)}</div>
       `;
       box.appendChild(el);
-    }});
-  }}
+    });
+  }
 
-  function renderTopVoc() {{
+  function renderTopVoc() {
     const box = $("topVocList");
     box.innerHTML = "";
     const list = filteredPosts().slice().sort((a,b)=> (b.voc_score||0)-(a.voc_score||0)).slice(0, 8);
 
-    if (list.length === 0) {{
+    if (list.length === 0) {
       box.innerHTML = `<div class="muted font-semibold">VOC 항목이 없습니다.</div>`;
       return;
-    }}
+    }
 
-    list.forEach(p => {{
+    list.forEach(p => {
       const hl = (p.voc_highlights || [])[0]?.sent || p.excerpt || "";
       const el = document.createElement("div");
       el.className = "feed-card p-4";
       el.innerHTML = `
         <div class="flex items-start justify-between gap-2">
-          <div class="font-black text-sm leading-snug">${{escapeHtml(p.title||"(제목 없음)")}}</div>
-          <div class="badge badge-voc">VOC ${{p.voc_score||0}}</div>
+          <div class="font-black text-sm leading-snug">${escapeHtml(p.title||"(제목 없음)")}</div>
+          <div class="badge badge-voc">VOC ${p.voc_score||0}</div>
         </div>
-        <div class="mt-2 text-xs font-semibold muted lineclamp4">${{escapeHtml(hl)}}</div>
-        <div class="mt-2 text-xs font-black muted">${{escapeHtml((p.voc_tags||[]).slice(0,3).join(", "))}}</div>
+        <div class="mt-2 text-xs font-semibold muted lineclamp4">${escapeHtml(hl)}</div>
+        <div class="mt-2 text-xs font-black muted">${escapeHtml((p.voc_tags||[]).slice(0,3).join(", "))}</div>
       `;
-      el.addEventListener("click", ()=> {{
+      el.addEventListener("click", ()=> {
         window.open(p.url, "_blank", "noopener,noreferrer");
-      }});
+      });
       box.appendChild(el);
-    }});
-  }}
+    });
+  }
 
-  function renderTagChips() {{
+  function renderTagChips() {
     const box = $("tagChips");
     box.innerHTML = "";
 
-    const freq = {{}};
-    POSTS.forEach(p => {{
-      (p.voc_tags||[]).forEach(t => {{
+    const freq = {};
+    POSTS.forEach(p => {
+      (p.voc_tags||[]).forEach(t => {
         freq[t] = (freq[t]||0) + 1;
-      }});
-    }});
+      });
+    });
     const items = Object.entries(freq).sort((a,b)=> b[1]-a[1]).slice(0, 14);
 
     const clear = document.createElement("div");
     clear.className = "badge cursor-pointer hover:opacity-80";
     clear.textContent = "태그 해제";
-    clear.addEventListener("click", ()=> {{ state.tag = null; renderAll(); }});
+    clear.addEventListener("click", ()=> { state.tag = null; renderAllFast(); });
     box.appendChild(clear);
 
-    items.forEach(([t,c]) => {{
+    items.forEach(([t,c]) => {
       const el = document.createElement("div");
       el.className = "badge cursor-pointer hover:opacity-80";
-      el.innerHTML = `${{escapeHtml(t)}} · ${{c}}`;
-      el.addEventListener("click", ()=> {{
+      el.innerHTML = `${escapeHtml(t)} · ${c}`;
+      el.addEventListener("click", ()=> {
         state.tag = t;
-        renderAll();
-      }});
+        renderAllFast();
+      });
       box.appendChild(el);
-    }});
-  }}
+    });
+  }
 
-  function renderWords() {{
+  function renderWords() {
     const box = $("wordChips");
     box.innerHTML = "";
-    const words = (META.top_words || []).slice(0, 16);
-    words.forEach(([w,c]) => {{
+    const words = ((META && META.top_words) ? META.top_words : []).slice(0, 16);
+
+    words.forEach(([w,c]) => {
       const el = document.createElement("div");
       el.className = "badge cursor-pointer hover:opacity-80";
-      el.innerHTML = `${{escapeHtml(w)}} · ${{c}}`;
-      el.addEventListener("click", () => {{
+      el.innerHTML = `${escapeHtml(w)} · ${c}`;
+      el.addEventListener("click", () => {
         state.word = w;
-        renderAll();
-      }});
+        renderAllFast();
+      });
       box.appendChild(el);
-    }});
+    });
 
     const clear = document.createElement("div");
     clear.className = "badge cursor-pointer hover:opacity-80";
     clear.textContent = "단어 해제";
-    clear.addEventListener("click", ()=> {{ state.word = null; renderAll(); }});
+    clear.addEventListener("click", ()=> { state.word = null; renderAllFast(); });
     box.appendChild(clear);
-  }}
+  }
 
-  function renderFeed() {{
+  function renderFeed() {
     const grid = $("feedGrid");
     grid.innerHTML = "";
     const list = filteredPosts().slice().sort((a,b)=> (b.published_at||"").localeCompare(a.published_at||""));
 
-    if (list.length === 0) {{
+    if (list.length === 0) {
       grid.innerHTML = `<div class="muted font-semibold">조건에 맞는 글이 없습니다.</div>`;
       return;
-    }}
+    }
 
-    list.forEach((p, idx) => {{
+    list.forEach((p, idx) => {
       const card = document.createElement("div");
       card.className = "feed-card p-4 cursor-pointer hover:translate-y-[-1px] transition";
 
@@ -984,9 +1044,9 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       badges.push(`<span class="badge badge-brand">Brand OK</span>`);
       if (p.is_sponsored) badges.push(`<span class="badge badge-ad">협찬</span>`);
       const vs = p.voc_score || 0;
-      if (vs >= vocMin()) badges.push(`<span class="badge badge-voc">VOC ${{vs}}</span>`);
+      if (vs >= vocMin()) badges.push(`<span class="badge badge-voc">VOC ${vs}</span>`);
       const tags = (p.voc_tags || []).slice(0,2).join(", ");
-      if (tags) badges.push(`<span class="badge">tags: ${{escapeHtml(tags)}}</span>`);
+      if (tags) badges.push(`<span class="badge">tags: ${escapeHtml(tags)}</span>`);
 
       const metaLine = [];
       if (p.author) metaLine.push(p.author);
@@ -995,81 +1055,78 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
       card.innerHTML = `
         <div class="flex items-start justify-between gap-2">
-          <div class="font-black text-base leading-snug">${{escapeHtml(p.title||"(제목 없음)")}}</div>
-          <div class="text-[11px] font-black muted whitespace-nowrap">${{fmtDate(p.published_at)}}</div>
+          <div class="font-black text-base leading-snug">${escapeHtml(p.title||"(제목 없음)")}</div>
+          <div class="text-[11px] font-black muted whitespace-nowrap">${fmtDate(p.published_at)}</div>
         </div>
 
-        <div class="mt-2 flex flex-wrap gap-2">${{badges.join("")}}</div>
+        <div class="mt-2 flex flex-wrap gap-2">${badges.join("")}</div>
 
         <div class="mt-3 text-sm font-semibold muted lineclamp4">
-          ${{escapeHtml(p.excerpt || "")}}
+          ${escapeHtml(p.excerpt || "")}
         </div>
 
         <div class="mt-3 text-[12px] font-black muted">
-          ${{escapeHtml(metaText)}}
+          ${escapeHtml(metaText)}
         </div>
       `;
 
-      card.addEventListener("click", () => {{
+      card.addEventListener("click", () => {
         window.open(p.url, "_blank", "noopener,noreferrer");
         const target = document.getElementById("detail-" + idx);
-        if (target) target.scrollIntoView({{ behavior:"smooth", block:"start" }});
-      }});
+        if (target) target.scrollIntoView({ behavior:"smooth", block:"start" });
+      });
 
       grid.appendChild(card);
-    }});
-  }}
+    });
+  }
 
-  function renderDetails() {{
+  function renderDetails() {
     const box = $("detailList");
     box.innerHTML = "";
     const list = filteredPosts().slice().sort((a,b)=> (b.published_at||"").localeCompare(a.published_at||""));
 
-    list.forEach((p, idx) => {{
+    list.forEach((p, idx) => {
       const wrap = document.createElement("div");
       wrap.id = "detail-" + idx;
       wrap.className = "feed-card p-5";
 
       const sponsoredLine = p.is_sponsored
-        ? `<div class="mt-2 text-xs font-black badge badge-ad">협찬/광고: ${{escapeHtml((p.sponsored_markers||[]).join(", "))}}</div>`
+        ? `<div class="mt-2 text-xs font-black badge badge-ad">협찬/광고: ${escapeHtml((p.sponsored_markers||[]).join(", "))}</div>`
         : ``;
 
       const vocLine = `<div class="mt-2 flex flex-wrap gap-2">
-        <span class="badge badge-voc">VOC ${{p.voc_score||0}}</span>
-        ${{(p.voc_tags||[]).slice(0,6).map(t=> `<span class="badge">${{escapeHtml(t)}}</span>`).join("")}}
+        <span class="badge badge-voc">VOC ${p.voc_score||0}</span>
+        ${(p.voc_tags||[]).slice(0,6).map(t=> `<span class="badge">${escapeHtml(t)}</span>`).join("")}
       </div>`;
 
-      const hl = (p.voc_highlights || []).map(h => {{
-        return `<div class="mt-2 text-sm font-semibold muted">• ${{escapeHtml(h.sent)}} <span class="badge ml-2">+${{h.score}}</span></div>`;
-      }}).join("");
+      const hl = (p.voc_highlights || []).map(h => {
+        return `<div class="mt-2 text-sm font-semibold muted">• ${escapeHtml(h.sent)} <span class="badge ml-2">+${h.score}</span></div>`;
+      }).join("");
 
-      const img = p.og_image ? `<img src="${{escapeHtml(p.og_image)}}" class="w-full rounded-2xl border border-white/70 mt-4" loading="lazy" />` : "";
+      const img = p.og_image ? `<img src="${escapeHtml(p.og_image)}" class="w-full rounded-2xl border border-white/70 mt-4" loading="lazy" />` : "";
 
-      // ✅ FIXED: engageHtml을 JS에서 "그냥 문자열"로 계산 (파싱 에러 제거)
       const engage = [];
       if (p.like_count !== null && p.like_count !== undefined) engage.push("좋아요 " + p.like_count);
       if (p.comment_count !== null && p.comment_count !== undefined) engage.push("댓글 " + p.comment_count);
-      const engageHtml = engage.length
-        ? `<span class="mx-2">·</span><span class="font-black">${{escapeHtml(engage.join(" / "))}}</span>`
-        : "";
+      const engageHtml = engage.length ? `<span class="mx-2">·</span><span class="font-black">${escapeHtml(engage.join(" / "))}</span>` : "";
 
       wrap.innerHTML = `
         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div class="flex-1">
-            <div class="text-lg font-black leading-snug">${{escapeHtml(p.title||"(제목 없음)")}}</div>
+            <div class="text-lg font-black leading-snug">${escapeHtml(p.title||"(제목 없음)")}</div>
             <div class="mt-2 text-sm font-semibold muted">
-              발행: <span class="font-black">${{fmtDate(p.published_at)}}</span>
+              발행: <span class="font-black">${fmtDate(p.published_at)}</span>
               <span class="mx-2">·</span>
-              작성자: <span class="font-black">${{escapeHtml(p.author||"-")}}</span>
+              작성자: <span class="font-black">${escapeHtml(p.author||"-")}</span>
               <span class="mx-2">·</span>
-              메타: <span class="font-black">${{escapeHtml(p.blog_site_name||"-")}}</span>
-              ${{engageHtml}}
+              메타: <span class="font-black">${escapeHtml(p.blog_site_name||"-")}</span>
+              ${engageHtml}
             </div>
-            ${{sponsoredLine}}
-            ${{vocLine}}
+            ${sponsoredLine}
+            ${vocLine}
           </div>
 
-          <a class="link text-sm" href="${{escapeHtml(p.url)}}" target="_blank" rel="noopener noreferrer">
+          <a class="link text-sm" href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer">
             원문 열기 <i class="fa-solid fa-arrow-up-right-from-square"></i>
           </a>
         </div>
@@ -1077,68 +1134,98 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         <div class="mt-4">
           <div class="text-sm font-black">VOC 하이라이트</div>
           <div class="mt-2">
-            ${{hl || `<div class="muted font-semibold">하이라이트가 없습니다. (VOC 신호 약함)</div>`}}
+            ${hl || `<div class="muted font-semibold">하이라이트가 없습니다. (VOC 신호 약함)</div>`}
           </div>
         </div>
 
         <div class="mt-4">
           <div class="text-sm font-black">본문 미리보기</div>
           <div class="mt-2 text-sm font-semibold muted whitespace-pre-line">
-            ${{escapeHtml(p.text_preview||"")}}
+            ${escapeHtml(p.text_preview||"")}
           </div>
         </div>
 
-        ${{img}}
+        ${img}
       `;
       box.appendChild(wrap);
-    }});
-  }}
+    });
+  }
 
-  function initDateControls() {{
+  function setRangeByDays(days) {
     const all = POSTS.slice().sort((a,b)=> (b.published_at||"").localeCompare(a.published_at||""));
-    const newest = all[0]?.published_at || null;
-    const newestDate = newest ? new Date(newest) : new Date();
-
+    const newestIso = all[0]?.published_at || null;
+    const newestDate = newestIso ? new Date(newestIso) : new Date();
     const end = new Date(newestDate.getTime());
     const start = new Date(newestDate.getTime());
-    start.setDate(start.getDate() - 59);
+    start.setDate(start.getDate() - (days-1));
 
-    $("dateStart").value = toDateOnly(start.toISOString());
-    $("dateEnd").value = toDateOnly(end.toISOString());
+    $("dateStart").value = toDateOnly(start);
+    $("dateEnd").value = toDateOnly(end);
 
     state.start = parseDateInput($("dateStart").value);
     state.end = parseDateInput($("dateEnd").value);
+  }
 
-    $("btnApply").addEventListener("click", () => {{
+  function bindControls() {
+    $("btnApply").addEventListener("click", async () => {
+      showLoading(true);
+      disableControls(true);
+      await new Promise(r => setTimeout(r, 60)); // paint spinner
+
       state.start = parseDateInput($("dateStart").value);
       state.end = parseDateInput($("dateEnd").value);
-      renderAll();
-    }});
 
-    $("btnReset").addEventListener("click", () => {{
-      $("dateStart").value = toDateOnly(start.toISOString());
-      $("dateEnd").value = toDateOnly(end.toISOString());
-      state.start = parseDateInput($("dateStart").value);
-      state.end = parseDateInput($("dateEnd").value);
-      renderAll();
-    }});
+      renderAllFast();
 
-    $("btnHideSponsored").addEventListener("click", () => {{
+      disableControls(false);
+      showLoading(false);
+    });
+
+    $("btn7d").addEventListener("click", async () => {
+      showLoading(true); disableControls(true);
+      await new Promise(r => setTimeout(r, 60));
+      setRangeByDays(7);
+      renderAllFast();
+      disableControls(false); showLoading(false);
+    });
+
+    $("btn30d").addEventListener("click", async () => {
+      showLoading(true); disableControls(true);
+      await new Promise(r => setTimeout(r, 60));
+      setRangeByDays(30);
+      renderAllFast();
+      disableControls(false); showLoading(false);
+    });
+
+    $("btn60d").addEventListener("click", async () => {
+      showLoading(true); disableControls(true);
+      await new Promise(r => setTimeout(r, 60));
+      setRangeByDays(60);
+      renderAllFast();
+      disableControls(false); showLoading(false);
+    });
+
+    $("btnHideSponsored").addEventListener("click", () => {
       state.hideSponsored = !state.hideSponsored;
       $("btnHideSponsored").textContent = state.hideSponsored ? "협찬 보이기" : "협찬 숨기기";
-      renderAll();
-    }});
+      renderAllFast();
+    });
 
-    $("btnVocOnly").addEventListener("click", () => {{
+    $("btnVocOnly").addEventListener("click", () => {
       state.vocOnly = !state.vocOnly;
       $("btnVocOnly").textContent = state.vocOnly ? "전체 보기" : "VOC만 보기";
-      renderAll();
-    }});
+      renderAllFast();
+    });
 
-    $("vocMin").addEventListener("change", renderAll);
-  }}
+    $("vocMin").addEventListener("change", renderAllFast);
+  }
 
-  function renderAll() {{
+  function disableControls(on) {
+    ["btnApply","btn7d","btn30d","btn60d","btnHideSponsored","btnVocOnly","vocMin","dateStart","dateEnd"]
+      .forEach(id => { const el = $(id); if (el) el.disabled = !!on; });
+  }
+
+  function renderAllFast() {
     renderHeader();
     renderSummaryCards();
     renderTopVoc();
@@ -1146,16 +1233,44 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
     renderWords();
     renderFeed();
     renderDetails();
-  }}
+  }
 
-  renderHeader();
-  initDateControls();
-  renderAll();
+  async function loadData() {
+    // important: cache-bust on GitHub Pages
+    const q = `?t=${Date.now()}`;
+    const [metaRes, postsRes] = await Promise.all([
+      fetch("./data/meta.json" + q, { cache: "no-store" }),
+      fetch("./data/posts.json" + q, { cache: "no-store" }),
+    ]);
+
+    const meta = metaRes.ok ? await metaRes.json() : null;
+    const postsPayload = postsRes.ok ? await postsRes.json() : [];
+    return { meta, posts: normalizePosts(postsPayload) };
+  }
+
+  (async function boot() {
+    showLoading(true);
+    try {
+      const { meta, posts } = await loadData();
+      META = meta;
+      POSTS = posts || [];
+
+      // default range = last 7 days (even if collected 60 days)
+      setRangeByDays(7);
+
+      bindControls();
+      renderAllFast();
+    } catch (e) {
+      console.error(e);
+      $("debugLine").innerHTML = `<span class="font-black text-red-700">데이터 로드 실패</span> — posts.json/meta.json 경로 또는 JSON 형식을 확인해줘`;
+    } finally {
+      showLoading(false);
+    }
+  })();
 </script>
 </body>
 </html>
 """
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -1304,6 +1419,7 @@ def main():
                 posts.append(p)
                 mark_seen(seen_db, url, iso(collected_at))
 
+                # early stop (brand + voc)
                 if brand_kept >= args.brand_target:
                     debug["early_stop_brand"] = 1
                     if voc_kept >= args.voc_target:
@@ -1364,6 +1480,7 @@ def main():
         d["collectedAt"] = d.get("collected_at")
         posts_dicts.append(d)
 
+    # ✅ IMPORTANT: write in a shape-safe way for any frontend
     posts_root = {"posts": posts_dicts, "items": posts_dicts}
 
     with open(os.path.join(data_dir, "posts.json"), "w", encoding="utf-8") as f:
@@ -1372,13 +1489,12 @@ def main():
     with open(os.path.join(data_dir, "meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
-    html = build_report_html(meta=meta, posts=posts_dicts)
+    html = build_report_html()
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
     print(f"[OK] posts_saved={len(posts)} voc_posts={meta['counts']['voc_posts']} debug={debug}")
     print(f"[OK] {os.path.join(out_dir, 'index.html')}")
-
 
 if __name__ == "__main__":
     main()
