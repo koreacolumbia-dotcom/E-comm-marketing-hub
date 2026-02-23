@@ -8,7 +8,6 @@ on:
         required: false
         default: "manual"
 
-      # ✅ NEW: Daily report only
       daily_only:
         description: "Run Daily Digest report only?"
         required: true
@@ -65,6 +64,20 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
 
+      - name: Validate dispatch inputs (only one true)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cnt=0
+          [ "${{ inputs.daily_only }}" = "true" ] && cnt=$((cnt+1))
+          [ "${{ inputs.voc_only }}"   = "true" ] && cnt=$((cnt+1))
+          [ "${{ inputs.blog_only }}"  = "true" ] && cnt=$((cnt+1))
+          if [ "$cnt" -gt 1 ]; then
+            echo "[ERROR] Only one of daily_only/voc_only/blog_only can be true."
+            exit 1
+          fi
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -88,10 +101,9 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       # =========================================================
-      # ✅ NEW) Daily Digest Report (runs by default on schedule)
-      # - daily_only=true 이면 이것만 실행
-      # - voc_only/blog_only=true 여도 (원하면) 이건 실행되게 유지
-      #   (만약 voc_only/blog_only 때는 데일리도 스킵하고 싶으면 if 조건에서 제외하면 됨)
+      # ✅ Daily Digest Report
+      # - schedule: runs
+      # - dispatch: runs when daily_only=true OR normal run (none true)
       # =========================================================
       - name: Run Daily Digest report
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
@@ -102,27 +114,17 @@ jobs:
           rm -rf reports/daily_digest || true
           mkdir -p reports/daily_digest
 
-          # 1) out-dir 옵션이 있으면 사용, 없으면 그냥 실행 (레포/스크립트 상황에 안전)
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest \
-            || python -u daily_digest_live_final.py
+          python -u daily_digest_live_final_with_pdp_trend_no_categorytrend_rpimg_styled_like_build_blog.py --out-dir reports/daily_digest \
+            || python -u daily_digest_live_final_with_pdp_trend_no_categorytrend_rpimg_styled_like_build_blog.py
 
-          # 결과물 존재 체크: 아래 중 하나는 있어야 통과
-          if [ -f "reports/daily_digest/index.html" ]; then
-            echo "[OK] reports/daily_digest/index.html"
-          elif [ -f "reports/daily_digest.html" ]; then
-            echo "[OK] reports/daily_digest.html"
-          else
-            echo "[ERROR] Daily digest output not found."
-            echo "reports tree:"
-            find reports -maxdepth 3 -type f | sed 's/^/ - /'
-            exit 1
-          fi
+          test -f reports/daily_digest/index.html
 
       # ----------------------------
       # 1) Naver Lowest Price
+      # (skip on daily_only/voc_only/blog_only)
       # ----------------------------
       - name: Run Naver Lowest Price crawler
-        if: ${{ (github.event_name != 'workflow_dispatch' && true) || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
@@ -139,7 +141,7 @@ jobs:
       # 2) Hero banner
       # ----------------------------
       - name: Run Hero banner crawler
-        if: ${{ (github.event_name != 'workflow_dispatch' && true) || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         run: |
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
@@ -149,7 +151,7 @@ jobs:
       # 3) External Signal (VOC)
       # ----------------------------
       - name: Run External Signal (VOC)
-        if: ${{ (github.event_name != 'workflow_dispatch' && true) || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         run: |
           set -euo pipefail
           python -u external_signal_combined.py
@@ -157,10 +159,10 @@ jobs:
 
       # ----------------------------
       # 4) Crema VOC
-      # - 기본/스케줄: 실행
-      # - voc_only=true면 이것만 실행
-      # - blog_only=true면 스킵
-      # - daily_only=true면 스킵
+      # - schedule: runs
+      # - voc_only=true: runs
+      # - blog_only=true: skip
+      # - daily_only=true: skip
       # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.blog_only != 'true') }}
@@ -179,7 +181,6 @@ jobs:
             ls -la site/data || true
             exit 1
           fi
-          echo "[INFO] Using input JSON: $INPUT_JSON"
 
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
@@ -187,11 +188,9 @@ jobs:
           python -u crema_voc.py --input "$INPUT_JSON"
 
           if [ -f "site/index.html" ]; then
-            echo "[INFO] Syncing site/ -> reports/voc_crema/ (with --delete)"
             rsync -a --delete site/ reports/voc_crema/
           else
             echo "[ERROR] site/index.html not found after run"
-            ls -la site || true
             exit 1
           fi
 
@@ -199,9 +198,9 @@ jobs:
 
       # ----------------------------
       # 4.5) Naver Blog VOC
-      # - 기본/스케줄: 실행 (단, voc_only=true면 스킵)
-      # - blog_only=true면 이것만 실행되도록 다른 스텝들이 위에서 스킵됨
-      # - daily_only=true면 스킵
+      # - schedule: runs (unless voc_only=true)
+      # - blog_only=true: runs
+      # - daily_only=true: skip
       # ----------------------------
       - name: Run Naver Blog VOC (Columbia mentions)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true') }}
@@ -225,7 +224,8 @@ jobs:
           test -f reports/voc_blog/index.html
 
       # ----------------------------
-      # 5) Summary (skip on voc_only/blog_only/daily_only)
+      # 5) Summary
+      # (skip on daily_only/voc_only/blog_only)
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
@@ -236,20 +236,6 @@ jobs:
           python -u build_summary.py
           test -f reports/index.html
           test -f reports/meta.json
-
-      # ----------------------------
-      # 6) Badge stamp (skip on voc_only/blog_only/daily_only)
-      # ----------------------------
-      - name: Stamp "Last updated" badge into reports HTML
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
-        shell: bash
-        env:
-          UPDATED_KST: ${{ steps.set_time.outputs.kst }}
-        run: |
-          set -euo pipefail
-          echo "Stamping updated time: ${UPDATED_KST}"
-          # (기존 배지 주입 스크립트는 네가 쓰던 그대로 여기에 유지하면 됨)
-          # ... (생략)
 
       # ----------------------------
       # 7) Commit & push results
@@ -266,10 +252,50 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
-            exit 0
+          else
+            git commit -m "Daily auto update (reports)" || true
+            git pull --rebase origin main
+            git push origin HEAD:main
           fi
 
-          git commit -m "Daily auto update (reports)" || true
+      # ----------------------------
+      # ✅ Success Email (send links)
+      # - schedule: send
+      # - dispatch: send (daily_only/voc_only/blog_only 포함)
+      # ----------------------------
+      - name: Send success email (links)
+        if: ${{ success() }}
+        env:
+          SMTP_PROVIDER: ${{ vars.SMTP_PROVIDER }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
+          HUB_URL: ${{ vars.HUB_URL }}
+          KST_STAMP: ${{ steps.set_time.outputs.kst }}
+          MODE_DAILY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}
+          MODE_VOC_ONLY:   ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
+          MODE_BLOG_ONLY:  ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
+        run: |
+          set -euo pipefail
+          python -u scripts/send_daily_email.py
 
-          git pull --rebase origin main
-          git push origin HEAD:main
+      # ----------------------------
+      # ✅ Failure Alert Email
+      # ----------------------------
+      - name: Send failure alert email
+        if: ${{ failure() }}
+        env:
+          SMTP_PROVIDER: ${{ vars.SMTP_PROVIDER }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          ALERT_RECIPIENT: ${{ secrets.ALERT_RECIPIENT }}
+          HUB_URL: ${{ vars.HUB_URL }}
+          KST_STAMP: ${{ steps.set_time.outputs.kst }}
+          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python -u scripts/send_alert_email.py
