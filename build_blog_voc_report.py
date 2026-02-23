@@ -2,25 +2,21 @@
 # -*- coding: utf-8 -*-
 
 """
-[FINAL] NAVER BLOG VOC (Columbia mentions) | v3.0
+[FINAL - HOTFIX] NAVER BLOG VOC (Columbia brand mentions) | v3.1
 
-목표
-- 네이버 블로그에서 "컬럼비아/콜롬비아/Columbia" 언급 글을 60일(기본)치 수집
-- 긍/부정 분류 없음: 언급 기반으로 모두 수집
-- 리포트에서 기간(시작/끝) 선택 필터 제공
-- GitHub Actions headless 환경에서 0건 방지 위해:
-  - 후보 수집은 Naver OpenAPI(blog search) 사용 (필수: NAVER_CLIENT_ID/SECRET)
-  - 본문/제목/OG 추출은 Playwright 사용
+✅ 응급 개선 포인트
+1) '콜롬비아' = 국가/커피/환율/COP 등 노이즈를 컨텍스트 기반으로 강하게 제거
+2) 브랜드 확정 신호(컬럼비아/Columbia/기술키워드/SKU/아웃도어 컨텍스트)만 통과
+3) 출력 JSON에 alias 키 추가(publishedAt/collectedAt/items) -> 프론트 0 표시 방어
 
 출력
 - <out_dir>/index.html
 - <out_dir>/data/posts.json
 - <out_dir>/data/meta.json
 
-실행 예시
-python build_blog_voc_report.py \
-  --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 패딩" "콜롬비아 자켓" \
-  --days 60 --per-query 100 --out-dir reports/voc_blog --headless
+필수 env (GitHub Actions에서 step env로 주입 필요)
+- NAVER_CLIENT_ID
+- NAVER_CLIENT_SECRET
 """
 
 import argparse
@@ -39,9 +35,51 @@ from playwright.sync_api import sync_playwright
 
 KST = timezone(timedelta(hours=9))
 
-# ============== Settings ==============
+# =======================
+# Brand rules (핵심)
+# =======================
 
-BRAND_MARKERS = ["콜롬비아", "컬럼비아", "Columbia", "COLUMBIA"]
+# 브랜드 확정 신호(이게 나오면 컨텍스트 없이도 통과)
+BRAND_STRONG = [
+    "컬럼비아", "Columbia", "COLUMBIA",
+    "Columbia Sportswear", "sportswear",
+    "콜롬비아코리아", "columbiakorea", "columbiakorea.co.kr",
+    # Columbia 고유/대표 테크 키워드 (가능한 한 넓게)
+    "옴니히트", "omni-heat", "omni heat", "omniheat",
+    "옴니위크", "omni-wick", "omni wick", "omniwick",
+    "아웃드라이", "outdry",
+    "터보다운", "turbo down", "turbodown",
+    "인터체인지", "interchange",
+    "타이타늄", "titanium",
+]
+
+# '콜롬비아'가 브랜드인지 판단할 때 필요한 패션/아웃도어 컨텍스트
+OUTDOOR_CONTEXT = [
+    "자켓", "재킷", "패딩", "다운", "후리스", "플리스", "바람막이", "윈드브레이커",
+    "등산", "트레킹", "하이킹", "캠핑", "아웃도어", "방수", "방풍", "발수", "보온", "보냉",
+    "베스트", "조끼", "팬츠", "바지", "레깅스", "티셔츠", "셔츠",
+    "모자", "캡", "비니", "장갑", "가방", "백팩",
+    "신발", "부츠", "트레킹화", "등산화",
+    "사이즈", "핏", "착용", "착샷", "코디",
+    "매장", "구매", "구입", "세일", "할인",
+]
+
+# 강력 제외 컨텍스트 (이거 나오면 '콜롬비아'는 거의 100% 국가/원두/환율/영화)
+NEGATIVE_CONTEXT = [
+    # 국가/경제/환율
+    "페소", "COP", "환율", "관세", "대사관", "보고타", "남미", "국경", "마약", "카르텔",
+    "과세환율", "수출", "수입", "무역", "통관",
+    # 커피/원두
+    "원두", "커피", "핸드드립", "드립", "에스프레소", "로스팅", "게이샤", "바리스타",
+    # 콘텐츠/영화/사건
+    "줄거리", "결말", "영화", "드라마", "넷플릭스", "해킹", "로그인", "접속",
+]
+
+# SKU 패턴 (콜럼비아 품번 유사)
+SKU_PATTERNS = [
+    re.compile(r"\bC[0-9A-Z]{6,}\b"),   # 예: C66YM9726MUL
+    re.compile(r"\b[0-9A-Z]{2,}-[0-9A-Z]{2,}\b"),  # 범용(필요시)
+]
 
 SPONSORED_MARKERS = [
     "광고", "협찬", "체험단", "소정의 원고료", "파트너스", "제공받아", "지원받아",
@@ -58,49 +96,28 @@ STOPWORDS = set("""
 
 WORD_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
 
-# ====================================
 
-
-@dataclass
-class BlogPost:
-    query: str
-    title: str
-    url: str
-    published_at: str  # ISO KST
-    collected_at: str  # ISO KST
-    is_sponsored: bool
-    sponsored_markers: List[str]
-    has_columbia: bool
-    brand_markers_found: List[str]
-    raw_text_len: int
-    excerpt: str
-    text_preview: str
-    source: str  # "naver_api+playwright"
-
+# =======================
+# Helpers
+# =======================
 
 def ensure_dir(p: str) -> None:
     os.makedirs(p, exist_ok=True)
 
-
 def now_kst() -> datetime:
     return datetime.now(tz=KST)
-
 
 def iso(dt: datetime) -> str:
     return dt.astimezone(KST).isoformat()
 
-
 def safe_text(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
-
 
 def fmt_kst(dt: datetime) -> str:
     return dt.astimezone(KST).strftime("%Y.%m.%d %H:%M KST")
 
-
 def strip_html(s: str) -> str:
     return safe_text(re.sub(r"<[^>]+>", "", s or ""))
-
 
 def detect_sponsored(text: str) -> Tuple[bool, List[str]]:
     found = []
@@ -109,17 +126,6 @@ def detect_sponsored(text: str) -> Tuple[bool, List[str]]:
         if m in t:
             found.append(m)
     return (len(found) > 0), sorted(list(set(found)))
-
-
-def detect_brand(text: str) -> Tuple[bool, List[str]]:
-    found = []
-    t = text or ""
-    for m in BRAND_MARKERS:
-        if m in t:
-            found.append(m)
-    found = sorted(list(set(found)))
-    return (len(found) > 0), found
-
 
 def keyword_map_from_texts(texts: List[str], topn: int = 40) -> List[Tuple[str, int]]:
     freq: Dict[str, int] = {}
@@ -135,21 +141,74 @@ def keyword_map_from_texts(texts: List[str], topn: int = 40) -> List[Tuple[str, 
     return items[:topn]
 
 
+# =======================
+# Brand decision (핵심 로직)
+# =======================
+
+def has_any(patterns: List[str], text: str) -> List[str]:
+    found = []
+    t = text or ""
+    for p in patterns:
+        if p and p in t:
+            found.append(p)
+    return sorted(list(set(found)))
+
+def has_sku(text: str) -> bool:
+    t = text or ""
+    for rgx in SKU_PATTERNS:
+        if rgx.search(t):
+            return True
+    return False
+
+def contains_any_keywords(text: str, kws: List[str]) -> bool:
+    t = text or ""
+    return any(k in t for k in kws)
+
+def is_brand_columbia(title: str, body: str, snippet: str) -> Tuple[bool, List[str], str]:
+    """
+    Returns:
+      (is_brand, markers_found, reason)
+    """
+    title = title or ""
+    body = body or ""
+    snippet = snippet or ""
+
+    combined = f"{title}\n{snippet}\n{body}"
+    combined_l = combined.lower()
+
+    # 0) 강력 제외 컨텍스트가 있으면 '콜롬비아'는 국가/원두/환율일 확률이 너무 높음
+    # 단, 브랜드 확정 신호가 동시에 있으면 브랜드로 본다(우선순위: strong > negative).
+    strong_found = has_any(BRAND_STRONG, combined) + has_any([s.lower() for s in BRAND_STRONG], combined_l)
+    strong_found = sorted(list(set([x for x in strong_found if x])))
+
+    if not strong_found:
+        if contains_any_keywords(combined, NEGATIVE_CONTEXT) or contains_any_keywords(combined_l, [x.lower() for x in NEGATIVE_CONTEXT]):
+            return False, [], "negative_context"
+
+    # 1) 브랜드 확정 신호 -> 즉시 통과
+    if strong_found:
+        return True, strong_found[:6], "strong_marker"
+
+    # 2) 여기까지 왔다는 건 "콜롬비아"만으로 걸린 케이스일 가능성 큼
+    #    -> 아웃도어 컨텍스트 또는 SKU가 있어야 브랜드로 인정
+    #    -> '콜롬비아' 텍스트가 아예 없으면 의미 없음
+    if ("콜롬비아" not in combined) and ("columbia" not in combined_l):
+        return False, [], "no_brand_token"
+
+    if has_sku(combined):
+        return True, ["SKU"], "sku_match"
+
+    if contains_any_keywords(combined, OUTDOOR_CONTEXT) or contains_any_keywords(combined_l, [x.lower() for x in OUTDOOR_CONTEXT]):
+        return True, ["context"], "outdoor_context"
+
+    return False, [], "no_context"
+
+
 # ==========================
 # Naver OpenAPI candidates
 # ==========================
 
-def fetch_candidates_via_naver_api(
-    queries: List[str],
-    per_query: int,
-    sort: str = "date",
-) -> List[Dict[str, Any]]:
-    """
-    Naver Blog Search OpenAPI:
-    - https://openapi.naver.com/v1/search/blog.json
-    Note: API에 정확한 published date 필드가 없을 수 있어 후보 단계에서 느슨하게 잡고,
-          실제 페이지 scrape 후 published_at을 확정/필터링한다.
-    """
+def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str = "date") -> List[Dict[str, Any]]:
     cid = os.getenv("NAVER_CLIENT_ID", "").strip()
     csec = os.getenv("NAVER_CLIENT_SECRET", "").strip()
     if not cid or not csec:
@@ -165,7 +224,6 @@ def fetch_candidates_via_naver_api(
     for q in queries:
         got = 0
         start = 1
-        # start 최대 1000
         while got < per_query and start <= 1000:
             display = min(100, per_query - got)
             params = {
@@ -233,7 +291,6 @@ def get_mainframe_post_url(page) -> Optional[str]:
     except Exception:
         return None
 
-
 def extract_title(page) -> str:
     for sel in ["meta[property='og:title']", "meta[name='twitter:title']"]:
         try:
@@ -249,19 +306,14 @@ def extract_title(page) -> str:
     except Exception:
         return ""
 
-
 def extract_published_from_dom(page) -> Optional[datetime]:
-    """
-    네이버 블로그 발행일은 템플릿마다 달라서 후보 셀렉터 여러개 시도.
-    실패하면 None.
-    """
     selectors = [
+        "meta[property='article:published_time']",
         "span.se_publishDate",
+        "span#se_publishDate",
         "p.date",
         "span.date",
-        "span#se_publishDate",
         "time",
-        "meta[property='article:published_time']",
     ]
     for sel in selectors:
         try:
@@ -275,7 +327,6 @@ def extract_published_from_dom(page) -> Optional[datetime]:
             v = safe_text(v)
             if not v:
                 continue
-            # dateutil로 최대한 파싱
             try:
                 dt = dtparser.parse(v)
                 if not dt.tzinfo:
@@ -287,20 +338,20 @@ def extract_published_from_dom(page) -> Optional[datetime]:
             continue
     return None
 
-
 def extract_post_text_from_dom(page) -> str:
     candidates = [
         ".se-main-container",
         "#postViewArea",
         "article",
         "div#contentArea",
+        "div#post-area",
     ]
     text_chunks: List[str] = []
     for sel in candidates:
         try:
             el = page.query_selector(sel)
             if el:
-                t = el.inner_text(timeout=2000)
+                t = el.inner_text(timeout=2500)
                 t = safe_text(t)
                 if len(t) >= 80:
                     text_chunks.append(t)
@@ -312,10 +363,9 @@ def extract_post_text_from_dom(page) -> str:
         return text_chunks[0]
 
     try:
-        return safe_text(page.inner_text("body", timeout=2000))
+        return safe_text(page.inner_text("body", timeout=2500))
     except Exception:
         return ""
-
 
 def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, str, str, Optional[datetime]]:
     page = context.new_page()
@@ -327,12 +377,12 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, st
 
     try:
         page.goto(url, wait_until="domcontentloaded")
-        page.wait_for_timeout(700)
+        page.wait_for_timeout(650)
 
         mf = get_mainframe_post_url(page)
         if mf:
             page.goto(mf, wait_until="domcontentloaded")
-            page.wait_for_timeout(700)
+            page.wait_for_timeout(650)
             final_url = page.url
 
         title = extract_title(page)
@@ -348,7 +398,33 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, st
 
 
 # ==========================
-# HTML report (same UI)
+# Data model
+# ==========================
+
+@dataclass
+class BlogPost:
+    query: str
+    title: str
+    url: str
+    published_at: str
+    collected_at: str
+    is_sponsored: bool
+    sponsored_markers: List[str]
+
+    # brand
+    is_columbia_brand: bool
+    brand_markers_found: List[str]
+    brand_reason: str
+
+    raw_text_len: int
+    excerpt: str
+    text_preview: str
+
+    source: str  # "naver_api+playwright"
+
+
+# ==========================
+# HTML report (embedded JSON)
 # ==========================
 
 def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
@@ -399,6 +475,10 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       background: rgba(234,179,8,0.14);
       color: rgb(161,98,7);
     }}
+    .badge-brand {{
+      background: rgba(37,99,235,0.10);
+      color: rgb(30,64,175);
+    }}
     .link {{
       color: var(--brand);
       font-weight: 900;
@@ -441,10 +521,10 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         <div>
           <div class="text-[11px] font-black tracking-[0.3em] text-slate-400 uppercase">CSK E-COMM</div>
           <h1 class="text-3xl md:text-4xl font-black tracking-tight mt-2">
-            네이버 블로그 언급 모니터링 (Columbia)
+            네이버 블로그 언급 모니터링 (Columbia - Brand)
           </h1>
           <p class="muted font-semibold mt-2">
-            최근 2개월치(기본) 후보를 수집한 뒤, <span class="font-black">본문/제목에 콜롬비아/Columbia가 실제로 언급된 글만</span> 남깁니다.
+            ‘콜롬비아(국가/원두)’ 노이즈를 제거하고 <span class="font-black">의류/아웃도어 브랜드 Columbia</span>만 남깁니다.
           </p>
         </div>
 
@@ -473,12 +553,12 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
           <div class="flex flex-wrap items-center gap-2">
             <button id="btnHideSponsored" class="btn">협찬 숨기기</button>
-            <span class="kbd">COL-MENTION</span>
+            <span class="kbd">COL-BRAND</span>
           </div>
         </div>
 
         <div class="mt-3 text-xs font-semibold muted">
-          * 이 화면의 기간 필터는 <span class="font-black">이미 수집된 {meta.get("days", 60)}일 데이터 안에서</span>만 동작합니다.
+          * 기간 필터는 수집된 {meta.get("days", 60)}일 데이터 안에서 동작합니다.
           <span class="ml-2">| candidates: <span class="font-black">{meta.get("debug",{}).get("candidates_total","-")}</span></span>
           <span class="ml-2">| saved: <span class="font-black">{meta.get("counts",{}).get("posts","-")}</span></span>
         </div>
@@ -507,7 +587,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           <div class="mt-5">
             <div class="text-sm font-black">Top Words (본문 기반)</div>
             <div class="muted text-xs font-semibold mt-1">
-              키워드맵은 긍/부정 분류가 아닌, <span class="font-black">언급 글의 빈출 단어</span>입니다.
+              브랜드 글의 빈출 단어(긍/부정 분류 아님)
             </div>
             <div class="mt-3 flex flex-wrap gap-2" id="wordChips"></div>
           </div>
@@ -516,9 +596,9 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         <div class="glass-card p-6">
           <div class="text-lg font-black">가이드</div>
           <ul class="mt-3 space-y-2 text-sm font-semibold muted">
-            <li>• 카드 클릭 → 원문 새 탭 + 아래 상세로 스크롤</li>
-            <li>• “협찬 숨기기”로 내돈내산 성향 글만 보정 가능</li>
-            <li>• 수집 커버리지 개선: 쿼리/ per-query를 늘려서 후보를 넓히면 됨</li>
+            <li>• 카드 클릭 → 원문 새 탭 + 상세로 스크롤</li>
+            <li>• “협찬 숨기기”로 내돈내산 성향만 보정 가능</li>
+            <li>• 노이즈가 남으면 NEGATIVE_CONTEXT/OUTDOOR_CONTEXT를 조정</li>
           </ul>
         </div>
       </aside>
@@ -528,7 +608,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           <div class="flex items-end justify-between gap-3">
             <div>
               <div class="text-xl font-black">Feed</div>
-              <div class="muted text-sm font-semibold mt-1">Columbia 언급 블로그 글 리스트</div>
+              <div class="muted text-sm font-semibold mt-1">Columbia(의류/아웃도어) 언급 블로그 글</div>
             </div>
             <div class="text-sm font-black muted">정렬: <span class="kbd">최근 → 과거</span></div>
           </div>
@@ -538,7 +618,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
         <div class="glass-card p-6">
           <div class="text-xl font-black">상세</div>
-          <div class="muted text-sm font-semibold mt-1">본문 미리보기(앞부분) + 메타 확인</div>
+          <div class="muted text-sm font-semibold mt-1">본문 미리보기 + 판별 근거</div>
           <div class="mt-5 space-y-4" id="detailList"></div>
         </div>
       </section>
@@ -672,9 +752,10 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       card.className = "feed-card p-4 cursor-pointer hover:translate-y-[-1px] transition";
 
       const badges = [];
+      badges.push(`<span class="badge badge-brand">Brand OK</span>`);
       if (p.is_sponsored) badges.push(`<span class="badge badge-ad">협찬</span>`);
       const markers = (p.brand_markers_found || []).slice(0,3).join(", ");
-      if (markers) badges.push(`<span class="badge">언급: ${{escapeHtml(markers)}}</span>`);
+      if (markers) badges.push(`<span class="badge">근거: ${{escapeHtml(markers)}}</span>`);
 
       card.innerHTML = `
         <div class="flex items-start justify-between gap-2">
@@ -735,7 +816,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
               <span class="mx-2">·</span>
               query: <span class="font-black">${{escapeHtml(p.query)}}</span>
               <span class="mx-2">·</span>
-              언급: <span class="font-black">${{escapeHtml((p.brand_markers_found||[]).join(", ")) || "-"}}</span>
+              판별: <span class="font-black">${{escapeHtml(p.brand_reason || "-")}}</span>
             </div>
             ${{sponsoredLine}}
           </div>
@@ -817,10 +898,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--queries", nargs="+", required=True, help="블로그 검색어 리스트")
     ap.add_argument("--days", type=int, default=60, help="최근 N일(기본 60)")
-    ap.add_argument("--per-query", type=int, default=100, help="쿼리당 후보 수(기본 100)")
+    ap.add_argument("--per-query", type=int, default=60, help="쿼리당 후보 수(기본 60)")
     ap.add_argument("--headless", action="store_true", help="headless 모드")
     ap.add_argument("--out-dir", default=os.path.join("reports", "voc_blog"), help="출력 디렉토리")
-    ap.add_argument("--require-brand", action="store_true", default=True, help="브랜드 언급 필수(기본 True)")
+    ap.add_argument("--max-scrape", type=int, default=220, help="Playwright로 실제 페이지 열어볼 최대 후보 수(속도/안정용)")
     args = ap.parse_args()
 
     out_dir = args.out_dir
@@ -838,12 +919,19 @@ def main():
     posts: List[BlogPost] = []
     debug = {
         "candidates_total": len(candidates),
+        "scrape_target": min(len(candidates), args.max_scrape),
         "scraped_ok": 0,
         "scraped_fail": 0,
-        "brand_kept": 0,
         "cutoff_filtered": 0,
         "empty_text": 0,
+        "brand_kept": 0,
+        "brand_reject_negative_context": 0,
+        "brand_reject_no_context": 0,
+        "brand_reject_no_token": 0,
     }
+
+    # 속도/안정: 최신부터 우선(이미 sort=date라 거의 최신이지만 안전)
+    candidates = candidates[: args.max_scrape]
 
     with sync_playwright() as play:
         browser = play.chromium.launch(headless=args.headless)
@@ -873,19 +961,25 @@ def main():
                 if len(safe_text(text)) == 0:
                     debug["empty_text"] += 1
 
-                # 발행일 필터: pub_dt 추출 실패하면 "수집일"로 대체(너무 엄격하면 0됨)
+                # pub_dt 방어: None이거나 비정상이면 수집일로 대체
                 if pub_dt is None:
                     pub_dt = collected_at
                 else:
+                    if pub_dt < (collected_at - timedelta(days=args.days + 7)) or pub_dt > (collected_at + timedelta(days=3)):
+                        pub_dt = collected_at
                     if pub_dt < cutoff:
                         debug["cutoff_filtered"] += 1
                         continue
 
-                # 브랜드 언급 판단: 본문이 비면(추출 실패) title+snippet에서라도 통과시켜 0 방지
-                combined_for_brand = f"{title} {text} {snippet}"
-                has_brand, brand_found = detect_brand(combined_for_brand)
-
-                if args.require_brand and not has_brand:
+                # 브랜드 판별(응급 핵심)
+                ok, markers, reason = is_brand_columbia(title=title, body=text, snippet=snippet)
+                if not ok:
+                    if reason == "negative_context":
+                        debug["brand_reject_negative_context"] += 1
+                    elif reason == "no_context":
+                        debug["brand_reject_no_context"] += 1
+                    else:
+                        debug["brand_reject_no_token"] += 1
                     continue
 
                 debug["brand_kept"] += 1
@@ -904,8 +998,9 @@ def main():
                     collected_at=iso(collected_at),
                     is_sponsored=is_sp,
                     sponsored_markers=sp_markers,
-                    has_columbia=has_brand,
-                    brand_markers_found=brand_found,
+                    is_columbia_brand=True,
+                    brand_markers_found=markers,
+                    brand_reason=reason,
                     raw_text_len=len(text or ""),
                     excerpt=excerpt,
                     text_preview=preview,
@@ -925,22 +1020,32 @@ def main():
         "updated_at_kst": fmt_kst(collected_at),
         "period_text": f"최근 {args.days}일 ({cutoff.strftime('%Y.%m.%d')} ~ {collected_at.strftime('%Y.%m.%d')})",
         "days": args.days,
+        "per_query": args.per_query,
+        "max_scrape": args.max_scrape,
         "queries": args.queries,
         "counts": {
             "posts": len(posts),
             "sponsored_posts": sum(1 for p in posts if p.is_sponsored),
         },
         "top_words": top_words,
-        "brand_markers": BRAND_MARKERS,
-        "note": "긍/부정 분류가 아닌 Columbia 언급 블로그 포스트 수집/필터링 결과입니다.",
+        "note": "콜롬비아(국가/원두) 노이즈를 제거하고 Columbia(의류/아웃도어 브랜드)만 남긴 결과입니다.",
         "debug": debug,
     }
 
-    posts_dicts = [asdict(p) for p in posts]
+    # 4) write outputs (+ alias keys)
+    posts_dicts: List[Dict[str, Any]] = []
+    for p in posts:
+        d = asdict(p)
+        # alias keys (프론트 0 방어)
+        d["publishedAt"] = d.get("published_at")
+        d["collectedAt"] = d.get("collected_at")
+        posts_dicts.append(d)
 
-    # 4) write outputs
+    # root alias: items
+    posts_root = {"posts": posts_dicts, "items": posts_dicts}
+
     with open(os.path.join(data_dir, "posts.json"), "w", encoding="utf-8") as f:
-        json.dump({"posts": posts_dicts}, f, ensure_ascii=False, indent=2)
+        json.dump(posts_root, f, ensure_ascii=False, indent=2)
 
     with open(os.path.join(data_dir, "meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
