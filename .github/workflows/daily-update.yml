@@ -13,27 +13,21 @@ on:
         required: true
         default: "false"
         type: choice
-        options:
-          - "false"
-          - "true"
+        options: ["false", "true"]
 
       voc_only:
         description: "Run Crema VOC only?"
         required: true
         default: "false"
         type: choice
-        options:
-          - "false"
-          - "true"
+        options: ["false", "true"]
 
       blog_only:
         description: "Run Blog VOC only?"
         required: true
         default: "false"
         type: choice
-        options:
-          - "false"
-          - "true"
+        options: ["false", "true"]
 
   schedule:
     # KST 08:00 = UTC 23:00 (전날)
@@ -102,47 +96,32 @@ jobs:
 
       # =========================================================
       # ✅ Daily Digest Report
-      # - schedule: runs
-      # - dispatch: runs when daily_only=true OR normal run (none true)
       # =========================================================
-      #
-      # ✅ FIX(중요):
-      # - google.auth.default()가 ADC를 못 찾아서 터졌기 때문에
-      #   "daily step 안에서" 서비스계정 JSON -> 파일 생성 + env export까지 확정 처리.
-      #
       - name: Run Daily Digest report
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
-          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
-          # (선택) 보고서 기간을 env로 받는 경우만 사용
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           GA4_START_DATE: ${{ vars.GA4_START_DATE }}
           GA4_END_DATE: ${{ vars.GA4_END_DATE }}
         run: |
           set -euo pipefail
 
           if [ -z "${GA4_PROPERTY_ID:-}" ]; then
-            echo "[ERROR] GA4_PROPERTY_ID is empty. Set secrets.GA4_PROPERTY_ID (or change to vars.GA4_PROPERTY_ID)."
+            echo "[ERROR] GA4_PROPERTY_ID is empty."
             exit 1
           fi
 
-          if [ -z "${GOOGLE_SA_JSON:-}" ]; then
-            echo "[ERROR] GOOGLE_SA_JSON is empty. Set secrets.GOOGLE_SA_JSON (service account JSON)."
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[ERROR] GOOGLE_SA_JSON_B64 is empty. Set secrets.GOOGLE_SA_JSON_B64."
             exit 1
           fi
 
-          # ✅ 멀티라인 JSON 안전하게 파일로 저장
-          cat > /tmp/ga_sa.json << 'EOF'
-${GOOGLE_SA_JSON}
-EOF
-
+          echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
 
-          # ✅ sanity check (비밀 내용 출력 없음)
-          test -f "$GOOGLE_APPLICATION_CREDENTIALS"
           python -c "import json; json.load(open('/tmp/ga_sa.json')); print('JSON_OK')"
-          python -c "import os; print('ADC_PATH_OK' if os.getenv('GOOGLE_APPLICATION_CREDENTIALS') else 'ADC_PATH_MISSING')"
 
           rm -rf reports/daily_digest || true
           mkdir -p reports/daily_digest
@@ -154,7 +133,6 @@ EOF
 
       # ----------------------------
       # 1) Naver Lowest Price
-      # (skip on daily_only/voc_only/blog_only)
       # ----------------------------
       - name: Run Naver Lowest Price crawler
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
@@ -192,10 +170,6 @@ EOF
 
       # ----------------------------
       # 4) Crema VOC
-      # - schedule: runs
-      # - voc_only=true: runs
-      # - blog_only=true: skip
-      # - daily_only=true: skip
       # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.blog_only != 'true') }}
@@ -231,9 +205,6 @@ EOF
 
       # ----------------------------
       # 4.5) Naver Blog VOC
-      # - schedule: runs (unless voc_only=true)
-      # - blog_only=true: runs
-      # - daily_only=true: skip
       # ----------------------------
       - name: Run Naver Blog VOC (Columbia mentions)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true') }}
@@ -258,7 +229,6 @@ EOF
 
       # ----------------------------
       # 5) Summary
-      # (skip on daily_only/voc_only/blog_only)
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
