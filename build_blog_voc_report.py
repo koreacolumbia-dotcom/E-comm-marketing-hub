@@ -2,21 +2,25 @@
 # -*- coding: utf-8 -*-
 
 """
-[FINAL - HOTFIX] NAVER BLOG VOC (Columbia brand mentions) | v3.1
+[NAVER BLOG VOC] Columbia brand monitoring | v4.0 FINAL (Upgrades 1~4)
 
-✅ 응급 개선 포인트
-1) '콜롬비아' = 국가/커피/환율/COP 등 노이즈를 컨텍스트 기반으로 강하게 제거
-2) 브랜드 확정 신호(컬럼비아/Columbia/기술키워드/SKU/아웃도어 컨텍스트)만 통과
-3) 출력 JSON에 alias 키 추가(publishedAt/collectedAt/items) -> 프론트 0 표시 방어
+✅ 1) VOC scoring + highlight sentences
+✅ 2) URL cache + early stop (brand_target / voc_target)
+✅ 3) Meta enrichment (blog_name/author/og:image + best-effort engagement)
+✅ 4) Dashboard summary cards (New today, VOC top, issue types top, 7d vs 60d)
 
-출력
+Outputs:
 - <out_dir>/index.html
 - <out_dir>/data/posts.json
 - <out_dir>/data/meta.json
+- <out_dir>/data/seen_urls.json  (cache)
 
-필수 env (GitHub Actions에서 step env로 주입 필요)
+Requires env:
 - NAVER_CLIENT_ID
 - NAVER_CLIENT_SECRET
+
+Notes:
+- Naver blog DOM varies. Extraction is best-effort; cache prevents repeated re-scrapes.
 """
 
 import argparse
@@ -24,7 +28,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import urlencode
 
@@ -36,15 +40,13 @@ from playwright.sync_api import sync_playwright
 KST = timezone(timedelta(hours=9))
 
 # =======================
-# Brand rules (핵심)
+# Brand rules
 # =======================
 
-# 브랜드 확정 신호(이게 나오면 컨텍스트 없이도 통과)
 BRAND_STRONG = [
     "컬럼비아", "Columbia", "COLUMBIA",
     "Columbia Sportswear", "sportswear",
     "콜롬비아코리아", "columbiakorea", "columbiakorea.co.kr",
-    # Columbia 고유/대표 테크 키워드 (가능한 한 넓게)
     "옴니히트", "omni-heat", "omni heat", "omniheat",
     "옴니위크", "omni-wick", "omni wick", "omniwick",
     "아웃드라이", "outdry",
@@ -53,7 +55,6 @@ BRAND_STRONG = [
     "타이타늄", "titanium",
 ]
 
-# '콜롬비아'가 브랜드인지 판단할 때 필요한 패션/아웃도어 컨텍스트
 OUTDOOR_CONTEXT = [
     "자켓", "재킷", "패딩", "다운", "후리스", "플리스", "바람막이", "윈드브레이커",
     "등산", "트레킹", "하이킹", "캠핑", "아웃도어", "방수", "방풍", "발수", "보온", "보냉",
@@ -64,21 +65,15 @@ OUTDOOR_CONTEXT = [
     "매장", "구매", "구입", "세일", "할인",
 ]
 
-# 강력 제외 컨텍스트 (이거 나오면 '콜롬비아'는 거의 100% 국가/원두/환율/영화)
 NEGATIVE_CONTEXT = [
-    # 국가/경제/환율
-    "페소", "COP", "환율", "관세", "대사관", "보고타", "남미", "국경", "마약", "카르텔",
-    "과세환율", "수출", "수입", "무역", "통관",
-    # 커피/원두
+    "페소", "COP", "환율", "관세", "대사관", "보고타", "남미", "국경", "과세환율", "통관", "무역",
     "원두", "커피", "핸드드립", "드립", "에스프레소", "로스팅", "게이샤", "바리스타",
-    # 콘텐츠/영화/사건
     "줄거리", "결말", "영화", "드라마", "넷플릭스", "해킹", "로그인", "접속",
 ]
 
-# SKU 패턴 (콜럼비아 품번 유사)
 SKU_PATTERNS = [
-    re.compile(r"\bC[0-9A-Z]{6,}\b"),   # 예: C66YM9726MUL
-    re.compile(r"\b[0-9A-Z]{2,}-[0-9A-Z]{2,}\b"),  # 범용(필요시)
+    re.compile(r"\bC[0-9A-Z]{6,}\b"),     # ex) C66YM9726MUL
+    re.compile(r"\bYM[0-9A-Z]{4,}\b"),    # extra safety
 ]
 
 SPONSORED_MARKERS = [
@@ -86,20 +81,56 @@ SPONSORED_MARKERS = [
     "무상 제공", "유료 광고", "포스팅 비용", "원고료", "업체로부터",
 ]
 
+# =======================
+# VOC rules (Upgrade #1)
+# =======================
+
+VOC_TAG_RULES = {
+    "SIZE_FIT": [
+        "사이즈", "작게", "크게", "정사이즈", "핏", "기장", "어깨", "소매", "허리", "엉덩이",
+        "슬림", "오버", "루즈", "타이트", "여유", "끼", "불편",
+    ],
+    "QUALITY_DEFECT": [
+        "불량", "하자", "박음질", "실밥", "찢", "뜯", "올풀", "마감", "지퍼", "고장",
+        "누수", "방수", "이염", "변색", "냄새", "털빠짐", "보풀", "약해", "내구",
+    ],
+    "DELIVERY": [
+        "배송", "지연", "늦", "파손", "누락", "오배송", "포장", "택배", "도착",
+    ],
+    "PRICE_PROMO": [
+        "가격", "비싸", "가성비", "세일", "할인", "쿠폰", "프로모션", "적립", "포인트",
+        "최저가", "정가", "환불가", "가격차",
+    ],
+    "EXCHANGE_RETURN_AS": [
+        "교환", "반품", "환불", "AS", "A/S", "수선", "고객센터", "센터", "접수",
+        "처리", "불친절", "응대",
+    ],
+    "WARMTH_WATERPROOF": [
+        "따뜻", "보온", "한겨울", "추", "한파", "방풍", "방수", "발수", "젖", "비", "눈",
+        "습기", "통풍", "땀",
+    ],
+}
+
+# Negative sentiment hints (lightweight)
+NEG_SENTIMENT = [
+    "별로", "아쉽", "불만", "실망", "후회", "문제", "최악", "짜증", "안되", "안 돼", "안됨",
+    "못", "힘들", "불편", "그러다", "망",
+]
+
+# =======================
+# NLP-ish helpers
+# =======================
+
+WORD_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
 STOPWORDS = set("""
 그리고 그러나 하지만 그래서 또한 정말 너무 진짜 약간 그냥 조금 매우 완전
 제품 사용 구매 후기 리뷰 느낌 생각 정도 경우 부분 이번 오늘 어제 요즘
 제가 저는 나는 우리는 여러분 때 좀 것 수 있 있다 없다 해요 했어요 입니다
 ㅋㅋ ㅎㅎ ㅠㅠ ㅜㅜ
-사이즈 색상 컬러 배송 가격 구매 추천 만족 불만
 """.split())
 
-WORD_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
+SENT_SPLIT_RE = re.compile(r"(?<=[\.\!\?\n\r])\s+|(?<=다\.)\s+|(?<=요\.)\s+|(?<=니다\.)\s+|(?<=함\.)\s+")
 
-
-# =======================
-# Helpers
-# =======================
 
 def ensure_dir(p: str) -> None:
     os.makedirs(p, exist_ok=True)
@@ -113,11 +144,20 @@ def iso(dt: datetime) -> str:
 def safe_text(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
 
+def strip_html(s: str) -> str:
+    return safe_text(re.sub(r"<[^>]+>", "", s or ""))
+
 def fmt_kst(dt: datetime) -> str:
     return dt.astimezone(KST).strftime("%Y.%m.%d %H:%M KST")
 
-def strip_html(s: str) -> str:
-    return safe_text(re.sub(r"<[^>]+>", "", s or ""))
+def date_only(dt_iso: str) -> str:
+    try:
+        d = dtparser.parse(dt_iso)
+        if not d.tzinfo:
+            d = d.replace(tzinfo=KST)
+        return d.astimezone(KST).strftime("%Y-%m-%d")
+    except Exception:
+        return ""
 
 def detect_sponsored(text: str) -> Tuple[bool, List[str]]:
     found = []
@@ -142,7 +182,7 @@ def keyword_map_from_texts(texts: List[str], topn: int = 40) -> List[Tuple[str, 
 
 
 # =======================
-# Brand decision (핵심 로직)
+# Brand decision
 # =======================
 
 def has_any(patterns: List[str], text: str) -> List[str]:
@@ -165,10 +205,6 @@ def contains_any_keywords(text: str, kws: List[str]) -> bool:
     return any(k in t for k in kws)
 
 def is_brand_columbia(title: str, body: str, snippet: str) -> Tuple[bool, List[str], str]:
-    """
-    Returns:
-      (is_brand, markers_found, reason)
-    """
     title = title or ""
     body = body or ""
     snippet = snippet or ""
@@ -176,22 +212,17 @@ def is_brand_columbia(title: str, body: str, snippet: str) -> Tuple[bool, List[s
     combined = f"{title}\n{snippet}\n{body}"
     combined_l = combined.lower()
 
-    # 0) 강력 제외 컨텍스트가 있으면 '콜롬비아'는 국가/원두/환율일 확률이 너무 높음
-    # 단, 브랜드 확정 신호가 동시에 있으면 브랜드로 본다(우선순위: strong > negative).
     strong_found = has_any(BRAND_STRONG, combined) + has_any([s.lower() for s in BRAND_STRONG], combined_l)
     strong_found = sorted(list(set([x for x in strong_found if x])))
 
+    # negative context blocks ONLY if no strong marker
     if not strong_found:
         if contains_any_keywords(combined, NEGATIVE_CONTEXT) or contains_any_keywords(combined_l, [x.lower() for x in NEGATIVE_CONTEXT]):
             return False, [], "negative_context"
 
-    # 1) 브랜드 확정 신호 -> 즉시 통과
     if strong_found:
         return True, strong_found[:6], "strong_marker"
 
-    # 2) 여기까지 왔다는 건 "콜롬비아"만으로 걸린 케이스일 가능성 큼
-    #    -> 아웃도어 컨텍스트 또는 SKU가 있어야 브랜드로 인정
-    #    -> '콜롬비아' 텍스트가 아예 없으면 의미 없음
     if ("콜롬비아" not in combined) and ("columbia" not in combined_l):
         return False, [], "no_brand_token"
 
@@ -204,6 +235,86 @@ def is_brand_columbia(title: str, body: str, snippet: str) -> Tuple[bool, List[s
     return False, [], "no_context"
 
 
+# =======================
+# VOC scoring (Upgrade #1)
+# =======================
+
+def split_sentences(text: str) -> List[str]:
+    t = (text or "").strip()
+    if not t:
+        return []
+    parts = [p.strip() for p in SENT_SPLIT_RE.split(t) if p and p.strip()]
+    # secondary split by newline if needed
+    out = []
+    for p in parts:
+        out.extend([x.strip() for x in re.split(r"[\n\r]+", p) if x.strip()])
+    # trim huge
+    return [x for x in out if len(x) >= 8]
+
+def voc_tags_for_text(text: str) -> List[str]:
+    t = text or ""
+    tags = []
+    for tag, kws in VOC_TAG_RULES.items():
+        if any(k in t for k in kws):
+            tags.append(tag)
+    return tags
+
+def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[str], List[Dict[str, Any]]]:
+    """
+    Returns:
+      score (0~100ish),
+      tags,
+      highlights [{sent, score, tags}]
+    """
+    combined = f"{title}\n{snippet}\n{text}"
+    tags = voc_tags_for_text(combined)
+
+    score = 0
+    # base tag weights
+    tag_weights = {
+        "QUALITY_DEFECT": 22,
+        "EXCHANGE_RETURN_AS": 18,
+        "DELIVERY": 14,
+        "SIZE_FIT": 14,
+        "WARMTH_WATERPROOF": 10,
+        "PRICE_PROMO": 8,
+    }
+    for t in tags:
+        score += tag_weights.get(t, 6)
+
+    # sentiment hints
+    if any(k in combined for k in NEG_SENTIMENT):
+        score += 10
+
+    # hard triggers
+    hard = ["불량", "하자", "교환", "반품", "환불", "AS", "A/S", "오배송", "누락", "지연", "지퍼", "이염", "누수"]
+    hard_hits = sum(1 for k in hard if k in combined)
+    score += min(18, hard_hits * 4)
+
+    score = max(0, min(120, score))
+
+    # highlights: score each sentence
+    highlights = []
+    sents = split_sentences(text or snippet or "")
+    for s in sents:
+        stags = voc_tags_for_text(s)
+        ss = 0
+        for tt in stags:
+            ss += tag_weights.get(tt, 6)
+        if any(k in s for k in NEG_SENTIMENT):
+            ss += 6
+        hh = sum(1 for k in hard if k in s)
+        ss += min(12, hh * 3)
+
+        if ss >= 10:
+            highlights.append({"sent": safe_text(s)[:240], "score": int(ss), "tags": stags})
+
+    highlights.sort(key=lambda x: x["score"], reverse=True)
+    highlights = highlights[:6]
+
+    return int(score), tags, highlights
+
+
 # ==========================
 # Naver OpenAPI candidates
 # ==========================
@@ -214,24 +325,15 @@ def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str
     if not cid or not csec:
         raise RuntimeError("Missing NAVER_CLIENT_ID / NAVER_CLIENT_SECRET env")
 
-    headers = {
-        "X-Naver-Client-Id": cid,
-        "X-Naver-Client-Secret": csec,
-    }
+    headers = {"X-Naver-Client-Id": cid, "X-Naver-Client-Secret": csec}
 
     collected: List[Dict[str, Any]] = []
-
     for q in queries:
         got = 0
         start = 1
         while got < per_query and start <= 1000:
             display = min(100, per_query - got)
-            params = {
-                "query": q,
-                "display": display,
-                "start": start,
-                "sort": sort,
-            }
+            params = {"query": q, "display": display, "start": start, "sort": sort}
             url = "https://openapi.naver.com/v1/search/blog.json?" + urlencode(params)
             r = requests.get(url, headers=headers, timeout=25)
             r.raise_for_status()
@@ -249,16 +351,10 @@ def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str
                 if not link.startswith("http"):
                     continue
 
-                collected.append({
-                    "query": q,
-                    "title": title or "(제목 없음)",
-                    "url": link,
-                    "snippet": desc,
-                })
+                collected.append({"query": q, "title": title or "(제목 없음)", "url": link, "snippet": desc})
                 got += 1
                 if got >= per_query:
                     break
-
             start += display
 
     # URL dedup
@@ -274,7 +370,7 @@ def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str
 
 
 # ==========================
-# Playwright extractors
+# Playwright extractors (Meta upgrade #3)
 # ==========================
 
 def get_mainframe_post_url(page) -> Optional[str]:
@@ -291,20 +387,58 @@ def get_mainframe_post_url(page) -> Optional[str]:
     except Exception:
         return None
 
+def extract_meta_content(page, selector: str) -> str:
+    try:
+        el = page.query_selector(selector)
+        if el:
+            c = el.get_attribute("content") or ""
+            return safe_text(c)
+    except Exception:
+        pass
+    return ""
+
 def extract_title(page) -> str:
     for sel in ["meta[property='og:title']", "meta[name='twitter:title']"]:
-        try:
-            el = page.query_selector(sel)
-            if el:
-                c = el.get_attribute("content")
-                if c and c.strip():
-                    return safe_text(c)
-        except Exception:
-            pass
+        t = extract_meta_content(page, sel)
+        if t:
+            return t
     try:
         return safe_text(page.title())
     except Exception:
         return ""
+
+def extract_og_image(page) -> str:
+    return extract_meta_content(page, "meta[property='og:image']")
+
+def extract_site_name(page) -> str:
+    v = extract_meta_content(page, "meta[property='og:site_name']")
+    if v:
+        return v
+    # best-effort fallback
+    try:
+        h = safe_text(page.inner_text("body", timeout=1200))
+        if "네이버 블로그" in h:
+            return "네이버 블로그"
+    except Exception:
+        pass
+    return ""
+
+def extract_author(page) -> str:
+    for sel in ["meta[name='author']", "meta[property='article:author']", "meta[property='og:article:author']"]:
+        v = extract_meta_content(page, sel)
+        if v:
+            return v
+    # fallback: common naver UI
+    try:
+        for sel in ["a.nick", "span.nick", "div.blog_name a", "div.blog_name"]:
+            el = page.query_selector(sel)
+            if el:
+                v = safe_text(el.inner_text() or "")
+                if v and len(v) <= 40:
+                    return v
+    except Exception:
+        pass
+    return ""
 
 def extract_published_from_dom(page) -> Optional[datetime]:
     selectors = [
@@ -338,6 +472,27 @@ def extract_published_from_dom(page) -> Optional[datetime]:
             continue
     return None
 
+def extract_engagement_best_effort(page) -> Tuple[Optional[int], Optional[int]]:
+    """
+    Best-effort: likes/sympathy + comments count (if visible).
+    Highly variable on Naver; return None if not found.
+    """
+    like_cnt = None
+    cmt_cnt = None
+    try:
+        # Try common labels
+        body = page.inner_text("body", timeout=1200)
+        body = body.replace(",", "")
+        m = re.search(r"(공감|좋아요)\s*([0-9]{1,6})", body)
+        if m:
+            like_cnt = int(m.group(2))
+        m2 = re.search(r"(댓글)\s*([0-9]{1,6})", body)
+        if m2:
+            cmt_cnt = int(m2.group(2))
+    except Exception:
+        pass
+    return like_cnt, cmt_cnt
+
 def extract_post_text_from_dom(page) -> str:
     candidates = [
         ".se-main-container",
@@ -367,13 +522,21 @@ def extract_post_text_from_dom(page) -> str:
     except Exception:
         return ""
 
-def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, str, str, Optional[datetime]]:
+def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Dict[str, Any]:
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
-    final_url = url
-    title = ""
-    text = ""
-    pub_dt = None
+
+    out = {
+        "final_url": url,
+        "title": "",
+        "text": "",
+        "pub_dt": None,
+        "og_image": "",
+        "site_name": "",
+        "author": "",
+        "like_count": None,
+        "comment_count": None,
+    }
 
     try:
         page.goto(url, wait_until="domcontentloaded")
@@ -383,13 +546,18 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, st
         if mf:
             page.goto(mf, wait_until="domcontentloaded")
             page.wait_for_timeout(650)
-            final_url = page.url
 
-        title = extract_title(page)
-        pub_dt = extract_published_from_dom(page)
-        text = extract_post_text_from_dom(page)
-        return final_url or url, title, text, pub_dt
-
+        out["final_url"] = page.url or url
+        out["title"] = extract_title(page)
+        out["pub_dt"] = extract_published_from_dom(page)
+        out["og_image"] = extract_og_image(page)
+        out["site_name"] = extract_site_name(page)
+        out["author"] = extract_author(page)
+        out["text"] = extract_post_text_from_dom(page)
+        like_cnt, cmt_cnt = extract_engagement_best_effort(page)
+        out["like_count"] = like_cnt
+        out["comment_count"] = cmt_cnt
+        return out
     finally:
         try:
             page.close()
@@ -398,16 +566,48 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Tuple[str, st
 
 
 # ==========================
+# Cache (Upgrade #2)
+# ==========================
+
+def load_seen_urls(path: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        return {"version": 1, "seen": {}}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if "seen" not in data:
+            return {"version": 1, "seen": {}}
+        return data
+    except Exception:
+        return {"version": 1, "seen": {}}
+
+def save_seen_urls(path: str, data: Dict[str, Any]) -> None:
+    ensure_dir(os.path.dirname(path))
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def mark_seen(seen_db: Dict[str, Any], url: str, collected_at_iso: str) -> None:
+    seen = seen_db.setdefault("seen", {})
+    seen[url] = {"last_seen": collected_at_iso}
+
+def is_seen(seen_db: Dict[str, Any], url: str) -> bool:
+    return url in (seen_db.get("seen", {}) or {})
+
+
+# ==========================
 # Data model
 # ==========================
 
 @dataclass
 class BlogPost:
+    # basic
     query: str
     title: str
     url: str
     published_at: str
     collected_at: str
+
+    # ad
     is_sponsored: bool
     sponsored_markers: List[str]
 
@@ -416,15 +616,29 @@ class BlogPost:
     brand_markers_found: List[str]
     brand_reason: str
 
+    # meta (Upgrade #3)
+    blog_site_name: str
+    author: str
+    og_image: str
+    like_count: Optional[int]
+    comment_count: Optional[int]
+
+    # text
     raw_text_len: int
     excerpt: str
     text_preview: str
 
+    # voc (Upgrade #1)
+    voc_score: int
+    voc_tags: List[str]
+    voc_highlights: List[Dict[str, Any]]
+
+    # source
     source: str  # "naver_api+playwright"
 
 
 # ==========================
-# HTML report (embedded JSON)
+# HTML report (Upgrade #4)
 # ==========================
 
 def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
@@ -436,11 +650,9 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Blog Mentions | CSK E-COMM</title>
-
+  <title>Blog VOC | CSK E-COMM</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root {{ --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }}
@@ -471,18 +683,10 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       background: rgba(15,23,42,0.06);
       color:#0f172a;
     }}
-    .badge-ad {{
-      background: rgba(234,179,8,0.14);
-      color: rgb(161,98,7);
-    }}
-    .badge-brand {{
-      background: rgba(37,99,235,0.10);
-      color: rgb(30,64,175);
-    }}
-    .link {{
-      color: var(--brand);
-      font-weight: 900;
-    }}
+    .badge-ad {{ background: rgba(234,179,8,0.14); color: rgb(161,98,7); }}
+    .badge-brand {{ background: rgba(37,99,235,0.10); color: rgb(30,64,175); }}
+    .badge-voc {{ background: rgba(239,68,68,0.10); color: rgb(153,27,27); }}
+    .link {{ color: var(--brand); font-weight: 900; }}
     .link:hover {{ text-decoration: underline; }}
     .kbd {{
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -510,6 +714,12 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       transition: all .15s ease;
     }}
     .btn:hover {{ background: #fff; }}
+    .lineclamp4 {{
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }}
   </style>
 </head>
 
@@ -521,10 +731,10 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         <div>
           <div class="text-[11px] font-black tracking-[0.3em] text-slate-400 uppercase">CSK E-COMM</div>
           <h1 class="text-3xl md:text-4xl font-black tracking-tight mt-2">
-            네이버 블로그 언급 모니터링 (Columbia - Brand)
+            네이버 블로그 VOC 모니터링 (Columbia - Brand)
           </h1>
           <p class="muted font-semibold mt-2">
-            ‘콜롬비아(국가/원두)’ 노이즈를 제거하고 <span class="font-black">의류/아웃도어 브랜드 Columbia</span>만 남깁니다.
+            브랜드(의류/아웃도어) 글만 남기고, <span class="font-black">VOC 신호를 자동 추출</span>합니다.
           </p>
         </div>
 
@@ -540,66 +750,68 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         </div>
       </div>
 
+      <!-- Controls -->
       <div class="mt-6 feed-card p-4">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div class="flex flex-wrap items-center gap-3">
-            <div class="text-sm font-black">기간 선택</div>
+            <div class="text-sm font-black">기간</div>
             <input id="dateStart" type="date" />
             <div class="muted font-black">~</div>
             <input id="dateEnd" type="date" />
             <button id="btnApply" class="btn">적용</button>
             <button id="btnReset" class="btn">최근 60일</button>
+
+            <div class="ml-2 flex items-center gap-2">
+              <span class="text-sm font-black muted">VOC≥</span>
+              <input id="vocMin" type="number" min="0" max="120" value="20"
+                class="w-20 px-3 py-2 rounded-2xl font-black bg-white/70 border border-white/90" />
+              <button id="btnVocOnly" class="btn">VOC만 보기</button>
+            </div>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
             <button id="btnHideSponsored" class="btn">협찬 숨기기</button>
-            <span class="kbd">COL-BRAND</span>
+            <span class="kbd">COL-BLOG-VOC</span>
           </div>
         </div>
 
         <div class="mt-3 text-xs font-semibold muted">
-          * 기간 필터는 수집된 {meta.get("days", 60)}일 데이터 안에서 동작합니다.
-          <span class="ml-2">| candidates: <span class="font-black">{meta.get("debug",{}).get("candidates_total","-")}</span></span>
-          <span class="ml-2">| saved: <span class="font-black">{meta.get("counts",{}).get("posts","-")}</span></span>
+          candidates: <span class="font-black">{meta.get("debug",{}).get("candidates_total","-")}</span>
+          <span class="mx-2">|</span>
+          scraped_ok: <span class="font-black">{meta.get("debug",{}).get("scraped_ok","-")}</span>
+          <span class="mx-2">|</span>
+          kept_brand: <span class="font-black">{meta.get("debug",{}).get("brand_kept","-")}</span>
+          <span class="mx-2">|</span>
+          saved: <span class="font-black">{meta.get("counts",{}).get("posts","-")}</span>
         </div>
       </div>
     </div>
+
+    <!-- Summary Cards (Upgrade #4) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6" id="summaryCards"></div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
       <aside class="lg:col-span-4 space-y-6">
         <div class="glass-card p-6">
           <div class="flex items-center justify-between">
-            <div class="text-lg font-black">요약</div>
-            <div class="kbd">BLOG</div>
+            <div class="text-lg font-black">Top VOC</div>
+            <div class="kbd">VOC</div>
           </div>
-
-          <div class="mt-4 grid grid-cols-2 gap-3">
-            <div class="feed-card p-4">
-              <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">Posts</div>
-              <div id="cntPosts" class="text-2xl font-black mt-1">-</div>
-            </div>
-            <div class="feed-card p-4">
-              <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">Sponsored</div>
-              <div id="cntSponsored" class="text-2xl font-black mt-1">-</div>
-            </div>
-          </div>
-
-          <div class="mt-5">
-            <div class="text-sm font-black">Top Words (본문 기반)</div>
-            <div class="muted text-xs font-semibold mt-1">
-              브랜드 글의 빈출 단어(긍/부정 분류 아님)
-            </div>
-            <div class="mt-3 flex flex-wrap gap-2" id="wordChips"></div>
-          </div>
+          <div class="mt-4 space-y-3" id="topVocList"></div>
         </div>
 
         <div class="glass-card p-6">
-          <div class="text-lg font-black">가이드</div>
-          <ul class="mt-3 space-y-2 text-sm font-semibold muted">
-            <li>• 카드 클릭 → 원문 새 탭 + 상세로 스크롤</li>
-            <li>• “협찬 숨기기”로 내돈내산 성향만 보정 가능</li>
-            <li>• 노이즈가 남으면 NEGATIVE_CONTEXT/OUTDOOR_CONTEXT를 조정</li>
-          </ul>
+          <div class="flex items-center justify-between">
+            <div class="text-lg font-black">이슈 타입 Top</div>
+            <div class="kbd">TAGS</div>
+          </div>
+          <div class="mt-4 flex flex-wrap gap-2" id="tagChips"></div>
+        </div>
+
+        <div class="glass-card p-6">
+          <div class="text-lg font-black">Top Words</div>
+          <div class="muted text-xs font-semibold mt-1">본문 기반 빈출 단어</div>
+          <div class="mt-3 flex flex-wrap gap-2" id="wordChips"></div>
         </div>
       </aside>
 
@@ -608,9 +820,9 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
           <div class="flex items-end justify-between gap-3">
             <div>
               <div class="text-xl font-black">Feed</div>
-              <div class="muted text-sm font-semibold mt-1">Columbia(의류/아웃도어) 언급 블로그 글</div>
+              <div class="muted text-sm font-semibold mt-1">브랜드 글(정렬: 최근 → 과거)</div>
             </div>
-            <div class="text-sm font-black muted">정렬: <span class="kbd">최근 → 과거</span></div>
+            <div class="text-sm font-black muted">정렬: <span class="kbd">최근</span></div>
           </div>
 
           <div class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="feedGrid"></div>
@@ -618,7 +830,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
         <div class="glass-card p-6">
           <div class="text-xl font-black">상세</div>
-          <div class="muted text-sm font-semibold mt-1">본문 미리보기 + 판별 근거</div>
+          <div class="muted text-sm font-semibold mt-1">VOC 하이라이트 + 메타</div>
           <div class="mt-5 space-y-4" id="detailList"></div>
         </div>
       </section>
@@ -679,15 +891,31 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
   let state = {{
     hideSponsored: false,
+    vocOnly: false,
     start: null,
     end: null,
     word: null,
+    tag: null,
   }};
 
+  function vocMin() {{
+    const v = parseInt(($("vocMin")?.value || "20"), 10);
+    if (isNaN(v)) return 20;
+    return Math.max(0, Math.min(120, v));
+  }}
+
   function filteredPosts() {{
+    const minV = vocMin();
     return POSTS.filter(p => {{
       if (state.hideSponsored && p.is_sponsored) return false;
       if (!inRange(p.published_at, state.start, state.end)) return false;
+
+      if (state.vocOnly && (p.voc_score || 0) < minV) return false;
+
+      if (state.tag) {{
+        const tags = p.voc_tags || [];
+        if (!tags.includes(state.tag)) return false;
+      }}
 
       if (!state.word) return true;
       const w = state.word.toLowerCase();
@@ -702,18 +930,121 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
     $("periodText").textContent = META.period_text || "-";
   }}
 
-  function renderCounts() {{
-    const list = filteredPosts();
+  function renderSummaryCards() {{
+    const box = $("summaryCards");
+    box.innerHTML = "";
+
+    const listAll = filteredPosts();
+    const today = new Date();
+    const todayKey = `${{today.getFullYear()}}-${{String(today.getMonth()+1).padStart(2,"0")}}-${{String(today.getDate()).padStart(2,"0")}}`;
+
+    let newToday = 0;
     let sponsored = 0;
-    list.forEach(p => {{ if (p.is_sponsored) sponsored += 1; }});
-    $("cntPosts").textContent = list.length;
-    $("cntSponsored").textContent = sponsored;
+    let vocOver = 0;
+
+    listAll.forEach(p => {{
+      if (toDateOnly(p.collected_at) === todayKey) newToday += 1;
+      if (p.is_sponsored) sponsored += 1;
+      if ((p.voc_score||0) >= vocMin()) vocOver += 1;
+    }});
+
+    // 7d vs 60d voc ratio
+    const end = state.end ? new Date(state.end.getTime()) : new Date();
+    const start7 = new Date(end.getTime()); start7.setDate(start7.getDate()-6);
+    const start60 = new Date(end.getTime()); start60.setDate(start60.getDate()-59);
+
+    function ratio(rangeStart) {{
+      const subset = POSTS.filter(p => inRange(p.published_at, rangeStart, end));
+      if (subset.length === 0) return 0;
+      const n = subset.filter(p => (p.voc_score||0) >= vocMin()).length;
+      return Math.round((n / subset.length) * 1000) / 10;
+    }}
+
+    const r7 = ratio(start7);
+    const r60 = ratio(start60);
+
+    const cards = [
+      {{ title: "Posts", value: String(listAll.length), sub: "필터 기준" }},
+      {{ title: "New Today", value: String(newToday), sub: "수집일 기준" }},
+      {{ title: "VOC (≥" + vocMin() + ")", value: String(vocOver), sub: "VOC 감지" }},
+      {{ title: "VOC Ratio", value: r7 + "%", sub: "7D vs 60D: " + r60 + "%" }},
+    ];
+
+    cards.forEach(c => {{
+      const el = document.createElement("div");
+      el.className = "glass-card p-5";
+      el.innerHTML = `
+        <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">${{escapeHtml(c.title)}}</div>
+        <div class="text-3xl font-black mt-2">${{escapeHtml(c.value)}}</div>
+        <div class="muted text-sm font-semibold mt-1">${{escapeHtml(c.sub)}}</div>
+      `;
+      box.appendChild(el);
+    }});
+  }}
+
+  function renderTopVoc() {{
+    const box = $("topVocList");
+    box.innerHTML = "";
+    const list = filteredPosts().slice().sort((a,b)=> (b.voc_score||0)-(a.voc_score||0)).slice(0, 8);
+
+    if (list.length === 0) {{
+      box.innerHTML = `<div class="muted font-semibold">VOC 항목이 없습니다.</div>`;
+      return;
+    }}
+
+    list.forEach(p => {{
+      const hl = (p.voc_highlights || [])[0]?.sent || p.excerpt || "";
+      const el = document.createElement("div");
+      el.className = "feed-card p-4";
+      el.innerHTML = `
+        <div class="flex items-start justify-between gap-2">
+          <div class="font-black text-sm leading-snug">${{escapeHtml(p.title||"(제목 없음)")}}</div>
+          <div class="badge badge-voc">VOC ${{p.voc_score||0}}</div>
+        </div>
+        <div class="mt-2 text-xs font-semibold muted lineclamp4">${{escapeHtml(hl)}}</div>
+        <div class="mt-2 text-xs font-black muted">${{escapeHtml((p.voc_tags||[]).slice(0,3).join(", "))}}</div>
+      `;
+      el.addEventListener("click", ()=> {{
+        window.open(p.url, "_blank", "noopener,noreferrer");
+      }});
+      box.appendChild(el);
+    }});
+  }}
+
+  function renderTagChips() {{
+    const box = $("tagChips");
+    box.innerHTML = "";
+
+    const freq = {{}};
+    POSTS.forEach(p => {{
+      (p.voc_tags||[]).forEach(t => {{
+        freq[t] = (freq[t]||0) + 1;
+      }});
+    }});
+    const items = Object.entries(freq).sort((a,b)=> b[1]-a[1]).slice(0, 14);
+
+    const clear = document.createElement("div");
+    clear.className = "badge cursor-pointer hover:opacity-80";
+    clear.textContent = "태그 해제";
+    clear.addEventListener("click", ()=> {{ state.tag = null; renderAll(); }});
+    box.appendChild(clear);
+
+    items.forEach(([t,c]) => {{
+      const el = document.createElement("div");
+      el.className = "badge cursor-pointer hover:opacity-80";
+      el.innerHTML = `${{escapeHtml(t)}} · ${{c}}`;
+      el.addEventListener("click", ()=> {{
+        state.tag = t;
+        renderAll();
+      }});
+      box.appendChild(el);
+    }});
   }}
 
   function renderWords() {{
     const box = $("wordChips");
     box.innerHTML = "";
-    const words = (META.top_words || []).slice(0, 18);
+    const words = (META.top_words || []).slice(0, 16);
     words.forEach(([w,c]) => {{
       const el = document.createElement("div");
       el.className = "badge cursor-pointer hover:opacity-80";
@@ -727,20 +1058,15 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
     const clear = document.createElement("div");
     clear.className = "badge cursor-pointer hover:opacity-80";
-    clear.innerHTML = "단어 필터 해제";
-    clear.addEventListener("click", () => {{
-      state.word = null;
-      renderAll();
-    }});
+    clear.textContent = "단어 해제";
+    clear.addEventListener("click", ()=> {{ state.word = null; renderAll(); }});
     box.appendChild(clear);
   }}
 
   function renderFeed() {{
     const grid = $("feedGrid");
     grid.innerHTML = "";
-    const list = filteredPosts()
-      .slice()
-      .sort((a,b) => (b.published_at||"").localeCompare(a.published_at||""));
+    const list = filteredPosts().slice().sort((a,b)=> (b.published_at||"").localeCompare(a.published_at||""));
 
     if (list.length === 0) {{
       grid.innerHTML = `<div class="muted font-semibold">조건에 맞는 글이 없습니다.</div>`;
@@ -754,27 +1080,30 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       const badges = [];
       badges.push(`<span class="badge badge-brand">Brand OK</span>`);
       if (p.is_sponsored) badges.push(`<span class="badge badge-ad">협찬</span>`);
-      const markers = (p.brand_markers_found || []).slice(0,3).join(", ");
-      if (markers) badges.push(`<span class="badge">근거: ${{escapeHtml(markers)}}</span>`);
+      const vs = p.voc_score || 0;
+      if (vs >= vocMin()) badges.push(`<span class="badge badge-voc">VOC ${{vs}}</span>`);
+      const tags = (p.voc_tags || []).slice(0,2).join(", ");
+      if (tags) badges.push(`<span class="badge">tags: ${{escapeHtml(tags)}}</span>`);
+
+      const metaLine = [];
+      if (p.author) metaLine.push(p.author);
+      if (p.blog_site_name) metaLine.push(p.blog_site_name);
+      const metaText = metaLine.join(" · ");
 
       card.innerHTML = `
         <div class="flex items-start justify-between gap-2">
-          <div class="font-black text-base leading-snug">
-            ${{escapeHtml(p.title || "(제목 없음)")}}
-          </div>
-          <div class="text-[11px] font-black muted whitespace-nowrap">
-            ${{fmtDate(p.published_at)}}
-          </div>
+          <div class="font-black text-base leading-snug">${{escapeHtml(p.title||"(제목 없음)")}}</div>
+          <div class="text-[11px] font-black muted whitespace-nowrap">${{fmtDate(p.published_at)}}</div>
         </div>
 
         <div class="mt-2 flex flex-wrap gap-2">${{badges.join("")}}</div>
 
-        <div class="mt-3 text-sm font-semibold muted line-clamp-4">
+        <div class="mt-3 text-sm font-semibold muted lineclamp4">
           ${{escapeHtml(p.excerpt || "")}}
         </div>
 
-        <div class="mt-3 text-[12px] font-black">
-          <span class="muted">query:</span> ${{escapeHtml(p.query)}}
+        <div class="mt-3 text-[12px] font-black muted">
+          ${{escapeHtml(metaText)}}
         </div>
       `;
 
@@ -791,10 +1120,7 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
   function renderDetails() {{
     const box = $("detailList");
     box.innerHTML = "";
-
-    const list = filteredPosts()
-      .slice()
-      .sort((a,b) => (b.published_at||"").localeCompare(a.published_at||""));
+    const list = filteredPosts().slice().sort((a,b)=> (b.published_at||"").localeCompare(a.published_at||""));
 
     list.forEach((p, idx) => {{
       const wrap = document.createElement("div");
@@ -802,23 +1128,38 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       wrap.className = "feed-card p-5";
 
       const sponsoredLine = p.is_sponsored
-        ? `<div class="mt-2 text-xs font-black badge badge-ad">협찬/광고 감지: ${{escapeHtml((p.sponsored_markers||[]).join(", "))}}</div>`
+        ? `<div class="mt-2 text-xs font-black badge badge-ad">협찬/광고: ${{escapeHtml((p.sponsored_markers||[]).join(", "))}}</div>`
         : ``;
+
+      const vocLine = `<div class="mt-2 flex flex-wrap gap-2">
+        <span class="badge badge-voc">VOC ${{p.voc_score||0}}</span>
+        ${(p.voc_tags||[]).slice(0,6).map(t=> `<span class="badge">${{escapeHtml(t)}}</span>`).join("")}
+      </div>`;
+
+      const hl = (p.voc_highlights || []).map(h => {{
+        return `<div class="mt-2 text-sm font-semibold muted">• ${{escapeHtml(h.sent)}} <span class="badge ml-2">+${{h.score}}</span></div>`;
+      }}).join("");
+
+      const img = p.og_image ? `<img src="${{escapeHtml(p.og_image)}}" class="w-full rounded-2xl border border-white/70 mt-4" loading="lazy" />` : "";
+
+      const engage = [];
+      if (p.like_count !== null && p.like_count !== undefined) engage.push("좋아요 " + p.like_count);
+      if (p.comment_count !== null && p.comment_count !== undefined) engage.push("댓글 " + p.comment_count);
 
       wrap.innerHTML = `
         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div class="flex-1">
-            <div class="text-lg font-black leading-snug">
-              ${{escapeHtml(p.title || "(제목 없음)")}}
-            </div>
+            <div class="text-lg font-black leading-snug">${{escapeHtml(p.title||"(제목 없음)")}}</div>
             <div class="mt-2 text-sm font-semibold muted">
               발행: <span class="font-black">${{fmtDate(p.published_at)}}</span>
               <span class="mx-2">·</span>
-              query: <span class="font-black">${{escapeHtml(p.query)}}</span>
+              작성자: <span class="font-black">${{escapeHtml(p.author||"-")}}</span>
               <span class="mx-2">·</span>
-              판별: <span class="font-black">${{escapeHtml(p.brand_reason || "-")}}</span>
+              메타: <span class="font-black">${{escapeHtml(p.blog_site_name||"-")}}</span>
+              ${(engage.length ? `<span class="mx-2">·</span><span class="font-black">${{escapeHtml(engage.join(" / "))}}</span>` : "")}
             </div>
             ${{sponsoredLine}}
+            ${{vocLine}}
           </div>
 
           <a class="link text-sm" href="${{escapeHtml(p.url)}}" target="_blank" rel="noopener noreferrer">
@@ -827,11 +1168,20 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
         </div>
 
         <div class="mt-4">
-          <div class="text-sm font-black">본문 미리보기</div>
-          <div class="mt-2 text-sm font-semibold muted whitespace-pre-line">
-            ${{escapeHtml(p.text_preview || "")}}
+          <div class="text-sm font-black">VOC 하이라이트</div>
+          <div class="mt-2">
+            ${hl || `<div class="muted font-semibold">하이라이트가 없습니다. (VOC 신호 약함)</div>`}
           </div>
         </div>
+
+        <div class="mt-4">
+          <div class="text-sm font-black">본문 미리보기</div>
+          <div class="mt-2 text-sm font-semibold muted whitespace-pre-line">
+            ${{escapeHtml(p.text_preview||"")}}
+          </div>
+        </div>
+
+        ${img}
       `;
       box.appendChild(wrap);
     }});
@@ -871,11 +1221,21 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
       $("btnHideSponsored").textContent = state.hideSponsored ? "협찬 보이기" : "협찬 숨기기";
       renderAll();
     }});
+
+    $("btnVocOnly").addEventListener("click", () => {{
+      state.vocOnly = !state.vocOnly;
+      $("btnVocOnly").textContent = state.vocOnly ? "전체 보기" : "VOC만 보기";
+      renderAll();
+    }});
+
+    $("vocMin").addEventListener("change", renderAll);
   }}
 
   function renderAll() {{
     renderHeader();
-    renderCounts();
+    renderSummaryCards();
+    renderTopVoc();
+    renderTagChips();
     renderWords();
     renderFeed();
     renderDetails();
@@ -896,12 +1256,16 @@ def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--queries", nargs="+", required=True, help="블로그 검색어 리스트")
-    ap.add_argument("--days", type=int, default=60, help="최근 N일(기본 60)")
-    ap.add_argument("--per-query", type=int, default=60, help="쿼리당 후보 수(기본 60)")
-    ap.add_argument("--headless", action="store_true", help="headless 모드")
-    ap.add_argument("--out-dir", default=os.path.join("reports", "voc_blog"), help="출력 디렉토리")
-    ap.add_argument("--max-scrape", type=int, default=220, help="Playwright로 실제 페이지 열어볼 최대 후보 수(속도/안정용)")
+    ap.add_argument("--queries", nargs="+", required=True)
+    ap.add_argument("--days", type=int, default=60)
+    ap.add_argument("--per-query", type=int, default=60)
+    ap.add_argument("--headless", action="store_true")
+    ap.add_argument("--out-dir", default=os.path.join("reports", "voc_blog"))
+    ap.add_argument("--max-scrape", type=int, default=220, help="Playwright로 열어볼 최대 후보수")
+    ap.add_argument("--brand-target", type=int, default=140, help="브랜드 글 N개 확보하면 early stop")
+    ap.add_argument("--voc-target", type=int, default=60, help="VOC 글 N개(점수>=voc-min) 확보하면 early stop")
+    ap.add_argument("--voc-min", type=int, default=20, help="VOC로 간주할 최소 점수(early stop 기준)")
+    ap.add_argument("--force-rescrape-seen", action="store_true", help="캐시 무시하고 재스크랩")
     args = ap.parse_args()
 
     out_dir = args.out_dir
@@ -911,27 +1275,36 @@ def main():
     collected_at = now_kst()
     cutoff = collected_at - timedelta(days=args.days - 1)
 
-    # 1) candidates via OpenAPI
+    # cache
+    seen_path = os.path.join(data_dir, "seen_urls.json")
+    seen_db = load_seen_urls(seen_path)
+
+    # 1) candidates
     candidates = fetch_candidates_via_naver_api(args.queries, per_query=args.per_query, sort="date")
     print(f"[INFO] candidates_total={len(candidates)} (per_query={args.per_query}) cutoff={cutoff.isoformat()}")
 
-    # 2) scrape content via Playwright
+    # 2) scrape with early stop + cache
     posts: List[BlogPost] = []
     debug = {
         "candidates_total": len(candidates),
         "scrape_target": min(len(candidates), args.max_scrape),
         "scraped_ok": 0,
         "scraped_fail": 0,
+        "skipped_seen": 0,
         "cutoff_filtered": 0,
         "empty_text": 0,
         "brand_kept": 0,
         "brand_reject_negative_context": 0,
         "brand_reject_no_context": 0,
         "brand_reject_no_token": 0,
+        "early_stop_brand": 0,
+        "early_stop_voc": 0,
     }
 
-    # 속도/안정: 최신부터 우선(이미 sort=date라 거의 최신이지만 안전)
     candidates = candidates[: args.max_scrape]
+
+    brand_kept = 0
+    voc_kept = 0
 
     with sync_playwright() as play:
         browser = play.chromium.launch(headless=args.headless)
@@ -949,19 +1322,26 @@ def main():
                 base_title = c.get("title") or "(제목 없음)"
                 snippet = c.get("snippet") or ""
 
+                if (not args.force_rescrape_seen) and is_seen(seen_db, url):
+                    debug["skipped_seen"] += 1
+                    continue
+
                 try:
-                    final_url, page_title, text, pub_dt = scrape_one_post(context, url=url)
+                    s = scrape_one_post(context, url=url)
                     debug["scraped_ok"] += 1
                 except Exception:
                     debug["scraped_fail"] += 1
                     continue
 
-                title = safe_text(page_title) if page_title else safe_text(base_title)
-                text = text or ""
+                final_url = s.get("final_url") or url
+                title = safe_text(s.get("title") or base_title)
+                text = s.get("text") or ""
+                pub_dt = s.get("pub_dt")
+
                 if len(safe_text(text)) == 0:
                     debug["empty_text"] += 1
 
-                # pub_dt 방어: None이거나 비정상이면 수집일로 대체
+                # pub_dt guard
                 if pub_dt is None:
                     pub_dt = collected_at
                 else:
@@ -969,9 +1349,9 @@ def main():
                         pub_dt = collected_at
                     if pub_dt < cutoff:
                         debug["cutoff_filtered"] += 1
+                        mark_seen(seen_db, url, iso(collected_at))
                         continue
 
-                # 브랜드 판별(응급 핵심)
                 ok, markers, reason = is_brand_columbia(title=title, body=text, snippet=snippet)
                 if not ok:
                     if reason == "negative_context":
@@ -980,41 +1360,114 @@ def main():
                         debug["brand_reject_no_context"] += 1
                     else:
                         debug["brand_reject_no_token"] += 1
+                    mark_seen(seen_db, url, iso(collected_at))
                     continue
 
+                # brand kept
                 debug["brand_kept"] += 1
+                brand_kept += 1
 
                 is_sp, sp_markers = detect_sponsored(f"{title} {text} {snippet}")
 
                 cleaned = safe_text(text) if text else ""
-                excerpt = cleaned[:160] if cleaned else safe_text(snippet)[:160] if snippet else "(본문 추출 실패)"
-                preview = cleaned[:1200] if cleaned else safe_text(snippet)[:1200] if snippet else "(본문 추출 실패)"
+                excerpt = cleaned[:180] if cleaned else safe_text(snippet)[:180] if snippet else "(본문 추출 실패)"
+                preview = cleaned[:1400] if cleaned else safe_text(snippet)[:1400] if snippet else "(본문 추출 실패)"
 
-                posts.append(BlogPost(
+                voc_score, voc_tags, voc_highlights = voc_score_for_text(title=title, text=cleaned, snippet=snippet)
+                if voc_score >= args.voc_min:
+                    voc_kept += 1
+
+                p = BlogPost(
                     query=q,
                     title=title or "(제목 없음)",
-                    url=final_url or url,
+                    url=final_url,
                     published_at=iso(pub_dt),
                     collected_at=iso(collected_at),
+
                     is_sponsored=is_sp,
                     sponsored_markers=sp_markers,
+
                     is_columbia_brand=True,
                     brand_markers_found=markers,
                     brand_reason=reason,
+
+                    blog_site_name=safe_text(s.get("site_name") or ""),
+                    author=safe_text(s.get("author") or ""),
+                    og_image=safe_text(s.get("og_image") or ""),
+                    like_count=s.get("like_count"),
+                    comment_count=s.get("comment_count"),
+
                     raw_text_len=len(text or ""),
                     excerpt=excerpt,
                     text_preview=preview,
+
+                    voc_score=voc_score,
+                    voc_tags=voc_tags,
+                    voc_highlights=voc_highlights,
+
                     source="naver_api+playwright",
-                ))
+                )
+
+                posts.append(p)
+                mark_seen(seen_db, url, iso(collected_at))
+
+                # Early stop (Upgrade #2)
+                if brand_kept >= args.brand_target:
+                    debug["early_stop_brand"] = 1
+                    if voc_kept >= args.voc_target:
+                        debug["early_stop_voc"] = 1
+                        break
 
         finally:
-            context.close()
-            browser.close()
+            try:
+                context.close()
+            except Exception:
+                pass
+            try:
+                browser.close()
+            except Exception:
+                pass
 
-    print(f"[INFO] posts_saved={len(posts)} debug={debug}")
+    # save cache
+    save_seen_urls(seen_path, seen_db)
 
-    # 3) meta
+    # sort posts by published desc
+    posts.sort(key=lambda x: x.published_at, reverse=True)
+
+    # 3) meta + analytics (Upgrade #4)
     top_words = keyword_map_from_texts([p.text_preview for p in posts], topn=40)
+
+    # tag freq
+    tag_freq: Dict[str, int] = {}
+    for p in posts:
+        for t in (p.voc_tags or []):
+            tag_freq[t] = tag_freq.get(t, 0) + 1
+    tag_top = sorted(tag_freq.items(), key=lambda x: x[1], reverse=True)[:15]
+
+    # top VOC posts
+    top_voc = sorted(posts, key=lambda x: x.voc_score, reverse=True)[:12]
+
+    # 7D vs 60D compare
+    end_dt = collected_at
+    start7 = end_dt - timedelta(days=6)
+    start60 = end_dt - timedelta(days=59)
+
+    def in_range(dt_iso: str, a: datetime, b: datetime) -> bool:
+        try:
+            d = dtparser.parse(dt_iso)
+            if not d.tzinfo:
+                d = d.replace(tzinfo=KST)
+            d = d.astimezone(KST)
+            return (d >= a) and (d <= b)
+        except Exception:
+            return False
+
+    def voc_ratio(a: datetime, b: datetime, voc_min: int) -> float:
+        subset = [p for p in posts if in_range(p.published_at, a, b)]
+        if not subset:
+            return 0.0
+        voc_n = sum(1 for p in subset if p.voc_score >= voc_min)
+        return round((voc_n / len(subset)) * 100, 1)
 
     meta = {
         "updated_at_kst": fmt_kst(collected_at),
@@ -1022,13 +1475,26 @@ def main():
         "days": args.days,
         "per_query": args.per_query,
         "max_scrape": args.max_scrape,
+        "brand_target": args.brand_target,
+        "voc_target": args.voc_target,
+        "voc_min": args.voc_min,
         "queries": args.queries,
         "counts": {
             "posts": len(posts),
             "sponsored_posts": sum(1 for p in posts if p.is_sponsored),
+            "voc_posts": sum(1 for p in posts if p.voc_score >= args.voc_min),
         },
         "top_words": top_words,
-        "note": "콜롬비아(국가/원두) 노이즈를 제거하고 Columbia(의류/아웃도어 브랜드)만 남긴 결과입니다.",
+        "tag_top": tag_top,
+        "top_voc": [
+            {"title": p.title, "url": p.url, "voc_score": p.voc_score, "voc_tags": p.voc_tags[:5], "published_at": p.published_at}
+            for p in top_voc
+        ],
+        "compare": {
+            "voc_ratio_7d": voc_ratio(start7, end_dt, args.voc_min),
+            "voc_ratio_60d": voc_ratio(start60, end_dt, args.voc_min),
+        },
+        "note": "콜롬비아(국가/원두) 노이즈 제거 + VOC 스코어/하이라이트 + 캐시/early stop + 요약카드",
         "debug": debug,
     }
 
@@ -1036,12 +1502,11 @@ def main():
     posts_dicts: List[Dict[str, Any]] = []
     for p in posts:
         d = asdict(p)
-        # alias keys (프론트 0 방어)
+        # alias keys for robustness
         d["publishedAt"] = d.get("published_at")
         d["collectedAt"] = d.get("collected_at")
         posts_dicts.append(d)
 
-    # root alias: items
     posts_root = {"posts": posts_dicts, "items": posts_dicts}
 
     with open(os.path.join(data_dir, "posts.json"), "w", encoding="utf-8") as f:
@@ -1054,10 +1519,12 @@ def main():
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
+    print(f"[OK] posts_saved={len(posts)} voc_posts={meta['counts']['voc_posts']} debug={debug}")
     print("[OK] Blog report generated:")
     print(f" - {os.path.join(out_dir, 'index.html')}")
     print(f" - {os.path.join(data_dir, 'posts.json')}")
     print(f" - {os.path.join(data_dir, 'meta.json')}")
+    print(f" - {seen_path}")
 
 
 if __name__ == "__main__":
