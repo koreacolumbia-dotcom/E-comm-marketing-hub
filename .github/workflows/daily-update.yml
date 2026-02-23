@@ -103,8 +103,8 @@ jobs:
           mkdir -p reports/daily_digest
 
           # 1) out-dir 옵션이 있으면 사용, 없으면 그냥 실행 (레포/스크립트 상황에 안전)
-          python -u daily_digest_live_final_with_pdp_trend_no_categorytrend_rpimg_styled_like_build_blog.py --out-dir reports/daily_digest \
-            || python -u daily_digest_live_final_with_pdp_trend_no_categorytrend_rpimg_styled_like_build_blog.py
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest \
+            || python -u daily_digest_live_final.py
 
           # 결과물 존재 체크: 아래 중 하나는 있어야 통과
           if [ -f "reports/daily_digest/index.html" ]; then
