@@ -114,8 +114,8 @@ jobs:
           rm -rf reports/daily_digest || true
           mkdir -p reports/daily_digest
 
-          python -u daily_digest_live_final_with_pdp_trend_no_categorytrend_rpimg_styled_like_build_blog.py --out-dir reports/daily_digest \
-            || python -u daily_digest_live_final_with_pdp_trend_no_categorytrend_rpimg_styled_like_build_blog.py
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest \
+            || python -u daily_digest_live_final.py
 
           test -f reports/daily_digest/index.html
 
