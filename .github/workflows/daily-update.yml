@@ -96,6 +96,8 @@ jobs:
 
       # =========================================================
       # ✅ Daily Digest Report
+      # - FIX1: ADC는 base64 secret으로 안정 생성
+      # - FIX2: daily_digest_live_final.py가 daily_digest_live.html로 뱉는 케이스 대응 → index.html로 이동
       # =========================================================
       - name: Run Daily Digest report
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
@@ -126,8 +128,27 @@ jobs:
           rm -rf reports/daily_digest || true
           mkdir -p reports/daily_digest
 
+          # 실행 (out-dir 지원/미지원 모두 대응)
           python -u daily_digest_live_final.py --out-dir reports/daily_digest \
             || python -u daily_digest_live_final.py
+
+          # ✅ 파일명/경로 호환: 최종적으로 reports/daily_digest/index.html 보장
+          if [ -f "reports/daily_digest/index.html" ]; then
+            echo "[OK] reports/daily_digest/index.html exists"
+          elif [ -f "reports/daily_digest/daily_digest_live.html" ]; then
+            mv reports/daily_digest/daily_digest_live.html reports/daily_digest/index.html
+            echo "[OK] Moved reports/daily_digest/daily_digest_live.html -> reports/daily_digest/index.html"
+          elif [ -f "daily_digest_live.html" ]; then
+            mv daily_digest_live.html reports/daily_digest/index.html
+            echo "[OK] Moved daily_digest_live.html -> reports/daily_digest/index.html"
+          else
+            echo "[ERROR] Could not find daily digest HTML output."
+            echo "---- ls (repo root) ----"
+            ls -la || true
+            echo "---- ls (reports/daily_digest) ----"
+            ls -la reports/daily_digest || true
+            exit 1
+          fi
 
           test -f reports/daily_digest/index.html
 
