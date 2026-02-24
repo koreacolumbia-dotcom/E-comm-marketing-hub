@@ -566,11 +566,9 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
             .fillna(0.0)
     )
 
-    out["rev_vs_prev"] = out.apply(lambda r: pct_change(r["purchaseRevenue"], r["purchaseRevenue_prev"]), axis=1)
-    out["rev_yoy"] = out.apply(lambda r: pct_change(r["purchaseRevenue_yoy"], r["purchaseRevenue_yoy_yoy"]) if False else 0.0, axis=1)
-
-    # 위 줄은 suffix 충돌 방지용 더미(사용 안 함). 실제 yoy는 아래에서 계산.
-    out["rev_yoy"] = out.apply(lambda r: pct_change(r["purchaseRevenue"], r["purchaseRevenue_yoy"]), axis=1)
+    # ✅ FIX: YoY/Prev revenue deltas computed correctly from merged columns
+    out["rev_vs_prev"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
+    out["rev_yoy"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_yoy"])), axis=1)
 
     tot_cur_rev = float(out["purchaseRevenue"].sum())
     tot_prev_rev = float(out["purchaseRevenue_prev"].sum())
@@ -791,7 +789,6 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
 
     if ts.empty:
         top["trend_svg"] = ""
-        # placeholder fill
         if PLACEHOLDER_IMG:
             top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
         return top[["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"]]
