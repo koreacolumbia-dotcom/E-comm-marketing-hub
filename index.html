@@ -54,7 +54,6 @@
       color:#334155;
     }
 
-    /* ✅ 섹션 라벨/구분선 (PC sidebar 정리) */
     .nav-section{ margin-top: 18px; }
     .nav-section:first-child{ margin-top: 0; }
     .nav-section-title{
@@ -71,7 +70,6 @@
       background: rgba(148,163,184,0.22);
       margin: 14px 10px;
     }
-    /* ✅ 아이콘 폭 고정 → 텍스트 정렬 깔끔 */
     .nav-item i{
       width: 18px;
       text-align: center;
@@ -104,8 +102,6 @@
       color: var(--brand);
       background: rgba(0,45,114,0.06);
     }
-
-    /* iOS safe area */
     .safe-bottom{
       padding-bottom: env(safe-area-inset-bottom);
     }
@@ -132,11 +128,8 @@
     @keyframes spin{ to { transform: rotate(360deg); } }
     .muted { color:#64748b; }
 
-    /* ✅ iframe가 내부 스크롤을 만들지 않도록 기본 처리 */
-    #frame{
-      overflow: hidden;
-      background: #fff;
-    }
+    /* ✅ iframe 기본: 내부 스크롤을 만들지 않도록 */
+    #frame{ overflow:hidden; background:#fff; }
   </style>
 </head>
 
@@ -157,7 +150,7 @@
 <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
 
   <!-- BRAND -->
-  <div class="flex items-center gap-4 mb-14 px-2">
+  <div class="flex items-center gap-4 mb-10 px-2">
     <img
       src="Columbia_logo.png"
       alt="Columbia"
@@ -184,7 +177,6 @@
           <i class="fa-solid fa-chart-simple"></i><span>Summary</span>
         </div>
 
-        <!-- ✅ NEW: Daily Report -->
         <div class="nav-item" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Report">
           <i class="fa-solid fa-calendar-day"></i><span>Daily Report</span>
         </div>
@@ -228,7 +220,7 @@
 
   </div>
 
-  <!-- ✅ Sidebar Footer Meta (Update / Period) -->
+  <!-- Sidebar Footer Meta -->
   <div class="mt-auto pt-8 px-2">
     <div class="glass-card p-4">
       <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">Update</div>
@@ -257,39 +249,15 @@
 </aside>
 
 <!-- ================= Main ================= -->
-<main class="flex-1 p-4 md:p-10 lg:p-16 pb-24 lg:pb-0">
+<!-- ✅ 헤더 제거: iframe만 크게 -->
+<main class="flex-1 p-4 md:p-8 lg:p-10 pb-24 lg:pb-0">
 
-  <!-- ===== Mobile Header (MO) ===== -->
-  <header class="lg:hidden mb-4">
-    <div class="glass-card px-4 py-3 flex items-center gap-3">
-      <img src="Columbia_logo.png" alt="Columbia" class="w-10 h-10 object-contain" />
-      <div class="flex-1">
-        <div class="text-sm font-black tracking-tight">CSK <span class="text-blue-600">E-COMM</span></div>
-        <div class="text-[10px] font-extrabold text-slate-400">AUTOMATION MARKETING HUB</div>
-      </div>
-      <div class="text-[11px] font-black text-slate-700 px-3 py-1 rounded-full bg-white/70">
-        <span id="mo-current-label">Summary</span>
-      </div>
-    </div>
-  </header>
-
-  <!-- ===== Desktop Header (PC) ===== -->
-  <header class="hidden lg:block mb-8">
-    <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900">
-      CSK E-COMM Marketing Hub
-    </h1>
-    <p class="text-slate-500 text-base md:text-lg font-medium italic mt-2">
-      자동 업데이트 리포트 포털 (GitHub Actions → reports/)
-    </p>
-  </header>
-
-  <section class="glass-card p-4 md:p-6">
-    <!-- ✅ 핵심: 고정 height 제거(내부 스크롤 방지) + JS로 자동 높이 맞춤 -->
+  <section class="glass-card p-3 md:p-4 lg:p-5">
     <iframe
       id="frame"
       src="reports/index.html"
       class="w-full rounded-2xl border-0 bg-white"
-      style="min-height: 720px;"
+      style="min-height: 760px;"
       loading="eager">
     </iframe>
   </section>
@@ -304,7 +272,6 @@
       <div class="text-[10px]">요약</div>
     </div>
 
-    <!-- ✅ NEW: Daily -->
     <div class="mo-tab" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Report">
       <i class="fa-solid fa-calendar-day text-base"></i>
       <div class="text-[10px]">데일리</div>
@@ -338,13 +305,11 @@
     const frame = document.getElementById("frame");
     const pcItems = Array.from(document.querySelectorAll(".nav-item[data-target]"));
     const moTabs  = Array.from(document.querySelectorAll(".mo-tab[data-target]"));
-    const moLabel = document.getElementById("mo-current-label");
     const loading = document.getElementById("hub-loading");
 
     const allNav = [...pcItems, ...moTabs];
     if (!frame || allNav.length === 0) return;
 
-    // ✅ 탭별 meta.json 경로 (운영 안정성)
     const META_PATH_BY_KEY = {
       summary: "reports/meta.json",
       daily:   "reports/meta.json",
@@ -360,22 +325,15 @@
       loading.style.display = on ? "flex" : "none";
     };
 
-    // ✅ GitHub Pages 경로(/repo-name/)에서도 안전하게 iframe URL 계산
     function toAbsHref(relativePath) {
-      try {
-        return new URL(relativePath, window.location.href).href;
-      } catch (e) {
-        return relativePath;
-      }
+      try { return new URL(relativePath, window.location.href).href; }
+      catch (e) { return relativePath; }
     }
 
     function setActiveByTarget(target) {
       allNav.forEach(el => el.classList.remove("active"));
       const matches = allNav.filter(el => el.getAttribute("data-target") === target);
       matches.forEach(el => el.classList.add("active"));
-
-      const label = (matches[0] && matches[0].getAttribute("data-label")) || "";
-      if (moLabel && label) moLabel.textContent = label;
     }
 
     function getKeyByTarget(target) {
@@ -399,16 +357,13 @@
       if (!elUpdated || !elPeriod) return;
 
       const metaPath = META_PATH_BY_KEY[key] || "reports/meta.json";
-
       try {
         const res = await fetch(metaPath + `?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("meta.json not found");
         const meta = await res.json();
-
         elUpdated.textContent = meta.updated_at_kst || "-";
         elPeriod.textContent  = meta.period_text || "-";
       } catch (e) {
-        // fallback: last 7 days (KST)
         const now = new Date();
         elUpdated.textContent = fmtKST(now);
 
@@ -439,25 +394,20 @@
 
         frame.style.height = (h + 12) + "px";
       } catch (e) {
-        // cross-origin이면 접근 불가 (이번 케이스는 같은 GitHub Pages 경로라 보통 OK)
         console.warn("iframe resize blocked", e);
       }
     }
 
     function navigate(target) {
       if (!target) return;
-
       const key = getKeyByTarget(target);
 
-      // ✅ loading overlay ON
       showLoading(true);
 
-      // ✅ onload에서 OFF + 높이 맞춤 (한 번만)
       const onLoadOnce = () => {
         showLoading(false);
         frame.removeEventListener("load", onLoadOnce);
 
-        // 로드 후 높이 맞춤 (폰트/이미지 늦게 로드되는 케이스 대비)
         resizeIframeToContent();
         setTimeout(resizeIframeToContent, 250);
         setTimeout(resizeIframeToContent, 900);
@@ -467,35 +417,24 @@
       frame.src = toAbsHref(target);
       setActiveByTarget(target);
 
-      // ✅ hash 유지(공유/새로고침 시 탭 고정)
       if (key) window.location.hash = key;
-
-      // ✅ 현재 탭 meta 반영
       setSidebarMetaByKey(key);
     }
 
-    // Click handlers (PC + MO)
     allNav.forEach(el => {
-      el.addEventListener("click", () => {
-        navigate(el.getAttribute("data-target"));
-      });
+      el.addEventListener("click", () => navigate(el.getAttribute("data-target")));
     });
 
-    // ✅ 초기 진입: hash가 있으면 해당 탭으로
     function initialNavigate() {
       const hashKey = (window.location.hash || "").replace("#", "").trim();
       if (hashKey) {
         const el = allNav.find(x => x.getAttribute("data-key") === hashKey);
-        if (el) {
-          navigate(el.getAttribute("data-target"));
-          return;
-        }
+        if (el) { navigate(el.getAttribute("data-target")); return; }
       }
       navigate(frame.getAttribute("src"));
     }
     initialNavigate();
 
-    // ✅ 뷰포트 변경 시도: iframe 내부 높이 재측정(고정 vh 계산 제거)
     window.addEventListener("resize", () => {
       resizeIframeToContent();
       setTimeout(resizeIframeToContent, 120);
