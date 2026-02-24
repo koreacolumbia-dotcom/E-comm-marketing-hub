@@ -4,58 +4,462 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Daily Digest Hub</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    body{ background: linear-gradient(180deg, #f6f8fb, #eef3f9); font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; }
-    .glass-card{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }
+    .glass{
+      background: rgba(255,255,255,0.70);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.80);
+      border-radius: 28px;
+      box-shadow: 0 20px 50px rgba(0,45,114,0.06);
+    }
+    .chip{
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(203,213,225,0.7);
+      box-shadow: 0 10px 24px rgba(2,6,23,0.04);
+      transition: all .15s ease;
+    }
+    .chip:hover{ transform: translateY(-1px); box-shadow: 0 14px 28px rgba(2,6,23,0.06); }
+    .chip:active{ transform: translateY(0px); }
+    .pill{
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 900;
+      border: 1px solid rgba(203,213,225,0.75);
+      background: rgba(255,255,255,0.7);
+      transition: all .15s ease;
+      user-select:none;
+      cursor:pointer;
+    }
+    .pill.active{
+      background: #ffffff;
+      border-color: rgba(0,45,114,0.18);
+      box-shadow: 0 16px 30px rgba(0,45,114,0.10);
+      color: var(--brand);
+    }
+
+    .result-btn{
+      border-radius: 18px;
+      padding: 12px 14px;
+      font-weight: 900;
+      border: 1px solid rgba(203,213,225,0.75);
+      background: rgba(255,255,255,0.75);
+      transition: all .15s ease;
+      cursor:pointer;
+      user-select:none;
+    }
+    .result-btn:hover{ background: rgba(255,255,255,0.92); }
+    .result-btn.active{
+      background:#ffffff;
+      border-color: rgba(0,45,114,0.20);
+      box-shadow: 0 14px 28px rgba(0,45,114,0.08);
+      color: var(--brand);
+    }
+
+    /* Compact inline calendar styling */
+    .flatpickr-calendar.inline{
+      box-shadow: none !important;
+      border: 1px solid rgba(203,213,225,0.75) !important;
+      border-radius: 18px !important;
+      overflow: hidden !important;
+      background: rgba(255,255,255,0.86) !important;
+    }
+    .flatpickr-day.selected,
+    .flatpickr-day.startRange,
+    .flatpickr-day.endRange,
+    .flatpickr-day.inRange{
+      background: rgba(0,45,114,0.90) !important;
+      border-color: rgba(0,45,114,0.90) !important;
+      color: #fff !important;
+    }
+
+    .muted{ color:#64748b; }
+    .subtle{ color:#94a3b8; }
+
+    /* Viewer actions */
+    .btn{
+      border-radius: 18px;
+      padding: 10px 14px;
+      font-weight: 900;
+      border: 1px solid rgba(203,213,225,0.75);
+      background: rgba(255,255,255,0.78);
+      transition: all .15s ease;
+      cursor:pointer;
+      user-select:none;
+    }
+    .btn.primary{
+      background: rgba(0,45,114,0.92);
+      border-color: rgba(0,45,114,0.92);
+      color:#fff;
+      box-shadow: 0 14px 28px rgba(0,45,114,0.16);
+    }
+    .btn:hover{ transform: translateY(-1px); }
+    .btn:active{ transform: translateY(0px); }
+
+    /* Responsive */
+    @media (max-width: 1023px){
+      .layout{
+        grid-template-columns: 1fr !important;
+      }
+      iframe{
+        height: 70vh !important;
+      }
+    }
   </style>
 </head>
-<body>
-  <div class="px-3 sm:px-6 py-6 max-w-[1100px] mx-auto">
-    <div class="mb-6">
-      <div class="text-3xl font-black tracking-tight">Daily Digest Hub</div>
-      <div class="text-sm text-slate-500">최근 생성된 리포트로 이동</div>
+
+<body class="p-6 md:p-10">
+  <div class="max-w-[1200px] mx-auto">
+    <!-- Header -->
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-4xl font-black tracking-tight text-slate-900">Daily Digest Hub</h1>
+        <p class="mt-2 text-slate-500 font-semibold">캘린더로 날짜/기간 선택 · 기본은 어제 리포트</p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="text-[11px] font-black tracking-widest text-slate-500 uppercase">Mode</div>
+        <button id="btnModeDaily"  class="pill active">Daily</button>
+        <button id="btnModeWeekly" class="pill">Weekly (7D)</button>
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="glass-card rounded-3xl p-6">
-        <div class="text-lg font-black">Daily Reports</div>
-        <div class="mt-4 flex flex-wrap gap-2"><a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-23.html'>2026-02-23</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-22.html'>2026-02-22</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-21.html'>2026-02-21</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-20.html'>2026-02-20</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-19.html'>2026-02-19</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-18.html'>2026-02-18</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-17.html'>2026-02-17</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-16.html'>2026-02-16</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-15.html'>2026-02-15</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-14.html'>2026-02-14</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-13.html'>2026-02-13</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-12.html'>2026-02-12</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-11.html'>2026-02-11</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-10.html'>2026-02-10</a></div>
-      </div>
+    <!-- Layout -->
+    <div class="layout mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left Panel -->
+      <section class="glass lg:col-span-5 p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <div id="modeTitle" class="text-xl font-black text-slate-900">Daily Reports</div>
+            <div id="modeSubtitle" class="mt-1 text-sm font-bold subtle">선택 날짜 리포트를 우측에서 확인</div>
+          </div>
+          <div class="text-xs font-black px-3 py-2 rounded-full bg-white/70 border border-slate-200/70">
+            <span id="resultCount">0</span>
+          </div>
+        </div>
 
-      <div class="glass-card rounded-3xl p-6">
-        <div class="text-lg font-black">Weekly (7D Cumulative)</div>
-        <div class="mt-4 text-xs text-slate-500 mb-3">END 날짜 기준으로 7일 누적</div>
-        <div class="flex flex-wrap gap-2"><a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-23.html'>END 2026-02-23</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-22.html'>END 2026-02-22</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-21.html'>END 2026-02-21</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-20.html'>END 2026-02-20</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-19.html'>END 2026-02-19</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-18.html'>END 2026-02-18</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-17.html'>END 2026-02-17</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-16.html'>END 2026-02-16</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-15.html'>END 2026-02-15</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-14.html'>END 2026-02-14</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-13.html'>END 2026-02-13</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-12.html'>END 2026-02-12</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-11.html'>END 2026-02-11</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-10.html'>END 2026-02-10</a></div>
-      </div>
+        <!-- Compact Calendar Picker -->
+        <div class="mt-5">
+          <label class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Date / Range</label>
+
+          <div class="mt-2 flex items-center gap-2">
+            <button id="btnCalendar" class="chip rounded-2xl px-4 py-3 font-extrabold flex items-center gap-2">
+              <span class="text-slate-700">📅</span>
+              <span id="pickedLabel" class="text-slate-900">선택</span>
+              <span class="text-slate-400 font-black">▼</span>
+            </button>
+
+            <button id="btnYesterday" class="chip rounded-2xl px-4 py-3 font-extrabold whitespace-nowrap">
+              어제
+            </button>
+          </div>
+
+          <div id="calPopover" class="hidden mt-3">
+            <div class="glass rounded-3xl p-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-black text-slate-800">날짜/기간 선택</div>
+                <button id="btnCalClose" class="chip rounded-xl px-3 py-2 text-xs font-extrabold">닫기</button>
+              </div>
+              <div id="calInline"></div>
+              <div class="mt-3 text-xs muted leading-relaxed">
+                - <b>단일 날짜</b> 선택: 해당 날짜 리포트 로드<br/>
+                - <b>기간</b> 선택: 기간 내 목록 표시 + 최신 날짜를 기본 로드
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="my-6 border-slate-200/70" />
+
+        <!-- Results -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm font-black text-slate-900">Results</div>
+          <div class="text-xs font-extrabold muted">클릭하면 바로 로드</div>
+        </div>
+
+        <div id="results" class="grid grid-cols-2 gap-3"></div>
+
+        <div class="mt-4 flex gap-3">
+          <button id="btnPrevDay" class="result-btn w-full">◀ 하루 전</button>
+          <button id="btnNextDay" class="result-btn w-full">하루 뒤 ▶</button>
+        </div>
+      </section>
+
+      <!-- Right Viewer -->
+      <section class="glass lg:col-span-7 p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="text-xl font-black text-slate-900">Report Viewer</div>
+            <div id="viewerMeta" class="mt-1 text-sm font-bold text-slate-500">
+              —
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <a id="openNewTab" class="btn" href="#" target="_blank" rel="noopener">새 탭</a>
+            <button id="btnCopyLink" class="btn">링크 복사</button>
+            <button id="btnRefresh" class="btn primary">새로고침</button>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-3xl overflow-hidden border border-slate-200/70 bg-white/80">
+          <iframe id="viewer" src="" class="w-full border-0" style="height: 72vh;" loading="eager"></iframe>
+        </div>
+      </section>
     </div>
   </div>
+
+  <script>
+    (function(){
+      // ---------- Paths ----------
+      const PATHS = {
+        daily:  (ymd) => `daily/${ymd}.html`,
+        weekly: (ymd) => `weekly/END_${ymd}.html`,
+      };
+
+      // ---------- DOM ----------
+      const btnModeDaily  = document.getElementById("btnModeDaily");
+      const btnModeWeekly = document.getElementById("btnModeWeekly");
+      const modeTitle     = document.getElementById("modeTitle");
+      const modeSubtitle  = document.getElementById("modeSubtitle");
+      const resultCount   = document.getElementById("resultCount");
+      const resultsEl     = document.getElementById("results");
+
+      const viewer    = document.getElementById("viewer");
+      const viewerMeta= document.getElementById("viewerMeta");
+      const openNewTab= document.getElementById("openNewTab");
+
+      const btnCopyLink  = document.getElementById("btnCopyLink");
+      const btnRefresh   = document.getElementById("btnRefresh");
+      const btnYesterday = document.getElementById("btnYesterday");
+      const btnPrevDay   = document.getElementById("btnPrevDay");
+      const btnNextDay   = document.getElementById("btnNextDay");
+
+      const btnCalendar = document.getElementById("btnCalendar");
+      const calPopover  = document.getElementById("calPopover");
+      const calInlineEl = document.getElementById("calInline");
+      const pickedLabel = document.getElementById("pickedLabel");
+      const btnCalClose = document.getElementById("btnCalClose");
+
+      // ---------- State ----------
+      let mode = "daily"; // daily | weekly
+      let selectedDate = ""; // ymd
+      let listDates = []; // list of ymd within range (descending)
+
+      // ---------- Utils ----------
+      function pad2(n){ return String(n).padStart(2,"0"); }
+      function toYMD(d){
+        return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+      }
+      // KST "today" date object (date only)
+      function kstToday(){
+        const now = new Date();
+        const utc = now.getTime() + now.getTimezoneOffset()*60000;
+        const kst = new Date(utc + 9*60*60000);
+        return new Date(kst.getFullYear(), kst.getMonth(), kst.getDate());
+      }
+      function addDays(ymd, delta){
+        const [y,m,d] = ymd.split("-").map(Number);
+        const dt = new Date(y, m-1, d);
+        dt.setDate(dt.getDate()+delta);
+        return toYMD(dt);
+      }
+      function ymdToDate(ymd){
+        const [y,m,d] = ymd.split("-").map(Number);
+        return new Date(y, m-1, d);
+      }
+
+      function setPickedLabelText() {
+        if (!selectedDate) { pickedLabel.textContent = "선택"; return; }
+        pickedLabel.textContent = (mode === "weekly" ? `END ${selectedDate}` : selectedDate);
+      }
+
+      function toggleCal(on){
+        calPopover.classList.toggle("hidden", !on);
+      }
+
+      // ---------- Rendering ----------
+      function setMode(newMode){
+        mode = newMode;
+        btnModeDaily.classList.toggle("active", mode==="daily");
+        btnModeWeekly.classList.toggle("active", mode==="weekly");
+
+        if(mode==="daily"){
+          modeTitle.textContent = "Daily Reports";
+          modeSubtitle.textContent = "선택 날짜 리포트를 우측에서 확인";
+        }else{
+          modeTitle.textContent = "Weekly (7D Cumulative)";
+          modeSubtitle.textContent = "END 날짜 기준 최근 7일 누적 리포트";
+        }
+
+        // keep selected date, just reload same ymd in different mode
+        if(selectedDate){
+          loadReport(selectedDate);
+        }
+        highlightSelected();
+        setPickedLabelText();
+      }
+
+      function renderResults(dates){
+        resultsEl.innerHTML = "";
+        listDates = dates.slice();
+
+        resultCount.textContent = dates.length;
+
+        dates.forEach(ymd => {
+          const btn = document.createElement("button");
+          btn.className = "result-btn";
+          btn.setAttribute("data-ymd", ymd);
+          btn.textContent = (mode==="weekly" ? `END ${ymd}` : ymd);
+          btn.onclick = () => loadReport(ymd);
+          resultsEl.appendChild(btn);
+        });
+
+        highlightSelected();
+      }
+
+      function highlightSelected(){
+        const btns = Array.from(resultsEl.querySelectorAll("button[data-ymd]"));
+        btns.forEach(b => b.classList.toggle("active", b.getAttribute("data-ymd") === selectedDate));
+      }
+
+      function loadReport(ymd){
+        selectedDate = ymd;
+
+        const url = mode === "daily" ? PATHS.daily(ymd) : PATHS.weekly(ymd);
+        viewer.src = url;
+        openNewTab.href = url;
+        viewerMeta.textContent = `${mode === "daily" ? "Daily" : "Weekly(END)"} · ${ymd} · ${url}`;
+        highlightSelected();
+        setPickedLabelText();
+      }
+
+      function renderListForRange(startYMD, endYMD){
+        // build descending list end -> start
+        const start = ymdToDate(startYMD);
+        const end   = ymdToDate(endYMD);
+
+        const out = [];
+        const cur = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+        const startKey = start.getTime();
+
+        while(cur.getTime() >= startKey){
+          out.push(toYMD(cur));
+          cur.setDate(cur.getDate()-1);
+        }
+        renderResults(out);
+      }
+
+      // ---------- Calendar (compact popover + inline) ----------
+      btnCalendar.onclick = () => toggleCal(calPopover.classList.contains("hidden"));
+      btnCalClose.onclick = () => toggleCal(false);
+
+      const fp = flatpickr(calInlineEl, {
+        inline: true,
+        mode: "range",
+        dateFormat: "Y-m-d",
+        maxDate: "today",
+        locale: { firstDayOfWeek: 1 },
+        onChange: function(selectedDates){
+          if(!selectedDates || selectedDates.length === 0) return;
+
+          if(selectedDates.length === 1){
+            const d = toYMD(selectedDates[0]);
+            const start = addDays(d, -13);
+            renderListForRange(start, d);
+            loadReport(d);
+            setPickedLabelText();
+            return;
+          }
+
+          const start = toYMD(selectedDates[0]);
+          const end = toYMD(selectedDates[1]);
+          renderListForRange(start, end);
+          loadReport(end); // range는 최신 날짜 기본
+          setPickedLabelText();
+        }
+      });
+
+      // ---------- Buttons ----------
+      btnModeDaily.onclick  = () => setMode("daily");
+      btnModeWeekly.onclick = () => setMode("weekly");
+
+      btnRefresh.onclick = () => {
+        if(!selectedDate) return;
+        // cache-bust iframe
+        const url = (mode === "daily" ? PATHS.daily(selectedDate) : PATHS.weekly(selectedDate)) + `?t=${Date.now()}`;
+        viewer.src = url;
+        openNewTab.href = (mode === "daily" ? PATHS.daily(selectedDate) : PATHS.weekly(selectedDate));
+      };
+
+      btnCopyLink.onclick = async () => {
+        try{
+          const url = new URL(openNewTab.href, window.location.href).href;
+          await navigator.clipboard.writeText(url);
+          btnCopyLink.textContent = "복사됨!";
+          setTimeout(()=> btnCopyLink.textContent = "링크 복사", 900);
+        }catch(e){
+          btnCopyLink.textContent = "실패";
+          setTimeout(()=> btnCopyLink.textContent = "링크 복사", 900);
+        }
+      };
+
+      btnYesterday.onclick = () => {
+        const today = kstToday();
+        const y = new Date(today.getFullYear(), today.getMonth(), today.getDate()-1);
+        const ymd = toYMD(y);
+
+        // show last 14 days ending yesterday
+        const start = toYMD(new Date(y.getFullYear(), y.getMonth(), y.getDate()-13));
+        renderListForRange(start, ymd);
+
+        // set calendar selection programmatically (single date)
+        fp.setDate(ymd, true);
+        loadReport(ymd);
+        setPickedLabelText();
+      };
+
+      function stepDay(delta){
+        if(!selectedDate) return;
+        const next = addDays(selectedDate, delta);
+
+        // limit to today (KST) for selection
+        const max = toYMD(kstToday());
+        if(ymdToDate(next) > ymdToDate(max)) return;
+
+        // keep a rolling 14-day list ending at next
+        const start = addDays(next, -13);
+        renderListForRange(start, next);
+
+        fp.setDate(next, true);
+        loadReport(next);
+      }
+
+      btnPrevDay.onclick = () => stepDay(-1);
+      btnNextDay.onclick = () => stepDay(+1);
+
+      // ---------- Init: default = yesterday report ----------
+      (function init(){
+        setMode("daily");
+        btnYesterday.click();      // ✅ default: yesterday
+        toggleCal(false);
+      })();
+
+    })();
+  </script>
 </body>
 </html>
