@@ -78,26 +78,32 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
+        shell: bash
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+          # ✅ BigQuery dtype support (fix: Please install the 'db-dtypes' package)
+          pip install db-dtypes
+
           playwright install --with-deps chromium
 
       - name: Ensure reports dir
         run: |
           mkdir -p reports
 
-      - name: Set KST time (for badge/meta)
+      - name: Set KST time (for badge/meta + yesterday)
         id: set_time
         shell: bash
         run: |
+          set -euo pipefail
           echo "kst=$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')" >> $GITHUB_OUTPUT
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       # =========================================================
-      # ✅ Daily Digest Report
-      # - FIX1: ADC는 base64 secret으로 안정 생성
-      # - FIX2: daily_digest_live_final.py가 daily_digest_live.html로 뱉는 케이스 대응 → index.html로 이동
+      # ✅ Daily Digest Report (누적 생성 유지)
       # =========================================================
       - name: Run Daily Digest report
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
@@ -125,32 +131,17 @@ jobs:
 
           python -c "import json; json.load(open('/tmp/ga_sa.json')); print('JSON_OK')"
 
-          rm -rf reports/daily_digest || true
-          mkdir -p reports/daily_digest
+          # ✅ 누적 생성: 절대 rm -rf 하지 말 것
+          mkdir -p reports/daily_digest/daily reports/daily_digest/weekly
 
           # 실행 (out-dir 지원/미지원 모두 대응)
           python -u daily_digest_live_final.py --out-dir reports/daily_digest \
             || python -u daily_digest_live_final.py
 
-          # ✅ 파일명/경로 호환: 최종적으로 reports/daily_digest/index.html 보장
-          if [ -f "reports/daily_digest/index.html" ]; then
-            echo "[OK] reports/daily_digest/index.html exists"
-          elif [ -f "reports/daily_digest/daily_digest_live.html" ]; then
-            mv reports/daily_digest/daily_digest_live.html reports/daily_digest/index.html
-            echo "[OK] Moved reports/daily_digest/daily_digest_live.html -> reports/daily_digest/index.html"
-          elif [ -f "daily_digest_live.html" ]; then
-            mv daily_digest_live.html reports/daily_digest/index.html
-            echo "[OK] Moved daily_digest_live.html -> reports/daily_digest/index.html"
-          else
-            echo "[ERROR] Could not find daily digest HTML output."
-            echo "---- ls (repo root) ----"
-            ls -la || true
-            echo "---- ls (reports/daily_digest) ----"
-            ls -la reports/daily_digest || true
-            exit 1
-          fi
-
-          test -f reports/daily_digest/index.html
+          # ✅ 최소 산출물 체크: (hub) index.html + (daily) 파일들이 있어야 함
+          test -f reports/daily_digest/index.html || true
+          ls -la reports/daily_digest/daily | tail -n 50 || true
+          ls -la reports/daily_digest/weekly | tail -n 50 || true
 
       # ----------------------------
       # 1) Naver Lowest Price
@@ -283,9 +274,9 @@ jobs:
           fi
 
       # ----------------------------
-      # ✅ Success Email (send links or full HTML)
+      # ✅ Success Email (어제 Daily 리포트 1개만 본문으로)
       # ----------------------------
-      - name: Send success email (links)
+      - name: Send success email (yesterday daily report)
         if: ${{ success() }}
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
@@ -295,43 +286,21 @@ jobs:
           DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
           HUB_URL: ${{ vars.HUB_URL }}
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
+
           MODE_DAILY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}
           MODE_VOC_ONLY:   ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
           MODE_BLOG_ONLY:  ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
 
-          # ✅ report HTML to embed
-          DAILY_DIGEST_HTML_PATH: reports/daily_digest/index.html
-
+          # ✅ 핵심: HUB(index) 말고 "어제 데일리 리포트"를 본문으로 보냄
+          DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
+        shell: bash
         run: |
           set -euo pipefail
 
-          echo "[DEBUG] SMTP_HOST=${SMTP_HOST:-}"
-          echo "[DEBUG] SMTP_PORT=${SMTP_PORT:-}"
-          echo "[DEBUG] DAILY_RECIPIENTS=${DAILY_RECIPIENTS:-}"
-          echo "[DEBUG] HUB_URL=${HUB_URL:-}"
-          echo "[DEBUG] DAILY_DIGEST_HTML_PATH=${DAILY_DIGEST_HTML_PATH:-}"
-
-          : "${SMTP_HOST:?Missing vars.SMTP_HOST (e.g. smtp.gmail.com)}"
-          : "${SMTP_PORT:?Missing vars.SMTP_PORT (e.g. 587)}"
-          : "${SMTP_USER:?Missing secrets.SMTP_USER}"
-          : "${SMTP_PASS:?Missing secrets.SMTP_PASS}"
-          : "${DAILY_RECIPIENTS:?Missing vars.DAILY_RECIPIENTS}"
-
-          # HUB_URL은 선택값 (없어도 메일은 발송)
-          if [ -z "${HUB_URL:-}" ]; then
-            echo "[WARN] HUB_URL is empty (vars.HUB_URL not set). Email will be sent without hub link."
-          fi
-
-          # report html 존재 여부 로그
-          if [ -f "${DAILY_DIGEST_HTML_PATH}" ]; then
-            echo "[OK] Found report HTML: ${DAILY_DIGEST_HTML_PATH}"
-            ls -la reports/daily_digest || true
-          else
-            echo "[WARN] Report HTML not found at ${DAILY_DIGEST_HTML_PATH}"
-            echo "---- ls reports ----"
-            ls -la reports || true
-            echo "---- find daily digest html ----"
-            find . -maxdepth 3 -name "daily_digest_live*.html" -o -name "index.html" | head -n 50 || true
+          echo "[DEBUG] DAILY_DIGEST_HTML_PATH=${DAILY_DIGEST_HTML_PATH}"
+          if [ ! -f "${DAILY_DIGEST_HTML_PATH}" ]; then
+            echo "[WARN] Yesterday daily report not found. Listing daily dir:"
+            ls -la reports/daily_digest/daily || true
           fi
 
           python -u scripts/send_daily_email.py
