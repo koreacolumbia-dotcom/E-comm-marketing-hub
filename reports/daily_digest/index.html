@@ -11,12 +11,18 @@
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
 
+    /* ✅ Hub 스크롤 제거 + 화면 고정 */
+    html, body{
+      height: 100%;
+      overflow: hidden;
+    }
+
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
       color:#0f172a;
-      min-height:100vh;
     }
+
     .glass{
       background: rgba(255,255,255,0.72);
       backdrop-filter: blur(18px);
@@ -82,16 +88,19 @@
       border-color: rgba(0,45,114,0.40);
       box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
     }
+
+    /* ✅ iframe을 남는 영역 전부 사용 (Hub 스크롤 없음) */
     .viewer-frame{
       width: 100%;
-      height: calc(100vh - 240px);
+      height: calc(100vh - 210px); /* 헤더+컨트롤 높이 고려 */
       border: 0;
       border-radius: 18px;
       background: white;
     }
     @media (max-width: 1023px){
-      .viewer-frame{ height: 74vh; }
+      .viewer-frame{ height: calc(100vh - 250px); }
     }
+
     .topbar{
       display:flex;
       flex-wrap: wrap;
@@ -105,13 +114,6 @@
       gap: 10px;
       align-items: center;
     }
-    .topbar-right{
-      display:flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      justify-content: flex-end;
-    }
     .mini{
       font-size: 11px;
       font-weight: 900;
@@ -120,28 +122,39 @@
       border: 1px solid rgba(148,163,184,0.22);
       border-radius: 999px;
       padding: 8px 12px;
+      white-space: nowrap;
     }
   </style>
 </head>
 
-<body class="p-6 md:p-10">
-  <div class="max-w-7xl mx-auto">
+<body class="p-4 md:p-8">
+  <div class="max-w-7xl mx-auto h-full">
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
       <div>
         <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
         <div class="muted font-semibold mt-1">날짜/기간 선택은 Viewer 상단에서 · 기본은 어제 리포트(KST)</div>
       </div>
-      <div class="flex items-center gap-2">
-        <div class="small-label mr-2">Mode</div>
-        <button id="modeDaily" class="chip active" type="button">Daily</button>
-        <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
+
+      <!-- ✅ 우상단: Mode + Actions -->
+      <div class="flex items-center gap-3 flex-wrap justify-end">
+        <div class="flex items-center gap-2">
+          <div class="small-label mr-2">Mode</div>
+          <button id="modeDaily" class="chip active" type="button">Daily</button>
+          <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="btnOpenNew" class="btn" type="button">새 탭</button>
+          <button id="btnCopy" class="btn" type="button">링크 복사</button>
+          <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
+        </div>
       </div>
     </div>
 
     <!-- Viewer -->
-    <div class="glass p-5">
-      <div class="topbar mb-4">
+    <div class="glass p-4">
+      <div class="topbar mb-3">
         <!-- controls -->
         <div class="topbar-left">
           <span class="mini" id="statusText">-</span>
@@ -169,19 +182,12 @@
             <button id="btnClearRange" class="btn" type="button">Range 해제</button>
           </div>
         </div>
-
-        <!-- actions -->
-        <div class="topbar-right">
-          <button id="btnOpenNew" class="btn" type="button">새 탭</button>
-          <button id="btnCopy" class="btn" type="button">링크 복사</button>
-          <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
-        </div>
       </div>
 
-      <div class="text-xs muted font-semibold mb-3" id="viewerPath">-</div>
+      <div class="text-xs muted font-semibold mb-2" id="viewerPath">-</div>
       <iframe id="viewer" class="viewer-frame" loading="eager"></iframe>
 
-      <div class="mt-3 text-[11px] muted font-semibold text-right">
+      <div class="mt-2 text-[11px] muted font-semibold text-right">
         Auto · KST 기준 · Range 설정 시: 범위 내 존재하는 리포트만 탐색
       </div>
     </div>
@@ -312,7 +318,6 @@
     // singleDate가 range 밖이면 range 내에서 가장 가까운 값으로 이동
     let target = singleDate.value;
     if(activeRangeStart && activeRangeEnd && !inRange(target, activeRangeStart, activeRangeEnd)){
-      // clamp to end
       target = activeRangeEnd;
       singleDate.value = target;
     }
@@ -331,7 +336,6 @@
       setViewer(next);
     }else{
       setStatus('해당 범위에 리포트 파일이 없습니다');
-      // 그래도 viewer는 target로 둠(404일 수 있음)
       setViewer(target);
     }
   }
@@ -369,7 +373,6 @@
   btnPrev.addEventListener('click', async () => {
     const cur = singleDate.value;
     const cand = fmtYMD(addDays(parseYMD(cur), -1));
-    // range 있으면 range 밖은 막기
     if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
     const found = await findAvailable(cand, -1);
     if(found){
@@ -439,4 +442,3 @@
 </script>
 </body>
 </html>
- 
