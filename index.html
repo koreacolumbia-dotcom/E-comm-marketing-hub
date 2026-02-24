@@ -131,6 +131,12 @@
     }
     @keyframes spin{ to { transform: rotate(360deg); } }
     .muted { color:#64748b; }
+
+    /* ✅ iframe가 내부 스크롤을 만들지 않도록 기본 처리 */
+    #frame{
+      overflow: hidden;
+      background: #fff;
+    }
   </style>
 </head>
 
@@ -278,11 +284,12 @@
   </header>
 
   <section class="glass-card p-4 md:p-6">
+    <!-- ✅ 핵심: 고정 height 제거(내부 스크롤 방지) + JS로 자동 높이 맞춤 -->
     <iframe
       id="frame"
       src="reports/index.html"
       class="w-full rounded-2xl border-0 bg-white"
-      style="height: calc(100vh - 220px);"
+      style="min-height: 720px;"
       loading="eager">
     </iframe>
   </section>
@@ -338,8 +345,6 @@
     if (!frame || allNav.length === 0) return;
 
     // ✅ 탭별 meta.json 경로 (운영 안정성)
-    // - summary/price/hero/voc/daily: 공용 meta.json(= summary 빌드 산출물) 기준
-    // - crema/blog: 각 리포트 data/meta.json 사용
     const META_PATH_BY_KEY = {
       summary: "reports/meta.json",
       daily:   "reports/meta.json",
@@ -415,6 +420,30 @@
       }
     }
 
+    // ✅ 핵심: iframe 내부 스크롤 제거 + iframe 높이를 내부 문서 높이로 맞춤
+    function resizeIframeToContent() {
+      try {
+        const doc = frame.contentDocument || frame.contentWindow.document;
+        if (!doc) return;
+
+        doc.documentElement.style.overflow = "hidden";
+        doc.body.style.overflow = "hidden";
+        doc.body.style.margin = "0";
+
+        const h = Math.max(
+          doc.body.scrollHeight,
+          doc.documentElement.scrollHeight,
+          doc.body.offsetHeight,
+          doc.documentElement.offsetHeight
+        );
+
+        frame.style.height = (h + 12) + "px";
+      } catch (e) {
+        // cross-origin이면 접근 불가 (이번 케이스는 같은 GitHub Pages 경로라 보통 OK)
+        console.warn("iframe resize blocked", e);
+      }
+    }
+
     function navigate(target) {
       if (!target) return;
 
@@ -423,10 +452,15 @@
       // ✅ loading overlay ON
       showLoading(true);
 
-      // ✅ onload에서 OFF (한 번만)
+      // ✅ onload에서 OFF + 높이 맞춤 (한 번만)
       const onLoadOnce = () => {
         showLoading(false);
         frame.removeEventListener("load", onLoadOnce);
+
+        // 로드 후 높이 맞춤 (폰트/이미지 늦게 로드되는 케이스 대비)
+        resizeIframeToContent();
+        setTimeout(resizeIframeToContent, 250);
+        setTimeout(resizeIframeToContent, 900);
       };
       frame.addEventListener("load", onLoadOnce);
 
@@ -461,14 +495,11 @@
     }
     initialNavigate();
 
-    // Responsive iframe height: mobile header + bottom tab 고려
-    function resizeFrame() {
-      const isMobile = window.matchMedia("(max-width: 1023px)").matches;
-      const offset = isMobile ? 260 : 200;
-      frame.style.height = `calc(100vh - ${offset}px)`;
-    }
-    window.addEventListener("resize", resizeFrame);
-    resizeFrame();
+    // ✅ 뷰포트 변경 시도: iframe 내부 높이 재측정(고정 vh 계산 제거)
+    window.addEventListener("resize", () => {
+      resizeIframeToContent();
+      setTimeout(resizeIframeToContent, 120);
+    });
   })();
 </script>
 
