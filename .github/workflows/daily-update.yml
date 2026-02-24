@@ -33,9 +33,10 @@ on:
     # KST 08:00 = UTC 23:00 (전날)
     - cron: "0 23 * * *"
 
+# ✅ 핵심: 동시 실행 레이스 방지 (구버전 덮어쓰기/롤백처럼 보이는 현상 방지)
 concurrency:
   group: daily-update-main
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -115,6 +116,7 @@ jobs:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           GA4_START_DATE: ${{ vars.GA4_START_DATE }}
           GA4_END_DATE: ${{ vars.GA4_END_DATE }}
+          KST_STAMP: ${{ steps.set_time.outputs.kst }}
         run: |
           set -euo pipefail
 
@@ -139,6 +141,11 @@ jobs:
           # 실행 (out-dir 지원/미지원 모두 대응)
           python -u daily_digest_live_final.py --out-dir reports/daily_digest \
             || python -u daily_digest_live_final.py
+
+          # ✅ 빌드 스탬프(진단용): 캐시/덮어쓰기 구분
+          if [ -f reports/daily_digest/index.html ]; then
+            echo "<!-- BUILD_STAMP: ${KST_STAMP} -->" >> reports/daily_digest/index.html
+          fi
 
           # ✅ 최소 산출물 체크
           test -f reports/daily_digest/index.html || true
@@ -275,7 +282,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Daily auto update (reports)" || true
-            git pull --rebase origin main
+            # ✅ 중요: 커밋 이후 pull --rebase 금지 (구버전 파일이 되살아나는 케이스 방지)
             git push origin HEAD:main
           fi
 
