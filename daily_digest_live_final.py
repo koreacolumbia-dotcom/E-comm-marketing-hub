@@ -26,8 +26,7 @@ import os
 import base64
 import datetime as dt
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
-import re
+from typing import List, Optional, Dict
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -77,6 +76,9 @@ CHANNEL_BUCKETS = {
     "SNS": {"Organic Social"},
 }
 PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
+
+# NEW: allow forcing rebuild even if HTML exists
+FORCE_REBUILD = os.getenv("DAILY_DIGEST_FORCE_REBUILD", "0").strip() in ("1", "true", "TRUE", "yes", "YES")
 
 
 # =========================
@@ -136,6 +138,9 @@ def index_series(vals: List[float]) -> List[float]:
     base = vals[0] if vals and vals[0] else 1.0
     return [v / base * 100.0 for v in vals]
 
+def should_skip_existing(path: str) -> bool:
+    """If output HTML already exists, skip rebuilding to save costs (esp. BigQuery)."""
+    return (not FORCE_REBUILD) and bool(path) and os.path.exists(path)
 
 def write_missing_image_skus(path: str, skus: list[str]) -> None:
     if not path or not skus:
@@ -295,7 +300,6 @@ def combined_index_svg(
       {''.join(legend_items)}
     </svg>
     """
-
 
 def spark_svg(
     xlabels: List[str],
@@ -494,7 +498,6 @@ def get_overall_kpis(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[s
     prev["cvr"] = (prev["transactions"] / prev["sessions"]) if prev["sessions"] else 0.0
     return {"current": cur, "prev": prev}
 
-
 def get_event_users(client: BetaAnalyticsDataClient, w: DigestWindow, event_name: str) -> Dict[str, float]:
     filt = ga_filter_eq("eventName", event_name)
     d1 = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), [], ["totalUsers"], dimension_filter=filt)
@@ -511,7 +514,6 @@ def get_multi_event_users(client: BetaAnalyticsDataClient, w: DigestWindow, even
         cur_total += r["current"]
         prev_total += r["prev"]
     return {"current": cur_total, "prev": prev_total}
-
 
 def get_channel_snapshot(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     dims = ["sessionDefaultChannelGroup"]
@@ -560,7 +562,6 @@ def get_channel_snapshot(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
     out = pd.concat([out, pd.DataFrame([total_row])], ignore_index=True)
     return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod"]]
 
-
 def get_paid_detail(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     dims = ["sessionDefaultChannelGroup"]
     mets = ["sessions", "purchaseRevenue"]
@@ -600,10 +601,7 @@ def get_paid_detail(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.Data
     out2 = out[["sub_channel", "sessions", "purchaseRevenue", "rev_dod"]]
     return pd.concat([out2, total], ignore_index=True)
 
-
 def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    # weekly에서는 top3 의미가 약해져서(7D aggregation으로 소스/미디엄 분해가 흔히 비용↑),
-    # 안정성을 위해 daily에서만 보여주고, weekly에서는 빈 DF로 처리.
     if w.mode != "daily":
         return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
 
@@ -626,7 +624,6 @@ def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFr
         "purchaseRevenue": float(df["purchaseRevenue"].sum()),
     }])
     return pd.concat([df, total], ignore_index=True)
-
 
 def get_kpi_snapshot_table(client: BetaAnalyticsDataClient, w: DigestWindow, overall: Dict[str, Dict[str, float]]) -> pd.DataFrame:
     signup = get_multi_event_users(client, w, ["signup_complete", "signup"])
@@ -652,9 +649,7 @@ def get_kpi_snapshot_table(client: BetaAnalyticsDataClient, w: DigestWindow, ove
         out.append({"metric": metric, "value_fmt": value_fmt, "dod": dod, "dod_fmt": dod_fmt})
     return pd.DataFrame(out)
 
-
 def get_trend_view_svg(client: BetaAnalyticsDataClient, w: DigestWindow) -> str:
-    # trend view는 항상 "cur_end 기준 7D"로 동일하게 보이게(weekly/daily 모두 동일) 유지
     end = w.cur_end
     start = end - dt.timedelta(days=6)
 
@@ -675,9 +670,7 @@ def get_trend_view_svg(client: BetaAnalyticsDataClient, w: DigestWindow) -> str:
     c = index_series(df["cvr"].tolist())
     return combined_index_svg(x, [s,r,c], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
 
-
 def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindow, image_map: Dict[str, str]) -> pd.DataFrame:
-    # best sellers는 daily에서만 (weekly는 의미 약함)
     if w.mode != "daily":
         return pd.DataFrame(columns=["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"])
 
@@ -720,9 +713,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
     top["image_url"] = top["itemId"].map(lambda s: image_map.get(str(s).strip(), ""))
     return top[["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"]]
 
-
 def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n: int = 5) -> pd.DataFrame:
-    # Rising은 daily에서만 유지
     if w.mode != "daily":
         return pd.DataFrame(columns=["itemId", "itemName", "itemViews_yesterday", "delta"])
 
@@ -742,7 +733,6 @@ def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n:
     m["delta"] = m["itemsPurchased_y"] - m["itemsPurchased_d0"]
     m = m.sort_values("delta", ascending=False).head(top_n)
 
-    # Views (best-effort)
     skus = [str(x).strip() for x in m["itemId"].tolist() if str(x).strip()]
     views_df = pd.DataFrame(columns=["itemId", "itemViews_yesterday"])
     if skus:
@@ -802,14 +792,6 @@ PDP_CATEGORY_MAP = {
 }
 
 def get_category_pdp_view_trend_bq(end_date: dt.date) -> pd.DataFrame:
-    """
-    PDP Trend (7D ending at end_date), based on BigQuery events (view_item).
-
-    Diagnostic added:
-    - counts view_item events
-    - counts view_item rows where items.item_id is not null
-    - if 0 => GA4 export에 items가 안 실리는 케이스 (가장 흔한 원인)
-    """
     axis_dates = [end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
     xlabels = [d.strftime('%m/%d') for d in axis_dates]
 
@@ -825,7 +807,6 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> pd.DataFrame:
         lookup_start = (end_date - dt.timedelta(days=30)).strftime('%Y%m%d')
         lookup_end = end_date.strftime('%Y%m%d')
 
-        # ---- Diagnostics (cheap)
         diag_sql = f"""
         WITH base AS (
           SELECT event_date, event_name, items.item_id AS item_id
@@ -848,7 +829,6 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> pd.DataFrame:
                 print("[WARN] PDP Trend is empty because view_item events have NO items[].item_id in BigQuery export.")
                 print("       -> GA4 ecommerce item payload 미전송/미수집 가능성이 큼 (view_item에 items 배열이 있어야 매핑 가능)")
 
-        # ---- Main query
         sql = f"""
         WITH item_lookup AS (
           SELECT
@@ -911,9 +891,7 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> pd.DataFrame:
         print(f"[WARN] PDP Trend BigQuery failed: {type(e).__name__}: {e}")
         return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
 
-
 def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dict[str, pd.DataFrame]:
-    # Search trend is daily-style (end_date 기준)
     lookback_start = end_date - dt.timedelta(days=13)
     df = run_report(
         client, PROPERTY_ID,
@@ -943,7 +921,7 @@ def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dic
 
 
 # =========================
-# UI (NEW: build_summary look & feel)
+# UI (render)
 # =========================
 def render_page_html(
     logo_b64: str,
@@ -960,7 +938,7 @@ def render_page_html(
     category_pdp_trend: pd.DataFrame,
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
-    nav_links: Dict[str, str],  # {"daily_index": "...", "weekly_index": "...", "hub": "..."}
+    nav_links: Dict[str, str],
 ) -> str:
     cur = overall["current"]; prev = overall["prev"]
     s_dod = pct_change(cur["sessions"], prev["sessions"])
@@ -990,14 +968,12 @@ def render_page_html(
             return f"<img src='{u}' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>"
         return "<div class='w-8 h-8 rounded-xl bg-slate-100 border border-slate-200'></div>"
 
-    # Tables
     def table_row(cols: List[str], bold=False) -> str:
         fw = "font-extrabold" if bold else "font-medium"
         bg = "bg-slate-50" if bold else ""
         tds = "".join([f"<td class='px-3 py-2 border-b border-slate-100 {fw}'>{c}</td>" for c in cols])
         return f"<tr class='{bg}'>{tds}</tr>"
 
-    # Channel rows
     chan_html = ""
     for r in channel_snapshot.itertuples(index=False):
         chan_html += table_row([
@@ -1332,12 +1308,7 @@ def render_page_html(
 </html>
 """
 
-
-# =========================
-# Hub pages (NEW)
-# =========================
 def render_hub_index(dates: List[dt.date]) -> str:
-    # dates: descending (recent first)
     date_links = "\n".join([
         f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/{ymd(d)}.html'>{ymd(d)}</a>"
         for d in dates
@@ -1384,10 +1355,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
 </html>
 """
 
-
-# =========================
-# Build one report
-# =========================
 def build_one(client: BetaAnalyticsDataClient, end_date: dt.date, mode: str, image_map: Dict[str, str], logo_b64: str) -> str:
     w = build_window(end_date=end_date, mode=mode)
 
@@ -1403,7 +1370,6 @@ def build_one(client: BetaAnalyticsDataClient, end_date: dt.date, mode: str, ima
     rising = get_rising_products(client, w, top_n=5)
     rising = attach_image_urls(rising, image_map)
 
-    # Missing image tracking (daily only)
     missing = []
     if mode == "daily":
         if not best_sellers.empty and 'itemId' in best_sellers.columns:
@@ -1413,10 +1379,7 @@ def build_one(client: BetaAnalyticsDataClient, end_date: dt.date, mode: str, ima
         if missing:
             write_missing_image_skus(MISSING_SKU_OUT, missing)
 
-    # PDP Trend: always 7D ending at end_date
     category_pdp_trend = get_category_pdp_view_trend_bq(end_date=end_date)
-
-    # Search trend: end_date 기준
     search = get_search_trends(client, end_date=end_date)
 
     nav_links = {
@@ -1480,23 +1443,29 @@ def main():
     ensure_dir(daily_dir)
     ensure_dir(weekly_dir)
 
-    # Build pages
+    # Build pages (NEW: if same date rerun and html exists, skip build to save BigQuery/GA4 costs)
     for d in dates:
         # Daily
-        html_daily = build_one(client, end_date=d, mode="daily", image_map=image_map, logo_b64=logo_b64)
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
-        with open(out_daily, "w", encoding="utf-8") as f:
-            f.write(html_daily)
-        print(f"[OK] Wrote: {out_daily}")
+        if should_skip_existing(out_daily):
+            print(f"[SKIP] Exists (reuse HTML): {out_daily}")
+        else:
+            html_daily = build_one(client, end_date=d, mode="daily", image_map=image_map, logo_b64=logo_b64)
+            with open(out_daily, "w", encoding="utf-8") as f:
+                f.write(html_daily)
+            print(f"[OK] Wrote: {out_daily}")
 
         # Weekly cumulative
-        html_weekly = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
-        with open(out_weekly, "w", encoding="utf-8") as f:
-            f.write(html_weekly)
-        print(f"[OK] Wrote: {out_weekly}")
+        if should_skip_existing(out_weekly):
+            print(f"[SKIP] Exists (reuse HTML): {out_weekly}")
+        else:
+            html_weekly = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
+            with open(out_weekly, "w", encoding="utf-8") as f:
+                f.write(html_weekly)
+            print(f"[OK] Wrote: {out_weekly}")
 
-    # Hub index
+    # Hub index (always refresh)
     hub = render_hub_index(dates=dates)
     hub_path = os.path.join(OUT_DIR, "index.html")
     with open(hub_path, "w", encoding="utf-8") as f:
