@@ -2,30 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-[NAVER BLOG VOC] Columbia brand monitoring | v5.0 UPGRADED
+[NAVER BLOG VOC] Columbia brand monitoring | v5.1 FIXED
 
-What’s new (requested upgrades)
-1) Product-name aware filtering (KR/EN product list):
-   - Load product catalog (KR name + EN name) and use it as a high-precision brand proof.
-   - Helps reject "콜롬비아(국가)/커피/대학/전시" posts even if they contain 'Columbia' tokens.
-
-2) VOC accuracy improvements:
-   - Stronger complaint-intent patterns (returns/defects/CS/delivery failures) + negative intensity.
-   - Positive-only posts (e.g., “따뜻해요/예뻐요”) are prevented from being over-scored.
-   - Better highlight extraction with “complaint-ish” sentence prioritization.
-
-3) Review-only rule:
-   - Keeps mostly purchase/review posts by default (toggle in UI to see all).
-   - Heuristics: first-person + purchase/fit/usage evidence, “내돈내산/후기/착샷/사이즈…” etc.
-   - Excludes info/news/listicles/travel/cafe/coffee by default.
-
-4) Purchase review vs information post classification:
-   - Adds `content_type`: purchase_review | info_post | mixed | unknown
-   - Adds `review_score`, `info_score`, `relevance_score` in output.
-
-5) Feed auto-hide irrelevant in JS:
-   - Default hides low relevance items (toggle).
-   - Also shows chips for content type and relevance.
+Fixes in v5.1
+1) ✅ Naver Blog text extraction fixed (mainFrame frame-first, wait selectors)
+2) ✅ HARD_EXCLUDE expanded to include "콜롬비아(국가/대학교)" spellings (not only "컬럼비아")
+3) ✅ Context gating tightened: generic words like "코디/사이즈/핏" alone no longer pass ambiguous Columbia
+4) ✅ VOC intent false positives reduced: removed overly-broad "as" token, handle A/S via patterns
+5) ✅ Better fallback classification when body empty (title+snippet), but main goal is to stop body-empty.
 
 Outputs:
 - <out_dir>/index.html
@@ -60,12 +44,12 @@ except Exception:
 KST = timezone(timedelta(hours=9))
 
 # =======================
-# Brand rules (v5)
+# Brand rules (v5.1)
 # =======================
 
-# ✅ strong markers must be "brand-ish" (NOT just 'Columbia' / '콜롬비아')
+# strong markers must be "brand-ish" (NOT just 'Columbia' / '콜롬비아')
 BRAND_STRONG = [
-    "컬럼비아",  # NOTE: kept KR brand token, but it is ambiguous. We'll gate it via context/product/review score.
+    "컬럼비아",  # brand KR token (still ambiguous; gated)
     "Columbia Sportswear", "COLUMBIA SPORTSWEAR",
     "columbiakorea", "columbiakorea.co.kr",
     "옴니히트", "omni-heat", "omni heat", "omniheat",
@@ -76,39 +60,53 @@ BRAND_STRONG = [
     "타이타늄", "titanium",
 ]
 
-# If only ambiguous tokens appear, we require outdoor context OR product match OR review evidence.
-OUTDOOR_CONTEXT = [
+# ✅ Tightened apparel nouns (must-have context for ambiguous "컬럼비아/columbia")
+APPAREL_CONTEXT = [
     "자켓", "재킷", "패딩", "다운", "후리스", "플리스", "바람막이", "윈드브레이커",
-    "등산", "트레킹", "하이킹", "캠핑", "아웃도어", "방수", "방풍", "발수", "보온", "보냉",
     "베스트", "조끼", "팬츠", "바지", "레깅스", "티셔츠", "셔츠",
     "모자", "캡", "비니", "장갑", "가방", "백팩",
     "신발", "부츠", "트레킹화", "등산화",
-    "사이즈", "핏", "착용", "착샷", "코디",
-    "매장", "구매", "구입", "세일", "할인",
-    "수선", "as", "a/s", "교환", "반품", "환불",
-    # brand/product style mentions
-    "인터체인지", "옴니히트", "아웃드라이",
+    "방수", "방풍", "발수", "보온", "보냉",
+    "등산", "트레킹", "하이킹", "캠핑", "아웃도어",
 ]
 
-# Hard exclude: very likely non-apparel "Columbia" meanings
+# review-ish evidence (can help gate ambiguous cases, but NOT alone)
+REVIEW_EVIDENCE = [
+    "후기", "리뷰", "내돈내산", "언박싱",
+    "착용", "착샷", "사이즈", "핏", "기장",
+    "구매", "구입", "주문", "배송",
+    "교환", "반품", "환불", "수선", "A/S", "AS", "고객센터",
+    "매장", "공홈", "자사몰",
+]
+
+# Hard exclude: very likely non-apparel Columbia meanings
+# ✅ expanded: "콜롬비아" spelling + "Colombia" (country)
 HARD_EXCLUDE = [
-    # University / region / river / media
+    # University / school
     "컬럼비아대학교", "컬럼비아 대학교", "Columbia University",
+    "콜롬비아대학교", "콜롬비아 대학교",
+    "Columbia College", "Columbia Law", "컬럼비아 로스쿨",
+
+    # Region / state / DC / river / glacier
     "브리티시컬럼비아", "브리티시 컬럼비아", "British Columbia",
+    "District of Columbia", "워싱턴DC", "워싱턴 D.C", "Washington DC",
     "컬럼비아강", "컬럼비아 강", "Columbia River",
     "컬럼비아 빙원", "Columbia Icefield",
-    "컬럼비아 픽처스", "Columbia Pictures",
-    "컬럼비아 로스쿨", "Columbia Law",
 
-    # Coffee / cafe / roasting / origin (big leak source)
+    # media
+    "컬럼비아 픽처스", "Columbia Pictures",
+
+    # Coffee / cafe / roasting / origin
     "원두", "드립", "핸드드립", "커피", "로스팅", "싱글오리진",
     "수프리모", "게이샤", "디카페인", "브루잉", "필터커피", "카페", "에스프레소",
 
-    # Country / economy / travel listicles
-    "보고타", "콜롬비아(국가)", "콜롬비아 경제", "콜롬비아 페소", "COP", "관세", "WTO",
-    "GDP", "국내총생산", "세계", "국가별", "여행지", "론리 플래닛", "Lonely Planet",
+    # Colombia (country) / economy / travel
+    "콜롬비아(국가)", "콜롬비아 여행", "콜롬비아 경제", "콜롬비아 페소", "COP",
+    "Colombia", "Bogota", "Bogotá", "보고타",
+    "GDP", "국내총생산", "국가별", "세계", "관세", "WTO",
+    "여행지", "론리 플래닛", "Lonely Planet",
 
-    # Art / exhibition names frequently mentioning "Colombia"
+    # Art / exhibition names frequently mentioning Colombia
     "보테로", "Botero", "전시", "예술의전당", "미술관", "작가", "화가",
 ]
 
@@ -136,7 +134,7 @@ SPONSORED_MARKERS = [
 ]
 
 # =======================
-# VOC rules (v5)
+# VOC rules (v5.1)
 # =======================
 
 VOC_TAG_RULES = {
@@ -157,7 +155,8 @@ VOC_TAG_RULES = {
         "최저가", "정가", "가격차",
     ],
     "EXCHANGE_RETURN_AS": [
-        "교환", "반품", "환불", "AS", "A/S", "수선", "고객센터", "접수",
+        "교환", "반품", "환불",
+        "A/S", "AS", "수선", "고객센터", "접수",
         "처리", "불친절", "응대", "상담", "연락", "통화",
     ],
     "WARMTH_WATERPROOF": [
@@ -166,15 +165,18 @@ VOC_TAG_RULES = {
     ],
 }
 
-# Negative intensity / complaint intent
 NEG_SENTIMENT = [
     "별로", "아쉽", "불만", "실망", "후회", "문제", "최악", "짜증", "안되", "안 돼", "안됨",
     "못", "힘들", "불편", "답답", "거슬", "불친절", "느리", "늦", "지연", "하자", "불량",
 ]
+
+# ✅ removed overly-broad "as" (English) – causes massive false positives
 COMPLAINT_INTENT = [
-    "교환", "반품", "환불", "as", "a/s", "수선", "고객센터", "문의", "접수", "클레임",
+    "교환", "반품", "환불", "수선", "고객센터", "문의", "접수", "클레임",
     "오배송", "누락", "파손", "지연", "하자", "불량", "고장", "누수", "이염",
+    "A/S", "AS",
 ]
+
 POSITIVE_ONLY = [
     "예뻐", "좋아", "만족", "따뜻", "가볍", "편하", "최고", "추천", "재구매",
 ]
@@ -195,7 +197,6 @@ NAVER_NOISE_PATTERNS = [
     "프롤로그", "서재", "안부", "이웃추가", "카테고리", "전체보기",
     "목록열기", "새 댓글", "첫 댓글", "댓글",
 ]
-
 
 # =======================
 # Utils
@@ -309,7 +310,6 @@ class ProductMatcher:
         p2 = normalize_for_match(p)
         if len(p2) < 6:
             return False
-        # Avoid overly generic single tokens
         if len(p2.split()) == 1 and len(p2) < 8:
             return False
         return True
@@ -321,7 +321,7 @@ class ProductMatcher:
             raise RuntimeError("pandas is required to load product csv")
         df = pd.read_csv(path)
         cols = list(df.columns)
-        # Expected: 상품명한글, *상품명영문 (but be defensive)
+
         cand_cols = []
         for c in cols:
             if "상품명" in c or "name" in c.lower():
@@ -336,7 +336,6 @@ class ProductMatcher:
                 if v and v.lower() != "nan":
                     phrases.append(v)
 
-        # uniq + build index
         seen = set()
         for p in phrases:
             if p in seen:
@@ -349,7 +348,6 @@ class ProductMatcher:
             pn = normalize_for_match(p)
             self.phrase_norm.append(pn)
 
-            # token index
             toks = set(tokenize_norm(p))
             for t in toks:
                 if len(t) < 4:
@@ -388,18 +386,21 @@ def score_review_intent(text: str) -> Tuple[int, List[str]]:
     score = 0
     for k in REVIEW_MARKERS:
         if k in t:
-            score += 6
+            score += 7
             hits.append(k)
     if any(fp in t for fp in FIRST_PERSON):
         score += 10
         hits.append("1p")
-    if re.search(r"\b(구매|구입|주문)\b", t):
-        score += 8
+    if re.search(r"(구매|구입|주문)", t):
+        score += 10
         hits.append("buy")
     if re.search(r"(사이즈|핏|기장|착용|착샷)", t):
-        score += 8
+        score += 10
         hits.append("wear")
-    return min(100, score), sorted(list(set(hits)))[:10]
+    if has_sku(t):
+        score += 15
+        hits.append("sku")
+    return min(100, score), sorted(list(set(hits)))[:12]
 
 def score_info_intent(text: str) -> Tuple[int, List[str]]:
     t = text or ""
@@ -409,22 +410,22 @@ def score_info_intent(text: str) -> Tuple[int, List[str]]:
         if k in t:
             score += 7
             hits.append(k)
-    # lots of numbers + listicle vibe
     if re.search(r"\bTOP\s*\d+|\b순위\b|\b랭킹\b", t, flags=re.IGNORECASE):
         score += 10
         hits.append("listicle")
-    return min(100, score), sorted(list(set(hits)))[:10]
+    return min(100, score), sorted(list(set(hits)))[:12]
 
 def classify_content(title: str, snippet: str, body: str) -> Tuple[str, int, int, List[str], List[str]]:
-    combined = f"{title}\n{snippet}\n{body}"
+    combined = f"{title}\n{snippet}\n{body}".strip()
     rv, rv_hits = score_review_intent(combined)
     inf, inf_hits = score_info_intent(combined)
 
-    if rv >= 45 and inf <= 35:
+    # ✅ lowered thresholds slightly so real reviews don't all become unknown when text is short
+    if rv >= 30 and inf <= 45:
         return "purchase_review", rv, inf, rv_hits, inf_hits
-    if inf >= 50 and rv <= 35:
+    if inf >= 55 and rv <= 35:
         return "info_post", rv, inf, rv_hits, inf_hits
-    if rv >= 45 and inf >= 45:
+    if rv >= 35 and inf >= 35:
         return "mixed", rv, inf, rv_hits, inf_hits
     return "unknown", rv, inf, rv_hits, inf_hits
 
@@ -436,11 +437,25 @@ def voc_tags_for_text(text: str) -> List[str]:
             tags.append(tag)
     return tags
 
+def _intent_hit_count(combined: str) -> int:
+    # handle A/S carefully; avoid substring explosions
+    c = combined or ""
+    c_low = c.lower()
+
+    hits = 0
+    for k in COMPLAINT_INTENT:
+        if k in {"AS", "A/S"}:
+            if re.search(r"\bA/S\b", c) or re.search(r"\bAS\b", c):
+                hits += 1
+            continue
+        if k.lower() in c_low or k in c:
+            hits += 1
+    return hits
+
 def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[str], List[Dict[str, Any]], Dict[str, Any]]:
     combined = f"{title}\n{snippet}\n{text}"
     tags = voc_tags_for_text(combined)
 
-    # base weights
     score = 0
     tag_weights = {
         "QUALITY_DEFECT": 24,
@@ -454,26 +469,21 @@ def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[s
         score += tag_weights.get(t, 6)
 
     neg_hits = [k for k in NEG_SENTIMENT if k in combined]
-    intent_hits = [k for k in COMPLAINT_INTENT if k.lower() in combined.lower() or k in combined]
+    intent_count = _intent_hit_count(combined)
     pos_hits = [k for k in POSITIVE_ONLY if k in combined]
 
-    # negative intensity boosts
     score += min(20, len(neg_hits) * 6)
-    score += min(24, len(intent_hits) * 6)
+    score += min(24, intent_count * 6)
 
-    # prevent "positive-only" over-scoring:
-    # if we only see warmth/size words but no complaint intent/negatives, cap strongly.
-    if (len(neg_hits) == 0 and len(intent_hits) == 0) and len(pos_hits) >= 1:
+    if (len(neg_hits) == 0 and intent_count == 0) and len(pos_hits) >= 1:
         score = min(score, 14)
 
-    # extra: hard complaint keywords
-    hard = ["불량", "하자", "교환", "반품", "환불", "AS", "A/S", "오배송", "누락", "지연", "지퍼", "이염", "누수", "고객센터"]
+    hard = ["불량", "하자", "교환", "반품", "환불", "A/S", "AS", "오배송", "누락", "지연", "지퍼", "이염", "누수", "고객센터"]
     hard_hits = sum(1 for k in hard if (k.lower() in combined.lower() or k in combined))
     score += min(22, hard_hits * 5)
 
     score = max(0, min(120, score))
 
-    # highlights: prioritize complaint-y sentences
     highlights = []
     sents = split_sentences(text or snippet or "")
     for s in sents:
@@ -483,14 +493,13 @@ def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[s
             ss += tag_weights.get(tt, 6)
 
         s_neg = sum(1 for k in NEG_SENTIMENT if k in s)
-        s_int = sum(1 for k in COMPLAINT_INTENT if k.lower() in s.lower() or k in s)
+        s_int = _intent_hit_count(s)
         s_hard = sum(1 for k in hard if k.lower() in s.lower() or k in s)
 
         ss += min(16, s_neg * 6)
         ss += min(18, s_int * 6)
         ss += min(18, s_hard * 6)
 
-        # filter out fluffy lines
         if ss >= 14:
             highlights.append({"sent": safe_text(s)[:260], "score": int(ss), "tags": stags})
 
@@ -499,24 +508,28 @@ def voc_score_for_text(title: str, text: str, snippet: str) -> Tuple[int, List[s
 
     dbg = {
         "neg_hits": sorted(list(set(neg_hits)))[:8],
-        "intent_hits": sorted(list(set(intent_hits)))[:8],
+        "intent_count": int(intent_count),
         "pos_hits": sorted(list(set(pos_hits)))[:8],
         "hard_hits": int(hard_hits),
     }
     return int(score), tags, highlights, dbg
 
+def _has_apparel_context(text: str) -> bool:
+    t = text or ""
+    tl = t.lower()
+    return any(k in t for k in APPAREL_CONTEXT) or any(k.lower() in tl for k in APPAREL_CONTEXT)
+
+def _has_review_evidence(text: str) -> bool:
+    t = text or ""
+    tl = t.lower()
+    return any(k in t for k in REVIEW_EVIDENCE) or any(k.lower() in tl for k in REVIEW_EVIDENCE)
+
 def is_brand_columbia(title: str, body: str, snippet: str, pm: Optional[ProductMatcher]) -> Tuple[bool, List[str], str, Dict[str, Any]]:
-    """
-    Returns:
-      ok, brand_markers_found, reason, debug
-    """
     title = title or ""
     body = body or ""
     snippet = snippet or ""
     combined = f"{title}\n{snippet}\n{body}"
     combined_l = combined.lower()
-
-    dbg: Dict[str, Any] = {}
 
     # 1) Hard exclude (very strong non-brand signals)
     if contains_any(combined, HARD_EXCLUDE) or contains_any(combined_l, [x.lower() for x in HARD_EXCLUDE]):
@@ -531,37 +544,42 @@ def is_brand_columbia(title: str, body: str, snippet: str, pm: Optional[ProductM
     strong_found = [m for m in BRAND_STRONG if m and (m in combined or m.lower() in combined_l)]
     strong_found = sorted(list(set(strong_found)))
 
-    # Guard: "컬럼비아" alone is ambiguous - require context or review evidence
     ambiguous_only = (len(strong_found) == 1 and strong_found[0] == "컬럼비아")
 
     # 4) If a SKU exists, accept
     if has_sku(combined):
         return True, ["SKU"], "sku_match", {"sku": True}
 
-    # 5) Context gate
-    ctx_hit = contains_any(combined, OUTDOOR_CONTEXT) or contains_any(combined_l, [x.lower() for x in OUTDOOR_CONTEXT])
-    dbg["ctx_hit"] = bool(ctx_hit)
-    dbg["strong_found"] = strong_found[:6]
-    dbg["ambiguous_only"] = bool(ambiguous_only)
+    # 5) Context gate (tightened)
+    apparel_hit = _has_apparel_context(combined)
+    review_hit = _has_review_evidence(combined)
+
+    dbg: Dict[str, Any] = {
+        "apparel_hit": bool(apparel_hit),
+        "review_hit": bool(review_hit),
+        "strong_found": strong_found[:6],
+        "ambiguous_only": bool(ambiguous_only),
+    }
 
     if strong_found and not ambiguous_only:
         return True, strong_found[:6], "strong_marker", dbg
 
-    # "컬럼비아" only: require outdoor context OR review signal
+    # "컬럼비아" only: require apparel context OR (review score + evidence)
     if ambiguous_only:
         ctype, rv, inf, *_ = classify_content(title, snippet, body)
         dbg["ctype"] = ctype
         dbg["review_score"] = rv
         dbg["info_score"] = inf
-        if ctx_hit or rv >= 45:
+        if apparel_hit or (rv >= 30 and review_hit):
             return True, ["context_or_review"], "ambiguous_but_gated", dbg
         return False, [], "ambiguous_no_gate", dbg
 
-    # If 'columbia' token exists but no strong markers:
+    # If 'columbia/콜롬비아/컬럼비아' exists but no strong markers:
     if ("columbia" in combined_l) or ("콜롬비아" in combined) or ("컬럼비아" in combined):
-        if ctx_hit:
-            return True, ["context"], "outdoor_context", dbg
-        return False, [], "no_context", dbg
+        # ✅ require apparel context to pass (prevents Columbia University fashion posts)
+        if apparel_hit:
+            return True, ["apparel_context"], "apparel_context", dbg
+        return False, [], "no_apparel_context", dbg
 
     return False, [], "no_brand_token", dbg
 
@@ -574,13 +592,12 @@ def compute_relevance(ok_brand: bool, brand_reason: str, content_type: str, revi
         score += 35
     if brand_reason in {"strong_marker"}:
         score += 20
-    if brand_reason in {"outdoor_context", "ambiguous_but_gated"}:
+    if brand_reason in {"apparel_context", "ambiguous_but_gated"}:
         score += 12
 
     if product_hits:
         score += 18
 
-    # content preference
     if content_type == "purchase_review":
         score += 18
     elif content_type == "mixed":
@@ -591,7 +608,6 @@ def compute_relevance(ok_brand: bool, brand_reason: str, content_type: str, revi
     score += int(min(20, review_score * 0.15))
     score -= int(min(15, info_score * 0.15))
 
-    # VOC relevance hint
     if voc_score >= 20:
         score += 8
     if voc_score >= 40:
@@ -651,23 +667,9 @@ def fetch_candidates_via_naver_api(queries: List[str], per_query: int, sort: str
         uniq.append(x)
     return uniq
 
-def get_mainframe_post_url(page) -> Optional[str]:
+def extract_meta_content(page_or_frame, selector: str) -> str:
     try:
-        frame_el = page.query_selector("iframe#mainFrame")
-        if not frame_el:
-            return None
-        src = frame_el.get_attribute("src")
-        if not src:
-            return None
-        if src.startswith("/"):
-            return "https://blog.naver.com" + src
-        return src
-    except Exception:
-        return None
-
-def extract_meta_content(page, selector: str) -> str:
-    try:
-        el = page.query_selector(selector)
+        el = page_or_frame.query_selector(selector)
         if el:
             c = el.get_attribute("content") or ""
             return safe_text(c)
@@ -675,30 +677,30 @@ def extract_meta_content(page, selector: str) -> str:
         pass
     return ""
 
-def extract_title(page) -> str:
+def extract_title(page_or_frame) -> str:
     for sel in ["meta[property='og:title']", "meta[name='twitter:title']"]:
-        t = extract_meta_content(page, sel)
+        t = extract_meta_content(page_or_frame, sel)
         if t:
             return t
     try:
-        return safe_text(page.title())
+        return safe_text(page_or_frame.title())
     except Exception:
         return ""
 
-def extract_og_image(page) -> str:
-    return extract_meta_content(page, "meta[property='og:image']")
+def extract_og_image(page_or_frame) -> str:
+    return extract_meta_content(page_or_frame, "meta[property='og:image']")
 
-def extract_site_name(page) -> str:
-    return extract_meta_content(page, "meta[property='og:site_name']") or ""
+def extract_site_name(page_or_frame) -> str:
+    return extract_meta_content(page_or_frame, "meta[property='og:site_name']") or ""
 
-def extract_author(page) -> str:
+def extract_author(page_or_frame) -> str:
     for sel in ["meta[name='author']", "meta[property='article:author']"]:
-        v = extract_meta_content(page, sel)
+        v = extract_meta_content(page_or_frame, sel)
         if v:
             return v
     try:
         for sel in ["a.nick", "span.nick", "div.blog_name a", "div.blog_name"]:
-            el = page.query_selector(sel)
+            el = page_or_frame.query_selector(sel)
             if el:
                 v = safe_text(el.inner_text() or "")
                 if v and len(v) <= 40:
@@ -707,7 +709,7 @@ def extract_author(page) -> str:
         pass
     return ""
 
-def extract_published_from_dom(page) -> Optional[datetime]:
+def extract_published_from_dom(page_or_frame) -> Optional[datetime]:
     selectors = [
         "meta[property='article:published_time']",
         "span.se_publishDate",
@@ -718,7 +720,7 @@ def extract_published_from_dom(page) -> Optional[datetime]:
     ]
     for sel in selectors:
         try:
-            el = page.query_selector(sel)
+            el = page_or_frame.query_selector(sel)
             if not el:
                 continue
             v = el.get_attribute("content") if sel.startswith("meta") else el.inner_text()
@@ -736,11 +738,11 @@ def extract_published_from_dom(page) -> Optional[datetime]:
             continue
     return None
 
-def extract_engagement_best_effort(page) -> Tuple[Optional[int], Optional[int]]:
+def extract_engagement_best_effort(page_or_frame) -> Tuple[Optional[int], Optional[int]]:
     like_cnt = None
     cmt_cnt = None
     try:
-        body = page.inner_text("body", timeout=1200).replace(",", "")
+        body = page_or_frame.inner_text("body", timeout=1800).replace(",", "")
         m = re.search(r"(공감|좋아요)\s*([0-9]{1,6})", body)
         if m:
             like_cnt = int(m.group(2))
@@ -751,14 +753,15 @@ def extract_engagement_best_effort(page) -> Tuple[Optional[int], Optional[int]]:
         pass
     return like_cnt, cmt_cnt
 
-def extract_post_text_from_dom(page) -> str:
+def extract_post_text(page_or_frame) -> str:
+    # ✅ Try main SE container first (new editor)
     candidates = [".se-main-container", "#postViewArea", "article", "div#contentArea", "div#post-area"]
     text_chunks: List[str] = []
     for sel in candidates:
         try:
-            el = page.query_selector(sel)
+            el = page_or_frame.query_selector(sel)
             if el:
-                t = safe_text(el.inner_text(timeout=2500))
+                t = safe_text(el.inner_text(timeout=3500))
                 if len(t) >= 80:
                     text_chunks.append(t)
         except Exception:
@@ -769,11 +772,11 @@ def extract_post_text_from_dom(page) -> str:
         return text_chunks[0]
 
     try:
-        return safe_text(page.inner_text("body", timeout=2500))
+        return safe_text(page_or_frame.inner_text("body", timeout=3500))
     except Exception:
         return ""
 
-def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Dict[str, Any]:
+def scrape_one_post(context, url: str, timeout_ms: int = 30000) -> Dict[str, Any]:
     page = context.new_page()
     page.set_default_timeout(timeout_ms)
 
@@ -787,28 +790,35 @@ def scrape_one_post(context, url: str, timeout_ms: int = 25000) -> Dict[str, Any
         "author": "",
         "like_count": None,
         "comment_count": None,
+        "used_frame": False,
     }
 
     try:
         page.goto(url, wait_until="domcontentloaded")
-        page.wait_for_timeout(650)
+        page.wait_for_timeout(700)
 
-        mf = get_mainframe_post_url(page)
-        if mf:
-            page.goto(mf, wait_until="domcontentloaded")
-            page.wait_for_timeout(650)
+        # ✅ Frame-first extraction (key fix)
+        frame = page.frame(name="mainFrame")
+        target = frame if frame else page
+        out["used_frame"] = bool(frame)
+
+        # Wait for common blog content selectors
+        try:
+            target.wait_for_selector(".se-main-container, #postViewArea, article", timeout=4500)
+        except Exception:
+            pass
 
         out["final_url"] = page.url or url
-        out["title"] = extract_title(page)
-        out["pub_dt"] = extract_published_from_dom(page)
-        out["og_image"] = extract_og_image(page)
-        out["site_name"] = extract_site_name(page)
-        out["author"] = extract_author(page)
+        out["title"] = extract_title(target)
+        out["pub_dt"] = extract_published_from_dom(target)
+        out["og_image"] = extract_og_image(target)
+        out["site_name"] = extract_site_name(target)
+        out["author"] = extract_author(target)
 
-        raw_text = extract_post_text_from_dom(page)
+        raw_text = extract_post_text(target)
         out["text"] = clean_naver_noise_text(raw_text)
 
-        like_cnt, cmt_cnt = extract_engagement_best_effort(page)
+        like_cnt, cmt_cnt = extract_engagement_best_effort(target)
         out["like_count"] = like_cnt
         out["comment_count"] = cmt_cnt
         return out
@@ -889,7 +899,7 @@ class BlogPost:
     source: str
 
 # =======================
-# HTML (UI upgrades)
+# HTML (same as your v5)
 # =======================
 
 HTML_TEMPLATE = """<!doctype html>
@@ -1052,7 +1062,7 @@ HTML_TEMPLATE = """<!doctype html>
             <button id="btnHideSponsored" class="btn">협찬 숨기기</button>
             <button id="btnReviewOnly" class="btn">리뷰만 보기</button>
             <button id="btnHideIrrelevant" class="btn">irrelevant 숨기기</button>
-            <span class="kbd">COL-BLOG-VOC v5</span>
+            <span class="kbd">COL-BLOG-VOC v5.1</span>
           </div>
         </div>
 
@@ -1559,8 +1569,7 @@ HTML_TEMPLATE = """<!doctype html>
 def build_report_html(meta: Dict[str, Any], posts: List[Dict[str, Any]]) -> str:
     meta_json = json.dumps(meta, ensure_ascii=False)
     posts_json = json.dumps(posts, ensure_ascii=False)
-    html = HTML_TEMPLATE.replace("__META_JSON__", meta_json).replace("__POSTS_JSON__", posts_json)
-    return html
+    return HTML_TEMPLATE.replace("__META_JSON__", meta_json).replace("__POSTS_JSON__", posts_json)
 
 # =======================
 # Main
@@ -1585,12 +1594,10 @@ def main():
     data_dir = os.path.join(out_dir, "data")
     ensure_dir(data_dir)
 
-    # product matcher
     pm = ProductMatcher()
     products_loaded = 0
     product_csv = args.product_csv.strip()
     if not product_csv:
-        # convenient default for your current workspace file name
         guess = "mall_product_list (15).xls.csv"
         if os.path.exists(guess):
             product_csv = guess
@@ -1622,7 +1629,7 @@ def main():
         "empty_text": 0,
         "brand_kept": 0,
         "brand_reject_hard_exclude": 0,
-        "brand_reject_no_context": 0,
+        "brand_reject_no_apparel_context": 0,
         "brand_reject_no_token": 0,
         "brand_reject_ambiguous_no_gate": 0,
         "early_stop_brand": 0,
@@ -1673,13 +1680,12 @@ def main():
                     mark_seen(seen_db, url, iso(collected_at))
                     continue
 
-                # brand detection (product-aware)
                 ok, markers, reason, brand_dbg = is_brand_columbia(title=title, body=text, snippet=snippet, pm=pm)
                 if not ok:
                     if reason == "hard_exclude":
                         debug["brand_reject_hard_exclude"] += 1
-                    elif reason == "no_context":
-                        debug["brand_reject_no_context"] += 1
+                    elif reason == "no_apparel_context":
+                        debug["brand_reject_no_apparel_context"] += 1
                     elif reason == "ambiguous_no_gate":
                         debug["brand_reject_ambiguous_no_gate"] += 1
                     else:
@@ -1697,19 +1703,15 @@ def main():
                 excerpt = cleaned[:180] if cleaned else safe_text(snippet)[:180] if snippet else "(본문 추출 실패)"
                 preview = cleaned[:1400] if cleaned else safe_text(snippet)[:1400] if snippet else "(본문 추출 실패)"
 
-                # content classification
                 ctype, rv, inf, rv_hits, inf_hits = classify_content(title, snippet, cleaned)
 
-                # product hits for UI/debug
                 prod_hits = pm.find_matches(combined_for_flags) if products_loaded else []
                 prod_hits = prod_hits[:6]
 
-                # VOC score
                 voc_score, voc_tags, voc_highlights, voc_dbg = voc_score_for_text(title=title, text=cleaned, snippet=snippet)
                 if voc_score >= args.voc_min:
                     voc_kept += 1
 
-                # relevance score for auto-hide
                 rel = compute_relevance(
                     ok_brand=True,
                     brand_reason=reason,
@@ -1741,7 +1743,7 @@ def main():
                     content_type=ctype,
                     review_score=int(rv),
                     info_score=int(inf),
-                    content_debug={"review_hits": rv_hits, "info_hits": inf_hits},
+                    content_debug={"review_hits": rv_hits, "info_hits": inf_hits, "used_frame": bool(s.get("used_frame"))},
 
                     relevance_score=int(rel),
 
@@ -1794,7 +1796,6 @@ def main():
 
     top_voc = sorted(posts, key=lambda x: x.voc_score, reverse=True)[:12]
 
-    # content-type breakdown
     type_freq: Dict[str, int] = {}
     for p in posts:
         type_freq[p.content_type] = type_freq.get(p.content_type, 0) + 1
@@ -1814,6 +1815,7 @@ def main():
             "posts": len(posts),
             "sponsored_posts": sum(1 for p in posts if p.is_sponsored),
             "voc_posts": sum(1 for p in posts if p.voc_score >= args.voc_min),
+            "body_empty_posts": sum(1 for p in posts if p.raw_text_len == 0),
         },
         "content_types": type_freq,
         "top_words": top_words,
@@ -1845,7 +1847,7 @@ def main():
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"[OK] posts_saved={len(posts)} voc_posts={meta['counts']['voc_posts']} debug={debug}")
+    print(f"[OK] posts_saved={len(posts)} voc_posts={meta['counts']['voc_posts']} body_empty={meta['counts']['body_empty_posts']} debug={debug}")
     print(f"[OK] {os.path.join(out_dir, 'index.html')}")
 
 if __name__ == "__main__":
