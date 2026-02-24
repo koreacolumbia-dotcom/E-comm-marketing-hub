@@ -2,8 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH + CREMA CARD)
+build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH + KPI TOP STRIP + CREMA CARD)
 
+✅ NEW (requested):
+- Daily report 맨 위에 "주요 KPI 5개" 요약 스트립을 가장 먼저 노출
+  - Source: reports/daily_kpi.json (권장)
+  - 없으면 "-"로 표시 (요약 페이지는 깨지지 않음)
+
+Existing:
 - Generates reports/index.html (embed-friendly)
 - Adds "Hero campaign theme keywords" by using:
   1) hero_main_banners_*.csv "title" (primary, always available)
@@ -118,6 +124,52 @@ def fmt_won(x: Any) -> str:
         return "-"
 
 
+def fmt_krw_symbol(x: Any) -> str:
+    """₩ with commas (for KPI strip)."""
+    try:
+        if x is None or (isinstance(x, float) and pd.isna(x)):
+            return "-"
+        return f"₩{int(round(float(x))):,}"
+    except Exception:
+        return "-"
+
+
+def fmt_cvr(x: Any) -> str:
+    """x is fraction (0.0762) -> 7.62%"""
+    try:
+        if x is None or (isinstance(x, float) and pd.isna(x)):
+            return "-"
+        return f"{float(x) * 100:.2f}%"
+    except Exception:
+        return "-"
+
+
+def fmt_dod_pct(x: Any) -> str:
+    """x is ratio (0.678) -> +67.8%"""
+    try:
+        if x is None or (isinstance(x, float) and pd.isna(x)):
+            return "-"
+        v = float(x)
+        sign = "+" if v >= 0 else ""
+        return f"{sign}{v * 100:.1f}%"
+    except Exception:
+        return "-"
+
+
+def fmt_pp_from_fraction(x: Any) -> str:
+    """
+    x is fraction diff for CVR (cur - prev), e.g. 0.0607 -> +6.07%p
+    """
+    try:
+        if x is None or (isinstance(x, float) and pd.isna(x)):
+            return "-"
+        v = float(x)
+        sign = "+" if v >= 0 else ""
+        return f"{sign}{v * 100:.2f}%p"
+    except Exception:
+        return "-"
+
+
 def risk_level(diff_pos_ratio: Optional[float]) -> Tuple[str, str]:
     if diff_pos_ratio is None:
         return ("-", "risk-unk")
@@ -135,6 +187,70 @@ def _norm_url(u: str) -> str:
     if u.lower() in ("nan", "none", "null"):
         return ""
     return u
+
+
+def _read_json_path(p: Path) -> Optional[Dict[str, Any]]:
+    try:
+        if p.exists() and p.is_file():
+            return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return None
+
+
+# -----------------------
+# ✅ Daily KPI (Top strip)
+# -----------------------
+def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
+    """
+    Load KPI 5 (Sessions, Orders, Revenue, CVR, Sign-up Users) from:
+      - reports/daily_kpi.json  (recommended)
+
+    daily_kpi.json example:
+    {
+      "date": "2026-02-23",
+      "sessions": 11018,
+      "orders": 840,
+      "revenue": 47496588,
+      "cvr": 0.0762,
+      "signups": 59,
+      "dod": {
+        "sessions": 0.678,
+        "orders": 7.235,
+        "revenue": 3.799,
+        "cvr_pp": 0.0607,
+        "signups": 0.311
+      },
+      "updated": "2026.02.24 (Tue) 08:34 KST"
+    }
+    """
+    p = reports_dir / "daily_kpi.json"
+    j = _read_json_path(p)
+
+    if not j:
+        return {
+            "date": None,
+            "sessions": None,
+            "orders": None,
+            "revenue": None,
+            "cvr": None,
+            "signups": None,
+            "dod": {},
+            "updated": now_kst_label(),
+            "source": None,
+        }
+
+    return {
+        "date": j.get("date"),
+        "sessions": j.get("sessions"),
+        "orders": j.get("orders"),
+        "revenue": j.get("revenue"),
+        "cvr": j.get("cvr"),
+        "signups": j.get("signups"),
+        "dod": j.get("dod") or {},
+        "updated": j.get("updated") or now_kst_label(),
+        "source": str(p),
+    }
 
 
 # -----------------------
@@ -584,7 +700,13 @@ def _fmt_top5(x: Any) -> str:
 # -----------------------
 # HTML render (embed-friendly)
 # -----------------------
-def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str, Any], crema: Dict[str, Any]) -> str:
+def render_index_html(
+    daily: Dict[str, Any],
+    naver: Dict[str, Any],
+    hero: Dict[str, Any],
+    voc: Dict[str, Any],
+    crema: Dict[str, Any]
+) -> str:
     def stat(label: str, value: str) -> str:
         return f"""
           <div class="flex items-baseline justify-between gap-3">
@@ -609,6 +731,39 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
     crema_total = fmt_int(crema.get("total_reviews"))
     crema_range = crema.get("date_range") or "-"
     crema_top5 = _fmt_top5(crema.get("complaint_top5"))
+
+    # ✅ KPI strip values
+    dod = daily.get("dod") or {}
+    kpi_date = daily.get("date") or "-"
+    kpi_updated = daily.get("updated") or ""
+
+    def kpi_tile(title: str, value: str, dod_text: str) -> str:
+        return f"""
+        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{title}</div>
+          <div class="mt-1 text-xl font-black text-slate-900">{value}</div>
+          <div class="mt-1 text-[11px] text-slate-500">전일 대비 <b class="text-slate-900">{dod_text}</b></div>
+        </div>
+        """
+
+    kpi_strip = f"""
+    <div class="glass-card rounded-3xl p-5 mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div class="text-base font-black text-slate-900">Daily KPI Summary</div>
+        <div class="text-xs text-slate-500">
+          기준: <b class="text-slate-700">{kpi_date}</b> · updated: {kpi_updated}
+        </div>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {kpi_tile("Sessions", fmt_int(daily.get("sessions")), fmt_dod_pct(dod.get("sessions")))}
+        {kpi_tile("Orders", fmt_int(daily.get("orders")), fmt_dod_pct(dod.get("orders")))}
+        {kpi_tile("Revenue", fmt_krw_symbol(daily.get("revenue")), fmt_dod_pct(dod.get("revenue")))}
+        {kpi_tile("CVR", fmt_cvr(daily.get("cvr")), fmt_pp_from_fraction(dod.get("cvr_pp")))}
+        {kpi_tile("Sign-up Users", fmt_int(daily.get("signups")), fmt_dod_pct(dod.get("signups")))}
+      </div>
+    </div>
+    """
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -643,6 +798,9 @@ def render_index_html(naver: Dict[str, Any], hero: Dict[str, Any], voc: Dict[str
     <div class="mb-6">
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
     </div>
+
+    <!-- ✅ KPI 5 strip (TOP) -->
+    {kpi_strip}
 
     <!-- ✅ 4 cards -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -744,6 +902,9 @@ def main() -> None:
     reports_dir = repo_root / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
 
+    # ✅ KPI top strip
+    daily = build_daily_kpis(reports_dir)
+
     naver = build_naver_metrics(repo_root)
 
     crawl_limit = int(os.environ.get("HERO_CRAWL_LIMIT", "40"))
@@ -754,9 +915,13 @@ def main() -> None:
     crema = build_crema_metrics(reports_dir)
 
     out = reports_dir / "index.html"
-    out.write_text(render_index_html(naver, hero, voc, crema), encoding="utf-8")
+    out.write_text(render_index_html(daily, naver, hero, voc, crema), encoding="utf-8")
 
     print(f"[OK] Wrote: {out}")
+    if daily.get("source"):
+        print(f"[OK] Daily KPI source: {daily.get('source')}")
+    else:
+        print("[WARN] reports/daily_kpi.json not found. KPI strip will show '-' until the file is generated.")
     if crema.get("source"):
         print(f"[OK] Crema meta source: {crema.get('source')}")
 
