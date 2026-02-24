@@ -423,15 +423,15 @@ class DailyWindow:
     window_start: dt.date
     window_end: dt.date
 
-def compute_window(run_date: Optional[dt.date] = None) -> DailyWindow:
+def compute_window(run_date: dt.date | None = None) -> DailyWindow:
     if run_date is None:
-        run_date = dt.date.today()
+        run_date = dt.datetime.now(ZoneInfo("Asia/Seoul")).date()  # ✅ KST 기준 today
     yesterday = run_date - dt.timedelta(days=1)
     day_before = run_date - dt.timedelta(days=2)
     window_end = yesterday
     window_start = window_end - dt.timedelta(days=6)
     return DailyWindow(run_date, yesterday, day_before, window_start, window_end)
-
+    
 def get_overall_kpis(client: BetaAnalyticsDataClient, w: DailyWindow) -> Dict[str, Dict[str, float]]:
     mets = ["sessions", "transactions", "purchaseRevenue"]
     d1 = run_report(client, PROPERTY_ID, ymd(w.yesterday), ymd(w.yesterday), [], mets)
