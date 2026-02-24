@@ -5,53 +5,32 @@ Columbia Daily Digest — Live GA4 Data (Google Analytics Data API)
 Run (Windows PowerShell)
   setx GOOGLE_APPLICATION_CREDENTIALS "C:\\path\\service_account.json"
   setx GA4_PROPERTY_ID "358593394"
-  pip install google-analytics-data pandas python-dateutil
+  pip install google-analytics-data pandas python-dateutil google-cloud-bigquery
   python daily_digest_live.py
 
-Output
-- daily_digest_live.html (default)
+Outputs (NEW)
+- reports/daily_digest/index.html                       (navigation hub)
+- reports/daily_digest/daily/YYYY-MM-DD.html           (daily pages)
+- reports/daily_digest/weekly/END_YYYY-MM-DD.html      (weekly cumulative pages)
 
 Notes
-- Category CTR = select_item / view_item_list (by itemCategory)
-- Trend View uses Index (D-7 = 100) to combine Sessions/Revenue/CVR on one chart.
+- Weekly = 7D cumulative (END date 기준, END-6 ~ END)
+  - Previous = 그 직전 7D (END-13 ~ END-7)
+- PDP Trend uses BigQuery GA4 export (view_item + UNNEST(items)).
+  - If your view_item events do NOT contain items[] (item_id), PDP Trend will be empty (diagnostic logs added).
 """
+
+from __future__ import annotations
 
 import os
 import base64
 import datetime as dt
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import re
-
-
-def write_missing_image_skus(path: str, skus: list[str]) -> None:
-    """Write missing SKU list to CSV for maintenance."""
-    if not path or not skus:
-        return
-    try:
-        df = pd.DataFrame({"sku": sorted(set([str(s).strip() for s in skus if str(s).strip()]))})
-        df.to_csv(path, index=False, encoding="utf-8-sig")
-        print(f"[INFO] Wrote missing image SKUs: {path}")
-    except Exception as e:
-        print(f"[WARN] Could not write missing image SKUs: {type(e).__name__}: {e}")
+from zoneinfo import ZoneInfo
 
 import pandas as pd
-import openpyxl
-
-
-def attach_image_urls(df: pd.DataFrame, image_map: Dict[str, str]) -> pd.DataFrame:
-    """Attach `image_url` column using a SKU->URL map.
-
-    Expects a column named `itemId`. Returns a copy.
-    """
-    if df is None or df.empty:
-        # keep schema predictable
-        return pd.DataFrame(df, copy=True)
-    out = df.copy()
-    if "itemId" not in out.columns:
-        return out
-    out["image_url"] = out["itemId"].astype(str).str.strip().map(lambda x: image_map.get(x, ""))
-    return out
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.auth import default as google_auth_default
@@ -60,24 +39,29 @@ from google.analytics.data_v1beta.types import (
     OrderBy, FilterExpression, Filter, FilterExpressionList
 )
 
-# Optional: BigQuery backend for Category Trend when GA4 Data API dims/metrics are incompatible
+# Optional: BigQuery backend for PDP Trend
 try:
     from google.cloud import bigquery  # type: ignore
-except Exception:  # pragma: no cover
+except Exception:
     bigquery = None
 
+
+# =========================
+# Env / Config
+# =========================
 PROPERTY_ID = os.getenv("GA4_PROPERTY_ID", "").strip()
 LOGO_PATH = os.getenv("DAILY_DIGEST_LOGO_PATH", "pngwing.com.png")
-OUT_HTML = os.getenv("DAILY_DIGEST_OUT_HTML", "daily_digest_live.html")
+
+# NEW: output directory
+OUT_DIR = os.getenv("DAILY_DIGEST_OUT_DIR", os.path.join("reports", "daily_digest")).strip()
+DAYS_TO_BUILD = int(os.getenv("DAILY_DIGEST_BUILD_DAYS", "14"))  # recent N days
+
 # Image mapping Excel (SKU -> image URL)
-# - If the Excel is in the same folder as this script, you can leave env var empty.
-# - Otherwise set: DAILY_DIGEST_IMAGE_XLS_PATH="C:\\...\\상품코드별 이미지.xlsx"
 IMAGE_XLS_PATH = os.getenv("DAILY_DIGEST_IMAGE_XLS_PATH", "상품코드별 이미지.xlsx").strip()
 MISSING_SKU_OUT = os.getenv("DAILY_DIGEST_MISSING_SKU_OUT", "missing_image_skus.csv")
 PLACEHOLDER_IMG = os.getenv("DAILY_DIGEST_PLACEHOLDER_IMG", "")
 
-# If set, Category Trend will use BigQuery events table instead of GA4 Data API (more reliable for item_category fields).
-# Example: columbia-ga4.analytics_358593394.events_*
+# BigQuery GA4 export wildcard table
 BQ_EVENTS_TABLE = os.getenv("DAILY_DIGEST_BQ_EVENTS_TABLE", "columbia-ga4.analytics_358593394.events_*").strip()
 BQ_LOCATION = os.getenv("DAILY_DIGEST_BQ_LOCATION", "asia-northeast3").strip()
 
@@ -94,6 +78,13 @@ CHANNEL_BUCKETS = {
 }
 PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
 
+
+# =========================
+# Utilities
+# =========================
+def ensure_dir(p: str) -> None:
+    os.makedirs(p, exist_ok=True)
+
 def load_logo_base64(path: str) -> str:
     if not path or not os.path.exists(path):
         return ""
@@ -104,25 +95,25 @@ def fmt_int(n) -> str:
     try:
         return f"{int(round(float(n))):,}"
     except Exception:
-        return "0"
+        return "-"
 
 def fmt_currency_krw(n) -> str:
     try:
         return f"₩{int(round(float(n))):,}"
     except Exception:
-        return "₩0"
+        return "₩-"
 
 def fmt_pct(p, digits=1) -> str:
     try:
         return f"{p*100:.{digits}f}%"
     except Exception:
-        return "0.0%"
+        return "-"
 
 def fmt_pp(p, digits=2) -> str:
     try:
         return f"{p*100:.{digits}f}%p"
     except Exception:
-        return "0.00%p"
+        return "-"
 
 def pct_change(curr: float, prev: float) -> float:
     if prev == 0:
@@ -145,6 +136,30 @@ def index_series(vals: List[float]) -> List[float]:
     base = vals[0] if vals and vals[0] else 1.0
     return [v / base * 100.0 for v in vals]
 
+
+def write_missing_image_skus(path: str, skus: list[str]) -> None:
+    if not path or not skus:
+        return
+    try:
+        df = pd.DataFrame({"sku": sorted(set([str(s).strip() for s in skus if str(s).strip()]))})
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+        print(f"[INFO] Wrote missing image SKUs: {path}")
+    except Exception as e:
+        print(f"[WARN] Could not write missing image SKUs: {type(e).__name__}: {e}")
+
+def attach_image_urls(df: pd.DataFrame, image_map: Dict[str, str]) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame(df, copy=True)
+    out = df.copy()
+    if "itemId" not in out.columns:
+        return out
+    out["image_url"] = out["itemId"].astype(str).str.strip().map(lambda x: image_map.get(x, ""))
+    return out
+
+
+# =========================
+# GA4 Filters / Report
+# =========================
 def ga_filter_eq(field_name: str, value: str) -> FilterExpression:
     return FilterExpression(
         filter=Filter(
@@ -165,7 +180,6 @@ def ga_filter_in(field_name: str, values: List[str]) -> FilterExpression:
     )
 
 def ga_filter_and(exprs: List[FilterExpression]) -> FilterExpression:
-    """AND-group multiple filter expressions."""
     return FilterExpression(and_group=FilterExpressionList(expressions=exprs))
 
 def run_report(
@@ -202,6 +216,10 @@ def run_report(
         rows.append(row)
     return pd.DataFrame(rows)
 
+
+# =========================
+# SVG charts (keep as-is)
+# =========================
 def combined_index_svg(
     xlabels: List[str],
     series: List[List[float]],
@@ -234,7 +252,7 @@ def combined_index_svg(
         frac = t / ticks
         y = pad_t + inner_h * (1 - frac)
         val = y_min2 + (y_max2 - y_min2) * frac
-        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>" )
+        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
         ylabels_svg.append(f"<text x='{pad_l-8}' y='{y+3:.1f}' text-anchor='end' font-size='10' fill='#6b7280'>{val:.0f}</text>")
 
     xlabels_svg = []
@@ -252,7 +270,7 @@ def combined_index_svg(
         pts = [xy(i, v) for i, v in enumerate(s)]
         poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
         color = colors[sidx]
-        polys.append(f"<polyline fill='none' stroke='{color}' stroke-width='2.6' points='{poly}'/>" )
+        polys.append(f"<polyline fill='none' stroke='{color}' stroke-width='2.6' points='{poly}'/>")
         dots.append("".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='3.0' fill='{color}'/>" for x, y in pts]))
 
     legend_items = []
@@ -279,26 +297,89 @@ def combined_index_svg(
     """
 
 
+def spark_svg(
+    xlabels: List[str],
+    ys: List[float],
+    width=240, height=70,
+    pad_l=36, pad_r=10, pad_t=10, pad_b=22,
+    stroke="#0055a5",
+) -> str:
+    n = len(xlabels)
+    y_min, y_max = min(ys), max(ys) if ys else (0.0, 1.0)
+    if y_max == y_min:
+        y_max += 1
+    span = y_max - y_min
+    y_min2 = y_min - span * 0.12
+    y_max2 = y_max + span * 0.12
 
-def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
-    """Load SKU -> image_url mapping from your Excel.
+    inner_w = width - pad_l - pad_r
+    inner_h = height - pad_t - pad_b
 
-    Supports:
-      A) Header-based columns (상품코드 + 이미지링크 / image_url)
-      B) Fixed columns: C=상품코드(SKU), E=이미지링크(URL) even if headers are merged / Unnamed
+    def xy(i, v):
+        x = pad_l + inner_w * (i / (n - 1 if n > 1 else 1))
+        y_norm = (v - y_min2) / (y_max2 - y_min2)
+        y = pad_t + inner_h * (1 - y_norm)
+        return x, y
+
+    pts = [xy(i, v) for i, v in enumerate(ys)] if ys else [(pad_l, height-pad_b)]
+    poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+
+    grid = []
+    for frac in [0.0, 0.5, 1.0]:
+        y = pad_t + inner_h * (1 - frac)
+        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2fb' stroke-width='1'/>")
+
+    axes = f"""
+      <line x1='{pad_l}' y1='{pad_t}' x2='{pad_l}' y2='{height-pad_b}' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='{pad_l}' y1='{height-pad_b}' x2='{width-pad_r}' y2='{height-pad_b}' stroke='#cbd5e1' stroke-width='1'/>
     """
+
+    ylab = [
+        (y_max, pad_t + 3),
+        (y_min + (y_max - y_min) / 2, pad_t + inner_h / 2 + 3),
+        (y_min, height - pad_b + 3),
+    ]
+    ylabels_svg = "".join(
+        [f"<text x='{pad_l-7}' y='{yy:.1f}' text-anchor='end' font-size='9' fill='#6b7280'>{int(round(val))}</text>" for val, yy in ylab]
+    )
+
+    idxs = [0, n // 2, n - 1] if n >= 3 else list(range(n))
+    xlabels_svg = []
+    for i in idxs:
+        x = pad_l + inner_w * (i / (n - 1 if n > 1 else 1))
+        xlabels_svg.append(f"<text x='{x:.1f}' y='{height-5}' text-anchor='middle' font-size='9' fill='#6b7280'>{xlabels[i]}</text>")
+
+    area = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    area_poly = f"{pad_l:.1f},{height-pad_b:.1f} {area} {width-pad_r:.1f},{height-pad_b:.1f}"
+    dots = "".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.8' fill='{stroke}'/>" for x, y in pts])
+
+    return f"""
+    <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      {''.join(grid)}
+      {axes}
+      <polygon points="{area_poly}" fill="{stroke}" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="{stroke}" stroke-width="2.4" points="{poly}"/>
+      {dots}
+      {ylabels_svg}
+      {''.join(xlabels_svg)}
+    </svg>
+    """
+
+
+# =========================
+# Excel image map
+# =========================
+def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
     if not xlsx_path:
-        print("[WARN] Image Excel path is empty. Set DAILY_DIGEST_IMAGE_XLS_PATH or keep '상품코드별 이미지.xlsx' next to the script.")
+        print("[WARN] Image Excel path is empty. Set DAILY_DIGEST_IMAGE_XLS_PATH or keep file next to the script.")
         return {}
 
-    # Allow relative path (same folder as script)
     if not os.path.exists(xlsx_path):
         alt = os.path.join(os.path.dirname(os.path.abspath(__file__)), xlsx_path)
         if os.path.exists(alt):
             xlsx_path = alt
         else:
-            print(f"[WARN] Image Excel not found: {xlsx_path}. Place the file next to the script or set DAILY_DIGEST_IMAGE_XLS_PATH.")
-            return {}
+            print(f"[WARN] Image Excel not found: {xlsx_path}")
             return {}
 
     def norm(x) -> str:
@@ -341,101 +422,64 @@ def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
                 m[sku] = url
 
         if not m:
-            print("[WARN] Excel image map parsed 0 rows. Make sure C column has SKU and E column has https image URL.")
+            print("[WARN] Excel image map parsed 0 rows. Check SKU column & URL column.")
         return m
     except Exception as e:
         print(f"[WARN] Failed to load Excel image map: {type(e).__name__}: {e}")
         return {}
 
-def spark_svg(
-    xlabels: List[str],
-    ys: List[float],
-    width=240, height=70,
-    pad_l=36, pad_r=10, pad_t=10, pad_b=22,
-    stroke="#0055a5",
-) -> str:
-    n = len(xlabels)
-    y_min, y_max = min(ys), max(ys)
-    if y_max == y_min:
-        y_max += 1
-    span = y_max - y_min
-    y_min2 = y_min - span * 0.12
-    y_max2 = y_max + span * 0.12
 
-    inner_w = width - pad_l - pad_r
-    inner_h = height - pad_t - pad_b
+# =========================
+# Window logic (NEW: daily vs weekly)
+# =========================
+@dataclass
+class DigestWindow:
+    mode: str                 # "daily" or "weekly"
+    end_date: dt.date         # report end date (Daily: that day, Weekly: that day = 7D end)
+    prev_end_date: dt.date    # previous comparable end date (Daily: end-1, Weekly: end-7)
+    cur_start: dt.date
+    cur_end: dt.date
+    prev_start: dt.date
+    prev_end: dt.date
 
-    def xy(i, v):
-        x = pad_l + inner_w * (i / (n - 1 if n > 1 else 1))
-        y_norm = (v - y_min2) / (y_max2 - y_min2)
-        y = pad_t + inner_h * (1 - y_norm)
-        return x, y
+def build_window(end_date: dt.date, mode: str) -> DigestWindow:
+    mode = (mode or "daily").lower().strip()
+    if mode not in ("daily", "weekly"):
+        mode = "daily"
 
-    pts = [xy(i, v) for i, v in enumerate(ys)]
-    poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    if mode == "daily":
+        cur_start = end_date
+        cur_end = end_date
+        prev_end = end_date - dt.timedelta(days=1)
+        prev_start = prev_end
+        prev_end_date = prev_end
+    else:
+        # weekly cumulative: 7D ending at end_date
+        cur_end = end_date
+        cur_start = end_date - dt.timedelta(days=6)
+        prev_end = end_date - dt.timedelta(days=7)
+        prev_start = prev_end - dt.timedelta(days=6)
+        prev_end_date = prev_end
 
-    grid = []
-    for frac in [0.0, 0.5, 1.0]:
-        y = pad_t + inner_h * (1 - frac)
-        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2fb' stroke-width='1'/>" )
-
-    axes = f"""
-      <line x1='{pad_l}' y1='{pad_t}' x2='{pad_l}' y2='{height-pad_b}' stroke='#cbd5e1' stroke-width='1'/>
-      <line x1='{pad_l}' y1='{height-pad_b}' x2='{width-pad_r}' y2='{height-pad_b}' stroke='#cbd5e1' stroke-width='1'/>
-    """
-
-    ylab = [
-        (y_max, pad_t + 3),
-        (y_min + (y_max - y_min) / 2, pad_t + inner_h / 2 + 3),
-        (y_min, height - pad_b + 3),
-    ]
-    ylabels_svg = "".join(
-        [f"<text x='{pad_l-7}' y='{yy:.1f}' text-anchor='end' font-size='9' fill='#6b7280'>{int(round(val))}</text>" for val, yy in ylab]
+    return DigestWindow(
+        mode=mode,
+        end_date=end_date,
+        prev_end_date=prev_end_date,
+        cur_start=cur_start,
+        cur_end=cur_end,
+        prev_start=prev_start,
+        prev_end=prev_end
     )
 
-    idxs = [0, n // 2, n - 1] if n >= 3 else list(range(n))
-    xlabels_svg = []
-    for i in idxs:
-        x = pad_l + inner_w * (i / (n - 1 if n > 1 else 1))
-        xlabels_svg.append(f"<text x='{x:.1f}' y='{height-5}' text-anchor='middle' font-size='9' fill='#6b7280'>{xlabels[i]}</text>")
 
-    area = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
-    area_poly = f"{pad_l:.1f},{height-pad_b:.1f} {area} {width-pad_r:.1f},{height-pad_b:.1f}"
-    dots = "".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.8' fill='{stroke}'/>" for x, y in pts])
-
-    return f"""
-    <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
-      {''.join(grid)}
-      {axes}
-      <polygon points="{area_poly}" fill="{stroke}" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="{stroke}" stroke-width="2.4" points="{poly}"/>
-      {dots}
-      {ylabels_svg}
-      {''.join(xlabels_svg)}
-    </svg>
-    """
-
-@dataclass
-class DailyWindow:
-    run_date: dt.date
-    yesterday: dt.date
-    day_before: dt.date
-    window_start: dt.date
-    window_end: dt.date
-
-def compute_window(run_date: dt.date | None = None) -> DailyWindow:
-    if run_date is None:
-        run_date = dt.datetime.now(ZoneInfo("Asia/Seoul")).date()  # ✅ KST 기준 today
-    yesterday = run_date - dt.timedelta(days=1)
-    day_before = run_date - dt.timedelta(days=2)
-    window_end = yesterday
-    window_start = window_end - dt.timedelta(days=6)
-    return DailyWindow(run_date, yesterday, day_before, window_start, window_end)
-    
-def get_overall_kpis(client: BetaAnalyticsDataClient, w: DailyWindow) -> Dict[str, Dict[str, float]]:
+# =========================
+# Data fetchers
+# =========================
+def get_overall_kpis(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, Dict[str, float]]:
     mets = ["sessions", "transactions", "purchaseRevenue"]
-    d1 = run_report(client, PROPERTY_ID, ymd(w.yesterday), ymd(w.yesterday), [], mets)
-    d0 = run_report(client, PROPERTY_ID, ymd(w.day_before), ymd(w.day_before), [], mets)
+
+    d1 = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), [], mets)
+    d0 = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), [], mets)
 
     def row_to_dict(df):
         if df.empty:
@@ -450,27 +494,16 @@ def get_overall_kpis(client: BetaAnalyticsDataClient, w: DailyWindow) -> Dict[st
     prev["cvr"] = (prev["transactions"] / prev["sessions"]) if prev["sessions"] else 0.0
     return {"current": cur, "prev": prev}
 
-def get_event_count(client: BetaAnalyticsDataClient, w: DailyWindow, event_name: str) -> Dict[str, float]:
-    filt = ga_filter_eq("eventName", event_name)
-    d1 = run_report(client, PROPERTY_ID, ymd(w.yesterday), ymd(w.yesterday), [], ["eventCount"], dimension_filter=filt)
-    d0 = run_report(client, PROPERTY_ID, ymd(w.day_before), ymd(w.day_before), [], ["eventCount"], dimension_filter=filt)
-    cur = float(d1.iloc[0]["eventCount"]) if not d1.empty else 0.0
-    prev = float(d0.iloc[0]["eventCount"]) if not d0.empty else 0.0
-    return {"current": cur, "prev": prev}
 
-
-def get_event_users(client: BetaAnalyticsDataClient, w: DailyWindow, event_name: str) -> Dict[str, float]:
-    """Return totalUsers for a specific event_name for D-1 vs D-2."""
+def get_event_users(client: BetaAnalyticsDataClient, w: DigestWindow, event_name: str) -> Dict[str, float]:
     filt = ga_filter_eq("eventName", event_name)
-    d1 = run_report(client, PROPERTY_ID, ymd(w.yesterday), ymd(w.yesterday), [], ["totalUsers"], dimension_filter=filt)
-    d0 = run_report(client, PROPERTY_ID, ymd(w.day_before), ymd(w.day_before), [], ["totalUsers"], dimension_filter=filt)
+    d1 = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), [], ["totalUsers"], dimension_filter=filt)
+    d0 = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), [], ["totalUsers"], dimension_filter=filt)
     cur = float(d1.iloc[0]["totalUsers"]) if (not d1.empty and "totalUsers" in d1.columns) else 0.0
     prev = float(d0.iloc[0]["totalUsers"]) if (not d0.empty and "totalUsers" in d0.columns) else 0.0
     return {"current": cur, "prev": prev}
 
-
-def get_multi_event_users(client: BetaAnalyticsDataClient, w: DailyWindow, event_names: List[str]) -> Dict[str, float]:
-    """Sum totalUsers across multiple event names for D-1 vs D-2."""
+def get_multi_event_users(client: BetaAnalyticsDataClient, w: DigestWindow, event_names: List[str]) -> Dict[str, float]:
     cur_total = 0.0
     prev_total = 0.0
     for ev in event_names:
@@ -480,17 +513,12 @@ def get_multi_event_users(client: BetaAnalyticsDataClient, w: DailyWindow, event
     return {"current": cur_total, "prev": prev_total}
 
 
-
-def get_channel_snapshot(client: BetaAnalyticsDataClient, w: DailyWindow) -> pd.DataFrame:
-    """Channel Snapshot for D-1 vs D-2.
-
-    Returns bucketed rows plus a Total row.
-    """
+def get_channel_snapshot(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     dims = ["sessionDefaultChannelGroup"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
-    cur = run_report(client, PROPERTY_ID, ymd(w.yesterday), ymd(w.yesterday), dims, mets)
-    prev = run_report(client, PROPERTY_ID, ymd(w.day_before), ymd(w.day_before), dims, mets)
+    cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets)
+    prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets)
 
     if cur.empty:
         cur = pd.DataFrame(columns=dims + mets)
@@ -516,7 +544,6 @@ def get_channel_snapshot(client: BetaAnalyticsDataClient, w: DailyWindow) -> pd.
 
     out["rev_dod"] = out.apply(lambda r: pct_change(r["purchaseRevenue"], r["purchaseRevenue_prev"]), axis=1)
 
-    # Total row
     tot_cur_rev = float(out["purchaseRevenue"].sum())
     tot_prev_rev = float(out["purchaseRevenue_prev"].sum())
     total_row = {
@@ -531,17 +558,16 @@ def get_channel_snapshot(client: BetaAnalyticsDataClient, w: DailyWindow) -> pd.
     }
 
     out = pd.concat([out, pd.DataFrame([total_row])], ignore_index=True)
-
     return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod"]]
 
 
-def get_paid_detail(client: BetaAnalyticsDataClient, w: DailyWindow) -> pd.DataFrame:
+def get_paid_detail(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     dims = ["sessionDefaultChannelGroup"]
     mets = ["sessions", "purchaseRevenue"]
     filt = ga_filter_in("sessionDefaultChannelGroup", PAID_SUBGROUPS)
 
-    cur = run_report(client, PROPERTY_ID, ymd(w.yesterday), ymd(w.yesterday), dims, mets, dimension_filter=filt)
-    prev = run_report(client, PROPERTY_ID, ymd(w.day_before), ymd(w.day_before), dims, mets, dimension_filter=filt)
+    cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, dimension_filter=filt)
+    prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, dimension_filter=filt)
 
     if cur.empty:
         cur = pd.DataFrame(columns=dims + mets)
@@ -564,40 +590,29 @@ def get_paid_detail(client: BetaAnalyticsDataClient, w: DailyWindow) -> pd.DataF
 
     total_cur_rev = float(out["purchaseRevenue"].sum())
     total_prev_rev = float(out["purchaseRevenue_prev"].sum())
-    total = pd.DataFrame([
-        {
-            "sub_channel": "Total",
-            "sessions": float(out["sessions"].sum()),
-            "purchaseRevenue": total_cur_rev,
-            "rev_dod": pct_change(total_cur_rev, total_prev_rev),
-        }
-    ])
+    total = pd.DataFrame([{
+        "sub_channel": "Total",
+        "sessions": float(out["sessions"].sum()),
+        "purchaseRevenue": total_cur_rev,
+        "rev_dod": pct_change(total_cur_rev, total_prev_rev),
+    }])
 
     out2 = out[["sub_channel", "sessions", "purchaseRevenue", "rev_dod"]]
     return pd.concat([out2, total], ignore_index=True)
 
 
-def get_paid_top3(client: BetaAnalyticsDataClient, w: DailyWindow) -> pd.DataFrame:
-    """Paid AD Top 3 by revenue.
+def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
+    # weekly에서는 top3 의미가 약해져서(7D aggregation으로 소스/미디엄 분해가 흔히 비용↑),
+    # 안정성을 위해 daily에서만 보여주고, weekly에서는 빈 DF로 처리.
+    if w.mode != "daily":
+        return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
 
-    Includes Traffic(sessions) + Revenue, and appends a Total row.
-    """
     dims = ["sessionSourceMedium"]
     mets = ["sessions", "purchaseRevenue"]
     filt = ga_filter_in("sessionDefaultChannelGroup", PAID_SUBGROUPS)
     order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="purchaseRevenue"), desc=True)]
 
-    df = run_report(
-        client,
-        PROPERTY_ID,
-        ymd(w.yesterday),
-        ymd(w.yesterday),
-        dims,
-        mets,
-        dimension_filter=filt,
-        order_bys=order,
-        limit=3,
-    )
+    df = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, dimension_filter=filt, order_bys=order, limit=3)
 
     if df.empty:
         return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
@@ -605,18 +620,16 @@ def get_paid_top3(client: BetaAnalyticsDataClient, w: DailyWindow) -> pd.DataFra
     df["sessions"] = pd.to_numeric(df["sessions"], errors="coerce").fillna(0.0)
     df["purchaseRevenue"] = pd.to_numeric(df["purchaseRevenue"], errors="coerce").fillna(0.0)
 
-    total = pd.DataFrame(
-        [{
-            "sessionSourceMedium": "Total",
-            "sessions": float(df["sessions"].sum()),
-            "purchaseRevenue": float(df["purchaseRevenue"].sum()),
-        }]
-    )
+    total = pd.DataFrame([{
+        "sessionSourceMedium": "Total",
+        "sessions": float(df["sessions"].sum()),
+        "purchaseRevenue": float(df["purchaseRevenue"].sum()),
+    }])
     return pd.concat([df, total], ignore_index=True)
 
-def get_kpi_snapshot_table(client: BetaAnalyticsDataClient, w: DailyWindow, overall: Dict[str, Dict[str, float]]) -> pd.DataFrame:
-    signup = get_multi_event_users(client, w, ["signup_complete", "signup"])
 
+def get_kpi_snapshot_table(client: BetaAnalyticsDataClient, w: DigestWindow, overall: Dict[str, Dict[str, float]]) -> pd.DataFrame:
+    signup = get_multi_event_users(client, w, ["signup_complete", "signup"])
     cur = overall["current"]; prev = overall["prev"]
 
     rows = [
@@ -639,13 +652,17 @@ def get_kpi_snapshot_table(client: BetaAnalyticsDataClient, w: DailyWindow, over
         out.append({"metric": metric, "value_fmt": value_fmt, "dod": dod, "dod_fmt": dod_fmt})
     return pd.DataFrame(out)
 
-def get_trend_view_svg(client: BetaAnalyticsDataClient, w: DailyWindow) -> str:
-    df = run_report(client, PROPERTY_ID, ymd(w.window_start), ymd(w.window_end), ["date"], ["sessions","transactions","purchaseRevenue"])
+
+def get_trend_view_svg(client: BetaAnalyticsDataClient, w: DigestWindow) -> str:
+    # trend view는 항상 "cur_end 기준 7D"로 동일하게 보이게(weekly/daily 모두 동일) 유지
+    end = w.cur_end
+    start = end - dt.timedelta(days=6)
+
+    df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["date"], ["sessions","transactions","purchaseRevenue"])
     if df.empty:
-        x = [(w.window_start + dt.timedelta(days=i)).strftime("%m/%d") for i in range(7)]
+        x = [(start + dt.timedelta(days=i)).strftime("%m/%d") for i in range(7)]
         return combined_index_svg(x, [[100]*7,[100]*7,[100]*7], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
 
-    # GA4 date comes as YYYYMMDD string; convert to pandas datetime64 for .dt usage
     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", errors="coerce")
     df = df.dropna(subset=["date"]).sort_values("date")
     for c in ["sessions","transactions","purchaseRevenue"]:
@@ -658,28 +675,36 @@ def get_trend_view_svg(client: BetaAnalyticsDataClient, w: DailyWindow) -> str:
     c = index_series(df["cvr"].tolist())
     return combined_index_svg(x, [s,r,c], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
 
-def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DailyWindow, image_map: Dict[str, str]) -> pd.DataFrame:
+
+def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindow, image_map: Dict[str, str]) -> pd.DataFrame:
+    # best sellers는 daily에서만 (weekly는 의미 약함)
+    if w.mode != "daily":
+        return pd.DataFrame(columns=["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"])
+
     order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="itemsPurchased"), desc=True)]
-    top = run_report(client, PROPERTY_ID, ymd(w.yesterday), ymd(w.yesterday), ["itemId","itemName"], ["itemsPurchased"], order_bys=order, limit=5)
+    top = run_report(client, PROPERTY_ID, ymd(w.cur_end), ymd(w.cur_end), ["itemId","itemName"], ["itemsPurchased"], order_bys=order, limit=5)
     if top.empty:
         return pd.DataFrame(columns=["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"])
+
     top["itemsPurchased"] = pd.to_numeric(top["itemsPurchased"], errors="coerce").fillna(0.0)
     top = top.rename(columns={"itemsPurchased":"itemsPurchased_yesterday"})
     skus = top["itemId"].tolist()
 
-    ts = run_report(client, PROPERTY_ID, ymd(w.window_start), ymd(w.window_end), ["date","itemId"], ["itemsPurchased"], dimension_filter=ga_filter_in("itemId", skus), limit=10000)
-    axis_dates = [w.window_start + dt.timedelta(days=i) for i in range(7)]
+    axis_dates = [w.cur_end - dt.timedelta(days=6-i) for i in range(7)]
     xlabels = [d.strftime("%m/%d") for d in axis_dates]
+
+    ts = run_report(
+        client, PROPERTY_ID,
+        ymd(w.cur_end - dt.timedelta(days=6)), ymd(w.cur_end),
+        ["date","itemId"], ["itemsPurchased"],
+        dimension_filter=ga_filter_in("itemId", [str(s).strip() for s in skus]),
+        limit=10000
+    )
 
     if ts.empty:
         top["trend_svg"] = ""
         top["image_url"] = top["itemId"].map(lambda s: image_map.get(str(s).strip(), ""))
-    # Ensure columns exist even if time series is empty
-    if "trend_svg" not in top.columns:
-        top["trend_svg"] = ""
-    if "image_url" not in top.columns:
-        top["image_url"] = top["itemId"].map(lambda s: image_map.get(str(s).strip(), ""))
-    return top[["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"]]
+        return top[["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"]]
 
     ts["date"] = ts["date"].apply(parse_yyyymmdd)
     ts["itemsPurchased"] = pd.to_numeric(ts["itemsPurchased"], errors="coerce").fillna(0.0)
@@ -690,61 +715,37 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DailyWindow
         sub = ts[ts["itemId"] == sku].set_index("date")["itemsPurchased"]
         ys = [float(sub.get(d, 0.0)) for d in axis_dates]
         svgs.append(spark_svg(xlabels, ys, width=240, height=70, stroke="#0055a5"))
+
     top["trend_svg"] = svgs
     top["image_url"] = top["itemId"].map(lambda s: image_map.get(str(s).strip(), ""))
     return top[["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"]]
 
 
-def get_rising_products(client: BetaAnalyticsDataClient, w: DailyWindow, top_n: int = 5) -> pd.DataFrame:
-    """Rising products by purchase quantity delta (D-1 vs D-2), with views added.
+def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n: int = 5) -> pd.DataFrame:
+    # Rising은 daily에서만 유지
+    if w.mode != "daily":
+        return pd.DataFrame(columns=["itemId", "itemName", "itemViews_yesterday", "delta"])
 
-    NOTE: GA4 Data API has strict dimension/metric compatibility. Some properties reject
-    `itemViews` with item dimensions (common InvalidArgument). To keep the widget stable,
-    we:
-      1) compute rising by `itemsPurchased` only
-      2) fetch views via a *separate* compatible report, with fallbacks
-    """
-
-    # 1) Purchases (stable)
-    d1 = run_report(
-        client,
-        PROPERTY_ID,
-        ymd(w.yesterday),
-        ymd(w.yesterday),
-        ["itemId", "itemName"],
-        ["itemsPurchased"],
-        limit=10000,
-    )
-    d0 = run_report(
-        client,
-        PROPERTY_ID,
-        ymd(w.day_before),
-        ymd(w.day_before),
-        ["itemId"],
-        ["itemsPurchased"],
-        limit=10000,
-    )
+    d1 = run_report(client, PROPERTY_ID, ymd(w.cur_end), ymd(w.cur_end), ["itemId", "itemName"], ["itemsPurchased"], limit=10000)
+    d0 = run_report(client, PROPERTY_ID, ymd(w.prev_end_date), ymd(w.prev_end_date), ["itemId"], ["itemsPurchased"], limit=10000)
 
     if d1.empty:
         return pd.DataFrame(columns=["itemId", "itemName", "itemViews_yesterday", "delta"])
 
-    for c in ["itemsPurchased"]:
-        d1[c] = pd.to_numeric(d1[c], errors="coerce").fillna(0.0)
-        if not d0.empty:
-            d0[c] = pd.to_numeric(d0[c], errors="coerce").fillna(0.0)
-
-    if d0.empty:
+    d1["itemsPurchased"] = pd.to_numeric(d1["itemsPurchased"], errors="coerce").fillna(0.0)
+    if not d0.empty:
+        d0["itemsPurchased"] = pd.to_numeric(d0["itemsPurchased"], errors="coerce").fillna(0.0)
+    else:
         d0 = pd.DataFrame(columns=["itemId", "itemsPurchased"])
 
     m = d1.merge(d0, on="itemId", how="left", suffixes=("_y", "_d0")).fillna(0.0)
     m["delta"] = m["itemsPurchased_y"] - m["itemsPurchased_d0"]
     m = m.sort_values("delta", ascending=False).head(top_n)
 
-    # 2) Views (best-effort, with fallbacks)
+    # Views (best-effort)
     skus = [str(x).strip() for x in m["itemId"].tolist() if str(x).strip()]
     views_df = pd.DataFrame(columns=["itemId", "itemViews_yesterday"])
     if skus:
-        # Try GA4 native item view metrics first; if incompatible, fallback to eventCount(view_item)
         for metric_name, use_event_filter in [
             ("itemViewEvents", False),
             ("itemsViewed", False),
@@ -752,17 +753,10 @@ def get_rising_products(client: BetaAnalyticsDataClient, w: DailyWindow, top_n: 
         ]:
             try:
                 v = run_report(
-                    client,
-                    PROPERTY_ID,
-                    ymd(w.yesterday),
-                    ymd(w.yesterday),
-                    ["itemId"],
-                    [metric_name],
+                    client, PROPERTY_ID, ymd(w.cur_end), ymd(w.cur_end),
+                    ["itemId"], [metric_name],
                     dimension_filter=(
-                        ga_filter_and([
-                            ga_filter_in("itemId", skus),
-                            ga_filter_eq("eventName", "view_item"),
-                        ])
+                        ga_filter_and([ga_filter_in("itemId", skus), ga_filter_eq("eventName", "view_item")])
                         if use_event_filter else ga_filter_in("itemId", skus)
                     ),
                     limit=10000,
@@ -779,242 +773,8 @@ def get_rising_products(client: BetaAnalyticsDataClient, w: DailyWindow, top_n: 
     return m[["itemId", "itemName", "itemViews_yesterday", "delta"]]
 
 
-def get_category_ctr_trend(client: BetaAnalyticsDataClient, w: DailyWindow) -> pd.DataFrame:
-    """Category Trend (CTR 7D)
-
-    Priority:
-    1) BigQuery (recommended): uses events table and UNNEST(items) so item_category/item_category2 are reliably available
-    2) GA4 Data API fallback: may return zeros if the property doesn't support requested dims/metrics
-
-    CTR = select_item / view_item_list (item-level rows)
-    """
-
-    # Axis (last 7 days including end)
-    axis_dates = [w.window_end - dt.timedelta(days=i) for i in range(6, -1, -1)]
-    xlabels = [d.strftime("%m/%d") for d in axis_dates]
-
-    # Requested structure (display labels)
-    structure = {
-        "OUTER": ["경량패딩/슬림다운", "미드/롱다운", "인터체인지", "베스트", "방수자켓", "바람막이"],
-        "FLEECE": ["플리스 풀오버", "자켓/베스트", "팬츠", "플리스 악세서리"],
-        "TOP": ["플리스", "셔츠", "라운드티", "폴로티/집업", "맨투맨/후드티"],
-        "PANTS": ["긴바지", "카고/조거", "원피스/스커트", "점프수트"],
-        "SHOES": ["윈터부츠", "옴니맥스", "등산화", "트레일러닝", "스니커즈", "샌들/슬리퍼"],
-    }
-
-    # GA4 실제 값 기반 매핑 (BQ 결과 기준)
-    ga_outer_alias = {
-        "OUTER": "OUTER",
-        "FLEECE": "FLEECE",
-        "TOP": "TOPS",
-        "PANTS": "PANTS",
-        "SHOES": "FOOTWEAR",
-    }
-
-    category_map = {
-        "OUTER": {
-            "경량패딩/슬림다운": ["Padding/Slim Down"],
-            "미드/롱다운": ["Mid/Heavy Down"],
-            "인터체인지": ["Interchange (3 in 1)"],
-            "베스트": [],
-            "방수자켓": ["Rain"],
-            "바람막이": [],
-        },
-        "FLEECE": {
-            "플리스 풀오버": ["Fleece pullover"],
-            "자켓/베스트": ["Jacket"],
-            "팬츠": [],
-            "플리스 악세서리": [],
-        },
-        "TOP": {
-            "플리스": ["Fleece top"],
-            "셔츠": [],
-            "라운드티": ["Round T-shirt"],
-            "폴로티/집업": ["Polo/Zip up"],
-            "맨투맨/후드티": [],
-        },
-        "PANTS": {
-            "긴바지": ["Pants"],
-            "카고/조거": [],
-            "원피스/스커트": [],
-            "점프수트": [],
-        },
-        "SHOES": {
-            "윈터부츠": ["Boots"],
-            "옴니맥스": ["Omni-Max"],
-            "등산화": ["Hiking"],
-            "트레일러닝": [],
-            "스니커즈": ["Sneakers"],
-            "샌들/슬리퍼": [],
-        },
-    }
-
-    def norm_outer(s: str) -> str:
-        return str(s or "").strip().upper()
-
-    def norm_sub(s: str) -> str:
-        s = str(s or "").strip()
-        s = re.sub(r"\s+", " ", s)
-        s = s.replace("／", "/")
-        return s
-
-    def norm_key(s: str) -> str:
-        return norm_sub(s).lower()
-
-    def spark_svg(xlabels, ys, width=260, height=70, stroke="#2563eb"):
-        if not ys:
-            ys = [0.0]
-        mn, mx = min(ys), max(ys)
-        if mx == mn:
-            mx = mn + 1.0
-        pad = 8
-        iw, ih = width - pad * 2, height - pad * 2
-        pts = []
-        for i, v in enumerate(ys):
-            x = pad + (iw * (i / (len(ys) - 1 if len(ys) > 1 else 1)))
-            y = pad + ih * (1 - ((v - mn) / (mx - mn)))
-            pts.append((x, y))
-        path = "M " + " L ".join([f"{x:.1f},{y:.1f}" for x, y in pts])
-        dots = "".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.2' fill='{stroke}'/>" for x, y in pts])
-        return (
-            f"<svg width='{width}' height='{height}' viewBox='0 0 {width} {height}' xmlns='http://www.w3.org/2000/svg'>"
-            f"<rect x='0' y='0' width='{width}' height='{height}' rx='8' fill='white' stroke='#eef2ff'/>"
-            f"<path d='{path}' fill='none' stroke='{stroke}' stroke-width='2.2'/>"
-            f"{dots}</svg>"
-        )
-
-    def build_rows(clicks_views_map: dict) -> pd.DataFrame:
-        rows = []
-        color_cycle = ["#0055a5", "#16a34a", "#c2410c", "#7c3aed", "#0f766e"]
-        color_i = 0
-
-        actual_by_outer = {}
-        for (outer, sub, d), (c, v) in clicks_views_map.items():
-            actual_by_outer.setdefault(outer, set()).add(sub)
-
-        for outer, subs in structure.items():
-            o = norm_outer(ga_outer_alias.get(outer, outer))
-            actual_subs = sorted(actual_by_outer.get(o, set()))
-            actual_norm = {norm_key(a): a for a in actual_subs}
-
-            for desired_sub in subs:
-                mapped = category_map.get(outer, {}).get(desired_sub, [])
-                matched = []
-                for m in mapped:
-                    mk = norm_key(m)
-                    if mk and mk in actual_norm:
-                        matched.append(actual_norm[mk])
-
-                ys = []
-                for d in axis_dates:
-                    clicks = views = 0.0
-                    if matched:
-                        for a in matched:
-                            c, v = clicks_views_map.get((o, a, d), (0.0, 0.0))
-                            clicks += float(c or 0.0)
-                            views += float(v or 0.0)
-                    ctr = (clicks / views) * 100.0 if views else 0.0
-                    ys.append(ctr)
-
-                stroke = color_cycle[color_i % len(color_cycle)]
-                color_i += 1
-                label = f"{outer} · {desired_sub}"
-                latest = ys[-1] if ys else 0.0
-                avg = (sum(ys) / len(ys)) if ys else 0.0
-                rows.append({
-                    "itemCategory": label,
-                    "ctr_latest": float(latest),
-                    "ctr_avg7d": float(avg),
-                    "trend_svg": spark_svg(xlabels, ys, width=260, height=70, stroke=stroke),
-                })
-
-        return pd.DataFrame(rows)
-
-    # --- BigQuery path ---
-    if bigquery is not None and BQ_EVENTS_TABLE:
-        try:
-            bq = bigquery.Client()
-            start = (w.window_end - dt.timedelta(days=6)).strftime('%Y%m%d')
-            end = w.window_end.strftime('%Y%m%d')
-            sql = f"""
-            SELECT
-              PARSE_DATE('%Y%m%d', event_date) AS d,
-              UPPER(IFNULL(items.item_category, '')) AS c1,
-              IFNULL(items.item_category2, '') AS c2,
-              SUM(CASE WHEN event_name='select_item' THEN 1 ELSE 0 END) AS clicks,
-              SUM(CASE WHEN event_name='view_item_list' THEN 1 ELSE 0 END) AS views
-            FROM `{BQ_EVENTS_TABLE}`
-            CROSS JOIN UNNEST(items) AS items
-            WHERE _TABLE_SUFFIX BETWEEN '{start}' AND '{end}'
-              AND event_name IN ('view_item_list','select_item')
-            GROUP BY 1,2,3
-            """
-            df = bq.query(sql).to_dataframe()
-            clicks_views_map = {}
-            for r in df.itertuples(index=False):
-                d = getattr(r, 'd')
-                c1 = norm_outer(getattr(r, 'c1', ''))
-                c2 = norm_sub(getattr(r, 'c2', ''))
-                if not d or not c1 or not c2:
-                    continue
-                clicks_views_map[(c1, c2, d)] = (float(getattr(r,'clicks',0) or 0.0), float(getattr(r,'views',0) or 0.0))
-            return build_rows(clicks_views_map)
-        except Exception as e:
-            print(f"[WARN] Category Trend BigQuery failed, fallback to GA API: {type(e).__name__}: {e}")
-
-    # --- GA4 Data API fallback (may produce zeros) ---
-    # We keep the previous implementation by calling a lightweight GA query: click/view events by hierarchy pairs.
-    try:
-        clicks_views_map = {}
-        dim_pairs = [
-            ('itemCategory', 'itemCategory2'),
-            ('itemCategory2', 'itemCategory3'),
-            ('itemCategory3', 'itemCategory4'),
-            ('itemCategory', 'itemCategory3'),
-        ]
-
-        def prep_df(df: pd.DataFrame, d_outer: str, d_sub: str, click_col: str, view_col: str) -> pd.DataFrame:
-            if df.empty:
-                return df
-            df = df.copy()
-            df['date'] = pd.to_datetime(df['date'], format='%Y%m%d', errors='coerce').dt.date
-            df = df.dropna(subset=['date'])
-            df[click_col] = pd.to_numeric(df[click_col], errors='coerce').fillna(0.0)
-            df[view_col] = pd.to_numeric(df[view_col], errors='coerce').fillna(0.0)
-            df[d_outer] = df[d_outer].astype(str).map(norm_outer)
-            df[d_sub] = df[d_sub].astype(str).map(norm_sub)
-            df = df[(df[d_outer] != '') & (df[d_sub] != '')]
-            return df
-
-        for d_outer, d_sub in dim_pairs:
-            try:
-                df = run_report(
-                    client,
-                    date_ranges=[DateRange(start_date=ymd(w.window_end - dt.timedelta(days=6)), end_date=ymd(w.window_end))],
-                    dimensions=[Dimension(name='date'), Dimension(name=d_outer), Dimension(name=d_sub)],
-                    metrics=[Metric(name='eventCount')],
-                    dimension_filter=ga_filter_in('eventName', ['view_item_list', 'select_item']),
-                    limit=100000,
-                )
-                if df.empty:
-                    continue
-                df = prep_df(df, d_outer, d_sub, 'eventCount', 'eventCount')
-                if df.empty:
-                    continue
-                # Split by eventName is not available with this dim set, so cannot compute CTR reliably here
-                # Return all zeros structure to avoid crash
-                break
-            except Exception:
-                continue
-        return build_rows(clicks_views_map)
-    except Exception:
-        return build_rows({})
-
-
-
-
 # =========================
-# Category Trend: PDP Views (view_item) — BigQuery
+# PDP Trend (BigQuery) + Diagnostics (NEW)
 # =========================
 PDP_CATEGORY_MAP = {
     "OUTER": {
@@ -1032,9 +792,7 @@ PDP_CATEGORY_MAP = {
         "라운드티": ["Round T-shirt"],
         "폴로티/집업": ["Polo/Zip up"],
     },
-    "PANTS": {
-        "긴바지": ["Pants"],
-    },
+    "PANTS": {"긴바지": ["Pants"]},
     "FOOTWEAR": {
         "윈터부츠": ["Boots"],
         "옴니맥스": ["Omni-Max"],
@@ -1043,36 +801,54 @@ PDP_CATEGORY_MAP = {
     },
 }
 
-
-def get_category_pdp_view_trend_bq(w: DailyWindow) -> pd.DataFrame:
-    """Category PDP Trend (7D) based on BigQuery events (view_item).
-
-    Returns DataFrame columns:
-      - itemCategory: label (e.g., OUTER · 경량패딩/슬림다운)
-      - views_d1: yesterday views
-      - views_avg7d: avg over 7D
-      - trend_svg: sparkline
-
-    Notes:
-      - Uses item_id lookup to attach normalized (c1,c2) for view_item.
-      - SALE correction: if item_category='SALE', use (item_category2, item_category3) as (c1,c2).
+def get_category_pdp_view_trend_bq(end_date: dt.date) -> pd.DataFrame:
     """
+    PDP Trend (7D ending at end_date), based on BigQuery events (view_item).
 
-    axis_dates = [w.window_end - dt.timedelta(days=i) for i in range(6, -1, -1)]
+    Diagnostic added:
+    - counts view_item events
+    - counts view_item rows where items.item_id is not null
+    - if 0 => GA4 export에 items가 안 실리는 케이스 (가장 흔한 원인)
+    """
+    axis_dates = [end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
     xlabels = [d.strftime('%m/%d') for d in axis_dates]
 
-    # If BigQuery is not available, return empty
     if bigquery is None or not BQ_EVENTS_TABLE:
-        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]) 
+        print("[WARN] BigQuery not available; PDP Trend will be empty.")
+        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
 
     try:
         bq = bigquery.Client()
 
-        start_suffix = (w.window_end - dt.timedelta(days=6)).strftime('%Y%m%d')
-        end_suffix = w.window_end.strftime('%Y%m%d')
-        lookup_start = (w.window_end - dt.timedelta(days=30)).strftime('%Y%m%d')
-        lookup_end = w.window_end.strftime('%Y%m%d')
+        start_suffix = (end_date - dt.timedelta(days=6)).strftime('%Y%m%d')
+        end_suffix = end_date.strftime('%Y%m%d')
+        lookup_start = (end_date - dt.timedelta(days=30)).strftime('%Y%m%d')
+        lookup_end = end_date.strftime('%Y%m%d')
 
+        # ---- Diagnostics (cheap)
+        diag_sql = f"""
+        WITH base AS (
+          SELECT event_date, event_name, items.item_id AS item_id
+          FROM `{BQ_EVENTS_TABLE}`
+          LEFT JOIN UNNEST(items) AS items
+          WHERE _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
+            AND event_name = 'view_item'
+        )
+        SELECT
+          COUNTIF(event_name='view_item') AS view_item_events,
+          COUNTIF(event_name='view_item' AND item_id IS NOT NULL) AS view_item_with_itemid
+        FROM base
+        """
+        diag = bq.query(diag_sql, location=BQ_LOCATION or None).to_dataframe()
+        if not diag.empty:
+            ve = int(diag.loc[0, "view_item_events"] or 0)
+            vi = int(diag.loc[0, "view_item_with_itemid"] or 0)
+            print(f"[DIAG] PDP Trend | view_item_events={ve:,} | view_item_with_itemid={vi:,}")
+            if ve > 0 and vi == 0:
+                print("[WARN] PDP Trend is empty because view_item events have NO items[].item_id in BigQuery export.")
+                print("       -> GA4 ecommerce item payload 미전송/미수집 가능성이 큼 (view_item에 items 배열이 있어야 매핑 가능)")
+
+        # ---- Main query
         sql = f"""
         WITH item_lookup AS (
           SELECT
@@ -1103,351 +879,517 @@ def get_category_pdp_view_trend_bq(w: DailyWindow) -> pd.DataFrame:
         SELECT d, UPPER(IFNULL(c1,'')) AS c1, IFNULL(c2,'') AS c2, views
         FROM pdp
         """
-
         df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
         if df.empty:
-            return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]) 
+            return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
 
         df['d'] = pd.to_datetime(df['d'], errors='coerce').dt.date
         df = df.dropna(subset=['d'])
         df['c1'] = df['c1'].astype(str).str.strip().str.upper()
         df['c2'] = df['c2'].astype(str).str.strip()
-        df['views'] = pd.to_numeric(df['views'], errors='coerce').fillna(0.0)
+        df['views'] = pd.to_numeric(df['views'], errors="coerce").fillna(0.0)
 
         rows = []
         for c1, subs in PDP_CATEGORY_MAP.items():
             for sub_label, c2_list in subs.items():
                 ys = []
                 for d in axis_dates:
-                    m = (df['d'] == d) & (df['c1'] == c1)
-                    if c2_list:
-                        m = m & (df['c2'].isin(c2_list))
-                    else:
-                        m = m & (df['c2'] == sub_label)
+                    m = (df['d'] == d) & (df['c1'] == c1) & (df['c2'].isin(c2_list))
                     ys.append(float(df.loc[m, 'views'].sum()))
 
                 d1 = ys[-1] if ys else 0.0
                 avg7 = (sum(ys) / len(ys)) if ys else 0.0
                 rows.append({
-                    'itemCategory': f"{c1} · {sub_label}",
-                    'views_d1': float(d1),
-                    'views_avg7d': float(avg7),
-                    'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
+                    "itemCategory": f"{c1} · {sub_label}",
+                    "views_d1": float(d1),
+                    "views_avg7d": float(avg7),
+                    "trend_svg": spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
                 })
 
         return pd.DataFrame(rows)
-
     except Exception as e:
-        print(f"[WARN] PDP Category Trend BigQuery failed: {type(e).__name__}: {e}")
-        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]) 
-def get_search_trends(client: BetaAnalyticsDataClient, w: DailyWindow) -> Dict[str, pd.DataFrame]:
-    lookback_start = w.window_end - dt.timedelta(days=13)
-    df = run_report(client, PROPERTY_ID, ymd(lookback_start), ymd(w.window_end), ["date","searchTerm"], ["eventCount"], dimension_filter=ga_filter_eq("eventName", SEARCH_EVENT), limit=10000)
+        print(f"[WARN] PDP Trend BigQuery failed: {type(e).__name__}: {e}")
+        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
+
+
+def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dict[str, pd.DataFrame]:
+    # Search trend is daily-style (end_date 기준)
+    lookback_start = end_date - dt.timedelta(days=13)
+    df = run_report(
+        client, PROPERTY_ID,
+        ymd(lookback_start), ymd(end_date),
+        ["date","searchTerm"], ["eventCount"],
+        dimension_filter=ga_filter_eq("eventName", SEARCH_EVENT),
+        limit=10000
+    )
     if df.empty:
         return {"new": pd.DataFrame(columns=["searchTerm"]), "rising": pd.DataFrame(columns=["searchTerm","pct"])}
 
     df["date"] = df["date"].apply(parse_yyyymmdd)
     df["eventCount"] = pd.to_numeric(df["eventCount"], errors="coerce").fillna(0.0)
 
-    y_df = df[df["date"] == w.window_end].groupby("searchTerm", as_index=False)["eventCount"].sum().sort_values("eventCount", ascending=False)
-    prior_start = w.window_end - dt.timedelta(days=7)
-    prior_df = df[(df["date"] >= prior_start) & (df["date"] <= (w.window_end - dt.timedelta(days=1)))]
+    y_df = df[df["date"] == end_date].groupby("searchTerm", as_index=False)["eventCount"].sum().sort_values("eventCount", ascending=False)
+    prior_start = end_date - dt.timedelta(days=7)
+    prior_df = df[(df["date"] >= prior_start) & (df["date"] <= (end_date - dt.timedelta(days=1)))]
     prior_agg = prior_df.groupby("searchTerm", as_index=False)["eventCount"].mean().rename(columns={"eventCount":"prior_avg"})
 
     merged = y_df.merge(prior_agg, on="searchTerm", how="left").fillna(0.0)
     new_terms = merged[merged["prior_avg"] == 0].head(3)[["searchTerm"]].copy()
     rising = merged[merged["prior_avg"] > 0].copy()
-    rising["pct"] = (rising["eventCount"] - rising["prior_avg"]) / rising["prior_avg"] * 100.0
+    rising["pct"] = (rising["eventCount"] - rising["prior_avg"]) / merged["prior_avg"] * 100.0
+    rising = rising.replace([float("inf"), -float("inf")], 0.0)
     rising = rising.sort_values("pct", ascending=False).head(3)[["searchTerm","pct"]]
     return {"new": new_terms, "rising": rising}
 
-def render_html(logo_b64: str, w: DailyWindow, overall: Dict[str, Dict[str, float]],
-                signup_users: Dict[str, float],
-                channel_snapshot: pd.DataFrame, paid_detail: pd.DataFrame, paid_top3: pd.DataFrame,
-                kpi_snapshot: pd.DataFrame, trend_svg: str, best_sellers: pd.DataFrame,
-                rising: pd.DataFrame, category_pdp_trend: pd.DataFrame,
-                search_new: pd.DataFrame, search_rising: pd.DataFrame) -> str:
 
+# =========================
+# UI (NEW: build_summary look & feel)
+# =========================
+def render_page_html(
+    logo_b64: str,
+    w: DigestWindow,
+    overall: Dict[str, Dict[str, float]],
+    signup_users: Dict[str, float],
+    channel_snapshot: pd.DataFrame,
+    paid_detail: pd.DataFrame,
+    paid_top3: pd.DataFrame,
+    kpi_snapshot: pd.DataFrame,
+    trend_svg: str,
+    best_sellers: pd.DataFrame,
+    rising: pd.DataFrame,
+    category_pdp_trend: pd.DataFrame,
+    search_new: pd.DataFrame,
+    search_rising: pd.DataFrame,
+    nav_links: Dict[str, str],  # {"daily_index": "...", "weekly_index": "...", "hub": "..."}
+) -> str:
     cur = overall["current"]; prev = overall["prev"]
     s_dod = pct_change(cur["sessions"], prev["sessions"])
     o_dod = pct_change(cur["transactions"], prev["transactions"])
     r_dod = pct_change(cur["purchaseRevenue"], prev["purchaseRevenue"])
     c_pp = cur["cvr"] - prev["cvr"]
 
-    su_cur = float(signup_users.get('current', 0.0) or 0.0)
-    su_prev = float(signup_users.get('prev', 0.0) or 0.0)
+    su_cur = float(signup_users.get("current", 0.0) or 0.0)
+    su_prev = float(signup_users.get("prev", 0.0) or 0.0)
     su_dod = pct_change(su_cur, su_prev)
 
-    def delta_color(v): return "#1d4ed8" if v >= 0 else "#c2410c"
-    def kpi_cell(title, value, delta_text, color):
-        return f"""<td width='20%' valign='top' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;'>
-          <div style='font-size:11px;color:#667;margin-bottom:2px;'>{title}</div>
-          <div style='font-size:18px;font-weight:800;color:#111;'>{value}</div>
-          <div style='font-size:11px;margin-top:2px;'>전일 대비 <span style='color:{color};font-weight:800;'>{delta_text}</span></div>
-        </td>"""
+    def delta_cls(v: float) -> str:
+        return "text-blue-600" if v >= 0 else "text-orange-700"
 
-    chan_rows = "".join([
-        f"<tr style='font-weight:{'800' if r.bucket=='Total' else '400'};background:{'#f8fafc' if r.bucket=='Total' else 'transparent'};'><td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{r.bucket}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_int(r.sessions)}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_int(r.transactions)}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_currency_krw(r.purchaseRevenue)}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;color:{delta_color(r.rev_dod)};'>{'+' if r.rev_dod>=0 else ''}{fmt_pct(r.rev_dod,1)}</td></tr>"
-        for r in channel_snapshot.itertuples(index=False)
-    ])
+    def top_kpi_card(title: str, value: str, delta: str, cls: str) -> str:
+        return f"""
+        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{title}</div>
+          <div class="mt-1 text-xl font-black text-slate-900">{value}</div>
+          <div class="mt-1 text-[11px] text-slate-500">전일 대비 <b class="{cls}">{delta}</b></div>
+        </div>
+        """
 
-    paid_rows = "".join([
-        f"<tr style='font-weight:{'800' if r.sub_channel=='Total' else '400'};background:{'#f8fafc' if r.sub_channel=='Total' else 'transparent'};'><td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{r.sub_channel}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_int(r.sessions)}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_currency_krw(r.purchaseRevenue)}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;color:{delta_color(r.rev_dod)};'>{'+' if r.rev_dod>=0 else ''}{fmt_pct(r.rev_dod,1)}</td></tr>"
-        for r in paid_detail.itertuples(index=False)
-    ])
-
-    
-
-    paid_top3_rows = "".join([
-    f"<tr style='font-weight:{'800' if r.sessionSourceMedium=='Total' else '400'};background:{'#f8fafc' if r.sessionSourceMedium=='Total' else 'transparent'};'><td style='padding:6px 8px;border-bottom:1px solid #f1f5ff;'>{r.sessionSourceMedium}</td>"
-    f"<td align='right' style='padding:6px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_int(getattr(r,'sessions',0))}</td>"
-    f"<td align='right' style='padding:6px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_currency_krw(r.purchaseRevenue)}</td></tr>"
-    for r in paid_top3.itertuples(index=False)
-    ])
-
-    kpi_rows = "".join([
-        f"<tr><td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{r.metric}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{r.value_fmt}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;color:{delta_color(r.dod)};'>{'+' if r.dod>=0 else ''}{r.dod_fmt}</td></tr>"
-        for r in kpi_snapshot.itertuples(index=False)
-    ])
-
-    def product_img_cell(url: str) -> str:
+    def product_img(url: str) -> str:
         u = (url or PLACEHOLDER_IMG or "").strip()
         if u:
-            return (
-                f"<img src='{u}' width='28' height='28' "
-                "style='display:block;border-radius:8px;object-fit:cover;border:1px solid #dfe6f3;'/>"
-            )
-        return "<div style='width:28px;height:28px;border-radius:8px;background:#e9eefb;border:1px solid #dfe6f3;'></div>"
+            return f"<img src='{u}' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>"
+        return "<div class='w-8 h-8 rounded-xl bg-slate-100 border border-slate-200'></div>"
 
-    bs_rows_parts = []
-    for r in best_sellers.itertuples(index=False):
-        bs_rows_parts.append(
-            "<tr>"
-            f"<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{product_img_cell(getattr(r, 'image_url', ''))}</td>"
-            f"<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{(getattr(r, 'itemName', None) or '—')}</td>"
-            f"<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{(getattr(r, 'itemId', None) or '—')}</td>"
-            f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_int(getattr(r, 'itemsPurchased_yesterday', 0))}</td>"
-            f"<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{getattr(r, 'trend_svg', '')}</td>"
-            "</tr>"
-        )
-    bs_rows = "".join(bs_rows_parts)
+    # Tables
+    def table_row(cols: List[str], bold=False) -> str:
+        fw = "font-extrabold" if bold else "font-medium"
+        bg = "bg-slate-50" if bold else ""
+        tds = "".join([f"<td class='px-3 py-2 border-b border-slate-100 {fw}'>{c}</td>" for c in cols])
+        return f"<tr class='{bg}'>{tds}</tr>"
 
-    
+    # Channel rows
+    chan_html = ""
+    for r in channel_snapshot.itertuples(index=False):
+        chan_html += table_row([
+            str(r.bucket),
+            f"<div class='text-right'>{fmt_int(r.sessions)}</div>",
+            f"<div class='text-right'>{fmt_int(r.transactions)}</div>",
+            f"<div class='text-right'>{fmt_currency_krw(r.purchaseRevenue)}</div>",
+            f"<div class='text-right {delta_cls(r.rev_dod)}'>{('+' if r.rev_dod>=0 else '')}{fmt_pct(r.rev_dod,1)}</div>",
+        ], bold=(r.bucket == "Total"))
 
-    # Rising Products: include image column as well.
-    rp_rows = "".join([
-        "<tr>"
-        f"<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{product_img_cell(getattr(r, 'image_url', ''))}</td>"
-        f"<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{(getattr(r, 'itemId', None) or '—')}</td>"
-        f"<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{(getattr(r, 'itemName', None) or '—')}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{fmt_int(getattr(r,'itemViews_yesterday',0))}</td>"
-        f"<td align='right' style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'><span style='color:{delta_color(getattr(r,'delta',0))};font-weight:800;'>{'▲' if getattr(r,'delta',0)>=0 else '▼'} {fmt_int(abs(getattr(r,'delta',0)))}</span></td>"
-        "</tr>"
-        for r in rising.itertuples(index=False)
-    ])
+    paid_html = ""
+    for r in paid_detail.itertuples(index=False):
+        paid_html += table_row([
+            str(r.sub_channel),
+            f"<div class='text-right'>{fmt_int(r.sessions)}</div>",
+            f"<div class='text-right'>{fmt_currency_krw(r.purchaseRevenue)}</div>",
+            f"<div class='text-right {delta_cls(r.rev_dod)}'>{('+' if r.rev_dod>=0 else '')}{fmt_pct(r.rev_dod,1)}</div>",
+        ], bold=(r.sub_channel == "Total"))
 
-    
+    paid_top3_html = ""
+    if not paid_top3.empty:
+        for r in paid_top3.itertuples(index=False):
+            paid_top3_html += table_row([
+                str(r.sessionSourceMedium),
+                f"<div class='text-right'>{fmt_int(getattr(r,'sessions',0))}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(r.purchaseRevenue)}</div>",
+            ], bold=(r.sessionSourceMedium == "Total"))
 
-    pdp_rows = "".join([
-        "<tr>"
-        f"<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>{r.itemCategory}</td>"
-        "<td style='padding:7px 8px;border-bottom:1px solid #f1f5ff;'>"
-        f"<div style='font-size:10px;color:#667085;margin-bottom:4px;'>D-1 <b style='color:#111827;'>{fmt_int(getattr(r,'views_d1',0))}</b> · 7D Avg <b style='color:#111827;'>{fmt_int(getattr(r,'views_avg7d',0))}</b></div>"
-        f"{getattr(r,'trend_svg','')}"
-        "</td></tr>"
-        for r in category_pdp_trend.itertuples(index=False)
-    ])
-    def kw_rows(df, mode):
+    kpi_html = ""
+    for r in kpi_snapshot.itertuples(index=False):
+        kpi_html += table_row([
+            str(r.metric),
+            f"<div class='text-right'>{r.value_fmt}</div>",
+            f"<div class='text-right {delta_cls(r.dod)}'>{('+' if r.dod>=0 else '')}{r.dod_fmt}</div>",
+        ])
+
+    bs_html = ""
+    if not best_sellers.empty:
+        for r in best_sellers.itertuples(index=False):
+            bs_html += f"""
+            <tr>
+              <td class="px-3 py-2 border-b border-slate-100">{product_img(getattr(r,'image_url',''))}</td>
+              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemName',None) or '—'}</td>
+              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemId',None) or '—'}</td>
+              <td class="px-3 py-2 border-b border-slate-100 text-right font-semibold">{fmt_int(getattr(r,'itemsPurchased_yesterday',0))}</td>
+              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'trend_svg','')}</td>
+            </tr>
+            """
+
+    rp_html = ""
+    if not rising.empty:
+        for r in rising.itertuples(index=False):
+            delta = float(getattr(r, "delta", 0) or 0.0)
+            rp_html += f"""
+            <tr>
+              <td class="px-3 py-2 border-b border-slate-100">{product_img(getattr(r,'image_url',''))}</td>
+              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemId',None) or '—'}</td>
+              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemName',None) or '—'}</td>
+              <td class="px-3 py-2 border-b border-slate-100 text-right">{fmt_int(getattr(r,'itemViews_yesterday',0))}</td>
+              <td class="px-3 py-2 border-b border-slate-100 text-right font-extrabold {delta_cls(delta)}">
+                {'▲' if delta>=0 else '▼'} {fmt_int(abs(delta))}
+              </td>
+            </tr>
+            """
+
+    pdp_html = ""
+    if not category_pdp_trend.empty:
+        for r in category_pdp_trend.itertuples(index=False):
+            pdp_html += f"""
+            <tr>
+              <td class="px-3 py-2 border-b border-slate-100">{r.itemCategory}</td>
+              <td class="px-3 py-2 border-b border-slate-100">
+                <div class="text-[11px] text-slate-500 mb-1">
+                  D-1 <b class="text-slate-900">{fmt_int(getattr(r,'views_d1',0))}</b> ·
+                  7D Avg <b class="text-slate-900">{fmt_int(getattr(r,'views_avg7d',0))}</b>
+                </div>
+                {getattr(r,'trend_svg','')}
+              </td>
+            </tr>
+            """
+    else:
+        pdp_html = """
+        <tr>
+          <td class="px-3 py-4 text-slate-400" colspan="2">
+            PDP Trend 데이터가 없습니다. (BigQuery view_item에 items[].item_id가 없으면 비어있게 됩니다)
+          </td>
+        </tr>
+        """
+
+    def kw_rows(df: pd.DataFrame, mode: str) -> str:
         if df.empty:
-            return "<tr><td style='padding:6px 8px;border-bottom:1px solid #f1f5ff;color:#99a;'>—</td><td align='right' style='padding:6px 8px;border-bottom:1px solid #f1f5ff;color:#99a;'>—</td></tr>"
-        rows = []
+            return "<tr><td class='px-3 py-2 border-b border-slate-100 text-slate-400'>—</td><td class='px-3 py-2 border-b border-slate-100 text-right text-slate-400'>—</td></tr>"
+        out = ""
         for r in df.itertuples(index=False):
             if mode == "new":
-                rows.append(f"<tr><td style='padding:6px 8px;border-bottom:1px solid #f1f5ff;'>{r.searchTerm}</td><td align='right' style='padding:6px 8px;border-bottom:1px solid #f1f5ff;color:#99a;'>new</td></tr>")
+                out += f"<tr><td class='px-3 py-2 border-b border-slate-100'>{r.searchTerm}</td><td class='px-3 py-2 border-b border-slate-100 text-right text-slate-400'>new</td></tr>"
             else:
                 tag = f"{'+' if r.pct>=0 else ''}{r.pct:.0f}%"
-                rows.append(f"<tr><td style='padding:6px 8px;border-bottom:1px solid #f1f5ff;'>{r.searchTerm}</td><td align='right' style='padding:6px 8px;border-bottom:1px solid #f1f5ff;color:#99a;'>{tag}</td></tr>")
-        return "".join(rows)
+                out += f"<tr><td class='px-3 py-2 border-b border-slate-100'>{r.searchTerm}</td><td class='px-3 py-2 border-b border-slate-100 text-right text-slate-400'>{tag}</td></tr>"
+        return out
 
-    date_badge = f"{ymd(w.yesterday)} 기준 (어제 데이터)"
+    mode_badge = "Daily" if w.mode == "daily" else "Weekly (7D Cumulative)"
+    period_text = f"{ymd(w.cur_start)} ~ {ymd(w.cur_end)}" if w.mode == "weekly" else f"{ymd(w.end_date)}"
 
-    return f"""<!DOCTYPE html>
-<html lang='ko'><head><meta charset='utf-8'><title>Daily Digest</title></head>
-<body style='margin:0;padding:0;background:#f5f7fb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",Arial,sans-serif;'>
-<table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='background:#f5f7fb;'>
-  <tr><td align='center'>
-    <table role='presentation' width='900' cellspacing='0' cellpadding='0' style='padding:24px 12px;background:#f5f7fb;'>
-      <tr><td>
-        <table role='presentation' width='100%' cellspacing='0' cellpadding='0' style='background:#ffffff;border-radius:18px;border:1px solid #e6e9ef;box-shadow:0 6px 18px rgba(0,0,0,0.06);'>
-          <tr><td style='height:4px;background:#0055a5;line-height:4px;font-size:0;'>&nbsp;</td></tr>
-          <tr><td style='padding:18px 20px 14px 20px;'>
-            <table role='presentation' width='100%' cellspacing='0' cellpadding='0'>
-              <tr>
-                <td valign='middle'>
-                  <table role='presentation' cellspacing='0' cellpadding='0'><tr>
-                    <td style='padding-right:10px;'>{("<img alt='Columbia' height='28' style='display:block;height:28px;' src='data:image/png;base64,"+logo_b64+"'>") if logo_b64 else ""}</td>
-                    <td>
-                      <div style='font-size:18px;font-weight:700;color:#0055a5;margin-bottom:2px;'>COLUMBIA SPORTSWEAR KOREA</div>
-                      <div style='font-size:13px;color:#555;'>Daily eCommerce Performance Digest</div>
-                    </td>
-                  </tr></table>
-                  <span style='display:inline-block;font-size:11px;padding:4px 10px;border-radius:999px;background:#eaf3ff;color:#0055a5;border:1px solid #d7e7ff;margin-top:10px;'>{date_badge}</span>
-                </td>
-                <td valign='top' align='right' style='padding-top:2px;'>
-                  <div style='font-size:11px;color:#667;line-height:1.5;text-align:right;'>
-                    오늘의 핵심<br>
-                    <b style='color:#0055a5;'>Revenue {('+' if r_dod>=0 else '')}{fmt_pct(r_dod,1)}</b> ·
-                    <b style='color:#c2410c;'>CVR {fmt_pp(c_pp,2)}</b>
-                  </div>
-                </td>
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSK E-COMM | Daily Digest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root {{ --brand:#002d72; }}
+    body{{ background: linear-gradient(180deg, #f6f8fb, #eef3f9); font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; }}
+    .glass-card{{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }}
+    .badge{{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(0,45,114,.08); color: var(--brand); }}
+    .badge-soft{{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(15,23,42,.06); color: rgba(15,23,42,.70); }}
+  </style>
+</head>
+<body>
+  <div class="px-3 sm:px-6 py-6 max-w-[1200px] mx-auto">
+
+    <!-- Header -->
+    <div class="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="flex items-center gap-3">
+        {"<img src='data:image/png;base64," + logo_b64 + "' class='h-8 w-auto'/>" if logo_b64 else ""}
+        <div>
+          <div class="text-2xl sm:text-3xl font-black tracking-tight">Daily Digest</div>
+          <div class="text-sm text-slate-500">eCommerce Performance · {mode_badge} · <b class="text-slate-700">{period_text}</b></div>
+        </div>
+      </div>
+
+      <!-- Nav -->
+      <div class="flex items-center gap-2">
+        <a href="{nav_links.get('hub','index.html')}" class="px-4 py-2 rounded-2xl glass-card font-extrabold text-sm">Hub</a>
+        <a href="{nav_links.get('daily_index','index.html')}" class="px-4 py-2 rounded-2xl glass-card font-extrabold text-sm">Daily</a>
+        <a href="{nav_links.get('weekly_index','index.html')}" class="px-4 py-2 rounded-2xl glass-card font-extrabold text-sm">Weekly</a>
+        <span class="badge-soft">{mode_badge}</span>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="glass-card rounded-3xl p-5 mb-6">
+      <div class="flex items-center justify-between">
+        <div class="text-base font-black text-slate-900">Top KPIs</div>
+        <span class="badge">{ymd(w.end_date)} 기준</span>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {top_kpi_card("Sessions", fmt_int(cur["sessions"]), f"{'+' if s_dod>=0 else ''}{fmt_pct(s_dod,1)}", delta_cls(s_dod))}
+        {top_kpi_card("Orders", fmt_int(cur["transactions"]), f"{'+' if o_dod>=0 else ''}{fmt_pct(o_dod,1)}", delta_cls(o_dod))}
+        {top_kpi_card("Revenue", fmt_currency_krw(cur["purchaseRevenue"]), f"{'+' if r_dod>=0 else ''}{fmt_pct(r_dod,1)}", delta_cls(r_dod))}
+        {top_kpi_card("CVR", f"{cur['cvr']*100:.2f}%", fmt_pp(c_pp,2), delta_cls(c_pp))}
+        {top_kpi_card("Sign-up Users", fmt_int(su_cur), f"{'+' if su_dod>=0 else ''}{fmt_pct(su_dod,1)}", delta_cls(su_dod))}
+      </div>
+    </div>
+
+    <!-- Content cards -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Channel Snapshot -->
+      <div class="glass-card rounded-3xl p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">Channel Snapshot</div>
+          <span class="badge-soft">Organic · Paid · Owned · Awareness · SNS</span>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50">
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Channel</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Traffic</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Orders</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Revenue</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">DoD (Rev)</th>
               </tr>
-            </table>
-          </td></tr>
+            </thead>
+            <tbody>{chan_html}</tbody>
+          </table>
+        </div>
+      </div>
 
-          <tr><td style='border-top:1px solid #eef2fb;'></td></tr>
+      <!-- Paid detail -->
+      <div class="glass-card rounded-3xl p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">Paid AD Detail</div>
+          <span class="badge-soft">{'Daily only Top3' if w.mode=='daily' else 'Weekly aggregation'}</span>
+        </div>
 
-          <tr><td style='padding:14px 18px 18px 18px;'>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50">
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Sub-channel</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Traffic</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Revenue</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">DoD (Rev)</th>
+              </tr>
+            </thead>
+            <tbody>{paid_html}</tbody>
+          </table>
+        </div>
 
-            <div style='font-size:13px;font-weight:700;color:#224;margin:6px 0 8px 0;'>Traffic / MKT</div>
-            <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:separate;border-spacing:10px 10px;'><tr>
-              {kpi_cell('Sessions', fmt_int(cur['sessions']), f"{('+' if s_dod>=0 else '')}{fmt_pct(s_dod,1)}", delta_color(s_dod))}
-              {kpi_cell('Orders', fmt_int(cur['transactions']), f"{('+' if o_dod>=0 else '')}{fmt_pct(o_dod,1)}", delta_color(o_dod))}
-              {kpi_cell('Revenue', fmt_currency_krw(cur['purchaseRevenue']), f"{('+' if r_dod>=0 else '')}{fmt_pct(r_dod,1)}", delta_color(r_dod))}
-              {kpi_cell('CVR', f"{cur['cvr']*100:.2f}%", fmt_pp(c_pp,2), delta_color(c_pp))}
-              {kpi_cell('Sign-up Users', fmt_int(su_cur), f"{('+' if su_dod>=0 else '')}{fmt_pct(su_dod,1)}", delta_color(su_dod))}
-            </tr></table>
+        {"<div class='mt-5'><div class='text-sm font-black mb-2'>Paid AD Top 3</div><div class='overflow-x-auto'><table class='w-full text-sm'><thead><tr class='bg-slate-50'><th class='px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500'>Source / Medium</th><th class='px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500'>Traffic</th><th class='px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500'>Revenue</th></tr></thead><tbody>"+paid_top3_html+"</tbody></table></div></div>" if (w.mode=='daily' and paid_top3_html) else ""}
+      </div>
 
-            <table width='100%' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;margin-top:6px;'><tr><td>
-              <div style='font-size:11px;font-weight:600;color:#224;margin-bottom:2px;'>Channel Snapshot</div>
-              <div style='font-size:10px;color:#888;margin-bottom:8px;line-height:1.4;'>Organic / Paid AD / Owned / Awareness / SNS</div>
-              <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>
-                <tr style='background:#f6f8ff;'>
-                  <th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Channel</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Traffic</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Orders</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Revenue</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>DoD (Rev)</th>
-                </tr>
-                {chan_rows}
-              </table>
-            </td></tr></table>
+      <!-- KPI Snapshot -->
+      <div class="glass-card rounded-3xl p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">KPI Snapshot</div>
+          <span class="badge-soft">{mode_badge}</span>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50">
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Metric</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Value</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Δ</th>
+              </tr>
+            </thead>
+            <tbody>{kpi_html}</tbody>
+          </table>
+        </div>
+      </div>
 
-            <table width='100%' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;margin-top:10px;'><tr><td>
-              <div style='font-size:11px;font-weight:600;color:#224;margin-bottom:2px;'>Paid AD Detail</div>
-              <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>
-                <tr style='background:#f6f8ff;'>
-                  <th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Sub-channel</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Traffic</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Revenue</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>DoD (Rev)</th>
-                </tr>
-                {paid_rows}
-              </table>
-              {("<div style='margin-top:10px;'><div style='font-size:11px;font-weight:700;color:#224;margin-bottom:6px;'>Paid AD Top 3 (Traffic, Revenue)</div>"
-                "<table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>"
-                "<tr style='background:#f6f8ff;'><th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Source / Medium</th>"
-                "<th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Traffic</th><th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Revenue</th></tr>"
-                + paid_top3_rows + "</table></div>") if paid_top3_rows else ""}
-            </td></tr></table>
+      <!-- Trend View -->
+      <div class="glass-card rounded-3xl p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">Trend View</div>
+          <span class="badge-soft">Index (D-7=100)</span>
+        </div>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-white/60 p-3">
+          {trend_svg}
+        </div>
+      </div>
 
-            <div style='font-size:13px;font-weight:700;color:#224;margin:16px 0 8px 0;'>Site Ops</div>
-            <table width='100%' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;'><tr><td>
-              <div style='font-size:11px;font-weight:600;color:#224;margin-bottom:2px;'>KPI Snapshot</div>
-              <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>
-                <tr style='background:#f6f8ff;'><th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Metric</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Value</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>DoD</th></tr>
-                {kpi_rows}
-              </table>
-            </td></tr></table>
+      <!-- Best Sellers -->
+      <div class="glass-card rounded-3xl p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">Best Sellers · TOP 5 (Qty)</div>
+          <span class="badge-soft">{'Daily' if w.mode=='daily' else '—'}</span>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50">
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Image</th>
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Item</th>
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">SKU</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Qty</th>
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">7D Trend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bs_html if (w.mode=='daily' and bs_html) else "<tr><td class='px-3 py-4 text-slate-400' colspan='5'>Weekly에서는 Best Sellers를 생략합니다.</td></tr>"}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-            <table width='100%' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;margin-top:10px;'><tr><td>
-              <div style='font-size:11px;font-weight:600;color:#224;margin-bottom:2px;'>Trend View</div>
-              <div style='border:1px solid #eef2fb;border-radius:10px;padding:8px 10px;background:#fbfdff;'>{trend_svg}</div>
-            </td></tr></table>
+      <!-- Rising -->
+      <div class="glass-card rounded-3xl p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">Rising Products</div>
+          <span class="badge-soft">{'Daily' if w.mode=='daily' else '—'}</span>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50">
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Image</th>
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">SKU</th>
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Item</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Views</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Qty Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rp_html if (w.mode=='daily' and rp_html) else "<tr><td class='px-3 py-4 text-slate-400' colspan='5'>Weekly에서는 Rising Products를 생략합니다.</td></tr>"}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-            <div style='font-size:13px;font-weight:700;color:#224;margin:16px 0 8px 0;'>Product</div>
-            <table width='100%' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;'><tr><td>
-              <div style='font-size:11px;font-weight:600;color:#224;margin-bottom:2px;'>Best Sellers · TOP 5 (Qty)</div>
-              <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>
-                <tr style='background:#f6f8ff;'><th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Image</th>
-                  <th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Item (EN)</th>
-                  <th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>SKU</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Qty (D-1)</th>
-                  <th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>7D Trend</th></tr>
-                {bs_rows}
-              </table>
-            </td></tr></table>
+      <!-- PDP Trend -->
+      <div class="glass-card rounded-3xl p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">PDP Trend</div>
+          <span class="badge-soft">BigQuery · view_item</span>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50">
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Category</th>
+                <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">PDP Views 7D Trend</th>
+              </tr>
+            </thead>
+            <tbody>{pdp_html}</tbody>
+          </table>
+        </div>
+      </div>
 
-            <table width='100%' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;margin-top:10px;'><tr><td>
-              <div style='font-size:11px;font-weight:600;color:#224;margin-bottom:2px;'>Rising Products</div>
-              <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>
-                <tr style='background:#f6f8ff;'><th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Image</th>
-                  <th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>SKU</th>
-                  <th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Item</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Views (D-1)</th>
-                  <th align='right' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Qty Δ</th></tr>
-                {rp_rows}
-              </table>
-            </td></tr></table>
+      <!-- Search Trend -->
+      <div class="glass-card rounded-3xl p-6 lg:col-span-2">
+        <div class="flex items-center justify-between">
+          <div class="text-lg font-black">Search Trend</div>
+          <span class="badge-soft">{ymd(w.end_date)}</span>
+        </div>
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="rounded-2xl border border-slate-200 bg-white/60">
+            <div class="px-4 py-3 font-extrabold text-sm border-b border-slate-200">신규 진입 Top 3</div>
+            <table class="w-full text-sm"><tbody>{kw_rows(search_new, "new")}</tbody></table>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white/60">
+            <div class="px-4 py-3 font-extrabold text-sm border-b border-slate-200">급상승 Top 3</div>
+            <table class="w-full text-sm"><tbody>{kw_rows(search_rising, "rising")}</tbody></table>
+          </div>
+        </div>
+      </div>
 
-            <table width='100%' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;margin-top:10px;'><tr><td>
-              <div style='font-size:11px;font-weight:600;color:#224;margin-bottom:2px;'>PDP Trend</div>
-              <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>
-                <tr style='background:#f6f8ff;'><th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>Category</th>
-                  <th align='left' style='padding:7px 8px;border-bottom:1px solid #e8eefb;'>PDP Views 7D Trend</th></tr>
-                {pdp_rows}
-              </table>
-            </td></tr></table>
+    </div>
+
+    <div class="mt-6 text-xs text-slate-400 text-right">
+      Auto-generated · {mode_badge} · End = {ymd(w.end_date)}
+    </div>
+
+  </div>
+</body>
+</html>
+"""
 
 
-            <table width='100%' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:12px;border:1px solid #dfe6f3;box-shadow:0 6px 18px rgba(0,0,0,0.05);padding:10px 12px;margin-top:10px;'><tr><td>
-              <div style='font-size:11px;font-weight:600;color:#224;margin-bottom:2px;'>Search Trend</div>
-              <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>
-                <tr><td width='50%' valign='top' style='padding-right:10px;'>
-                    <div style='font-size:11px;font-weight:700;color:#224;margin-bottom:6px;'>신규 진입 Top 3</div>
-                    <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>{kw_rows(search_new,'new')}</table>
-                  </td>
-                  <td width='50%' valign='top' style='padding-left:10px;'>
-                    <div style='font-size:11px;font-weight:700;color:#224;margin-bottom:6px;'>급상승 Top 3</div>
-                    <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;font-size:11px;'>{kw_rows(search_rising,'rising')}</table>
-                  </td></tr>
-              </table>
-            </td></tr></table>
+# =========================
+# Hub pages (NEW)
+# =========================
+def render_hub_index(dates: List[dt.date]) -> str:
+    # dates: descending (recent first)
+    date_links = "\n".join([
+        f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/{ymd(d)}.html'>{ymd(d)}</a>"
+        for d in dates
+    ])
+    week_links = "\n".join([
+        f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_{ymd(d)}.html'>END {ymd(d)}</a>"
+        for d in dates
+    ])
 
-            <div style='margin-top:16px;font-size:10px;color:#99a;text-align:right;'>Auto-generated · Rolling window ends at {ymd(w.window_end)}</div>
-          </td></tr>
-        </table>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-</body></html>"""
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Digest Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    body{{ background: linear-gradient(180deg, #f6f8fb, #eef3f9); font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; }}
+    .glass-card{{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }}
+  </style>
+</head>
+<body>
+  <div class="px-3 sm:px-6 py-6 max-w-[1100px] mx-auto">
+    <div class="mb-6">
+      <div class="text-3xl font-black tracking-tight">Daily Digest Hub</div>
+      <div class="text-sm text-slate-500">최근 생성된 리포트로 이동</div>
+    </div>
 
-def main():
-    if not PROPERTY_ID:
-        raise SystemExit("ERROR: GA4_PROPERTY_ID is empty. Set env var GA4_PROPERTY_ID and retry.")
-    # Use ADC but request Analytics Data API scope explicitly; otherwise you may get
-    # 'Request had insufficient authentication scopes' when using gcloud end-user creds.
-    _scopes = [
-        'https://www.googleapis.com/auth/analytics.readonly',
-        'https://www.googleapis.com/auth/cloud-platform',
-    ]
-    _creds, _proj = google_auth_default(scopes=_scopes)
-    client = BetaAnalyticsDataClient(credentials=_creds)
-    if bigquery is None:
-        print('[WARN] google-cloud-bigquery not installed; Category Trend may be 0. Install: pip install google-cloud-bigquery')
-    w = compute_window()
-    logo_b64 = load_logo_base64(LOGO_PATH)
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="glass-card rounded-3xl p-6">
+        <div class="text-lg font-black">Daily Reports</div>
+        <div class="mt-4 flex flex-wrap gap-2">{date_links}</div>
+      </div>
+
+      <div class="glass-card rounded-3xl p-6">
+        <div class="text-lg font-black">Weekly (7D Cumulative)</div>
+        <div class="mt-4 text-xs text-slate-500 mb-3">END 날짜 기준으로 7일 누적</div>
+        <div class="flex flex-wrap gap-2">{week_links}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+
+# =========================
+# Build one report
+# =========================
+def build_one(client: BetaAnalyticsDataClient, end_date: dt.date, mode: str, image_map: Dict[str, str], logo_b64: str) -> str:
+    w = build_window(end_date=end_date, mode=mode)
 
     overall = get_overall_kpis(client, w)
     signup_users = get_multi_event_users(client, w, ["signup_complete", "signup"])
@@ -1456,32 +1398,111 @@ def main():
     paid_top3 = get_paid_top3(client, w)
     kpi_snapshot = get_kpi_snapshot_table(client, w, overall)
     trend_svg = get_trend_view_svg(client, w)
-    image_map = load_image_map_from_excel_urls(IMAGE_XLS_PATH)
+
     best_sellers = get_best_sellers_with_trends(client, w, image_map)
     rising = get_rising_products(client, w, top_n=5)
-    # Attach images for Rising Products as well.
     rising = attach_image_urls(rising, image_map)
 
+    # Missing image tracking (daily only)
     missing = []
-    if not best_sellers.empty and 'itemId' in best_sellers.columns:
-        missing += [sku for sku in best_sellers['itemId'].tolist() if str(sku).strip() not in image_map]
-    if not rising.empty and 'itemId' in rising.columns:
-        missing += [sku for sku in rising['itemId'].tolist() if str(sku).strip() not in image_map]
-    if missing:
-        write_missing_image_skus(MISSING_SKU_OUT, missing)
-    # Category Trend (CTR) removed by request.
-    category_pdp_trend = get_category_pdp_view_trend_bq(w)
-    search = get_search_trends(client, w)
+    if mode == "daily":
+        if not best_sellers.empty and 'itemId' in best_sellers.columns:
+            missing += [sku for sku in best_sellers['itemId'].tolist() if str(sku).strip() not in image_map]
+        if not rising.empty and 'itemId' in rising.columns:
+            missing += [sku for sku in rising['itemId'].tolist() if str(sku).strip() not in image_map]
+        if missing:
+            write_missing_image_skus(MISSING_SKU_OUT, missing)
 
-    html = render_html(logo_b64, w, overall, signup_users, channel_snapshot, paid_detail, paid_top3,
-                       kpi_snapshot, trend_svg, best_sellers, rising, category_pdp_trend,
-                       search["new"], search["rising"])
+    # PDP Trend: always 7D ending at end_date
+    category_pdp_trend = get_category_pdp_view_trend_bq(end_date=end_date)
 
-    with open(OUT_HTML, "w", encoding="utf-8") as f:
-        f.write(html)
+    # Search trend: end_date 기준
+    search = get_search_trends(client, end_date=end_date)
 
-    print(f"[OK] Wrote HTML: {OUT_HTML}")
-    print(f"     Window: {ymd(w.window_start)} ~ {ymd(w.window_end)} (rolling 7d)")
+    nav_links = {
+        "hub": "../index.html" if mode == "daily" else "../index.html",
+        "daily_index": "../index.html",
+        "weekly_index": "../index.html",
+    }
+
+    return render_page_html(
+        logo_b64=logo_b64,
+        w=w,
+        overall=overall,
+        signup_users=signup_users,
+        channel_snapshot=channel_snapshot,
+        paid_detail=paid_detail,
+        paid_top3=paid_top3,
+        kpi_snapshot=kpi_snapshot,
+        trend_svg=trend_svg,
+        best_sellers=best_sellers,
+        rising=rising,
+        category_pdp_trend=category_pdp_trend,
+        search_new=search["new"],
+        search_rising=search["rising"],
+        nav_links=nav_links,
+    )
+
+
+# =========================
+# Main (build N days)
+# =========================
+def main():
+    if not PROPERTY_ID:
+        raise SystemExit("ERROR: GA4_PROPERTY_ID is empty. Set env var GA4_PROPERTY_ID and retry.")
+
+    _scopes = [
+        'https://www.googleapis.com/auth/analytics.readonly',
+        'https://www.googleapis.com/auth/cloud-platform',
+    ]
+    _creds, _proj = google_auth_default(scopes=_scopes)
+    client = BetaAnalyticsDataClient(credentials=_creds)
+
+    if bigquery is None:
+        print('[WARN] google-cloud-bigquery not installed; PDP Trend will be empty. Install: pip install google-cloud-bigquery')
+
+    # 기준 날짜: KST today-1 을 최신 end date로 (어제 데이터)
+    today_kst = dt.datetime.now(ZoneInfo("Asia/Seoul")).date()
+    latest_end = today_kst - dt.timedelta(days=1)
+
+    # build 대상 날짜들 (recent first)
+    dates = [latest_end - dt.timedelta(days=i) for i in range(max(1, DAYS_TO_BUILD))]
+    dates = [d for d in dates if d.year >= 2000]
+
+    # Load assets
+    logo_b64 = load_logo_base64(LOGO_PATH)
+    image_map = load_image_map_from_excel_urls(IMAGE_XLS_PATH)
+
+    # Output folders
+    ensure_dir(OUT_DIR)
+    daily_dir = os.path.join(OUT_DIR, "daily")
+    weekly_dir = os.path.join(OUT_DIR, "weekly")
+    ensure_dir(daily_dir)
+    ensure_dir(weekly_dir)
+
+    # Build pages
+    for d in dates:
+        # Daily
+        html_daily = build_one(client, end_date=d, mode="daily", image_map=image_map, logo_b64=logo_b64)
+        out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
+        with open(out_daily, "w", encoding="utf-8") as f:
+            f.write(html_daily)
+        print(f"[OK] Wrote: {out_daily}")
+
+        # Weekly cumulative
+        html_weekly = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
+        out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
+        with open(out_weekly, "w", encoding="utf-8") as f:
+            f.write(html_weekly)
+        print(f"[OK] Wrote: {out_weekly}")
+
+    # Hub index
+    hub = render_hub_index(dates=dates)
+    hub_path = os.path.join(OUT_DIR, "index.html")
+    with open(hub_path, "w", encoding="utf-8") as f:
+        f.write(hub)
+    print(f"[OK] Wrote HUB: {hub_path}")
+
 
 if __name__ == "__main__":
     main()
