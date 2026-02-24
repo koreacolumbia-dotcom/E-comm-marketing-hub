@@ -1633,12 +1633,21 @@ def main():
                 f.write(html_weekly)
             print(f"[OK] Wrote: {out_weekly}")
 
-    # Hub index (항상 갱신해도 비용 영향 거의 없음)
-    hub = render_hub_index(dates=dates)
+    # Hub index (❗️index.html 덮어쓰기 방지: 허브가 예전 버전으로 돌아가는 현상 차단)
+    # 기본 동작: index.html이 이미 있으면 절대 덮어쓰지 않음
+    # 필요할 때만 env로 강제 갱신:
+    #   DAILY_DIGEST_FORCE_HUB_OVERWRITE=true
+
     hub_path = os.path.join(OUT_DIR, "index.html")
-    with open(hub_path, "w", encoding="utf-8") as f:
-        f.write(hub)
-    print(f"[OK] Wrote HUB: {hub_path}")
+    force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
+
+    if (not force_overwrite) and os.path.exists(hub_path):
+        print(f"[SKIP] HUB exists (no overwrite): {hub_path}")
+    else:
+        hub = render_hub_index(dates=dates)
+        with open(hub_path, "w", encoding="utf-8") as f:
+            f.write(hub)
+        print(f"[OK] Wrote HUB: {hub_path}")
 
 
 if __name__ == "__main__":
