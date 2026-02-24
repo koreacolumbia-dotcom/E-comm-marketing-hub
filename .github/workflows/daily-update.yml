@@ -90,7 +90,9 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Ensure reports dir
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p reports
 
       - name: Set KST time (for badge/meta + yesterday)
@@ -151,6 +153,7 @@ jobs:
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        shell: bash
         run: |
           set -euo pipefail
           python -u naver_crawl_columbia_c6c7_title_min.py \
@@ -165,6 +168,7 @@ jobs:
       # ----------------------------
       - name: Run Hero banner crawler
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        shell: bash
         run: |
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
@@ -175,6 +179,7 @@ jobs:
       # ----------------------------
       - name: Run External Signal (VOC)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        shell: bash
         run: |
           set -euo pipefail
           python -u external_signal_combined.py
@@ -246,6 +251,7 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
+        shell: bash
         run: |
           set -euo pipefail
           python -u build_summary.py
@@ -293,8 +299,9 @@ jobs:
 
           # ✅ 핵심: HUB(index) 말고 "어제 데일리 리포트"를 본문으로 보냄
           DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
+          REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
 
-          # ✅ Gmail용: Tailwind/JS 무시 문제 해결
+          # (옵션) send_daily_email.py에서 쓰는 스위치가 있다면 유지
           EMAIL_RENDER_MODE: computed
         shell: bash
         run: |
