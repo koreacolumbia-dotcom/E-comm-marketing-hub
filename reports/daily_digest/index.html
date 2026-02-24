@@ -26,7 +26,7 @@
     }
     .chip{
       border: 1px solid rgba(148,163,184,0.35);
-      background: rgba(255,255,255,0.70);
+      background: rgba(255,255,255,0.78);
       border-radius: 999px;
       padding: 8px 12px;
       font-weight: 900;
@@ -34,6 +34,7 @@
       color: #0f172a;
       transition: all .15s ease;
       user-select:none;
+      white-space: nowrap;
     }
     .chip:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
     .chip.active{
@@ -47,7 +48,7 @@
       font-weight: 900;
       font-size: 12px;
       border: 1px solid rgba(148,163,184,0.28);
-      background: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.88);
       transition: all .15s ease;
       user-select:none;
       white-space: nowrap;
@@ -66,38 +67,9 @@
       text-transform: uppercase;
       color: #94a3b8;
     }
-    .kpi-badge{
-      display:inline-flex;align-items:center;gap:8px;
-      font-size:11px;font-weight:900;color:#0f172a;
-      padding:8px 12px;border-radius:999px;
-      background: rgba(255,255,255,0.75);
-      border: 1px solid rgba(148,163,184,0.24);
-    }
-    .list-item{
-      border: 1px solid rgba(148,163,184,0.22);
-      background: rgba(255,255,255,0.78);
-      border-radius: 16px;
-      padding: 10px 12px;
-      font-weight: 900;
-      font-size: 12px;
-      transition: all .15s ease;
-      cursor:pointer;
-      user-select:none;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap: 10px;
-    }
-    .list-item:hover{ transform: translateY(-1px); box-shadow: 0 12px 28px rgba(0,45,114,0.08); }
-    .list-item.active{
-      border-color: rgba(0,45,114,0.35);
-      background: rgba(0,45,114,0.06);
-    }
-
-    /* compact calendar input */
     input[type="date"]{
       border: 1px solid rgba(148,163,184,0.28);
-      background: rgba(255,255,255,0.88);
+      background: rgba(255,255,255,0.90);
       border-radius: 14px;
       padding: 10px 12px;
       font-weight: 900;
@@ -112,14 +84,42 @@
     }
     .viewer-frame{
       width: 100%;
-      height: calc(100vh - 230px);
+      height: calc(100vh - 240px);
       border: 0;
       border-radius: 18px;
       background: white;
     }
-
     @media (max-width: 1023px){
-      .viewer-frame{ height: 70vh; }
+      .viewer-frame{ height: 74vh; }
+    }
+    .topbar{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar-left{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .topbar-right{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .mini{
+      font-size: 11px;
+      font-weight: 900;
+      color: #334155;
+      background: rgba(255,255,255,0.80);
+      border: 1px solid rgba(148,163,184,0.22);
+      border-radius: 999px;
+      padding: 8px 12px;
     }
   </style>
 </head>
@@ -130,9 +130,8 @@
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
-        <div class="muted font-semibold mt-1">달력으로 날짜/기간 선택 · 기본은 어제 리포트(KST)</div>
+        <div class="muted font-semibold mt-1">날짜/기간 선택은 Viewer 상단에서 · 기본은 어제 리포트(KST)</div>
       </div>
-
       <div class="flex items-center gap-2">
         <div class="small-label mr-2">Mode</div>
         <button id="modeDaily" class="chip active" type="button">Daily</button>
@@ -140,80 +139,50 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <!-- Left: Selector -->
-      <div class="lg:col-span-4 glass p-5">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <div class="text-lg font-black">Selector</div>
-            <div class="text-xs muted font-semibold mt-1">Daily: 날짜 선택 / Weekly: END 날짜 선택</div>
-          </div>
-          <div id="resultCount" class="kpi-badge">Results <span class="font-black" id="countNum">0</span></div>
-        </div>
+    <!-- Viewer -->
+    <div class="glass p-5">
+      <div class="topbar mb-4">
+        <!-- controls -->
+        <div class="topbar-left">
+          <span class="mini" id="statusText">-</span>
 
-        <!-- Single date -->
-        <div class="mb-4">
-          <div class="small-label mb-2">Date</div>
-          <div class="grid grid-cols-12 gap-2">
-            <div class="col-span-8">
+          <div class="flex items-center gap-2">
+            <div class="small-label hidden md:block">Date</div>
+            <div class="w-[160px]">
               <input id="singleDate" type="date" />
             </div>
-            <div class="col-span-4 flex gap-2">
-              <button id="btnPrev" class="btn w-full" type="button">◀</button>
-              <button id="btnNext" class="btn w-full" type="button">▶</button>
+            <button id="btnPrev" class="btn" type="button">◀</button>
+            <button id="btnNext" class="btn" type="button">▶</button>
+            <button id="btnYesterday" class="btn" type="button">어제</button>
+            <button id="btnToday" class="btn" type="button">오늘</button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div class="small-label hidden md:block">Range</div>
+            <div class="w-[160px]">
+              <input id="rangeStart" type="date" />
             </div>
-          </div>
-          <div class="flex gap-2 mt-2">
-            <button id="btnYesterday" class="btn w-full" type="button">어제</button>
-            <button id="btnToday" class="btn w-full" type="button">오늘</button>
-          </div>
-        </div>
-
-        <!-- Range -->
-        <div class="mb-4">
-          <div class="small-label mb-2">Range</div>
-          <div class="grid grid-cols-2 gap-2">
-            <input id="rangeStart" type="date" />
-            <input id="rangeEnd" type="date" />
-          </div>
-          <div class="text-xs muted font-semibold mt-2">
-            Range 지정 시: 기간 내 존재하는 리포트만 아래에 표시
+            <div class="w-[160px]">
+              <input id="rangeEnd" type="date" />
+            </div>
+            <button id="btnApply" class="btn btn-primary" type="button">적용</button>
+            <button id="btnClearRange" class="btn" type="button">Range 해제</button>
           </div>
         </div>
 
-        <div class="flex gap-2 mb-4">
-          <button id="btnApply" class="btn btn-primary w-full" type="button">적용</button>
-          <button id="btnClearRange" class="btn w-full" type="button">Range 해제</button>
-        </div>
-
-        <!-- Result list -->
-        <div class="small-label mb-2">Results</div>
-        <div id="results" class="space-y-2 max-h-[52vh] overflow-auto pr-1"></div>
-
-        <div class="mt-4 text-xs muted font-semibold">
-          * 파일 경로: <b>daily/YYYY-MM-DD.html</b>, <b>weekly/END_YYYY-MM-DD.html</b>
+        <!-- actions -->
+        <div class="topbar-right">
+          <button id="btnOpenNew" class="btn" type="button">새 탭</button>
+          <button id="btnCopy" class="btn" type="button">링크 복사</button>
+          <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
         </div>
       </div>
 
-      <!-- Right: Viewer -->
-      <div class="lg:col-span-8 glass p-5">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-          <div>
-            <div class="text-lg font-black">Report Viewer</div>
-            <div class="text-xs muted font-semibold mt-1" id="viewerPath">-</div>
-          </div>
-          <div class="flex items-center gap-2">
-            <button id="btnOpenNew" class="btn" type="button">새 탭</button>
-            <button id="btnCopy" class="btn" type="button">링크 복사</button>
-            <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
-          </div>
-        </div>
+      <div class="text-xs muted font-semibold mb-3" id="viewerPath">-</div>
+      <iframe id="viewer" class="viewer-frame" loading="eager"></iframe>
 
-        <iframe id="viewer" class="viewer-frame" loading="eager"></iframe>
-
-        <div class="mt-3 text-[11px] muted font-semibold text-right">
-          Auto · KST 기준 · Viewer는 해당 파일을 iframe으로 표시
-        </div>
+      <div class="mt-3 text-[11px] muted font-semibold text-right">
+        Auto · KST 기준 · Range 설정 시: 범위 내 존재하는 리포트만 탐색
       </div>
     </div>
   </div>
@@ -241,13 +210,22 @@
     x.setDate(x.getDate()+n);
     return x;
   }
+  function inRange(ds, startStr, endStr){
+    if(!startStr || !endStr) return true;
+    const d = parseYMD(ds).getTime();
+    const a = parseYMD(startStr).getTime();
+    const b = parseYMD(endStr).getTime();
+    return d >= a && d <= b;
+  }
 
   // ---------- DOM ----------
   const modeDaily = document.getElementById('modeDaily');
   const modeWeekly = document.getElementById('modeWeekly');
+
   const singleDate = document.getElementById('singleDate');
   const rangeStart = document.getElementById('rangeStart');
   const rangeEnd = document.getElementById('rangeEnd');
+
   const btnApply = document.getElementById('btnApply');
   const btnClearRange = document.getElementById('btnClearRange');
   const btnYesterday = document.getElementById('btnYesterday');
@@ -255,11 +233,10 @@
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
 
-  const results = document.getElementById('results');
-  const countNum = document.getElementById('countNum');
-
   const viewer = document.getElementById('viewer');
   const viewerPath = document.getElementById('viewerPath');
+  const statusText = document.getElementById('statusText');
+
   const btnOpenNew = document.getElementById('btnOpenNew');
   const btnCopy = document.getElementById('btnCopy');
   const btnReload = document.getElementById('btnReload');
@@ -267,15 +244,14 @@
   // ---------- State ----------
   let MODE = 'daily'; // 'daily' | 'weekly'
   let currentSelectedPath = '';
+  let activeRangeStart = '';
+  let activeRangeEnd = '';
 
-  // base path (this index.html is in reports/daily_digest/)
-  // so 'daily/...' is relative to this file.
   function buildPath(dateStr){
     if(MODE === 'daily') return `daily/${dateStr}.html`;
     return `weekly/END_${dateStr}.html`;
   }
 
-  // ---------- Existence check (HEAD) ----------
   async function exists(url){
     try{
       const res = await fetch(url + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
@@ -285,159 +261,138 @@
     }
   }
 
-  // concurrency-limited mapper
-  async function pMapLimit(items, limit, fn){
-    const out = new Array(items.length);
-    let i = 0;
-    async function worker(){
-      while(i < items.length){
-        const idx = i++;
-        out[idx] = await fn(items[idx], idx);
-      }
-    }
-    const workers = Array.from({length: Math.min(limit, items.length)}, () => worker());
-    await Promise.all(workers);
-    return out;
+  function setStatus(msg){
+    statusText.textContent = msg;
   }
 
-  // ---------- Render list ----------
-  function clearActive(){
-    Array.from(results.querySelectorAll('.list-item')).forEach(x => x.classList.remove('active'));
-  }
-
-  function setViewer(path){
+  function setViewer(dateStr){
+    const path = buildPath(dateStr);
     currentSelectedPath = path;
     viewer.src = path;
-    viewerPath.textContent = `${MODE.toUpperCase()} · ${path}`;
+    viewerPath.textContent = `${MODE.toUpperCase()} · ${dateStr} · ${path}`;
+    setStatus(`Loaded: ${dateStr}` + (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : ''));
   }
 
-  function addListItem(label, path){
-    const div = document.createElement('div');
-    div.className = 'list-item';
-    div.innerHTML = `<span>${label}</span><span class="muted font-extrabold">open</span>`;
-    div.addEventListener('click', () => {
-      clearActive();
-      div.classList.add('active');
-      setViewer(path);
-    });
-    results.appendChild(div);
-    return div;
+  // Find nearest available report date within range (search direction)
+  async function findAvailable(fromDateStr, direction){
+    // direction: -1 or +1
+    let d = parseYMD(fromDateStr);
+
+    // if range active, clamp start/end
+    const start = activeRangeStart ? parseYMD(activeRangeStart) : null;
+    const end = activeRangeEnd ? parseYMD(activeRangeEnd) : null;
+
+    for(let step=0; step<120; step++){
+      const ds = fmtYMD(d);
+      if(!start || !end || inRange(ds, activeRangeStart, activeRangeEnd)){
+        const ok = await exists(buildPath(ds));
+        if(ok) return ds;
+      }
+      d = addDays(d, direction);
+      if(start && d < start && direction < 0) break;
+      if(end && d > end && direction > 0) break;
+    }
+    return null;
   }
 
-  async function renderForRange(startStr, endStr){
-    results.innerHTML = '';
-    countNum.textContent = '0';
+  async function applySelection(){
+    activeRangeStart = rangeStart.value || '';
+    activeRangeEnd = rangeEnd.value || '';
 
-    const start = parseYMD(startStr);
-    const end = parseYMD(endStr);
-    if(isNaN(start) || isNaN(end) || start > end){
+    // range 유효성
+    if(activeRangeStart && activeRangeEnd){
+      const a = parseYMD(activeRangeStart);
+      const b = parseYMD(activeRangeEnd);
+      if(a > b){
+        setStatus('Range 오류: start가 end보다 큼');
+        return;
+      }
+    }
+
+    // singleDate가 range 밖이면 range 내에서 가장 가까운 값으로 이동
+    let target = singleDate.value;
+    if(activeRangeStart && activeRangeEnd && !inRange(target, activeRangeStart, activeRangeEnd)){
+      // clamp to end
+      target = activeRangeEnd;
+      singleDate.value = target;
+    }
+
+    // 존재하는 파일을 찾아서 로드
+    const ok = await exists(buildPath(target));
+    if(ok){
+      setViewer(target);
       return;
     }
 
-    const days = [];
-    for(let d = new Date(start); d <= end; d = addDays(d, 1)){
-      days.push(fmtYMD(d));
-    }
-
-    // check existence
-    const checks = await pMapLimit(days, 10, async (ds) => {
-      const p = buildPath(ds);
-      const ok = await exists(p);
-      return ok ? { ds, p } : null;
-    });
-
-    const available = checks.filter(Boolean).reverse(); // newest first
-    countNum.textContent = String(available.length);
-
-    let firstItem = null;
-    available.forEach(({ds, p}) => {
-      const label = (MODE === 'daily') ? ds : `END ${ds}`;
-      const item = addListItem(label, p);
-      if(!firstItem) firstItem = item;
-    });
-
-    // default select: if range includes the singleDate, pick that; else pick newest
-    let prefer = buildPath(singleDate.value);
-    let preferItem = null;
-    Array.from(results.children).forEach((node) => {
-      const isPrefer = node.textContent.includes((MODE==='daily') ? singleDate.value : ('END ' + singleDate.value));
-      if(isPrefer) preferItem = node;
-    });
-
-    const pick = preferItem || firstItem;
-    if(pick){
-      clearActive();
-      pick.classList.add('active');
-      // determine path from label again
-      const labelText = pick.querySelector('span').textContent.trim();
-      const ds = labelText.replace('END ','').trim();
-      setViewer(buildPath(ds));
+    // 없으면 가장 가까운 available 찾기 (뒤->앞 우선)
+    const next = await findAvailable(target, -1) || await findAvailable(target, +1);
+    if(next){
+      singleDate.value = next;
+      setViewer(next);
     }else{
-      // if nothing, at least point viewer to selected date (may 404)
-      setViewer(buildPath(singleDate.value));
+      setStatus('해당 범위에 리포트 파일이 없습니다');
+      // 그래도 viewer는 target로 둠(404일 수 있음)
+      setViewer(target);
     }
   }
 
-  async function renderDefaultWindow(){
-    // default: last 21 days range (enough, not too many HEADs)
-    const end = parseYMD(singleDate.value);
-    const start = addDays(end, -20);
-    rangeStart.value = fmtYMD(start);
-    rangeEnd.value = fmtYMD(end);
-    await renderForRange(rangeStart.value, rangeEnd.value);
-  }
-
-  // ---------- Mode toggle ----------
   function setMode(next){
     MODE = next;
     modeDaily.classList.toggle('active', MODE==='daily');
     modeWeekly.classList.toggle('active', MODE==='weekly');
-    // rerender based on current range
-    if(rangeStart.value && rangeEnd.value){
-      renderForRange(rangeStart.value, rangeEnd.value);
-    }else{
-      renderDefaultWindow();
-    }
+    applySelection();
   }
 
+  // ---------- Events ----------
   modeDaily.addEventListener('click', () => setMode('daily'));
   modeWeekly.addEventListener('click', () => setMode('weekly'));
 
-  // ---------- Date controls ----------
-  btnYesterday.addEventListener('click', async () => {
-    const d = addDays(kstNowDate(), -1);
-    singleDate.value = fmtYMD(d);
-    await renderDefaultWindow();
-  });
-  btnToday.addEventListener('click', async () => {
-    const d = kstNowDate();
-    singleDate.value = fmtYMD(d);
-    await renderDefaultWindow();
-  });
-  btnPrev.addEventListener('click', async () => {
-    singleDate.value = fmtYMD(addDays(parseYMD(singleDate.value), -1));
-    await renderDefaultWindow();
-  });
-  btnNext.addEventListener('click', async () => {
-    singleDate.value = fmtYMD(addDays(parseYMD(singleDate.value), 1));
-    await renderDefaultWindow();
+  btnApply.addEventListener('click', applySelection);
+
+  btnClearRange.addEventListener('click', () => {
+    rangeStart.value = '';
+    rangeEnd.value = '';
+    activeRangeStart = '';
+    activeRangeEnd = '';
+    applySelection();
   });
 
-  btnApply.addEventListener('click', async () => {
-    if(rangeStart.value && rangeEnd.value){
-      await renderForRange(rangeStart.value, rangeEnd.value);
+  btnYesterday.addEventListener('click', () => {
+    singleDate.value = fmtYMD(addDays(kstNowDate(), -1));
+    applySelection();
+  });
+  btnToday.addEventListener('click', () => {
+    singleDate.value = fmtYMD(kstNowDate());
+    applySelection();
+  });
+
+  btnPrev.addEventListener('click', async () => {
+    const cur = singleDate.value;
+    const cand = fmtYMD(addDays(parseYMD(cur), -1));
+    // range 있으면 range 밖은 막기
+    if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
+    const found = await findAvailable(cand, -1);
+    if(found){
+      singleDate.value = found;
+      setViewer(found);
     }else{
-      await renderDefaultWindow();
+      setStatus('이전 리포트 없음');
     }
   });
 
-  btnClearRange.addEventListener('click', async () => {
-    rangeStart.value = '';
-    rangeEnd.value = '';
-    await renderDefaultWindow();
+  btnNext.addEventListener('click', async () => {
+    const cur = singleDate.value;
+    const cand = fmtYMD(addDays(parseYMD(cur), +1));
+    if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
+    const found = await findAvailable(cand, +1);
+    if(found){
+      singleDate.value = found;
+      setViewer(found);
+    }else{
+      setStatus('다음 리포트 없음');
+    }
   });
 
-  // ---------- Viewer actions ----------
   btnOpenNew.addEventListener('click', () => {
     if(!currentSelectedPath) return;
     window.open(currentSelectedPath, '_blank');
@@ -451,7 +406,6 @@
       btnCopy.textContent = '복사됨 ✓';
       setTimeout(() => btnCopy.textContent = '링크 복사', 900);
     }catch(e){
-      // fallback
       prompt('Copy this link:', abs);
     }
   });
@@ -460,19 +414,25 @@
     if(!currentSelectedPath) return;
     const base = currentSelectedPath.split('?')[0];
     viewer.src = base + `?t=${Date.now()}`;
+    setStatus('Reloaded');
   });
 
   // ---------- Init ----------
   (function init(){
-    // default = yesterday in KST
     const y = addDays(kstNowDate(), -1);
     singleDate.value = fmtYMD(y);
 
-    // if URL hash says mode
+    // default range: 최근 21일
+    const start = addDays(y, -20);
+    rangeStart.value = fmtYMD(start);
+    rangeEnd.value = fmtYMD(y);
+    activeRangeStart = rangeStart.value;
+    activeRangeEnd = rangeEnd.value;
+
+    // hash mode support (#weekly)
     const h = (location.hash || '').replace('#','').trim().toLowerCase();
     if(h === 'weekly') MODE = 'weekly';
     setMode(MODE);
-    renderDefaultWindow();
   })();
 
 })();
