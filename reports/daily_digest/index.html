@@ -11,18 +11,18 @@
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
 
-    /* ✅ Hub 스크롤 제거 + 화면 고정 */
+    /* ✅ Hub 스크롤은 1개만 (전체 스크롤만) */
     html, body{
       height: 100%;
-      overflow: hidden;
+      overflow: auto;
     }
 
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
       color:#0f172a;
+      min-height:100vh;
     }
-
     .glass{
       background: rgba(255,255,255,0.72);
       backdrop-filter: blur(18px);
@@ -89,16 +89,14 @@
       box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
     }
 
-    /* ✅ iframe을 남는 영역 전부 사용 (Hub 스크롤 없음) */
+    /* ✅ iframe은 내부 높이로 늘릴거라 "고정 높이" 제거 */
     .viewer-frame{
       width: 100%;
-      height: calc(100vh - 210px); /* 헤더+컨트롤 높이 고려 */
+      height: 720px;      /* 초기값(로딩 전). 로드 후 JS가 자동으로 늘림 */
       border: 0;
       border-radius: 18px;
       background: white;
-    }
-    @media (max-width: 1023px){
-      .viewer-frame{ height: calc(100vh - 250px); }
+      overflow: hidden;   /* iframe 자체 스크롤바 방지 */
     }
 
     .topbar{
@@ -122,21 +120,20 @@
       border: 1px solid rgba(148,163,184,0.22);
       border-radius: 999px;
       padding: 8px 12px;
-      white-space: nowrap;
     }
   </style>
 </head>
 
-<body class="p-4 md:p-8">
-  <div class="max-w-7xl mx-auto h-full">
+<body class="p-6 md:p-10">
+  <div class="max-w-7xl mx-auto">
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
         <div class="muted font-semibold mt-1">날짜/기간 선택은 Viewer 상단에서 · 기본은 어제 리포트(KST)</div>
       </div>
 
-      <!-- ✅ 우상단: Mode + Actions -->
+      <!-- 우상단: Mode + actions -->
       <div class="flex items-center gap-3 flex-wrap justify-end">
         <div class="flex items-center gap-2">
           <div class="small-label mr-2">Mode</div>
@@ -153,9 +150,8 @@
     </div>
 
     <!-- Viewer -->
-    <div class="glass p-4">
-      <div class="topbar mb-3">
-        <!-- controls -->
+    <div class="glass p-5">
+      <div class="topbar mb-4">
         <div class="topbar-left">
           <span class="mini" id="statusText">-</span>
 
@@ -184,11 +180,13 @@
         </div>
       </div>
 
-      <div class="text-xs muted font-semibold mb-2" id="viewerPath">-</div>
-      <iframe id="viewer" class="viewer-frame" loading="eager"></iframe>
+      <div class="text-xs muted font-semibold mb-3" id="viewerPath">-</div>
 
-      <div class="mt-2 text-[11px] muted font-semibold text-right">
-        Auto · KST 기준 · Range 설정 시: 범위 내 존재하는 리포트만 탐색
+      <!-- ✅ iframe 스크롤 자체 제거: scrolling="no" -->
+      <iframe id="viewer" class="viewer-frame" loading="eager" scrolling="no"></iframe>
+
+      <div class="mt-3 text-[11px] muted font-semibold text-right">
+        Auto · KST 기준 · (중요) 내부 스크롤 제거: iframe 높이를 리포트 높이에 자동 맞춤
       </div>
     </div>
   </div>
@@ -271,6 +269,31 @@
     statusText.textContent = msg;
   }
 
+  // ✅ 핵심: iframe 내부 스크롤 없애고, iframe 높이를 내부 문서 높이로 맞춤
+  function resizeIframeToContent(){
+    try{
+      const doc = viewer.contentDocument || viewer.contentWindow.document;
+      if(!doc) return;
+
+      doc.documentElement.style.overflow = 'hidden';
+      doc.body.style.overflow = 'hidden';
+      doc.body.style.margin = '0';
+
+      const h = Math.max(
+        doc.body.scrollHeight,
+        doc.documentElement.scrollHeight,
+        doc.body.offsetHeight,
+        doc.documentElement.offsetHeight
+      );
+
+      // 약간 여유
+      viewer.style.height = (h + 12) + 'px';
+    }catch(e){
+      // cross-origin이면 여기 접근 불가
+      console.warn('iframe resize blocked (cross-origin)', e);
+    }
+  }
+
   function setViewer(dateStr){
     const path = buildPath(dateStr);
     currentSelectedPath = path;
@@ -279,12 +302,17 @@
     setStatus(`Loaded: ${dateStr}` + (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : ''));
   }
 
+  // iframe load될 때마다 높이 맞추기 (내부 스크롤 제거)
+  viewer.addEventListener('load', () => {
+    resizeIframeToContent();
+    // 폰트/이미지 로딩으로 높이 늦게 변하는 케이스 대비 1회 더
+    setTimeout(resizeIframeToContent, 250);
+    setTimeout(resizeIframeToContent, 900);
+  });
+
   // Find nearest available report date within range (search direction)
   async function findAvailable(fromDateStr, direction){
-    // direction: -1 or +1
     let d = parseYMD(fromDateStr);
-
-    // if range active, clamp start/end
     const start = activeRangeStart ? parseYMD(activeRangeStart) : null;
     const end = activeRangeEnd ? parseYMD(activeRangeEnd) : null;
 
@@ -305,7 +333,6 @@
     activeRangeStart = rangeStart.value || '';
     activeRangeEnd = rangeEnd.value || '';
 
-    // range 유효성
     if(activeRangeStart && activeRangeEnd){
       const a = parseYMD(activeRangeStart);
       const b = parseYMD(activeRangeEnd);
@@ -315,21 +342,18 @@
       }
     }
 
-    // singleDate가 range 밖이면 range 내에서 가장 가까운 값으로 이동
     let target = singleDate.value;
     if(activeRangeStart && activeRangeEnd && !inRange(target, activeRangeStart, activeRangeEnd)){
       target = activeRangeEnd;
       singleDate.value = target;
     }
 
-    // 존재하는 파일을 찾아서 로드
     const ok = await exists(buildPath(target));
     if(ok){
       setViewer(target);
       return;
     }
 
-    // 없으면 가장 가까운 available 찾기 (뒤->앞 우선)
     const next = await findAvailable(target, -1) || await findAvailable(target, +1);
     if(next){
       singleDate.value = next;
@@ -425,14 +449,12 @@
     const y = addDays(kstNowDate(), -1);
     singleDate.value = fmtYMD(y);
 
-    // default range: 최근 21일
     const start = addDays(y, -20);
     rangeStart.value = fmtYMD(start);
     rangeEnd.value = fmtYMD(y);
     activeRangeStart = rangeStart.value;
     activeRangeEnd = rangeEnd.value;
 
-    // hash mode support (#weekly)
     const h = (location.hash || '').replace('#','').trim().toLowerCase();
     if(h === 'weekly') MODE = 'weekly';
     setMode(MODE);
