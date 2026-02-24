@@ -90,7 +90,9 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Ensure reports dir
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p reports
 
       - name: Set KST time (for badge/meta + yesterday)
@@ -138,10 +140,17 @@ jobs:
           python -u daily_digest_live_final.py --out-dir reports/daily_digest \
             || python -u daily_digest_live_final.py
 
-          # ✅ 최소 산출물 체크: (hub) index.html + (daily) 파일들이 있어야 함
-          test -f reports/daily_digest/index.html || true
-          ls -la reports/daily_digest/daily | tail -n 50 || true
-          ls -la reports/daily_digest/weekly | tail -n 50 || true
+          # ✅ 최소 산출물 체크
+          if [ -f "reports/daily_digest/index.html" ]; then
+            echo "[OK] hub index exists: reports/daily_digest/index.html"
+          else
+            echo "[WARN] hub index missing (will continue)."
+          fi
+
+          echo "---- latest daily ----"
+          ls -la reports/daily_digest/daily | tail -n 60 || true
+          echo "---- latest weekly ----"
+          ls -la reports/daily_digest/weekly | tail -n 60 || true
 
       # ----------------------------
       # 1) Naver Lowest Price
@@ -151,6 +160,7 @@ jobs:
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        shell: bash
         run: |
           set -euo pipefail
           python -u naver_crawl_columbia_c6c7_title_min.py \
@@ -165,6 +175,7 @@ jobs:
       # ----------------------------
       - name: Run Hero banner crawler
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        shell: bash
         run: |
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
@@ -175,6 +186,7 @@ jobs:
       # ----------------------------
       - name: Run External Signal (VOC)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        shell: bash
         run: |
           set -euo pipefail
           python -u external_signal_combined.py
@@ -246,6 +258,7 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
+        shell: bash
         run: |
           set -euo pipefail
           python -u build_summary.py
@@ -292,15 +305,20 @@ jobs:
           MODE_BLOG_ONLY:  ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
 
           # ✅ 핵심: HUB(index) 말고 "어제 데일리 리포트"를 본문으로 보냄
+          REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
           DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
         shell: bash
         run: |
           set -euo pipefail
 
+          echo "[DEBUG] REPORT_DATE=${REPORT_DATE}"
           echo "[DEBUG] DAILY_DIGEST_HTML_PATH=${DAILY_DIGEST_HTML_PATH}"
+
           if [ ! -f "${DAILY_DIGEST_HTML_PATH}" ]; then
-            echo "[WARN] Yesterday daily report not found. Listing daily dir:"
+            echo "[ERROR] Yesterday daily report not found: ${DAILY_DIGEST_HTML_PATH}"
+            echo "---- list daily dir ----"
             ls -la reports/daily_digest/daily || true
+            exit 1
           fi
 
           python -u scripts/send_daily_email.py
