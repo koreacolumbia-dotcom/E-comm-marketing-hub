@@ -4,58 +4,438 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Daily Digest Hub</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    body{ background: linear-gradient(180deg, #f6f8fb, #eef3f9); font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; }
-    .glass-card{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }
+    .glass{
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.85);
+      border-radius: 26px;
+      box-shadow: 0 24px 60px rgba(0,45,114,0.07);
+    }
+    .chip{
+      border: 1px solid rgba(148,163,184,0.35);
+      background: rgba(255,255,255,0.78);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+    }
+    .chip:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .chip.active{
+      background: rgba(0,45,114,0.08);
+      border-color: rgba(0,45,114,0.28);
+      color: var(--brand);
+    }
+    .btn{
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.88);
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .btn-primary{
+      background: #002d72;
+      border-color: #002d72;
+      color: white;
+    }
+    .muted{ color:#64748b; }
+    .small-label{
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    input[type="date"]{
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.90);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      outline: none;
+      width: 100%;
+    }
+    input[type="date"]:focus{
+      border-color: rgba(0,45,114,0.40);
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
+    }
+    .viewer-frame{
+      width: 100%;
+      height: calc(100vh - 240px);
+      border: 0;
+      border-radius: 18px;
+      background: white;
+    }
+    @media (max-width: 1023px){
+      .viewer-frame{ height: 74vh; }
+    }
+    .topbar{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar-left{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .topbar-right{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .mini{
+      font-size: 11px;
+      font-weight: 900;
+      color: #334155;
+      background: rgba(255,255,255,0.80);
+      border: 1px solid rgba(148,163,184,0.22);
+      border-radius: 999px;
+      padding: 8px 12px;
+    }
   </style>
 </head>
-<body>
-  <div class="px-3 sm:px-6 py-6 max-w-[1100px] mx-auto">
-    <div class="mb-6">
-      <div class="text-3xl font-black tracking-tight">Daily Digest Hub</div>
-      <div class="text-sm text-slate-500">최근 생성된 리포트로 이동</div>
+
+<body class="p-6 md:p-10">
+  <div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+      <div>
+        <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
+        <div class="muted font-semibold mt-1">날짜/기간 선택은 Viewer 상단에서 · 기본은 어제 리포트(KST)</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="small-label mr-2">Mode</div>
+        <button id="modeDaily" class="chip active" type="button">Daily</button>
+        <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="glass-card rounded-3xl p-6">
-        <div class="text-lg font-black">Daily Reports</div>
-        <div class="mt-4 flex flex-wrap gap-2"><a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-23.html'>2026-02-23</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-22.html'>2026-02-22</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-21.html'>2026-02-21</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-20.html'>2026-02-20</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-19.html'>2026-02-19</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-18.html'>2026-02-18</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-17.html'>2026-02-17</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-16.html'>2026-02-16</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-15.html'>2026-02-15</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-14.html'>2026-02-14</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-13.html'>2026-02-13</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-12.html'>2026-02-12</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-11.html'>2026-02-11</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/2026-02-10.html'>2026-02-10</a></div>
+    <!-- Viewer -->
+    <div class="glass p-5">
+      <div class="topbar mb-4">
+        <!-- controls -->
+        <div class="topbar-left">
+          <span class="mini" id="statusText">-</span>
+
+          <div class="flex items-center gap-2">
+            <div class="small-label hidden md:block">Date</div>
+            <div class="w-[160px]">
+              <input id="singleDate" type="date" />
+            </div>
+            <button id="btnPrev" class="btn" type="button">◀</button>
+            <button id="btnNext" class="btn" type="button">▶</button>
+            <button id="btnYesterday" class="btn" type="button">어제</button>
+            <button id="btnToday" class="btn" type="button">오늘</button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div class="small-label hidden md:block">Range</div>
+            <div class="w-[160px]">
+              <input id="rangeStart" type="date" />
+            </div>
+            <div class="w-[160px]">
+              <input id="rangeEnd" type="date" />
+            </div>
+            <button id="btnApply" class="btn btn-primary" type="button">적용</button>
+            <button id="btnClearRange" class="btn" type="button">Range 해제</button>
+          </div>
+        </div>
+
+        <!-- actions -->
+        <div class="topbar-right">
+          <button id="btnOpenNew" class="btn" type="button">새 탭</button>
+          <button id="btnCopy" class="btn" type="button">링크 복사</button>
+          <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
+        </div>
       </div>
 
-      <div class="glass-card rounded-3xl p-6">
-        <div class="text-lg font-black">Weekly (7D Cumulative)</div>
-        <div class="mt-4 text-xs text-slate-500 mb-3">END 날짜 기준으로 7일 누적</div>
-        <div class="flex flex-wrap gap-2"><a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-23.html'>END 2026-02-23</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-22.html'>END 2026-02-22</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-21.html'>END 2026-02-21</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-20.html'>END 2026-02-20</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-19.html'>END 2026-02-19</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-18.html'>END 2026-02-18</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-17.html'>END 2026-02-17</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-16.html'>END 2026-02-16</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-15.html'>END 2026-02-15</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-14.html'>END 2026-02-14</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-13.html'>END 2026-02-13</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-12.html'>END 2026-02-12</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-11.html'>END 2026-02-11</a>
-<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_2026-02-10.html'>END 2026-02-10</a></div>
+      <div class="text-xs muted font-semibold mb-3" id="viewerPath">-</div>
+      <iframe id="viewer" class="viewer-frame" loading="eager"></iframe>
+
+      <div class="mt-3 text-[11px] muted font-semibold text-right">
+        Auto · KST 기준 · Range 설정 시: 범위 내 존재하는 리포트만 탐색
       </div>
     </div>
   </div>
+
+<script>
+(function(){
+  // ---------- KST helpers ----------
+  function kstNowDate(){
+    const now = new Date();
+    const utc = now.getTime() + now.getTimezoneOffset()*60000;
+    return new Date(utc + 9*60*60000);
+  }
+  function fmtYMD(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  function parseYMD(s){
+    const [y,m,d] = (s||'').split('-').map(Number);
+    return new Date(y, (m||1)-1, d||1);
+  }
+  function addDays(d, n){
+    const x = new Date(d);
+    x.setDate(x.getDate()+n);
+    return x;
+  }
+  function inRange(ds, startStr, endStr){
+    if(!startStr || !endStr) return true;
+    const d = parseYMD(ds).getTime();
+    const a = parseYMD(startStr).getTime();
+    const b = parseYMD(endStr).getTime();
+    return d >= a && d <= b;
+  }
+
+  // ---------- DOM ----------
+  const modeDaily = document.getElementById('modeDaily');
+  const modeWeekly = document.getElementById('modeWeekly');
+
+  const singleDate = document.getElementById('singleDate');
+  const rangeStart = document.getElementById('rangeStart');
+  const rangeEnd = document.getElementById('rangeEnd');
+
+  const btnApply = document.getElementById('btnApply');
+  const btnClearRange = document.getElementById('btnClearRange');
+  const btnYesterday = document.getElementById('btnYesterday');
+  const btnToday = document.getElementById('btnToday');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+
+  const viewer = document.getElementById('viewer');
+  const viewerPath = document.getElementById('viewerPath');
+  const statusText = document.getElementById('statusText');
+
+  const btnOpenNew = document.getElementById('btnOpenNew');
+  const btnCopy = document.getElementById('btnCopy');
+  const btnReload = document.getElementById('btnReload');
+
+  // ---------- State ----------
+  let MODE = 'daily'; // 'daily' | 'weekly'
+  let currentSelectedPath = '';
+  let activeRangeStart = '';
+  let activeRangeEnd = '';
+
+  function buildPath(dateStr){
+    if(MODE === 'daily') return `daily/${dateStr}.html`;
+    return `weekly/END_${dateStr}.html`;
+  }
+
+  async function exists(url){
+    try{
+      const res = await fetch(url + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
+      return res.ok;
+    }catch(e){
+      return false;
+    }
+  }
+
+  function setStatus(msg){
+    statusText.textContent = msg;
+  }
+
+  function setViewer(dateStr){
+    const path = buildPath(dateStr);
+    currentSelectedPath = path;
+    viewer.src = path;
+    viewerPath.textContent = `${MODE.toUpperCase()} · ${dateStr} · ${path}`;
+    setStatus(`Loaded: ${dateStr}` + (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : ''));
+  }
+
+  // Find nearest available report date within range (search direction)
+  async function findAvailable(fromDateStr, direction){
+    // direction: -1 or +1
+    let d = parseYMD(fromDateStr);
+
+    // if range active, clamp start/end
+    const start = activeRangeStart ? parseYMD(activeRangeStart) : null;
+    const end = activeRangeEnd ? parseYMD(activeRangeEnd) : null;
+
+    for(let step=0; step<120; step++){
+      const ds = fmtYMD(d);
+      if(!start || !end || inRange(ds, activeRangeStart, activeRangeEnd)){
+        const ok = await exists(buildPath(ds));
+        if(ok) return ds;
+      }
+      d = addDays(d, direction);
+      if(start && d < start && direction < 0) break;
+      if(end && d > end && direction > 0) break;
+    }
+    return null;
+  }
+
+  async function applySelection(){
+    activeRangeStart = rangeStart.value || '';
+    activeRangeEnd = rangeEnd.value || '';
+
+    // range 유효성
+    if(activeRangeStart && activeRangeEnd){
+      const a = parseYMD(activeRangeStart);
+      const b = parseYMD(activeRangeEnd);
+      if(a > b){
+        setStatus('Range 오류: start가 end보다 큼');
+        return;
+      }
+    }
+
+    // singleDate가 range 밖이면 range 내에서 가장 가까운 값으로 이동
+    let target = singleDate.value;
+    if(activeRangeStart && activeRangeEnd && !inRange(target, activeRangeStart, activeRangeEnd)){
+      // clamp to end
+      target = activeRangeEnd;
+      singleDate.value = target;
+    }
+
+    // 존재하는 파일을 찾아서 로드
+    const ok = await exists(buildPath(target));
+    if(ok){
+      setViewer(target);
+      return;
+    }
+
+    // 없으면 가장 가까운 available 찾기 (뒤->앞 우선)
+    const next = await findAvailable(target, -1) || await findAvailable(target, +1);
+    if(next){
+      singleDate.value = next;
+      setViewer(next);
+    }else{
+      setStatus('해당 범위에 리포트 파일이 없습니다');
+      // 그래도 viewer는 target로 둠(404일 수 있음)
+      setViewer(target);
+    }
+  }
+
+  function setMode(next){
+    MODE = next;
+    modeDaily.classList.toggle('active', MODE==='daily');
+    modeWeekly.classList.toggle('active', MODE==='weekly');
+    applySelection();
+  }
+
+  // ---------- Events ----------
+  modeDaily.addEventListener('click', () => setMode('daily'));
+  modeWeekly.addEventListener('click', () => setMode('weekly'));
+
+  btnApply.addEventListener('click', applySelection);
+
+  btnClearRange.addEventListener('click', () => {
+    rangeStart.value = '';
+    rangeEnd.value = '';
+    activeRangeStart = '';
+    activeRangeEnd = '';
+    applySelection();
+  });
+
+  btnYesterday.addEventListener('click', () => {
+    singleDate.value = fmtYMD(addDays(kstNowDate(), -1));
+    applySelection();
+  });
+  btnToday.addEventListener('click', () => {
+    singleDate.value = fmtYMD(kstNowDate());
+    applySelection();
+  });
+
+  btnPrev.addEventListener('click', async () => {
+    const cur = singleDate.value;
+    const cand = fmtYMD(addDays(parseYMD(cur), -1));
+    // range 있으면 range 밖은 막기
+    if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
+    const found = await findAvailable(cand, -1);
+    if(found){
+      singleDate.value = found;
+      setViewer(found);
+    }else{
+      setStatus('이전 리포트 없음');
+    }
+  });
+
+  btnNext.addEventListener('click', async () => {
+    const cur = singleDate.value;
+    const cand = fmtYMD(addDays(parseYMD(cur), +1));
+    if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
+    const found = await findAvailable(cand, +1);
+    if(found){
+      singleDate.value = found;
+      setViewer(found);
+    }else{
+      setStatus('다음 리포트 없음');
+    }
+  });
+
+  btnOpenNew.addEventListener('click', () => {
+    if(!currentSelectedPath) return;
+    window.open(currentSelectedPath, '_blank');
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    if(!currentSelectedPath) return;
+    const abs = new URL(currentSelectedPath, window.location.href).href;
+    try{
+      await navigator.clipboard.writeText(abs);
+      btnCopy.textContent = '복사됨 ✓';
+      setTimeout(() => btnCopy.textContent = '링크 복사', 900);
+    }catch(e){
+      prompt('Copy this link:', abs);
+    }
+  });
+
+  btnReload.addEventListener('click', () => {
+    if(!currentSelectedPath) return;
+    const base = currentSelectedPath.split('?')[0];
+    viewer.src = base + `?t=${Date.now()}`;
+    setStatus('Reloaded');
+  });
+
+  // ---------- Init ----------
+  (function init(){
+    const y = addDays(kstNowDate(), -1);
+    singleDate.value = fmtYMD(y);
+
+    // default range: 최근 21일
+    const start = addDays(y, -20);
+    rangeStart.value = fmtYMD(start);
+    rangeEnd.value = fmtYMD(y);
+    activeRangeStart = rangeStart.value;
+    activeRangeEnd = rangeEnd.value;
+
+    // hash mode support (#weekly)
+    const h = (location.hash || '').replace('#','').trim().toLowerCase();
+    if(h === 'weekly') MODE = 'weekly';
+    setMode(MODE);
+  })();
+
+})();
+</script>
 </body>
 </html>
