@@ -97,7 +97,7 @@
       overflow: auto;
     }
 
-    /* ✅ 로딩 오버레이 */
+    /* 로딩 오버레이 */
     .loading-backdrop{
       position: fixed;
       inset: 0;
@@ -217,10 +217,9 @@
 
 <script>
 (function(){
-  // ✅ 너가 말한 실제 배포 구조:
-  // /E-comm-marketing-hub/reports/daily_digest/index.html 에서 열고
-  // /E-comm-marketing-hub/reports/daily_digest/daily/2025-02-25.html 가 존재
-  // => 상대경로 기준 BASE는 무조건 ''이 정답
+  // ✅ 배포 구조: /reports/daily_digest/index.html 에서 열고
+  // ✅ 리포트: /reports/daily_digest/daily/2025-02-25.html
+  // => index.html 기준 상대경로로 daily/... 이므로 BASE=''
   const BASE = '';
 
   // Utils
@@ -290,6 +289,7 @@
     const base = (MODE === 'daily')
       ? `${BASE}daily/${dateStr}.html`
       : `${BASE}weekly/END_${dateStr}.html`;
+    // embed=1은 유지 (리포트가 이 파라미터를 쓰더라도 허브에서 숨김 처리)
     return base + `?embed=1`;
   }
   function buildCachePath(dateStr){
@@ -316,7 +316,7 @@
   }
 
   // EXISTS (HEAD) cache
-  const LS_KEY = 'ddhub_exists_cache_v7';
+  const LS_KEY = 'ddhub_exists_cache_v8';
   const TTL_MS = 6 * 60 * 60 * 1000;
   const memCache = new Map();
 
@@ -354,99 +354,94 @@
     }
   }
 
-function scrubReportUI(doc){
-  if(!doc) return;
+  // ====== iframe 내부 UI 숨김 (안전 버전: Compare 카드만 정확히 숨김)
+  function scrubReportUI(doc){
+    if(!doc) return;
 
-  // 안전 CSS (스크롤 유지)
-  let style = doc.getElementById('hub_scrub_css');
-  if(!style){
-    style = doc.createElement('style');
-    style.id = 'hub_scrub_css';
-    style.type = 'text/css';
-    style.textContent = `
-      html, body{ overflow:auto !important; }
-      body{ margin:0 !important; }
-    `;
-    doc.head.appendChild(style);
-  }
-
-  // 1) 상단 "Daily Digest" 타이틀(있는 경우)만 숨김
-  const titleNodes = Array.from(doc.querySelectorAll('h1, h2, div, span'));
-  for(const n of titleNodes){
-    const t = (n.textContent||'').trim();
-    if(t === 'Daily Digest'){
-      n.style.display = 'none';
-      break;
+    // 안전 CSS (스크롤 유지)
+    let style = doc.getElementById('hub_scrub_css');
+    if(!style){
+      style = doc.createElement('style');
+      style.id = 'hub_scrub_css';
+      style.type = 'text/css';
+      style.textContent = `
+        html, body{ overflow:auto !important; }
+        body{ margin:0 !important; }
+      `;
+      doc.head.appendChild(style);
     }
-  }
 
-  // 2) Hub/Daily/Weekly 탭 묶음 숨김 (remove 금지)
-  const btns = Array.from(doc.querySelectorAll('button, a'));
-  const tabBtns = btns.filter(b=>{
-    const t=(b.textContent||'').trim();
-    return t==='Hub' || t==='Daily' || t==='Weekly';
-  });
-
-  function hasAll3(el){
-    if(!el) return false;
-    const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
-    return txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly');
-  }
-
-  for(const b of tabBtns){
-    let p = b.parentElement;
-    for(let i=0;i<6 && p;i++){
-      if(p === doc.body || p === doc.documentElement) break;
-      if(hasAll3(p)){
-        p.style.display = 'none';
-        p.setAttribute('data-hub-hidden','tabs');
+    // 1) 상단 "Daily Digest" 타이틀(텍스트 정확히 일치)만 숨김
+    for(const n of Array.from(doc.querySelectorAll('h1,h2,div,span'))){
+      const t = (n.textContent||'').trim();
+      if(t === 'Daily Digest'){
+        n.style.display = 'none';
         break;
       }
-      p = p.parentElement;
     }
-  }
 
-  // ✅ 3) "Compare 카드" 숨김 (핵심)
-  // 시그니처 텍스트: "No extra GA/BQ cost (uses cached JSON)"
-  const SIGN = 'No extra GA/BQ cost';
-  const nodes = Array.from(doc.querySelectorAll('div, section, article'));
-  for(const n of nodes){
-    const txt = (n.textContent||'').replace(/\s+/g,' ').trim();
-    if(!txt) continue;
-    if(txt.includes(SIGN)){
-      // 너무 상위로 올라가면 페이지가 날아가니, "카드처럼 보이는" 선에서 멈춤
-      let p = n;
-      for(let up=0; up<7 && p && p.parentElement; up++){
+    // 2) Hub/Daily/Weekly 탭 묶음 숨김 (remove 금지)
+    const tabBtns = Array.from(doc.querySelectorAll('button,a')).filter(el=>{
+      const t = (el.textContent||'').trim();
+      return t === 'Hub' || t === 'Daily' || t === 'Weekly';
+    });
+
+    function hasAll3(el){
+      if(!el) return false;
+      const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
+      return txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly');
+    }
+
+    for(const b of tabBtns){
+      let p = b.parentElement;
+      for(let i=0;i<6 && p;i++){
         if(p === doc.body || p === doc.documentElement) break;
-
-        // "Compare / Preset / 버튼"이 같이 포함된 블록이면 카드로 간주
-        const t = (p.textContent||'').replace(/\s+/g,' ').trim();
-        const looksLikeCompareCard =
-          t.includes('Compare') &&
-          (t.includes('Preset: DoD') || t.includes('Preset: YoY') || t.includes('Preset')) &&
-          (t.includes('No extra GA/BQ cost') || t.includes('uses cached JSON'));
-
-        if(looksLikeCompareCard){
+        if(hasAll3(p)){
           p.style.display = 'none';
-          p.setAttribute('data-hub-hidden','compare');
+          p.setAttribute('data-hub-hidden','tabs');
           break;
         }
         p = p.parentElement;
       }
     }
+
+    // ✅ 3) Compare 카드 "자기 자신"만 숨김 (상위 조상으로 올라가며 숨기기 금지)
+    // 정확 시그니처: No extra GA/BQ cost + Preset + Compare 버튼
+    const SIGN = 'No extra GA/BQ cost';
+    const mustHave = ['Preset: DoD', 'Preset: YoY', 'Compare'];
+
+    const candidates = Array.from(doc.querySelectorAll('div,section,article'));
+    for(const el of candidates){
+      const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
+      if(!txt) continue;
+      if(!txt.includes(SIGN)) continue;
+      if(!mustHave.every(s => txt.includes(s))) continue;
+
+      // 안전장치: 본문 섹션까지 잡는 걸 방지
+      if(txt.includes('Top KPIs') || txt.includes('Channel Snapshot')) continue;
+
+      // 진짜 Compare 버튼이 포함된 카드인지 확인
+      const hasCompareBtn = Array.from(el.querySelectorAll('button')).some(b => (b.textContent||'').trim() === 'Compare');
+      if(!hasCompareBtn) continue;
+
+      el.style.display = 'none';
+      el.setAttribute('data-hub-hidden','compare-card');
+      break;
+    }
   }
-}
 
   function onFrameLoad(frame){
     try{
       const doc = frame.contentDocument || frame.contentWindow.document;
       if(!doc) return;
       scrubReportUI(doc);
+      // 리포트가 로딩 후 DOM을 한번 더 업데이트하는 케이스 대응
+      setTimeout(()=>scrubReportUI(doc), 1200);
     }catch(e){}
   }
 
-  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setTimeout(()=>onFrameLoad(viewerA), 300); setBusy(false); });
-  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setTimeout(()=>onFrameLoad(viewerB), 300); setBusy(false); });
+  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setTimeout(()=>onFrameLoad(viewerA), 350); setBusy(false); });
+  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setTimeout(()=>onFrameLoad(viewerB), 350); setBusy(false); });
 
   // Load A/B
   async function loadA(dateStr){
@@ -509,7 +504,7 @@ function scrubReportUI(doc){
     await loadA(target);
   }
 
-  // Compare: "비교하기" 누르면 B에 바로 리포트
+  // Compare: "비교하기" 누르면 B에 바로 리포트 로드
   async function doCompare(){
     const a = (aDate.value||'').trim();
     const b = (bDate.value||'').trim();
@@ -522,13 +517,14 @@ function scrubReportUI(doc){
 
     let targetB = b;
     if(!(await exists(buildReportPath(targetB)))){
+      // 없으면 A로 대체(404 방지)
       targetB = aDate.value;
       bDate.value = targetB;
     }
     await loadB(targetB);
   }
 
-  // Range Compare: A/B 각각 END 로드
+  // Range Compare: A/B 각각 END 로드 (END 날짜만 반영)
   async function doRangeCompare(){
     const ae = (aEnd.value||'').trim();
     const be = (bEnd.value||'').trim();
@@ -630,6 +626,4 @@ function scrubReportUI(doc){
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-25 HUB FIX (BASE fixed, scrub uses hide not remove; prevents blank 2025 iframe) -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 11:45 KST -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 11:53 KST -->
+<!-- BUILD_STAMP: 2026-02-25 HUB FIX (Compare card hide is safe & exact; prevents blank iframe; BASE fixed) -->
