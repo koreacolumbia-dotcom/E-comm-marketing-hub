@@ -4,41 +4,18 @@
 """
 build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH + KPI TOP STRIP + CREMA CARD)
 
-✅ NEW (requested):
-- Daily report 맨 위에 "주요 KPI 5개" 요약 스트립을 가장 먼저 노출
-  - Source: reports/daily_kpi.json (권장)
-  - 없으면 "-"로 표시 (요약 페이지는 깨지지 않음)
+✅ Requested (THIS PATCH):
+- Summary 상단 KPI strip에 DoD + YoY 모두 표시
+- Weekly KPI strip (7D) 추가 (WoW + YoY 표시)
+
+Input JSON (best-effort; 없으면 '-'로 표시):
+- reports/daily_kpi.json   (daily + dod + yoy)
+- reports/weekly_kpi.json  (weekly + wow + yoy)
 
 Existing:
 - Generates reports/index.html (embed-friendly)
-- Adds "Hero campaign theme keywords" by using:
-  1) hero_main_banners_*.csv "title" (primary, always available)
-  2) (optional) crawl landing pages via href_clean/href (secondary enrichment)
-
-UI Patch (requested):
-- Remove TOP 3 blocks on all cards
-- Change HERO theme label to "주요 기획전 키워드"
-- Remove "현재 기획전 테마:" prefix
-- Show keyword counts like: 키워드(12) · 키워드(9) ...
-- Remove "상세 보기" line
-- Remove crawl/cache wording from summary card
-- Remove subtitle: “3개 자동 리포트에서 …”
-- Remove INSIGHT sections from Naver/Hero/VOC
-- Remove "Snapshot (KST)" text from period labels
-- Make Open report a centered bottom button, aligned consistently across all cards
-
-Added:
+- Hero keywords from hero_main_banners_*.csv (+ optional crawl)
 - Crema VOC summary card (reports/voc_crema/index.html)
-
-Fixes in this version:
-- Remove "전체보기" tokens from HERO keyword summary (and "전체 보기" bigram)
-- Silence pandas warning by using non-capturing regex group in str.contains
-
-Env:
-- HERO_CRAWL_LIMIT (default 40)
-- HERO_CRAWL_SLEEP (default 0.25)
-- HERO_CRAWL_TIMEOUT (default 8)
-- HERO_CRAWL_RETRIES (default 2)
 """
 
 from __future__ import annotations
@@ -144,21 +121,23 @@ def fmt_cvr(x: Any) -> str:
         return "-"
 
 
-def fmt_dod_pct(x: Any) -> str:
-    """x is ratio (0.678) -> +67.8%"""
+def fmt_delta_ratio(x: Any, digits: int = 1) -> str:
+    """
+    x is ratio (e.g. -0.192) -> -19.2%
+    """
     try:
         if x is None or (isinstance(x, float) and pd.isna(x)):
             return "-"
         v = float(x)
         sign = "+" if v >= 0 else ""
-        return f"{sign}{v * 100:.1f}%"
+        return f"{sign}{v * 100:.{digits}f}%"
     except Exception:
         return "-"
 
 
 def fmt_pp_from_fraction(x: Any) -> str:
     """
-    x is fraction diff for CVR (cur - prev), e.g. 0.0607 -> +6.07%p
+    x is fraction diff for CVR (cur - prev), e.g. -0.00032 -> -0.03%p
     """
     try:
         if x is None or (isinstance(x, float) and pd.isna(x)):
@@ -199,30 +178,16 @@ def _read_json_path(p: Path) -> Optional[Dict[str, Any]]:
 
 
 # -----------------------
-# ✅ Daily KPI (Top strip)
+# ✅ KPI loaders
 # -----------------------
 def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
     """
-    Load KPI 5 (Sessions, Orders, Revenue, CVR, Sign-up Users) from:
-      - reports/daily_kpi.json  (recommended)
-
-    daily_kpi.json example:
-    {
-      "date": "2026-02-23",
-      "sessions": 11018,
-      "orders": 840,
-      "revenue": 47496588,
-      "cvr": 0.0762,
-      "signups": 59,
-      "dod": {
-        "sessions": 0.678,
-        "orders": 7.235,
-        "revenue": 3.799,
-        "cvr_pp": 0.0607,
-        "signups": 0.311
-      },
-      "updated": "2026.02.24 (Tue) 08:34 KST"
-    }
+    reports/daily_kpi.json (recommended)
+    expected keys:
+      date, sessions, orders, revenue, cvr, signups
+      dod: {sessions, orders, revenue, cvr_pp, signups}
+      yoy: {sessions, orders, revenue, cvr_pp, signups}
+      updated
     """
     p = reports_dir / "daily_kpi.json"
     j = _read_json_path(p)
@@ -236,6 +201,7 @@ def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
             "cvr": None,
             "signups": None,
             "dod": {},
+            "yoy": {},
             "updated": now_kst_label(),
             "source": None,
         }
@@ -248,6 +214,49 @@ def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
         "cvr": j.get("cvr"),
         "signups": j.get("signups"),
         "dod": j.get("dod") or {},
+        "yoy": j.get("yoy") or {},
+        "updated": j.get("updated") or now_kst_label(),
+        "source": str(p),
+    }
+
+
+def build_weekly_kpis(reports_dir: Path) -> Dict[str, Any]:
+    """
+    reports/weekly_kpi.json (new)
+    expected keys:
+      start, end, sessions, orders, revenue, cvr, signups
+      wow: {sessions, orders, revenue, cvr_pp, signups}
+      yoy: {sessions, orders, revenue, cvr_pp, signups}
+      updated
+    """
+    p = reports_dir / "weekly_kpi.json"
+    j = _read_json_path(p)
+
+    if not j:
+        return {
+            "start": None,
+            "end": None,
+            "sessions": None,
+            "orders": None,
+            "revenue": None,
+            "cvr": None,
+            "signups": None,
+            "wow": {},
+            "yoy": {},
+            "updated": now_kst_label(),
+            "source": None,
+        }
+
+    return {
+        "start": j.get("start"),
+        "end": j.get("end"),
+        "sessions": j.get("sessions"),
+        "orders": j.get("orders"),
+        "revenue": j.get("revenue"),
+        "cvr": j.get("cvr"),
+        "signups": j.get("signups"),
+        "wow": j.get("wow") or {},
+        "yoy": j.get("yoy") or {},
         "updated": j.get("updated") or now_kst_label(),
         "source": str(p),
     }
@@ -313,7 +322,6 @@ STOPWORDS_KO = set([
     "기획전", "이벤트", "프로모션", "혜택", "할인", "특가", "쿠폰", "증정", "사은품",
     "오늘", "이번", "지금", "바로", "최대", "무료", "단독", "한정", "선착순",
     "구매", "상품", "제품", "브랜드", "공식", "스토어", "쇼핑", "온라인", "몰",
-    # ✅ UI/CTA 노이즈 제거
     "전체보기",
 ])
 STOPWORDS_EN = set([
@@ -433,13 +441,11 @@ def _build_keywords_from_texts(texts: List[str], top_n: int = 10) -> List[Tuple[
     s = pd.Series(flat)
     vc = s.value_counts()
 
-    # ✅ 노이즈 토큰/표현 제거 (전체보기, 전체 보기)
     try:
         vc = vc[~vc.index.str.contains(r"(?:^전체보기$|^전체\s+보기$)", case=False, regex=True)]
     except Exception:
         pass
 
-    # ✅ URL/이미지/배너 관련 노이즈 제거 (non-capturing group로 warning 제거)
     try:
         vc = vc[~vc.index.str.contains(r"\b(?:http|https|www|img|banner)\b", case=False, regex=True)]
     except Exception:
@@ -603,12 +609,6 @@ def _read_json_if_exists(p: Path) -> Optional[Dict[str, Any]]:
 
 
 def build_crema_metrics(reports_dir: Path) -> Dict[str, Any]:
-    """
-    Try to infer crema stats from:
-    - reports/voc_crema/site/data/meta.json  (preferred)
-    - reports/voc_crema/meta.json
-    - reports/voc_crema/site/data/reviews.json (fallback)
-    """
     base = reports_dir / "voc_crema"
 
     candidates = [
@@ -702,6 +702,7 @@ def _fmt_top5(x: Any) -> str:
 # -----------------------
 def render_index_html(
     daily: Dict[str, Any],
+    weekly: Dict[str, Any],
     naver: Dict[str, Any],
     hero: Dict[str, Any],
     voc: Dict[str, Any],
@@ -732,35 +733,86 @@ def render_index_html(
     crema_range = crema.get("date_range") or "-"
     crema_top5 = _fmt_top5(crema.get("complaint_top5"))
 
-    # ✅ KPI strip values
-    dod = daily.get("dod") or {}
-    kpi_date = daily.get("date") or "-"
-    kpi_updated = daily.get("updated") or ""
-
-    def kpi_tile(title: str, value: str, dod_text: str) -> str:
+    # ----------------
+    # KPI strips
+    # ----------------
+    def kpi_tile(title: str, value: str, line1: str, line2: str) -> str:
         return f"""
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{title}</div>
           <div class="mt-1 text-xl font-black text-slate-900">{value}</div>
-          <div class="mt-1 text-[11px] text-slate-500">전일 대비 <b class="text-slate-900">{dod_text}</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">{line1}</div>
+          <div class="mt-1 text-[11px] text-slate-500">{line2}</div>
         </div>
         """
 
-    kpi_strip = f"""
+    # Daily
+    d_dod = daily.get("dod") or {}
+    d_yoy = daily.get("yoy") or {}
+    d_date = daily.get("date") or "-"
+    d_updated = daily.get("updated") or ""
+
+    daily_strip = f"""
     <div class="glass-card rounded-3xl p-5 mb-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div class="text-base font-black text-slate-900">Daily KPI Summary</div>
         <div class="text-xs text-slate-500">
-          기준: <b class="text-slate-700">{kpi_date}</b> · updated: {kpi_updated}
+          기준: <b class="text-slate-700">{d_date}</b> · updated: {d_updated}
         </div>
       </div>
 
       <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {kpi_tile("Sessions", fmt_int(daily.get("sessions")), fmt_dod_pct(dod.get("sessions")))}
-        {kpi_tile("Orders", fmt_int(daily.get("orders")), fmt_dod_pct(dod.get("orders")))}
-        {kpi_tile("Revenue", fmt_krw_symbol(daily.get("revenue")), fmt_dod_pct(dod.get("revenue")))}
-        {kpi_tile("CVR", fmt_cvr(daily.get("cvr")), fmt_pp_from_fraction(dod.get("cvr_pp")))}
-        {kpi_tile("Sign-up Users", fmt_int(daily.get("signups")), fmt_dod_pct(dod.get("signups")))}
+        {kpi_tile("Sessions", fmt_int(daily.get("sessions")),
+                  f'DoD <b class="text-slate-900">{fmt_delta_ratio(d_dod.get("sessions"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("sessions"))}</b>')}
+        {kpi_tile("Orders", fmt_int(daily.get("orders")),
+                  f'DoD <b class="text-slate-900">{fmt_delta_ratio(d_dod.get("orders"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("orders"))}</b>')}
+        {kpi_tile("Revenue", fmt_krw_symbol(daily.get("revenue")),
+                  f'DoD <b class="text-slate-900">{fmt_delta_ratio(d_dod.get("revenue"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("revenue"))}</b>')}
+        {kpi_tile("CVR", fmt_cvr(daily.get("cvr")),
+                  f'DoD <b class="text-slate-900">{fmt_pp_from_fraction(d_dod.get("cvr_pp"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_pp_from_fraction(d_yoy.get("cvr_pp"))}</b>')}
+        {kpi_tile("Sign-up Users", fmt_int(daily.get("signups")),
+                  f'DoD <b class="text-slate-900">{fmt_delta_ratio(d_dod.get("signups"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("signups"))}</b>')}
+      </div>
+    </div>
+    """
+
+    # Weekly
+    w_wow = weekly.get("wow") or {}
+    w_yoy = weekly.get("yoy") or {}
+    w_start = weekly.get("start") or "-"
+    w_end = weekly.get("end") or "-"
+    w_updated = weekly.get("updated") or ""
+
+    weekly_strip = f"""
+    <div class="glass-card rounded-3xl p-5 mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div class="text-base font-black text-slate-900">Weekly KPI Summary (7D)</div>
+        <div class="text-xs text-slate-500">
+          기간: <b class="text-slate-700">{w_start} ~ {w_end}</b> · updated: {w_updated}
+        </div>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {kpi_tile("Sessions", fmt_int(weekly.get("sessions")),
+                  f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("sessions"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("sessions"))}</b>')}
+        {kpi_tile("Orders", fmt_int(weekly.get("orders")),
+                  f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("orders"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("orders"))}</b>')}
+        {kpi_tile("Revenue", fmt_krw_symbol(weekly.get("revenue")),
+                  f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("revenue"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("revenue"))}</b>')}
+        {kpi_tile("CVR", fmt_cvr(weekly.get("cvr")),
+                  f'WoW <b class="text-slate-900">{fmt_pp_from_fraction(w_wow.get("cvr_pp"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_pp_from_fraction(w_yoy.get("cvr_pp"))}</b>')}
+        {kpi_tile("Sign-up Users", fmt_int(weekly.get("signups")),
+                  f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("signups"))}</b>',
+                  f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("signups"))}</b>')}
       </div>
     </div>
     """
@@ -799,8 +851,9 @@ def render_index_html(
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
     </div>
 
-    <!-- ✅ KPI 5 strip (TOP) -->
-    {kpi_strip}
+    <!-- ✅ KPI strips -->
+    {daily_strip}
+    {weekly_strip}
 
     <!-- ✅ 4 cards -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -871,7 +924,7 @@ def render_index_html(
         </div>
       </div>
 
-      <!-- ✅ CREMA -->
+      <!-- CREMA -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">Crema VOC</div>
@@ -902,26 +955,30 @@ def main() -> None:
     reports_dir = repo_root / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
 
-    # ✅ KPI top strip
     daily = build_daily_kpis(reports_dir)
+    weekly = build_weekly_kpis(reports_dir)
 
     naver = build_naver_metrics(repo_root)
 
     crawl_limit = int(os.environ.get("HERO_CRAWL_LIMIT", "40"))
     crawl_sleep = float(os.environ.get("HERO_CRAWL_SLEEP", "0.25"))
-
     hero = build_hero_metrics(reports_dir, crawl_limit=crawl_limit, crawl_sleep=crawl_sleep)
+
     voc = build_voc_metrics(reports_dir)
     crema = build_crema_metrics(reports_dir)
 
     out = reports_dir / "index.html"
-    out.write_text(render_index_html(daily, naver, hero, voc, crema), encoding="utf-8")
+    out.write_text(render_index_html(daily, weekly, naver, hero, voc, crema), encoding="utf-8")
 
     print(f"[OK] Wrote: {out}")
     if daily.get("source"):
         print(f"[OK] Daily KPI source: {daily.get('source')}")
     else:
-        print("[WARN] reports/daily_kpi.json not found. KPI strip will show '-' until the file is generated.")
+        print("[WARN] reports/daily_kpi.json not found. Daily KPI strip will show '-' until generated.")
+    if weekly.get("source"):
+        print(f"[OK] Weekly KPI source: {weekly.get('source')}")
+    else:
+        print("[WARN] reports/weekly_kpi.json not found. Weekly KPI strip will show '-' until generated.")
     if crema.get("source"):
         print(f"[OK] Crema meta source: {crema.get('source')}")
 
