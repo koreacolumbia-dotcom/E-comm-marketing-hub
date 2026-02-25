@@ -2,25 +2,18 @@
 # -*- coding: utf-8 -*-
 
 """
-[BUILD VOC DASHBOARD FROM JSON | v5.0 FINAL]
+[BUILD VOC DASHBOARD FROM JSON | v5.0 FINAL | PATCHED + FULL HTML TEMPLATE]
 - 입력: reviews.json ({"reviews":[...]}), created_at ISO 권장
 - 출력:
   - site/data/reviews.json  (최근 7일로 필터된 리뷰만)
   - site/data/meta.json     (기간/키워드/근거/클러스터/제품별 1y "문장형" 마인드맵 등)
-  - site/index.html         (니가 준 HTML 기반 + 아래 개선 반영)
+  - site/index.html         (site/template.html 있으면 그걸 그대로 사용 / 없으면 아래 DEFAULT_HTML_TEMPLATE 사용)
 
-v5 핵심
-1) ✅ Daily Feed 카드 클릭 → 자동 필터 세팅(날짜/제품/옵션/소스탭) → 해당 리뷰로 스크롤(넘어가는 느낌)
-2) ✅ Product Mindmap: "키워드" 대신 "대표 문장" (POS/NEG 각 2개, 클릭하면 해당 리뷰로 이동)
-3) ✅ meta key 계약 통일:
-   - Summary에서 쓰는 pos_top5 / neg_top5 / keyword_evidence 제공
-   - Mindmap에서 쓰는 product_mindmap_1y 제공
-4) ✅ POS/NEG 오분류 완화: "수납/가볍/편하/따뜻" 같은 기능 강점은 POS 쪽으로 유도
-5) ✅ 템플릿 사용:
-   - site/template.html 있으면 그걸 그대로 사용
-   - 없으면, 이 스크립트에 내장된 DEFAULT_HTML_TEMPLATE(=니가 준 HTML + v5용 패치) 사용
-
-필수: python-dateutil, pandas
+✅ PATCH(오분류 완화)
+1) req 태그가 단독으로 NEG 판정 트리거가 되지 않게 변경
+2) rating=4~5는 원칙 POS, 단 "하드 결함 + 조치(교환/반품/환불/AS/불편/문제)" 동반 시에만 NEG
+3) rating=3은 pos/neg seed 점수 기반 판정(neg 우세 시 NEG)
+4) POS/NEG seed 정리: '무게' 제거, '무겁' 추가
 """
 
 from __future__ import annotations
@@ -203,23 +196,34 @@ def tokenize_ko(s: str, stopwords: Optional[set] = None) -> List[str]:
 
 
 # ----------------------------
-# Tags / complaint / sentiment seed
+# Tags / complaint / sentiment seed (PATCHED)
 # ----------------------------
 SIZE_KEYWORDS = ["사이즈", "정사이즈", "작아요", "작다", "커요", "크다", "핏", "타이트", "여유", "끼", "기장", "소매", "어깨", "가슴", "발볼", "헐렁", "오버"]
-REQ_KEYWORDS = ["개선", "아쉬", "불편", "했으면", "보완", "수정", "필요", "요청", "교환", "반품", "환불"]
+
+# ✅ PATCH: req 키워드 강/약 분리
+REQ_WEAK = ["개선", "아쉬", "했으면", "보완", "수정", "필요", "요청"]
+REQ_STRONG = ["교환", "반품", "환불", "as", "처리"]
+
 COMPLAINT_HINTS = ["불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악", "실망", "문제", "불편"]
 
-# POS/NEG seed (오분류 완화용)
+# ✅ PATCH: POS/NEG seed 정리
 POS_SEEDS = [
-    "가볍", "무게", "편하", "편안", "착용감", "수납", "포켓", "공간", "주머니", "넣",
+    "가볍", "편하", "편안", "착용감", "수납", "포켓", "공간", "주머니", "넣",
     "따뜻", "보온", "방수", "튼튼", "견고", "만족", "예쁘", "멋", "깔끔", "마감",
     "잘맞", "딱", "쿠션"
 ]
 NEG_SEEDS = [
     "불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "최악", "별로", "실망",
-    "불편", "문제", "아쉽", "작", "크", "타이트", "헐렁",
+    "불편", "문제", "아쉽", "무겁",
+    "작", "크", "타이트", "헐렁",
     "지연", "늦", "파손", "응대", "환불", "교환", "반품"
 ]
+
+# ✅ PATCH: 하드 결함 + 조치 단어
+HARD_DEFECT = ["불량", "하자", "찢", "구멍", "파손", "누수", "변색", "오염"]
+DEFECT_ACTION = ["교환", "반품", "환불", "as", "처리", "불편", "문제", "실망"]
+
+NEGATION = ["안", "않", "없", "못", "아니"]
 
 
 def has_any_kw(text: str, kws: List[str]) -> bool:
@@ -258,7 +262,8 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
     if ("size" not in tags) and (has_any_kw(text, SIZE_KEYWORDS) or fit_q in ("조금 작아요", "작아요", "조금 커요", "커요")):
         tags.append("size")
 
-    if ("req" not in tags) and has_any_kw(text, REQ_KEYWORDS):
+    # ✅ PATCH: req 태그는 붙이되, is_complaint에서 단독 트리거로 쓰지 않음
+    if ("req" not in tags) and (has_any_kw(text, REQ_WEAK) or has_any_kw(text, REQ_STRONG)):
         tags.append("req")
 
     row["tags"] = tags
@@ -270,31 +275,84 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
     return row
 
 
+def review_polarity_scores(text: str) -> tuple[int, int]:
+    """
+    return (pos_score, neg_score)
+    - seed 포함 기반
+    - 간단 부정어 보정(불편하지 않/안 불편 등 완화)
+    """
+    t = normalize_text(text)
+    pos = sum(1 for w in POS_SEEDS if w in t)
+    neg = sum(1 for w in NEG_SEEDS if w in t)
+
+    for w in POS_SEEDS:
+        if w in t:
+            for ng in NEGATION:
+                if f"{w}{ng}" in t or f"{w} {ng}" in t:
+                    pos = max(0, pos - 1)
+                    neg += 1
+
+    for w in NEG_SEEDS:
+        if w in t:
+            for ng in NEGATION:
+                if f"{w}{ng}" in t or f"{w} {ng}" in t:
+                    neg = max(0, neg - 1)
+                    pos += 1
+
+    return pos, neg
+
+
 def is_complaint(row: Dict[str, Any]) -> bool:
+    """
+    ✅ PATCHED complaint logic:
+    - 1~2점: 항상 NEG
+    - 4~5점: 원칙 POS (단, 하드 결함 + 조치 단어 동반 시 NEG)
+    - 3점: pos/neg score 기반 (neg 우세 시 NEG)
+    - req 태그 단독으로 NEG 처리 금지 (보조 신호로만)
+    """
     rating = int(row.get("rating") or 0)
     tags = row.get("tags") or []
     text = str(row.get("text") or "")
+
     if rating <= 2:
         return True
-    if isinstance(tags, list) and ("low" in tags or "req" in tags):
+
+    if rating >= 4:
+        if has_any_kw(text, HARD_DEFECT) and has_any_kw(text, DEFECT_ACTION):
+            return True
+        return False
+
+    # rating == 3
+    pos_s, neg_s = review_polarity_scores(text)
+    has_req = isinstance(tags, list) and ("req" in tags)
+
+    hint = has_any_kw(text, COMPLAINT_HINTS)
+    if hint and neg_s >= 1:
         return True
-    if rating <= 3 and has_any_kw(text, COMPLAINT_HINTS):
+
+    if neg_s >= 2 and neg_s > pos_s:
         return True
+
+    if has_req and neg_s >= 1 and neg_s > pos_s:
+        return True
+
     return False
 
 
 def is_positive(row: Dict[str, Any]) -> bool:
     rating = int(row.get("rating") or 0)
     text = str(row.get("text") or "")
+
     if is_complaint(row):
         return False
+
     if rating >= 4:
         return True
+
     if rating == 3:
-        t = normalize_text(text)
-        p = sum(1 for w in POS_SEEDS if w in t)
-        n = sum(1 for w in NEG_SEEDS if w in t)
-        return p >= 2 and n == 0
+        pos_s, neg_s = review_polarity_scores(text)
+        return (pos_s >= 2) and (pos_s >= neg_s + 1)
+
     return False
 
 
@@ -334,7 +392,6 @@ def learn_auto_stopwords(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     all_ids = set(str(r.get("id")) for r in rows)
     all_n = max(1, len(all_ids))
 
-    # 전체 DF(근사) + 제품DF(정확)
     all_df: Dict[str, int] = {}
     keys = set(pos_df.keys()) | set(neg_df.keys())
     for k in keys:
@@ -452,10 +509,8 @@ def top_terms(rows: List[Dict[str, Any]], topk: int, auto_sw: Dict[str, Any], wh
         toks = tokenize_ko(text, stopwords=sw)
 
         for t in toks:
-            # POS에서 NEG seed가 강하면 제외
             if which == "pos" and any(seed in t for seed in NEG_SEEDS):
                 continue
-            # NEG에서 POS seed가 강하면 제외 (수납/가볍/편하 같은 강점이 NEG로 빨리는거 방지)
             if which == "neg" and any(seed in t for seed in POS_SEEDS):
                 continue
             freq[t] = freq.get(t, 0) + 1
@@ -532,7 +587,6 @@ def split_sentences(text: str) -> List[str]:
     if not t:
         return []
     parts = [p.strip() for p in SENT_SPLIT.split(t) if p.strip()]
-    # 너무 짧거나 너무 긴 문장 컷
     out = []
     for p in parts:
         if len(p) < 15:
@@ -567,20 +621,16 @@ def score_sentence(sent: str, mode: str) -> int:
         score += sum(2 for w in NEG_SEEDS if w in s)
         score -= sum(1 for w in POS_SEEDS if w in s)
 
-    # 클러스터/원인 명시 가점(NEG 쪽)
     if mode == "neg":
         score += sum(1 for c_kws in CLUSTERS.values() for w in c_kws if w in s)
 
-    # 너무 흔한 문구 감점
     score -= sum(3 for p in TRIVIAL_PHRASES if p in sent)
 
-    # 구체성 가점(숫자/부위/기능 언급)
     if re.search(r"\d", sent):
         score += 1
     if any(x in sent for x in ["주머니", "수납", "발볼", "어깨", "기장", "소매", "보온", "방수", "착용감"]):
         score += 1
 
-    # 길이 보정
     if len(sent) >= 40:
         score += 1
     if len(sent) >= 70:
@@ -618,10 +668,8 @@ def build_product_mindmap_1y_sentence(
         img = str(sample.get("local_product_image") or "")
         review_cnt_1y = len(prod_rows_1y)
 
-        # 후보: 7d 우선 + 부족하면 1y로 보충
         prod_rows_7d = by_prod_7d.get(code, [])
 
-        # POS 문장 후보
         pos_cands: List[Tuple[int, Dict[str, Any]]] = []
         for r in (prod_rows_7d + prod_rows_1y):
             if not is_positive(r):
@@ -629,7 +677,6 @@ def build_product_mindmap_1y_sentence(
             sents = split_sentences(str(r.get("text") or ""))
             for s in sents:
                 sc = score_sentence(s, "pos")
-                # 너무 낮은 점수 컷
                 if sc < 2:
                     continue
                 pos_cands.append((sc, {
@@ -639,7 +686,6 @@ def build_product_mindmap_1y_sentence(
                     "rating": int(r.get("rating") or 0),
                 }))
 
-        # NEG 문장 후보
         neg_cands: List[Tuple[int, Dict[str, Any]]] = []
         for r in (prod_rows_7d + prod_rows_1y):
             if not is_complaint(r):
@@ -724,7 +770,7 @@ def in_date_range_kst(dt: datetime, start_d, end_d) -> bool:
 
 
 # ----------------------------
-# HTML template (니가 준 HTML + v5 필수 패치 포함)
+# HTML template (네가 준 HTML 그대로)
 # - site/template.html 있으면 그걸 우선 사용
 # ----------------------------
 DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
@@ -1339,7 +1385,6 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     function renderSummary(metrics){
       document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
 
-      // ✅ v5: meta에서 pos_top5 / neg_top5 제공 (형식: [k,c,rid])
       const neg = META?.neg_top5 || [];
       const pos = META?.pos_top5 || [];
       const posEx = META?.pos_examples || {};
@@ -1422,7 +1467,6 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
     }
 
-    // ✅ v5: Product Mindmap = 문장형 (POS/NEG 각 2개)
     function renderProductMindmap(){
       const mm = META?.product_mindmap_1y || [];
       const root = document.getElementById("productMindmap");
@@ -1801,7 +1845,7 @@ def main(input_path: str):
     (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
     (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
 
-    print("[OK] Build done (v5)")
+    print("[OK] Build done (v5 patched + full html)")
     print(f"- Input: {inp}")
     print(f"- Output meta: {SITE_DATA_DIR / 'meta.json'}")
     print(f"- Output reviews: {SITE_DATA_DIR / 'reviews.json'}")
@@ -1809,6 +1853,12 @@ def main(input_path: str):
     print(f"- Period: {period_text}")
     print(f"- POS Top5: {pos_top}")
     print(f"- NEG Top5: {neg_top}")
+
+    # (옵션) 오분류 빠른 점검: 4~5점인데 NEG로 들어간 것
+    neg_high = [x for x in rows7 if is_complaint(x) and int(x.get("rating") or 0) >= 4]
+    print(f"[DEBUG] NEG but rating>=4: {len(neg_high)}")
+    for x in neg_high[:10]:
+        print(" -", x.get("rating"), x.get("product_code"), (x.get("text") or "")[:120])
 
 
 if __name__ == "__main__":
