@@ -10,6 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from email.utils import formatdate, make_msgid
+from email import encoders
 
 
 def env(name: str, default: str = "") -> str:
@@ -70,10 +71,6 @@ def html_escape(s: str) -> str:
 
 
 def inject_base_href(html: str, base_href: str) -> str:
-    """
-    첨부 HTML을 브라우저에서 열 때 상대경로(asset/data)가 조금이라도 먹게 base href 주입.
-    메일 본문은 Gmail이 스크립트/CSS를 막기 때문에 이걸로 해결 불가(첨부용만).
-    """
     if not html or not base_href:
         return html
     if re.search(r"(?is)<base\s+[^>]*href=", html):
@@ -93,11 +90,6 @@ def build_email_cover_html(
     inline_img_cid: str | None,
     missing_reason: str | None = None,
 ) -> str:
-    """
-    Gmail에서도 안 깨지는 “커버/프리뷰” 본문 (인라인 CSS + table 레이아웃)
-    - 리포트 자체를 본문에 넣는 건 불가능(스크립트/외부CSS 차단)
-    - 대신: 링크 + (가능 시) PNG 프리뷰 인라인 표시
-    """
     btn_primary = (
         f'<a href="{html_escape(daily_url)}" '
         f'style="display:inline-block;background:#002d72;color:#fff;text-decoration:none;'
@@ -127,7 +119,6 @@ def build_email_cover_html(
           <tr><td style="height:12px"></td></tr>
         """
 
-    preview_block = ""
     if inline_img_cid:
         preview_block = f"""
           <tr>
@@ -210,18 +201,8 @@ def send_email_mixed_with_inline_image(
     html_body: str,
     inline_png_cid: str | None,
     inline_png_bytes: bytes | None,
-    attachments: list[tuple[str, str, bytes]],  # (filename, mime_subtype, bytes)
+    attachments: list[tuple[str, str, bytes]],
 ):
-    """
-    MIME 구조:
-    multipart/mixed
-      - multipart/related
-          - multipart/alternative
-              - text/plain
-              - text/html
-          - inline image (optional, Content-ID)
-      - attachments...
-    """
     msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
     msg["From"] = user
@@ -237,7 +218,10 @@ def send_email_mixed_with_inline_image(
     if inline_png_cid and inline_png_bytes:
         img = MIMEImage(inline_png_bytes, _subtype="png")
         img.add_header("Content-ID", f"<{inline_png_cid}>")
-        img.add_header("Content-Disposition", "inline", filename="preview.png")
+        img.add_header("Content-Disposition", "inline", filename="daily_preview.png")
+        # ✅ 호환성 강화
+        encoders.encode_base64(img)
+        img.add_header("Content-Transfer-Encoding", "base64")
         related.attach(img)
 
     msg.attach(related)
@@ -246,8 +230,10 @@ def send_email_mixed_with_inline_image(
         if not b:
             continue
         if subtype == "html":
-            # HTML 첨부는 text/html이 더 호환 좋음
             part = MIMEText(b.decode("utf-8", errors="ignore"), "html", "utf-8")
+            part.add_header("Content-Disposition", "attachment", filename=filename)
+        elif subtype == "png":
+            part = MIMEImage(b, _subtype="png")
             part.add_header("Content-Disposition", "attachment", filename=filename)
         else:
             part = MIMEApplication(b, _subtype=subtype)
@@ -278,7 +264,7 @@ def main():
     if not to_list:
         raise RuntimeError("Missing DAILY_RECIPIENTS")
 
-    hub_url = env("HUB_URL")  # ex) https://xxxx.github.io/repo
+    hub_url = env("HUB_URL")
     kst_stamp = env("KST_STAMP") or kst_now().strftime("%Y.%m.%d (%a) %H:%M KST")
 
     mode_daily = env("MODE_DAILY_ONLY").lower() == "true"
@@ -288,12 +274,10 @@ def main():
 
     report_date = env("REPORT_DATE") or kst_yesterday_ymd()
 
-    # 로컬 리포트 HTML
     default_html_path = f"reports/daily_digest/daily/{report_date}.html"
     html_path = env("DAILY_DIGEST_HTML_PATH") or default_html_path
     html_report = read_text(html_path)
 
-    # (옵션) PNG 프리뷰: CI에서 생성해두면 메일에서 “그대로” 보임
     default_png_path = f"reports/daily_digest/daily/{report_date}.png"
     png_path = env("DAILY_DIGEST_PNG_PATH") or default_png_path
     png_bytes = read_bytes(png_path)
@@ -308,15 +292,13 @@ def main():
     if not html_report:
         missing_reason = f"Daily report HTML 파일을 찾지 못했습니다. (expected: {html_path})"
     else:
-        # 첨부용 HTML에 base href 주입 (브라우저로 열 때 상대경로 조금 도움)
         base_href = f"{base}/reports/daily_digest/" if base else ""
         html_for_attach = inject_base_href(html_report, base_href)
         attachments.append((f"DailyDigest_{report_date}.html", "html", html_for_attach.encode("utf-8")))
 
     inline_cid = None
     if png_bytes:
-        # 인라인 CID는 <> 없이 id만 사용
-        inline_cid = make_msgid(domain="csk.local")[1:-1]
+        inline_cid = make_msgid(domain="csk.local")[1:-1]  # remove <>
         attachments.append((f"DailyDigest_{report_date}.png", "png", png_bytes))
 
     html_body = build_email_cover_html(
@@ -342,13 +324,10 @@ def main():
         inline_png_bytes=png_bytes if png_bytes else None,
         attachments=attachments,
     )
+
     print(f"[OK] Sent email to: {', '.join(to_list)}")
-    if png_bytes:
-        print(f"[OK] Attached/inline PNG preview: {png_path}")
-    else:
-        print(f"[WARN] PNG preview not found (optional): {png_path}")
-    if html_report:
-        print(f"[OK] Attached HTML report: {html_path}")
+    print(f"[INFO] HTML: {html_path} -> {'attached' if html_report else 'missing'}")
+    print(f"[INFO] PNG: {png_path} -> {'inline+attached' if png_bytes else 'missing (optional)'}")
 
 
 if __name__ == "__main__":
