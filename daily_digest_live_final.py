@@ -2050,49 +2050,682 @@ def render_page_html(
 # =========================
 # Hub page
 # =========================
-def render_hub_index(dates: List[dt.date]) -> str:
-    date_links = "\n".join([
-        f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/{ymd(d)}.html'>{ymd(d)}</a>"
-        for d in dates
-    ])
-    week_links = "\n".join([
-        f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_{ymd(d)}.html'>END {ymd(d)}</a>"
-        for d in dates
-    ])
-
-    return f"""<!doctype html>
+def render_hub_index() -> str:
+    # ⚠️ IMPORTANT:
+    # Do NOT use f-string here. The JS/CSS includes many braces { } which break f-strings.
+    return """<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Daily Digest Hub</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    body{{ background: linear-gradient(180deg, #f6f8fb, #eef3f9); font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; }}
-    .glass-card{{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }}
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+
+    html, body{ height: 100%; overflow: auto; }
+
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }
+    .glass{
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.85);
+      border-radius: 26px;
+      box-shadow: 0 24px 60px rgba(0,45,114,0.07);
+    }
+    .chip{
+      border: 1px solid rgba(148,163,184,0.35);
+      background: rgba(255,255,255,0.78);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+    }
+    .chip:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .chip.active{
+      background: rgba(0,45,114,0.08);
+      border-color: rgba(0,45,114,0.28);
+      color: var(--brand);
+    }
+    .btn{
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.88);
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .btn-primary{
+      background: #002d72;
+      border-color: #002d72;
+      color: white;
+    }
+    .muted{ color:#64748b; }
+    .small-label{
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    input[type="date"]{
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.90);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      outline: none;
+      width: 100%;
+    }
+    input[type="date"]:focus{
+      border-color: rgba(0,45,114,0.40);
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
+    }
+
+    .viewer-frame{
+      width: 100%;
+      height: 720px;
+      border: 0;
+      border-radius: 14px;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    .topbar{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar-left{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+    }
+    .mini{
+      font-size: 11px;
+      font-weight: 900;
+      color: #334155;
+      background: rgba(255,255,255,0.80);
+      border: 1px solid rgba(148,163,184,0.22);
+      border-radius: 999px;
+      padding: 8px 12px;
+      max-width: 560px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    @media (max-width: 768px){
+      .mini{ max-width: 100%; }
+    }
   </style>
 </head>
-<body>
-  <div class="px-3 sm:px-6 py-6 max-w-[1100px] mx-auto">
-    <div class="mb-6">
-      <div class="text-3xl font-black tracking-tight">Daily Digest Hub</div>
-      <div class="text-sm text-slate-500">최근 생성된 리포트로 이동</div>
-    </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="glass-card rounded-3xl p-6">
-        <div class="text-lg font-black">Daily Reports</div>
-        <div class="mt-4 flex flex-wrap gap-2">{date_links}</div>
+<body class="p-6 md:p-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+      <div>
+        <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
+        <div class="muted font-semibold mt-1">날짜/기간 선택은 Viewer 상단에서 · 기본은 어제 리포트(KST)</div>
       </div>
 
-      <div class="glass-card rounded-3xl p-6">
-        <div class="text-lg font-black">Weekly (7D Cumulative)</div>
-        <div class="mt-4 text-xs text-slate-500 mb-3">END 날짜 기준으로 7일 누적 (비교: 전주 / YoY)</div>
-        <div class="flex flex-wrap gap-2">{week_links}</div>
+      <div class="flex items-center gap-3 flex-wrap justify-end">
+        <div class="flex items-center gap-2">
+          <div class="small-label mr-2">Mode</div>
+          <button id="modeDaily" class="chip active" type="button">Daily</button>
+          <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="btnOpenNew" class="btn" type="button">새 탭</button>
+          <button id="btnCopy" class="btn" type="button">링크 복사</button>
+          <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass p-5">
+      <div class="topbar mb-4">
+        <div class="topbar-left">
+          <span class="mini" id="statusText">-</span>
+
+          <div class="flex items-center gap-2">
+            <div class="small-label hidden md:block">Date</div>
+            <div class="w-[160px]">
+              <input id="singleDate" type="date" />
+            </div>
+            <button id="btnPrev" class="btn" type="button">◀</button>
+            <button id="btnNext" class="btn" type="button">▶</button>
+            <button id="btnYesterday" class="btn" type="button">어제</button>
+            <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div class="small-label hidden md:block">Range</div>
+            <div class="w-[160px]">
+              <input id="rangeStart" type="date" />
+            </div>
+            <div class="w-[160px]">
+              <input id="rangeEnd" type="date" />
+            </div>
+            <button id="btnApply" class="btn btn-primary" type="button">적용</button>
+            <button id="btnClearRange" class="btn" type="button">Range 해제</button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div class="small-label hidden md:block">Compare</div>
+            <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
+            <button id="btnPresetPrev" class="btn" type="button">전기준</button>
+            <button id="btnPresetYoY" class="btn" type="button">YoY</button>
+            <div class="w-[160px] hidden" id="compareDateWrap">
+              <input id="compareDate" type="date" />
+            </div>
+            <button id="btnCompareGo" class="btn btn-primary hidden" type="button">비교하기</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-xs muted font-semibold mb-3" id="viewerPath">-</div>
+
+      <div id="viewerGrid" class="grid grid-cols-1 gap-4">
+        <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="no"></iframe>
+        <iframe id="viewerB" class="viewer-frame hidden" loading="eager" scrolling="no"></iframe>
+      </div>
+
+      <div class="mt-3 text-[11px] muted font-semibold text-right">
+        Auto · KST 기준 · embed 모드로 리포트 헤더 제거 · 존재 확인은 캐시(localStorage) 우선
       </div>
     </div>
   </div>
+
+<script>
+(function(){
+  function kstNowDate(){
+    const now = new Date();
+    const utc = now.getTime() + now.getTimezoneOffset()*60000;
+    return new Date(utc + 9*60*60000);
+  }
+  function fmtYMD(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  function parseYMD(s){
+    const [y,m,d] = (s||'').split('-').map(Number);
+    return new Date(y, (m||1)-1, d||1);
+  }
+  function addDays(d, n){
+    const x = new Date(d);
+    x.setDate(x.getDate()+n);
+    return x;
+  }
+  function inRange(ds, startStr, endStr){
+    if(!startStr || !endStr) return true;
+    const d = parseYMD(ds).getTime();
+    const a = parseYMD(startStr).getTime();
+    const b = parseYMD(endStr).getTime();
+    return d >= a && d <= b;
+  }
+  function pickYoYSameWeekday(dateStr){
+    const base = parseYMD(dateStr);
+    const wd = base.getDay();
+    const candidates = [364,365,366].map(x => addDays(base, -x));
+    for(const c of candidates){
+      if(c.getDay() === wd) return fmtYMD(c);
+    }
+    return fmtYMD(addDays(base, -364));
+  }
+
+  const modeDaily = document.getElementById('modeDaily');
+  const modeWeekly = document.getElementById('modeWeekly');
+
+  const singleDate = document.getElementById('singleDate');
+  const rangeStart = document.getElementById('rangeStart');
+  const rangeEnd = document.getElementById('rangeEnd');
+
+  const btnApply = document.getElementById('btnApply');
+  const btnClearRange = document.getElementById('btnClearRange');
+  const btnYesterday = document.getElementById('btnYesterday');
+  const btnToday = document.getElementById('btnToday');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+
+  const btnCompareToggle = document.getElementById('btnCompareToggle');
+  const btnPresetPrev = document.getElementById('btnPresetPrev');
+  const btnPresetYoY = document.getElementById('btnPresetYoY');
+  const compareDateWrap = document.getElementById('compareDateWrap');
+  const compareDate = document.getElementById('compareDate');
+  const btnCompareGo = document.getElementById('btnCompareGo');
+
+  const viewerA = document.getElementById('viewerA');
+  const viewerB = document.getElementById('viewerB');
+  const viewerGrid = document.getElementById('viewerGrid');
+
+  const viewerPath = document.getElementById('viewerPath');
+  const statusText = document.getElementById('statusText');
+
+  const btnOpenNew = document.getElementById('btnOpenNew');
+  const btnCopy = document.getElementById('btnCopy');
+  const btnReload = document.getElementById('btnReload');
+
+  let MODE = 'daily';
+  let activeRangeStart = '';
+  let activeRangeEnd = '';
+  let currentA = '';
+  let currentB = '';
+  let COMPARE = false;
+
+  function buildPath(dateStr){
+    const base = (MODE === 'daily') ? `daily/${dateStr}.html` : `weekly/END_${dateStr}.html`;
+    return base + `?embed=1`;
+  }
+
+  const LS_KEY = 'ddhub_exists_cache_v2';
+  const TTL_MS = 6 * 60 * 60 * 1000;
+  const memCache = new Map();
+
+  function loadLS(){
+    try{
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return {};
+      return JSON.parse(raw) || {};
+    }catch(e){ return {}; }
+  }
+  function saveLS(obj){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }catch(e){}
+  }
+  function cacheGet(u){
+    if(memCache.has(u)) return memCache.get(u);
+    const db = loadLS();
+    const hit = db[u];
+    if(hit && (Date.now() - hit.ts) < TTL_MS){
+      memCache.set(u, hit.ok);
+      return hit.ok;
+    }
+    return null;
+  }
+  function cacheSet(u, ok){
+    memCache.set(u, ok);
+    const db = loadLS();
+    db[u] = { ok: !!ok, ts: Date.now() };
+    const keys = Object.keys(db);
+    if(keys.length > 600){
+      keys.sort((a,b)=> (db[a].ts||0) - (db[b].ts||0));
+      for(let i=0;i<keys.length-500;i++) delete db[keys[i]];
+    }
+    saveLS(db);
+  }
+
+  async function exists(url){
+    const base = url.split('?')[0];
+    const cached = cacheGet(base);
+    if(cached !== null) return cached;
+    try{
+      const res = await fetch(base + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
+      cacheSet(base, res.ok);
+      return res.ok;
+    }catch(e){
+      cacheSet(base, false);
+      return false;
+    }
+  }
+
+  function resizeIframeToContent(frame){
+    try{
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if(!doc) return;
+
+      doc.documentElement.style.overflow = 'hidden';
+      doc.body.style.overflow = 'hidden';
+      doc.body.style.margin = '0';
+
+      const h = Math.max(
+        doc.body.scrollHeight,
+        doc.documentElement.scrollHeight,
+        doc.body.offsetHeight,
+        doc.documentElement.offsetHeight
+      );
+      frame.style.height = (h + 12) + 'px';
+      frame.setAttribute('scrolling','no');
+    }catch(e){
+      frame.setAttribute('scrolling','auto');
+      frame.style.height = '720px';
+    }
+  }
+
+  viewerA.addEventListener('load', () => {
+    resizeIframeToContent(viewerA);
+    setTimeout(()=>resizeIframeToContent(viewerA), 250);
+    setTimeout(()=>resizeIframeToContent(viewerA), 900);
+  });
+  viewerB.addEventListener('load', () => {
+    resizeIframeToContent(viewerB);
+    setTimeout(()=>resizeIframeToContent(viewerB), 250);
+    setTimeout(()=>resizeIframeToContent(viewerB), 900);
+  });
+
+  function setStatus(msg){ statusText.textContent = msg; }
+  function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
+
+  function setCompareUI(on){
+    COMPARE = !!on;
+    btnCompareToggle.classList.toggle('active', COMPARE);
+    btnCompareToggle.textContent = COMPARE ? '비교 ON' : '비교 OFF';
+
+    compareDateWrap.classList.toggle('hidden', !COMPARE);
+    btnCompareGo.classList.toggle('hidden', !COMPARE);
+
+    viewerB.classList.toggle('hidden', !COMPARE);
+
+    if(COMPARE){
+      viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4';
+    }else{
+      viewerGrid.className = 'grid grid-cols-1 gap-4';
+    }
+  }
+
+  async function findAvailable(fromDateStr, direction){
+    let d = parseYMD(fromDateStr);
+    const start = activeRangeStart ? parseYMD(activeRangeStart) : null;
+    const end = activeRangeEnd ? parseYMD(activeRangeEnd) : null;
+
+    const step = direction || 1;
+
+    for(let stepCount=0; stepCount<120; stepCount++){
+      const ds = fmtYMD(d);
+      if(!start || !end || inRange(ds, activeRangeStart, activeRangeEnd)){
+        const ok = await exists(buildPath(ds));
+        if(ok) return ds;
+      }
+      d = addDays(d, step);
+      if(start && d < start && step < 0) break;
+      if(end && d > end && step > 0) break;
+    }
+    return null;
+  }
+
+  function setViewerSingle(dateStr){
+    const path = buildPath(dateStr);
+    currentA = path;
+    viewerA.src = path;
+
+    viewerPath.textContent = `${MODE.toUpperCase()} · A=${dateStr} · ${path.split('?')[0]}` +
+      (COMPARE ? ` · B=${compareDate.value || '-'} · ${buildPath(compareDate.value||'').split('?')[0]}` : '');
+
+    setStatus(
+      `Loaded A: ${dateStr}` +
+      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
+      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '') +
+      (COMPARE ? ` · Compare ON` : '')
+    );
+  }
+
+  function setViewerCompare(aDateStr, bDateStr){
+    const aPath = buildPath(aDateStr);
+    const bPath = buildPath(bDateStr);
+    currentA = aPath;
+    currentB = bPath;
+
+    viewerA.src = aPath;
+    viewerB.src = bPath;
+
+    viewerPath.textContent =
+      `${MODE.toUpperCase()} · A=${aDateStr} · ${aPath.split('?')[0]} · B=${bDateStr} · ${bPath.split('?')[0]}`;
+
+    setStatus(
+      `Loaded A: ${aDateStr} vs B: ${bDateStr}` +
+      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
+      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '')
+    );
+  }
+
+  async function applySelection(){
+    activeRangeStart = rangeStart.value || '';
+    activeRangeEnd = rangeEnd.value || '';
+
+    if(activeRangeStart && activeRangeEnd){
+      const a = parseYMD(activeRangeStart);
+      const b = parseYMD(activeRangeEnd);
+      if(a > b){
+        setStatus('Range 오류: start가 end보다 큼');
+        return;
+      }
+    }
+
+    let target = singleDate.value;
+    if(activeRangeStart && activeRangeEnd && !inRange(target, activeRangeStart, activeRangeEnd)){
+      target = activeRangeEnd;
+      singleDate.value = target;
+    }
+
+    const ok = await exists(buildPath(target));
+    if(ok){
+      if(!COMPARE){
+        setViewerSingle(target);
+      }else{
+        const b = compareDate.value || '';
+        if(b){
+          const okB = await exists(buildPath(b));
+          if(okB) setViewerCompare(target, b);
+          else setViewerCompare(target, target);
+        }else{
+          setViewerCompare(target, target);
+        }
+      }
+      return;
+    }
+
+    const step = stepDays();
+    const next =
+      await findAvailable(target, -step) ||
+      await findAvailable(target, +step) ||
+      await findAvailable(target, -1) ||
+      await findAvailable(target, +1);
+
+    if(next){
+      singleDate.value = next;
+      if(!COMPARE) setViewerSingle(next);
+      else setViewerCompare(next, compareDate.value || next);
+    }else{
+      setStatus('해당 범위에 리포트 파일이 없습니다');
+      if(!COMPARE) setViewerSingle(target);
+      else setViewerCompare(target, compareDate.value || target);
+    }
+  }
+
+  function setMode(next){
+    MODE = next;
+    modeDaily.classList.toggle('active', MODE==='daily');
+    modeWeekly.classList.toggle('active', MODE==='weekly');
+    applySelection();
+  }
+
+  function presetPrev(){
+    const a = singleDate.value;
+    if(!a) return;
+    const base = parseYMD(a);
+    const step = stepDays();
+    const b = fmtYMD(addDays(base, -step));
+    compareDate.value = b;
+    setCompareUI(true);
+  }
+  function presetYoY(){
+    const a = singleDate.value;
+    if(!a) return;
+    const b = pickYoYSameWeekday(a);
+    compareDate.value = b;
+    setCompareUI(true);
+  }
+
+  modeDaily.addEventListener('click', () => setMode('daily'));
+  modeWeekly.addEventListener('click', () => setMode('weekly'));
+  btnApply.addEventListener('click', applySelection);
+
+  btnClearRange.addEventListener('click', () => {
+    rangeStart.value = '';
+    rangeEnd.value = '';
+    activeRangeStart = '';
+    activeRangeEnd = '';
+    applySelection();
+  });
+
+  btnYesterday.addEventListener('click', () => {
+    singleDate.value = fmtYMD(addDays(kstNowDate(), -1));
+    applySelection();
+  });
+
+  btnToday.addEventListener('click', async () => {
+    const today = fmtYMD(kstNowDate());
+    singleDate.value = today;
+    const ok = await exists(buildPath(today));
+    if(ok){ applySelection(); return; }
+    const y = fmtYMD(addDays(kstNowDate(), -1));
+    singleDate.value = y;
+    applySelection();
+  });
+
+  btnPrev.addEventListener('click', async () => {
+    const cur = singleDate.value;
+    const cand = fmtYMD(addDays(parseYMD(cur), -stepDays()));
+    if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
+    const found = await findAvailable(cand, -stepDays());
+    if(found){
+      singleDate.value = found;
+      if(!COMPARE) setViewerSingle(found);
+      else setViewerCompare(found, compareDate.value || found);
+    }else setStatus('이전 리포트 없음');
+  });
+
+  btnNext.addEventListener('click', async () => {
+    const cur = singleDate.value;
+    const cand = fmtYMD(addDays(parseYMD(cur), +stepDays()));
+    if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
+    const found = await findAvailable(cand, +stepDays());
+    if(found){
+      singleDate.value = found;
+      if(!COMPARE) setViewerSingle(found);
+      else setViewerCompare(found, compareDate.value || found);
+    }else setStatus('다음 리포트 없음');
+  });
+
+  btnCompareToggle.addEventListener('click', () => {
+    setCompareUI(!COMPARE);
+    if(COMPARE && !compareDate.value){
+      presetPrev();
+    }
+    applySelection();
+  });
+
+  btnPresetPrev.addEventListener('click', async () => {
+    presetPrev();
+    await applySelection();
+  });
+
+  btnPresetYoY.addEventListener('click', async () => {
+    presetYoY();
+    await applySelection();
+  });
+
+  btnCompareGo.addEventListener('click', async () => {
+    if(!COMPARE) setCompareUI(true);
+    await applySelection();
+  });
+
+  btnOpenNew.addEventListener('click', () => {
+    if(!currentA) return;
+    if(COMPARE && currentB){
+      window.open(currentA, '_blank');
+      window.open(currentB, '_blank');
+      return;
+    }
+    window.open(currentA, '_blank');
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    if(!currentA) return;
+    const absA = new URL(currentA, window.location.href).href;
+    const absB = (COMPARE && currentB) ? new URL(currentB, window.location.href).href : '';
+    const payload = (COMPARE && absB) ? `A: ${absA}\nB: ${absB}` : absA;
+
+    try{
+      await navigator.clipboard.writeText(payload);
+      btnCopy.textContent = '복사됨 ✓';
+      setTimeout(() => btnCopy.textContent = '링크 복사', 900);
+    }catch(e){
+      prompt('Copy this link:', payload);
+    }
+  });
+
+  btnReload.addEventListener('click', () => {
+    if(!currentA) return;
+    const baseA = currentA.split('?')[0];
+    viewerA.src = baseA + `?embed=1&t=${Date.now()}`;
+    if(COMPARE && currentB){
+      const baseB = currentB.split('?')[0];
+      viewerB.src = baseB + `?embed=1&t=${Date.now()}`;
+    }
+    setStatus('Reloaded');
+  });
+
+  window.addEventListener('resize', () => {
+    resizeIframeToContent(viewerA);
+    if(COMPARE) resizeIframeToContent(viewerB);
+    setTimeout(() => {
+      resizeIframeToContent(viewerA);
+      if(COMPARE) resizeIframeToContent(viewerB);
+    }, 120);
+  });
+
+  (function init(){
+    const y = addDays(kstNowDate(), -1);
+    singleDate.value = fmtYMD(y);
+
+    const start = addDays(y, -20);
+    rangeStart.value = fmtYMD(start);
+    rangeEnd.value = fmtYMD(y);
+    activeRangeStart = rangeStart.value;
+    activeRangeEnd = rangeEnd.value;
+
+    const h = (location.hash || '').replace('#','').trim().toLowerCase();
+    if(h === 'weekly') MODE = 'weekly';
+
+    const qs = new URLSearchParams(location.search);
+    const c = qs.get('compare');
+    if(c === '1' || c === 'true') setCompareUI(true);
+    else setCompareUI(false);
+
+    setMode(MODE);
+
+    if(COMPARE){
+      presetPrev();
+      applySelection();
+    }
+  })();
+
+})();
+</script>
 </body>
 </html>
 """
