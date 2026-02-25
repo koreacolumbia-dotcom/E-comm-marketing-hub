@@ -566,6 +566,19 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
     }
 
 
+
+# -----------------------
+# reports/summary.json (structured metrics) loader
+# -----------------------
+def _read_summary_json(reports_dir: Path) -> Dict[str, Any]:
+    p = reports_dir / "summary.json"
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
 # -----------------------
 # VOC metrics (best-effort)
 # -----------------------
@@ -578,6 +591,28 @@ def _parse_first_int(pattern: str, text: str) -> Optional[int]:
 
 
 def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
+    # 1) Prefer structured metrics if available (written by external_signal_combined.py)
+    sj = _read_summary_json(reports_dir)
+    ext = sj.get("external_signal") or {}
+    if isinstance(ext, dict) and ext:
+        posts = ext.get("posts_collected")
+        mentions = ext.get("total_mentions")
+        target_days = ext.get("target_days") or 7
+        updated = ext.get("updated_at") or now_kst_label()
+        # normalize ints
+        def _to_int(x):
+            try:
+                return int(x)
+            except Exception:
+                return None
+        return {
+            "posts": _to_int(posts),
+            "mentions": _to_int(mentions),
+            "range": f"최근 {int(target_days)}일",
+            "updated": updated,
+        }
+
+    # 2) Fallback: parse from external_signal.html (legacy / best-effort)
     p = reports_dir / "external_signal.html"
     if not p.exists():
         return {"posts": None, "mentions": None, "range": "최근 7일", "updated": now_kst_label()}
@@ -598,6 +633,7 @@ def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
 
 # -----------------------
 # Crema metrics (best-effort)
+# ----------------------- (best-effort)
 # -----------------------
 def _read_json_if_exists(p: Path) -> Optional[Dict[str, Any]]:
     try:
