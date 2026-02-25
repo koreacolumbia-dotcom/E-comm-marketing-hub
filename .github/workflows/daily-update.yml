@@ -290,7 +290,7 @@ jobs:
           test -f reports/meta.json
 
       # ----------------------------
-      # 7) Commit & push results
+      # 7) Commit & push results (safe rebase + retry)
       # ----------------------------
       - name: Commit & push results
         shell: bash
@@ -300,15 +300,55 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # ✅ stage changes first
           git add -A reports site .naver_cache || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
-          else
-            git commit -m "Daily auto update (reports)" || true
-            # ✅ 커밋 이후 pull --rebase 금지
-            git push origin HEAD:main
+            exit 0
           fi
+
+          # ✅ 원격 main이 실행 중에 앞으로 갈 수 있으니,
+          # 커밋 직전에 origin/main 최신을 다시 받아서 내 변경사항을 rebase로 올림
+          # (autostash로 staged/working 변경 잠깐 빼놨다가 자동 복구)
+          git fetch origin main
+
+          # 현재 브랜치가 main이 아닐 수도 있으니, 명시적으로 main 기준으로 처리
+          # checkout이 detached가 아니라면 보통 main이지만, 안전하게 확인
+          CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD || true)"
+          echo "[INFO] current branch: ${CURRENT_BRANCH}"
+
+          # ✅ rebase (충돌나면 실패해서 로그로 확인)
+          git pull --rebase --autostash origin main
+
+          # rebase로 인덱스가 바뀔 수 있으니 다시 add
+          git add -A reports site .naver_cache || true
+
+          # ✅ commit (rebase 후에도 변경있으면 커밋)
+          if git diff --cached --quiet; then
+            echo "No changes to commit after rebase"
+            exit 0
+          fi
+
+          git commit -m "Daily auto update (reports)" || true
+
+          # ✅ push는 race가 가장 흔한 지점이라 3회 재시도
+          for i in 1 2 3; do
+            echo "[INFO] push attempt $i/3"
+            if git push origin HEAD:main; then
+              echo "[OK] pushed"
+              exit 0
+            fi
+
+            echo "[WARN] push rejected. Rebase with latest origin/main and retry..."
+            git fetch origin main
+            git pull --rebase --autostash origin main
+
+            # rebase 이후 커밋이 로컬에 남아있도록 유지되는 게 정상
+          done
+
+          echo "[ERROR] failed to push after retries"
+          exit 1
 
       # ----------------------------
       # ✅ Success Email (PNG inline 우선 + 첨부)
