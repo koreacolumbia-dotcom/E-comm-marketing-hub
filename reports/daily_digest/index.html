@@ -4,15 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Daily Digest Hub</title>
-
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
 
-    html, body{ height: 100%; overflow: auto; }
-
+    html, body { height: 100%; overflow: auto; }
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
@@ -85,30 +83,16 @@
       box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
     }
 
-    /* ✅ 스크롤 막힘 방지: iframe 자체 스크롤 허용 */
+    /* ✅ iframe은 스크롤 허용 + 자동 높이조절 */
     .viewer-frame{
       width: 100%;
       height: 720px;
       border: 0;
-      border-radius: 14px;
-      background: transparent;
-      overflow: auto; /* 중요 */
+      border-radius: 18px;
+      background: rgba(255,255,255,0.55);
+      overflow: auto;
     }
 
-    .topbar{
-      display:flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .topbar-left{
-      display:flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      min-width: 0;
-    }
     .mini{
       font-size: 11px;
       font-weight: 900;
@@ -117,7 +101,7 @@
       border: 1px solid rgba(148,163,184,0.22);
       border-radius: 999px;
       padding: 8px 12px;
-      max-width: 560px;
+      max-width: 760px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -125,91 +109,211 @@
     @media (max-width: 768px){
       .mini{ max-width: 100%; }
     }
+
+    .kpi-box{
+      border: 1px solid rgba(148,163,184,0.25);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.62);
+    }
+    .kpi-title{
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      color:#64748b;
+    }
+    .kpi-value{
+      font-size:18px;
+      font-weight:900;
+      color:#0f172a;
+    }
+    .kpi-delta{
+      font-size:11px;
+      font-weight:900;
+    }
+    .tbl{
+      width:100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .tbl th{
+      text-align:left;
+      font-size:10px;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      color:#94a3b8;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(148,163,184,0.22);
+    }
+    .tbl td{
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(148,163,184,0.14);
+      vertical-align: top;
+    }
+    .right{ text-align:right; }
+    .pos{ color:#2563eb; font-weight:900; }
+    .neg{ color:#c2410c; font-weight:900; }
   </style>
 </head>
 
 <body class="p-6 md:p-10">
   <div class="max-w-7xl mx-auto">
-    <!-- Header -->
+    <!-- Header (심플) -->
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
-        <div class="muted font-semibold mt-1">날짜/기간 선택은 Viewer 상단에서 · 기본은 어제 리포트(KST)</div>
+        <div class="muted font-semibold mt-1">기본은 어제(KST) · 리포트 상단 타이틀/탭은 자동 숨김</div>
       </div>
 
-      <!-- 우상단: Mode + actions -->
       <div class="flex items-center gap-3 flex-wrap justify-end">
         <div class="flex items-center gap-2">
           <div class="small-label mr-2">Mode</div>
           <button id="modeDaily" class="chip active" type="button">Daily</button>
           <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
         </div>
-
-        <div class="flex items-center gap-2">
-          <button id="btnOpenNew" class="btn" type="button">새 탭</button>
-          <button id="btnCopy" class="btn" type="button">링크 복사</button>
-          <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
-        </div>
+        <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
       </div>
     </div>
 
     <!-- Viewer -->
     <div class="glass p-5">
-      <div class="topbar mb-4">
-        <div class="topbar-left">
+      <!-- Controls -->
+      <div class="flex flex-col gap-3 mb-4">
+        <div class="flex flex-wrap items-center gap-2">
           <span class="mini" id="statusText">-</span>
+          <span class="mini" id="pathText">-</span>
+        </div>
 
-          <!-- Primary date controls -->
-          <div class="flex items-center gap-2">
-            <div class="small-label hidden md:block">Date</div>
-            <div class="w-[160px]">
-              <input id="singleDate" type="date" />
-            </div>
-            <button id="btnPrev" class="btn" type="button">◀</button>
-            <button id="btnNext" class="btn" type="button">▶</button>
-            <button id="btnYesterday" class="btn" type="button">어제</button>
-            <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="small-label">Date</div>
+          <div class="w-[160px]"><input id="singleDate" type="date" /></div>
+          <button id="btnPrev" class="btn" type="button">◀</button>
+          <button id="btnNext" class="btn" type="button">▶</button>
+          <button id="btnYesterday" class="btn" type="button">어제</button>
+          <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
+
+          <div class="ml-2 small-label">Range</div>
+          <div class="w-[160px]"><input id="rangeStart" type="date" /></div>
+          <div class="w-[160px]"><input id="rangeEnd" type="date" /></div>
+          <button id="btnApplyRange" class="btn" type="button">적용</button>
+          <button id="btnClearRange" class="btn" type="button">Range 해제</button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="small-label">Compare</div>
+          <button id="btnPrevPreset" class="btn" type="button">전기준</button>
+          <button id="btnYoyPreset" class="btn" type="button">YoY</button>
+          <div class="w-[160px]"><input id="compareDate" type="date" /></div>
+          <button id="btnCompare" class="btn btn-primary" type="button">비교하기</button>
+          <button id="btnCloseCompare" class="btn hidden" type="button">비교 닫기</button>
+
+          <div class="ml-2 small-label">Actions</div>
+          <button id="btnOpenNew" class="btn" type="button">새 탭</button>
+          <button id="btnCopy" class="btn" type="button">링크 복사</button>
+        </div>
+      </div>
+
+      <!-- Iframe (A 리포트만) -->
+      <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
+
+      <!-- ✅ Compare Result (아래에만 표시) -->
+      <div id="comparePanel" class="mt-6 hidden">
+        <div class="rounded-3xl border border-slate-200 bg-white/60 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="font-black text-lg">일자 비교 결과 (캐시 JSON)</div>
+            <span class="text-xs muted font-semibold">* 쿼리 0원</span>
           </div>
 
-          <!-- Range -->
-          <div class="flex items-center gap-2">
-            <div class="small-label hidden md:block">Range</div>
-            <div class="w-[160px]">
-              <input id="rangeStart" type="date" />
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div class="kpi-box p-3">
+              <div class="kpi-title">Sessions</div>
+              <div class="kpi-value" id="c_sess">-</div>
+              <div class="kpi-delta" id="c_sess_d">-</div>
             </div>
-            <div class="w-[160px]">
-              <input id="rangeEnd" type="date" />
+            <div class="kpi-box p-3">
+              <div class="kpi-title">Orders</div>
+              <div class="kpi-value" id="c_ord">-</div>
+              <div class="kpi-delta" id="c_ord_d">-</div>
             </div>
-            <button id="btnApply" class="btn btn-primary" type="button">적용</button>
-            <button id="btnClearRange" class="btn" type="button">Range 해제</button>
+            <div class="kpi-box p-3">
+              <div class="kpi-title">Revenue</div>
+              <div class="kpi-value" id="c_rev">-</div>
+              <div class="kpi-delta" id="c_rev_d">-</div>
+            </div>
+            <div class="kpi-box p-3">
+              <div class="kpi-title">CVR</div>
+              <div class="kpi-value" id="c_cvr">-</div>
+              <div class="kpi-delta" id="c_cvr_d">-</div>
+            </div>
+            <div class="kpi-box p-3">
+              <div class="kpi-title">Sign-ups</div>
+              <div class="kpi-value" id="c_su">-</div>
+              <div class="kpi-delta" id="c_su_d">-</div>
+            </div>
           </div>
 
-          <!-- Compare -->
-          <div class="flex items-center gap-2">
-            <div class="small-label hidden md:block">Compare</div>
-            <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
-            <button id="btnPresetPrev" class="btn" type="button">전기준</button>
-            <button id="btnPresetYoY" class="btn" type="button">YoY</button>
-            <div class="w-[160px] hidden" id="compareDateWrap">
-              <input id="compareDate" type="date" />
+          <div class="mt-4">
+            <div class="font-black mb-2">채널별 비교 (Revenue)</div>
+            <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white/60">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Channel</th>
+                    <th class="right">A Rev</th>
+                    <th class="right">B Rev</th>
+                    <th class="right">A vs B</th>
+                    <th class="right">A Sess</th>
+                    <th class="right">B Sess</th>
+                    <th class="right">A Ord</th>
+                    <th class="right">B Ord</th>
+                  </tr>
+                </thead>
+                <tbody id="c_chanBody">
+                  <tr><td colspan="8" class="muted">비교 결과가 여기에 표시됩니다.</td></tr>
+                </tbody>
+              </table>
             </div>
-            <button id="btnCompareGo" class="btn btn-primary hidden" type="button">비교하기</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ✅ Range Compare (항상 보이게) -->
+      <div id="rangePanel" class="mt-6">
+        <div class="rounded-3xl border border-slate-200 bg-white/60 p-5">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div class="font-black text-lg">구간 비교 (캐시 합산)</div>
+              <div class="text-xs muted font-semibold">A: RangeStart~RangeEnd vs B: 이전 동일 길이</div>
+            </div>
+            <button id="btnRangeCompare" class="btn btn-primary" type="button">구간비교</button>
+          </div>
+
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="rounded-3xl border border-slate-200 bg-white/60 p-4">
+              <div class="font-black mb-1">기간 A</div>
+              <div class="text-xs muted font-semibold" id="raTxt">-</div>
+            </div>
+            <div class="rounded-3xl border border-slate-200 bg-white/60 p-4">
+              <div class="font-black mb-1">기간 B</div>
+              <div class="text-xs muted font-semibold" id="rbTxt">-</div>
+            </div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div class="kpi-box p-3"><div class="kpi-title">Sessions</div><div class="kpi-value" id="r_sess">-</div><div class="kpi-delta" id="r_sess_d">-</div></div>
+            <div class="kpi-box p-3"><div class="kpi-title">Orders</div><div class="kpi-value" id="r_ord">-</div><div class="kpi-delta" id="r_ord_d">-</div></div>
+            <div class="kpi-box p-3"><div class="kpi-title">Revenue</div><div class="kpi-value" id="r_rev">-</div><div class="kpi-delta" id="r_rev_d">-</div></div>
+            <div class="kpi-box p-3"><div class="kpi-title">CVR</div><div class="kpi-value" id="r_cvr">-</div><div class="kpi-delta" id="r_cvr_d">-</div></div>
+            <div class="kpi-box p-3"><div class="kpi-title">Sign-ups</div><div class="kpi-value" id="r_su">-</div><div class="kpi-delta" id="r_su_d">-</div></div>
+          </div>
+
+          <div class="mt-3 text-xs muted font-semibold">
+            * 구간비교는 data/**.json 캐시 합산이라 쿼리 0원 · 캐시 없는 날짜는 자동 스킵
           </div>
         </div>
       </div>
 
-      <div class="text-xs muted font-semibold mb-3" id="viewerPath">-</div>
-
-      <!-- Single / Compare layout -->
-      <div id="viewerGrid" class="grid grid-cols-1 gap-4">
-        <!-- ✅ scrolling auto -->
-        <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
-        <iframe id="viewerB" class="viewer-frame hidden" loading="eager" scrolling="auto"></iframe>
-      </div>
-
-      <div class="mt-3 text-[11px] muted font-semibold text-right">
-        Auto · KST 기준 · embed 모드 사용 · 404는 자동으로 “가까운 존재 날짜”로 대체
-      </div>
     </div>
   </div>
 
@@ -218,14 +322,10 @@
   // ============================
   // BASE path (폴더 어디서 열어도 맞도록)
   // ============================
-  // - 권장 위치: /reports/daily_digest/index.html  (그럼 BASE="")
-  // - 루트에 올렸으면 BASE="reports/daily_digest/"
   const BASE = (function(){
     try{
       const p = location.pathname || '';
-      // 이미 reports/daily_digest 안에서 열고 있으면 상대경로 그대로
       if(p.includes('/reports/daily_digest/')) return '';
-      // 루트에서 열면 보고서 폴더 prefix를 붙임
       return 'reports/daily_digest/';
     }catch(e){
       return 'reports/daily_digest/';
@@ -262,51 +362,43 @@
     const b = parseYMD(endStr).getTime();
     return d >= a && d <= b;
   }
-  // YoY fallback (캐시 없을 때만 사용)
-  function pickYoYSameWeekday(dateStr){
-    const base = parseYMD(dateStr);
-    const wd = base.getDay();
-    const candidates = [364,365,366].map(x => addDays(base, -x));
-    for(const c of candidates){
-      if(c.getDay() === wd) return fmtYMD(c);
-    }
-    return fmtYMD(addDays(base, -364));
-  }
 
   // ============================
   // DOM
   // ============================
   const modeDaily = document.getElementById('modeDaily');
   const modeWeekly = document.getElementById('modeWeekly');
+  const btnReload = document.getElementById('btnReload');
 
   const singleDate = document.getElementById('singleDate');
+  const compareDate = document.getElementById('compareDate');
   const rangeStart = document.getElementById('rangeStart');
   const rangeEnd = document.getElementById('rangeEnd');
 
-  const btnApply = document.getElementById('btnApply');
-  const btnClearRange = document.getElementById('btnClearRange');
-  const btnYesterday = document.getElementById('btnYesterday');
-  const btnToday = document.getElementById('btnToday');
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
+  const btnYesterday = document.getElementById('btnYesterday');
+  const btnToday = document.getElementById('btnToday');
 
-  const btnCompareToggle = document.getElementById('btnCompareToggle');
-  const btnPresetPrev = document.getElementById('btnPresetPrev');
-  const btnPresetYoY = document.getElementById('btnPresetYoY');
-  const compareDateWrap = document.getElementById('compareDateWrap');
-  const compareDate = document.getElementById('compareDate');
-  const btnCompareGo = document.getElementById('btnCompareGo');
+  const btnApplyRange = document.getElementById('btnApplyRange');
+  const btnClearRange = document.getElementById('btnClearRange');
 
-  const viewerA = document.getElementById('viewerA');
-  const viewerB = document.getElementById('viewerB');
-  const viewerGrid = document.getElementById('viewerGrid');
+  const btnPrevPreset = document.getElementById('btnPrevPreset');
+  const btnYoyPreset = document.getElementById('btnYoyPreset');
+  const btnCompare = document.getElementById('btnCompare');
+  const btnCloseCompare = document.getElementById('btnCloseCompare');
 
-  const viewerPath = document.getElementById('viewerPath');
-  const statusText = document.getElementById('statusText');
+  const btnRangeCompare = document.getElementById('btnRangeCompare');
 
   const btnOpenNew = document.getElementById('btnOpenNew');
   const btnCopy = document.getElementById('btnCopy');
-  const btnReload = document.getElementById('btnReload');
+
+  const viewerA = document.getElementById('viewerA');
+
+  const statusText = document.getElementById('statusText');
+  const pathText = document.getElementById('pathText');
+
+  const comparePanel = document.getElementById('comparePanel');
 
   // ============================
   // State
@@ -315,8 +407,6 @@
   let activeRangeStart = '';
   let activeRangeEnd = '';
   let currentA = '';
-  let currentB = '';
-  let COMPARE = false;
 
   // ============================
   // Path builder
@@ -334,10 +424,10 @@
   }
 
   // ============================
-  // Existence check cache (localStorage)
+  // Exists cache (localStorage)
   // ============================
-  const LS_KEY = 'ddhub_exists_cache_v3';
-  const TTL_MS = 6 * 60 * 60 * 1000; // 6h
+  const LS_KEY = 'ddhub_exists_cache_v4';
+  const TTL_MS = 6 * 60 * 60 * 1000;
   const memCache = new Map();
 
   function loadLS(){
@@ -365,9 +455,9 @@
     const db = loadLS();
     db[u] = { ok: !!ok, ts: Date.now() };
     const keys = Object.keys(db);
-    if(keys.length > 800){
+    if(keys.length > 900){
       keys.sort((a,b)=> (db[a].ts||0) - (db[b].ts||0));
-      for(let i=0;i<keys.length-650;i++) delete db[keys[i]];
+      for(let i=0;i<keys.length-700;i++) delete db[keys[i]];
     }
     saveLS(db);
   }
@@ -376,7 +466,6 @@
     const base = url.split('?')[0];
     const cached = cacheGet(base);
     if(cached !== null) return cached;
-
     try{
       const res = await fetch(base + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
       cacheSet(base, res.ok);
@@ -388,42 +477,91 @@
   }
 
   // ============================
-  // iframe resize (스크롤을 막지 않음)
+  // Sanitize embedded report (중복 UI 제거 핵심)
   // ============================
-  function resizeIframeToContent(frame){
+  function sanitizeEmbeddedReport(frame){
     try{
       const doc = frame.contentDocument || frame.contentWindow.document;
       if(!doc) return;
 
-      // ✅ overflow를 숨기지 않는다 (스크롤 막힘 방지)
-      // doc.documentElement.style.overflow = 'hidden';  // 제거
-      // doc.body.style.overflow = 'hidden';             // 제거
-      // frame.setAttribute('scrolling','no');           // 제거
+      // 1) "Daily Digest" 큰 타이틀(보통 h1/h2)
+      // 여러 후보를 안전하게 제거
+      const candidates = [
+        'h1', 'h2', '[data-title]', '.page-title', '.title', '.header-title'
+      ];
+      for(const sel of candidates){
+        const nodes = Array.from(doc.querySelectorAll(sel));
+        for(const n of nodes){
+          const t = (n.textContent || '').trim().toLowerCase();
+          if(t === 'daily digest' || t.startsWith('daily digest')){
+            n.remove();
+          }
+        }
+      }
 
+      // 2) "Hub / Daily / Weekly" 탭 영역 제거 (버튼/칩 묶음)
+      // 탭 텍스트로 부모를 찾아 제거
+      const allBtns = Array.from(doc.querySelectorAll('button, a, span, div'));
+      for(const el of allBtns){
+        const txt = (el.textContent || '').trim();
+        if(txt === 'Hub' || txt === 'Daily' || txt === 'Weekly'){
+          // 탭이 보통 같은 줄/그룹에 있으니 가까운 컨테이너를 제거
+          // 너무 위로 올라가면 전체가 날아갈 수 있어 3단계까지만
+          let p = el.parentElement;
+          for(let i=0;i<3 && p; i++){
+            const pt = (p.textContent || '').replace(/\s+/g,' ').trim();
+            if(pt.includes('Hub') && pt.includes('Daily') && pt.includes('Weekly')){
+              p.remove();
+              break;
+            }
+            p = p.parentElement;
+          }
+        }
+      }
+
+      // 3) 리포트 내부 Compare 박스 제거(있으면)
+      // "Compare" 라벨/버튼이 있는 카드 제거
+      const blocks = Array.from(doc.querySelectorAll('div, section'));
+      for(const b of blocks){
+        const t = (b.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
+        if(t.startsWith('compare') && t.includes('preset') && t.includes('yoy')){
+          b.remove();
+          break;
+        }
+      }
+
+      // 4) embed 상단 여백이 크면 줄이기
+      doc.body.style.marginTop = '0';
+      doc.documentElement.style.scrollBehavior = 'auto';
+    }catch(e){
+      // cross-origin이면 못 건드는데, 같은 GH Pages라 보통 가능
+    }
+  }
+
+  // iframe resize
+  function resizeIframeToContent(frame){
+    try{
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if(!doc) return;
       const h = Math.max(
         doc.body.scrollHeight,
         doc.documentElement.scrollHeight,
         doc.body.offsetHeight,
         doc.documentElement.offsetHeight
       );
-      // 자동 확장 + 여유
       frame.style.height = (h + 16) + 'px';
       frame.setAttribute('scrolling','auto');
     }catch(e){
-      frame.setAttribute('scrolling','auto');
       frame.style.height = '720px';
+      frame.setAttribute('scrolling','auto');
     }
   }
 
   viewerA.addEventListener('load', () => {
+    sanitizeEmbeddedReport(viewerA);
     resizeIframeToContent(viewerA);
-    setTimeout(()=>resizeIframeToContent(viewerA), 250);
-    setTimeout(()=>resizeIframeToContent(viewerA), 900);
-  });
-  viewerB.addEventListener('load', () => {
-    resizeIframeToContent(viewerB);
-    setTimeout(()=>resizeIframeToContent(viewerB), 250);
-    setTimeout(()=>resizeIframeToContent(viewerB), 900);
+    setTimeout(()=>{ sanitizeEmbeddedReport(viewerA); resizeIframeToContent(viewerA); }, 200);
+    setTimeout(()=>{ sanitizeEmbeddedReport(viewerA); resizeIframeToContent(viewerA); }, 900);
   });
 
   // ============================
@@ -432,95 +570,39 @@
   function setStatus(msg){ statusText.textContent = msg; }
   function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
 
-  function setCompareUI(on){
-    COMPARE = !!on;
-    btnCompareToggle.classList.toggle('active', COMPARE);
-    btnCompareToggle.textContent = COMPARE ? '비교 ON' : '비교 OFF';
-
-    compareDateWrap.classList.toggle('hidden', !COMPARE);
-    btnCompareGo.classList.toggle('hidden', !COMPARE);
-
-    viewerB.classList.toggle('hidden', !COMPARE);
-
-    if(COMPARE){
-      viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4';
-    }else{
-      viewerGrid.className = 'grid grid-cols-1 gap-4';
-    }
-  }
-
   // ============================
-  // Navigation / selection
+  // Navigation helpers
   // ============================
   async function findAvailable(fromDateStr, direction){
     let d = parseYMD(fromDateStr);
     const start = activeRangeStart ? parseYMD(activeRangeStart) : null;
     const end = activeRangeEnd ? parseYMD(activeRangeEnd) : null;
-
     const step = direction || 1;
 
-    for(let stepCount=0; stepCount<150; stepCount++){
+    for(let stepCount=0; stepCount<160; stepCount++){
       const ds = fmtYMD(d);
       if(!start || !end || inRange(ds, activeRangeStart, activeRangeEnd)){
         const ok = await exists(buildPath(ds));
         if(ok) return ds;
       }
       d = addDays(d, step);
-
       if(start && d < start && step < 0) break;
       if(end && d > end && step > 0) break;
     }
     return null;
   }
 
-  function setViewerSingle(dateStr){
+  function setViewer(dateStr){
     const path = buildPath(dateStr);
     currentA = path;
-    currentB = '';
-
     viewerA.src = path;
-    viewerPath.textContent = `${MODE.toUpperCase()} · A=${dateStr} · ${path.split('?')[0]}`;
-
-    setStatus(
-      `Loaded A: ${dateStr}` +
-      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
-      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '') +
-      (COMPARE ? ` · Compare ON` : '')
-    );
+    pathText.textContent = `${MODE.toUpperCase()} · ${dateStr} · ${path.split('?')[0]}`;
+    setStatus(`Loaded: ${dateStr} · step=${stepDays()}d` + (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart}~${activeRangeEnd}` : ''));
   }
 
-  function setViewerCompare(aDateStr, bDateStr){
-    const aPath = buildPath(aDateStr);
-    const bPath = buildPath(bDateStr);
-
-    currentA = aPath;
-    currentB = bPath;
-
-    viewerA.src = aPath;
-    viewerB.src = bPath;
-
-    viewerPath.textContent =
-      `${MODE.toUpperCase()} · A=${aDateStr} · ${aPath.split('?')[0]} · B=${bDateStr} · ${bPath.split('?')[0]}`;
-
-    setStatus(
-      `Loaded A: ${aDateStr} vs B: ${bDateStr}` +
-      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
-      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '')
-    );
-  }
-
-  async function applySelection(){
-    activeRangeStart = rangeStart.value || '';
-    activeRangeEnd = rangeEnd.value || '';
-
-    if(activeRangeStart && activeRangeEnd){
-      const a = parseYMD(activeRangeStart);
-      const b = parseYMD(activeRangeEnd);
-      if(a > b){
-        setStatus('Range 오류: start가 end보다 큼');
-        return;
-      }
-    }
+  async function applySingle(){
+    activeRangeStart = (rangeStart.value || '').trim();
+    activeRangeEnd = (rangeEnd.value || '').trim();
 
     let target = (singleDate.value || '').trim();
     if(!target){
@@ -528,280 +610,377 @@
       singleDate.value = target;
     }
 
-    // range 안에 없으면 end로
     if(activeRangeStart && activeRangeEnd && !inRange(target, activeRangeStart, activeRangeEnd)){
       target = activeRangeEnd;
       singleDate.value = target;
     }
 
-    // ✅ A 존재 확인 → 없으면 가까운 날짜로 자동 이동
-    let okA = await exists(buildPath(target));
-    if(!okA){
+    let ok = await exists(buildPath(target));
+    if(!ok){
       const step = stepDays();
-      const foundA =
+      const found =
         await findAvailable(target, -step) ||
         await findAvailable(target, +step) ||
         await findAvailable(target, -1) ||
         await findAvailable(target, +1);
-
-      if(foundA){
-        target = foundA;
+      if(found){
+        target = found;
         singleDate.value = target;
-        okA = true;
+        ok = true;
       }
     }
 
-    // 그래도 없으면 그냥 표시
-    if(!okA){
-      setStatus('해당 범위에 리포트 파일이 없습니다');
-      if(!COMPARE) setViewerSingle(target);
-      else setViewerCompare(target, target);
-      return;
+    if(ok) setViewer(target);
+    else{
+      setStatus('리포트 파일이 없습니다 (범위/날짜 확인)');
+      setViewer(target);
     }
-
-    // ✅ compare OFF
-    if(!COMPARE){
-      setViewerSingle(target);
-      return;
-    }
-
-    // ✅ compare ON: B 날짜 설정 + 존재 확인 + 대체
-    let b = (compareDate.value || '').trim();
-    if(!b){
-      b = fmtYMD(addDays(parseYMD(target), -stepDays())); // 기본: 전기준
-      compareDate.value = b;
-    }
-
-    let okB = await exists(buildPath(b));
-    if(!okB){
-      const foundB =
-        await findAvailable(b, -stepDays()) ||
-        await findAvailable(b, +stepDays()) ||
-        await findAvailable(b, -1) ||
-        await findAvailable(b, +1);
-
-      if(foundB){
-        b = foundB;
-        compareDate.value = b;
-        okB = true;
-      }
-    }
-
-    if(okB) setViewerCompare(target, b);
-    else setViewerCompare(target, target);
   }
 
   function setMode(next){
     MODE = next;
     modeDaily.classList.toggle('active', MODE==='daily');
     modeWeekly.classList.toggle('active', MODE==='weekly');
-    applySelection();
+    applySingle();
   }
 
   // ============================
-  // Compare presets
+  // Compare (캐시 JSON 기반)
   // ============================
-  function presetPrev(){
-    const a = (singleDate.value || '').trim();
-    if(!a) return;
-    const base = parseYMD(a);
-    const b = fmtYMD(addDays(base, -stepDays())); // daily:-1 weekly:-7
-    compareDate.value = b;
-    setCompareUI(true);
+  function pctChange(cur, prev){
+    cur = Number(cur||0); prev = Number(prev||0);
+    if(prev === 0) return (cur === 0) ? 0 : 1;
+    return (cur - prev) / prev;
+  }
+  function fmtInt(x){ try{return Math.round(Number(x||0)).toLocaleString();}catch(e){return '-'} }
+  function fmtKRW(x){ try{return '₩' + Math.round(Number(x||0)).toLocaleString();}catch(e){return '₩-'} }
+  function cls(v){ return (v>=0) ? 'pos' : 'neg'; }
+
+  async function fetchJSON(url){
+    const res = await fetch(url + `?t=${Date.now()}`, { cache:'no-store' });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  function kpiFromCache(j){
+    const k = (j && j.kpis) ? j.kpis : {};
+    return {
+      sessions: Number(k.sessions||0),
+      orders: Number(k.orders||0),
+      revenue: Number(k.revenue||0),
+      signups: Number(k.signups||0),
+      cvr: Number(k.cvr||0)
+    };
+  }
+  function channelsFromCache(j){
+    return (j && j.channels) ? j.channels : {};
   }
 
-  async function presetYoYCacheFirst(){
+  function paintCompare(prefix, aAgg, bAgg){
+    const el = (id)=>document.getElementById(prefix+id);
+
+    el('_sess').textContent = `${fmtInt(aAgg.sessions)}  vs  ${fmtInt(bAgg.sessions)}`;
+    el('_ord').textContent  = `${fmtInt(aAgg.orders)}  vs  ${fmtInt(bAgg.orders)}`;
+    el('_rev').textContent  = `${fmtKRW(aAgg.revenue)}  vs  ${fmtKRW(bAgg.revenue)}`;
+    el('_cvr').textContent  = `${(aAgg.cvr*100).toFixed(2)}%  vs  ${(bAgg.cvr*100).toFixed(2)}%`;
+    el('_su').textContent   = `${fmtInt(aAgg.signups)}  vs  ${fmtInt(bAgg.signups)}`;
+
+    const ds = pctChange(aAgg.sessions, bAgg.sessions);
+    const doo = pctChange(aAgg.orders, bAgg.orders);
+    const dr = pctChange(aAgg.revenue, bAgg.revenue);
+    const dc = (aAgg.cvr - bAgg.cvr);
+    const dsu = pctChange(aAgg.signups, bAgg.signups);
+
+    el('_sess_d').className = `kpi-delta ${cls(ds)}`;  el('_sess_d').textContent = `A vs B: ${(ds*100).toFixed(1)}%`;
+    el('_ord_d').className  = `kpi-delta ${cls(doo)}`; el('_ord_d').textContent  = `A vs B: ${(doo*100).toFixed(1)}%`;
+    el('_rev_d').className  = `kpi-delta ${cls(dr)}`;  el('_rev_d').textContent  = `A vs B: ${(dr*100).toFixed(1)}%`;
+    el('_cvr_d').className  = `kpi-delta ${cls(dc)}`;  el('_cvr_d').textContent  = `A vs B: ${(dc*100).toFixed(2)}%p`;
+    el('_su_d').className   = `kpi-delta ${cls(dsu)}`; el('_su_d').textContent   = `A vs B: ${(dsu*100).toFixed(1)}%`;
+  }
+
+  function paintChanTable(tbodyId, aCh, bCh){
+    const body = document.getElementById(tbodyId);
+    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Total"];
+
+    function get(b, obj){
+      const v = obj[b] || {sessions:0, orders:0, revenue:0};
+      return {
+        sessions:Number(v.sessions||0),
+        orders:Number(v.orders||0),
+        revenue:Number(v.revenue||0),
+      };
+    }
+
+    const rows = buckets.map(b=>{
+      const A = get(b,aCh), B=get(b,bCh);
+      const delta = pctChange(A.revenue, B.revenue);
+      return `
+        <tr>
+          <td><b>${b}</b></td>
+          <td class="right">${fmtKRW(A.revenue)}</td>
+          <td class="right">${fmtKRW(B.revenue)}</td>
+          <td class="right ${cls(delta)}">${(delta*100).toFixed(1)}%</td>
+          <td class="right">${fmtInt(A.sessions)}</td>
+          <td class="right">${fmtInt(B.sessions)}</td>
+          <td class="right">${fmtInt(A.orders)}</td>
+          <td class="right">${fmtInt(B.orders)}</td>
+        </tr>`;
+    });
+
+    body.innerHTML = rows.join('');
+  }
+
+  async function runSingleCompare(aDate, bDate){
+    // B 파일이 없을 수 있으니: 캐시/HTML 존재 여부 체크 후 fallback
+    // (캐시가 없으면 비교가 불가하므로 상태 메시지로 안내)
+    const aCache = await fetchJSON(buildCachePath(aDate));
+    const bCache = await fetchJSON(buildCachePath(bDate));
+
+    paintCompare('c', kpiFromCache(aCache), kpiFromCache(bCache));
+    paintChanTable('c_chanBody', channelsFromCache(aCache), channelsFromCache(bCache));
+
+    comparePanel.classList.remove('hidden');
+    btnCloseCompare.classList.remove('hidden');
+  }
+
+  // YoY preset: 캐시의 yoy.end를 우선 사용
+  async function presetYoY(){
     const a = (singleDate.value || '').trim();
     if(!a) return;
-
-    // ✅ 캐시에서 yoy.end 우선
     try{
-      const res = await fetch(buildCachePath(a) + `?t=${Date.now()}`, { cache:'no-store' });
-      if(!res.ok) throw new Error('cache not found');
-      const j = await res.json();
+      const j = await fetchJSON(buildCachePath(a));
       const yoyEnd = j && j.yoy && j.yoy.end ? String(j.yoy.end) : '';
       if(!yoyEnd) throw new Error('no yoy.end');
       compareDate.value = yoyEnd;
-      setCompareUI(true);
-      return;
+      setStatus(`YoY preset: ${yoyEnd}`);
     }catch(e){
-      // fallback: 계산식
-      compareDate.value = pickYoYSameWeekday(a);
-      setCompareUI(true);
+      // fallback: 364일
+      const b = fmtYMD(addDays(parseYMD(a), -364));
+      compareDate.value = b;
+      setStatus(`YoY preset fallback: ${b}`);
     }
+  }
+
+  // ============================
+  // Range compare (캐시 합산)
+  // ============================
+  function dateList(startStr, endStr){
+    const a = parseYMD(startStr);
+    const b = parseYMD(endStr);
+    const out = [];
+    let d = new Date(a);
+    let guard = 0;
+    const step = stepDays();
+    while(d <= b && guard < 600){
+      out.push(fmtYMD(d));
+      d = addDays(d, step);
+      guard++;
+    }
+    return out;
+  }
+
+  function sumKpis(list){
+    let sessions=0, orders=0, revenue=0, signups=0;
+    for(const it of list){
+      const k = (it && it.kpis) ? it.kpis : {};
+      sessions += Number(k.sessions||0);
+      orders   += Number(k.orders||0);
+      revenue  += Number(k.revenue||0);
+      signups  += Number(k.signups||0);
+    }
+    const cvr = sessions ? (orders/sessions) : 0;
+    return {sessions, orders, revenue, signups, cvr};
+  }
+
+  async function loadMany(list){
+    const out = [];
+    for(const ds of list){
+      try{
+        const j = await fetchJSON(buildCachePath(ds));
+        out.push(j);
+      }catch(e){
+        // 캐시 없으면 스킵
+      }
+    }
+    return out;
+  }
+
+  function makePrevRange(aStart, aEnd){
+    const s = parseYMD(aStart), e = parseYMD(aEnd);
+    const days = Math.round((e - s) / (1000*60*60*24)) + 1;
+    const bEnd = addDays(s, -1);
+    const bStart = addDays(bEnd, -(days-1));
+    return { bStart: fmtYMD(bStart), bEnd: fmtYMD(bEnd) };
   }
 
   // ============================
   // Events
   // ============================
-  modeDaily.addEventListener('click', () => setMode('daily'));
-  modeWeekly.addEventListener('click', () => setMode('weekly'));
+  modeDaily.addEventListener('click', ()=>setMode('daily'));
+  modeWeekly.addEventListener('click', ()=>setMode('weekly'));
 
-  btnApply.addEventListener('click', applySelection);
-
-  btnClearRange.addEventListener('click', () => {
-    rangeStart.value = '';
-    rangeEnd.value = '';
-    activeRangeStart = '';
-    activeRangeEnd = '';
-    applySelection();
+  btnReload.addEventListener('click', ()=>{
+    if(!currentA){
+      location.reload();
+      return;
+    }
+    const base = currentA.split('?')[0];
+    viewerA.src = base + `?embed=1&t=${Date.now()}`;
+    setStatus('Reloaded');
   });
 
-  btnYesterday.addEventListener('click', () => {
+  btnYesterday.addEventListener('click', ()=>{
     singleDate.value = fmtYMD(addDays(kstNowDate(), -1));
-    applySelection();
+    applySingle();
   });
 
-  btnToday.addEventListener('click', async () => {
-    const today = fmtYMD(kstNowDate());
-    // 오늘이 있으면 오늘, 없으면 전일
-    const ok = await exists(buildPath(today));
-    singleDate.value = ok ? today : fmtYMD(addDays(kstNowDate(), -1));
-    applySelection();
+  btnToday.addEventListener('click', async ()=>{
+    const t = fmtYMD(kstNowDate());
+    const ok = await exists(buildPath(t));
+    singleDate.value = ok ? t : fmtYMD(addDays(kstNowDate(), -1));
+    applySingle();
   });
 
-  btnPrev.addEventListener('click', async () => {
-    const cur = (singleDate.value || '').trim();
+  btnPrev.addEventListener('click', async ()=>{
+    const cur = (singleDate.value||'').trim();
     if(!cur) return;
     const cand = fmtYMD(addDays(parseYMD(cur), -stepDays()));
     if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
-
     const found = await findAvailable(cand, -stepDays());
     if(found){
       singleDate.value = found;
-      applySelection();
+      applySingle();
     }else{
       setStatus('이전 리포트 없음');
     }
   });
 
-  btnNext.addEventListener('click', async () => {
-    const cur = (singleDate.value || '').trim();
+  btnNext.addEventListener('click', async ()=>{
+    const cur = (singleDate.value||'').trim();
     if(!cur) return;
     const cand = fmtYMD(addDays(parseYMD(cur), +stepDays()));
     if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
-
     const found = await findAvailable(cand, +stepDays());
     if(found){
       singleDate.value = found;
-      applySelection();
+      applySingle();
     }else{
       setStatus('다음 리포트 없음');
     }
   });
 
-  // Compare
-  btnCompareToggle.addEventListener('click', () => {
-    setCompareUI(!COMPARE);
-    if(COMPARE && !(compareDate.value||'').trim()){
-      presetPrev();
-    }
-    applySelection();
+  btnApplyRange.addEventListener('click', ()=>{
+    activeRangeStart = (rangeStart.value||'').trim();
+    activeRangeEnd = (rangeEnd.value||'').trim();
+    applySingle();
   });
 
-  btnPresetPrev.addEventListener('click', async () => {
-    presetPrev();
-    await applySelection();
+  btnClearRange.addEventListener('click', ()=>{
+    rangeStart.value = '';
+    rangeEnd.value = '';
+    activeRangeStart = '';
+    activeRangeEnd = '';
+    applySingle();
   });
 
-  btnPresetYoY.addEventListener('click', async () => {
-    await presetYoYCacheFirst();
-    await applySelection();
+  btnPrevPreset.addEventListener('click', ()=>{
+    const a = (singleDate.value||'').trim();
+    if(!a) return;
+    compareDate.value = fmtYMD(addDays(parseYMD(a), -stepDays()));
+    setStatus(`전기준 preset: ${compareDate.value}`);
   });
 
-  btnCompareGo.addEventListener('click', async () => {
-    if(!COMPARE) setCompareUI(true);
-    await applySelection();
-  });
+  btnYoyPreset.addEventListener('click', presetYoY);
 
-  // Actions
-  btnOpenNew.addEventListener('click', () => {
-    if(!currentA) return;
-    if(COMPARE && currentB){
-      window.open(currentA, '_blank');
-      window.open(currentB, '_blank');
+  btnCompare.addEventListener('click', async ()=>{
+    const a = (singleDate.value||'').trim();
+    const b = (compareDate.value||'').trim();
+    if(!a || !b){
+      setStatus('A/B 날짜를 먼저 선택해줘');
       return;
     }
+    try{
+      // A는 리포트로 로드(유지)
+      await applySingle();
+      await runSingleCompare(a, b);
+      setStatus(`비교 완료: A=${a} vs B=${b}`);
+    }catch(e){
+      setStatus(`비교 실패(캐시 없음): ${e}`);
+    }
+  });
+
+  btnCloseCompare.addEventListener('click', ()=>{
+    comparePanel.classList.add('hidden');
+    btnCloseCompare.classList.add('hidden');
+  });
+
+  btnRangeCompare.addEventListener('click', async ()=>{
+    const as = (rangeStart.value||'').trim();
+    const ae = (rangeEnd.value||'').trim();
+    if(!as || !ae){
+      setStatus('Range start/end를 먼저 선택해줘');
+      return;
+    }
+    const {bStart, bEnd} = makePrevRange(as, ae);
+    document.getElementById('raTxt').textContent = `${MODE.toUpperCase()} A: ${as} ~ ${ae}`;
+    document.getElementById('rbTxt').textContent = `${MODE.toUpperCase()} B: ${bStart} ~ ${bEnd}`;
+
+    const aList = dateList(as, ae);
+    const bList = dateList(bStart, bEnd);
+    setStatus(`구간 캐시 합산 중... A ${aList.length} / B ${bList.length}`);
+
+    const [aJsons, bJsons] = await Promise.all([loadMany(aList), loadMany(bList)]);
+    paintCompare('r', sumKpis(aJsons), sumKpis(bJsons));
+    setStatus(`구간비교 완료: A(${aJsons.length} files) vs B(${bJsons.length} files)`);
+  });
+
+  btnOpenNew.addEventListener('click', ()=>{
+    if(!currentA) return;
     window.open(currentA, '_blank');
   });
 
-  btnCopy.addEventListener('click', async () => {
+  btnCopy.addEventListener('click', async ()=>{
     if(!currentA) return;
     const absA = new URL(currentA, window.location.href).href;
-    const absB = (COMPARE && currentB) ? new URL(currentB, window.location.href).href : '';
-    const payload = (COMPARE && absB) ? `A: ${absA}\nB: ${absB}` : absA;
-
     try{
-      await navigator.clipboard.writeText(payload);
+      await navigator.clipboard.writeText(absA);
       btnCopy.textContent = '복사됨 ✓';
-      setTimeout(() => btnCopy.textContent = '링크 복사', 900);
+      setTimeout(()=>btnCopy.textContent='링크 복사', 900);
     }catch(e){
-      prompt('Copy this link:', payload);
+      prompt('Copy this link:', absA);
     }
   });
 
-  btnReload.addEventListener('click', () => {
-    // 강제 리로드(캐시 무시)
-    if(!currentA) return;
-    const baseA = currentA.split('?')[0];
-    viewerA.src = baseA + `?embed=1&t=${Date.now()}`;
-    if(COMPARE && currentB){
-      const baseB = currentB.split('?')[0];
-      viewerB.src = baseB + `?embed=1&t=${Date.now()}`;
-    }
-    setStatus('Reloaded');
-  });
-
-  window.addEventListener('resize', () => {
+  window.addEventListener('resize', ()=>{
     resizeIframeToContent(viewerA);
-    if(COMPARE) resizeIframeToContent(viewerB);
-    setTimeout(() => {
-      resizeIframeToContent(viewerA);
-      if(COMPARE) resizeIframeToContent(viewerB);
-    }, 120);
+    setTimeout(()=>resizeIframeToContent(viewerA), 120);
   });
 
   // ============================
-  // init (✅ 무조건 전일 우선)
+  // init (기본 전일 + range 최근 21일)
   // ============================
   (function init(){
-    // 기본: 전일
-    const y = fmtYMD(addDays(kstNowDate(), -1));
-    singleDate.value = y;
+    const y = addDays(kstNowDate(), -1);
+    const yStr = fmtYMD(y);
 
-    // 기본 range: 최근 21일
-    const yDate = parseYMD(y);
-    rangeStart.value = fmtYMD(addDays(yDate, -20));
-    rangeEnd.value = y;
+    singleDate.value = yStr;
+    compareDate.value = fmtYMD(addDays(y, -1));
 
+    rangeEnd.value = yStr;
+    rangeStart.value = fmtYMD(addDays(y, -20));
     activeRangeStart = rangeStart.value;
     activeRangeEnd = rangeEnd.value;
 
-    // hash로 weekly 진입 지원 (#weekly)
+    // hash로 weekly 진입 (#weekly)
     const h = (location.hash || '').replace('#','').trim().toLowerCase();
     MODE = (h === 'weekly') ? 'weekly' : 'daily';
-
-    // compare 쿼리 지원: ?compare=1
-    const qs = new URLSearchParams(location.search);
-    const c = qs.get('compare');
-    if(c === '1' || c === 'true') setCompareUI(true);
-    else setCompareUI(false);
-
     setMode(MODE);
 
-    // compare ON이면 기본 B = 전기준
-    if(COMPARE){
-      presetPrev();
-    }
-
-    // ✅ 마지막에 한번 더 확정: 전일 로드 + 404 자동 대체 포함
-    singleDate.value = y;
-    applySelection();
+    // 마지막 확정 로드
+    applySingle();
   })();
 
 })();
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026.02.25 (FINAL viewer v3) -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 10:55 KST -->
+<!-- BUILD_STAMP: 2026.02.25 (FINAL HUB: single iframe + compare below + range compare + hide report header/tabs) -->
