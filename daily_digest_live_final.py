@@ -70,6 +70,7 @@ PROPERTY_ID = os.getenv("GA4_PROPERTY_ID", "").strip()
 LOGO_PATH = os.getenv("DAILY_DIGEST_LOGO_PATH", "pngwing.com.png")
 
 OUT_DIR = os.getenv("DAILY_DIGEST_OUT_DIR", os.path.join("reports", "daily_digest")).strip()
+DATA_DIR = os.getenv("DAILY_DIGEST_DATA_DIR", os.path.join(OUT_DIR, "data")).strip()
 DAYS_TO_BUILD = int(os.getenv("DAILY_DIGEST_BUILD_DAYS", "14"))
 
 IMAGE_XLS_PATH = os.getenv("DAILY_DIGEST_IMAGE_XLS_PATH", "상품코드별 이미지.xlsx").strip()
@@ -437,7 +438,8 @@ def spark_svg(
 def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
     if not xlsx_path:
         print("[WARN] Image Excel path is empty.")
-        return {}
+        return {
+        **summary_payload,}
 
     if not os.path.exists(xlsx_path):
         alt = os.path.join(os.path.dirname(os.path.abspath(__file__)), xlsx_path)
@@ -1213,8 +1215,8 @@ def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dic
 # =========================
 def bundle_path(mode: str, end_date: dt.date) -> str:
     if mode == "weekly":
-        return os.path.join(OUT_DIR, "data", "weekly", f"END_{ymd(end_date)}.json")
-    return os.path.join(OUT_DIR, "data", "daily", f"{ymd(end_date)}.json")
+        return os.path.join(DATA_DIR, "weekly", f"END_{ymd(end_date)}.json")
+    return os.path.join(DATA_DIR, "daily", f"{ymd(end_date)}.json")
 
 def to_records(df: pd.DataFrame) -> List[dict]:
     if df is None or df.empty:
@@ -1237,6 +1239,41 @@ def build_bundle(
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
 ) -> dict:
+    # ---- summary cache (for Hub range compare) ----
+    cur = overall.get("current", {}) or {}
+    sessions = float(cur.get("sessions", 0) or 0)
+    orders = float(cur.get("transactions", 0) or 0)
+    revenue = float(cur.get("purchaseRevenue", 0) or 0)
+    cvr = (orders / sessions) if sessions else 0.0
+
+    channels: Dict[str, Dict[str, float]] = {}
+    if channel_snapshot is not None and (not channel_snapshot.empty):
+        for r in channel_snapshot.itertuples(index=False):
+            b = str(getattr(r, "bucket", "") or "")
+            if not b:
+                continue
+            channels[b] = {
+                "sessions": float(getattr(r, "sessions", 0) or 0),
+                "orders": float(getattr(r, "transactions", 0) or 0),
+                "revenue": float(getattr(r, "purchaseRevenue", 0) or 0),
+            }
+
+    summary_payload = {
+        "mode": w.mode,
+        "end_date": ymd(w.end_date),
+        "period": {"start": ymd(w.cur_start), "end": ymd(w.cur_end)},
+        "compare": {"label": w.compare_label, "prev_start": ymd(w.prev_start), "prev_end": ymd(w.prev_end)},
+        "yoy": {"start": ymd(w.yoy_start), "end": ymd(w.yoy_end)},
+        "kpis": {
+            "sessions": sessions,
+            "orders": orders,
+            "revenue": revenue,
+            "cvr": cvr,
+            "signups": float(signup_users.get("current", 0.0) or 0.0),
+        },
+        "channels": channels,
+        "built_at_kst": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
+    }
     return {
         "meta": {
             "mode": w.mode,
@@ -1680,7 +1717,7 @@ def render_page_html(
       $("#cmpA").value = m.end_date || DEFAULT_A;
       // daily: yoy_end == yoy_start; weekly: yoy_end
       $("#cmpB").value = m.yoy_end || m.yoy_start || DEFAULT_B;
-    }}).catch(()=>{});
+    }}).catch(()=>{{}});
   }}
 
   function presetPrev() {{
@@ -1689,7 +1726,7 @@ def render_page_html(
       $("#cmpMode").value = m.mode || MODE;
       $("#cmpA").value = m.end_date || DEFAULT_A;
       $("#cmpB").value = m.prev_end || DEFAULT_B;
-    }}).catch(()=>{});
+    }}).catch(()=>{{}});
   }}
 
   function init() {{
@@ -2050,24 +2087,28 @@ def render_page_html(
 # =========================
 # Hub page
 # =========================
-def render_hub_index() -> str:
-    # ⚠️ IMPORTANT:
-    # Do NOT use f-string here. The JS/CSS includes many braces { } which break f-strings.
-    return """<!doctype html>
+def render_hub_index(dates: List[dt.date]) -> str:
+    # 최근 링크
+    daily_links = "\n".join([
+        f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/{ymd(d)}.html'>{ymd(d)}</a>"
+        for d in sorted(dates, reverse=True)[:40]
+    ])
+    weekly_links = "\n".join([
+        f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_{ymd(d)}.html'>END {ymd(d)}</a>"
+        for d in sorted(dates, reverse=True)[:40]
+    ])
+
+    HUB_TEMPLATE = """<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Daily Digest Hub</title>
-
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
-
     html, body{ height: 100%; overflow: auto; }
-
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
@@ -2111,11 +2152,7 @@ def render_hub_index() -> str:
       white-space: nowrap;
     }
     .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
-    .btn-primary{
-      background: #002d72;
-      border-color: #002d72;
-      color: white;
-    }
+    .btn-primary{ background: #002d72; border-color: #002d72; color: white; }
     .muted{ color:#64748b; }
     .small-label{
       font-size: 10px;
@@ -2139,7 +2176,6 @@ def render_hub_index() -> str:
       border-color: rgba(0,45,114,0.40);
       box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
     }
-
     .viewer-frame{
       width: 100%;
       height: 720px;
@@ -2147,21 +2183,6 @@ def render_hub_index() -> str:
       border-radius: 14px;
       background: transparent;
       overflow: hidden;
-    }
-
-    .topbar{
-      display:flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .topbar-left{
-      display:flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      min-width: 0;
     }
     .mini{
       font-size: 11px;
@@ -2171,14 +2192,54 @@ def render_hub_index() -> str:
       border: 1px solid rgba(148,163,184,0.22);
       border-radius: 999px;
       padding: 8px 12px;
-      max-width: 560px;
+      max-width: 680px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    @media (max-width: 768px){
-      .mini{ max-width: 100%; }
+    .kpi-box{
+      border: 1px solid rgba(148,163,184,0.25);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.62);
     }
+    .kpi-title{
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      color:#64748b;
+    }
+    .kpi-value{
+      font-size:18px;
+      font-weight:900;
+      color:#0f172a;
+    }
+    .kpi-delta{
+      font-size:11px;
+      font-weight:900;
+    }
+    .tbl{
+      width:100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .tbl th{
+      text-align:left;
+      font-size:10px;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      color:#94a3b8;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(148,163,184,0.22);
+    }
+    .tbl td{
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(148,163,184,0.14);
+      vertical-align: top;
+    }
+    .right{ text-align:right; }
+    .pos{ color:#2563eb; font-weight:900; }
+    .neg{ color:#c2410c; font-weight:900; }
   </style>
 </head>
 
@@ -2187,7 +2248,7 @@ def render_hub_index() -> str:
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
-        <div class="muted font-semibold mt-1">날짜/기간 선택은 Viewer 상단에서 · 기본은 어제 리포트(KST)</div>
+        <div class="muted font-semibold mt-1">✅ 구간비교/채널비교는 JSON 캐시 합산 (GA/BQ 쿼리 0원)</div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap justify-end">
@@ -2196,71 +2257,182 @@ def render_hub_index() -> str:
           <button id="modeDaily" class="chip active" type="button">Daily</button>
           <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
         </div>
-
-        <div class="flex items-center gap-2">
-          <button id="btnOpenNew" class="btn" type="button">새 탭</button>
-          <button id="btnCopy" class="btn" type="button">링크 복사</button>
-          <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
-        </div>
+        <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
       </div>
     </div>
 
     <div class="glass p-5">
-      <div class="topbar mb-4">
-        <div class="topbar-left">
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-wrap items-center gap-2">
           <span class="mini" id="statusText">-</span>
+          <span class="mini" id="pathText">-</span>
+        </div>
 
-          <div class="flex items-center gap-2">
-            <div class="small-label hidden md:block">Date</div>
-            <div class="w-[160px]">
-              <input id="singleDate" type="date" />
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="rounded-3xl border border-slate-200 bg-white/60 p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-black">기간 A</div>
+              <span class="small-label">A range</span>
             </div>
-            <button id="btnPrev" class="btn" type="button">◀</button>
-            <button id="btnNext" class="btn" type="button">▶</button>
-            <button id="btnYesterday" class="btn" type="button">어제</button>
-            <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
+            <div class="grid grid-cols-2 gap-2">
+              <input id="aStart" type="date" />
+              <input id="aEnd" type="date" />
+            </div>
+            <div class="mt-3 flex items-center gap-2 flex-wrap">
+              <button id="btnAView" class="btn" type="button">A 리포트 보기(End)</button>
+              <button id="btnAYoy" class="btn" type="button">A YoY 보기</button>
+            </div>
           </div>
 
-          <div class="flex items-center gap-2">
-            <div class="small-label hidden md:block">Range</div>
-            <div class="w-[160px]">
-              <input id="rangeStart" type="date" />
+          <div class="rounded-3xl border border-slate-200 bg-white/60 p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-black">기간 B</div>
+              <span class="small-label">B range</span>
             </div>
-            <div class="w-[160px]">
-              <input id="rangeEnd" type="date" />
+            <div class="grid grid-cols-2 gap-2">
+              <input id="bStart" type="date" />
+              <input id="bEnd" type="date" />
             </div>
-            <button id="btnApply" class="btn btn-primary" type="button">적용</button>
-            <button id="btnClearRange" class="btn" type="button">Range 해제</button>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <div class="small-label hidden md:block">Compare</div>
-            <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
-            <button id="btnPresetPrev" class="btn" type="button">전기준</button>
-            <button id="btnPresetYoY" class="btn" type="button">YoY</button>
-            <div class="w-[160px] hidden" id="compareDateWrap">
-              <input id="compareDate" type="date" />
+            <div class="mt-3 flex items-center gap-2 flex-wrap">
+              <button id="btnBView" class="btn" type="button">B 리포트 보기(End)</button>
+              <button id="btnBYoy" class="btn" type="button">B YoY 보기</button>
             </div>
-            <button id="btnCompareGo" class="btn btn-primary hidden" type="button">비교하기</button>
           </div>
         </div>
-      </div>
 
-      <div class="text-xs muted font-semibold mb-3" id="viewerPath">-</div>
+        <div class="rounded-3xl border border-slate-200 bg-white/60 p-4">
+          <div class="flex items-center justify-between">
+            <div class="font-black">구간 비교 요약</div>
+            <div class="flex items-center gap-2">
+              <button id="btnCompare" class="btn btn-primary" type="button">비교하기</button>
+              <button id="btnCopyLink" class="btn" type="button">상태 링크 복사</button>
+            </div>
+          </div>
 
-      <div id="viewerGrid" class="grid grid-cols-1 gap-4">
-        <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="no"></iframe>
-        <iframe id="viewerB" class="viewer-frame hidden" loading="eager" scrolling="no"></iframe>
-      </div>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div class="kpi-box p-3">
+              <div class="kpi-title">Sessions</div>
+              <div class="kpi-value" id="k_sess">-</div>
+              <div class="kpi-delta" id="k_sess_d">-</div>
+            </div>
+            <div class="kpi-box p-3">
+              <div class="kpi-title">Orders</div>
+              <div class="kpi-value" id="k_ord">-</div>
+              <div class="kpi-delta" id="k_ord_d">-</div>
+            </div>
+            <div class="kpi-box p-3">
+              <div class="kpi-title">Revenue</div>
+              <div class="kpi-value" id="k_rev">-</div>
+              <div class="kpi-delta" id="k_rev_d">-</div>
+            </div>
+            <div class="kpi-box p-3">
+              <div class="kpi-title">CVR</div>
+              <div class="kpi-value" id="k_cvr">-</div>
+              <div class="kpi-delta" id="k_cvr_d">-</div>
+            </div>
+            <div class="kpi-box p-3">
+              <div class="kpi-title">Sign-ups</div>
+              <div class="kpi-value" id="k_su">-</div>
+              <div class="kpi-delta" id="k_su_d">-</div>
+            </div>
+          </div>
 
-      <div class="mt-3 text-[11px] muted font-semibold text-right">
-        Auto · KST 기준 · embed 모드로 리포트 헤더 제거 · 존재 확인은 캐시(localStorage) 우선
+          <div class="mt-4">
+            <div class="font-black mb-2">채널별 구간 비교 (Revenue 중심)</div>
+            <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white/60">
+              <table class="tbl" id="chanTbl">
+                <thead>
+                  <tr>
+                    <th>Channel</th>
+                    <th class="right">A Revenue</th>
+                    <th class="right">B Revenue</th>
+                    <th class="right">A vs B</th>
+                    <th class="right">A Sessions</th>
+                    <th class="right">B Sessions</th>
+                    <th class="right">A Orders</th>
+                    <th class="right">B Orders</th>
+                  </tr>
+                </thead>
+                <tbody id="chanBody">
+                  <tr><td colspan="8" class="muted">비교하기를 누르면 표시됩니다.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="mt-3 text-xs muted font-semibold">
+            * 구간비교는 <b>reports/daily_digest/data/**</b> JSON 캐시 합산이라 “쿼리 비용 0원”입니다.
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs muted font-semibold mb-2" id="viewerAPath">A: -</div>
+            <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="no"></iframe>
+          </div>
+          <div>
+            <div class="text-xs muted font-semibold mb-2" id="viewerBPath">B: -</div>
+            <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="no"></iframe>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
+          <div class="glass rounded-3xl p-5">
+            <div class="text-lg font-black">Daily Reports (recent)</div>
+            <div class="mt-3 flex flex-wrap gap-2">__DAILY_LINKS__</div>
+          </div>
+          <div class="glass rounded-3xl p-5">
+            <div class="text-lg font-black">Weekly Reports (recent)</div>
+            <div class="mt-3 flex flex-wrap gap-2">__WEEKLY_LINKS__</div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
 
 <script>
 (function(){
+  const modeDaily = document.getElementById('modeDaily');
+  const modeWeekly = document.getElementById('modeWeekly');
+  const btnReload = document.getElementById('btnReload');
+  const btnCompare = document.getElementById('btnCompare');
+  const btnCopyLink = document.getElementById('btnCopyLink');
+
+  const aStart = document.getElementById('aStart');
+  const aEnd = document.getElementById('aEnd');
+  const bStart = document.getElementById('bStart');
+  const bEnd = document.getElementById('bEnd');
+
+  const btnAView = document.getElementById('btnAView');
+  const btnBView = document.getElementById('btnBView');
+  const btnAYoy = document.getElementById('btnAYoy');
+  const btnBYoy = document.getElementById('btnBYoy');
+
+  const viewerA = document.getElementById('viewerA');
+  const viewerB = document.getElementById('viewerB');
+  const viewerAPath = document.getElementById('viewerAPath');
+  const viewerBPath = document.getElementById('viewerBPath');
+
+  const statusText = document.getElementById('statusText');
+  const pathText = document.getElementById('pathText');
+
+  const k_sess = document.getElementById('k_sess');
+  const k_ord  = document.getElementById('k_ord');
+  const k_rev  = document.getElementById('k_rev');
+  const k_cvr  = document.getElementById('k_cvr');
+  const k_su   = document.getElementById('k_su');
+
+  const k_sess_d = document.getElementById('k_sess_d');
+  const k_ord_d  = document.getElementById('k_ord_d');
+  const k_rev_d  = document.getElementById('k_rev_d');
+  const k_cvr_d  = document.getElementById('k_cvr_d');
+  const k_su_d   = document.getElementById('k_su_d');
+
+  const chanBody = document.getElementById('chanBody');
+
+  let MODE = 'daily';
+
   function kstNowDate(){
     const now = new Date();
     const utc = now.getTime() + now.getTimezoneOffset()*60000;
@@ -2281,277 +2453,162 @@ def render_hub_index() -> str:
     x.setDate(x.getDate()+n);
     return x;
   }
-  function inRange(ds, startStr, endStr){
-    if(!startStr || !endStr) return true;
-    const d = parseYMD(ds).getTime();
-    const a = parseYMD(startStr).getTime();
-    const b = parseYMD(endStr).getTime();
-    return d >= a && d <= b;
-  }
-  function pickYoYSameWeekday(dateStr){
-    const base = parseYMD(dateStr);
-    const wd = base.getDay();
-    const candidates = [364,365,366].map(x => addDays(base, -x));
-    for(const c of candidates){
-      if(c.getDay() === wd) return fmtYMD(c);
-    }
-    return fmtYMD(addDays(base, -364));
-  }
+  function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
 
-  const modeDaily = document.getElementById('modeDaily');
-  const modeWeekly = document.getElementById('modeWeekly');
+  function setStatus(msg){ statusText.textContent = msg; }
 
-  const singleDate = document.getElementById('singleDate');
-  const rangeStart = document.getElementById('rangeStart');
-  const rangeEnd = document.getElementById('rangeEnd');
-
-  const btnApply = document.getElementById('btnApply');
-  const btnClearRange = document.getElementById('btnClearRange');
-  const btnYesterday = document.getElementById('btnYesterday');
-  const btnToday = document.getElementById('btnToday');
-  const btnPrev = document.getElementById('btnPrev');
-  const btnNext = document.getElementById('btnNext');
-
-  const btnCompareToggle = document.getElementById('btnCompareToggle');
-  const btnPresetPrev = document.getElementById('btnPresetPrev');
-  const btnPresetYoY = document.getElementById('btnPresetYoY');
-  const compareDateWrap = document.getElementById('compareDateWrap');
-  const compareDate = document.getElementById('compareDate');
-  const btnCompareGo = document.getElementById('btnCompareGo');
-
-  const viewerA = document.getElementById('viewerA');
-  const viewerB = document.getElementById('viewerB');
-  const viewerGrid = document.getElementById('viewerGrid');
-
-  const viewerPath = document.getElementById('viewerPath');
-  const statusText = document.getElementById('statusText');
-
-  const btnOpenNew = document.getElementById('btnOpenNew');
-  const btnCopy = document.getElementById('btnCopy');
-  const btnReload = document.getElementById('btnReload');
-
-  let MODE = 'daily';
-  let activeRangeStart = '';
-  let activeRangeEnd = '';
-  let currentA = '';
-  let currentB = '';
-  let COMPARE = false;
-
-  function buildPath(dateStr){
+  function buildReportPath(dateStr){
     const base = (MODE === 'daily') ? `daily/${dateStr}.html` : `weekly/END_${dateStr}.html`;
     return base + `?embed=1`;
   }
-
-  const LS_KEY = 'ddhub_exists_cache_v2';
-  const TTL_MS = 6 * 60 * 60 * 1000;
-  const memCache = new Map();
-
-  function loadLS(){
-    try{
-      const raw = localStorage.getItem(LS_KEY);
-      if(!raw) return {};
-      return JSON.parse(raw) || {};
-    }catch(e){ return {}; }
-  }
-  function saveLS(obj){
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }catch(e){}
-  }
-  function cacheGet(u){
-    if(memCache.has(u)) return memCache.get(u);
-    const db = loadLS();
-    const hit = db[u];
-    if(hit && (Date.now() - hit.ts) < TTL_MS){
-      memCache.set(u, hit.ok);
-      return hit.ok;
-    }
-    return null;
-  }
-  function cacheSet(u, ok){
-    memCache.set(u, ok);
-    const db = loadLS();
-    db[u] = { ok: !!ok, ts: Date.now() };
-    const keys = Object.keys(db);
-    if(keys.length > 600){
-      keys.sort((a,b)=> (db[a].ts||0) - (db[b].ts||0));
-      for(let i=0;i<keys.length-500;i++) delete db[keys[i]];
-    }
-    saveLS(db);
+  function buildCachePath(dateStr){
+    return (MODE === 'daily')
+      ? `data/daily/${dateStr}.json`
+      : `data/weekly/END_${dateStr}.json`;
   }
 
-  async function exists(url){
-    const base = url.split('?')[0];
-    const cached = cacheGet(base);
-    if(cached !== null) return cached;
-    try{
-      const res = await fetch(base + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
-      cacheSet(base, res.ok);
-      return res.ok;
-    }catch(e){
-      cacheSet(base, false);
-      return false;
-    }
+  async function fetchJSON(url){
+    const res = await fetch(url + `?t=${Date.now()}`, { cache:'no-store' });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
   }
 
-  function resizeIframeToContent(frame){
-    try{
-      const doc = frame.contentDocument || frame.contentWindow.document;
-      if(!doc) return;
-
-      doc.documentElement.style.overflow = 'hidden';
-      doc.body.style.overflow = 'hidden';
-      doc.body.style.margin = '0';
-
-      const h = Math.max(
-        doc.body.scrollHeight,
-        doc.documentElement.scrollHeight,
-        doc.body.offsetHeight,
-        doc.documentElement.offsetHeight
-      );
-      frame.style.height = (h + 12) + 'px';
-      frame.setAttribute('scrolling','no');
-    }catch(e){
-      frame.setAttribute('scrolling','auto');
-      frame.style.height = '720px';
-    }
-  }
-
-  viewerA.addEventListener('load', () => {
-    resizeIframeToContent(viewerA);
-    setTimeout(()=>resizeIframeToContent(viewerA), 250);
-    setTimeout(()=>resizeIframeToContent(viewerA), 900);
-  });
-  viewerB.addEventListener('load', () => {
-    resizeIframeToContent(viewerB);
-    setTimeout(()=>resizeIframeToContent(viewerB), 250);
-    setTimeout(()=>resizeIframeToContent(viewerB), 900);
-  });
-
-  function setStatus(msg){ statusText.textContent = msg; }
-  function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
-
-  function setCompareUI(on){
-    COMPARE = !!on;
-    btnCompareToggle.classList.toggle('active', COMPARE);
-    btnCompareToggle.textContent = COMPARE ? '비교 ON' : '비교 OFF';
-
-    compareDateWrap.classList.toggle('hidden', !COMPARE);
-    btnCompareGo.classList.toggle('hidden', !COMPARE);
-
-    viewerB.classList.toggle('hidden', !COMPARE);
-
-    if(COMPARE){
-      viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4';
-    }else{
-      viewerGrid.className = 'grid grid-cols-1 gap-4';
-    }
-  }
-
-  async function findAvailable(fromDateStr, direction){
-    let d = parseYMD(fromDateStr);
-    const start = activeRangeStart ? parseYMD(activeRangeStart) : null;
-    const end = activeRangeEnd ? parseYMD(activeRangeEnd) : null;
-
-    const step = direction || 1;
-
-    for(let stepCount=0; stepCount<120; stepCount++){
-      const ds = fmtYMD(d);
-      if(!start || !end || inRange(ds, activeRangeStart, activeRangeEnd)){
-        const ok = await exists(buildPath(ds));
-        if(ok) return ds;
-      }
-      d = addDays(d, step);
-      if(start && d < start && step < 0) break;
-      if(end && d > end && step > 0) break;
-    }
-    return null;
-  }
-
-  function setViewerSingle(dateStr){
-    const path = buildPath(dateStr);
-    currentA = path;
-    viewerA.src = path;
-
-    viewerPath.textContent = `${MODE.toUpperCase()} · A=${dateStr} · ${path.split('?')[0]}` +
-      (COMPARE ? ` · B=${compareDate.value || '-'} · ${buildPath(compareDate.value||'').split('?')[0]}` : '');
-
-    setStatus(
-      `Loaded A: ${dateStr}` +
-      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
-      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '') +
-      (COMPARE ? ` · Compare ON` : '')
-    );
-  }
-
-  function setViewerCompare(aDateStr, bDateStr){
-    const aPath = buildPath(aDateStr);
-    const bPath = buildPath(bDateStr);
-    currentA = aPath;
-    currentB = bPath;
-
-    viewerA.src = aPath;
-    viewerB.src = bPath;
-
-    viewerPath.textContent =
-      `${MODE.toUpperCase()} · A=${aDateStr} · ${aPath.split('?')[0]} · B=${bDateStr} · ${bPath.split('?')[0]}`;
-
-    setStatus(
-      `Loaded A: ${aDateStr} vs B: ${bDateStr}` +
-      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
-      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '')
-    );
-  }
-
-  async function applySelection(){
-    activeRangeStart = rangeStart.value || '';
-    activeRangeEnd = rangeEnd.value || '';
-
-    if(activeRangeStart && activeRangeEnd){
-      const a = parseYMD(activeRangeStart);
-      const b = parseYMD(activeRangeEnd);
-      if(a > b){
-        setStatus('Range 오류: start가 end보다 큼');
-        return;
-      }
-    }
-
-    let target = singleDate.value;
-    if(activeRangeStart && activeRangeEnd && !inRange(target, activeRangeStart, activeRangeEnd)){
-      target = activeRangeEnd;
-      singleDate.value = target;
-    }
-
-    const ok = await exists(buildPath(target));
-    if(ok){
-      if(!COMPARE){
-        setViewerSingle(target);
-      }else{
-        const b = compareDate.value || '';
-        if(b){
-          const okB = await exists(buildPath(b));
-          if(okB) setViewerCompare(target, b);
-          else setViewerCompare(target, target);
-        }else{
-          setViewerCompare(target, target);
-        }
-      }
-      return;
-    }
-
+  function dateList(startStr, endStr){
+    const a = parseYMD(startStr);
+    const b = parseYMD(endStr);
+    const out = [];
     const step = stepDays();
-    const next =
-      await findAvailable(target, -step) ||
-      await findAvailable(target, +step) ||
-      await findAvailable(target, -1) ||
-      await findAvailable(target, +1);
+    let d = new Date(a);
+    let guard = 0;
+    while(d <= b && guard < 500){
+      out.push(fmtYMD(d));
+      d = addDays(d, step);
+      guard++;
+    }
+    return out;
+  }
 
-    if(next){
-      singleDate.value = next;
-      if(!COMPARE) setViewerSingle(next);
-      else setViewerCompare(next, compareDate.value || next);
-    }else{
-      setStatus('해당 범위에 리포트 파일이 없습니다');
-      if(!COMPARE) setViewerSingle(target);
-      else setViewerCompare(target, compareDate.value || target);
+  function sumKpis(list){
+    let sessions=0, orders=0, revenue=0, signups=0;
+    for(const it of list){
+      const k = (it && it.kpis) ? it.kpis : {};
+      sessions += Number(k.sessions||0);
+      orders   += Number(k.orders||0);
+      revenue  += Number(k.revenue||0);
+      signups  += Number(k.signups||0);
+    }
+    const cvr = sessions ? (orders/sessions) : 0;
+    return {sessions, orders, revenue, signups, cvr};
+  }
+
+  function sumChannels(list){
+    // channels: {bucket: {sessions, orders, revenue}}
+    const agg = {};
+    for(const it of list){
+      const ch = (it && it.channels) ? it.channels : {};
+      for(const bucket in ch){
+        if(!agg[bucket]) agg[bucket] = {sessions:0, orders:0, revenue:0};
+        agg[bucket].sessions += Number(ch[bucket].sessions||0);
+        agg[bucket].orders   += Number(ch[bucket].orders||0);
+        agg[bucket].revenue  += Number(ch[bucket].revenue||0);
+      }
+    }
+    return agg;
+  }
+
+  function pctChange(cur, prev){
+    if(prev === 0) return (cur === 0) ? 0 : 1;
+    return (cur - prev) / prev;
+  }
+
+  function fmtInt(x){
+    try{ return Math.round(Number(x||0)).toLocaleString(); }catch(e){ return '-'; }
+  }
+  function fmtKRW(x){
+    try{ return '₩' + Math.round(Number(x||0)).toLocaleString(); }catch(e){ return '₩-'; }
+  }
+
+  function cls(v){ return (v>=0) ? 'pos' : 'neg'; }
+
+  function paintCompare(aAgg, bAgg){
+    k_sess.textContent = `${fmtInt(aAgg.sessions)}  vs  ${fmtInt(bAgg.sessions)}`;
+    k_ord.textContent  = `${fmtInt(aAgg.orders)}  vs  ${fmtInt(bAgg.orders)}`;
+    k_rev.textContent  = `${fmtKRW(aAgg.revenue)}  vs  ${fmtKRW(bAgg.revenue)}`;
+    k_cvr.textContent  = `${(aAgg.cvr*100).toFixed(2)}%  vs  ${(bAgg.cvr*100).toFixed(2)}%`;
+    k_su.textContent   = `${fmtInt(aAgg.signups)}  vs  ${fmtInt(bAgg.signups)}`;
+
+    const ds = pctChange(aAgg.sessions, bAgg.sessions);
+    const doo = pctChange(aAgg.orders, bAgg.orders);
+    const dr = pctChange(aAgg.revenue, bAgg.revenue);
+    const dc = (aAgg.cvr - bAgg.cvr);
+    const dsu = pctChange(aAgg.signups, bAgg.signups);
+
+    k_sess_d.className = `kpi-delta ${cls(ds)}`;  k_sess_d.textContent = `A vs B: ${(ds*100).toFixed(1)}%`;
+    k_ord_d.className  = `kpi-delta ${cls(doo)}`; k_ord_d.textContent  = `A vs B: ${(doo*100).toFixed(1)}%`;
+    k_rev_d.className  = `kpi-delta ${cls(dr)}`;  k_rev_d.textContent  = `A vs B: ${(dr*100).toFixed(1)}%`;
+    k_cvr_d.className  = `kpi-delta ${cls(dc)}`;  k_cvr_d.textContent  = `A vs B: ${(dc*100).toFixed(2)}%p`;
+    k_su_d.className   = `kpi-delta ${cls(dsu)}`; k_su_d.textContent   = `A vs B: ${(dsu*100).toFixed(1)}%`;
+  }
+
+  function paintChannelTable(aCh, bCh){
+    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Total"];
+    const rows = [];
+
+    function get(b, obj){
+      const v = obj[b] || {sessions:0, orders:0, revenue:0};
+      return v;
+    }
+
+    for(const b of buckets){
+      const A = get(b, aCh);
+      const B = get(b, bCh);
+      const delta = pctChange(A.revenue, B.revenue);
+
+      rows.push(`
+        <tr>
+          <td><b>${b}</b></td>
+          <td class="right">${fmtKRW(A.revenue)}</td>
+          <td class="right">${fmtKRW(B.revenue)}</td>
+          <td class="right ${cls(delta)}">${(delta*100).toFixed(1)}%</td>
+          <td class="right">${fmtInt(A.sessions)}</td>
+          <td class="right">${fmtInt(B.sessions)}</td>
+          <td class="right">${fmtInt(A.orders)}</td>
+          <td class="right">${fmtInt(B.orders)}</td>
+        </tr>
+      `);
+    }
+
+    chanBody.innerHTML = rows.join("");
+  }
+
+  function syncHash(){
+    const st = [
+      `mode=${MODE}`,
+      `a=${aStart.value},${aEnd.value}`,
+      `b=${bStart.value},${bEnd.value}`
+    ].join('&');
+    location.hash = st;
+  }
+  function loadHash(){
+    const h = (location.hash||'').replace('#','');
+    if(!h) return;
+    const parts = h.split('&').map(x=>x.trim()).filter(Boolean);
+    const kv = {};
+    for(const p of parts){
+      const [k,v] = p.split('=');
+      if(k && v) kv[k]=v;
+    }
+    if(kv.mode === 'weekly') setMode('weekly'); else setMode('daily');
+
+    if(kv.a){
+      const [s,e] = kv.a.split(',');
+      if(s) aStart.value = s;
+      if(e) aEnd.value = e;
+    }
+    if(kv.b){
+      const [s,e] = kv.b.split(',');
+      if(s) bStart.value = s;
+      if(e) bEnd.value = e;
     }
   }
 
@@ -2559,176 +2616,133 @@ def render_hub_index() -> str:
     MODE = next;
     modeDaily.classList.toggle('active', MODE==='daily');
     modeWeekly.classList.toggle('active', MODE==='weekly');
-    applySelection();
+    setStatus(`MODE=${MODE}`);
+    syncHash();
   }
 
-  function presetPrev(){
-    const a = singleDate.value;
-    if(!a) return;
-    const base = parseYMD(a);
-    const step = stepDays();
-    const b = fmtYMD(addDays(base, -step));
-    compareDate.value = b;
-    setCompareUI(true);
+  async function viewEnd(which){
+    const end = (which==='A') ? (aEnd.value||'') : (bEnd.value||'');
+    if(!end){ setStatus('End date가 비어있음'); return; }
+
+    const path = buildReportPath(end);
+    if(which==='A'){
+      viewerA.src = path;
+      viewerAPath.textContent = `A: ${MODE.toUpperCase()} · ${end} · ${path.split('?')[0]}`;
+    }else{
+      viewerB.src = path;
+      viewerBPath.textContent = `B: ${MODE.toUpperCase()} · ${end} · ${path.split('?')[0]}`;
+    }
+    pathText.textContent = `MODE=${MODE} | A=${aStart.value}~${aEnd.value} | B=${bStart.value}~${bEnd.value}`;
+    syncHash();
   }
-  function presetYoY(){
-    const a = singleDate.value;
-    if(!a) return;
-    const b = pickYoYSameWeekday(a);
-    compareDate.value = b;
-    setCompareUI(true);
+
+  async function viewYoy(which){
+    const end = (which==='A') ? (aEnd.value||'') : (bEnd.value||'');
+    if(!end){ setStatus('End date가 비어있음'); return; }
+    try{
+      const cache = await fetchJSON(buildCachePath(end));
+      const yoyEnd = cache && cache.yoy ? cache.yoy.end : null;
+      if(!yoyEnd){ setStatus('YoY 정보 없음(캐시 확인 필요)'); return; }
+      const path = buildReportPath(yoyEnd);
+      if(which==='A'){
+        viewerA.src = path;
+        viewerAPath.textContent = `A YoY: ${MODE.toUpperCase()} · ${yoyEnd} · ${path.split('?')[0]}`;
+      }else{
+        viewerB.src = path;
+        viewerBPath.textContent = `B YoY: ${MODE.toUpperCase()} · ${yoyEnd} · ${path.split('?')[0]}`;
+      }
+      setStatus(`Loaded YoY ${which}: ${yoyEnd}`);
+    }catch(e){
+      setStatus(`YoY 로드 실패: ${e}`);
+    }
+  }
+
+  async function doCompare(){
+    const as = aStart.value, ae = aEnd.value;
+    const bs = bStart.value, be = bEnd.value;
+    if(!as || !ae || !bs || !be){
+      setStatus('A/B 기간 start/end를 모두 선택해줘');
+      return;
+    }
+
+    const aList = dateList(as, ae);
+    const bList = dateList(bs, be);
+    setStatus(`캐시 읽는 중... A ${aList.length}개 / B ${bList.length}개`);
+
+    async function loadMany(list){
+      const out = [];
+      for(const ds of list){
+        try{
+          const j = await fetchJSON(buildCachePath(ds));
+          out.push(j);
+        }catch(e){
+          // 캐시 없으면 스킵(리포트 미생성 날짜)
+        }
+      }
+      return out;
+    }
+
+    const [aJsons, bJsons] = await Promise.all([loadMany(aList), loadMany(bList)]);
+    const aAgg = sumKpis(aJsons);
+    const bAgg = sumKpis(bJsons);
+    paintCompare(aAgg, bAgg);
+
+    const aCh = sumChannels(aJsons);
+    const bCh = sumChannels(bJsons);
+    paintChannelTable(aCh, bCh);
+
+    setStatus(`완료: A(${aJsons.length} files) vs B(${bJsons.length} files)`);
+    pathText.textContent = `MODE=${MODE} | A=${as}~${ae} | B=${bs}~${be}`;
+    syncHash();
+
+    await viewEnd('A');
+    await viewEnd('B');
   }
 
   modeDaily.addEventListener('click', () => setMode('daily'));
   modeWeekly.addEventListener('click', () => setMode('weekly'));
-  btnApply.addEventListener('click', applySelection);
+  btnReload.addEventListener('click', () => location.reload());
 
-  btnClearRange.addEventListener('click', () => {
-    rangeStart.value = '';
-    rangeEnd.value = '';
-    activeRangeStart = '';
-    activeRangeEnd = '';
-    applySelection();
-  });
+  btnCompare.addEventListener('click', doCompare);
+  btnAView.addEventListener('click', () => viewEnd('A'));
+  btnBView.addEventListener('click', () => viewEnd('B'));
+  btnAYoy.addEventListener('click', () => viewYoy('A'));
+  btnBYoy.addEventListener('click', () => viewYoy('B'));
 
-  btnYesterday.addEventListener('click', () => {
-    singleDate.value = fmtYMD(addDays(kstNowDate(), -1));
-    applySelection();
-  });
-
-  btnToday.addEventListener('click', async () => {
-    const today = fmtYMD(kstNowDate());
-    singleDate.value = today;
-    const ok = await exists(buildPath(today));
-    if(ok){ applySelection(); return; }
-    const y = fmtYMD(addDays(kstNowDate(), -1));
-    singleDate.value = y;
-    applySelection();
-  });
-
-  btnPrev.addEventListener('click', async () => {
-    const cur = singleDate.value;
-    const cand = fmtYMD(addDays(parseYMD(cur), -stepDays()));
-    if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
-    const found = await findAvailable(cand, -stepDays());
-    if(found){
-      singleDate.value = found;
-      if(!COMPARE) setViewerSingle(found);
-      else setViewerCompare(found, compareDate.value || found);
-    }else setStatus('이전 리포트 없음');
-  });
-
-  btnNext.addEventListener('click', async () => {
-    const cur = singleDate.value;
-    const cand = fmtYMD(addDays(parseYMD(cur), +stepDays()));
-    if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
-    const found = await findAvailable(cand, +stepDays());
-    if(found){
-      singleDate.value = found;
-      if(!COMPARE) setViewerSingle(found);
-      else setViewerCompare(found, compareDate.value || found);
-    }else setStatus('다음 리포트 없음');
-  });
-
-  btnCompareToggle.addEventListener('click', () => {
-    setCompareUI(!COMPARE);
-    if(COMPARE && !compareDate.value){
-      presetPrev();
-    }
-    applySelection();
-  });
-
-  btnPresetPrev.addEventListener('click', async () => {
-    presetPrev();
-    await applySelection();
-  });
-
-  btnPresetYoY.addEventListener('click', async () => {
-    presetYoY();
-    await applySelection();
-  });
-
-  btnCompareGo.addEventListener('click', async () => {
-    if(!COMPARE) setCompareUI(true);
-    await applySelection();
-  });
-
-  btnOpenNew.addEventListener('click', () => {
-    if(!currentA) return;
-    if(COMPARE && currentB){
-      window.open(currentA, '_blank');
-      window.open(currentB, '_blank');
-      return;
-    }
-    window.open(currentA, '_blank');
-  });
-
-  btnCopy.addEventListener('click', async () => {
-    if(!currentA) return;
-    const absA = new URL(currentA, window.location.href).href;
-    const absB = (COMPARE && currentB) ? new URL(currentB, window.location.href).href : '';
-    const payload = (COMPARE && absB) ? `A: ${absA}\nB: ${absB}` : absA;
-
+  btnCopyLink.addEventListener('click', async () => {
     try{
-      await navigator.clipboard.writeText(payload);
-      btnCopy.textContent = '복사됨 ✓';
-      setTimeout(() => btnCopy.textContent = '링크 복사', 900);
+      const abs = new URL(location.href, window.location.href).href;
+      await navigator.clipboard.writeText(abs);
+      btnCopyLink.textContent = '복사됨 ✓';
+      setTimeout(() => btnCopyLink.textContent = '상태 링크 복사', 900);
     }catch(e){
-      prompt('Copy this link:', payload);
+      prompt('Copy this link:', location.href);
     }
-  });
-
-  btnReload.addEventListener('click', () => {
-    if(!currentA) return;
-    const baseA = currentA.split('?')[0];
-    viewerA.src = baseA + `?embed=1&t=${Date.now()}`;
-    if(COMPARE && currentB){
-      const baseB = currentB.split('?')[0];
-      viewerB.src = baseB + `?embed=1&t=${Date.now()}`;
-    }
-    setStatus('Reloaded');
-  });
-
-  window.addEventListener('resize', () => {
-    resizeIframeToContent(viewerA);
-    if(COMPARE) resizeIframeToContent(viewerB);
-    setTimeout(() => {
-      resizeIframeToContent(viewerA);
-      if(COMPARE) resizeIframeToContent(viewerB);
-    }, 120);
   });
 
   (function init(){
+    // default: 최근 21일 vs 이전 21일
     const y = addDays(kstNowDate(), -1);
-    singleDate.value = fmtYMD(y);
+    const aE = fmtYMD(y);
+    const aS = fmtYMD(addDays(y, -20));
+    const bE = fmtYMD(addDays(y, -21));
+    const bS = fmtYMD(addDays(y, -41));
 
-    const start = addDays(y, -20);
-    rangeStart.value = fmtYMD(start);
-    rangeEnd.value = fmtYMD(y);
-    activeRangeStart = rangeStart.value;
-    activeRangeEnd = rangeEnd.value;
+    aStart.value = aS; aEnd.value = aE;
+    bStart.value = bS; bEnd.value = bE;
 
-    const h = (location.hash || '').replace('#','').trim().toLowerCase();
-    if(h === 'weekly') MODE = 'weekly';
-
-    const qs = new URLSearchParams(location.search);
-    const c = qs.get('compare');
-    if(c === '1' || c === 'true') setCompareUI(true);
-    else setCompareUI(false);
-
-    setMode(MODE);
-
-    if(COMPARE){
-      presetPrev();
-      applySelection();
-    }
+    loadHash();
+    setStatus('Ready');
+    pathText.textContent = `MODE=${MODE} | A=${aStart.value}~${aEnd.value} | B=${bStart.value}~${bEnd.value}`;
   })();
-
 })();
 </script>
 </body>
 </html>
 """
+    return HUB_TEMPLATE.replace("__DAILY_LINKS__", daily_links).replace("__WEEKLY_LINKS__", weekly_links)
+
+
 
 
 # =========================
@@ -2872,11 +2886,17 @@ def main():
     weekly_dir = os.path.join(OUT_DIR, "weekly")
     ensure_dir(daily_dir)
     ensure_dir(weekly_dir)
-    ensure_dir(os.path.join(OUT_DIR, "data", "daily"))
-    ensure_dir(os.path.join(OUT_DIR, "data", "weekly"))
+    ensure_dir(os.path.join(DATA_DIR, "daily"))
+    ensure_dir(os.path.join(DATA_DIR, "weekly"))
     ensure_dir(os.path.join(OUT_DIR, "cache", "pdp"))
-
+    # ✅ include YoY referenced dates (only what is needed)
+    yoy_dates: List[dt.date] = []
     for d in dates:
+        yoy_dates.append(build_window(end_date=d, mode="daily").yoy_end)
+        yoy_dates.append(build_window(end_date=d, mode="weekly").yoy_end)
+    all_dates = sorted(set(dates + yoy_dates))
+
+    for d in all_dates:
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
 
