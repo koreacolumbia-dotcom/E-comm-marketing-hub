@@ -610,7 +610,6 @@
     function renderSummary(metrics){
       document.getElementById("sizeMentionRate").textContent = metrics.sizeMentionRate;
 
-      // ✅ v5: meta에서 pos_top5 / neg_top5 제공 (형식: [k,c,rid])
       const neg = META?.neg_top5 || [];
       const pos = META?.pos_top5 || [];
       const posEx = META?.pos_examples || {};
@@ -693,7 +692,6 @@
       fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
     }
 
-    // ✅ v5: Product Mindmap = 문장형 (POS/NEG 각 2개)
     function renderProductMindmap(){
       const mm = META?.product_mindmap_1y || [];
       const root = document.getElementById("productMindmap");
