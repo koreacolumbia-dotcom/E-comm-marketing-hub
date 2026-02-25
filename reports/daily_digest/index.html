@@ -88,13 +88,44 @@
       box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
     }
 
+    /* ✅ iframe 내부 스크롤 제거용: 스크롤은 바깥(페이지)만 */
     .viewer-frame{
       width: 100%;
-      min-height: 820px;
       border: 0;
       border-radius: 18px;
       background: rgba(255,255,255,0.55);
-      overflow: auto;
+      overflow: hidden;     /* iframe 자체 overflow 숨김 */
+      display:block;
+      height: 980px;        /* 초기값(로드 후 JS로 실제 높이로 자동 조정) */
+    }
+
+    /* 알림 배너 */
+    .notice{
+      border: 1px solid rgba(148,163,184,0.25);
+      background: rgba(255,255,255,0.86);
+      border-radius: 18px;
+      padding: 10px 12px;
+      font-weight: 800;
+      font-size: 12px;
+      color:#0f172a;
+      display:none;
+      align-items:center;
+      gap:10px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.06);
+    }
+    .notice .dot{
+      width:10px; height:10px; border-radius:999px;
+      background: rgba(2,45,114,0.85);
+      flex: 0 0 auto;
+    }
+    .notice .x{
+      margin-left:auto;
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.85);
+      border-radius: 12px;
+      padding: 6px 10px;
+      font-weight: 900;
+      cursor:pointer;
     }
 
     /* 로딩 오버레이 */
@@ -161,8 +192,13 @@
       </div>
     </div>
 
+    <div id="notice" class="notice mb-4">
+      <div class="dot"></div>
+      <div id="noticeText">-</div>
+      <button id="noticeClose" class="x" type="button">닫기</button>
+    </div>
+
     <div class="glass p-5">
-      <!-- Row 1: DATE + COMPARE -->
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <div class="small-label">Date</div>
         <div class="w-[160px]"><input id="aDate" type="date" /></div>
@@ -179,7 +215,6 @@
         <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
       </div>
 
-      <!-- Row 2: RANGE -->
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <div class="small-label">Range A</div>
         <div class="w-[160px]"><input id="aStart" type="date" /></div>
@@ -196,18 +231,18 @@
       <div id="viewerGrid" class="grid grid-cols-1 gap-4">
         <div>
           <div class="text-xs muted font-semibold mb-2" id="viewerATitle">A: -</div>
-          <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
+          <!-- ✅ scrolling="no"로 내부 스크롤 금지 -->
+          <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="no"></iframe>
         </div>
 
         <div id="viewerBWrap" class="hidden">
           <div class="text-xs muted font-semibold mb-2" id="viewerBTitle">B: -</div>
-          <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
+          <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="no"></iframe>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Loading overlay -->
   <div id="loading" class="loading-backdrop">
     <div class="loading-card">
       <div class="spinner"></div>
@@ -217,12 +252,8 @@
 
 <script>
 (function(){
-  // ✅ 배포 구조: /reports/daily_digest/index.html 에서 열고
-  // ✅ 리포트: /reports/daily_digest/daily/2025-02-25.html
-  // => index.html 기준 상대경로로 daily/... 이므로 BASE=''
   const BASE = '';
 
-  // Utils
   function kstNowDate(){
     const now = new Date();
     const utc = now.getTime() + now.getTimezoneOffset()*60000;
@@ -244,7 +275,6 @@
     return x;
   }
 
-  // DOM
   const modeDaily = document.getElementById('modeDaily');
   const modeWeekly = document.getElementById('modeWeekly');
   const btnReload = document.getElementById('btnReload');
@@ -278,18 +308,22 @@
   const loading = document.getElementById('loading');
   const loadingText = document.getElementById('loadingText');
 
-  // State
+  const notice = document.getElementById('notice');
+  const noticeText = document.getElementById('noticeText');
+  const noticeClose = document.getElementById('noticeClose');
+
   let MODE = 'daily';
   let COMPARE = false;
 
+  // ✅ 로딩 동기화
+  let pendingLoads = 0;
+
   function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
 
-  // Paths
   function buildReportPath(dateStr){
     const base = (MODE === 'daily')
       ? `${BASE}daily/${dateStr}.html`
       : `${BASE}weekly/END_${dateStr}.html`;
-    // embed=1은 유지 (리포트가 이 파라미터를 쓰더라도 허브에서 숨김 처리)
     return base + `?embed=1`;
   }
   function buildCachePath(dateStr){
@@ -298,7 +332,16 @@
       : `${BASE}data/weekly/END_${dateStr}.json`;
   }
 
-  // Loading UX
+  function showNotice(msg){
+    noticeText.textContent = msg;
+    notice.style.display = 'flex';
+  }
+  function hideNotice(){
+    notice.style.display = 'none';
+    noticeText.textContent = '-';
+  }
+  noticeClose.addEventListener('click', hideNotice);
+
   const ACTION_BTNS = [btnReload, btnCompareGo, btnRangeGo];
   const MODE_BTNS = [modeDaily, modeWeekly, btnCompareToggle, btnPresetPrev, btnPresetYoY, btnPrev, btnNext, btnYesterday, btnToday, btnRangeClear];
 
@@ -314,9 +357,17 @@
       for(const b of MODE_BTNS){ b.disabled = false; }
     }
   }
+  function beginLoads(n, msg){
+    pendingLoads = Math.max(0, n|0);
+    setBusy(true, msg || '로딩 중…');
+  }
+  function endOneLoad(){
+    pendingLoads = Math.max(0, pendingLoads - 1);
+    if(pendingLoads === 0) setBusy(false);
+  }
 
-  // EXISTS (HEAD) cache
-  const LS_KEY = 'ddhub_exists_cache_v8';
+  // EXISTS cache
+  const LS_KEY = 'ddhub_exists_cache_v10';
   const TTL_MS = 6 * 60 * 60 * 1000;
   const memCache = new Map();
 
@@ -340,38 +391,46 @@
     }
     saveLS(db);
   }
+
+  // ✅ HEAD 막히는 환경 대비: HEAD 실패하면 GET 재시도
   async function exists(url){
     const base = url.split('?')[0];
     const cached = cacheGet(base);
     if(cached !== null) return cached;
+
+    const bust = `t=${Date.now()}`;
     try{
-      const res = await fetch(base + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
+      const res = await fetch(base + `?${bust}`, { method:'HEAD', cache:'no-store' });
       cacheSet(base, res.ok);
       return res.ok;
-    }catch(e){
-      cacheSet(base, false);
-      return false;
+    }catch(e1){
+      try{
+        const res2 = await fetch(base + `?${bust}`, { method:'GET', cache:'no-store' });
+        cacheSet(base, res2.ok);
+        return res2.ok;
+      }catch(e2){
+        cacheSet(base, false);
+        return false;
+      }
     }
   }
 
-  // ====== iframe 내부 UI 숨김 (안전 버전: Compare 카드만 정확히 숨김)
+  // ====== 리포트 UI 숨김 (네 기존 로직 유지)
   function scrubReportUI(doc){
     if(!doc) return;
 
-    // 안전 CSS (스크롤 유지)
     let style = doc.getElementById('hub_scrub_css');
     if(!style){
       style = doc.createElement('style');
       style.id = 'hub_scrub_css';
       style.type = 'text/css';
       style.textContent = `
-        html, body{ overflow:auto !important; }
+        html, body{ overflow:visible !important; } /* ✅ 내부 스크롤 자체를 없애는 방향 */
         body{ margin:0 !important; }
       `;
       doc.head.appendChild(style);
     }
 
-    // 1) 상단 "Daily Digest" 타이틀(텍스트 정확히 일치)만 숨김
     for(const n of Array.from(doc.querySelectorAll('h1,h2,div,span'))){
       const t = (n.textContent||'').trim();
       if(t === 'Daily Digest'){
@@ -380,7 +439,6 @@
       }
     }
 
-    // 2) Hub/Daily/Weekly 탭 묶음 숨김 (remove 금지)
     const tabBtns = Array.from(doc.querySelectorAll('button,a')).filter(el=>{
       const t = (el.textContent||'').trim();
       return t === 'Hub' || t === 'Daily' || t === 'Weekly';
@@ -405,8 +463,6 @@
       }
     }
 
-    // ✅ 3) Compare 카드 "자기 자신"만 숨김 (상위 조상으로 올라가며 숨기기 금지)
-    // 정확 시그니처: No extra GA/BQ cost + Preset + Compare 버튼
     const SIGN = 'No extra GA/BQ cost';
     const mustHave = ['Preset: DoD', 'Preset: YoY', 'Compare'];
 
@@ -416,11 +472,8 @@
       if(!txt) continue;
       if(!txt.includes(SIGN)) continue;
       if(!mustHave.every(s => txt.includes(s))) continue;
-
-      // 안전장치: 본문 섹션까지 잡는 걸 방지
       if(txt.includes('Top KPIs') || txt.includes('Channel Snapshot')) continue;
 
-      // 진짜 Compare 버튼이 포함된 카드인지 확인
       const hasCompareBtn = Array.from(el.querySelectorAll('button')).some(b => (b.textContent||'').trim() === 'Compare');
       if(!hasCompareBtn) continue;
 
@@ -430,20 +483,73 @@
     }
   }
 
+  // ✅ iframe 자동 높이 조정(내부 스크롤 제거의 핵심)
+  const frameObservers = new WeakMap();
+
+  function calcDocHeight(doc){
+    const de = doc.documentElement;
+    const b = doc.body;
+    const h = Math.max(
+      de ? de.scrollHeight : 0,
+      de ? de.offsetHeight : 0,
+      b ? b.scrollHeight : 0,
+      b ? b.offsetHeight : 0
+    );
+    return h;
+  }
+
+  function resizeFrameToContent(frame){
+    try{
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if(!doc) return;
+      const h = calcDocHeight(doc);
+
+      // 너무 작은/튀는 값 방지 (최소 820, 최대 20000)
+      const clamped = Math.max(820, Math.min(20000, h + 20));
+      frame.style.height = clamped + 'px';
+    }catch(e){
+      // cross-origin이면 접근 불가 → 이 경우는 내부 스크롤 제거가 원천적으로 불가
+    }
+  }
+
+  function attachAutoResize(frame){
+    try{
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if(!doc) return;
+
+      // 기존 옵저버 제거
+      const prev = frameObservers.get(frame);
+      if(prev){ try{ prev.disconnect(); }catch(e){} }
+
+      // 최초 1~2회 보정
+      resizeFrameToContent(frame);
+      setTimeout(()=>resizeFrameToContent(frame), 350);
+      setTimeout(()=>resizeFrameToContent(frame), 1200);
+
+      const obs = new MutationObserver(()=>{
+        // DOM 변동이 잦으면 너무 자주 계산될 수 있어서 rAF로 완충
+        requestAnimationFrame(()=>resizeFrameToContent(frame));
+      });
+      obs.observe(doc.documentElement || doc.body, { childList:true, subtree:true, attributes:true, characterData:true });
+      frameObservers.set(frame, obs);
+    }catch(e){}
+  }
+
   function onFrameLoad(frame){
     try{
       const doc = frame.contentDocument || frame.contentWindow.document;
       if(!doc) return;
       scrubReportUI(doc);
-      // 리포트가 로딩 후 DOM을 한번 더 업데이트하는 케이스 대응
       setTimeout(()=>scrubReportUI(doc), 1200);
+
+      // ✅ 내부 스크롤 없애기: 내용 높이에 맞춰 iframe 키우기
+      attachAutoResize(frame);
     }catch(e){}
   }
 
-  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setTimeout(()=>onFrameLoad(viewerA), 350); setBusy(false); });
-  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setTimeout(()=>onFrameLoad(viewerB), 350); setBusy(false); });
+  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); endOneLoad(); });
+  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); endOneLoad(); });
 
-  // Load A/B
   async function loadA(dateStr){
     viewerA.src = buildReportPath(dateStr);
     viewerATitle.textContent = `A: ${MODE.toUpperCase()} · ${dateStr}`;
@@ -453,7 +559,6 @@
     viewerBTitle.textContent = `B: ${MODE.toUpperCase()} · ${dateStr}`;
   }
 
-  // YoY preset: 캐시 yoy.end 우선
   async function yoyEndFor(dateStr){
     try{
       const res = await fetch(buildCachePath(dateStr) + `?t=${Date.now()}`, { cache:'no-store' });
@@ -467,7 +572,6 @@
     }
   }
 
-  // Layout
   function updateCompareLayout(){
     if(COMPARE){
       viewerBWrap.classList.remove('hidden');
@@ -485,65 +589,86 @@
     updateCompareLayout();
   }
 
-  // Apply A (존재 확인 + fallback)
   async function applyA(){
     const d = (aDate.value||'').trim();
     if(!d) return;
-    setBusy(true, 'A 리포트 로딩…');
+    hideNotice();
+
+    beginLoads(1, 'A 리포트 로딩…');
 
     let target = d;
     if(!(await exists(buildReportPath(target)))){
       const step = stepDays();
       const tries = [-step, +step, -1, +1];
+      let replaced = false;
+
       for(const delta of tries){
         const cand = fmtYMD(addDays(parseYMD(target), delta));
-        if(await exists(buildReportPath(cand))){ target=cand; break; }
+        if(await exists(buildReportPath(cand))){ target=cand; replaced=true; break; }
       }
       aDate.value = target;
+
+      if(replaced) showNotice(`A 리포트가 없어 가장 가까운 날짜(${target})로 대체했어.`);
+      else showNotice(`A 리포트를 찾지 못했어. (요청: ${d})`);
     }
+
     await loadA(target);
   }
 
-  // Compare: "비교하기" 누르면 B에 바로 리포트 로드
   async function doCompare(){
     const a = (aDate.value||'').trim();
     const b = (bDate.value||'').trim();
     if(!a || !b) return;
 
+    hideNotice();
     setCompare(true);
-    setBusy(true, 'A/B 리포트 로딩…');
+    beginLoads(2, 'A/B 리포트 로딩…');
 
-    await applyA();
-
-    let targetB = b;
-    if(!(await exists(buildReportPath(targetB)))){
-      // 없으면 A로 대체(404 방지)
-      targetB = aDate.value;
-      bDate.value = targetB;
+    // A 정규화
+    let aTarget = a;
+    if(!(await exists(buildReportPath(aTarget)))){
+      const step = stepDays();
+      const tries = [-step, +step, -1, +1];
+      for(const delta of tries){
+        const cand = fmtYMD(addDays(parseYMD(aTarget), delta));
+        if(await exists(buildReportPath(cand))){ aTarget=cand; break; }
+      }
+      aDate.value = aTarget;
+      showNotice(`A 리포트가 없어 가장 가까운 날짜(${aTarget})로 대체했어.`);
     }
-    await loadB(targetB);
+    await loadA(aTarget);
+
+    // B 정규화
+    let bTarget = b;
+    if(!(await exists(buildReportPath(bTarget)))){
+      bTarget = aTarget;
+      bDate.value = bTarget;
+      showNotice(`B 리포트 HTML이 없어 A(${aTarget})로 대체했어. (요청: ${b})`);
+    }
+    await loadB(bTarget);
   }
 
-  // Range Compare: A/B 각각 END 로드 (END 날짜만 반영)
   async function doRangeCompare(){
     const ae = (aEnd.value||'').trim();
     const be = (bEnd.value||'').trim();
     if(!ae || !be) return;
 
+    hideNotice();
     setCompare(true);
-    setBusy(true, '구간비교 로딩…');
+    beginLoads(2, '구간비교 로딩…');
 
     aDate.value = ae;
     bDate.value = be;
 
-    await applyA();
+    await loadA(ae);
 
-    let targetB = be;
-    if(!(await exists(buildReportPath(targetB)))){
-      targetB = ae;
-      bDate.value = targetB;
+    let bTarget = be;
+    if(!(await exists(buildReportPath(bTarget)))){
+      bTarget = ae;
+      bDate.value = bTarget;
+      showNotice(`Range B(END=${be}) 리포트 HTML이 없어 A END(${ae})로 대체했어.`);
     }
-    await loadB(targetB);
+    await loadB(bTarget);
   }
 
   function clearRange(){
@@ -551,22 +676,24 @@
     bStart.value = ''; bEnd.value = '';
   }
 
-  // Mode
   async function setMode(next){
     MODE = next;
     modeDaily.classList.toggle('active', MODE==='daily');
     modeWeekly.classList.toggle('active', MODE==='weekly');
-    setBusy(true, '모드 변경 중…');
-    await applyA();
-    if(COMPARE) await doCompare();
+    hideNotice();
+
+    if(COMPARE){
+      await doCompare();
+    }else{
+      await applyA();
+    }
   }
 
-  // Events
   modeDaily.addEventListener('click', ()=> setMode('daily'));
   modeWeekly.addEventListener('click', ()=> setMode('weekly'));
 
   btnReload.addEventListener('click', ()=>{
-    setBusy(true, '새로고침…');
+    beginLoads(1, '새로고침…');
     location.reload();
   });
 
@@ -579,13 +706,24 @@
     setCompare(true);
   });
 
+  // ✅ 요청 반영: YoY 누르면 "바로 비교 실행"
   btnPresetYoY.addEventListener('click', async ()=>{
     const a = aDate.value;
     if(!a) return;
-    setBusy(true, 'YoY 날짜 계산…');
-    bDate.value = await yoyEndFor(a);
+    hideNotice();
+
+    beginLoads(1, 'YoY 날짜 계산…');
+    const y = await yoyEndFor(a);
+
+    // 날짜 계산은 로딩 끝
+    pendingLoads = 0;
     setBusy(false);
+
+    bDate.value = y;
     setCompare(true);
+
+    // 바로 비교 실행
+    await doCompare();
   });
 
   btnCompareGo.addEventListener('click', doCompare);
@@ -603,13 +741,11 @@
   btnPrev.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays())); applyA(); });
   btnNext.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays())); applyA(); });
 
-  // Init
   (function init(){
     const y = addDays(kstNowDate(), -1);
     aDate.value = fmtYMD(y);
     bDate.value = fmtYMD(addDays(y, -1));
 
-    // default range: 최근21일 vs 이전21일
     const ae = fmtYMD(y);
     const as = fmtYMD(addDays(y, -20));
     const be = fmtYMD(addDays(y, -21));
@@ -619,13 +755,11 @@
     bStart.value = bs; bEnd.value = be;
 
     setCompare(false);
-    setMode('daily');
+    applyA();
   })();
 
 })();
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-25 HUB FIX (Compare card hide is safe & exact; prevents blank iframe; BASE fixed) -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 14:20 KST -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 14:34 KST -->
+<!-- BUILD_STAMP: 2026-02-25 HUB FIX v3 (YoY auto-compare + iframe auto-height to remove inner scroll) -->
