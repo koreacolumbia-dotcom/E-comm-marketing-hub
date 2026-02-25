@@ -49,7 +49,8 @@ KST = timezone(timedelta(hours=9))
 GALLERY_ID = "climbing"
 BASE_URL = "https://gall.dcinside.com"
 MAX_PAGES = 100
-TARGET_DAYS = 7  # 최근 N일(오늘 포함) 데이터 대상
+TARGET_DAYS = int(os.getenv('TARGET_DAYS', '7'))  # 최근 N일(오늘 포함) 데이터 대상
+DEBUG = os.getenv('DEBUG', '0').strip() in ('1','true','TRUE','yes','Y')
 
 # ✅ 분석 대상 브랜드 (기존 10 + 추가 15 = 총 25)
 # - 네가 말했던 15개를 여기 넣으면 됨. (지금은 “아웃도어 TOP” 기준으로 기본값 채워둠)
@@ -110,11 +111,17 @@ def crawl_dc_engine(days: int):
 
         url = f"{BASE_URL}/board/lists/?id={GALLERY_ID}&page={page}"
         try:
-            resp = SESSION.get(url, timeout=10)
-        except Exception:
+            resp = SESSION.get(url, timeout=10, verify=False)
+            if DEBUG:
+                print(f"[DEBUG] GET {url} -> {resp.status_code}")
+        except Exception as e:
+            if DEBUG:
+                print(f"[DEBUG] request failed: {e}")
             break
 
         if resp.status_code != 200:
+            if DEBUG:
+                print(f"[DEBUG] non-200 status, stop at page {page}")
             break
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -342,7 +349,30 @@ def process_data(posts: List[Post]):
 # 4. HTML 생성 (reports/external_signal.html 고정)
 #   - Hot Keywords 제거 -> Summary로 대체
 # =================================================================
-def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/external_signal.html"):
+def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/external_signal.html")
+    # ✅ Hub summary.json export (for reports/index.html first screen)
+    try:
+        active_brands = [b for b in BRAND_LIST if len(brand_map.get(b, [])) > 0]
+        total_mentions = int(summary_df["total_mentions"].sum()) if summary_df is not None and (not summary_df.empty) and "total_mentions" in summary_df.columns else 0
+        payload = {
+            "updated_at": _now_kst_str(),
+            "gallery_id": GALLERY_ID,
+            "target_days": int(TARGET_DAYS),
+            "max_pages": int(MAX_PAGES),
+            "posts_collected": int(len(posts)),
+            "brands_active": int(len(active_brands)),
+            "total_mentions": total_mentions,
+            "top5": (summary_df.head(5).to_dict(orient="records") if summary_df is not None and not summary_df.empty else []),
+        }
+        # 디버그: 0건이면 원인 힌트
+        if len(posts) == 0:
+            payload["warning"] = "no_posts_collected"
+        if summary_df is None or summary_df.empty:
+            payload["warning"] = (payload.get("warning","") + "|no_brand_mentions").strip("|")
+        _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
+    except Exception as e:
+        print(f"[WARN] summary.json export failed: {e}")
+:
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
     active_brands = [b for b in BRAND_LIST if len(brand_map.get(b, [])) > 0]
@@ -427,11 +457,11 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
           최근 기간 내 브랜드 언급 데이터가 없습니다.
         </div>
         """
-        content_area_html = """
+        content_area_html = f"""
         <div class="glass-card p-10">
           <div class="text-slate-800 font-black text-xl mb-2">데이터 없음</div>
           <div class="text-slate-500 font-medium">
-            최근 수집 기간(TARGET_DAYS) 동안 해당 브랜드 키워드가 포함된 문장이 발견되지 않았습니다.<br/>
+            최근 수집 기간({TARGET_DAYS}) 동안 해당 브랜드 키워드가 포함된 문장이 발견되지 않았습니다.<br/>
             갤러리/기간/브랜드 리스트를 조정해보세요.
           </div>
         </div>
