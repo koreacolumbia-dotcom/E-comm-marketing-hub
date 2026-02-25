@@ -73,6 +73,10 @@
       outline: none;
       width: 100%;
     }
+    input[type="date"]:focus{
+      border-color: rgba(0,45,114,0.40);
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
+    }
     .mini{
       font-size: 11px;
       font-weight: 900;
@@ -81,29 +85,19 @@
       border: 1px solid rgba(148,163,184,0.22);
       border-radius: 999px;
       padding: 8px 12px;
-      max-width: 920px;
+      max-width: 980px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .viewer-frame{
       width: 100%;
-      height: 820px;
+      min-height: 820px;
       border: 0;
       border-radius: 18px;
       background: rgba(255,255,255,0.55);
       overflow: auto;
     }
-    .kpi-box{
-      border: 1px solid rgba(148,163,184,0.25);
-      border-radius: 18px;
-      background: rgba(255,255,255,0.62);
-    }
-    .kpi-title{ font-size:11px; font-weight:900; letter-spacing:.18em; text-transform:uppercase; color:#64748b; }
-    .kpi-value{ font-size:18px; font-weight:900; color:#0f172a; }
-    .kpi-delta{ font-size:11px; font-weight:900; }
-    .pos{ color:#2563eb; font-weight:900; }
-    .neg{ color:#c2410c; font-weight:900; }
   </style>
 </head>
 
@@ -112,7 +106,7 @@
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
-        <div class="muted font-semibold mt-1">기본: 어제(KST) · 비교 ON이면 A/B 리포트가 각각 보임 · 구간비교는 캐시(JSON) 합산</div>
+        <div class="muted font-semibold mt-1">✅ 비교하기 = B에 선택 날짜 리포트 바로 로드 · ✅ 구간비교 = A/B END 리포트 각각 로드</div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap justify-end">
@@ -132,9 +126,10 @@
           <span class="mini" id="pathText">-</span>
         </div>
 
+        <!-- Date (A) + Compare Date (B) -->
         <div class="flex flex-wrap items-center gap-2">
-          <div class="small-label">Date</div>
-          <div class="w-[160px]"><input id="singleDate" type="date" /></div>
+          <div class="small-label">A Date</div>
+          <div class="w-[160px]"><input id="aDate" type="date" /></div>
           <button id="btnPrev" class="btn" type="button">◀</button>
           <button id="btnNext" class="btn" type="button">▶</button>
           <button id="btnYesterday" class="btn" type="button">어제</button>
@@ -142,16 +137,24 @@
 
           <div class="ml-2 small-label">Compare</div>
           <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
-          <button id="btnPrevPreset" class="btn" type="button">전기준</button>
-          <button id="btnYoyPreset" class="btn" type="button">YoY</button>
-          <div class="w-[160px]"><input id="compareDate" type="date" /></div>
-          <button id="btnCompare" class="btn btn-primary" type="button">비교하기</button>
+          <button id="btnPresetPrev" class="btn" type="button">전기준</button>
+          <button id="btnPresetYoY" class="btn" type="button">YoY</button>
+          <div class="w-[160px]"><input id="bDate" type="date" /></div>
+          <button id="btnCompareGo" class="btn btn-primary" type="button">비교하기</button>
+        </div>
 
-          <div class="ml-2 small-label">Range</div>
-          <div class="w-[160px]"><input id="rangeStart" type="date" /></div>
-          <div class="w-[160px]"><input id="rangeEnd" type="date" /></div>
-          <button id="btnRangeCompare" class="btn btn-primary" type="button">구간비교</button>
-          <button id="btnClearRange" class="btn" type="button">Range 해제</button>
+        <!-- Range A / Range B -->
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="small-label">A Range</div>
+          <div class="w-[160px]"><input id="aStart" type="date" /></div>
+          <div class="w-[160px]"><input id="aEnd" type="date" /></div>
+
+          <div class="ml-2 small-label">B Range</div>
+          <div class="w-[160px]"><input id="bStart" type="date" /></div>
+          <div class="w-[160px]"><input id="bEnd" type="date" /></div>
+
+          <button id="btnRangeGo" class="btn btn-primary" type="button">구간비교</button>
+          <button id="btnRangeClear" class="btn" type="button">Range 해제</button>
         </div>
       </div>
 
@@ -166,40 +169,18 @@
           <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
         </div>
       </div>
-
-      <!-- Range Compare Result -->
-      <div class="mt-6 rounded-3xl border border-slate-200 bg-white/60 p-5">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-          <div>
-            <div class="font-black text-lg">구간 비교 결과 (캐시 JSON 합산)</div>
-            <div class="text-xs muted font-semibold" id="rangeDesc">-</div>
-          </div>
-          <div class="text-xs muted font-semibold">* 캐시 없으면 0 files로 나옴</div>
-        </div>
-
-        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-          <div class="kpi-box p-3"><div class="kpi-title">Sessions</div><div class="kpi-value" id="r_sess">-</div><div class="kpi-delta" id="r_sess_d">-</div></div>
-          <div class="kpi-box p-3"><div class="kpi-title">Orders</div><div class="kpi-value" id="r_ord">-</div><div class="kpi-delta" id="r_ord_d">-</div></div>
-          <div class="kpi-box p-3"><div class="kpi-title">Revenue</div><div class="kpi-value" id="r_rev">-</div><div class="kpi-delta" id="r_rev_d">-</div></div>
-          <div class="kpi-box p-3"><div class="kpi-title">CVR</div><div class="kpi-value" id="r_cvr">-</div><div class="kpi-delta" id="r_cvr_d">-</div></div>
-          <div class="kpi-box p-3"><div class="kpi-title">Sign-ups</div><div class="kpi-value" id="r_su">-</div><div class="kpi-delta" id="r_su_d">-</div></div>
-        </div>
-      </div>
-
     </div>
   </div>
 
 <script>
 (function(){
   // ============================
-  // BASE path 자동 감지 (404 방지)
+  // BASE (루트/하위 경로 모두 대응)
   // ============================
   const BASE = (function(){
     const p = location.pathname || '';
-    // 1) /reports/daily_digest/index.html 에서 열면 BASE=""
-    if(p.includes('/reports/daily_digest/')) return '';
-    // 2) 루트 index.html 에서 열면 BASE="reports/daily_digest/"
-    return 'reports/daily_digest/';
+    if(p.includes('/reports/daily_digest/')) return '';           // /reports/daily_digest/index.html
+    return 'reports/daily_digest/';                              // /index.html
   })();
 
   // ============================
@@ -225,14 +206,20 @@
     x.setDate(x.getDate()+n);
     return x;
   }
-  function pctChange(cur, prev){
-    cur = Number(cur||0); prev = Number(prev||0);
-    if(prev === 0) return (cur === 0) ? 0 : 1;
-    return (cur - prev) / prev;
+
+  // YoY: 캐시의 yoy.end 우선, 없으면 -364
+  async function yoyEndFor(dateStr, buildCachePath){
+    try{
+      const res = await fetch(buildCachePath(dateStr) + `?t=${Date.now()}`, { cache:'no-store' });
+      if(!res.ok) throw new Error('no cache');
+      const j = await res.json();
+      const y = j && j.yoy && j.yoy.end ? String(j.yoy.end) : '';
+      if(!y) throw new Error('no yoy.end');
+      return y;
+    }catch(e){
+      return fmtYMD(addDays(parseYMD(dateStr), -364));
+    }
   }
-  function fmtInt(x){ try{return Math.round(Number(x||0)).toLocaleString();}catch(e){return '-'} }
-  function fmtKRW(x){ try{return '₩' + Math.round(Number(x||0)).toLocaleString();}catch(e){return '₩-'} }
-  function cls(v){ return (v>=0) ? 'pos' : 'neg'; }
 
   // ============================
   // DOM
@@ -241,10 +228,8 @@
   const modeWeekly = document.getElementById('modeWeekly');
   const btnReload = document.getElementById('btnReload');
 
-  const singleDate = document.getElementById('singleDate');
-  const compareDate = document.getElementById('compareDate');
-  const rangeStart = document.getElementById('rangeStart');
-  const rangeEnd = document.getElementById('rangeEnd');
+  const aDate = document.getElementById('aDate');
+  const bDate = document.getElementById('bDate');
 
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
@@ -252,38 +237,27 @@
   const btnToday = document.getElementById('btnToday');
 
   const btnCompareToggle = document.getElementById('btnCompareToggle');
-  const btnPrevPreset = document.getElementById('btnPrevPreset');
-  const btnYoyPreset = document.getElementById('btnYoyPreset');
-  const btnCompare = document.getElementById('btnCompare');
+  const btnPresetPrev = document.getElementById('btnPresetPrev');
+  const btnPresetYoY = document.getElementById('btnPresetYoY');
+  const btnCompareGo = document.getElementById('btnCompareGo');
 
-  const btnRangeCompare = document.getElementById('btnRangeCompare');
-  const btnClearRange = document.getElementById('btnClearRange');
+  const aStart = document.getElementById('aStart');
+  const aEnd = document.getElementById('aEnd');
+  const bStart = document.getElementById('bStart');
+  const bEnd = document.getElementById('bEnd');
+  const btnRangeGo = document.getElementById('btnRangeGo');
+  const btnRangeClear = document.getElementById('btnRangeClear');
 
-  const viewerGrid = document.getElementById('viewerGrid');
   const viewerA = document.getElementById('viewerA');
   const viewerB = document.getElementById('viewerB');
   const viewerBWrap = document.getElementById('viewerBWrap');
+  const viewerGrid = document.getElementById('viewerGrid');
 
   const viewerATitle = document.getElementById('viewerATitle');
   const viewerBTitle = document.getElementById('viewerBTitle');
 
   const statusText = document.getElementById('statusText');
   const pathText = document.getElementById('pathText');
-
-  const rangeDesc = document.getElementById('rangeDesc');
-
-  // Range result nodes
-  const r_sess = document.getElementById('r_sess');
-  const r_ord  = document.getElementById('r_ord');
-  const r_rev  = document.getElementById('r_rev');
-  const r_cvr  = document.getElementById('r_cvr');
-  const r_su   = document.getElementById('r_su');
-
-  const r_sess_d = document.getElementById('r_sess_d');
-  const r_ord_d  = document.getElementById('r_ord_d');
-  const r_rev_d  = document.getElementById('r_rev_d');
-  const r_cvr_d  = document.getElementById('r_cvr_d');
-  const r_su_d   = document.getElementById('r_su_d');
 
   function setStatus(msg){ statusText.textContent = msg; }
 
@@ -311,9 +285,9 @@
   }
 
   // ============================
-  // EXISTS cache (HEAD)
+  // EXISTS (HEAD) cache
   // ============================
-  const LS_KEY = 'ddhub_exists_cache_v5';
+  const LS_KEY = 'ddhub_exists_cache_v6';
   const TTL_MS = 6 * 60 * 60 * 1000;
   const memCache = new Map();
 
@@ -337,7 +311,6 @@
     }
     saveLS(db);
   }
-
   async function exists(url){
     const base = url.split('?')[0];
     const cached = cacheGet(base);
@@ -353,62 +326,84 @@
   }
 
   // ============================
-  // iframe 안 “Daily Digest/탭/상단헤더” 제거 (CSS 주입 방식 = 가장 확실)
+  // iframe 내부 UI 숨김 (Daily Digest / Hub탭 / Compare 패널 전부 제거)
   // ============================
-  function injectHideCSS(frame){
+  function scrubReportUI(doc){
+    if(!doc) return;
+
+    // 1) 상단 헤더(타이틀 영역) 강제 숨김/제거
+    const headerCandidates = [
+      'div.text-2xl',
+      'div.text-3xl',
+      'div.font-black',
+    ];
+    for(const sel of headerCandidates){
+      const nodes = Array.from(doc.querySelectorAll(sel));
+      for(const n of nodes){
+        const t = (n.textContent||'').trim();
+        if(t === 'Daily Digest'){
+          n.remove();
+        }
+      }
+    }
+
+    // 2) Hub/Daily/Weekly 탭 제거 (텍스트 기반)
+    const btns = Array.from(doc.querySelectorAll('button, a'));
+    const hits = btns.filter(b=>{
+      const t=(b.textContent||'').trim();
+      return t==='Hub' || t==='Daily' || t==='Weekly';
+    });
+    for(const h of hits){
+      let p=h.parentElement;
+      for(let i=0;i<5 && p;i++){
+        const pt=(p.textContent||'').replace(/\s+/g,' ').trim();
+        if(pt.includes('Hub') && pt.includes('Daily') && pt.includes('Weekly')){
+          p.remove(); break;
+        }
+        p=p.parentElement;
+      }
+    }
+
+    // 3) 리포트 안 Compare 카드/프리셋/Compare 버튼 제거
+    // - "Compare", "Preset: DoD", "Preset: YoY", "No extra GA/BQ cost" 등 텍스트를 가진 큰 카드 제거
+    const blocks = Array.from(doc.querySelectorAll('div, section, article'));
+    for(const b of blocks){
+      const t = (b.textContent||'').replace(/\s+/g,' ').trim();
+      if(!t) continue;
+
+      const looksLikeCompare =
+        t.includes('No extra GA/BQ cost') ||
+        t.includes('Preset: DoD') ||
+        t.includes('Preset: YoY') ||
+        (t.startsWith('Compare ') && t.includes('Preset'));
+
+      if(looksLikeCompare){
+        // 너무 상위(전체 페이지)를 잡지 않도록, "Compare" 버튼이 포함된 카드 정도만 제거
+        const btn = b.querySelector && b.querySelector('button');
+        if(btn) b.remove();
+      }
+    }
+  }
+
+  function injectAndScrub(frame){
     try{
       const doc = frame.contentDocument || frame.contentWindow.document;
       if(!doc) return;
 
-      const css = `
-/* --- hide report header area --- */
-body > div.px-3.sm\\:px-6.py-6.max-w-\\[1200px\\].mx-auto > div.mb-4 { display:none !important; }
-/* fallback: "Daily Digest" title row */
-div.text-2xl.sm\\:text-3xl.font-black.tracking-tight { display:none !important; }
-div.text-sm.text-slate-500, div.text-xs.text-slate-400 { display:none !important; }
-
-/* hide hub tabs inside report (Hub/Daily/Weekly) */
-button, a { }
-*:has(> button):has(:contains("Hub")) { } /* (지원 안 될 수 있어, 아래 JS 제거로 보완) */
-`;
-
-      let style = doc.getElementById('hub_hide_css');
+      // CSS도 같이 주입(레이아웃 흔들림 최소화)
+      let style = doc.getElementById('hub_scrub_css');
       if(!style){
         style = doc.createElement('style');
-        style.id = 'hub_hide_css';
+        style.id = 'hub_scrub_css';
         style.type = 'text/css';
-        style.appendChild(doc.createTextNode(css));
+        style.textContent = `
+          html, body{ overflow:auto !important; }
+          body{ margin:0 !important; }
+        `;
         doc.head.appendChild(style);
       }
-
-      // CSS로 못 잡는 경우를 위해 “텍스트 기반”으로 추가 제거
-      // 1) Daily Digest 글자 가진 큰 제목 div 제거
-      const nodes = Array.from(doc.querySelectorAll('div'));
-      for(const n of nodes){
-        const t = (n.textContent||'').trim();
-        if(t === 'Daily Digest' && (n.className||'').includes('text-2xl')){
-          n.remove();
-        }
-      }
-      // 2) Hub/Daily/Weekly 탭 묶음 제거
-      const btns = Array.from(doc.querySelectorAll('button, a'));
-      const hits = btns.filter(b=>{
-        const t=(b.textContent||'').trim();
-        return t==='Hub' || t==='Daily' || t==='Weekly';
-      });
-      for(const h of hits){
-        let p=h.parentElement;
-        for(let i=0;i<4 && p;i++){
-          const pt=(p.textContent||'').replace(/\s+/g,' ').trim();
-          if(pt.includes('Hub') && pt.includes('Daily') && pt.includes('Weekly')){
-            p.remove(); break;
-          }
-          p=p.parentElement;
-        }
-      }
-    }catch(e){
-      // same-origin 아니면 접근 불가
-    }
+      scrubReportUI(doc);
+    }catch(e){}
   }
 
   function resizeIframe(frame){
@@ -427,20 +422,18 @@ button, a { }
     }
   }
 
-  viewerA.addEventListener('load', ()=>{ injectHideCSS(viewerA); resizeIframe(viewerA); setTimeout(()=>{injectHideCSS(viewerA); resizeIframe(viewerA);}, 400); });
-  viewerB.addEventListener('load', ()=>{ injectHideCSS(viewerB); resizeIframe(viewerB); setTimeout(()=>{injectHideCSS(viewerB); resizeIframe(viewerB);}, 400); });
+  viewerA.addEventListener('load', ()=>{ injectAndScrub(viewerA); resizeIframe(viewerA); setTimeout(()=>{injectAndScrub(viewerA); resizeIframe(viewerA);}, 450); });
+  viewerB.addEventListener('load', ()=>{ injectAndScrub(viewerB); resizeIframe(viewerB); setTimeout(()=>{injectAndScrub(viewerB); resizeIframe(viewerB);}, 450); });
 
   // ============================
-  // Load report
+  // Load A / B
   // ============================
   async function loadA(dateStr){
     const p = buildReportPath(dateStr);
     viewerA.src = p;
     viewerATitle.textContent = `A: ${MODE.toUpperCase()} · ${dateStr}`;
-    pathText.textContent = `A=${p.split('?')[0]}` + (COMPARE ? ` | B=${(buildReportPath(compareDate.value||'')||'').split('?')[0]}` : '');
     setStatus(`Loaded A: ${dateStr}`);
   }
-
   async function loadB(dateStr){
     const p = buildReportPath(dateStr);
     viewerB.src = p;
@@ -448,36 +441,28 @@ button, a { }
     setStatus(`Loaded B: ${dateStr}`);
   }
 
-  async function applyDate(){
-    const d = (singleDate.value||'').trim();
+  async function applyA(){
+    const d = (aDate.value||'').trim();
     if(!d) return;
 
-    // A exists check + fallback
     let target = d;
-    let ok = await exists(buildReportPath(target));
-    if(!ok){
+    if(!(await exists(buildReportPath(target)))){
+      // 가까운 날짜 fallback
       const step = stepDays();
-      // 가까운 날짜 찾기
-      for(const delta of [-step, +step, -1, +1]){
+      const tries = [-step, +step, -1, +1];
+      for(const delta of tries){
         const cand = fmtYMD(addDays(parseYMD(target), delta));
-        if(await exists(buildReportPath(cand))){ target=cand; ok=true; break; }
+        if(await exists(buildReportPath(cand))){ target=cand; break; }
       }
-      singleDate.value = target;
+      aDate.value = target;
     }
 
     await loadA(target);
+    updatePathText();
+  }
 
+  function updateCompareLayout(){
     if(COMPARE){
-      const b = (compareDate.value||target).trim();
-      let b2 = b;
-      let okB = await exists(buildReportPath(b2));
-      if(!okB){
-        // B도 fallback: 없으면 A와 동일
-        b2 = target;
-        compareDate.value = b2;
-      }
-      await loadB(b2);
-
       viewerBWrap.classList.remove('hidden');
       viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4';
     }else{
@@ -486,196 +471,177 @@ button, a { }
     }
   }
 
+  function updatePathText(){
+    const A = aDate.value || '-';
+    const B = (COMPARE ? (bDate.value||'-') : '-');
+    const aPath = A==='-' ? '-' : buildReportPath(A).split('?')[0];
+    const bPath = (COMPARE && B!=='-') ? buildReportPath(B).split('?')[0] : '-';
+    pathText.textContent = `MODE=${MODE} | A=${A} (${aPath})` + (COMPARE ? ` | B=${B} (${bPath})` : '');
+  }
+
+  // ============================
+  // Compare behavior (니가 원하는대로: "비교하기" 누르면 B에 바로 리포트 뜸)
+  // ============================
+  async function doCompare(){
+    if(!COMPARE){
+      setCompare(true);
+    }
+    const a = (aDate.value||'').trim();
+    const b = (bDate.value||'').trim();
+    if(!a){ setStatus('A Date를 먼저 선택해줘'); return; }
+    if(!b){ setStatus('B Date를 선택해줘'); return; }
+
+    await applyA();
+
+    // B도 존재 확인 + 없으면 fallback(없으면 그대로 두기 or A로 대체)
+    let targetB = b;
+    if(!(await exists(buildReportPath(targetB)))){
+      // fallback은 "그대로 두되" 404 방지 위해 A로 대체
+      targetB = a;
+      bDate.value = targetB;
+    }
+    await loadB(targetB);
+
+    setStatus(`Compare loaded: A=${aDate.value} vs B=${bDate.value}`);
+    updatePathText();
+  }
+
+  // ============================
+  // Range behavior (A/B 각각 기간 지정 → 누르면 각각 END 리포트 로드)
+  // ============================
+  async function doRangeCompare(){
+    const as = (aStart.value||'').trim();
+    const ae = (aEnd.value||'').trim();
+    const bs = (bStart.value||'').trim();
+    const be = (bEnd.value||'').trim();
+
+    if(!as || !ae || !bs || !be){
+      setStatus('A Range/B Range start/end를 모두 선택해줘');
+      return;
+    }
+
+    // A/B end를 각 iframe에 로드 (원하는대로 "각각 업데이트")
+    aDate.value = ae;
+    bDate.value = be;
+    setCompare(true);
+
+    await doCompare();
+    setStatus(`Range compare loaded: A(${as}~${ae}) vs B(${bs}~${be})`);
+  }
+
+  function clearRange(){
+    aStart.value = '';
+    aEnd.value = '';
+    bStart.value = '';
+    bEnd.value = '';
+    setStatus('Range cleared');
+  }
+
+  // ============================
+  // Mode / compare toggle
+  // ============================
   function setMode(next){
     MODE = next;
     modeDaily.classList.toggle('active', MODE==='daily');
     modeWeekly.classList.toggle('active', MODE==='weekly');
-    applyDate();
+    applyA();
+    if(COMPARE) doCompare();
+    updatePathText();
   }
 
   function setCompare(on){
     COMPARE = !!on;
     btnCompareToggle.classList.toggle('active', COMPARE);
     btnCompareToggle.textContent = COMPARE ? '비교 ON' : '비교 OFF';
-    applyDate();
+    updateCompareLayout();
+    updatePathText();
   }
 
   // ============================
-  // Compare presets
+  // Presets
   // ============================
-  btnPrevPreset.addEventListener('click', ()=>{
-    const a = singleDate.value;
+  btnPresetPrev.addEventListener('click', ()=>{
+    const a = aDate.value;
     if(!a) return;
-    compareDate.value = fmtYMD(addDays(parseYMD(a), -stepDays()));
+    bDate.value = fmtYMD(addDays(parseYMD(a), -stepDays()));
     setCompare(true);
   });
 
-  // YoY preset: 캐시의 yoy.end 우선
-  async function presetYoY(){
-    const a = singleDate.value;
+  btnPresetYoY.addEventListener('click', async ()=>{
+    const a = aDate.value;
     if(!a) return;
-    try{
-      const res = await fetch(buildCachePath(a) + `?t=${Date.now()}`, { cache:'no-store' });
-      if(!res.ok) throw new Error('no cache');
-      const j = await res.json();
-      const y = j && j.yoy && j.yoy.end ? String(j.yoy.end) : '';
-      if(!y) throw new Error('no yoy.end');
-      compareDate.value = y;
-      setCompare(true);
-      setStatus(`YoY preset: ${y}`);
-    }catch(e){
-      compareDate.value = fmtYMD(addDays(parseYMD(a), -364));
-      setCompare(true);
-      setStatus(`YoY preset fallback: ${compareDate.value}`);
-    }
-  }
-  btnYoyPreset.addEventListener('click', presetYoY);
-
-  btnCompareToggle.addEventListener('click', ()=> setCompare(!COMPARE));
-  btnCompare.addEventListener('click', ()=> setCompare(true));
-
-  // ============================
-  // Range compare (캐시 합산)
-  // ============================
-  async function fetchJSON(url){
-    const res = await fetch(url + `?t=${Date.now()}`, { cache:'no-store' });
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  }
-  function dateList(startStr, endStr){
-    const a = parseYMD(startStr);
-    const b = parseYMD(endStr);
-    const out = [];
-    let d = new Date(a);
-    let guard = 0;
-    const step = stepDays();
-    while(d <= b && guard < 800){
-      out.push(fmtYMD(d));
-      d = addDays(d, step);
-      guard++;
-    }
-    return out;
-  }
-  async function loadMany(list){
-    const out = [];
-    for(const ds of list){
-      try{
-        out.push(await fetchJSON(buildCachePath(ds)));
-      }catch(e){}
-    }
-    return out;
-  }
-  function sumKpis(list){
-    let sessions=0, orders=0, revenue=0, signups=0;
-    for(const it of list){
-      const k = (it && it.kpis) ? it.kpis : {};
-      sessions += Number(k.sessions||0);
-      orders   += Number(k.orders||0);
-      revenue  += Number(k.revenue||0);
-      signups  += Number(k.signups||0);
-    }
-    const cvr = sessions ? (orders/sessions) : 0;
-    return {sessions, orders, revenue, signups, cvr};
-  }
-  function paintRange(aAgg, bAgg){
-    r_sess.textContent = `${fmtInt(aAgg.sessions)} vs ${fmtInt(bAgg.sessions)}`;
-    r_ord.textContent  = `${fmtInt(aAgg.orders)} vs ${fmtInt(bAgg.orders)}`;
-    r_rev.textContent  = `${fmtKRW(aAgg.revenue)} vs ${fmtKRW(bAgg.revenue)}`;
-    r_cvr.textContent  = `${(aAgg.cvr*100).toFixed(2)}% vs ${(bAgg.cvr*100).toFixed(2)}%`;
-    r_su.textContent   = `${fmtInt(aAgg.signups)} vs ${fmtInt(bAgg.signups)}`;
-
-    const ds = pctChange(aAgg.sessions, bAgg.sessions);
-    const doo = pctChange(aAgg.orders, bAgg.orders);
-    const dr = pctChange(aAgg.revenue, bAgg.revenue);
-    const dc = (aAgg.cvr - bAgg.cvr);
-    const dsu = pctChange(aAgg.signups, bAgg.signups);
-
-    r_sess_d.className = `kpi-delta ${cls(ds)}`;  r_sess_d.textContent = `A vs B: ${(ds*100).toFixed(1)}%`;
-    r_ord_d.className  = `kpi-delta ${cls(doo)}`; r_ord_d.textContent  = `A vs B: ${(doo*100).toFixed(1)}%`;
-    r_rev_d.className  = `kpi-delta ${cls(dr)}`;  r_rev_d.textContent  = `A vs B: ${(dr*100).toFixed(1)}%`;
-    r_cvr_d.className  = `kpi-delta ${cls(dc)}`;  r_cvr_d.textContent  = `A vs B: ${(dc*100).toFixed(2)}%p`;
-    r_su_d.className   = `kpi-delta ${cls(dsu)}`; r_su_d.textContent   = `A vs B: ${(dsu*100).toFixed(1)}%`;
-  }
-
-  function makePrevRange(as, ae){
-    const s = parseYMD(as), e = parseYMD(ae);
-    const days = Math.round((e - s) / (1000*60*60*24)) + 1;
-    const bEnd = addDays(s, -1);
-    const bStart = addDays(bEnd, -(days-1));
-    return { bStart: fmtYMD(bStart), bEnd: fmtYMD(bEnd) };
-  }
-
-  btnRangeCompare.addEventListener('click', async ()=>{
-    const as = (rangeStart.value||'').trim();
-    const ae = (rangeEnd.value||'').trim();
-    if(!as || !ae){ setStatus('Range start/end 선택해줘'); return; }
-
-    const {bStart, bEnd} = makePrevRange(as, ae);
-    rangeDesc.textContent = `${MODE.toUpperCase()} A: ${as}~${ae}  vs  B: ${bStart}~${bEnd}`;
-
-    const aList = dateList(as, ae);
-    const bList = dateList(bStart, bEnd);
-
-    setStatus(`구간비교 캐시 합산중... A ${aList.length} / B ${bList.length}`);
-    const [aJsons, bJsons] = await Promise.all([loadMany(aList), loadMany(bList)]);
-    paintRange(sumKpis(aJsons), sumKpis(bJsons));
-    setStatus(`구간비교 완료 (A ${aJsons.length} files / B ${bJsons.length} files)`);
-  });
-
-  btnClearRange.addEventListener('click', ()=>{
-    rangeStart.value = '';
-    rangeEnd.value = '';
-    rangeDesc.textContent = '-';
-    setStatus('Range 해제');
+    bDate.value = await yoyEndFor(a, buildCachePath);
+    setCompare(true);
+    setStatus(`YoY preset: ${bDate.value}`);
   });
 
   // ============================
-  // Nav / actions
+  // Nav
   // ============================
   btnReload.addEventListener('click', ()=> location.reload());
 
-  btnYesterday.addEventListener('click', ()=>{ singleDate.value = fmtYMD(addDays(kstNowDate(), -1)); applyDate(); });
+  btnYesterday.addEventListener('click', ()=>{
+    aDate.value = fmtYMD(addDays(kstNowDate(), -1));
+    applyA();
+  });
+
   btnToday.addEventListener('click', async ()=>{
     const t = fmtYMD(kstNowDate());
-    singleDate.value = (await exists(buildReportPath(t))) ? t : fmtYMD(addDays(kstNowDate(), -1));
-    applyDate();
+    aDate.value = (await exists(buildReportPath(t))) ? t : fmtYMD(addDays(kstNowDate(), -1));
+    applyA();
   });
 
   btnPrev.addEventListener('click', ()=>{
-    const cur = singleDate.value; if(!cur) return;
-    singleDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays()));
-    applyDate();
-  });
-  btnNext.addEventListener('click', ()=>{
-    const cur = singleDate.value; if(!cur) return;
-    singleDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays()));
-    applyDate();
+    const cur = aDate.value; if(!cur) return;
+    aDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays()));
+    applyA();
   });
 
+  btnNext.addEventListener('click', ()=>{
+    const cur = aDate.value; if(!cur) return;
+    aDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays()));
+    applyA();
+  });
+
+  // ============================
+  // Events
+  // ============================
   modeDaily.addEventListener('click', ()=> setMode('daily'));
   modeWeekly.addEventListener('click', ()=> setMode('weekly'));
 
+  btnCompareToggle.addEventListener('click', ()=> setCompare(!COMPARE));
+  btnCompareGo.addEventListener('click', doCompare);
+
+  btnRangeGo.addEventListener('click', doRangeCompare);
+  btnRangeClear.addEventListener('click', clearRange);
+
   // ============================
-  // init (기본 전일 + range 최근 21일)
+  // Init
   // ============================
   (function init(){
     const y = addDays(kstNowDate(), -1);
-    const yStr = fmtYMD(y);
-    singleDate.value = yStr;
-    compareDate.value = fmtYMD(addDays(y, -1));
+    aDate.value = fmtYMD(y);
 
-    rangeEnd.value = yStr;
-    rangeStart.value = fmtYMD(addDays(y, -20));
+    // 기본 B: 전일(전기준)
+    bDate.value = fmtYMD(addDays(y, -1));
+
+    // 기본 Range: 최근 21일 / 이전 21일
+    const ae = fmtYMD(y);
+    const as = fmtYMD(addDays(y, -20));
+    const be = fmtYMD(addDays(y, -21));
+    const bs = fmtYMD(addDays(y, -41));
+
+    aStart.value = as; aEnd.value = ae;
+    bStart.value = bs; bEnd.value = be;
 
     setMode('daily');
     setCompare(false);
-
-    // 첫 로드
-    applyDate();
+    applyA();
+    updatePathText();
   })();
+
 })();
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-25 FINAL v2 (hide report header via CSS injection + dual iframes compare + range compare) -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 11:21 KST -->
+<!-- BUILD_STAMP: 2026-02-25 FINAL HUB (Compare loads B report directly, Range A/B loads each end report, scrubs report UI) -->
