@@ -179,7 +179,7 @@
         <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
       </div>
 
-      <!-- ✅ Row 2: RANGE (아래 줄로) -->
+      <!-- Row 2: RANGE -->
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <div class="small-label">Range A</div>
         <div class="w-[160px]"><input id="aStart" type="date" /></div>
@@ -207,7 +207,7 @@
     </div>
   </div>
 
-  <!-- ✅ Loading overlay -->
+  <!-- Loading overlay -->
   <div id="loading" class="loading-backdrop">
     <div class="loading-card">
       <div class="spinner"></div>
@@ -217,14 +217,13 @@
 
 <script>
 (function(){
-  // ===== BASE (루트/하위 경로 자동)
-  const BASE = (function(){
-    const p = location.pathname || '';
-    if(p.includes('/reports/daily_digest/')) return '';
-    return 'reports/daily_digest/';
-  })();
+  // ✅ 너가 말한 실제 배포 구조:
+  // /E-comm-marketing-hub/reports/daily_digest/index.html 에서 열고
+  // /E-comm-marketing-hub/reports/daily_digest/daily/2025-02-25.html 가 존재
+  // => 상대경로 기준 BASE는 무조건 ''이 정답
+  const BASE = '';
 
-  // ===== Utils
+  // Utils
   function kstNowDate(){
     const now = new Date();
     const utc = now.getTime() + now.getTimezoneOffset()*60000;
@@ -246,7 +245,7 @@
     return x;
   }
 
-  // ===== DOM
+  // DOM
   const modeDaily = document.getElementById('modeDaily');
   const modeWeekly = document.getElementById('modeWeekly');
   const btnReload = document.getElementById('btnReload');
@@ -280,13 +279,13 @@
   const loading = document.getElementById('loading');
   const loadingText = document.getElementById('loadingText');
 
-  // ===== State
+  // State
   let MODE = 'daily';
   let COMPARE = false;
 
   function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
 
-  // ===== Paths
+  // Paths
   function buildReportPath(dateStr){
     const base = (MODE === 'daily')
       ? `${BASE}daily/${dateStr}.html`
@@ -299,7 +298,7 @@
       : `${BASE}data/weekly/END_${dateStr}.json`;
   }
 
-  // ===== Loading UX
+  // Loading UX
   const ACTION_BTNS = [btnReload, btnCompareGo, btnRangeGo];
   const MODE_BTNS = [modeDaily, modeWeekly, btnCompareToggle, btnPresetPrev, btnPresetYoY, btnPrev, btnNext, btnYesterday, btnToday, btnRangeClear];
 
@@ -307,22 +306,16 @@
     if(on){
       loadingText.textContent = msg || '로딩 중…';
       loading.style.display = 'flex';
-      for(const b of ACTION_BTNS){
-        b.disabled = true;
-        b.classList.add('loading');
-      }
+      for(const b of ACTION_BTNS){ b.disabled = true; b.classList.add('loading'); }
       for(const b of MODE_BTNS){ b.disabled = true; }
     }else{
       loading.style.display = 'none';
-      for(const b of ACTION_BTNS){
-        b.disabled = false;
-        b.classList.remove('loading');
-      }
+      for(const b of ACTION_BTNS){ b.disabled = false; b.classList.remove('loading'); }
       for(const b of MODE_BTNS){ b.disabled = false; }
     }
   }
 
-  // ===== EXISTS (HEAD) cache
+  // EXISTS (HEAD) cache
   const LS_KEY = 'ddhub_exists_cache_v7';
   const TTL_MS = 6 * 60 * 60 * 1000;
   const memCache = new Map();
@@ -361,87 +354,75 @@
     }
   }
 
-  // ===== iframe 내부 UI 숨김
+  // ✅ iframe 내부 UI 숨김: remove() 금지, display:none만
   function scrubReportUI(doc){
     if(!doc) return;
 
-    // "Daily Digest" 제목 제거 (텍스트 매칭)
-    const nodes = Array.from(doc.querySelectorAll('div, h1, h2'));
-    for(const n of nodes){
-      const t = (n.textContent||'').trim();
-      if(t === 'Daily Digest') n.remove();
+    // 안전 CSS (스크롤 유지)
+    let style = doc.getElementById('hub_scrub_css');
+    if(!style){
+      style = doc.createElement('style');
+      style.id = 'hub_scrub_css';
+      style.type = 'text/css';
+      style.textContent = `
+        html, body{ overflow:auto !important; }
+        body{ margin:0 !important; }
+      `;
+      doc.head.appendChild(style);
     }
 
-    // Hub/Daily/Weekly 탭 제거
-    const btns = Array.from(doc.querySelectorAll('button, a'));
-    const hits = btns.filter(b=>{
-      const t=(b.textContent||'').trim();
-      return t==='Hub' || t==='Daily' || t==='Weekly';
-    });
-    for(const h of hits){
-      let p=h.parentElement;
-      for(let i=0;i<5 && p;i++){
-        const pt=(p.textContent||'').replace(/\s+/g,' ').trim();
-        if(pt.includes('Hub') && pt.includes('Daily') && pt.includes('Weekly')){
-          p.remove(); break;
-        }
-        p=p.parentElement;
+    // 1) 상단 "Daily Digest" 타이틀(있는 경우)만 숨김
+    const titleNodes = Array.from(doc.querySelectorAll('h1, h2, div, span'));
+    for(const n of titleNodes){
+      const t = (n.textContent||'').trim();
+      if(t === 'Daily Digest'){
+        n.style.display = 'none';
+        break; // 첫 번째만
       }
     }
 
-    // Compare 카드 제거(리포트 내부)
-    const blocks = Array.from(doc.querySelectorAll('div, section, article'));
-    for(const b of blocks){
-      const t = (b.textContent||'').replace(/\s+/g,' ').trim();
-      if(!t) continue;
-      const looksLikeCompare =
-        t.includes('No extra GA/BQ cost') ||
-        t.includes('Preset: DoD') ||
-        t.includes('Preset: YoY') ||
-        (t.startsWith('Compare ') && t.includes('Preset'));
-      if(looksLikeCompare){
-        const btn = b.querySelector && b.querySelector('button');
-        if(btn) b.remove();
+    // 2) Hub/Daily/Weekly 탭이 한 묶음으로 있는 "가장 가까운 컨테이너"만 숨김
+    const btns = Array.from(doc.querySelectorAll('button, a'));
+    const tabBtns = btns.filter(b=>{
+      const t=(b.textContent||'').trim();
+      return t==='Hub' || t==='Daily' || t==='Weekly';
+    });
+
+    // 세 버튼이 동시에 들어있는 컨테이너만 찾기
+    function hasAll3(el){
+      if(!el) return false;
+      const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
+      return txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly');
+    }
+
+    for(const b of tabBtns){
+      let p = b.parentElement;
+      for(let i=0;i<6 && p;i++){
+        // 너무 상위(body/html)까지 올라가면 위험하니 stop
+        if(p === doc.body || p === doc.documentElement) break;
+        if(hasAll3(p)){
+          // ✅ remove 대신 숨김
+          p.style.display = 'none';
+          // 한 번 숨기면 끝
+          return;
+        }
+        p = p.parentElement;
       }
     }
   }
 
-  function injectAndScrub(frame){
+  function onFrameLoad(frame){
     try{
       const doc = frame.contentDocument || frame.contentWindow.document;
       if(!doc) return;
-      let style = doc.getElementById('hub_scrub_css');
-      if(!style){
-        style = doc.createElement('style');
-        style.id = 'hub_scrub_css';
-        style.type = 'text/css';
-        style.textContent = `html, body{ overflow:auto !important; } body{ margin:0 !important; }`;
-        doc.head.appendChild(style);
-      }
       scrubReportUI(doc);
     }catch(e){}
   }
 
-  function resizeIframe(frame){
-    try{
-      const doc = frame.contentDocument || frame.contentWindow.document;
-      if(!doc) return;
-      const h = Math.max(
-        doc.body.scrollHeight,
-        doc.documentElement.scrollHeight,
-        doc.body.offsetHeight,
-        doc.documentElement.offsetHeight
-      );
-      frame.style.height = (h + 16) + 'px';
-    }catch(e){
-      frame.style.height = '820px';
-    }
-  }
+  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setTimeout(()=>onFrameLoad(viewerA), 300); setBusy(false); });
+  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setTimeout(()=>onFrameLoad(viewerB), 300); setBusy(false); });
 
-  viewerA.addEventListener('load', ()=>{ injectAndScrub(viewerA); resizeIframe(viewerA); setTimeout(()=>{injectAndScrub(viewerA); resizeIframe(viewerA);}, 450); setBusy(false); });
-  viewerB.addEventListener('load', ()=>{ injectAndScrub(viewerB); resizeIframe(viewerB); setTimeout(()=>{injectAndScrub(viewerB); resizeIframe(viewerB);}, 450); setBusy(false); });
-
-  // ===== Load A/B
+  // Load A/B
   async function loadA(dateStr){
     viewerA.src = buildReportPath(dateStr);
     viewerATitle.textContent = `A: ${MODE.toUpperCase()} · ${dateStr}`;
@@ -451,7 +432,7 @@
     viewerBTitle.textContent = `B: ${MODE.toUpperCase()} · ${dateStr}`;
   }
 
-  // ===== YoY preset: 캐시 yoy.end 우선
+  // YoY preset: 캐시 yoy.end 우선
   async function yoyEndFor(dateStr){
     try{
       const res = await fetch(buildCachePath(dateStr) + `?t=${Date.now()}`, { cache:'no-store' });
@@ -465,7 +446,7 @@
     }
   }
 
-  // ===== Layout
+  // Layout
   function updateCompareLayout(){
     if(COMPARE){
       viewerBWrap.classList.remove('hidden');
@@ -483,7 +464,7 @@
     updateCompareLayout();
   }
 
-  // ===== Apply A (존재 확인 + fallback)
+  // Apply A (존재 확인 + fallback)
   async function applyA(){
     const d = (aDate.value||'').trim();
     if(!d) return;
@@ -502,7 +483,7 @@
     await loadA(target);
   }
 
-  // ===== Compare: "비교하기" 누르면 B에 바로 리포트
+  // Compare: "비교하기" 누르면 B에 바로 리포트
   async function doCompare(){
     const a = (aDate.value||'').trim();
     const b = (bDate.value||'').trim();
@@ -511,10 +492,8 @@
     setCompare(true);
     setBusy(true, 'A/B 리포트 로딩…');
 
-    // A
     await applyA();
 
-    // B (없으면 A로 대체해 404 방지)
     let targetB = b;
     if(!(await exists(buildReportPath(targetB)))){
       targetB = aDate.value;
@@ -523,13 +502,11 @@
     await loadB(targetB);
   }
 
-  // ===== Range Compare: A/B 각각 END 로드
+  // Range Compare: A/B 각각 END 로드
   async function doRangeCompare(){
-    const as = (aStart.value||'').trim();
     const ae = (aEnd.value||'').trim();
-    const bs = (bStart.value||'').trim();
     const be = (bEnd.value||'').trim();
-    if(!as || !ae || !bs || !be) return;
+    if(!ae || !be) return;
 
     setCompare(true);
     setBusy(true, '구간비교 로딩…');
@@ -552,7 +529,7 @@
     bStart.value = ''; bEnd.value = '';
   }
 
-  // ===== Mode
+  // Mode
   async function setMode(next){
     MODE = next;
     modeDaily.classList.toggle('active', MODE==='daily');
@@ -562,7 +539,7 @@
     if(COMPARE) await doCompare();
   }
 
-  // ===== Events
+  // Events
   modeDaily.addEventListener('click', ()=> setMode('daily'));
   modeWeekly.addEventListener('click', ()=> setMode('weekly'));
 
@@ -604,7 +581,7 @@
   btnPrev.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays())); applyA(); });
   btnNext.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays())); applyA(); });
 
-  // ===== Init
+  // Init
   (function init(){
     const y = addDays(kstNowDate(), -1);
     aDate.value = fmtYMD(y);
@@ -627,5 +604,4 @@
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-25 HUB UI PATCH (Range row moved, loading UX added, Loaded/Path removed) -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 11:33 KST -->
+<!-- BUILD_STAMP: 2026-02-25 HUB FIX (BASE fixed, scrub uses hide not remove; prevents blank 2025 iframe) -->
