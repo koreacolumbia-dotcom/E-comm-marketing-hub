@@ -85,7 +85,7 @@
       box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
     }
 
-    /* ✅ "창 안의 창" 느낌 줄이기: iframe border/radius 최소화 */
+    /* ✅ iframe border/radius 최소화 */
     .viewer-frame{
       width: 100%;
       height: 720px;
@@ -107,7 +107,7 @@
       flex-wrap: wrap;
       gap: 10px;
       align-items: center;
-      min-width: 0; /* ✅ truncate 잘 먹게 */
+      min-width: 0;
     }
     .mini{
       font-size: 11px;
@@ -117,10 +117,10 @@
       border: 1px solid rgba(148,163,184,0.22);
       border-radius: 999px;
       padding: 8px 12px;
-      max-width: 520px;
+      max-width: 560px;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap; /* ✅ 길어지면 겹치지 말고 ... */
+      white-space: nowrap;
     }
     @media (max-width: 768px){
       .mini{ max-width: 100%; }
@@ -159,6 +159,7 @@
         <div class="topbar-left">
           <span class="mini" id="statusText">-</span>
 
+          <!-- Primary date controls -->
           <div class="flex items-center gap-2">
             <div class="small-label hidden md:block">Date</div>
             <div class="w-[160px]">
@@ -170,6 +171,7 @@
             <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
           </div>
 
+          <!-- Range -->
           <div class="flex items-center gap-2">
             <div class="small-label hidden md:block">Range</div>
             <div class="w-[160px]">
@@ -181,21 +183,40 @@
             <button id="btnApply" class="btn btn-primary" type="button">적용</button>
             <button id="btnClearRange" class="btn" type="button">Range 해제</button>
           </div>
+
+          <!-- Compare -->
+          <div class="flex items-center gap-2">
+            <div class="small-label hidden md:block">Compare</div>
+            <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
+            <button id="btnPresetPrev" class="btn" type="button">전기준</button>
+            <button id="btnPresetYoY" class="btn" type="button">YoY</button>
+            <div class="w-[160px] hidden" id="compareDateWrap">
+              <input id="compareDate" type="date" />
+            </div>
+            <button id="btnCompareGo" class="btn btn-primary hidden" type="button">비교하기</button>
+          </div>
         </div>
       </div>
 
       <div class="text-xs muted font-semibold mb-3" id="viewerPath">-</div>
 
-      <iframe id="viewer" class="viewer-frame" loading="eager" scrolling="no"></iframe>
+      <!-- Single / Compare layout -->
+      <div id="viewerGrid" class="grid grid-cols-1 gap-4">
+        <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="no"></iframe>
+        <iframe id="viewerB" class="viewer-frame hidden" loading="eager" scrolling="no"></iframe>
+      </div>
 
       <div class="mt-3 text-[11px] muted font-semibold text-right">
-        Auto · KST 기준 · embed 모드로 리포트 헤더 제거
+        Auto · KST 기준 · embed 모드로 리포트 헤더 제거 · 존재 확인은 캐시(localStorage) 우선
       </div>
     </div>
   </div>
 
 <script>
 (function(){
+  // ============================
+  // KST / date utils
+  // ============================
   function kstNowDate(){
     const now = new Date();
     const utc = now.getTime() + now.getTimezoneOffset()*60000;
@@ -223,7 +244,20 @@
     const b = parseYMD(endStr).getTime();
     return d >= a && d <= b;
   }
+  // YoY: 364/365/366 중 같은 요일 맞는 것을 우선
+  function pickYoYSameWeekday(dateStr){
+    const base = parseYMD(dateStr);
+    const wd = base.getDay();
+    const candidates = [364,365,366].map(x => addDays(base, -x));
+    for(const c of candidates){
+      if(c.getDay() === wd) return fmtYMD(c);
+    }
+    return fmtYMD(addDays(base, -364));
+  }
 
+  // ============================
+  // DOM
+  // ============================
   const modeDaily = document.getElementById('modeDaily');
   const modeWeekly = document.getElementById('modeWeekly');
 
@@ -238,7 +272,17 @@
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
 
-  const viewer = document.getElementById('viewer');
+  const btnCompareToggle = document.getElementById('btnCompareToggle');
+  const btnPresetPrev = document.getElementById('btnPresetPrev');
+  const btnPresetYoY = document.getElementById('btnPresetYoY');
+  const compareDateWrap = document.getElementById('compareDateWrap');
+  const compareDate = document.getElementById('compareDate');
+  const btnCompareGo = document.getElementById('btnCompareGo');
+
+  const viewerA = document.getElementById('viewerA');
+  const viewerB = document.getElementById('viewerB');
+  const viewerGrid = document.getElementById('viewerGrid');
+
   const viewerPath = document.getElementById('viewerPath');
   const statusText = document.getElementById('statusText');
 
@@ -246,33 +290,85 @@
   const btnCopy = document.getElementById('btnCopy');
   const btnReload = document.getElementById('btnReload');
 
+  // ============================
+  // State
+  // ============================
   let MODE = 'daily';
-  let currentSelectedPath = '';
   let activeRangeStart = '';
   let activeRangeEnd = '';
+  let currentA = '';
+  let currentB = '';
+  let COMPARE = false;
 
-  // ✅ embed=1 로 리포트가 스스로 헤더/탭 제거하도록
+  // ============================
+  // Path builder
+  // ============================
   function buildPath(dateStr){
     const base = (MODE === 'daily') ? `daily/${dateStr}.html` : `weekly/END_${dateStr}.html`;
     return base + `?embed=1`;
   }
 
-  async function exists(url){
+  // ============================
+  // Existence check cache (localStorage)
+  // ============================
+  const LS_KEY = 'ddhub_exists_cache_v2';
+  const TTL_MS = 6 * 60 * 60 * 1000; // 6h
+  const memCache = new Map();
+
+  function loadLS(){
     try{
-      const u = url.split('?')[0]; // ✅ 파일 존재 체크는 base만
-      const res = await fetch(u + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return {};
+      return JSON.parse(raw) || {};
+    }catch(e){ return {}; }
+  }
+  function saveLS(obj){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }catch(e){}
+  }
+  function cacheGet(u){
+    if(memCache.has(u)) return memCache.get(u);
+    const db = loadLS();
+    const hit = db[u];
+    if(hit && (Date.now() - hit.ts) < TTL_MS){
+      memCache.set(u, hit.ok);
+      return hit.ok;
+    }
+    return null;
+  }
+  function cacheSet(u, ok){
+    memCache.set(u, ok);
+    const db = loadLS();
+    db[u] = { ok: !!ok, ts: Date.now() };
+    // 간단한 크기 제한(최대 600개 정도만 유지)
+    const keys = Object.keys(db);
+    if(keys.length > 600){
+      keys.sort((a,b)=> (db[a].ts||0) - (db[b].ts||0));
+      for(let i=0;i<keys.length-500;i++) delete db[keys[i]];
+    }
+    saveLS(db);
+  }
+
+  async function exists(url){
+    const base = url.split('?')[0];
+    const cached = cacheGet(base);
+    if(cached !== null) return cached;
+
+    try{
+      const res = await fetch(base + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
+      cacheSet(base, res.ok);
       return res.ok;
     }catch(e){
+      cacheSet(base, false);
       return false;
     }
   }
 
-  function setStatus(msg){ statusText.textContent = msg; }
-  function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
-
-  function resizeIframeToContent(){
+  // ============================
+  // Iframe resize
+  // ============================
+  function resizeIframeToContent(frame){
     try{
-      const doc = viewer.contentDocument || viewer.contentWindow.document;
+      const doc = frame.contentDocument || frame.contentWindow.document;
       if(!doc) return;
 
       doc.documentElement.style.overflow = 'hidden';
@@ -285,34 +381,52 @@
         doc.body.offsetHeight,
         doc.documentElement.offsetHeight
       );
-      viewer.style.height = (h + 12) + 'px';
-      viewer.setAttribute('scrolling','no');
+      frame.style.height = (h + 12) + 'px';
+      frame.setAttribute('scrolling','no');
     }catch(e){
-      viewer.setAttribute('scrolling','auto');
-      viewer.style.height = '720px';
+      frame.setAttribute('scrolling','auto');
+      frame.style.height = '720px';
     }
   }
 
-  function setViewer(dateStr){
-    const path = buildPath(dateStr);
-    currentSelectedPath = path;
-
-    viewer.src = path;
-    viewerPath.textContent = `${MODE.toUpperCase()} · ${dateStr} · ${path.split('?')[0]}`;
-
-    setStatus(
-      `Loaded: ${dateStr}` +
-      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
-      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '')
-    );
-  }
-
-  viewer.addEventListener('load', () => {
-    resizeIframeToContent();
-    setTimeout(resizeIframeToContent, 250);
-    setTimeout(resizeIframeToContent, 900);
+  viewerA.addEventListener('load', () => {
+    resizeIframeToContent(viewerA);
+    setTimeout(()=>resizeIframeToContent(viewerA), 250);
+    setTimeout(()=>resizeIframeToContent(viewerA), 900);
+  });
+  viewerB.addEventListener('load', () => {
+    resizeIframeToContent(viewerB);
+    setTimeout(()=>resizeIframeToContent(viewerB), 250);
+    setTimeout(()=>resizeIframeToContent(viewerB), 900);
   });
 
+  // ============================
+  // UI helpers
+  // ============================
+  function setStatus(msg){ statusText.textContent = msg; }
+  function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
+
+  function setCompareUI(on){
+    COMPARE = !!on;
+    btnCompareToggle.classList.toggle('active', COMPARE);
+    btnCompareToggle.textContent = COMPARE ? '비교 ON' : '비교 OFF';
+
+    compareDateWrap.classList.toggle('hidden', !COMPARE);
+    btnCompareGo.classList.toggle('hidden', !COMPARE);
+
+    viewerB.classList.toggle('hidden', !COMPARE);
+
+    // layout
+    if(COMPARE){
+      viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4';
+    }else{
+      viewerGrid.className = 'grid grid-cols-1 gap-4';
+    }
+  }
+
+  // ============================
+  // Navigation / selection
+  // ============================
   async function findAvailable(fromDateStr, direction){
     let d = parseYMD(fromDateStr);
     const start = activeRangeStart ? parseYMD(activeRangeStart) : null;
@@ -331,6 +445,41 @@
       if(end && d > end && step > 0) break;
     }
     return null;
+  }
+
+  function setViewerSingle(dateStr){
+    const path = buildPath(dateStr);
+    currentA = path;
+    viewerA.src = path;
+
+    viewerPath.textContent = `${MODE.toUpperCase()} · A=${dateStr} · ${path.split('?')[0]}` +
+      (COMPARE ? ` · B=${compareDate.value || '-'} · ${buildPath(compareDate.value||'').split('?')[0]}` : '');
+
+    setStatus(
+      `Loaded A: ${dateStr}` +
+      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
+      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '') +
+      (COMPARE ? ` · Compare ON` : '')
+    );
+  }
+
+  function setViewerCompare(aDateStr, bDateStr){
+    const aPath = buildPath(aDateStr);
+    const bPath = buildPath(bDateStr);
+    currentA = aPath;
+    currentB = bPath;
+
+    viewerA.src = aPath;
+    viewerB.src = bPath;
+
+    viewerPath.textContent =
+      `${MODE.toUpperCase()} · A=${aDateStr} · ${aPath.split('?')[0]} · B=${bDateStr} · ${bPath.split('?')[0]}`;
+
+    setStatus(
+      `Loaded A: ${aDateStr} vs B: ${bDateStr}` +
+      (MODE === 'weekly' ? ' · step=7d' : ' · step=1d') +
+      (activeRangeStart && activeRangeEnd ? ` · Range ${activeRangeStart} ~ ${activeRangeEnd}` : '')
+    );
   }
 
   async function applySelection(){
@@ -353,7 +502,21 @@
     }
 
     const ok = await exists(buildPath(target));
-    if(ok){ setViewer(target); return; }
+    if(ok){
+      if(!COMPARE){
+        setViewerSingle(target);
+      }else{
+        const b = compareDate.value || '';
+        if(b){
+          const okB = await exists(buildPath(b));
+          if(okB) setViewerCompare(target, b);
+          else setViewerCompare(target, target);
+        }else{
+          setViewerCompare(target, target);
+        }
+      }
+      return;
+    }
 
     const step = stepDays();
     const next =
@@ -364,10 +527,12 @@
 
     if(next){
       singleDate.value = next;
-      setViewer(next);
+      if(!COMPARE) setViewerSingle(next);
+      else setViewerCompare(next, compareDate.value || next);
     }else{
       setStatus('해당 범위에 리포트 파일이 없습니다');
-      setViewer(target);
+      if(!COMPARE) setViewerSingle(target);
+      else setViewerCompare(target, compareDate.value || target);
     }
   }
 
@@ -378,8 +543,33 @@
     applySelection();
   }
 
+  // ============================
+  // Compare presets
+  // ============================
+  function presetPrev(){
+    const a = singleDate.value;
+    if(!a) return;
+    const base = parseYMD(a);
+    const step = stepDays();
+    const b = fmtYMD(addDays(base, -step)); // daily: -1, weekly: -7 (END 기준)
+    compareDate.value = b;
+    setCompareUI(true);
+  }
+  function presetYoY(){
+    const a = singleDate.value;
+    if(!a) return;
+    // weekly도 END 날짜 기준으로 YoY END를 잡으면 됨
+    const b = pickYoYSameWeekday(a);
+    compareDate.value = b;
+    setCompareUI(true);
+  }
+
+  // ============================
+  // Events
+  // ============================
   modeDaily.addEventListener('click', () => setMode('daily'));
   modeWeekly.addEventListener('click', () => setMode('weekly'));
+
   btnApply.addEventListener('click', applySelection);
 
   btnClearRange.addEventListener('click', () => {
@@ -410,8 +600,11 @@
     const cand = fmtYMD(addDays(parseYMD(cur), -stepDays()));
     if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
     const found = await findAvailable(cand, -stepDays());
-    if(found){ singleDate.value = found; setViewer(found); }
-    else setStatus('이전 리포트 없음');
+    if(found){
+      singleDate.value = found;
+      if(!COMPARE) setViewerSingle(found);
+      else setViewerCompare(found, compareDate.value || found);
+    }else setStatus('이전 리포트 없음');
   });
 
   btnNext.addEventListener('click', async () => {
@@ -419,39 +612,89 @@
     const cand = fmtYMD(addDays(parseYMD(cur), +stepDays()));
     if(activeRangeStart && activeRangeEnd && !inRange(cand, activeRangeStart, activeRangeEnd)) return;
     const found = await findAvailable(cand, +stepDays());
-    if(found){ singleDate.value = found; setViewer(found); }
-    else setStatus('다음 리포트 없음');
+    if(found){
+      singleDate.value = found;
+      if(!COMPARE) setViewerSingle(found);
+      else setViewerCompare(found, compareDate.value || found);
+    }else setStatus('다음 리포트 없음');
   });
 
+  // Compare
+  btnCompareToggle.addEventListener('click', () => {
+    setCompareUI(!COMPARE);
+    if(COMPARE && !compareDate.value){
+      // 켜는 순간 기본은 "전기준"
+      presetPrev();
+    }
+    applySelection();
+  });
+
+  btnPresetPrev.addEventListener('click', async () => {
+    presetPrev();
+    // 존재하면 바로 비교 띄우고, 없으면 applySelection이 알아서 가장 가까운 파일 찾음
+    await applySelection();
+  });
+
+  btnPresetYoY.addEventListener('click', async () => {
+    presetYoY();
+    await applySelection();
+  });
+
+  btnCompareGo.addEventListener('click', async () => {
+    if(!COMPARE) setCompareUI(true);
+    await applySelection();
+  });
+
+  // Actions
   btnOpenNew.addEventListener('click', () => {
-    if(!currentSelectedPath) return;
-    window.open(currentSelectedPath, '_blank');
+    if(!currentA) return;
+    // 비교 ON이면 A,B 둘 다 새 탭으로 열어줌
+    if(COMPARE && currentB){
+      window.open(currentA, '_blank');
+      window.open(currentB, '_blank');
+      return;
+    }
+    window.open(currentA, '_blank');
   });
 
   btnCopy.addEventListener('click', async () => {
-    if(!currentSelectedPath) return;
-    const abs = new URL(currentSelectedPath, window.location.href).href;
+    if(!currentA) return;
+    const absA = new URL(currentA, window.location.href).href;
+    const absB = (COMPARE && currentB) ? new URL(currentB, window.location.href).href : '';
+    const payload = (COMPARE && absB) ? `A: ${absA}\nB: ${absB}` : absA;
+
     try{
-      await navigator.clipboard.writeText(abs);
+      await navigator.clipboard.writeText(payload);
       btnCopy.textContent = '복사됨 ✓';
       setTimeout(() => btnCopy.textContent = '링크 복사', 900);
     }catch(e){
-      prompt('Copy this link:', abs);
+      prompt('Copy this link:', payload);
     }
   });
 
   btnReload.addEventListener('click', () => {
-    if(!currentSelectedPath) return;
-    const base = currentSelectedPath.split('?')[0];
-    viewer.src = base + `?embed=1&t=${Date.now()}`;
+    if(!currentA) return;
+    const baseA = currentA.split('?')[0];
+    viewerA.src = baseA + `?embed=1&t=${Date.now()}`;
+    if(COMPARE && currentB){
+      const baseB = currentB.split('?')[0];
+      viewerB.src = baseB + `?embed=1&t=${Date.now()}`;
+    }
     setStatus('Reloaded');
   });
 
   window.addEventListener('resize', () => {
-    resizeIframeToContent();
-    setTimeout(resizeIframeToContent, 120);
+    resizeIframeToContent(viewerA);
+    if(COMPARE) resizeIframeToContent(viewerB);
+    setTimeout(() => {
+      resizeIframeToContent(viewerA);
+      if(COMPARE) resizeIframeToContent(viewerB);
+    }, 120);
   });
 
+  // ============================
+  // init
+  // ============================
   (function init(){
     const y = addDays(kstNowDate(), -1);
     singleDate.value = fmtYMD(y);
@@ -462,15 +705,26 @@
     activeRangeStart = rangeStart.value;
     activeRangeEnd = rangeEnd.value;
 
+    // hash로 weekly 진입 지원
     const h = (location.hash || '').replace('#','').trim().toLowerCase();
     if(h === 'weekly') MODE = 'weekly';
+
+    // compare 쿼리 지원: ?compare=1
+    const qs = new URLSearchParams(location.search);
+    const c = qs.get('compare');
+    if(c === '1' || c === 'true') setCompareUI(true);
+    else setCompareUI(false);
+
     setMode(MODE);
+
+    // compare ON이면 기본 B는 전기준
+    if(COMPARE){
+      presetPrev();
+      applySelection();
+    }
   })();
 
 })();
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026.02.24 (Tue) 17:38 KST -->
-<!-- BUILD_STAMP: 2026.02.24 (Tue) 17:56 KST -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 08:30 KST -->
