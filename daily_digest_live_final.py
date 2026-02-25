@@ -2,23 +2,28 @@
 # -*- coding: utf-8 -*-
 """
 Columbia Daily Digest — Live GA4 Data (Google Analytics Data API) + BigQuery PDP Trend
++ ✅ Compare UI (A date/period vs B date/period) — **NO extra GA/BQ cost**
++ ✅ File-based Data Cache (bundle JSON) — regenerate HTML without re-query
++ ✅ Expensive part cache (BigQuery PDP Trend) — reuses cached JSON
 
-✅ Updates in this version (your requests)
-1) Weekly에서도 Best Sellers / Rising Products 표시
-   - Weekly Best Sellers: 7D 누적 구매수량 TOP5 + 7D spark
-   - Weekly Rising: (현재 7D - 직전 7D) 구매수량 Δ TOP5 + (가능하면) 7D views
-2) Weekly 선택 시 비교군 = 전주(직전 7D) 대비(WoW)로 고정
-3) 전년 동요일/동기간(YoY) 비교도 “한번에” 같이 표시
-   - Daily: 전일(DoD) + YoY(전년 동요일, -364d)
-   - Weekly: 전주(WoW) + YoY(전년 동기간, -364d)
-4) Search Trend에 “검색 수(eventCount)” 표시 (신규/급상승 모두 count 포함)
-5) Best Sellers에 (not set) 제거 + “상품이미지/아이템명 있는 것” 우선 노출
-   - itemName이 비었거나 "(not set)"인 행 제외
-   - 이미지 맵에 존재하는 SKU 우선 (부족하면 placeholder로 보완)
-6) 동일 날짜 재실행이면 비용 절감:
-   - 해당 날짜/모드의 HTML이 이미 존재하면 GA/BQ 쿼리 자체를 SKIP하고 기존 HTML 유지
+How it works (cost-min)
+- Each report build writes a compact data bundle:
+    reports/daily_digest/data/daily/YYYY-MM-DD.json
+    reports/daily_digest/data/weekly/END_YYYY-MM-DD.json
+- Report HTML includes a “Compare” bar.
+  When you compare, the browser fetches these cached JSON files (static),
+  then computes diffs client-side. ✅ No GA4 API / BigQuery calls.
+- If bundle JSON exists, script can rebuild HTML from bundle without querying.
 
-Run (Windows PowerShell)
+Env (new)
+- DAILY_DIGEST_USE_DATA_CACHE=true|false   (default true)
+- DAILY_DIGEST_WRITE_DATA_CACHE=true|false (default true)
+- DAILY_DIGEST_CACHE_PDP=true|false        (default true)
+
+Existing:
+- DAILY_DIGEST_SKIP_IF_EXISTS=true|false   (default true) : if HTML exists, skip entirely
+
+Run
   setx GOOGLE_APPLICATION_CREDENTIALS "C:\\path\\service_account.json"
   setx GA4_PROPERTY_ID "358593394"
   pip install google-analytics-data pandas python-dateutil google-cloud-bigquery
@@ -28,15 +33,18 @@ Outputs
 - reports/daily_digest/index.html
 - reports/daily_digest/daily/YYYY-MM-DD.html
 - reports/daily_digest/weekly/END_YYYY-MM-DD.html
+- reports/daily_digest/data/daily/YYYY-MM-DD.json
+- reports/daily_digest/data/weekly/END_YYYY-MM-DD.json
 """
 
 from __future__ import annotations
 
 import os
+import json
 import base64
 import datetime as dt
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -76,8 +84,23 @@ SIGNUP_EVENT = os.getenv("DAILY_DIGEST_SIGNUP_EVENT", "sign_up")
 LOGIN_EVENT = os.getenv("DAILY_DIGEST_LOGIN_EVENT", "login")
 SEARCH_EVENT = os.getenv("DAILY_DIGEST_SEARCH_EVENT", "view_search_results")
 
+# Rising basis: qty | views | revenue
+RISING_BASIS = os.getenv("DAILY_DIGEST_RISING_BASIS", "qty").strip().lower()
+if RISING_BASIS not in ("qty", "views", "revenue"):
+    RISING_BASIS = "qty"
+
+# YoY overrides (optional)
+YOY_SHIFT_DAYS = os.getenv("DAILY_DIGEST_YOY_SHIFT_DAYS", "").strip()  # e.g. "364" or "365"
+YOY_DAILY_DATE_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_DAILY_DATE", "").strip()  # "YYYY-MM-DD"
+YOY_WEEKLY_END_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_WEEKLY_END", "").strip()  # "YYYY-MM-DD"
+
 # Cost-saving: if HTML exists for same date, skip all queries and keep HTML as-is
 SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "true").strip().lower() in ("1", "true", "yes", "y")
+
+# ✅ New: data cache (bundle JSON)
+USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
+WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
+CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
 CHANNEL_BUCKETS = {
     "Organic": {"Organic Search"},
@@ -136,6 +159,15 @@ def ymd(d: dt.date) -> str:
 def parse_yyyymmdd(s: str) -> dt.date:
     return dt.datetime.strptime(s, "%Y%m%d").date()
 
+def parse_yyyy_mm_dd(s: str) -> Optional[dt.date]:
+    s = (s or "").strip()
+    if not s:
+        return None
+    try:
+        return dt.datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return None
+
 def bucket_channel(ch: str) -> str:
     for bucket, members in CHANNEL_BUCKETS.items():
         if ch in members:
@@ -168,6 +200,27 @@ def attach_image_urls(df: pd.DataFrame, image_map: Dict[str, str]) -> pd.DataFra
 def is_not_set(x: str) -> bool:
     s = (x or "").strip().lower()
     return (s == "" or s == "(not set)" or s == "not set")
+
+def pick_yoy_same_weekday(end_date: dt.date) -> dt.date:
+    for d in (364, 365, 366):
+        cand = end_date - dt.timedelta(days=d)
+        if cand.weekday() == end_date.weekday():
+            return cand
+    return end_date - dt.timedelta(days=364)
+
+def read_json(path: str) -> Optional[dict]:
+    try:
+        if not os.path.exists(path):
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def write_json(path: str, obj: dict) -> None:
+    ensure_dir(os.path.dirname(path))
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
 # =========================
@@ -231,7 +284,7 @@ def run_report(
 
 
 # =========================
-# SVG charts (keep as-is)
+# SVG charts
 # =========================
 def combined_index_svg(
     xlabels: List[str],
@@ -383,7 +436,7 @@ def spark_svg(
 # =========================
 def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
     if not xlsx_path:
-        print("[WARN] Image Excel path is empty. Set DAILY_DIGEST_IMAGE_XLS_PATH or keep file next to the script.")
+        print("[WARN] Image Excel path is empty.")
         return {}
 
     if not os.path.exists(xlsx_path):
@@ -433,7 +486,7 @@ def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
                 m[sku] = url
 
         if not m:
-            print("[WARN] Excel image map parsed 0 rows. Check SKU column & URL column.")
+            print("[WARN] Excel image map parsed 0 rows. Check columns.")
         return m
     except Exception as e:
         print(f"[WARN] Failed to load Excel image map: {type(e).__name__}: {e}")
@@ -445,15 +498,13 @@ def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
 # =========================
 @dataclass
 class DigestWindow:
-    mode: str                 # "daily" or "weekly"
+    mode: str
     end_date: dt.date
-    # main compare
     cur_start: dt.date
     cur_end: dt.date
     prev_start: dt.date
     prev_end: dt.date
-    compare_label: str        # "DoD" or "WoW"
-    # YoY compare (same weekday/period)
+    compare_label: str
     yoy_start: dt.date
     yoy_end: dt.date
 
@@ -468,18 +519,34 @@ def build_window(end_date: dt.date, mode: str) -> DigestWindow:
         prev_end = end_date - dt.timedelta(days=1)
         prev_start = prev_end
         compare_label = "DoD"
-        # YoY same weekday: -364 days
-        yoy_start = end_date - dt.timedelta(days=364)
-        yoy_end = yoy_start
+
+        yoy_override = parse_yyyy_mm_dd(YOY_DAILY_DATE_OVERRIDE)
+        if yoy_override:
+            yoy_start = yoy_override
+            yoy_end = yoy_override
+        else:
+            if YOY_SHIFT_DAYS.isdigit():
+                yoy_start = end_date - dt.timedelta(days=int(YOY_SHIFT_DAYS))
+            else:
+                yoy_start = pick_yoy_same_weekday(end_date)
+            yoy_end = yoy_start
+
     else:
         cur_end = end_date
         cur_start = end_date - dt.timedelta(days=6)
-        # Weekly compare = previous 7D (WoW)
+
         prev_end = end_date - dt.timedelta(days=7)
         prev_start = prev_end - dt.timedelta(days=6)
         compare_label = "WoW"
-        # YoY same period: shift -364 days to preserve weekday alignment
-        yoy_end = end_date - dt.timedelta(days=364)
+
+        yoy_end_override = parse_yyyy_mm_dd(YOY_WEEKLY_END_OVERRIDE)
+        if yoy_end_override:
+            yoy_end = yoy_end_override
+        else:
+            if YOY_SHIFT_DAYS.isdigit():
+                yoy_end = end_date - dt.timedelta(days=int(YOY_SHIFT_DAYS))
+            else:
+                yoy_end = pick_yoy_same_weekday(end_date)
         yoy_start = yoy_end - dt.timedelta(days=6)
 
     return DigestWindow(
@@ -496,7 +563,7 @@ def build_window(end_date: dt.date, mode: str) -> DigestWindow:
 
 
 # =========================
-# Data fetchers (now return current / prev / yoy)
+# Data fetchers (3-way)
 # =========================
 def get_overall_kpis(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, Dict[str, float]]:
     mets = ["sessions", "transactions", "purchaseRevenue"]
@@ -566,7 +633,6 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
             .fillna(0.0)
     )
 
-    # ✅ FIX: YoY/Prev revenue deltas computed correctly from merged columns
     out["rev_vs_prev"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
     out["rev_yoy"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_yoy"])), axis=1)
 
@@ -641,7 +707,6 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
     return pd.concat([out2, total], ignore_index=True)
 
 def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    # weekly에서는 비용/해석 이슈로 기존대로 비워둠
     if w.mode != "daily":
         return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
 
@@ -701,41 +766,46 @@ def get_kpi_snapshot_table_3way(client: BetaAnalyticsDataClient, w: DigestWindow
         })
     return pd.DataFrame(out)
 
-def get_trend_view_svg(client: BetaAnalyticsDataClient, w: DigestWindow) -> str:
+def get_trend_view_series(client: BetaAnalyticsDataClient, w: DigestWindow) -> dict:
     end = w.cur_end
     start = end - dt.timedelta(days=6)
-
     df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["date"], ["sessions","transactions","purchaseRevenue"])
+    axis_dates = [start + dt.timedelta(days=i) for i in range(7)]
+    x = [d.strftime("%m/%d") for d in axis_dates]
+
     if df.empty:
-        x = [(start + dt.timedelta(days=i)).strftime("%m/%d") for i in range(7)]
-        return combined_index_svg(x, [[100]*7,[100]*7,[100]*7], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
+        return {"x": x, "sessions": [0.0]*7, "revenue": [0.0]*7, "cvr": [0.0]*7}
 
     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", errors="coerce")
     df = df.dropna(subset=["date"]).sort_values("date")
     for c in ["sessions","transactions","purchaseRevenue"]:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
-
     df["cvr"] = df.apply(lambda r: (r["transactions"]/r["sessions"]) if r["sessions"] else 0.0, axis=1)
-    x = df["date"].dt.strftime("%m/%d").tolist()
-    s = index_series(df["sessions"].tolist())
-    r = index_series(df["purchaseRevenue"].tolist())
-    c = index_series(df["cvr"].tolist())
-    return combined_index_svg(x, [s,r,c], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
+
+    # align to axis_dates
+    tmp = df.set_index(df["date"].dt.date)
+    s = [float(tmp.loc[d, "sessions"]) if d in tmp.index else 0.0 for d in axis_dates]
+    r = [float(tmp.loc[d, "purchaseRevenue"]) if d in tmp.index else 0.0 for d in axis_dates]
+    c = [float(tmp.loc[d, "cvr"]) if d in tmp.index else 0.0 for d in axis_dates]
+    return {"x": x, "sessions": s, "revenue": r, "cvr": c}
+
+def trend_svg_from_series(series: dict) -> str:
+    x = series.get("x", [])
+    s_raw = series.get("sessions", [])
+    r_raw = series.get("revenue", [])
+    c_raw = series.get("cvr", [])
+    if not x or len(x) != 7:
+        return combined_index_svg(["--"]*7, [[100]*7,[100]*7,[100]*7], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
+    s = index_series([float(v) for v in s_raw])
+    r = index_series([float(v) for v in r_raw])
+    c = index_series([float(v) for v in c_raw])
+    return combined_index_svg(x, [s, r, c], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
 
 
 # =========================
-# Best Sellers / Rising (Weekly enabled) + (not set) 제거 + 이미지 우선
+# Best Sellers + trend series per SKU (for cache rebuild)
 # =========================
-def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindow, image_map: Dict[str, str]) -> pd.DataFrame:
-    """
-    Daily: 어제(1D) Best Sellers TOP5 + 7D trend spark
-    Weekly: 7D 누적 Best Sellers TOP5 + 7D trend spark
-
-    (not set) 제거 + 이미지/아이템명 있는 것 우선:
-      - 후보를 넉넉히(50개) 가져오고
-      - itemName empty / (not set) 제거
-      - image_map에 존재하는 SKU 우선 선택
-    """
+def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindow, image_map: Dict[str, str]) -> Tuple[pd.DataFrame, dict]:
     start = w.cur_end if w.mode == "daily" else w.cur_start
     end = w.cur_end
 
@@ -747,33 +817,22 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
         order_bys=order, limit=50
     )
     if cand.empty:
-        return pd.DataFrame(columns=["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"])
+        return pd.DataFrame(columns=["itemId","itemName","qty","trend_svg","image_url"]), {"x": [], "items": []}
 
     cand["itemsPurchased"] = pd.to_numeric(cand["itemsPurchased"], errors="coerce").fillna(0.0)
     cand["itemId"] = cand["itemId"].astype(str).str.strip()
     cand["itemName"] = cand["itemName"].astype(str).fillna("").map(lambda x: x.strip())
-
-    # remove (not set)
     cand = cand[~cand["itemName"].map(is_not_set)]
     if cand.empty:
-        return pd.DataFrame(columns=["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"])
+        return pd.DataFrame(columns=["itemId","itemName","qty","trend_svg","image_url"]), {"x": [], "items": []}
 
     cand["image_url"] = cand["itemId"].map(lambda s: image_map.get(str(s).strip(), ""))
-
-    # 이미지 있는 것 우선으로 TOP5, 부족하면 이미지 없는 것까지 채움
-    with_img = cand[cand["image_url"].astype(str).str.strip() != ""].copy()
-    no_img = cand[cand["image_url"].astype(str).str.strip() == ""].copy()
-
-    with_img = with_img.sort_values("itemsPurchased", ascending=False)
-    no_img = no_img.sort_values("itemsPurchased", ascending=False)
-
-    top = pd.concat([with_img.head(5), no_img.head(max(0, 5 - len(with_img.head(5))))], ignore_index=True)
-    top = top.head(5).copy()
-
-    top = top.rename(columns={"itemsPurchased":"itemsPurchased_yesterday"})
+    with_img = cand[cand["image_url"].astype(str).str.strip() != ""].copy().sort_values("itemsPurchased", ascending=False)
+    no_img = cand[cand["image_url"].astype(str).str.strip() == ""].copy().sort_values("itemsPurchased", ascending=False)
+    top = pd.concat([with_img.head(5), no_img.head(max(0, 5 - len(with_img.head(5))))], ignore_index=True).head(5).copy()
+    top["qty"] = top["itemsPurchased"]
     skus = [str(s).strip() for s in top["itemId"].tolist() if str(s).strip()]
 
-    # 7D spark는 항상 end 기준 7일로 통일
     axis_dates = [w.cur_end - dt.timedelta(days=6 - i) for i in range(7)]
     xlabels = [d.strftime("%m/%d") for d in axis_dates]
 
@@ -787,11 +846,15 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
             limit=10000
         )
 
+    series_cache = {"x": xlabels, "items": []}
+
     if ts.empty:
         top["trend_svg"] = ""
         if PLACEHOLDER_IMG:
             top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
-        return top[["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"]]
+        for sku in skus:
+            series_cache["items"].append({"itemId": sku, "ys": [0.0]*7})
+        return top[["itemId","itemName","qty","trend_svg","image_url"]], series_cache
 
     ts["date"] = ts["date"].apply(parse_yyyymmdd)
     ts["itemsPurchased"] = pd.to_numeric(ts["itemsPurchased"], errors="coerce").fillna(0.0)
@@ -803,88 +866,156 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
         sub = ts[ts["itemId"] == sku].set_index("date")["itemsPurchased"]
         ys = [float(sub.get(d, 0.0)) for d in axis_dates]
         svgs.append(spark_svg(xlabels, ys, width=240, height=70, stroke="#0055a5"))
+        series_cache["items"].append({"itemId": sku, "ys": ys})
 
     top["trend_svg"] = svgs
 
     if PLACEHOLDER_IMG:
         top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
 
-    return top[["itemId","itemName","itemsPurchased_yesterday","trend_svg","image_url"]]
-
-
-def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n: int = 5) -> pd.DataFrame:
-    """
-    Daily: (어제 qty - 전일 qty) 큰 순 TOPN
-    Weekly: (현재 7D qty - 직전 7D qty) 큰 순 TOPN
-    Views: daily=어제, weekly=현재 7D (가능 metric best-effort)
-    """
-    if w.mode == "daily":
-        cur_start, cur_end = w.cur_end, w.cur_end
-        prev_start, prev_end = w.prev_end, w.prev_end
-    else:
-        cur_start, cur_end = w.cur_start, w.cur_end
-        prev_start, prev_end = w.prev_start, w.prev_end
-
-    d1 = run_report(client, PROPERTY_ID, ymd(cur_start), ymd(cur_end), ["itemId", "itemName"], ["itemsPurchased"], limit=10000)
-    d0 = run_report(client, PROPERTY_ID, ymd(prev_start), ymd(prev_end), ["itemId"], ["itemsPurchased"], limit=10000)
-
-    if d1.empty:
-        return pd.DataFrame(columns=["itemId", "itemName", "itemViews_yesterday", "delta"])
-
-    d1["itemsPurchased"] = pd.to_numeric(d1["itemsPurchased"], errors="coerce").fillna(0.0)
-    d1["itemId"] = d1["itemId"].astype(str).str.strip()
-    d1["itemName"] = d1["itemName"].astype(str).fillna("").map(lambda x: x.strip())
-
-    # remove (not set) for nicer list
-    d1 = d1[~d1["itemName"].map(is_not_set)]
-    if d1.empty:
-        return pd.DataFrame(columns=["itemId", "itemName", "itemViews_yesterday", "delta"])
-
-    if not d0.empty:
-        d0["itemsPurchased"] = pd.to_numeric(d0["itemsPurchased"], errors="coerce").fillna(0.0)
-        d0["itemId"] = d0["itemId"].astype(str).str.strip()
-    else:
-        d0 = pd.DataFrame(columns=["itemId", "itemsPurchased"])
-
-    m = d1.merge(d0, on="itemId", how="left", suffixes=("_cur", "_prev")).fillna(0.0)
-    m["delta"] = m["itemsPurchased_cur"] - m["itemsPurchased_prev"]
-    m = m.sort_values("delta", ascending=False).head(top_n)
-
-    # Views best-effort
-    skus = [str(x).strip() for x in m["itemId"].tolist() if str(x).strip()]
-    views_df = pd.DataFrame(columns=["itemId", "itemViews_yesterday"])
-
-    if skus:
-        for metric_name, use_event_filter in [
-            ("itemViewEvents", False),
-            ("itemsViewed", False),
-            ("eventCount", True),
-        ]:
-            try:
-                v = run_report(
-                    client, PROPERTY_ID, ymd(cur_start), ymd(cur_end),
-                    ["itemId"], [metric_name],
-                    dimension_filter=(
-                        ga_filter_and([ga_filter_in("itemId", skus), ga_filter_eq("eventName", "view_item")])
-                        if use_event_filter else ga_filter_in("itemId", skus)
-                    ),
-                    limit=10000,
-                )
-                if not v.empty:
-                    v["itemId"] = v["itemId"].astype(str).str.strip()
-                    v[metric_name] = pd.to_numeric(v[metric_name], errors="coerce").fillna(0.0)
-                    views_df = v[["itemId", metric_name]].rename(columns={metric_name: "itemViews_yesterday"})
-                break
-            except Exception:
-                continue
-
-    m = m.merge(views_df, on="itemId", how="left")
-    m["itemViews_yesterday"] = pd.to_numeric(m.get("itemViews_yesterday"), errors="coerce").fillna(0.0)
-    return m[["itemId", "itemName", "itemViews_yesterday", "delta"]]
+    return top[["itemId","itemName","qty","trend_svg","image_url"]], series_cache
 
 
 # =========================
-# PDP Trend (BigQuery) + Diagnostics
+# Rising Products (basis selectable)
+# =========================
+def _get_item_views_best_effort(
+    client: BetaAnalyticsDataClient,
+    start: dt.date,
+    end: dt.date,
+    skus: List[str],
+) -> pd.DataFrame:
+    if not skus:
+        return pd.DataFrame(columns=["itemId", "views"])
+
+    tries: List[Tuple[str, bool]] = [
+        ("itemViewEvents", False),
+        ("itemsViewed", False),
+        ("eventCount", True),  # with eventName=view_item
+    ]
+    for metric_name, use_event_filter in tries:
+        try:
+            v = run_report(
+                client, PROPERTY_ID,
+                ymd(start), ymd(end),
+                ["itemId"], [metric_name],
+                dimension_filter=(
+                    ga_filter_and([ga_filter_in("itemId", skus), ga_filter_eq("eventName", "view_item")])
+                    if use_event_filter else ga_filter_in("itemId", skus)
+                ),
+                limit=10000,
+            )
+            if v.empty:
+                continue
+            v["itemId"] = v["itemId"].astype(str).str.strip()
+            v[metric_name] = pd.to_numeric(v[metric_name], errors="coerce").fillna(0.0)
+            return v[["itemId", metric_name]].rename(columns={metric_name: "views"})
+        except Exception:
+            continue
+
+    return pd.DataFrame(columns=["itemId", "views"])
+
+def _get_item_revenue_best_effort(
+    client: BetaAnalyticsDataClient,
+    start: dt.date,
+    end: dt.date,
+    limit: int = 10000,
+) -> pd.DataFrame:
+    for metric_name in ("itemRevenue",):
+        try:
+            df = run_report(
+                client, PROPERTY_ID, ymd(start), ymd(end),
+                ["itemId", "itemName"], [metric_name],
+                limit=limit
+            )
+            if df.empty:
+                continue
+            df["itemId"] = df["itemId"].astype(str).str.strip()
+            df["itemName"] = df["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+            df[metric_name] = pd.to_numeric(df[metric_name], errors="coerce").fillna(0.0)
+            df = df.rename(columns={metric_name: "revenue"})
+            return df[["itemId", "itemName", "revenue"]]
+        except Exception:
+            continue
+    return pd.DataFrame(columns=["itemId", "itemName", "revenue"])
+
+def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n: int = 5) -> pd.DataFrame:
+    cur_start, cur_end = (w.cur_end, w.cur_end) if w.mode == "daily" else (w.cur_start, w.cur_end)
+    prev_start, prev_end = (w.prev_end, w.prev_end) if w.mode == "daily" else (w.prev_start, w.prev_end)
+
+    d1_qty = run_report(client, PROPERTY_ID, ymd(cur_start), ymd(cur_end), ["itemId", "itemName"], ["itemsPurchased"], limit=10000)
+    d0_qty = run_report(client, PROPERTY_ID, ymd(prev_start), ymd(prev_end), ["itemId"], ["itemsPurchased"], limit=10000)
+
+    if d1_qty.empty:
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label"])
+
+    d1_qty["itemsPurchased"] = pd.to_numeric(d1_qty["itemsPurchased"], errors="coerce").fillna(0.0)
+    d1_qty["itemId"] = d1_qty["itemId"].astype(str).str.strip()
+    d1_qty["itemName"] = d1_qty["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+    d1_qty = d1_qty[~d1_qty["itemName"].map(is_not_set)]
+    if d1_qty.empty:
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label"])
+
+    if not d0_qty.empty:
+        d0_qty["itemsPurchased"] = pd.to_numeric(d0_qty["itemsPurchased"], errors="coerce").fillna(0.0)
+        d0_qty["itemId"] = d0_qty["itemId"].astype(str).str.strip()
+    else:
+        d0_qty = pd.DataFrame(columns=["itemId", "itemsPurchased"])
+
+    qty_m = d1_qty.merge(d0_qty, on="itemId", how="left", suffixes=("_cur", "_prev")).fillna(0.0)
+    qty_m["qty"] = qty_m["itemsPurchased_cur"]
+    qty_m["qty_prev"] = qty_m["itemsPurchased_prev"]
+    qty_m["qty_delta"] = qty_m["qty"] - qty_m["qty_prev"]
+
+    skus = [str(x).strip() for x in qty_m["itemId"].tolist() if str(x).strip()]
+
+    v_cur = _get_item_views_best_effort(client, cur_start, cur_end, skus)
+    v_prev = _get_item_views_best_effort(client, prev_start, prev_end, skus)
+    if not v_cur.empty:
+        v_cur = v_cur.rename(columns={"views": "views_cur"})
+    else:
+        v_cur = pd.DataFrame({"itemId": skus, "views_cur": [0.0]*len(skus)})
+    if not v_prev.empty:
+        v_prev = v_prev.rename(columns={"views": "views_prev"})
+    else:
+        v_prev = pd.DataFrame({"itemId": skus, "views_prev": [0.0]*len(skus)})
+
+    r_cur = _get_item_revenue_best_effort(client, cur_start, cur_end)
+    r_prev = _get_item_revenue_best_effort(client, prev_start, prev_end)
+    if not r_cur.empty:
+        r_cur = r_cur[["itemId", "revenue"]].rename(columns={"revenue": "revenue_cur"})
+    else:
+        r_cur = pd.DataFrame({"itemId": skus, "revenue_cur": [0.0]*len(skus)})
+    if not r_prev.empty:
+        r_prev = r_prev[["itemId", "revenue"]].rename(columns={"revenue": "revenue_prev"})
+    else:
+        r_prev = pd.DataFrame({"itemId": skus, "revenue_prev": [0.0]*len(skus)})
+
+    m = qty_m.merge(v_cur, on="itemId", how="left").merge(v_prev, on="itemId", how="left").merge(r_cur, on="itemId", how="left").merge(r_prev, on="itemId", how="left")
+    for c in ("views_cur", "views_prev", "revenue_cur", "revenue_prev"):
+        m[c] = pd.to_numeric(m.get(c), errors="coerce").fillna(0.0)
+
+    m["views"] = m["views_cur"]
+    m["revenue"] = m["revenue_cur"]
+    m["views_delta"] = m["views_cur"] - m["views_prev"]
+    m["revenue_delta"] = m["revenue_cur"] - m["revenue_prev"]
+
+    if RISING_BASIS == "views":
+        m["delta"] = m["views_delta"]
+        m["delta_label"] = "Views Δ"
+    elif RISING_BASIS == "revenue":
+        m["delta"] = m["revenue_delta"]
+        m["delta_label"] = "Revenue Δ"
+    else:
+        m["delta"] = m["qty_delta"]
+        m["delta_label"] = "Qty Δ"
+
+    m = m.sort_values("delta", ascending=False).head(top_n).copy()
+    return m[["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label"]]
+
+
+# =========================
+# PDP Trend (BigQuery) + file cache
 # =========================
 PDP_CATEGORY_MAP = {
     "OUTER": {
@@ -911,13 +1042,24 @@ PDP_CATEGORY_MAP = {
     },
 }
 
-def get_category_pdp_view_trend_bq(end_date: dt.date) -> pd.DataFrame:
+def pdp_cache_path(end_date: dt.date) -> str:
+    return os.path.join(OUT_DIR, "cache", "pdp", f"{ymd(end_date)}.json")
+
+def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dict]:
     axis_dates = [end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
     xlabels = [d.strftime('%m/%d') for d in axis_dates]
 
+    # cache hit
+    if CACHE_PDP:
+        cached = read_json(pdp_cache_path(end_date))
+        if cached and isinstance(cached.get("rows"), list) and cached.get("x") == xlabels:
+            df = pd.DataFrame(cached["rows"])
+            return df, {"x": cached.get("x", xlabels), "rows": cached["rows"]}
+
     if bigquery is None or not BQ_EVENTS_TABLE:
-        print("[WARN] BigQuery not available; PDP Trend will be empty.")
-        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
+        print("[WARN] BigQuery not available; PDP Trend empty.")
+        df = pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
+        return df, {"x": xlabels, "rows": []}
 
     try:
         bq = bigquery.Client()
@@ -980,7 +1122,10 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> pd.DataFrame:
         """
         df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
         if df.empty:
-            return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
+            out = pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
+            if CACHE_PDP:
+                write_json(pdp_cache_path(end_date), {"x": xlabels, "rows": []})
+            return out, {"x": xlabels, "rows": []}
 
         df['d'] = pd.to_datetime(df['d'], errors='coerce').dt.date
         df = df.dropna(subset=['d'])
@@ -989,26 +1134,39 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> pd.DataFrame:
         df['views'] = pd.to_numeric(df['views'], errors="coerce").fillna(0.0)
 
         rows = []
+        cache_rows = []
         for c1, subs in PDP_CATEGORY_MAP.items():
             for sub_label, c2_list in subs.items():
                 ys = []
-                for d in axis_dates:
-                    m = (df['d'] == d) & (df['c1'] == c1) & (df['c2'].isin(c2_list))
+                for d0 in axis_dates:
+                    m = (df['d'] == d0) & (df['c1'] == c1) & (df['c2'].isin(c2_list))
                     ys.append(float(df.loc[m, 'views'].sum()))
 
                 d1 = ys[-1] if ys else 0.0
                 avg7 = (sum(ys) / len(ys)) if ys else 0.0
+                label = f"{c1} · {sub_label}"
                 rows.append({
-                    "itemCategory": f"{c1} · {sub_label}",
+                    "itemCategory": label,
                     "views_d1": float(d1),
                     "views_avg7d": float(avg7),
                     "trend_svg": spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
                 })
+                cache_rows.append({
+                    "itemCategory": label,
+                    "views_d1": float(d1),
+                    "views_avg7d": float(avg7),
+                    "ys": ys
+                })
 
-        return pd.DataFrame(rows)
+        out_df = pd.DataFrame(rows)
+        if CACHE_PDP:
+            write_json(pdp_cache_path(end_date), {"x": xlabels, "rows": cache_rows})
+        return out_df, {"x": xlabels, "rows": cache_rows}
+
     except Exception as e:
         print(f"[WARN] PDP Trend BigQuery failed: {type(e).__name__}: {e}")
-        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
+        out = pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
+        return out, {"x": xlabels, "rows": []}
 
 
 # =========================
@@ -1051,7 +1209,137 @@ def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dic
 
 
 # =========================
-# UI
+# Bundle JSON (cache)
+# =========================
+def bundle_path(mode: str, end_date: dt.date) -> str:
+    if mode == "weekly":
+        return os.path.join(OUT_DIR, "data", "weekly", f"END_{ymd(end_date)}.json")
+    return os.path.join(OUT_DIR, "data", "daily", f"{ymd(end_date)}.json")
+
+def to_records(df: pd.DataFrame) -> List[dict]:
+    if df is None or df.empty:
+        return []
+    return df.to_dict(orient="records")
+
+def build_bundle(
+    w: DigestWindow,
+    overall: Dict[str, Dict[str, float]],
+    signup_users: Dict[str, float],
+    channel_snapshot: pd.DataFrame,
+    paid_detail: pd.DataFrame,
+    paid_top3: pd.DataFrame,
+    kpi_snapshot: pd.DataFrame,
+    trend_series: dict,
+    best_sellers_df: pd.DataFrame,
+    best_sellers_series: dict,
+    rising_df: pd.DataFrame,
+    pdp_series: dict,
+    search_new: pd.DataFrame,
+    search_rising: pd.DataFrame,
+) -> dict:
+    return {
+        "meta": {
+            "mode": w.mode,
+            "end_date": ymd(w.end_date),
+            "cur_start": ymd(w.cur_start),
+            "cur_end": ymd(w.cur_end),
+            "prev_start": ymd(w.prev_start),
+            "prev_end": ymd(w.prev_end),
+            "compare_label": w.compare_label,
+            "yoy_start": ymd(w.yoy_start),
+            "yoy_end": ymd(w.yoy_end),
+            "rising_basis": RISING_BASIS,
+        },
+        "overall": overall,
+        "signup_users": signup_users,
+        "channel_snapshot": to_records(channel_snapshot),
+        "paid_detail": to_records(paid_detail),
+        "paid_top3": to_records(paid_top3),
+        "kpi_snapshot": to_records(kpi_snapshot),
+        "trend_series": trend_series,
+        "best_sellers": to_records(best_sellers_df.drop(columns=["trend_svg"], errors="ignore")),
+        "best_sellers_series": best_sellers_series,
+        "rising": to_records(rising_df),
+        "pdp_series": pdp_series,
+        "search_new": to_records(search_new),
+        "search_rising": to_records(search_rising),
+    }
+
+def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str]) -> dict:
+    # window
+    m = bundle.get("meta", {})
+    mode = (m.get("mode") or "daily").lower()
+    end_date = parse_yyyy_mm_dd(m.get("end_date", "")) or dt.date.today()
+    w = build_window(end_date=end_date, mode=mode)
+
+    overall = bundle.get("overall", {"current": {}, "prev": {}, "yoy": {}})
+    signup_users = bundle.get("signup_users", {"current": 0.0, "prev": 0.0, "yoy": 0.0})
+
+    channel_snapshot = pd.DataFrame(bundle.get("channel_snapshot", []))
+    paid_detail = pd.DataFrame(bundle.get("paid_detail", []))
+    paid_top3 = pd.DataFrame(bundle.get("paid_top3", []))
+    kpi_snapshot = pd.DataFrame(bundle.get("kpi_snapshot", []))
+
+    trend_series = bundle.get("trend_series", {})
+    trend_svg = trend_svg_from_series(trend_series)
+
+    # best sellers
+    bs_base = pd.DataFrame(bundle.get("best_sellers", []))
+    # attach trends from stored series
+    bs_series = bundle.get("best_sellers_series", {"x": [], "items": []})
+    x = bs_series.get("x", [])
+    items_map = {it.get("itemId"): it.get("ys", [0.0]*7) for it in bs_series.get("items", []) if it.get("itemId")}
+    trend_svgs = []
+    for _, r in bs_base.iterrows():
+        sku = str(r.get("itemId", "")).strip()
+        ys = items_map.get(sku, [0.0]*7)
+        trend_svgs.append(spark_svg(x or ["--"]*7, ys, width=240, height=70, stroke="#0055a5"))
+    if not bs_base.empty:
+        bs_base["trend_svg"] = trend_svgs
+        # ensure placeholder
+        if PLACEHOLDER_IMG and "image_url" in bs_base.columns:
+            bs_base.loc[bs_base["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
+
+    rising = pd.DataFrame(bundle.get("rising", []))
+    rising = attach_image_urls(rising, image_map)
+    if PLACEHOLDER_IMG and (not rising.empty) and ("image_url" in rising.columns):
+        rising.loc[rising["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
+
+    # pdp table needs svg; rebuild from series
+    pdp_series = bundle.get("pdp_series", {"x": [], "rows": []})
+    pdp_rows = []
+    for row in pdp_series.get("rows", []):
+        ys = row.get("ys", [0.0]*7)
+        pdp_rows.append({
+            "itemCategory": row.get("itemCategory", ""),
+            "views_d1": row.get("views_d1", 0.0),
+            "views_avg7d": row.get("views_avg7d", 0.0),
+            "trend_svg": spark_svg(pdp_series.get("x", ["--"]*7), ys, width=260, height=70, stroke="#0f766e")
+        })
+    category_pdp_trend = pd.DataFrame(pdp_rows)
+
+    search_new = pd.DataFrame(bundle.get("search_new", []))
+    search_rising = pd.DataFrame(bundle.get("search_rising", []))
+
+    return {
+        "w": w,
+        "overall": overall,
+        "signup_users": signup_users,
+        "channel_snapshot": channel_snapshot,
+        "paid_detail": paid_detail,
+        "paid_top3": paid_top3,
+        "kpi_snapshot": kpi_snapshot,
+        "trend_svg": trend_svg,
+        "best_sellers": bs_base,
+        "rising": rising,
+        "category_pdp_trend": category_pdp_trend,
+        "search_new": search_new,
+        "search_rising": search_rising,
+    }
+
+
+# =========================
+# UI (Compare bar + modal)
 # =========================
 def render_page_html(
     logo_b64: str,
@@ -1069,16 +1357,16 @@ def render_page_html(
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
     nav_links: Dict[str, str],
+    # ✅ bundle path for this report (used by compare UI to auto fill A)
+    bundle_rel_path: str,
 ) -> str:
     cur = overall["current"]; prev = overall["prev"]; yoy = overall["yoy"]
 
-    # primary compare: daily=DoD, weekly=WoW
     s_delta = pct_change(cur["sessions"], prev["sessions"])
     o_delta = pct_change(cur["transactions"], prev["transactions"])
     r_delta = pct_change(cur["purchaseRevenue"], prev["purchaseRevenue"])
     c_pp = cur["cvr"] - prev["cvr"]
 
-    # YoY
     s_yoy = pct_change(cur["sessions"], yoy["sessions"])
     o_yoy = pct_change(cur["transactions"], yoy["transactions"])
     r_yoy = pct_change(cur["purchaseRevenue"], yoy["purchaseRevenue"])
@@ -1114,7 +1402,6 @@ def render_page_html(
         tds = "".join([f"<td class='px-3 py-2 border-b border-slate-100 {fw}'>{c}</td>" for c in cols])
         return f"<tr class='{bg}'>{tds}</tr>"
 
-    # Channel rows
     chan_html = ""
     for r in channel_snapshot.itertuples(index=False):
         chan_html += table_row([
@@ -1145,7 +1432,6 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_currency_krw(r.purchaseRevenue)}</div>",
             ], bold=(r.sessionSourceMedium == "Total"))
 
-    # KPI Snapshot rows (main + yoy)
     kpi_html = ""
     for r in kpi_snapshot.itertuples(index=False):
         kpi_html += table_row([
@@ -1163,7 +1449,7 @@ def render_page_html(
               <td class="px-3 py-2 border-b border-slate-100">{product_img(getattr(r,'image_url',''))}</td>
               <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemName',None) or '—'}</td>
               <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemId',None) or '—'}</td>
-              <td class="px-3 py-2 border-b border-slate-100 text-right font-semibold">{fmt_int(getattr(r,'itemsPurchased_yesterday',0))}</td>
+              <td class="px-3 py-2 border-b border-slate-100 text-right font-semibold">{fmt_int(getattr(r,'qty',0))}</td>
               <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'trend_svg','')}</td>
             </tr>
             """
@@ -1177,7 +1463,8 @@ def render_page_html(
               <td class="px-3 py-2 border-b border-slate-100">{product_img(getattr(r,'image_url',''))}</td>
               <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemId',None) or '—'}</td>
               <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemName',None) or '—'}</td>
-              <td class="px-3 py-2 border-b border-slate-100 text-right">{fmt_int(getattr(r,'itemViews_yesterday',0))}</td>
+              <td class="px-3 py-2 border-b border-slate-100 text-right">{fmt_int(getattr(r,'views',0))}</td>
+              <td class="px-3 py-2 border-b border-slate-100 text-right">{fmt_currency_krw(getattr(r,'revenue',0))}</td>
               <td class="px-3 py-2 border-b border-slate-100 text-right font-extrabold {delta_cls(delta)}">
                 {'▲' if delta>=0 else '▼'} {fmt_int(abs(delta))}
               </td>
@@ -1222,9 +1509,205 @@ def render_page_html(
 
     mode_badge = "Daily" if w.mode == "daily" else "Weekly (7D Cumulative)"
     period_text = f"{ymd(w.cur_start)} ~ {ymd(w.cur_end)}" if w.mode == "weekly" else f"{ymd(w.end_date)}"
+    yoy_text = f"{ymd(w.yoy_start)}" if w.mode == "daily" else f"{ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}"
+    qty_label = "Qty" if w.mode == "daily" else "7D Qty"
+    cmp_label = w.compare_label
+    rising_basis_label = {"qty": "Qty Δ", "views": "Views Δ", "revenue": "Revenue Δ"}.get(RISING_BASIS, "Qty Δ")
 
-    qty_label = "Qty (D-1)" if w.mode == "daily" else "Qty (7D)"
-    cmp_label = w.compare_label  # DoD or WoW
+    # ✅ compare UI default B = prev_end (DoD/WoW baseline)
+    default_a = ymd(w.end_date)
+    default_b = ymd(w.prev_end)
+
+    # JSON file resolver for compare (relative to report html)
+    # - daily:  ../data/daily/YYYY-MM-DD.json
+    # - weekly: ../data/weekly/END_YYYY-MM-DD.json
+    compare_js = f"""
+<script>
+(() => {{
+  const CURRENT_BUNDLE = "{bundle_rel_path}";
+  const MODE = "{w.mode}";
+  const DEFAULT_A = "{default_a}";
+  const DEFAULT_B = "{default_b}";
+
+  const $ = (sel) => document.querySelector(sel);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}}[c]));
+
+  function bundlePath(mode, dateStr) {{
+    // dateStr is YYYY-MM-DD
+    if(!dateStr) return "";
+    if(mode === "weekly") return "../data/weekly/END_" + dateStr + ".json";
+    return "../data/daily/" + dateStr + ".json";
+  }}
+
+  function fmtInt(x) {{
+    const n = Number(x || 0);
+    return n.toLocaleString("en-US");
+  }}
+  function fmtKRW(x) {{
+    const n = Math.round(Number(x || 0));
+    return "₩" + n.toLocaleString("en-US");
+  }}
+  function fmtPct(p, digits=1) {{
+    const n = Number(p || 0) * 100;
+    return n.toFixed(digits) + "%";
+  }}
+  function fmtPP(p, digits=2) {{
+    const n = Number(p || 0) * 100;
+    return n.toFixed(digits) + "%p";
+  }}
+  function pctChange(curr, prev) {{
+    curr = Number(curr || 0); prev = Number(prev || 0);
+    if(prev === 0) return (curr === 0) ? 0 : 1;
+    return (curr - prev) / prev;
+  }}
+
+  async function fetchJSON(path) {{
+    const res = await fetch(path, {{ cache: "force-cache" }});
+    if(!res.ok) throw new Error("Fetch failed: " + path);
+    return await res.json();
+  }}
+
+  function kpiFromBundle(b) {{
+    const cur = (b.overall && b.overall.current) || {{}};
+    const sessions = Number(cur.sessions || 0);
+    const orders = Number(cur.transactions || 0);
+    const revenue = Number(cur.purchaseRevenue || 0);
+    const cvr = Number(cur.cvr || 0);
+    const su = Number((b.signup_users && b.signup_users.current) || 0);
+    return {{ sessions, orders, revenue, cvr, signup: su }};
+  }}
+
+  function renderCompareModal(a, b, mode) {{
+    const aMeta = a.meta || {{}};
+    const bMeta = b.meta || {{}};
+    const aK = kpiFromBundle(a);
+    const bK = kpiFromBundle(b);
+
+    const rows = [
+      ["Sessions", fmtInt(aK.sessions), fmtInt(bK.sessions), (pctChange(aK.sessions, bK.sessions))],
+      ["Orders", fmtInt(aK.orders), fmtInt(bK.orders), (pctChange(aK.orders, bK.orders))],
+      ["Revenue", fmtKRW(aK.revenue), fmtKRW(bK.revenue), (pctChange(aK.revenue, bK.revenue))],
+      ["CVR", (aK.cvr*100).toFixed(2)+"%", (bK.cvr*100).toFixed(2)+"%", (aK.cvr - bK.cvr)],
+      ["Sign-up Users", fmtInt(aK.signup), fmtInt(bK.signup), (pctChange(aK.signup, bK.signup))],
+    ];
+
+    const diffCell = (metric, diff) => {{
+      let txt = "";
+      if(metric === "CVR") {{
+        txt = (diff>=0?"+":"") + fmtPP(diff, 2);
+      }} else {{
+        txt = (diff>=0?"+":"") + fmtPct(diff, 1);
+      }}
+      const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
+      return `<span class="${{cls}} font-extrabold">${{esc(txt)}}</span>`;
+    }};
+
+    const kpiTable = rows.map(r => `
+      <tr class="border-b border-slate-100">
+        <td class="px-3 py-2 font-extrabold">${{esc(r[0])}}</td>
+        <td class="px-3 py-2 text-right font-semibold">${{esc(r[1])}}</td>
+        <td class="px-3 py-2 text-right font-semibold">${{esc(r[2])}}</td>
+        <td class="px-3 py-2 text-right">${{diffCell(r[0], r[3])}}</td>
+      </tr>
+    `).join("");
+
+    // Channel Rev compare (A vs B)
+    const aCh = Array.isArray(a.channel_snapshot) ? a.channel_snapshot : [];
+    const bCh = Array.isArray(b.channel_snapshot) ? b.channel_snapshot : [];
+    const byKey = (arr) => {{
+      const m = new Map();
+      arr.forEach(x => m.set(x.bucket, x));
+      return m;
+    }};
+    const am = byKey(aCh), bm = byKey(bCh);
+    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Total"];
+    const chRows = buckets.map(k => {{
+      const aa = am.get(k) || {{}};
+      const bb = bm.get(k) || {{}};
+      const ar = Number(aa.purchaseRevenue || 0);
+      const br = Number(bb.purchaseRevenue || 0);
+      const d = pctChange(ar, br);
+      const cls = d>=0 ? "text-blue-600" : "text-orange-700";
+      return `
+        <tr class="border-b border-slate-100">
+          <td class="px-3 py-2 font-extrabold">${{esc(k)}}</td>
+          <td class="px-3 py-2 text-right">${{esc(fmtKRW(ar))}}</td>
+          <td class="px-3 py-2 text-right">${{esc(fmtKRW(br))}}</td>
+          <td class="px-3 py-2 text-right"><span class="${{cls}} font-extrabold">${{esc((d>=0?"+":"")+fmtPct(d,1))}}</span></td>
+        </tr>
+      `;
+    }}).join("");
+
+    const title = `${{mode.toUpperCase()}} Compare · A(${{aMeta.end_date||""}}) vs B(${{bMeta.end_date||""}})`;
+
+    $("#cmpTitle").textContent = title;
+    $("#cmpSub").textContent = `A period: ${{aMeta.cur_start||""}} ~ ${{aMeta.cur_end||""}}   |   B period: ${{bMeta.cur_start||""}} ~ ${{bMeta.cur_end||""}}`;
+    $("#cmpKPIs").innerHTML = kpiTable;
+    $("#cmpChannels").innerHTML = chRows;
+
+    $("#cmpModal").classList.remove("hidden");
+  }}
+
+  async function onCompareClick() {{
+    const mode = $("#cmpMode").value;
+    const aDate = $("#cmpA").value;
+    const bDate = $("#cmpB").value;
+
+    const aPath = bundlePath(mode, aDate);
+    const bPath = bundlePath(mode, bDate);
+
+    $("#cmpErr").textContent = "";
+    $("#cmpBtn").disabled = true;
+    $("#cmpBtn").textContent = "Loading...";
+
+    try {{
+      const [a, b] = await Promise.all([fetchJSON(aPath), fetchJSON(bPath)]);
+      renderCompareModal(a, b, mode);
+    }} catch(e) {{
+      $("#cmpErr").textContent = "Compare failed. JSON not found for selected date(s). 먼저 해당 날짜 리포트를 생성해야 합니다.";
+      console.error(e);
+    }} finally {{
+      $("#cmpBtn").disabled = false;
+      $("#cmpBtn").textContent = "Compare";
+    }}
+  }}
+
+  function presetYoY() {{
+    // A = current page end_date, B = this report's YoY end_date (stored in current bundle)
+    fetchJSON(CURRENT_BUNDLE).then(b => {{
+      const m = b.meta || {{}};
+      $("#cmpMode").value = m.mode || MODE;
+      $("#cmpA").value = m.end_date || DEFAULT_A;
+      // daily: yoy_end == yoy_start; weekly: yoy_end
+      $("#cmpB").value = m.yoy_end || m.yoy_start || DEFAULT_B;
+    }}).catch(()=>{});
+  }}
+
+  function presetPrev() {{
+    fetchJSON(CURRENT_BUNDLE).then(b => {{
+      const m = b.meta || {{}};
+      $("#cmpMode").value = m.mode || MODE;
+      $("#cmpA").value = m.end_date || DEFAULT_A;
+      $("#cmpB").value = m.prev_end || DEFAULT_B;
+    }}).catch(()=>{});
+  }}
+
+  function init() {{
+    $("#cmpMode").value = MODE;
+    $("#cmpA").value = DEFAULT_A;
+    $("#cmpB").value = DEFAULT_B;
+
+    $("#cmpBtn").addEventListener("click", onCompareClick);
+    $("#cmpClose").addEventListener("click", () => $("#cmpModal").classList.add("hidden"));
+    $("#cmpBackdrop").addEventListener("click", () => $("#cmpModal").classList.add("hidden"));
+    $("#presetPrev").addEventListener("click", presetPrev);
+    $("#presetYoY").addEventListener("click", presetYoY);
+  }}
+
+  document.addEventListener("DOMContentLoaded", init);
+}})();
+</script>
+"""
 
     return f"""<!doctype html>
 <html lang="ko">
@@ -1245,12 +1728,13 @@ def render_page_html(
 <body>
   <div class="px-3 sm:px-6 py-6 max-w-[1200px] mx-auto">
 
-    <div class="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div class="flex items-center gap-3">
         {"<img src='data:image/png;base64," + logo_b64 + "' class='h-8 w-auto'/>" if logo_b64 else ""}
         <div>
           <div class="text-2xl sm:text-3xl font-black tracking-tight">Daily Digest</div>
           <div class="text-sm text-slate-500">eCommerce Performance · {mode_badge} · <b class="text-slate-700">{period_text}</b></div>
+          <div class="text-xs text-slate-400 mt-0.5">YoY compare vs <b class="text-slate-600">{yoy_text}</b></div>
         </div>
       </div>
 
@@ -1259,6 +1743,94 @@ def render_page_html(
         <a href="{nav_links.get('daily_index','index.html')}" class="px-4 py-2 rounded-2xl glass-card font-extrabold text-sm">Daily</a>
         <a href="{nav_links.get('weekly_index','index.html')}" class="px-4 py-2 rounded-2xl glass-card font-extrabold text-sm">Weekly</a>
         <span class="badge-soft">{mode_badge}</span>
+      </div>
+    </div>
+
+    <!-- ✅ Compare Bar -->
+    <div class="glass-card rounded-3xl p-4 mb-6">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <div class="text-sm font-black">Compare</div>
+          <span class="badge-soft">No extra GA/BQ cost (uses cached JSON)</span>
+        </div>
+
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+          <select id="cmpMode" class="px-3 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold text-sm">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
+
+          <div class="flex items-center gap-2">
+            <input id="cmpA" type="date" class="px-3 py-2 rounded-2xl border border-slate-200 bg-white/70 font-semibold text-sm"/>
+            <span class="text-slate-400 font-black">VS</span>
+            <input id="cmpB" type="date" class="px-3 py-2 rounded-2xl border border-slate-200 bg-white/70 font-semibold text-sm"/>
+          </div>
+
+          <button id="presetPrev" class="px-3 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold text-sm">Preset: {cmp_label}</button>
+          <button id="presetYoY" class="px-3 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold text-sm">Preset: YoY</button>
+
+          <button id="cmpBtn" class="px-4 py-2 rounded-2xl bg-slate-900 text-white font-extrabold text-sm">Compare</button>
+        </div>
+      </div>
+      <div id="cmpErr" class="mt-2 text-xs font-semibold text-orange-700"></div>
+      <div class="mt-2 text-xs text-slate-500">
+        ※ 선택한 날짜의 JSON이 없으면 비교가 실패합니다. (먼저 해당 날짜 리포트를 생성해야 함)
+      </div>
+    </div>
+
+    <!-- Compare Modal -->
+    <div id="cmpModal" class="hidden fixed inset-0 z-50">
+      <div id="cmpBackdrop" class="absolute inset-0 bg-black/40"></div>
+      <div class="relative mx-auto mt-10 max-w-[1100px] px-3">
+        <div class="glass-card rounded-3xl p-6">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div id="cmpTitle" class="text-xl font-black"></div>
+              <div id="cmpSub" class="mt-1 text-xs text-slate-500"></div>
+            </div>
+            <button id="cmpClose" class="px-3 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold text-sm">Close</button>
+          </div>
+
+          <div class="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="rounded-3xl border border-slate-200 bg-white/60 overflow-hidden">
+              <div class="px-4 py-3 font-black border-b border-slate-200">KPIs (A vs B)</div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Metric</th>
+                      <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">A</th>
+                      <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">B</th>
+                      <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Δ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="cmpKPIs"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="rounded-3xl border border-slate-200 bg-white/60 overflow-hidden">
+              <div class="px-4 py-3 font-black border-b border-slate-200">Channel Revenue (A vs B)</div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Channel</th>
+                      <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">A Rev</th>
+                      <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">B Rev</th>
+                      <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Δ%</th>
+                    </tr>
+                  </thead>
+                  <tbody id="cmpChannels"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 text-xs text-slate-400">
+            Compare is computed in-browser from cached JSON. No GA4 API / BigQuery calls.
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1293,7 +1865,7 @@ def render_page_html(
 
       <div class="mt-3 text-xs text-slate-500">
         비교 기준: <b class="text-slate-700">{cmp_label}</b> ({"전일" if w.mode=="daily" else "전주(직전 7D)"} 대비) ·
-        <b class="text-slate-700">YoY</b> (전년 {"동요일" if w.mode=="daily" else "동기간"} 대비)
+        <b class="text-slate-700">YoY</b> (vs <b class="text-slate-700">{yoy_text}</b>)
       </div>
     </div>
 
@@ -1377,9 +1949,10 @@ def render_page_html(
 
       <div class="glass-card rounded-3xl p-6">
         <div class="flex items-center justify-between">
-          <div class="text-lg font-black">Best Sellers · TOP 5 ({qty_label})</div>
+          <div class="text-lg font-black">Best Sellers · TOP 5</div>
           <span class="badge-soft">{mode_badge}</span>
         </div>
+        <div class="mt-1 text-xs text-slate-500">Quantity column: <b class="text-slate-700">{qty_label}</b></div>
         <div class="mt-4 overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
@@ -1401,7 +1974,10 @@ def render_page_html(
       <div class="glass-card rounded-3xl p-6">
         <div class="flex items-center justify-between">
           <div class="text-lg font-black">Rising Products</div>
-          <span class="badge-soft">{mode_badge} · Δ Qty ({cmp_label})</span>
+          <span class="badge-soft">{mode_badge} · {rising_basis_label} ({cmp_label})</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">
+          기준 변경: env <b class="text-slate-700">DAILY_DIGEST_RISING_BASIS</b> = qty | views | revenue (현재: <b class="text-slate-700">{RISING_BASIS}</b>)
         </div>
         <div class="mt-4 overflow-x-auto">
           <table class="w-full text-sm">
@@ -1411,11 +1987,12 @@ def render_page_html(
                 <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">SKU</th>
                 <th class="px-3 py-2 text-left text-xs tracking-widest uppercase text-slate-500">Item</th>
                 <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Views</th>
-                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Qty Δ</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">Revenue</th>
+                <th class="px-3 py-2 text-right text-xs tracking-widest uppercase text-slate-500">{rising_basis_label}</th>
               </tr>
             </thead>
             <tbody>
-              {rp_html if rp_html else "<tr><td class='px-3 py-4 text-slate-400' colspan='5'>데이터가 없습니다.</td></tr>"}
+              {rp_html if rp_html else "<tr><td class='px-3 py-4 text-slate-400' colspan='6'>데이터가 없습니다.</td></tr>"}
             </tbody>
           </table>
         </div>
@@ -1459,17 +2036,19 @@ def render_page_html(
     </div>
 
     <div class="mt-6 text-xs text-slate-400 text-right">
-      Auto-generated · {mode_badge} · End = {ymd(w.end_date)} · Compare={cmp_label} · YoY shift=-364d
+      Auto-generated · {mode_badge} · End = {ymd(w.end_date)} · Compare={cmp_label} · YoY={yoy_text}
     </div>
 
   </div>
+
+  {compare_js}
 </body>
 </html>
 """
 
 
 # =========================
-# Hub pages
+# Hub page
 # =========================
 def render_hub_index(dates: List[dt.date]) -> str:
     date_links = "\n".join([
@@ -1520,29 +2099,62 @@ def render_hub_index(dates: List[dt.date]) -> str:
 
 
 # =========================
-# Build one report
+# Build one report (with bundle cache)
 # =========================
-def build_one(client: BetaAnalyticsDataClient, end_date: dt.date, mode: str, image_map: Dict[str, str], logo_b64: str) -> str:
+def build_one(
+    client: BetaAnalyticsDataClient,
+    end_date: dt.date,
+    mode: str,
+    image_map: Dict[str, str],
+    logo_b64: str,
+) -> Tuple[str, dict]:
     w = build_window(end_date=end_date, mode=mode)
 
+    # ✅ bundle cache hit -> rebuild HTML without GA/BQ
+    bpath = bundle_path(w.mode, w.end_date)
+    if USE_DATA_CACHE:
+        cached = read_json(bpath)
+        if cached:
+            rt = rebuild_runtime_objects_from_bundle(cached, image_map=image_map)
+            bundle_rel = "../data/weekly/END_" + ymd(w.end_date) + ".json" if w.mode == "weekly" else "../data/daily/" + ymd(w.end_date) + ".json"
+            html = render_page_html(
+                logo_b64=logo_b64,
+                w=rt["w"],
+                overall=rt["overall"],
+                signup_users=rt["signup_users"],
+                channel_snapshot=rt["channel_snapshot"],
+                paid_detail=rt["paid_detail"],
+                paid_top3=rt["paid_top3"],
+                kpi_snapshot=rt["kpi_snapshot"],
+                trend_svg=rt["trend_svg"],
+                best_sellers=rt["best_sellers"],
+                rising=rt["rising"],
+                category_pdp_trend=rt["category_pdp_trend"],
+                search_new=rt["search_new"],
+                search_rising=rt["search_rising"],
+                nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
+                bundle_rel_path=bundle_rel,
+            )
+            return html, cached
+
+    # live fetch
     overall = get_overall_kpis(client, w)
     signup_users = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
-
     channel_snapshot = get_channel_snapshot_3way(client, w)
     paid_detail = get_paid_detail_3way(client, w)
     paid_top3 = get_paid_top3(client, w)
-
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
-    trend_svg = get_trend_view_svg(client, w)
 
-    best_sellers = get_best_sellers_with_trends(client, w, image_map)
+    trend_series = get_trend_view_series(client, w)
+    trend_svg = trend_svg_from_series(trend_series)
 
+    best_sellers, best_sellers_series = get_best_sellers_with_trends(client, w, image_map)
     rising = get_rising_products(client, w, top_n=5)
     rising = attach_image_urls(rising, image_map)
     if PLACEHOLDER_IMG and (not rising.empty) and ("image_url" in rising.columns):
         rising.loc[rising["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
 
-    # Missing image tracking
+    # missing images
     missing = []
     if not best_sellers.empty and 'itemId' in best_sellers.columns:
         missing += [sku for sku in best_sellers['itemId'].tolist() if str(sku).strip() not in image_map]
@@ -1551,17 +2163,31 @@ def build_one(client: BetaAnalyticsDataClient, end_date: dt.date, mode: str, ima
     if missing:
         write_missing_image_skus(MISSING_SKU_OUT, missing)
 
-    category_pdp_trend = get_category_pdp_view_trend_bq(end_date=end_date)
-
+    category_pdp_trend, pdp_series = get_category_pdp_view_trend_bq(end_date=end_date)
     search = get_search_trends(client, end_date=end_date)
 
-    nav_links = {
-        "hub": "../index.html",
-        "daily_index": "../index.html",
-        "weekly_index": "../index.html",
-    }
+    bundle = build_bundle(
+        w=w,
+        overall=overall,
+        signup_users=signup_users,
+        channel_snapshot=channel_snapshot,
+        paid_detail=paid_detail,
+        paid_top3=paid_top3,
+        kpi_snapshot=kpi_snapshot,
+        trend_series=trend_series,
+        best_sellers_df=best_sellers,
+        best_sellers_series=best_sellers_series,
+        rising_df=rising,
+        pdp_series=pdp_series,
+        search_new=search["new"],
+        search_rising=search["rising"],
+    )
 
-    return render_page_html(
+    if WRITE_DATA_CACHE:
+        write_json(bpath, bundle)
+
+    bundle_rel = "../data/weekly/END_" + ymd(w.end_date) + ".json" if w.mode == "weekly" else "../data/daily/" + ymd(w.end_date) + ".json"
+    html = render_page_html(
         logo_b64=logo_b64,
         w=w,
         overall=overall,
@@ -1576,8 +2202,10 @@ def build_one(client: BetaAnalyticsDataClient, end_date: dt.date, mode: str, ima
         category_pdp_trend=category_pdp_trend,
         search_new=search["new"],
         search_rising=search["rising"],
-        nav_links=nav_links,
+        nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
+        bundle_rel_path=bundle_rel,
     )
+    return html, bundle
 
 
 # =========================
@@ -1611,32 +2239,31 @@ def main():
     weekly_dir = os.path.join(OUT_DIR, "weekly")
     ensure_dir(daily_dir)
     ensure_dir(weekly_dir)
+    ensure_dir(os.path.join(OUT_DIR, "data", "daily"))
+    ensure_dir(os.path.join(OUT_DIR, "data", "weekly"))
+    ensure_dir(os.path.join(OUT_DIR, "cache", "pdp"))
 
     for d in dates:
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
 
-        # Cost saving: if exists, skip queries and keep existing HTML
+        # Daily
         if SKIP_IF_EXISTS and os.path.exists(out_daily):
             print(f"[SKIP] Exists (Daily): {out_daily}")
         else:
-            html_daily = build_one(client, end_date=d, mode="daily", image_map=image_map, logo_b64=logo_b64)
+            html_daily, _bundle = build_one(client, end_date=d, mode="daily", image_map=image_map, logo_b64=logo_b64)
             with open(out_daily, "w", encoding="utf-8") as f:
                 f.write(html_daily)
             print(f"[OK] Wrote: {out_daily}")
 
+        # Weekly
         if SKIP_IF_EXISTS and os.path.exists(out_weekly):
             print(f"[SKIP] Exists (Weekly): {out_weekly}")
         else:
-            html_weekly = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
+            html_weekly, _bundle = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
             with open(out_weekly, "w", encoding="utf-8") as f:
                 f.write(html_weekly)
             print(f"[OK] Wrote: {out_weekly}")
-
-    # Hub index (❗️index.html 덮어쓰기 방지: 허브가 예전 버전으로 돌아가는 현상 차단)
-    # 기본 동작: index.html이 이미 있으면 절대 덮어쓰지 않음
-    # 필요할 때만 env로 강제 갱신:
-    #   DAILY_DIGEST_FORCE_HUB_OVERWRITE=true
 
     hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
