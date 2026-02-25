@@ -30,10 +30,10 @@ on:
         options: ["false", "true"]
 
   schedule:
-    # KST 08:00 = UTC 23:00 (전날)
-    - cron: "0 23 * * *"
+    # ✅ KST 06:30 = UTC 21:30 (전날)
+    - cron: "30 21 * * *"
 
-# ✅ 핵심: 동시 실행 레이스 방지 (구버전 덮어쓰기/롤백처럼 보이는 현상 방지)
+# ✅ 동시 실행 레이스 방지
 concurrency:
   group: daily-update-main
   cancel-in-progress: true
@@ -85,9 +85,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-          # ✅ BigQuery dtype support (fix: Please install the 'db-dtypes' package)
+          # ✅ BigQuery dtype support
           pip install db-dtypes
 
+          # ✅ HTML→PNG 렌더링용
+          pip install playwright
           playwright install --with-deps chromium
 
       - name: Ensure reports dir
@@ -142,15 +144,37 @@ jobs:
           python -u daily_digest_live_final.py --out-dir reports/daily_digest \
             || python -u daily_digest_live_final.py
 
-          # ✅ 빌드 스탬프(진단용): 캐시/덮어쓰기 구분
+          # ✅ 진단용 스탬프
           if [ -f reports/daily_digest/index.html ]; then
             echo "<!-- BUILD_STAMP: ${KST_STAMP} -->" >> reports/daily_digest/index.html
           fi
 
-          # ✅ 최소 산출물 체크
-          test -f reports/daily_digest/index.html || true
-          ls -la reports/daily_digest/daily | tail -n 50 || true
-          ls -la reports/daily_digest/weekly | tail -n 50 || true
+          ls -la reports/daily_digest/daily | tail -n 60 || true
+          ls -la reports/daily_digest/weekly | tail -n 60 || true
+
+      # =========================================================
+      # ✅ (NEW) Render yesterday daily HTML -> PNG (for email)
+      # =========================================================
+      - name: Render yesterday Daily Digest PNG
+        if: ${{ success() }}
+        shell: bash
+        env:
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+        run: |
+          set -euo pipefail
+          HTML="reports/daily_digest/daily/${YMD}.html"
+          PNG="reports/daily_digest/daily/${YMD}.png"
+
+          if [ ! -f "$HTML" ]; then
+            echo "[WARN] Daily HTML not found for PNG render: $HTML"
+            ls -la reports/daily_digest/daily || true
+            exit 0
+          fi
+
+          # ✅ scripts/render_daily_png.py 가 있어야 함
+          python -u scripts/render_daily_png.py "$HTML" "$PNG"
+          test -f "$PNG"
+          ls -la "$PNG"
 
       # ----------------------------
       # 1) Naver Lowest Price
@@ -282,14 +306,14 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Daily auto update (reports)" || true
-            # ✅ 중요: 커밋 이후 pull --rebase 금지 (구버전 파일이 되살아나는 케이스 방지)
+            # ✅ 커밋 이후 pull --rebase 금지
             git push origin HEAD:main
           fi
 
       # ----------------------------
-      # ✅ Success Email (어제 Daily 리포트 1개만 본문으로)
+      # ✅ Success Email (PNG inline 우선 + 첨부)
       # ----------------------------
-      - name: Send success email (yesterday daily report)
+      - name: Send success email (yesterday daily report PNG)
         if: ${{ success() }}
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
@@ -304,20 +328,23 @@ jobs:
           MODE_VOC_ONLY:   ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
           MODE_BLOG_ONLY:  ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
 
-          # ✅ 핵심: HUB(index) 말고 "어제 데일리 리포트"를 본문으로 보냄
-          DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
           REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
 
-          # (옵션) send_daily_email.py에서 쓰는 스위치가 있다면 유지
-          EMAIL_RENDER_MODE: computed
+          # ✅ 메일 본문용 소스 (PNG 우선)
+          DAILY_DIGEST_PNG_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.png
+          DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
         shell: bash
         run: |
           set -euo pipefail
 
+          echo "[DEBUG] REPORT_DATE=${REPORT_DATE}"
+          echo "[DEBUG] DAILY_DIGEST_PNG_PATH=${DAILY_DIGEST_PNG_PATH}"
           echo "[DEBUG] DAILY_DIGEST_HTML_PATH=${DAILY_DIGEST_HTML_PATH}"
-          if [ ! -f "${DAILY_DIGEST_HTML_PATH}" ]; then
-            echo "[WARN] Yesterday daily report not found. Listing daily dir:"
+
+          if [ ! -f "${DAILY_DIGEST_PNG_PATH}" ]; then
+            echo "[WARN] PNG not found. Listing daily dir:"
             ls -la reports/daily_digest/daily || true
           fi
 
+          # ✅ scripts/send_daily_email.py 가 PNG inline(CID) 지원하도록 되어 있어야 함
           python -u scripts/send_daily_email.py
