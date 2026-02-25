@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OWNED Campaign → Product Explorer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+
+    html, body { height: 100%; overflow: auto; }
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }
+    .glass{
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.85);
+      border-radius: 26px;
+      box-shadow: 0 24px 60px rgba(0,45,114,0.07);
+    }
+    .chip{
+      border: 1px solid rgba(148,163,184,0.35);
+      background: rgba(255,255,255,0.78);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+    }
+    .chip:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .chip.active{
+      background: rgba(0,45,114,0.08);
+      border-color: rgba(0,45,114,0.28);
+      color: var(--brand);
+    }
+    .btn{
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.88);
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .btn-primary{ background: #002d72; border-color: #002d72; color: white; }
+    .btn:disabled, .chip:disabled{
+      opacity: .55;
+      cursor: not-allowed;
+      transform:none !important;
+      box-shadow:none !important;
+    }
+    .muted{ color:#64748b; }
+    .small-label{
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    input[type="date"], input[type="text"], select{
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.90);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      outline: none;
+      width: 100%;
+    }
+    input[type="date"]:focus, input[type="text"]:focus, select:focus{
+      border-color: rgba(0,45,114,0.40);
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
+    }
+    .notice{
+      border: 1px solid rgba(148,163,184,0.25);
+      background: rgba(255,255,255,0.86);
+      border-radius: 18px;
+      padding: 10px 12px;
+      font-weight: 800;
+      font-size: 12px;
+      color:#0f172a;
+      display:none;
+      align-items:center;
+      gap:10px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.06);
+    }
+    .notice .dot{
+      width:10px; height:10px; border-radius:999px;
+      background: rgba(2,45,114,0.85);
+      flex: 0 0 auto;
+    }
+    .notice .x{
+      margin-left:auto;
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.85);
+      border-radius: 12px;
+      padding: 6px 10px;
+      font-weight: 900;
+      cursor:pointer;
+    }
+    .kpi-card{
+      border: 1px solid rgba(148,163,184,0.22);
+      background: rgba(255,255,255,0.86);
+      border-radius: 18px;
+      padding: 12px 14px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.06);
+    }
+    .kpi-title{ font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color:#94a3b8; }
+    .kpi-value{ font-size: 20px; font-weight: 900; margin-top: 6px; }
+    .kpi-sub{ font-size: 12px; font-weight: 800; color:#64748b; margin-top: 2px; }
+    table{
+      width:100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow:hidden;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(148,163,184,0.22);
+      box-shadow: 0 12px 34px rgba(0,0,0,0.06);
+    }
+    thead th{
+      text-align:left;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color:#64748b;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(148,163,184,0.20);
+      background: rgba(255,255,255,0.9);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    tbody td{
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(148,163,184,0.16);
+      font-weight: 800;
+      font-size: 13px;
+      color:#0f172a;
+    }
+    tbody tr:hover td{ background: rgba(0,45,114,0.04); }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.22);
+      background: rgba(255,255,255,0.88);
+      font-weight: 900;
+      font-size: 12px;
+    }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+
+<body class="p-6 md:p-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+      <div>
+        <div class="text-4xl font-black tracking-tight">OWNED Campaign Explorer</div>
+        <div class="muted font-semibold mt-1">EDM/LMS/KAKAO 캠페인(발송)별 성과 + 구매 상품까지 확인</div>
+      </div>
+
+      <div class="flex items-center gap-3 flex-wrap justify-end">
+        <a class="btn" href="./hub.html" title="(옵션) 기존 리포트 허브">Hub</a>
+        <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
+      </div>
+    </div>
+
+    <div id="notice" class="notice mb-4">
+      <div class="dot"></div>
+      <div id="noticeText">-</div>
+      <button id="noticeClose" class="x" type="button">닫기</button>
+    </div>
+
+    <div class="glass p-5">
+      <!-- Controls -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <div class="small-label">Date</div>
+        <div class="w-[160px]"><input id="datePicker" type="date" /></div>
+        <button id="btnPrev" class="btn" type="button">◀</button>
+        <button id="btnNext" class="btn" type="button">▶</button>
+        <button id="btnToday" class="btn" type="button">오늘</button>
+
+        <div class="ml-2 small-label">Channel</div>
+        <button id="chipAll" class="chip active" type="button">ALL</button>
+        <button id="chipEDM" class="chip" type="button">EDM</button>
+        <button id="chipLMS" class="chip" type="button">LMS</button>
+        <button id="chipKAKAO" class="chip" type="button">KAKAO</button>
+
+        <div class="ml-2 small-label">Search</div>
+        <div class="w-[260px]"><input id="q" type="text" placeholder="캠페인명(send_id) 검색…" /></div>
+
+        <div class="ml-auto flex items-center gap-2">
+          <div class="small-label">Top</div>
+          <select id="topN" class="w-[120px]">
+            <option value="30" selected>30</option>
+            <option value="60">60</option>
+            <option value="120">120</option>
+            <option value="300">300</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Campaign buttons -->
+      <div class="mb-4">
+        <div class="small-label mb-2">Campaigns (send_id)</div>
+        <div id="campaignWrap" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- KPI -->
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+        <div class="kpi-card">
+          <div class="kpi-title">Sessions</div>
+          <div id="kSessions" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kSessionsSub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Users</div>
+          <div id="kUsers" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kUsersSub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Purchases</div>
+          <div id="kPurchases" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kCvrSub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Revenue</div>
+          <div id="kRevenue" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kAovSub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Items</div>
+          <div id="kItems" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kItemsSub">-</div>
+        </div>
+      </div>
+
+      <!-- Products -->
+      <div class="flex items-center gap-2 mb-2">
+        <div class="small-label">Products</div>
+        <div id="selMeta" class="pill"><span class="mono" id="selChannel">-</span> · <span class="mono" id="selSendId">-</span></div>
+      </div>
+
+      <div class="overflow-auto rounded-[18px]">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:220px">Item name</th>
+              <th style="min-width:140px">Item id</th>
+              <th style="min-width:120px">Items</th>
+              <th style="min-width:140px">Revenue</th>
+            </tr>
+          </thead>
+          <tbody id="tb">
+            <tr><td colspan="4" class="muted font-semibold">캠페인을 선택하면 상품 리스트가 표시돼.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="muted font-semibold text-xs mt-3">
+        데이터: GA4 BigQuery Export · send_id 규칙: KAKAO=manual_term, EDM/LMS=campaign · purchase 기준 상품 집계
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const notice = document.getElementById('notice');
+  const noticeText = document.getElementById('noticeText');
+  const noticeClose = document.getElementById('noticeClose');
+  function showNotice(msg){ noticeText.textContent = msg; notice.style.display='flex'; }
+  function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
+  noticeClose.addEventListener('click', hideNotice);
+
+  const datePicker = document.getElementById('datePicker');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  const btnToday = document.getElementById('btnToday');
+  const btnReload = document.getElementById('btnReload');
+
+  const chipAll = document.getElementById('chipAll');
+  const chipEDM = document.getElementById('chipEDM');
+  const chipLMS = document.getElementById('chipLMS');
+  const chipKAKAO = document.getElementById('chipKAKAO');
+  const q = document.getElementById('q');
+  const topN = document.getElementById('topN');
+
+  const campaignWrap = document.getElementById('campaignWrap');
+  const tb = document.getElementById('tb');
+
+  const kSessions = document.getElementById('kSessions');
+  const kUsers = document.getElementById('kUsers');
+  const kPurchases = document.getElementById('kPurchases');
+  const kRevenue = document.getElementById('kRevenue');
+  const kItems = document.getElementById('kItems');
+  const kSessionsSub = document.getElementById('kSessionsSub');
+  const kUsersSub = document.getElementById('kUsersSub');
+  const kCvrSub = document.getElementById('kCvrSub');
+  const kAovSub = document.getElementById('kAovSub');
+  const kItemsSub = document.getElementById('kItemsSub');
+
+  const selChannel = document.getElementById('selChannel');
+  const selSendId = document.getElementById('selSendId');
+
+  function fmt(n){
+    if(n === null || n === undefined) return '-';
+    const x = Number(n);
+    if(!isFinite(x)) return '-';
+    return x.toLocaleString('en-US');
+  }
+  function fmtMoney(n){
+    if(n === null || n === undefined) return '-';
+    const x = Number(n);
+    if(!isFinite(x)) return '-';
+    return x.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+  function ymd(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  function parseYMD(s){
+    const [y,m,d] = (s||'').split('-').map(Number);
+    return new Date(y,(m||1)-1,d||1);
+  }
+  function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+
+  let CHANNEL = 'ALL';
+  let RAW = null;      // {kpi:[], prod:[]}
+  let KPI = [];        // filtered KPI rows
+  let PROD = [];       // filtered PROD rows
+  let SELECTED = null; // {channel, send_id}
+
+  function setChipActive(){
+    [chipAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
+    if(CHANNEL==='ALL') chipAll.classList.add('active');
+    if(CHANNEL==='EDM') chipEDM.classList.add('active');
+    if(CHANNEL==='LMS') chipLMS.classList.add('active');
+    if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
+  }
+
+  function filterRows(){
+    if(!RAW){ KPI=[]; PROD=[]; return; }
+    const qq = (q.value||'').trim().toLowerCase();
+
+    KPI = RAW.kpi.filter(r=>{
+      if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
+      if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
+      return true;
+    });
+
+    PROD = RAW.prod.filter(r=>{
+      if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
+      if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
+      return true;
+    });
+  }
+
+  function renderCampaignButtons(){
+    campaignWrap.innerHTML = '';
+    if(!KPI.length){
+      campaignWrap.innerHTML = `<div class="muted font-semibold text-sm">캠페인이 없거나(또는 필터가 너무 좁아) 결과가 없어.</div>`;
+      return;
+    }
+
+    const limit = Math.max(1, parseInt(topN.value||'30',10));
+    // Sort by sessions desc
+    const rows = KPI.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+
+    const html = rows.map(r=>{
+      const label = `${r.send_id}`;
+      const meta = `${r.channel} · S:${r.sessions}`;
+      const active = (SELECTED && SELECTED.channel===r.channel && SELECTED.send_id===r.send_id) ? 'active' : '';
+      return `<button class="chip ${active}" data-channel="${r.channel}" data-send="${encodeURIComponent(r.send_id)}" title="${meta}">${label}</button>`;
+    }).join('');
+
+    campaignWrap.innerHTML = html;
+
+    // bind
+    Array.from(campaignWrap.querySelectorAll('button.chip')).forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const ch = btn.getAttribute('data-channel');
+        const send = decodeURIComponent(btn.getAttribute('data-send')||'');
+        selectCampaign(ch, send);
+      });
+    });
+  }
+
+  function aggregateKPIForSelected(){
+    if(!SELECTED){
+      kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
+      kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
+      selChannel.textContent='-'; selSendId.textContent='-';
+      return;
+    }
+    const row = RAW.kpi.find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
+    if(!row) return;
+
+    const sessions = row.sessions||0;
+    const users = row.users||0;
+    const purchases = row.purchases||0;
+    const revenue = row.revenue||0;
+    const items = row.items_purchased||0;
+
+    kSessions.textContent = fmt(sessions);
+    kUsers.textContent = fmt(users);
+    kPurchases.textContent = fmt(purchases);
+    kRevenue.textContent = fmtMoney(revenue);
+    kItems.textContent = fmt(items);
+
+    const cvr = sessions ? (purchases/sessions*100) : 0;
+    const aov = purchases ? (revenue/purchases) : 0;
+    const ips = purchases ? (items/purchases) : 0;
+
+    kSessionsSub.textContent = `-`;
+    kUsersSub.textContent = `-`;
+    kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
+    kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
+    kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
+
+    selChannel.textContent = SELECTED.channel;
+    selSendId.textContent = SELECTED.send_id;
+  }
+
+  function renderProducts(){
+    if(!SELECTED){
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">캠페인을 선택하면 상품 리스트가 표시돼.</td></tr>`;
+      return;
+    }
+
+    const rows = RAW.prod
+      .filter(r=> r.channel===SELECTED.channel && r.send_id===SELECTED.send_id)
+      .slice()
+      .sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+
+    if(!rows.length){
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어. (purchase가 없거나 items가 비어있을 수 있어)</td></tr>`;
+      return;
+    }
+
+    tb.innerHTML = rows.map(r=>`
+      <tr>
+        <td>${(r.item_name||'-')}</td>
+        <td class="mono">${(r.item_id||'-')}</td>
+        <td>${fmt(r.prod_items||0)}</td>
+        <td>${fmtMoney(r.prod_revenue||0)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function selectCampaign(channel, send_id){
+    SELECTED = {channel, send_id};
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderProducts();
+  }
+
+  async function loadDate(d){
+    hideNotice();
+    SELECTED = null;
+
+    const url = `data/owned/owned_${d}.json?t=${Date.now()}`;
+    try{
+      const res = await fetch(url, {cache:'no-store'});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      RAW = await res.json();
+    }catch(e){
+      RAW = null;
+      KPI = []; PROD = [];
+      campaignWrap.innerHTML = '';
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${d}.json</td></tr>`;
+      showNotice(`데이터가 없어서 표시할 수 없어. (${d})`);
+      aggregateKPIForSelected();
+      return;
+    }
+
+    filterRows();
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderProducts();
+  }
+
+  // events
+  chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterRows(); renderCampaignButtons(); });
+  chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterRows(); renderCampaignButtons(); });
+  chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterRows(); renderCampaignButtons(); });
+  chipKAKAO.addEventListener('click', ()=>{ CHANNEL='KAKAO'; setChipActive(); filterRows(); renderCampaignButtons(); });
+
+  q.addEventListener('input', ()=>{ filterRows(); renderCampaignButtons(); });
+  topN.addEventListener('change', ()=>{ renderCampaignButtons(); });
+
+  btnPrev.addEventListener('click', ()=>{ const cur=parseYMD(datePicker.value); const d=ymd(addDays(cur,-1)); datePicker.value=d; loadDate(d); });
+  btnNext.addEventListener('click', ()=>{ const cur=parseYMD(datePicker.value); const d=ymd(addDays(cur,+1)); datePicker.value=d; loadDate(d); });
+  btnToday.addEventListener('click', ()=>{ const now=new Date(); const d=ymd(now); datePicker.value=d; loadDate(d); });
+
+  btnReload.addEventListener('click', ()=> location.reload());
+  noticeClose.addEventListener('click', hideNotice);
+
+  // init date: yesterday (KST-ish; browser local ok for UX)
+  (function init(){
+    const today = new Date();
+    const d = ymd(addDays(today,-1));
+    datePicker.value = d;
+    loadDate(d);
+    setChipActive();
+  })();
+
+})();
+</script>
+</body>
+</html>
