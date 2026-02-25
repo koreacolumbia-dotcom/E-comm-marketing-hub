@@ -354,62 +354,88 @@
     }
   }
 
-  // ✅ iframe 내부 UI 숨김: remove() 금지, display:none만
-  function scrubReportUI(doc){
-    if(!doc) return;
+function scrubReportUI(doc){
+  if(!doc) return;
 
-    // 안전 CSS (스크롤 유지)
-    let style = doc.getElementById('hub_scrub_css');
-    if(!style){
-      style = doc.createElement('style');
-      style.id = 'hub_scrub_css';
-      style.type = 'text/css';
-      style.textContent = `
-        html, body{ overflow:auto !important; }
-        body{ margin:0 !important; }
-      `;
-      doc.head.appendChild(style);
+  // 안전 CSS (스크롤 유지)
+  let style = doc.getElementById('hub_scrub_css');
+  if(!style){
+    style = doc.createElement('style');
+    style.id = 'hub_scrub_css';
+    style.type = 'text/css';
+    style.textContent = `
+      html, body{ overflow:auto !important; }
+      body{ margin:0 !important; }
+    `;
+    doc.head.appendChild(style);
+  }
+
+  // 1) 상단 "Daily Digest" 타이틀(있는 경우)만 숨김
+  const titleNodes = Array.from(doc.querySelectorAll('h1, h2, div, span'));
+  for(const n of titleNodes){
+    const t = (n.textContent||'').trim();
+    if(t === 'Daily Digest'){
+      n.style.display = 'none';
+      break;
     }
+  }
 
-    // 1) 상단 "Daily Digest" 타이틀(있는 경우)만 숨김
-    const titleNodes = Array.from(doc.querySelectorAll('h1, h2, div, span'));
-    for(const n of titleNodes){
-      const t = (n.textContent||'').trim();
-      if(t === 'Daily Digest'){
-        n.style.display = 'none';
-        break; // 첫 번째만
+  // 2) Hub/Daily/Weekly 탭 묶음 숨김 (remove 금지)
+  const btns = Array.from(doc.querySelectorAll('button, a'));
+  const tabBtns = btns.filter(b=>{
+    const t=(b.textContent||'').trim();
+    return t==='Hub' || t==='Daily' || t==='Weekly';
+  });
+
+  function hasAll3(el){
+    if(!el) return false;
+    const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
+    return txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly');
+  }
+
+  for(const b of tabBtns){
+    let p = b.parentElement;
+    for(let i=0;i<6 && p;i++){
+      if(p === doc.body || p === doc.documentElement) break;
+      if(hasAll3(p)){
+        p.style.display = 'none';
+        p.setAttribute('data-hub-hidden','tabs');
+        break;
       }
+      p = p.parentElement;
     }
+  }
 
-    // 2) Hub/Daily/Weekly 탭이 한 묶음으로 있는 "가장 가까운 컨테이너"만 숨김
-    const btns = Array.from(doc.querySelectorAll('button, a'));
-    const tabBtns = btns.filter(b=>{
-      const t=(b.textContent||'').trim();
-      return t==='Hub' || t==='Daily' || t==='Weekly';
-    });
-
-    // 세 버튼이 동시에 들어있는 컨테이너만 찾기
-    function hasAll3(el){
-      if(!el) return false;
-      const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
-      return txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly');
-    }
-
-    for(const b of tabBtns){
-      let p = b.parentElement;
-      for(let i=0;i<6 && p;i++){
-        // 너무 상위(body/html)까지 올라가면 위험하니 stop
+  // ✅ 3) "Compare 카드" 숨김 (핵심)
+  // 시그니처 텍스트: "No extra GA/BQ cost (uses cached JSON)"
+  const SIGN = 'No extra GA/BQ cost';
+  const nodes = Array.from(doc.querySelectorAll('div, section, article'));
+  for(const n of nodes){
+    const txt = (n.textContent||'').replace(/\s+/g,' ').trim();
+    if(!txt) continue;
+    if(txt.includes(SIGN)){
+      // 너무 상위로 올라가면 페이지가 날아가니, "카드처럼 보이는" 선에서 멈춤
+      let p = n;
+      for(let up=0; up<7 && p && p.parentElement; up++){
         if(p === doc.body || p === doc.documentElement) break;
-        if(hasAll3(p)){
-          // ✅ remove 대신 숨김
+
+        // "Compare / Preset / 버튼"이 같이 포함된 블록이면 카드로 간주
+        const t = (p.textContent||'').replace(/\s+/g,' ').trim();
+        const looksLikeCompareCard =
+          t.includes('Compare') &&
+          (t.includes('Preset: DoD') || t.includes('Preset: YoY') || t.includes('Preset')) &&
+          (t.includes('No extra GA/BQ cost') || t.includes('uses cached JSON'));
+
+        if(looksLikeCompareCard){
           p.style.display = 'none';
-          // 한 번 숨기면 끝
-          return;
+          p.setAttribute('data-hub-hidden','compare');
+          break;
         }
         p = p.parentElement;
       }
     }
   }
+}
 
   function onFrameLoad(frame){
     try{
