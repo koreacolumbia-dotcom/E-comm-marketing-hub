@@ -2,31 +2,21 @@
 # -*- coding: utf-8 -*-
 
 """
-[BUILD VOC DASHBOARD FROM JSON | v6.0 MAX PATCHED + HEALTH MONITORING + SAFE UI]
-- Input: reviews.json  {"reviews":[...]}  (created_at ISO 권장)
+[BUILD VOC DASHBOARD FROM JSON | v6.0 MAX PATCH | HEALTHCHECK + TEMPLATE OVERRIDE]
+- Input: reviews.json ({"reviews":[...]}), created_at ISO recommended
 - Output:
-  - site/data/reviews.json  (최근 7일로 필터 + tags 보강 + 정규화)
-  - site/data/meta.json     (기간/키워드/근거/클러스터/마인드맵 + HEALTH 진단)
-  - site/index.html         (site/template.html 있으면 사용 / 없으면 DEFAULT_HTML_TEMPLATE 사용)
+  - site/data/reviews.json  (filtered to last 7 days by default)
+  - site/data/meta.json     (period/keywords/evidence/clusters/mindmap + HEALTHCHECK)
+  - site/index.html         (template priority: --html-template > site/template.html > DEFAULT)
 
-✅ MAX PATCH:
-A) 운영 안정성/수집 모니터링
-   - 스키마 정규화/검증 + invalid created_at 카운트 + duplicate id + 필드 누락 카운트
-   - source 분포, created_at min/max, 최신성(staleness) 체크
-   - rows7==0 이어도 "빌드 중단" 대신 경고 + 빈 화면 안내(meta.health) 출력
-
-B) 정확도 개선
-   - size 태그: "핏" 단독 트리거 제거(치수 키워드 동반 시만)
-   - 4~5점 NEG 과민 완화: 하드결함+조치 + (부정감정/문제) 동반 시 확정, 해결형 긍정 예외
-   - keyword seed substring 오작동 방지(동일 토큰 기반)
-
-C) 프론트 안전/UX
-   - review 카드 클릭 payload data-* 기반(따옴표 깨짐 방지)
-   - daily chip 실제로 동작: OFF면 7일 전체 feed(날짜 필터 무시), ON이면 날짜필터/업로드순
-
-환경변수:
-- OUTPUT_TZ: 기본 Asia/Seoul
-- PROJECT_ROOT: repo root 강제 지정 가능
+MAX PATCH highlights:
+1) Healthcheck & diagnostics:
+   - counts by source, date coverage, last 24h/7d counts
+   - created_at parse failures, missing required fields, duplicate keys
+   - never hard-exit on empty 7d; emits empty dashboard + reason in meta
+2) Template override via CLI: --html-template
+3) Robust created_at parsing & timezone normalization
+4) Safer keyword extraction + trend in meta (daily volume, neg share)
 """
 
 from __future__ import annotations
@@ -37,7 +27,7 @@ import os
 import pathlib
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone, date
 from typing import Any, Dict, List, Tuple, Optional
 
 import pandas as pd
@@ -48,29 +38,20 @@ from dateutil import tz
 # Settings
 # ----------------------------
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
+DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "7") or "7")  # last N days including today
 
-# 자동 STOPWORDS 학습 파라미터
 AUTO_STOP_MIN_DF = 0.30
 AUTO_STOP_MIN_PRODUCTS = 0.25
 AUTO_STOP_POLARITY_MARGIN = 0.20
 AUTO_STOP_MAX_ADD = 120
 
-# 키워드 TopK
 TOPK_POS = 5
 TOPK_NEG = 5
 
-# Mindmap(문장형)
 MINDMAP_SENT_PER_SIDE = 2
 MINDMAP_MAX_PRODUCTS = 24
 
-# Health thresholds
-STALE_HOURS_WARN = 36
-STALE_HOURS_ERROR = 72
-INVALID_CREATED_AT_WARN_RATIO = 0.05
-MIN_ROWS7_WARN = 15  # 너무 적으면 "수집 부족" 경고
-MIN_SOURCE_WARN = 5  # source가 특정 탭에서 너무 적으면 경고
-
-# 클러스터(원인) 정의
+# clusters
 CLUSTERS = {
     "size": ["사이즈", "정사이즈", "작", "크", "타이트", "헐렁", "끼", "기장", "소매", "어깨", "가슴", "발볼", "핏"],
     "quality": ["품질", "불량", "하자", "찢", "구멍", "실밥", "오염", "변색", "냄새", "마감", "내구", "퀄리티"],
@@ -83,7 +64,7 @@ CLUSTERS = {
 
 CATEGORY_RULES = [
     ("bag", re.compile(r"(backpack|rucksack|bag|pouch|shoulder|packable|duffel|tote|힙색|백팩|가방|파우치|숄더)", re.I)),
-    ("shoe", re.compile(r"(shoe|boot|chukka|sneaker|신발|부츠|워커)", re.I)),
+    ("shoe", re.compile(r"(shoe|boot|chukka|sneaker|wide|waterproof|신발|부츠|워커)", re.I)),
     ("top", re.compile(r"(fleece|jacket|hood|tee|turtle|shirt|상의|자켓|플리스|후드|티|터틀)", re.I)),
     ("bottom", re.compile(r"(pant|short|skirt|하의|바지|팬츠|쇼츠)", re.I)),
     ("glove", re.compile(r"(glove|장갑)", re.I)),
@@ -208,6 +189,7 @@ def tokenize_ko(s: str, stopwords: Optional[set] = None) -> List[str]:
             continue
         if t in sw:
             continue
+        # 지나치게 일반적인 동사 stem 제거
         if t in ("있", "좋", "하", "되", "같", "했", "해", "함"):
             continue
         out.append(t)
@@ -215,43 +197,31 @@ def tokenize_ko(s: str, stopwords: Optional[set] = None) -> List[str]:
 
 
 # ----------------------------
-# Tags / complaint / sentiment seed
+# Tags / complaint / sentiment seed (MAX PATCH)
 # ----------------------------
-
-# ✅ SIZE: "핏" 단독 트리거 금지(치수/작다/크다 동반 시만)
-SIZE_STRONG = [
-    "사이즈", "정사이즈", "한치수", "치수", "업", "다운",
-    "작아", "작다", "커", "크다", "타이트", "헐렁", "끼", "조인다",
-    "짧다", "길다", "좁다", "넓다",
-    "기장", "소매", "어깨", "가슴", "발볼",
-]
-SIZE_WEAK = ["핏"]  # 단독 금지
+SIZE_KEYWORDS = ["사이즈", "정사이즈", "작아요", "작다", "커요", "크다", "핏", "타이트", "여유", "끼", "기장", "소매", "어깨", "가슴", "발볼", "헐렁", "오버", "업", "다운", "한치수", "반치수"]
 
 REQ_WEAK = ["개선", "아쉬", "했으면", "보완", "수정", "필요", "요청"]
-REQ_STRONG = ["교환", "반품", "환불", "as", "처리"]
+REQ_STRONG = ["교환", "반품", "환불", "as", "처리", "재배송", "재발송"]
 
-COMPLAINT_HINTS = ["불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악", "실망", "문제", "불편"]
+COMPLAINT_HINTS = ["불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악", "실망", "문제", "불편", "파손", "지연", "늦", "안와", "안옴"]
 
 POS_SEEDS = [
     "가볍", "편하", "편안", "착용감", "수납", "포켓", "공간", "주머니", "넣",
     "따뜻", "보온", "방수", "튼튼", "견고", "만족", "예쁘", "멋", "깔끔", "마감",
-    "잘맞", "딱", "쿠션", "좋"
+    "잘맞", "딱", "쿠션", "추천"
 ]
 NEG_SEEDS = [
     "불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "최악", "별로", "실망",
     "불편", "문제", "아쉽", "무겁",
     "작", "크", "타이트", "헐렁",
-    "지연", "늦", "파손", "응대", "환불", "교환", "반품"
+    "지연", "늦", "파손", "응대", "환불", "교환", "반품", "as"
 ]
 
-HARD_DEFECT = ["불량", "하자", "찢", "구멍", "파손", "누수", "변색", "오염", "실밥"]
-DEFECT_ACTION = ["교환", "반품", "환불", "as", "처리"]
-DEFECT_NEG_FEEL = ["불편", "문제", "실망", "별로", "최악", "엉망"]
+HARD_DEFECT = ["불량", "하자", "찢", "구멍", "파손", "누수", "변색", "오염", "접착", "터짐"]
+DEFECT_ACTION = ["교환", "반품", "환불", "as", "처리", "불편", "문제", "실망", "문의", "응대", "접수"]
 
-# 해결형 긍정(예외)
-RESOLVED_POS = ["교환했는데 만족", "교환 후 만족", "as 받고 만족", "처리 빨랐", "응대 좋", "해결", "잘 처리", "원활"]
-
-NEGATION = ["안", "않", "없", "못", "아니"]
+NEGATION = ["안", "않", "없", "못", "아니", "별로안", "전혀안"]
 
 
 def has_any_kw(text: str, kws: List[str]) -> bool:
@@ -262,21 +232,10 @@ def has_any_kw(text: str, kws: List[str]) -> bool:
     return False
 
 
-def has_size_signal(text: str) -> bool:
-    t = (text or "").replace(" ", "")
-    strong = any(k.replace(" ", "") in t for k in SIZE_STRONG)
-    if strong:
-        return True
-    # "핏"은 단독 금지: 치수/업다운/작크/기장/발볼 등 strong랑 같이 있을 때만
-    if any(k in t for k in SIZE_WEAK) and any(k.replace(" ", "") in t for k in ["업", "다운", "작", "크", "기장", "소매", "어깨", "가슴", "발볼", "한치수", "사이즈"]):
-        return True
-    return False
-
-
 def classify_size_direction(text: str) -> str:
     t = (text or "").replace(" ", "")
-    small_kw = ["작아", "작다", "타이트", "끼", "조인다", "짧다", "좁다", "발볼좁", "어깨좁", "가슴좁", "다운"]
-    big_kw = ["커", "크다", "넉넉", "오버", "길다", "넓다", "헐렁", "부해", "업"]
+    small_kw = ["작아", "작다", "타이트", "끼", "조인다", "짧다", "좁다", "발볼좁", "어깨좁", "가슴좁", "다운", "한치수작", "반치수작"]
+    big_kw = ["커", "크다", "넉넉", "오버", "길다", "넓다", "헐렁", "부해", "업", "한치수큰", "반치수큰"]
     for kw in small_kw:
         if kw in t:
             return "too_small"
@@ -286,22 +245,9 @@ def classify_size_direction(text: str) -> str:
     return "other"
 
 
-def normalize_source(x: Any) -> str:
-    s = str(x or "").strip()
-    if not s:
-        return "Official"
-    s_low = s.lower()
-    if "naver" in s_low:
-        return "Naver"
-    if "official" in s_low:
-        return "Official"
-    # 다른 소스는 combined 탭에서는 보이게 하되, 탭 필터에는 안 걸리게 Other
-    return "Other"
-
-
 def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
     text = str(row.get("text") or "")
-    rating = int(pd.to_numeric(row.get("rating"), errors="coerce") or 0)
+    rating = int(row.get("rating") or 0)
 
     tags = row.get("tags")
     if not isinstance(tags, list):
@@ -311,9 +257,10 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
         tags.append("low")
 
     fit_q = str(row.get("fit_q") or "")
-    if ("size" not in tags) and (has_size_signal(text) or fit_q in ("조금 작아요", "작아요", "조금 커요", "커요")):
+    if ("size" not in tags) and (has_any_kw(text, SIZE_KEYWORDS) or fit_q in ("조금 작아요", "작아요", "조금 커요", "커요")):
         tags.append("size")
 
+    # req tag is allowed, but not a standalone NEG trigger
     if ("req" not in tags) and (has_any_kw(text, REQ_WEAK) or has_any_kw(text, REQ_STRONG)):
         tags.append("req")
 
@@ -331,6 +278,7 @@ def review_polarity_scores(text: str) -> tuple[int, int]:
     pos = sum(1 for w in POS_SEEDS if w in t)
     neg = sum(1 for w in NEG_SEEDS if w in t)
 
+    # simplistic negation flip
     for w in POS_SEEDS:
         if w in t:
             for ng in NEGATION:
@@ -350,31 +298,27 @@ def review_polarity_scores(text: str) -> tuple[int, int]:
 
 def is_complaint(row: Dict[str, Any]) -> bool:
     """
-    - 1~2점: 항상 NEG
-    - 4~5점: 원칙 POS
-      단, 하드결함 + 조치 + (부정감정/문제) 동반 시 NEG 확정
-      + 해결형 긍정 패턴은 예외(NEG 방지)
-    - 3점: seed 기반(neg 우세 시 NEG) + complaint hints
+    MAX PATCH complaint logic:
+    - rating 1~2 => NEG
+    - rating 4~5 => POS unless (hard_defect + defect_action) or (shipping/cs severe phrases)
+    - rating 3 => neg>pos with hints, or strong req + neg
     """
-    rating = int(pd.to_numeric(row.get("rating"), errors="coerce") or 0)
+    rating = int(row.get("rating") or 0)
     tags = row.get("tags") or []
     text = str(row.get("text") or "")
 
     if rating <= 2:
         return True
 
-    t_norm = normalize_text(text).replace(" ", "")
+    t = normalize_text(text)
 
     if rating >= 4:
-        # 해결형 긍정이면 NEG 방지
-        for p in RESOLVED_POS:
-            if normalize_text(p).replace(" ", "") in t_norm:
-                return False
-
-        hard = has_any_kw(text, HARD_DEFECT)
-        action = has_any_kw(text, DEFECT_ACTION)
-        feel = has_any_kw(text, DEFECT_NEG_FEEL) or has_any_kw(text, COMPLAINT_HINTS)
-        if hard and action and feel:
+        # hard defect + action
+        if has_any_kw(text, HARD_DEFECT) and has_any_kw(text, DEFECT_ACTION):
+            return True
+        # severe shipping/cs complaints even at high rating (rare, but happens)
+        severe = any(x in t for x in ["환불", "반품", "교환", "as", "불량", "하자", "파손", "지연", "늦", "응대별로", "처리안"])
+        if severe and has_any_kw(text, COMPLAINT_HINTS):
             return True
         return False
 
@@ -387,14 +331,15 @@ def is_complaint(row: Dict[str, Any]) -> bool:
         return True
     if neg_s >= 2 and neg_s > pos_s:
         return True
+    if has_req and has_any_kw(text, REQ_STRONG) and neg_s >= 1:
+        return True
     if has_req and neg_s >= 1 and neg_s > pos_s:
         return True
-
     return False
 
 
 def is_positive(row: Dict[str, Any]) -> bool:
-    rating = int(pd.to_numeric(row.get("rating"), errors="coerce") or 0)
+    rating = int(row.get("rating") or 0)
     text = str(row.get("text") or "")
 
     if is_complaint(row):
@@ -411,23 +356,14 @@ def is_positive(row: Dict[str, Any]) -> bool:
 
 
 # ----------------------------
-# Auto stopwords learning (guardrails)
+# Auto stopwords learning
 # ----------------------------
 def learn_auto_stopwords(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not rows:
-        return {"enabled": False, "reason": "no_rows", "global": [], "by_category": {}}
+        return {"global": [], "by_category": {}}
 
     pos_rows = [r for r in rows if is_positive(r)]
     neg_rows = [r for r in rows if is_complaint(r)]
-
-    # guardrails
-    if len(rows) < 80 or len(pos_rows) < 10 or len(neg_rows) < 10:
-        return {
-            "enabled": False,
-            "reason": f"small_sample(rows={len(rows)},pos={len(pos_rows)},neg={len(neg_rows)})",
-            "global": [],
-            "by_category": {},
-        }
 
     prod_all = set(str(r.get("product_code") or "-") for r in rows)
     prod_n = max(1, len(prod_all))
@@ -480,15 +416,15 @@ def learn_auto_stopwords(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         p = pos_freq.get(t, 0)
         n = neg_freq.get(t, 0)
         total = p + n
-        if total < 8:
+        if total < 6:
             continue
         neg_ratio = n / total if total else 0.0
-
         if abs(neg_ratio - 0.5) <= AUTO_STOP_POLARITY_MARGIN:
             auto_global.append(t)
-        if len(auto_global) >= min(AUTO_STOP_MAX_ADD, 60):
+        if len(auto_global) >= AUTO_STOP_MAX_ADD:
             break
 
+    # by category (optional)
     by_cat: Dict[str, List[str]] = {}
     cat_groups: Dict[str, List[Dict[str, Any]]] = {}
     for r in rows:
@@ -496,7 +432,7 @@ def learn_auto_stopwords(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         cat_groups.setdefault(cat, []).append(r)
 
     for cat, group in cat_groups.items():
-        if len(group) < 25:
+        if len(group) < 12:
             by_cat[cat] = []
             continue
 
@@ -538,33 +474,29 @@ def learn_auto_stopwords(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             p = token_pos.get(t, 0)
             n = token_neg.get(t, 0)
             total = p + n
-            if total < 8:
+            if total < 6:
                 continue
             neg_ratio = n / total if total else 0.0
             if abs(neg_ratio - 0.5) <= 0.22:
                 cand.append(t)
-        by_cat[cat] = cand[:60]
+        by_cat[cat] = cand[:80]
 
-    return {"enabled": True, "reason": "ok", "global": auto_global, "by_category": by_cat}
+    return {"global": auto_global, "by_category": by_cat}
 
 
 def build_stopwords_for_row(row: Dict[str, Any], auto_sw: Dict[str, Any]) -> set:
     sw = set(BASE_STOPWORDS)
-    if auto_sw.get("enabled"):
-        sw.update(set(auto_sw.get("global") or []))
-        cat = detect_category(str(row.get("product_name") or ""), str(row.get("product_code") or ""))
-        sw.update(set((auto_sw.get("by_category") or {}).get(cat) or []))
+    sw.update(set(auto_sw.get("global") or []))
+    cat = detect_category(str(row.get("product_name") or ""), str(row.get("product_code") or ""))
+    sw.update(set((auto_sw.get("by_category") or {}).get(cat) or []))
     return sw
 
 
 # ----------------------------
-# Keyword extraction (pos/neg) - safer matching
+# Keyword extraction
 # ----------------------------
 def top_terms(rows: List[Dict[str, Any]], topk: int, auto_sw: Dict[str, Any], which: str) -> List[Tuple[str, int]]:
     freq: Dict[str, int] = {}
-    pos_seed_set = set(POS_SEEDS)
-    neg_seed_set = set(NEG_SEEDS)
-
     for r in rows:
         if which == "pos" and not is_positive(r):
             continue
@@ -572,14 +504,14 @@ def top_terms(rows: List[Dict[str, Any]], topk: int, auto_sw: Dict[str, Any], wh
             continue
 
         sw = build_stopwords_for_row(r, auto_sw)
-        text = str(r.get("text") or "")
-        toks = tokenize_ko(text, stopwords=sw)
+        toks = tokenize_ko(str(r.get("text") or ""), stopwords=sw)
 
         for t in toks:
-            # seed 오염 방지: substring이 아니라 "동일 토큰" 레벨에서만 제외
-            if which == "pos" and t in neg_seed_set:
+            # MAX PATCH: 과한 seed 배제 완화(토큰이 seed "포함"이면 다 버리면 누락 심해짐)
+            # 대신 "반대편 seed가 토큰 전체"에 가까운 경우만 제외
+            if which == "pos" and t in NEG_SEEDS:
                 continue
-            if which == "neg" and t in pos_seed_set:
+            if which == "neg" and t in POS_SEEDS:
                 continue
             freq[t] = freq.get(t, 0) + 1
 
@@ -633,7 +565,7 @@ def build_keyword_evidence(
                         product_name=str(r.get("product_name") or r.get("product_code") or "-"),
                         product_code=str(r.get("product_code") or "-"),
                         created_at=str(r.get("created_at") or ""),
-                        rating=int(pd.to_numeric(r.get("rating"), errors="coerce") or 0),
+                        rating=int(r.get("rating") or 0),
                         text_snip=snip,
                     )
                 )
@@ -645,7 +577,7 @@ def build_keyword_evidence(
 
 
 # ----------------------------
-# Mindmap: sentence-based (POS/NEG)
+# Mindmap: sentence-based
 # ----------------------------
 SENT_SPLIT = re.compile(r"(?<=[\.\?\!]|[。]|[？！]|[!?\n])\s+|[\n\r]+")
 
@@ -681,8 +613,6 @@ def score_sentence(sent: str, mode: str) -> int:
     else:
         score += sum(2 for w in NEG_SEEDS if w in s)
         score -= sum(1 for w in POS_SEEDS if w in s)
-
-    if mode == "neg":
         score += sum(1 for c_kws in CLUSTERS.values() for w in c_kws if w in s)
 
     score -= sum(3 for p in TRIVIAL_PHRASES if p in sent)
@@ -691,12 +621,10 @@ def score_sentence(sent: str, mode: str) -> int:
         score += 1
     if any(x in sent for x in ["주머니", "수납", "발볼", "어깨", "기장", "소매", "보온", "방수", "착용감", "업", "다운"]):
         score += 1
-
     if len(sent) >= 40:
         score += 1
     if len(sent) >= 70:
         score += 1
-
     return score
 
 
@@ -730,33 +658,21 @@ def build_product_mindmap_1y_sentence(
         for r in (prod_rows_7d + prod_rows_1y):
             if not is_positive(r):
                 continue
-            sents = split_sentences(str(r.get("text") or ""))
-            for s in sents:
+            for s in split_sentences(str(r.get("text") or "")):
                 sc = score_sentence(s, "pos")
                 if sc < 2:
                     continue
-                pos_cands.append((sc, {
-                    "text": s,
-                    "id": r.get("id"),
-                    "created_at": r.get("created_at"),
-                    "rating": int(pd.to_numeric(r.get("rating"), errors="coerce") or 0),
-                }))
+                pos_cands.append((sc, {"text": s, "id": r.get("id"), "created_at": r.get("created_at"), "rating": int(r.get("rating") or 0)}))
 
         neg_cands: List[Tuple[int, Dict[str, Any]]] = []
         for r in (prod_rows_7d + prod_rows_1y):
             if not is_complaint(r):
                 continue
-            sents = split_sentences(str(r.get("text") or ""))
-            for s in sents:
+            for s in split_sentences(str(r.get("text") or "")):
                 sc = score_sentence(s, "neg")
                 if sc < 2:
                     continue
-                neg_cands.append((sc, {
-                    "text": s,
-                    "id": r.get("id"),
-                    "created_at": r.get("created_at"),
-                    "rating": int(pd.to_numeric(r.get("rating"), errors="coerce") or 0),
-                }))
+                neg_cands.append((sc, {"text": s, "id": r.get("id"), "created_at": r.get("created_at"), "rating": int(r.get("rating") or 0)}))
 
         pos_cands.sort(key=lambda x: (x[0], str(x[1].get("created_at") or "")), reverse=True)
         neg_cands.sort(key=lambda x: (x[0], str(x[1].get("created_at") or "")), reverse=True)
@@ -765,8 +681,7 @@ def build_product_mindmap_1y_sentence(
             seen = set()
             picked = []
             for _, item in cands:
-                t = item.get("text") or ""
-                key = re.sub(r"\s+", " ", t).strip()
+                key = re.sub(r"\s+", " ", str(item.get("text") or "")).strip()
                 if key in seen:
                     continue
                 seen.add(key)
@@ -775,16 +690,13 @@ def build_product_mindmap_1y_sentence(
                     break
             return picked
 
-        pos_sent = pick_unique(pos_cands, per_side)
-        neg_sent = pick_unique(neg_cands, per_side)
-
         out.append({
             "product_code": code,
             "product_name": pname,
             "local_product_image": img,
             "reviews_1y": review_cnt_1y,
-            "pos_sentences": pos_sent,
-            "neg_sentences": neg_sent,
+            "pos_sentences": pick_unique(pos_cands, per_side),
+            "neg_sentences": pick_unique(neg_cands, per_side),
         })
 
     out.sort(key=lambda x: x.get("reviews_1y", 0), reverse=True)
@@ -792,9 +704,9 @@ def build_product_mindmap_1y_sentence(
 
 
 # ----------------------------
-# IO + schema normalization
+# IO + parsing + healthcheck
 # ----------------------------
-REQUIRED_KEYS = ["id", "created_at", "text", "product_code", "product_name", "rating"]
+REQUIRED_FIELDS = ["id", "product_code", "product_name", "rating", "created_at", "text", "source"]
 
 
 def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
@@ -802,165 +714,117 @@ def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
     reviews = obj.get("reviews")
     if not isinstance(reviews, list):
         raise ValueError('입력 JSON은 {"reviews": [...]} 형태여야 합니다.')
-
     out = []
     for r in reviews:
-        if not isinstance(r, dict):
-            continue
-
-        # normalize/ensure fields
-        r["source"] = normalize_source(r.get("source"))
-        r["product_code"] = str(r.get("product_code") or "").strip() or "-"
-        r["product_name"] = str(r.get("product_name") or "").strip() or r["product_code"]
-        r["text"] = str(r.get("text") or "").strip()
-        r["product_url"] = str(r.get("product_url") or "").strip()
-        r["option_size"] = str(r.get("option_size") or "").strip()
-        r["option_color"] = str(r.get("option_color") or "").strip()
-        r["local_product_image"] = str(r.get("local_product_image") or "").strip()
-        r["local_review_thumb"] = str(r.get("local_review_thumb") or "").strip()
-        r["text_image_path"] = str(r.get("text_image_path") or "").strip()
-
-        # rating normalize
-        r["rating"] = int(pd.to_numeric(r.get("rating"), errors="coerce") or 0)
-
-        out.append(ensure_tags_and_direction(r))
+        if isinstance(r, dict):
+            out.append(ensure_tags_and_direction(r))
     return out
 
 
 def parse_created_at_iso(s: str) -> Optional[datetime]:
-    s = str(s or "").strip()
     if not s:
         return None
     try:
         dt = datetime.fromisoformat(s)
-        # tz 없으면 KST 가정
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=tz.gettz(OUTPUT_TZ))
-        return dt
     except Exception:
         dt = pd.to_datetime(s, errors="coerce")
         if pd.isna(dt):
             return None
-        dtp = dt.to_pydatetime()
-        if dtp.tzinfo is None:
-            return dtp.replace(tzinfo=tz.gettz(OUTPUT_TZ))
-        return dtp
+        dt = dt.to_pydatetime()
 
-
-def in_date_range_kst(dt: datetime, start_d, end_d) -> bool:
+    # normalize tz
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=tz.gettz(OUTPUT_TZ))
+    return dt.astimezone(tz.gettz(OUTPUT_TZ))
+
+
+def in_date_range_kst(dt: datetime, start_d: date, end_d: date) -> bool:
     d = dt.astimezone(tz.gettz(OUTPUT_TZ)).date()
     return start_d <= d <= end_d
+
+
+def healthcheck(all_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    total = len(all_rows)
+    by_source: Dict[str, int] = {}
+    parse_fail = 0
+    missing_required: Dict[str, int] = {k: 0 for k in REQUIRED_FIELDS}
+    duplicates = 0
+
+    seen_keys = set()
+
+    min_dt: Optional[datetime] = None
+    max_dt: Optional[datetime] = None
+
+    last24 = 0
+    now = now_kst()
+    cutoff24 = now - timedelta(hours=24)
+
+    for r in all_rows:
+        src = str(r.get("source") or "Unknown")
+        by_source[src] = by_source.get(src, 0) + 1
+
+        # required fields
+        for k in REQUIRED_FIELDS:
+            if r.get(k) in (None, "", []):
+                missing_required[k] += 1
+
+        # duplicates by (source,id)
+        key = (src, str(r.get("id")))
+        if key in seen_keys:
+            duplicates += 1
+        else:
+            seen_keys.add(key)
+
+        dt = parse_created_at_iso(str(r.get("created_at") or ""))
+        if dt is None:
+            parse_fail += 1
+            continue
+        if min_dt is None or dt < min_dt:
+            min_dt = dt
+        if max_dt is None or dt > max_dt:
+            max_dt = dt
+        if dt >= cutoff24:
+            last24 += 1
+
+    return {
+        "input_total_reviews": total,
+        "input_by_source": by_source,
+        "created_at_parse_fail": parse_fail,
+        "missing_required_fields": missing_required,
+        "duplicate_keys_by_source_id": duplicates,
+        "input_date_min": min_dt.isoformat() if min_dt else None,
+        "input_date_max": max_dt.isoformat() if max_dt else None,
+        "input_last_24h_count": last24,
+        "health_status": "ok" if total > 0 and parse_fail < max(1, total * 0.05) else "check",
+    }
 
 
 # ----------------------------
 # HTML template
 # ----------------------------
-DEFAULT_HTML_TEMPLATE = ""  # v6에서는 template.html 사용을 권장(아래 load_html_template가 fallback)
+DEFAULT_HTML_TEMPLATE = """<!doctype html>
+<html><head><meta charset="utf-8"><title>VOC Dashboard</title></head>
+<body><h1>VOC Dashboard</h1><p>Template missing. Provide site/template.html or --html-template.</p></body></html>
+"""
 
 
-def load_html_template() -> str:
+def load_html_template(cli_template: Optional[str]) -> str:
+    if cli_template:
+        p = pathlib.Path(cli_template).expanduser()
+        if p.exists():
+            return p.read_text(encoding="utf-8")
+
     tpl = SITE_DIR / "template.html"
     if tpl.exists():
         return tpl.read_text(encoding="utf-8")
-    if DEFAULT_HTML_TEMPLATE.strip():
-        return DEFAULT_HTML_TEMPLATE
-    raise FileNotFoundError("site/template.html 이 없습니다. template.html 을 site/ 아래에 두세요.")
 
-
-# ----------------------------
-# Health monitoring
-# ----------------------------
-def build_health_report(all_rows: List[Dict[str, Any]], parsed_map: Dict[str, Optional[datetime]], now: datetime) -> Dict[str, Any]:
-    warnings: List[str] = []
-    errors: List[str] = []
-
-    total = len(all_rows)
-
-    # duplicates
-    ids = [str(r.get("id")) for r in all_rows]
-    dup = total - len(set(ids))
-
-    # missing fields count
-    missing = {k: 0 for k in REQUIRED_KEYS}
-    for r in all_rows:
-        for k in REQUIRED_KEYS:
-            v = r.get(k)
-            if v is None or (isinstance(v, str) and not v.strip()):
-                missing[k] += 1
-
-    # invalid created_at
-    invalid_dt = sum(1 for _, v in parsed_map.items() if v is None)
-    invalid_ratio = (invalid_dt / max(1, total))
-
-    # created_at min/max
-    valid_dts = [v for v in parsed_map.values() if v is not None]
-    dt_min = min(valid_dts).astimezone(tz.gettz(OUTPUT_TZ)).isoformat() if valid_dts else None
-    dt_max = max(valid_dts).astimezone(tz.gettz(OUTPUT_TZ)).isoformat() if valid_dts else None
-
-    # staleness
-    staleness_hours = None
-    if valid_dts:
-        staleness_hours = (now - max(valid_dts).astimezone(tz.gettz(OUTPUT_TZ))).total_seconds() / 3600.0
-
-    # by source
-    by_source: Dict[str, int] = {}
-    for r in all_rows:
-        by_source[r.get("source", "Other")] = by_source.get(r.get("source", "Other"), 0) + 1
-
-    # warnings/errors rules
-    if total == 0:
-        errors.append("입력 reviews.json 내 reviews가 0건입니다(수집 실패).")
-
-    if dup > 0:
-        warnings.append(f"id 중복 {dup}건(병합/수집 중복 가능).")
-
-    if invalid_ratio >= INVALID_CREATED_AT_WARN_RATIO:
-        warnings.append(f"created_at 파싱 실패 비율 {invalid_ratio:.1%} (포맷/타임존 점검 필요).")
-
-    if staleness_hours is not None:
-        if staleness_hours >= STALE_HOURS_ERROR:
-            errors.append(f"최신 리뷰가 {staleness_hours:.1f}시간 이상 갱신되지 않았습니다(수집 중단 의심).")
-        elif staleness_hours >= STALE_HOURS_WARN:
-            warnings.append(f"최신 리뷰 갱신이 {staleness_hours:.1f}시간 지연 중입니다.")
-
-    # source-specific hints
-    if by_source.get("Naver", 0) < MIN_SOURCE_WARN:
-        warnings.append("Naver 리뷰 수가 매우 적습니다(네이버 수집/파싱/병합 확인).")
-    if by_source.get("Official", 0) < MIN_SOURCE_WARN:
-        warnings.append("Official 리뷰 수가 매우 적습니다(공식몰 수집/파싱/병합 확인).")
-
-    status = "ok"
-    if errors:
-        status = "error"
-    elif warnings:
-        status = "warn"
-
-    return {
-        "status": status,
-        "warnings": warnings,
-        "errors": errors,
-        "counts": {
-            "input_total_reviews": total,
-            "duplicate_id_count": dup,
-            "invalid_created_at_count": invalid_dt,
-            "invalid_created_at_ratio": round(invalid_ratio, 4),
-            "missing_field_counts": missing,
-            "by_source": by_source,
-        },
-        "created_at": {
-            "min": dt_min,
-            "max": dt_max,
-            "staleness_hours": None if staleness_hours is None else round(staleness_hours, 2),
-        },
-    }
+    return DEFAULT_HTML_TEMPLATE
 
 
 # ----------------------------
 # Main
 # ----------------------------
-def main(input_path: str):
+def main(input_path: str, html_template: Optional[str], target_days: int):
     inp = pathlib.Path(input_path).expanduser().resolve()
     if not inp.exists():
         raise FileNotFoundError(f"input not found: {inp}")
@@ -968,56 +832,47 @@ def main(input_path: str):
     all_rows = read_reviews_json(inp)
     now = now_kst()
 
-    # parse created_at
-    parsed_dt_by_id: Dict[str, Optional[datetime]] = {}
-    for r in all_rows:
-        rid = str(r.get("id"))
-        parsed_dt_by_id[rid] = parse_created_at_iso(str(r.get("created_at") or ""))
+    hc = healthcheck(all_rows)
 
-    health = build_health_report(all_rows, parsed_dt_by_id, now)
+    # target window
+    target_days = max(1, int(target_days))
+    startN = (now - timedelta(days=target_days - 1)).date()
+    endN = now.date()
 
-    # 기간
-    start7 = (now - timedelta(days=6)).date()
-    end7 = now.date()
+    # last 1y for mindmap
     start1y = (now - timedelta(days=365)).date()
     end1y = now.date()
 
-    rows7: List[Dict[str, Any]] = []
+    rowsN: List[Dict[str, Any]] = []
     rows1y: List[Dict[str, Any]] = []
-    invalid_rows: List[Dict[str, Any]] = []
+    parse_fail_rows = 0
 
     for r in all_rows:
-        dt = parsed_dt_by_id.get(str(r.get("id")))
+        dt = parse_created_at_iso(str(r.get("created_at") or ""))
         if dt is None:
-            invalid_rows.append(r)
+            parse_fail_rows += 1
             continue
-        if in_date_range_kst(dt, start7, end7):
-            rows7.append(r)
+        if in_date_range_kst(dt, startN, endN):
+            rowsN.append(r)
         if in_date_range_kst(dt, start1y, end1y):
             rows1y.append(r)
 
-    # rows7 부족 경고
-    if len(rows7) < MIN_ROWS7_WARN:
-        health["warnings"].append(f"최근 7일 리뷰가 {len(rows7)}건으로 매우 적습니다(수집량 부족).")
-        if health["status"] == "ok":
-            health["status"] = "warn"
+    # build minimal df even if empty
+    dfN = pd.DataFrame(rowsN).copy() if rowsN else pd.DataFrame(columns=["id","product_code","product_name","rating","created_at","text","source","tags","option_size","option_color","size_direction"])
+    if "rating" in dfN.columns:
+        dfN["rating"] = pd.to_numeric(dfN.get("rating"), errors="coerce").fillna(0).astype(int)
 
-    df7 = pd.DataFrame(rows7).copy() if rows7 else pd.DataFrame(columns=["id", "rating", "created_at", "text", "source"])
-    if not df7.empty:
-        df7["rating"] = pd.to_numeric(df7.get("rating"), errors="coerce").fillna(0).astype(int)
+    # auto stopwords on window rows
+    auto_sw = learn_auto_stopwords(rowsN) if rowsN else {"global": [], "by_category": {}}
 
-    # AUTO STOPWORDS 학습(최근7일 기준, guardrail 포함)
-    auto_sw = learn_auto_stopwords(rows7)
-
-    # 키워드
-    pos_top = top_terms(rows7, TOPK_POS, auto_sw, which="pos") if rows7 else []
-    neg_top = top_terms(rows7, TOPK_NEG, auto_sw, which="neg") if rows7 else []
-
+    # keywords
+    pos_top = top_terms(rowsN, TOPK_POS, auto_sw, which="pos") if rowsN else []
+    neg_top = top_terms(rowsN, TOPK_NEG, auto_sw, which="neg") if rowsN else []
     pos_keys = [k for k, _ in pos_top]
     neg_keys = [k for k, _ in neg_top]
 
-    pos_evidence = build_keyword_evidence(rows7, pos_keys, auto_sw, filter_fn=is_positive, evidence_per_kw=3) if rows7 else {}
-    neg_evidence = build_keyword_evidence(rows7, neg_keys, auto_sw, filter_fn=is_complaint, evidence_per_kw=3) if rows7 else {}
+    pos_evidence = build_keyword_evidence(rowsN, pos_keys, auto_sw, filter_fn=is_positive, evidence_per_kw=3) if rowsN else {}
+    neg_evidence = build_keyword_evidence(rowsN, neg_keys, auto_sw, filter_fn=is_complaint, evidence_per_kw=3) if rowsN else {}
 
     def attach_rid(top_list: List[Tuple[str, int]], evi_map: Dict[str, List[Dict[str, Any]]]) -> List[List[Any]]:
         out = []
@@ -1029,103 +884,131 @@ def main(input_path: str):
             out.append([k, int(c), rid])
         return out
 
-    pos_top5 = attach_rid(pos_top, pos_evidence) if pos_top else []
-    neg_top5 = attach_rid(neg_top, neg_evidence) if neg_top else []
+    pos_top5 = attach_rid(pos_top, pos_evidence)
+    neg_top5 = attach_rid(neg_top, neg_evidence)
 
-    # 클러스터(불만 기준)
+    # clusters (neg only)
     cluster_counts: Dict[str, int] = {k: 0 for k in CLUSTERS.keys()}
-    for r in rows7:
-        if not is_complaint(r):
-            continue
-        for h in assign_cluster(str(r.get("text") or "")):
-            cluster_counts[h] = cluster_counts.get(h, 0) + 1
+    if rowsN:
+        for r in rowsN:
+            if not is_complaint(r):
+                continue
+            for h in assign_cluster(str(r.get("text") or "")):
+                cluster_counts[h] = cluster_counts.get(h, 0) + 1
 
-    # size phrases(최근7일 size 리뷰에서만)
-    size_rows = [r for r in rows7 if isinstance(r.get("tags"), list) and ("size" in r.get("tags"))]
+    # size phrases
+    size_rows = [r for r in rowsN if isinstance(r.get("tags"), list) and ("size" in r.get("tags"))]
     size_phrases_terms = top_terms(size_rows, topk=10, auto_sw=auto_sw, which="neg") if size_rows else []
     size_phrases = [k for k, _ in size_phrases_terms]
 
-    # mindmap
+    # mindmap 1y (safe)
     product_mindmap_1y = build_product_mindmap_1y_sentence(
         rows_1y=rows1y,
-        rows_7d=rows7,
+        rows_7d=rowsN,
         per_side=MINDMAP_SENT_PER_SIDE,
         max_products=MINDMAP_MAX_PRODUCTS,
     ) if rows1y else []
 
-    period_text = f"최근 7일 ({start7.isoformat()} ~ {end7.isoformat()})"
+    # trend (daily volume + neg share within window)
+    trend = []
+    if rowsN:
+        tmp = []
+        for r in rowsN:
+            dt = parse_created_at_iso(str(r.get("created_at") or ""))
+            if not dt:
+                continue
+            d = dt.date().isoformat()
+            tmp.append((d, 1, 1 if is_complaint(r) else 0))
+        dfT = pd.DataFrame(tmp, columns=["day","cnt","neg"])
+        g = dfT.groupby("day", as_index=False).sum()
+        g["neg_rate"] = (g["neg"] / g["cnt"]).fillna(0.0)
+        trend = g.sort_values("day").to_dict(orient="records")
+
+    period_text = f"최근 {target_days}일 ({startN.isoformat()} ~ {endN.isoformat()})"
+    empty_reason = None
+    if not rowsN:
+        empty_reason = "No reviews in target window. Check upstream collection, created_at format/timezone, or TARGET_DAYS."
 
     meta = {
+        "version": "v6.0-maxpatch",
         "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         "period_text": period_text,
-        "period_start": start7.isoformat(),
-        "period_end": end7.isoformat(),
+        "period_start": startN.isoformat(),
+        "period_end": endN.isoformat(),
+        "total_reviews": int(len(dfN)),
 
-        "total_reviews_7d": int(len(rows7)),
-        "total_reviews_input": int(len(all_rows)),
-
-        # Summary keys (HTML)
         "pos_top5": pos_top5,
         "neg_top5": neg_top5,
-
         "keyword_evidence": {"pos": pos_evidence, "neg": neg_evidence},
         "auto_stopwords": auto_sw,
         "clusters": cluster_counts,
         "size_phrases": size_phrases,
-        "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼", "업", "다운"],
-
+        "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼", "수납", "가벼움"],
         "product_mindmap_1y": product_mindmap_1y,
 
-        # ✅ HEALTH
-        "health": health,
+        # MAX PATCH: health + trend
+        "healthcheck": hc,
+        "window_created_at_parse_fail": parse_fail_rows,
+        "trend_daily": trend,
+        "empty_reason": empty_reason,
     }
 
-    # 최근7일 reviews.json (프론트 필터용 pos 태그 보강 + source 정규화)
+    # output reviews with pos tag enrichment
     out_reviews: List[Dict[str, Any]] = []
-    for r in (df7.to_dict(orient="records") if not df7.empty else []):
-        tags = r.get("tags", [])
-        if not isinstance(tags, list):
-            tags = []
-        if is_positive(r) and "pos" not in tags:
-            tags.append("pos")
+    if not dfN.empty:
+        for r in dfN.to_dict(orient="records"):
+            tags = r.get("tags", [])
+            if not isinstance(tags, list):
+                tags = []
+            if is_positive(r) and "pos" not in tags:
+                tags.append("pos")
 
-        out_reviews.append({
-            "id": r.get("id"),
-            "product_code": r.get("product_code", ""),
-            "product_name": r.get("product_name", ""),
-            "product_url": r.get("product_url", ""),
-            "rating": int(pd.to_numeric(r.get("rating"), errors="coerce") or 0),
-            "created_at": r.get("created_at", ""),
-            "text": r.get("text", ""),
-            "source": normalize_source(r.get("source")),
-            "option_size": r.get("option_size", ""),
-            "option_color": r.get("option_color", ""),
-            "tags": tags,
-            "size_direction": r.get("size_direction", "other"),
-            "local_product_image": r.get("local_product_image", ""),
-            "local_review_thumb": r.get("local_review_thumb", ""),
-            "text_image_path": r.get("text_image_path", ""),
-        })
+            out_reviews.append({
+                "id": r.get("id"),
+                "product_code": r.get("product_code", ""),
+                "product_name": r.get("product_name", ""),
+                "product_url": r.get("product_url", ""),
+                "rating": int(r.get("rating") or 0),
+                "created_at": r.get("created_at", ""),
+                "text": r.get("text", ""),
+                "source": r.get("source", "Official"),
+                "option_size": r.get("option_size", ""),
+                "option_color": r.get("option_color", ""),
+                "tags": tags,
+                "size_direction": r.get("size_direction", "other"),
+                "local_product_image": r.get("local_product_image", ""),
+                "local_review_thumb": r.get("local_review_thumb", ""),
+                "text_image_path": r.get("text_image_path", ""),
+            })
 
-    # HTML
-    html = load_html_template()
+    html = load_html_template(html_template)
 
     (SITE_DATA_DIR / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
     (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
 
-    print("[OK] Build done (v6 max patched)")
+    print("[OK] Build done (v6 MAX PATCH)")
     print(f"- Input: {inp}")
     print(f"- Output meta: {SITE_DATA_DIR / 'meta.json'}")
     print(f"- Output reviews: {SITE_DATA_DIR / 'reviews.json'}")
     print(f"- Output html: {SITE_DIR / 'index.html'}")
     print(f"- Period: {period_text}")
-    print(f"- rows7: {len(rows7)} / input: {len(all_rows)}")
-    print(f"- health: {health.get('status')} warnings={len(health.get('warnings',[]))} errors={len(health.get('errors',[]))}")
+    print(f"- Window rows: {len(rowsN)} / Input rows: {len(all_rows)}")
+    if empty_reason:
+        print(f"[WARN] {empty_reason}")
+    print(f"- POS Top: {pos_top}")
+    print(f"- NEG Top: {neg_top}")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="path to reviews.json (aggregated JSON: {reviews:[...]})")
+    ap.add_argument("--html-template", default="", help="optional html template path (highest priority)")
+    ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="window days (including today), default from env TARGET_DAYS")
     args = ap.parse_args()
-    main(args.input)
+
+    main(
+        input_path=args.input,
+        html_template=(args.html_template.strip() or None),
+        target_days=int(args.target_days or DEFAULT_TARGET_DAYS),
+    )
