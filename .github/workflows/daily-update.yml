@@ -139,6 +139,7 @@ jobs:
           DAILY_DIGEST_FORCE_HUB_OVERWRITE: "true"
         run: |
           set -euo pipefail
+          DAILY_DIGEST_SKIP_HUB_WRITE=true
 
           if [ -z "${GA4_PROPERTY_ID:-}" ]; then
             echo "[WARN] GA4_PROPERTY_ID is empty. skip."
