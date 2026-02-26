@@ -1737,52 +1737,257 @@ def render_page_html(
 </script>
 """
 
-    # (이하 HTML 템플릿은 네가 준 그대로라 길어서 생략 없이 유지 필요)
-    # ✅ 여기부터는 네가 준 원본의 render_page_html HTML 문자열 부분과 동일하므로,
-    #    원본 그대로 붙여넣어도 되고(권장), 이미 너가 올린 HTML 그대로 유지하면 됨.
-    #    단, 위 compare_js만 이 버전 그대로 있어야 presetPrev / presetYoY가 정확히 동작함.
-    #
-    # ----
-    #
-    # ⚠️ 아래는 "원본 그대로" 이어붙여야 하는데, 메시지 길이 한계 때문에
-    # 이 파일에서는 render_page_html 이후~hub~main까지도 네가 준 코드 그대로 유지하면서,
-    # 우리가 고친 부분(build_bundle / image map / meta.prev_end / compare preset)만 반영하면 된다.
-    #
-    # ----
-    #
-    # 실사용을 위해선: 네가 제공한 원본 render_page_html의 HTML return 문자열을 그대로 두고,
-    # 위 compare_js만 교체하면 끝.
+    # ✅ 여기부터는 "스텁 return" 제거하고, 실제 페이지 HTML을 반환해야 함.
+    # (compare_js는 위에서 만든 그대로 사용)
+
+    # ---- Compare bar + modal markup (compare_js가 참조하는 id들) ----
+    compare_bar_html = f"""
+    <div class="mt-4 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Compare</div>
+        <select id="cmpMode" class="ml-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly (7D)</option>
+        </select>
+        <input id="cmpA" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+        <input id="cmpB" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+        <button id="presetPrev" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold hover:bg-slate-50">전기준</button>
+        <button id="presetYoY" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold hover:bg-slate-50">YoY</button>
+        <button id="cmpBtn" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Compare</button>
+      </div>
+      <div id="cmpErr" class="mt-2 text-sm font-semibold text-orange-700"></div>
+    </div>
+
+    <div id="cmpModal" class="fixed inset-0 z-[9999] hidden">
+      <div id="cmpBackdrop" class="absolute inset-0 bg-black/40"></div>
+      <div class="absolute left-1/2 top-1/2 w-[min(980px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl">
+        <div class="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+          <div>
+            <div id="cmpTitle" class="text-lg font-black text-slate-900">Compare</div>
+            <div id="cmpSub" class="mt-1 text-sm text-slate-500"></div>
+          </div>
+          <button id="cmpClose" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">닫기</button>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2">
+          <div class="rounded-2xl border border-slate-200 p-4">
+            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">KPIs</div>
+            <table class="mt-3 w-full text-sm">
+              <tbody id="cmpKPIs"></tbody>
+            </table>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4">
+            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Revenue</div>
+            <table class="mt-3 w-full text-sm">
+              <thead>
+                <tr class="text-xs text-slate-500">
+                  <th class="px-3 py-2 text-left">Bucket</th>
+                  <th class="px-3 py-2 text-right">A</th>
+                  <th class="px-3 py-2 text-right">B</th>
+                  <th class="px-3 py-2 text-right">Diff</th>
+                </tr>
+              </thead>
+              <tbody id="cmpChannels"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+
+    # ---- Build sections ----
+    # Top KPI cards
+    kpis_cards = "".join([
+        top_kpi_card("Sessions", fmt_int(cur["sessions"]),
+                     f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
+                     f"{'+' if s_yoy>=0 else ''}{fmt_pct(s_yoy,1)}",
+                     delta_cls(s_delta), delta_cls(s_yoy)),
+        top_kpi_card("Revenue", fmt_currency_krw(cur["purchaseRevenue"]),
+                     f"{'+' if r_delta>=0 else ''}{fmt_pct(r_delta,1)}",
+                     f"{'+' if r_yoy>=0 else ''}{fmt_pct(r_yoy,1)}",
+                     delta_cls(r_delta), delta_cls(r_yoy)),
+        top_kpi_card("Orders", fmt_int(cur["transactions"]),
+                     f"{'+' if o_delta>=0 else ''}{fmt_pct(o_delta,1)}",
+                     f"{'+' if o_yoy>=0 else ''}{fmt_pct(o_yoy,1)}",
+                     delta_cls(o_delta), delta_cls(o_yoy)),
+        top_kpi_card("CVR", f"{cur['cvr']*100:.2f}%",
+                     f"{'+' if c_pp>=0 else ''}{fmt_pp(c_pp,2)}",
+                     f"{'+' if c_yoy_pp>=0 else ''}{fmt_pp(c_yoy_pp,2)}",
+                     delta_cls(c_pp), delta_cls(c_yoy_pp)),
+        top_kpi_card("Sign-up Users", fmt_int(su_cur),
+                     f"{'+' if su_delta>=0 else ''}{fmt_pct(su_delta,1)}",
+                     f"{'+' if su_yoy_delta>=0 else ''}{fmt_pct(su_yoy_delta,1)}",
+                     delta_cls(su_delta), delta_cls(su_yoy_delta)),
+    ])
+
+    # Best sellers rows
+    bs_rows = ""
+    if best_sellers is not None and (not best_sellers.empty):
+        for r in best_sellers.itertuples(index=False):
+            bs_rows += f"""
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              {product_img(getattr(r, "image_url", ""))}
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">{(getattr(r, "itemName", "") or "")}</div>
+                <div class="text-xs text-slate-500">{(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))}</div>
+              </div>
+              <div class="shrink-0">{getattr(r, "trend_svg", "")}</div>
+            </div>
+            """
+
+    # Rising rows
+    rising_rows = ""
+    if rising is not None and (not rising.empty):
+        for r in rising.itertuples(index=False):
+            delta = float(getattr(r, "delta", 0) or 0)
+            cls = "text-blue-600" if delta >= 0 else "text-orange-700"
+            rising_rows += f"""
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              {product_img(getattr(r, "image_url", ""))}
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">{(getattr(r, "itemName", "") or "")}</div>
+                <div class="text-xs text-slate-500">{(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
+              </div>
+              <div class="text-sm font-black {cls}">{(getattr(r, "delta_label", "Δ") or "Δ")} {(delta>=0 and "+" or "")}{fmt_int(delta)}</div>
+            </div>
+            """
+
+    # PDP rows
+    pdp_rows = ""
+    if category_pdp_trend is not None and (not category_pdp_trend.empty):
+        for r in category_pdp_trend.itertuples(index=False):
+            pdp_rows += f"""
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">{getattr(r, "itemCategory", "")}</div>
+                <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} · 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
+              </div>
+              <div class="shrink-0">{getattr(r, "trend_svg", "")}</div>
+            </div>
+            """
+
+    # Search rows
+    new_terms_html = ""
+    if search_new is not None and (not search_new.empty):
+        for r in search_new.itertuples(index=False):
+            new_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
+    rising_terms_html = ""
+    if search_rising is not None and (not search_rising.empty):
+        for r in search_rising.itertuples(index=False):
+            rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>+{float(getattr(r,'pct',0) or 0):.1f}% · {fmt_int(getattr(r,'count',0))}</span></div>"
+
+    # ---- Final HTML ----
     return f"""<!doctype html>
-<html lang="ko"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CSK E-COMM | Daily Digest</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
-<body>
-<div style="padding:24px;font-family:system-ui">render_page_html HTML은 원본 그대로 유지하세요. (이 함수 상단의 compare_js만 이 버전으로 반영)</div>
-{compare_js}
-</body></html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSK E-COMM | Daily Digest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="mx-auto max-w-6xl p-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="text-2xl font-black">Daily Digest</div>
+        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
+        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{nav_links.get('hub','#')}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+      </div>
+    </div>
+
+    {compare_bar_html}
+
+    <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
+      {kpis_cards}
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
+      <div class="mt-3">{trend_svg}</div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
+        <table class="mt-3 w-full text-sm">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-3 py-2 text-left">Bucket</th>
+              <th class="px-3 py-2 text-right">Sessions</th>
+              <th class="px-3 py-2 text-right">Orders</th>
+              <th class="px-3 py-2 text-right">Revenue</th>
+              <th class="px-3 py-2 text-right">{w.compare_label}</th>
+              <th class="px-3 py-2 text-right">YoY</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chan_html}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
+        <table class="mt-3 w-full text-sm">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-3 py-2 text-left">Sub</th>
+              <th class="px-3 py-2 text-right">Sessions</th>
+              <th class="px-3 py-2 text-right">Revenue</th>
+              <th class="px-3 py-2 text-right">{w.compare_label}</th>
+              <th class="px-3 py-2 text-right">YoY</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paid_html}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 5)</div>
+        <div class="mt-3 space-y-2">
+          {bs_rows or "<div class='text-sm text-slate-500'>No data</div>"}
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products (Top 5)</div>
+        <div class="mt-3 space-y-2">
+          {rising_rows or "<div class='text-sm text-slate-500'>No data</div>"}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend (Category)</div>
+      <div class="mt-3 space-y-2">
+        {pdp_rows or "<div class='text-sm text-slate-500'>No data</div>"}
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · New</div>
+        <div class="mt-3 space-y-2">{new_terms_html or "<div class='text-sm text-slate-500'>No data</div>"}</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · Rising</div>
+        <div class="mt-3 space-y-2">{rising_terms_html or "<div class='text-sm text-slate-500'>No data</div>"}</div>
+      </div>
+    </div>
+
+  </div>
+
+  {compare_js}
+</body>
+</html>
 """
-
-
-# =========================
-# Hub page
-# =========================
-def render_hub_index(dates: List[dt.date]) -> str:
-    # (네가 준 HUB_TEMPLATE 그대로)
-    daily_links = "\n".join([
-        f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='daily/{ymd(d)}.html'>{ymd(d)}</a>"
-        for d in sorted(dates, reverse=True)[:40]
-    ])
-    weekly_links = "\n".join([
-        f"<a class='px-4 py-2 rounded-2xl border border-slate-200 bg-white/70 font-extrabold' href='weekly/END_{ymd(d)}.html'>END {ymd(d)}</a>"
-        for d in sorted(dates, reverse=True)[:40]
-    ])
-
-    # ⚠️ HUB_TEMPLATE은 네가 준 원본 그대로 사용 (여기서는 길이상 원본 그대로 붙여넣어야 함)
-    # 네가 올린 HUB_TEMPLATE 그대로 두면,
-    # 이번 수정으로 build_bundle 최상단에 kpis/channels/yoy가 생겨서
-    # Hub 구간비교 + 채널표 + YoY 보기까지 정상 동작함.
-    HUB_TEMPLATE = """<html><body>HUB_TEMPLATE 원본 그대로 유지하세요 (네가 준 코드 그대로).</body></html>"""
-    return HUB_TEMPLATE.replace("__DAILY_LINKS__", daily_links).replace("__WEEKLY_LINKS__", weekly_links)
 
 
 # =========================
