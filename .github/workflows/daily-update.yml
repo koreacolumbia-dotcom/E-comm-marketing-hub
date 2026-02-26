@@ -122,20 +122,19 @@ jobs:
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       # =========================================================
-      # ✅ Daily Digest Report (누적 생성 유지)
+      # ✅ Daily Digest Report (어제 + YoY만 생성)
       # =========================================================
-      - name: Run Daily Digest report
+      - name: Run Daily Digest report (yesterday + YoY only)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
         continue-on-error: true
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
-          GA4_START_DATE: ${{ vars.GA4_START_DATE }}
-          GA4_END_DATE: ${{ vars.GA4_END_DATE }}
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
 
-          # ✅ 덮어쓰기 강제
+          # ✅ 강제 재생성(덮어쓰기)
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_FORCE_HUB_OVERWRITE: "true"
         run: |
@@ -152,31 +151,44 @@ jobs:
 
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
-          python -c "import json; json.load(open('/tmp/ga_sa.json')); print('JSON_OK')"
+          python -c "import json; json.load(open('/tmp/ga_sa.json')); print('JSON_OK')" || true
 
-          mkdir -p reports/daily_digest/daily reports/daily_digest/weekly
+          mkdir -p reports/daily_digest/daily reports/daily_digest/weekly reports/daily_digest/data/daily reports/daily_digest/data/weekly
 
-          # ✅ 절대 fallback으로 out-dir 없는 실행 하지 않기 (경로 꼬임 방지)
-          # ✅ 필요하면 recent-days로 시간을 줄여서 안정화 (원하면 7/14로 조절)
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest --recent-days 14 || true
+          # YoY 날짜 = 어제 - 364d
+          YOY="$(TZ=Asia/Seoul date -d "${YMD} - 364 days" '+%Y-%m-%d')"
+          echo "[INFO] Build only: YMD=${YMD}, YOY=${YOY}"
 
-          # ✅ 생성 결과 sanity check (placeholder 감지)
-          YMD="${{ steps.set_time.outputs.yesterday_ymd }}"
-          DAILY_HTML="reports/daily_digest/daily/${YMD}.html"
-          if [ -f "$DAILY_HTML" ]; then
-            if grep -q "render_page_html HTML은 원본 그대로 유지하세요" "$DAILY_HTML"; then
-              echo "[WARN] Placeholder text detected in ${DAILY_HTML}"
-              # 여기서 fail로 돌리고 싶으면 exit 1로 바꾸면 됨 (지금은 continue-on-error라 warn만)
-            fi
-          fi
+          # ✅ 문제가 되는 placeholder 산출물만 삭제해서 강제 재생성
+          rm -f "reports/daily_digest/daily/${YMD}.html" "reports/daily_digest/weekly/END_${YMD}.html" || true
+          rm -f "reports/daily_digest/daily/${YOY}.html" "reports/daily_digest/weekly/END_${YOY}.html" || true
+          rm -f "reports/daily_digest/data/daily/${YMD}.json" "reports/daily_digest/data/weekly/END_${YMD}.json" || true
+          rm -f "reports/daily_digest/data/daily/${YOY}.json" "reports/daily_digest/data/weekly/END_${YOY}.json" || true
 
+          # 허브도 덮어쓰기 유도(선택)
+          rm -f "reports/daily_digest/index.html" || true
+
+          # ✅ 1) 어제만 생성
+          export GA4_START_DATE="${YMD}"
+          export GA4_END_DATE="${YMD}"
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest || true
+
+          # ✅ 2) YoY 기준일만 생성
+          export GA4_START_DATE="${YOY}"
+          export GA4_END_DATE="${YOY}"
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest || true
+
+          # build stamp
           if [ -f reports/daily_digest/index.html ]; then
             echo "<!-- BUILD_STAMP: ${KST_STAMP} -->" >> reports/daily_digest/index.html
           fi
 
-          ls -la reports/daily_digest/daily | tail -n 60 || true
-          ls -la reports/daily_digest/weekly | tail -n 60 || true
-
+          echo "[INFO] Outputs:"
+          ls -la reports/daily_digest/daily | tail -n 40 || true
+          ls -la reports/daily_digest/weekly | tail -n 40 || true
+          ls -la reports/daily_digest/data/daily | tail -n 40 || true
+          ls -la reports/daily_digest/data/weekly | tail -n 40 || true
+          
       # =========================================================
       # ✅ Render yesterday daily HTML -> PNG (for email)
       # =========================================================
