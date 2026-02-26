@@ -1396,6 +1396,8 @@ def render_page_html(
     nav_links: Dict[str, str],
     bundle_rel_path: str,
 ) -> str:
+    import html as _html
+
     cur = overall["current"]; prev = overall["prev"]; yoy = overall["yoy"]
 
     s_delta = pct_change(cur["sessions"], prev["sessions"])
@@ -1414,22 +1416,25 @@ def render_page_html(
     su_delta = pct_change(su_cur, su_prev)
     su_yoy_delta = pct_change(su_cur, su_yoy)
 
+    def esc(s: Any) -> str:
+        return _html.escape(str(s or ""), quote=True)
+
     def delta_cls(v: float) -> str:
         return "text-blue-600" if v >= 0 else "text-orange-700"
 
     def top_kpi_card(title: str, value: str, delta_main: str, delta_yoy_s: str, cls_main: str, cls_yoy: str) -> str:
         return f"""
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{title}</div>
-          <div class="mt-1 text-xl font-black text-slate-900">{value}</div>
-          <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{delta_main}</b> · YoY <b class="{cls_yoy}">{delta_yoy_s}</b></div>
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
+          <div class="mt-1 text-xl font-black text-slate-900">{esc(value)}</div>
+          <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> · YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
         </div>
         """
 
     def product_img(url: str) -> str:
         u = (url or PLACEHOLDER_IMG or "").strip()
         if u:
-            return f"<img src='{u}' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>"
+            return f"<img src='{esc(u)}' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>"
         return "<div class='w-8 h-8 rounded-xl bg-slate-100 border border-slate-200'></div>"
 
     def table_row(cols: List[str], bold=False) -> str:
@@ -1438,117 +1443,114 @@ def render_page_html(
         tds = "".join([f"<td class='px-3 py-2 border-b border-slate-100 {fw}'>{c}</td>" for c in cols])
         return f"<tr class='{bg}'>{tds}</tr>"
 
+    # --- Channel snapshot table rows
     chan_html = ""
-    for r in channel_snapshot.itertuples(index=False):
-        chan_html += table_row([
-            str(r.bucket),
-            f"<div class='text-right'>{fmt_int(r.sessions)}</div>",
-            f"<div class='text-right'>{fmt_int(r.transactions)}</div>",
-            f"<div class='text-right'>{fmt_currency_krw(r.purchaseRevenue)}</div>",
-            f"<div class='text-right {delta_cls(r.rev_vs_prev)}'>{('+' if r.rev_vs_prev>=0 else '')}{fmt_pct(r.rev_vs_prev,1)}</div>",
-            f"<div class='text-right {delta_cls(r.rev_yoy)}'>{('+' if r.rev_yoy>=0 else '')}{fmt_pct(r.rev_yoy,1)}</div>",
-        ], bold=(r.bucket == "Total"))
+    if channel_snapshot is not None and (not channel_snapshot.empty):
+        for r in channel_snapshot.itertuples(index=False):
+            chan_html += table_row([
+                esc(getattr(r, "bucket", "")),
+                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
+                f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_vs_prev', 0) or 0))}'>{('+' if float(getattr(r,'rev_vs_prev',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_vs_prev',0) or 0),1)}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
+            ], bold=(str(getattr(r, "bucket", "")) == "Total"))
 
+    # --- Paid detail rows
     paid_html = ""
-    for r in paid_detail.itertuples(index=False):
-        paid_html += table_row([
-            str(r.sub_channel),
-            f"<div class='text-right'>{fmt_int(r.sessions)}</div>",
-            f"<div class='text-right'>{fmt_currency_krw(r.purchaseRevenue)}</div>",
-            f"<div class='text-right {delta_cls(r.rev_vs_prev)}'>{('+' if r.rev_vs_prev>=0 else '')}{fmt_pct(r.rev_vs_prev,1)}</div>",
-            f"<div class='text-right {delta_cls(r.rev_yoy)}'>{('+' if r.rev_yoy>=0 else '')}{fmt_pct(r.rev_yoy,1)}</div>",
-        ], bold=(r.sub_channel == "Total"))
+    if paid_detail is not None and (not paid_detail.empty):
+        for r in paid_detail.itertuples(index=False):
+            paid_html += table_row([
+                esc(getattr(r, "sub_channel", "")),
+                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_vs_prev', 0) or 0))}'>{('+' if float(getattr(r,'rev_vs_prev',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_vs_prev',0) or 0),1)}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
+            ], bold=(str(getattr(r, "sub_channel", "")) == "Total"))
 
-    paid_top3_html = ""
-    if not paid_top3.empty:
-        for r in paid_top3.itertuples(index=False):
-            paid_top3_html += table_row([
-                str(r.sessionSourceMedium),
-                f"<div class='text-right'>{fmt_int(getattr(r,'sessions',0))}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(r.purchaseRevenue)}</div>",
-            ], bold=(r.sessionSourceMedium == "Total"))
-
-    kpi_html = ""
-    for r in kpi_snapshot.itertuples(index=False):
-        kpi_html += table_row([
-            str(r.metric),
-            f"<div class='text-right'>{r.value_fmt}</div>",
-            f"<div class='text-right {delta_cls(r.delta_prev)}'>{r.delta_prev_fmt}</div>",
-            f"<div class='text-right {delta_cls(r.delta_yoy)}'>{r.delta_yoy_fmt}</div>",
-        ])
-
-    bs_html = ""
-    if not best_sellers.empty:
+    # --- Best sellers cards
+    bs_rows = ""
+    if best_sellers is not None and (not best_sellers.empty):
         for r in best_sellers.itertuples(index=False):
-            bs_html += f"""
-            <tr>
-              <td class="px-3 py-2 border-b border-slate-100">{product_img(getattr(r,'image_url',''))}</td>
-              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemName',None) or '—'}</td>
-              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemId',None) or '—'}</td>
-              <td class="px-3 py-2 border-b border-slate-100 text-right font-semibold">{fmt_int(getattr(r,'qty',0))}</td>
-              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'trend_svg','')}</td>
-            </tr>
+            bs_rows += f"""
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              {product_img(getattr(r, "image_url", ""))}
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
+                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))}</div>
+              </div>
+              <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
+            </div>
             """
 
-    rp_html = ""
-    if not rising.empty:
+    # --- Rising cards
+    rising_rows = ""
+    if rising is not None and (not rising.empty):
         for r in rising.itertuples(index=False):
             delta = float(getattr(r, "delta", 0) or 0.0)
-            rp_html += f"""
-            <tr>
-              <td class="px-3 py-2 border-b border-slate-100">{product_img(getattr(r,'image_url',''))}</td>
-              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemId',None) or '—'}</td>
-              <td class="px-3 py-2 border-b border-slate-100">{getattr(r,'itemName',None) or '—'}</td>
-              <td class="px-3 py-2 border-b border-slate-100 text-right">{fmt_int(getattr(r,'views',0))}</td>
-              <td class="px-3 py-2 border-b border-slate-100 text-right">{fmt_currency_krw(getattr(r,'revenue',0))}</td>
-              <td class="px-3 py-2 border-b border-slate-100 text-right font-extrabold {delta_cls(delta)}">
-                {'▲' if delta>=0 else '▼'} {fmt_int(abs(delta))}
-              </td>
-            </tr>
+            cls = "text-blue-600" if delta >= 0 else "text-orange-700"
+            rising_rows += f"""
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              {product_img(getattr(r, "image_url", ""))}
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
+                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
+              </div>
+              <div class="text-sm font-black {cls}">{esc(getattr(r, "delta_label", "Δ") or "Δ")} {('+' if delta>=0 else '')}{fmt_int(delta)}</div>
+            </div>
             """
 
-    pdp_html = ""
-    if not category_pdp_trend.empty:
+    # --- PDP cards
+    pdp_rows = ""
+    if category_pdp_trend is not None and (not category_pdp_trend.empty):
         for r in category_pdp_trend.itertuples(index=False):
-            pdp_html += f"""
-            <tr>
-              <td class="px-3 py-2 border-b border-slate-100">{r.itemCategory}</td>
-              <td class="px-3 py-2 border-b border-slate-100">
-                <div class="text-[11px] text-slate-500 mb-1">
-                  D-1 <b class="text-slate-900">{fmt_int(getattr(r,'views_d1',0))}</b> ·
-                  7D Avg <b class="text-slate-900">{fmt_int(getattr(r,'views_avg7d',0))}</b>
-                </div>
-                {getattr(r,'trend_svg','')}
-              </td>
-            </tr>
+            pdp_rows += f"""
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemCategory", "") or "")}</div>
+                <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} · 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
+              </div>
+              <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
+            </div>
             """
     else:
-        pdp_html = """
-        <tr>
-          <td class="px-3 py-4 text-slate-400" colspan="2">
-            PDP Trend 데이터가 없습니다. (BigQuery view_item에 items[].item_id가 없으면 비어있게 됩니다)
-          </td>
-        </tr>
-        """
+        pdp_rows = "<div class='text-sm text-slate-500'>No data</div>"
 
-    def kw_rows(df: pd.DataFrame, mode: str) -> str:
-        if df.empty:
-            return "<tr><td class='px-3 py-2 border-b border-slate-100 text-slate-400'>—</td><td class='px-3 py-2 border-b border-slate-100 text-right text-slate-400'>—</td></tr>"
-        out = ""
-        for r in df.itertuples(index=False):
-            if mode == "new":
-                out += f"<tr><td class='px-3 py-2 border-b border-slate-100'>{r.searchTerm}</td><td class='px-3 py-2 border-b border-slate-100 text-right text-slate-500'>{fmt_int(getattr(r,'count',0))}</td></tr>"
-            else:
-                tag = f"{'+' if r.pct>=0 else ''}{r.pct:.0f}%"
-                out += f"<tr><td class='px-3 py-2 border-b border-slate-100'>{r.searchTerm}</td><td class='px-3 py-2 border-b border-slate-100 text-right text-slate-500'>{tag} · {fmt_int(getattr(r,'count',0))}</td></tr>"
-        return out
+    # --- Search terms
+    new_terms_html = ""
+    if search_new is not None and (not search_new.empty):
+        for r in search_new.itertuples(index=False):
+            new_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
 
-    mode_badge = "Daily" if w.mode == "daily" else "Weekly (7D Cumulative)"
-    period_text = f"{ymd(w.cur_start)} ~ {ymd(w.cur_end)}" if w.mode == "weekly" else f"{ymd(w.end_date)}"
-    yoy_text = f"{ymd(w.yoy_start)}" if w.mode == "daily" else f"{ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}"
-    qty_label = "Qty" if w.mode == "daily" else "7D Qty"
-    cmp_label = w.compare_label
-    rising_basis_label = {"qty": "Qty Δ", "views": "Views Δ", "revenue": "Revenue Δ"}.get(RISING_BASIS, "Qty Δ")
+    rising_terms_html = ""
+    if search_rising is not None and (not search_rising.empty):
+        for r in search_rising.itertuples(index=False):
+            pct = float(getattr(r, "pct", 0) or 0.0)
+            rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{'+' if pct>=0 else ''}{pct:.1f}% · {fmt_int(getattr(r,'count',0))}</span></div>"
+
+    # --- KPI cards
+    kpis_cards = "".join([
+        top_kpi_card("Sessions", fmt_int(cur["sessions"]),
+                     f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
+                     f"{'+' if s_yoy>=0 else ''}{fmt_pct(s_yoy,1)}",
+                     delta_cls(s_delta), delta_cls(s_yoy)),
+        top_kpi_card("Revenue", fmt_currency_krw(cur["purchaseRevenue"]),
+                     f"{'+' if r_delta>=0 else ''}{fmt_pct(r_delta,1)}",
+                     f"{'+' if r_yoy>=0 else ''}{fmt_pct(r_yoy,1)}",
+                     delta_cls(r_delta), delta_cls(r_yoy)),
+        top_kpi_card("Orders", fmt_int(cur["transactions"]),
+                     f"{'+' if o_delta>=0 else ''}{fmt_pct(o_delta,1)}",
+                     f"{'+' if o_yoy>=0 else ''}{fmt_pct(o_yoy,1)}",
+                     delta_cls(o_delta), delta_cls(o_yoy)),
+        top_kpi_card("CVR", f"{cur['cvr']*100:.2f}%",
+                     f"{'+' if c_pp>=0 else ''}{fmt_pp(c_pp,2)}",
+                     f"{'+' if c_yoy_pp>=0 else ''}{fmt_pp(c_yoy_pp,2)}",
+                     delta_cls(c_pp), delta_cls(c_yoy_pp)),
+        top_kpi_card("Sign-up Users", fmt_int(su_cur),
+                     f"{'+' if su_delta>=0 else ''}{fmt_pct(su_delta,1)}",
+                     f"{'+' if su_yoy_delta>=0 else ''}{fmt_pct(su_yoy_delta,1)}",
+                     delta_cls(su_delta), delta_cls(su_yoy_delta)),
+    ])
 
     default_a = ymd(w.end_date)
     default_b = ymd(w.prev_end)
@@ -1737,10 +1739,6 @@ def render_page_html(
 </script>
 """
 
-    # ✅ 여기부터는 "스텁 return" 제거하고, 실제 페이지 HTML을 반환해야 함.
-    # (compare_js는 위에서 만든 그대로 사용)
-
-    # ---- Compare bar + modal markup (compare_js가 참조하는 id들) ----
     compare_bar_html = f"""
     <div class="mt-4 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center gap-2">
@@ -1795,88 +1793,6 @@ def render_page_html(
     </div>
     """
 
-    # ---- Build sections ----
-    # Top KPI cards
-    kpis_cards = "".join([
-        top_kpi_card("Sessions", fmt_int(cur["sessions"]),
-                     f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
-                     f"{'+' if s_yoy>=0 else ''}{fmt_pct(s_yoy,1)}",
-                     delta_cls(s_delta), delta_cls(s_yoy)),
-        top_kpi_card("Revenue", fmt_currency_krw(cur["purchaseRevenue"]),
-                     f"{'+' if r_delta>=0 else ''}{fmt_pct(r_delta,1)}",
-                     f"{'+' if r_yoy>=0 else ''}{fmt_pct(r_yoy,1)}",
-                     delta_cls(r_delta), delta_cls(r_yoy)),
-        top_kpi_card("Orders", fmt_int(cur["transactions"]),
-                     f"{'+' if o_delta>=0 else ''}{fmt_pct(o_delta,1)}",
-                     f"{'+' if o_yoy>=0 else ''}{fmt_pct(o_yoy,1)}",
-                     delta_cls(o_delta), delta_cls(o_yoy)),
-        top_kpi_card("CVR", f"{cur['cvr']*100:.2f}%",
-                     f"{'+' if c_pp>=0 else ''}{fmt_pp(c_pp,2)}",
-                     f"{'+' if c_yoy_pp>=0 else ''}{fmt_pp(c_yoy_pp,2)}",
-                     delta_cls(c_pp), delta_cls(c_yoy_pp)),
-        top_kpi_card("Sign-up Users", fmt_int(su_cur),
-                     f"{'+' if su_delta>=0 else ''}{fmt_pct(su_delta,1)}",
-                     f"{'+' if su_yoy_delta>=0 else ''}{fmt_pct(su_yoy_delta,1)}",
-                     delta_cls(su_delta), delta_cls(su_yoy_delta)),
-    ])
-
-    # Best sellers rows
-    bs_rows = ""
-    if best_sellers is not None and (not best_sellers.empty):
-        for r in best_sellers.itertuples(index=False):
-            bs_rows += f"""
-            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              {product_img(getattr(r, "image_url", ""))}
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">{(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))}</div>
-              </div>
-              <div class="shrink-0">{getattr(r, "trend_svg", "")}</div>
-            </div>
-            """
-
-    # Rising rows
-    rising_rows = ""
-    if rising is not None and (not rising.empty):
-        for r in rising.itertuples(index=False):
-            delta = float(getattr(r, "delta", 0) or 0)
-            cls = "text-blue-600" if delta >= 0 else "text-orange-700"
-            rising_rows += f"""
-            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              {product_img(getattr(r, "image_url", ""))}
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">{(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
-              </div>
-              <div class="text-sm font-black {cls}">{(getattr(r, "delta_label", "Δ") or "Δ")} {(delta>=0 and "+" or "")}{fmt_int(delta)}</div>
-            </div>
-            """
-
-    # PDP rows
-    pdp_rows = ""
-    if category_pdp_trend is not None and (not category_pdp_trend.empty):
-        for r in category_pdp_trend.itertuples(index=False):
-            pdp_rows += f"""
-            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">{getattr(r, "itemCategory", "")}</div>
-                <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} · 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
-              </div>
-              <div class="shrink-0">{getattr(r, "trend_svg", "")}</div>
-            </div>
-            """
-
-    # Search rows
-    new_terms_html = ""
-    if search_new is not None and (not search_new.empty):
-        for r in search_new.itertuples(index=False):
-            new_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
-    rising_terms_html = ""
-    if search_rising is not None and (not search_rising.empty):
-        for r in search_rising.itertuples(index=False):
-            rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>+{float(getattr(r,'pct',0) or 0):.1f}% · {fmt_int(getattr(r,'count',0))}</span></div>"
-
-    # ---- Final HTML ----
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -1884,6 +1800,10 @@ def render_page_html(
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CSK E-COMM | Daily Digest</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
+  </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="mx-auto max-w-6xl p-6">
@@ -1894,7 +1814,7 @@ def render_page_html(
         <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="{nav_links.get('hub','#')}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+        <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
 
@@ -1923,9 +1843,7 @@ def render_page_html(
               <th class="px-3 py-2 text-right">YoY</th>
             </tr>
           </thead>
-          <tbody>
-            {chan_html}
-          </tbody>
+          <tbody>{chan_html}</tbody>
         </table>
       </div>
 
@@ -1941,9 +1859,7 @@ def render_page_html(
               <th class="px-3 py-2 text-right">YoY</th>
             </tr>
           </thead>
-          <tbody>
-            {paid_html}
-          </tbody>
+          <tbody>{paid_html}</tbody>
         </table>
       </div>
     </div>
@@ -1951,24 +1867,18 @@ def render_page_html(
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 5)</div>
-        <div class="mt-3 space-y-2">
-          {bs_rows or "<div class='text-sm text-slate-500'>No data</div>"}
-        </div>
+        <div class="mt-3 space-y-2">{bs_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products (Top 5)</div>
-        <div class="mt-3 space-y-2">
-          {rising_rows or "<div class='text-sm text-slate-500'>No data</div>"}
-        </div>
+        <div class="mt-3 space-y-2">{rising_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend (Category)</div>
-      <div class="mt-3 space-y-2">
-        {pdp_rows or "<div class='text-sm text-slate-500'>No data</div>"}
-      </div>
+      <div class="mt-3 space-y-2">{pdp_rows}</div>
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1985,6 +1895,398 @@ def render_page_html(
   </div>
 
   {compare_js}
+</body>
+</html>
+"""
+
+# =========================
+# Hub page
+# =========================
+
+def render_hub_index(dates: List[dt.date]) -> str:
+    import html as _html
+
+    dates = sorted(dates)
+    if not dates:
+        dates = [dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1)]
+    latest = dates[0]
+    for d in dates:
+        if d > latest:
+            latest = d
+
+    date_opts = "\n".join([f"<option value='{d.strftime('%Y-%m-%d')}'>{d.strftime('%Y-%m-%d')}</option>" for d in reversed(dates)])
+
+    # Minimal hub UI; does NOT trigger GA/BQ calls. It reads cached bundle JSON in /data/.
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSK E-COMM | Daily Digest Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="mx-auto max-w-6xl p-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="text-2xl font-black">Daily Digest Hub</div>
+        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">STATIC</div>
+      </div>
+      <div class="text-sm text-slate-500">Data cache 기반 · Compare는 브라우저에서 JSON 합산</div>
+    </div>
+
+    <!-- Quick open -->
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Open report</div>
+        <div class="mt-3 flex items-center gap-2">
+          <select id="openDate" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            {date_opts}
+          </select>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button id="openDaily" class="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
+          <button id="openWeekly" class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
+        </div>
+      </div>
+
+      <!-- Range compare -->
+      <div class="md:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Range Compare</div>
+          <select id="mode" class="ml-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly (END date)</option>
+          </select>
+        </div>
+
+        <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="text-xs font-extrabold text-slate-600">A 구간</div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <input id="aStart" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+              <input id="aEnd" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+              <button id="aYoY" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">A→YoY</button>
+              <button id="aPrev" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">A→Prev</button>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="text-xs font-extrabold text-slate-600">B 구간</div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <input id="bStart" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+              <input id="bEnd" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+              <button id="swap" class="rounded-xl bg-slate-900 px-3 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Swap</button>
+              <button id="run" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Compare</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="rangeErr" class="mt-3 text-sm font-semibold text-orange-700"></div>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">KPIs</div>
+        <div id="kpiOut" class="mt-3 text-sm text-slate-500">구간을 선택하고 Compare를 누르면 계산됩니다.</div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Revenue</div>
+        <div id="chOut" class="mt-3 text-sm text-slate-500">—</div>
+      </div>
+    </div>
+
+    <!-- Recent list -->
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Recent</div>
+      <div id="recentList" class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2"></div>
+    </div>
+  </div>
+
+<script>
+(() => {{
+  const dates = {json.dumps([d.strftime("%Y-%m-%d") for d in dates])};
+  const latest = "{latest.strftime('%Y-%m-%d')}";
+
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}}[c]));
+  const fmtInt = (x) => Number(x||0).toLocaleString("en-US");
+  const fmtKRW = (x) => "₩" + Math.round(Number(x||0)).toLocaleString("en-US");
+  const pctChange = (c,p) => (Number(p||0)===0) ? ((Number(c||0)===0)?0:1) : ((Number(c||0)-Number(p||0))/Number(p||0));
+  const fmtPct = (p,d=1) => (Number(p||0)*100).toFixed(d)+"%";
+  const fmtPP = (p,d=2) => (Number(p||0)*100).toFixed(d)+"%p";
+
+  function bundlePath(mode, d) {{
+    if(mode==="weekly") return "data/weekly/END_"+d+".json";
+    return "data/daily/"+d+".json";
+  }}
+
+  function ymdToDate(s) {{
+    const [y,m,d] = s.split("-").map(x=>parseInt(x,10));
+    return new Date(y, m-1, d);
+  }}
+  function dateToYmd(dt) {{
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth()+1).padStart(2,"0");
+    const d = String(dt.getDate()).padStart(2,"0");
+    return `${{y}}-${{m}}-${{d}}`;
+  }}
+
+  function rangeDates(start, end) {{
+    const out = [];
+    let a = ymdToDate(start);
+    const b = ymdToDate(end);
+    if(a>b) return out;
+    for(; a<=b; a.setDate(a.getDate()+1)) out.push(dateToYmd(a));
+    return out;
+  }}
+
+  async function fetchJSON(path) {{
+    const r = await fetch(path, {{cache:"force-cache"}});
+    if(!r.ok) throw new Error(path);
+    return await r.json();
+  }}
+
+  function initDefaults() {{
+    $("#openDate").value = latest;
+    $("#mode").value = "daily";
+    $("#aStart").value = latest;
+    $("#aEnd").value = latest;
+    // default B: previous day
+    const dt = ymdToDate(latest); dt.setDate(dt.getDate()-1);
+    const prev = dateToYmd(dt);
+    $("#bStart").value = prev;
+    $("#bEnd").value = prev;
+  }}
+
+  function renderRecent() {{
+    const items = dates.slice(-10).reverse();
+    $("#recentList").innerHTML = items.map(d => `
+      <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3">
+        <div class="text-sm font-extrabold">${{esc(d)}}</div>
+        <div class="flex gap-2">
+          <a class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${{esc(d)}}.html">Daily</a>
+          <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${{esc(d)}}.html">Weekly</a>
+        </div>
+      </div>
+    `).join("");
+  }}
+
+  function sumAgg() {{
+    return {{
+      sessions:0, orders:0, revenue:0, cvr_num:0, cvr_den:0, signups:0,
+      channels: {{}} // bucket -> revenue
+    }};
+  }}
+
+  function addBundle(agg, b) {{
+    const cur = (b.overall && b.overall.current) || {{}};
+    const sessions = Number(cur.sessions||0);
+    const orders = Number(cur.transactions||0);
+    const revenue = Number(cur.purchaseRevenue||0);
+    const signups = Number((b.signup_users && b.signup_users.current)||0);
+
+    agg.sessions += sessions;
+    agg.orders += orders;
+    agg.revenue += revenue;
+    agg.signups += signups;
+    agg.cvr_num += orders;
+    agg.cvr_den += sessions;
+
+    const ch = (b.channels) ? b.channels : null; // hub-friendly
+    if(ch && typeof ch === "object") {{
+      Object.keys(ch).forEach(k => {{
+        const rev = Number((ch[k] && ch[k].revenue)||0);
+        agg.channels[k] = (agg.channels[k]||0) + rev;
+      }});
+    }} else if(Array.isArray(b.channel_snapshot)) {{
+      b.channel_snapshot.forEach(x => {{
+        const k = x.bucket;
+        if(!k) return;
+        const rev = Number(x.purchaseRevenue||0);
+        agg.channels[k] = (agg.channels[k]||0) + rev;
+      }});
+    }}
+  }}
+
+  function finalize(agg) {{
+    const cvr = (agg.cvr_den===0)?0:(agg.cvr_num/agg.cvr_den);
+    return {{
+      sessions: agg.sessions,
+      orders: agg.orders,
+      revenue: agg.revenue,
+      cvr,
+      signups: agg.signups,
+      channels: agg.channels
+    }};
+  }}
+
+  function renderCompare(a, b) {{
+    const rows = [
+      ["Sessions", fmtInt(a.sessions), fmtInt(b.sessions), pctChange(a.sessions, b.sessions), false],
+      ["Orders", fmtInt(a.orders), fmtInt(b.orders), pctChange(a.orders, b.orders), false],
+      ["Revenue", fmtKRW(a.revenue), fmtKRW(b.revenue), pctChange(a.revenue, b.revenue), false],
+      ["CVR", (a.cvr*100).toFixed(2)+"%", (b.cvr*100).toFixed(2)+"%", (a.cvr - b.cvr), true],
+      ["Sign-ups", fmtInt(a.signups), fmtInt(b.signups), pctChange(a.signups, b.signups), false],
+    ];
+    const kpiTable = `
+      <table class="w-full text-sm">
+        <thead class="text-xs text-slate-500">
+          <tr>
+            <th class="px-3 py-2 text-left">Metric</th>
+            <th class="px-3 py-2 text-right">A</th>
+            <th class="px-3 py-2 text-right">B</th>
+            <th class="px-3 py-2 text-right">Diff</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${{rows.map(r=>{{
+            const diff = r[3];
+            const isPP = r[4];
+            const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
+            const txt = isPP ? ((diff>=0?"+":"")+fmtPP(diff,2)) : ((diff>=0?"+":"")+fmtPct(diff,1));
+            return `
+              <tr class="border-b border-slate-100">
+                <td class="px-3 py-2 font-extrabold">${{esc(r[0])}}</td>
+                <td class="px-3 py-2 text-right font-semibold">${{esc(r[1])}}</td>
+                <td class="px-3 py-2 text-right font-semibold">${{esc(r[2])}}</td>
+                <td class="px-3 py-2 text-right"><span class="${{cls}} font-extrabold">${{esc(txt)}}</span></td>
+              </tr>
+            `;
+          }}).join("")}}
+        </tbody>
+      </table>
+    `;
+    $("#kpiOut").innerHTML = kpiTable;
+
+    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Total"];
+    const chRows = buckets.map(k => {{
+      const ar = Number(a.channels[k]||0);
+      const br = Number(b.channels[k]||0);
+      const diff = pctChange(ar, br);
+      const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
+      return `
+        <tr class="border-b border-slate-100">
+          <td class="px-3 py-2 font-extrabold">${{esc(k)}}</td>
+          <td class="px-3 py-2 text-right">${{esc(fmtKRW(ar))}}</td>
+          <td class="px-3 py-2 text-right">${{esc(fmtKRW(br))}}</td>
+          <td class="px-3 py-2 text-right"><span class="${{cls}} font-extrabold">${{esc((diff>=0?"+":"")+fmtPct(diff,1))}}</span></td>
+        </tr>
+      `;
+    }}).join("");
+
+    $("#chOut").innerHTML = `
+      <table class="w-full text-sm">
+        <thead class="text-xs text-slate-500">
+          <tr>
+            <th class="px-3 py-2 text-left">Bucket</th>
+            <th class="px-3 py-2 text-right">A</th>
+            <th class="px-3 py-2 text-right">B</th>
+            <th class="px-3 py-2 text-right">Diff</th>
+          </tr>
+        </thead>
+        <tbody>${{chRows}}</tbody>
+      </table>
+    `;
+  }}
+
+  async function runCompare() {{
+    $("#rangeErr").textContent = "";
+    const mode = $("#mode").value;
+    const aS = $("#aStart").value, aE = $("#aEnd").value;
+    const bS = $("#bStart").value, bE = $("#bEnd").value;
+    if(!aS||!aE||!bS||!bE) {{
+      $("#rangeErr").textContent = "A/B 구간 날짜를 모두 선택해줘.";
+      return;
+    }}
+    const aDates = rangeDates(aS, aE);
+    const bDates = rangeDates(bS, bE);
+    if(aDates.length===0 || bDates.length===0) {{
+      $("#rangeErr").textContent = "구간이 잘못됐어. (start <= end)";
+      return;
+    }}
+
+    const aAgg = sumAgg();
+    const bAgg = sumAgg();
+
+    try {{
+      await Promise.all(aDates.map(async d => {{
+        const b = await fetchJSON(bundlePath(mode, d));
+        addBundle(aAgg, b);
+      }}));
+      await Promise.all(bDates.map(async d => {{
+        const b = await fetchJSON(bundlePath(mode, d));
+        addBundle(bAgg, b);
+      }}));
+    }} catch(e) {{
+      $("#rangeErr").textContent = "JSON이 없는 날짜가 있어. 먼저 해당 날짜 리포트가 생성돼 있어야 해.";
+      console.error(e);
+      return;
+    }}
+
+    renderCompare(finalize(aAgg), finalize(bAgg));
+  }}
+
+  function swapAB() {{
+    const as = $("#aStart").value, ae = $("#aEnd").value;
+    $("#aStart").value = $("#bStart").value;
+    $("#aEnd").value = $("#bEnd").value;
+    $("#bStart").value = as;
+    $("#bEnd").value = ae;
+  }}
+
+  function shiftRange(start, end, days) {{
+    let s = ymdToDate(start);
+    let e = ymdToDate(end);
+    s.setDate(s.getDate()+days);
+    e.setDate(e.getDate()+days);
+    return [dateToYmd(s), dateToYmd(e)];
+  }}
+
+  function presetPrevFromA() {{
+    const as = $("#aStart").value, ae = $("#aEnd").value;
+    if(!as||!ae) return;
+    const aDates = rangeDates(as, ae);
+    const len = aDates.length;
+    const [bs, be] = shiftRange(as, ae, -len);
+    $("#bStart").value = bs;
+    $("#bEnd").value = be;
+  }}
+
+  function presetYoYFromA() {{
+    const as = $("#aStart").value, ae = $("#aEnd").value;
+    if(!as||!ae) return;
+    const [bs, be] = shiftRange(as, ae, -364);
+    $("#bStart").value = bs;
+    $("#bEnd").value = be;
+  }}
+
+  function init() {{
+    initDefaults();
+    renderRecent();
+    $("#openDaily").addEventListener("click", () => {{
+      const d = $("#openDate").value;
+      window.location.href = "daily/" + d + ".html";
+    }});
+    $("#openWeekly").addEventListener("click", () => {{
+      const d = $("#openDate").value;
+      window.location.href = "weekly/END_" + d + ".html";
+    }});
+    $("#run").addEventListener("click", runCompare);
+    $("#swap").addEventListener("click", swapAB);
+    $("#aPrev").addEventListener("click", presetPrevFromA);
+    $("#aYoY").addEventListener("click", presetYoYFromA);
+  }}
+  document.addEventListener("DOMContentLoaded", init);
+}})();
+</script>
+
 </body>
 </html>
 """
