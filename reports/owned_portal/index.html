@@ -188,8 +188,25 @@
     <div class="glass p-5">
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-2 mb-4">
-        <div class="small-label">Date</div>
+        <div class="small-label">View</div>
+        <button id="chipDaily" class="chip active" type="button">DAILY</button>
+        <button id="chipRange" class="chip" type="button">RANGE</button>
+
+        <div class="ml-2 small-label">Date</div>
         <div class="w-[160px]"><input id="datePicker" type="date" /></div>
+
+        <div id="rangeBox" class="hidden items-center gap-2">
+          <div class="small-label">From</div>
+          <div class="w-[160px]"><input id="startPicker" type="date" /></div>
+          <div class="small-label">To</div>
+          <div class="w-[160px]"><input id="endPicker" type="date" /></div>
+
+          <button id="btnApplyRange" class="btn btn-primary" type="button">적용</button>
+          <button id="btn7d" class="btn" type="button">7D</button>
+          <button id="btn30d" class="btn" type="button">30D</button>
+          <button id="btnMTD" class="btn" type="button">MTD</button>
+        </div>
+
         <button id="btnPrev" class="btn" type="button">◀</button>
         <button id="btnNext" class="btn" type="button">▶</button>
         <button id="btnToday" class="btn" type="button">오늘</button>
@@ -252,7 +269,10 @@
       <!-- Products -->
       <div class="flex items-center gap-2 mb-2">
         <div class="small-label">Products</div>
-        <div id="selMeta" class="pill"><span class="mono" id="selChannel">-</span> · <span class="mono" id="selSendId">-</span></div>
+        <div id="selMeta" class="pill">
+          <span class="mono" id="selChannel">-</span> · <span class="mono" id="selSendId">-</span>
+          <span id="selPeriod" class="muted font-semibold"></span>
+        </div>
       </div>
 
       <div class="overflow-auto rounded-[18px]">
@@ -272,7 +292,7 @@
       </div>
 
       <div class="muted font-semibold text-xs mt-3">
-        데이터: GA4 BigQuery Export · send_id 규칙: KAKAO=term, EDM/LMS=campaign · purchase 기준 상품 집계
+        데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · 기간 조회는 클라이언트 합산
       </div>
     </div>
   </div>
@@ -286,11 +306,23 @@
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
   noticeClose.addEventListener('click', hideNotice);
 
+  const btnReload = document.getElementById('btnReload');
+
+  const chipDaily = document.getElementById('chipDaily');
+  const chipRange = document.getElementById('chipRange');
+  const rangeBox = document.getElementById('rangeBox');
+
   const datePicker = document.getElementById('datePicker');
+  const startPicker = document.getElementById('startPicker');
+  const endPicker = document.getElementById('endPicker');
+  const btnApplyRange = document.getElementById('btnApplyRange');
+  const btn7d = document.getElementById('btn7d');
+  const btn30d = document.getElementById('btn30d');
+  const btnMTD = document.getElementById('btnMTD');
+
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
   const btnToday = document.getElementById('btnToday');
-  const btnReload = document.getElementById('btnReload');
 
   const chipAll = document.getElementById('chipAll');
   const chipEDM = document.getElementById('chipEDM');
@@ -315,6 +347,7 @@
 
   const selChannel = document.getElementById('selChannel');
   const selSendId = document.getElementById('selSendId');
+  const selPeriod = document.getElementById('selPeriod');
 
   function fmt(n){
     if(n === null || n === undefined) return '-';
@@ -340,11 +373,29 @@
   }
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
+  function clampToAvailable(dStr){
+    if(!AVAILABLE || !AVAILABLE.length) return dStr;
+    if(AVAILABLE.includes(dStr)) return dStr;
+    // 가장 가까운 과거 날짜로 스냅
+    for(let i=AVAILABLE.length-1;i>=0;i--){
+      if(AVAILABLE[i] <= dStr) return AVAILABLE[i];
+    }
+    return AVAILABLE[0];
+  }
+
+  let VIEW = 'DAILY'; // DAILY | RANGE
   let CHANNEL = 'ALL';
-  let RAW = null;      // {date, kpi:[], prod:[]}
+
+  let RAW = null;        // 현재 화면 데이터(DAILY면 단일 JSON, RANGE면 합산 결과)
   let KPI = [];
-  let SELECTED = null; // {channel, send_id}
-  let AVAILABLE = null; // [YYYY-MM-DD...]
+  let SELECTED = null;   // {channel, send_id}
+  let AVAILABLE = null;  // [YYYY-MM-DD...]
+
+  function setViewActive(){
+    [chipDaily, chipRange].forEach(el=>el.classList.remove('active'));
+    if(VIEW==='DAILY'){ chipDaily.classList.add('active'); rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex'); datePicker.parentElement.classList.remove('hidden'); }
+    if(VIEW==='RANGE'){ chipRange.classList.add('active'); rangeBox.classList.remove('hidden'); rangeBox.classList.add('flex'); datePicker.parentElement.classList.add('hidden'); }
+  }
 
   function setChipActive(){
     [chipAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
@@ -354,10 +405,20 @@
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
   }
 
+  function periodLabel(){
+    if(VIEW==='DAILY'){
+      const d = datePicker.value || '-';
+      return ` · ${d}`;
+    }
+    const s = startPicker.value || '-';
+    const e = endPicker.value || '-';
+    return ` · ${s} ~ ${e}`;
+  }
+
   function filterKPI(){
     if(!RAW){ KPI=[]; return; }
     const qq = (q.value||'').trim().toLowerCase();
-    KPI = RAW.kpi.filter(r=>{
+    KPI = (RAW.kpi||[]).filter(r=>{
       if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
       if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
       return true;
@@ -391,13 +452,16 @@
   }
 
   function aggregateKPIForSelected(){
+    selPeriod.textContent = periodLabel();
+
     if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
       selChannel.textContent='-'; selSendId.textContent='-';
       return;
     }
-    const row = RAW.kpi.find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
+
+    const row = (RAW.kpi||[]).find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
     if(!row) return;
 
     const sessions = row.sessions||0;
@@ -432,7 +496,7 @@
       return;
     }
 
-    const rows = RAW.prod
+    const rows = (RAW.prod||[])
       .filter(r=> r.channel===SELECTED.channel && r.send_id===SELECTED.send_id)
       .slice()
       .sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
@@ -459,21 +523,71 @@
     renderProducts();
   }
 
-  async function loadDate(d){
+  async function fetchJson(url){
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  function listDatesBetween(startStr, endStr){
+    if(!AVAILABLE || !AVAILABLE.length) return [];
+    const s = startStr;
+    const e = endStr;
+    return AVAILABLE.filter(d => d >= s && d <= e);
+  }
+
+  function sumInto(map, key, obj, fields){
+    let cur = map.get(key);
+    if(!cur){
+      cur = Object.assign({}, obj);
+      // 숫자 필드 0 보장
+      fields.forEach(f=>{ cur[f] = Number(cur[f]||0); });
+      map.set(key, cur);
+      return;
+    }
+    fields.forEach(f=>{
+      cur[f] = Number(cur[f]||0) + Number(obj[f]||0);
+    });
+  }
+
+  function buildAggregated(dailyJsonList){
+    // 기대 shape:
+    // { kpi:[{channel,send_id,sessions,users,purchases,revenue,items_purchased}], prod:[{channel,send_id,item_id,item_name,prod_items,prod_revenue}] }
+    const kpiMap = new Map();   // key = channel||send_id
+    const prodMap = new Map();  // key = channel||send_id||item_id
+
+    for(const j of dailyJsonList){
+      const kpi = (j.kpi||[]);
+      for(const r of kpi){
+        const key = `${r.channel}||${r.send_id}`;
+        sumInto(kpiMap, key, r, ['sessions','users','purchases','revenue','items_purchased']);
+      }
+      const prod = (j.prod||[]);
+      for(const p of prod){
+        const key = `${p.channel}||${p.send_id}||${p.item_id}`;
+        sumInto(prodMap, key, p, ['prod_items','prod_revenue']);
+      }
+    }
+
+    return {
+      kpi: Array.from(kpiMap.values()),
+      prod: Array.from(prodMap.values())
+    };
+  }
+
+  async function loadDaily(dStr){
     hideNotice();
     SELECTED = null;
+    const url = `data/owned/owned_${dStr}.json?t=${Date.now()}`;
 
-    const url = `data/owned/owned_${d}.json?t=${Date.now()}`;
     try{
-      const res = await fetch(url, {cache:'no-store'});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      RAW = await res.json();
+      RAW = await fetchJson(url);
     }catch(e){
       RAW = null;
       KPI = [];
       campaignWrap.innerHTML = '';
-      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${d}.json</td></tr>`;
-      showNotice(`데이터가 없어서 표시할 수 없어. (${d})`);
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${dStr}.json</td></tr>`;
+      showNotice(`데이터가 없어서 표시할 수 없어. (${dStr})`);
       aggregateKPIForSelected();
       return;
     }
@@ -484,18 +598,107 @@
     renderProducts();
   }
 
+  async function loadRange(startStr, endStr){
+    hideNotice();
+    SELECTED = null;
+
+    if(!AVAILABLE || !AVAILABLE.length){
+      showNotice('available_dates.json을 읽지 못해서 기간 누적을 할 수 없어.');
+      RAW = null;
+      KPI = [];
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderProducts();
+      return;
+    }
+
+    let s = startStr;
+    let e = endStr;
+    if(s > e){ const tmp=s; s=e; e=tmp; }
+
+    s = clampToAvailable(s);
+    e = clampToAvailable(e);
+    startPicker.value = s;
+    endPicker.value = e;
+
+    const dates = listDatesBetween(s, e);
+    if(!dates.length){
+      RAW = null;
+      KPI = [];
+      showNotice(`선택한 기간에 데이터가 없어. (${s} ~ ${e})`);
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderProducts();
+      return;
+    }
+
+    // 청크 로딩(10개씩)
+    const all = [];
+    const chunkSize = 10;
+    for(let i=0;i<dates.length;i+=chunkSize){
+      const chunk = dates.slice(i, i+chunkSize);
+      showNotice(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+      const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
+      const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
+      res.forEach((r,idx)=>{
+        if(r.status==='fulfilled') all.push(r.value);
+        // 일부 날짜 파일이 비어도 전체는 진행 (available_dates가 100% 신뢰가 아닐 수 있음)
+      });
+    }
+    hideNotice();
+
+    RAW = buildAggregated(all);
+
+    filterKPI();
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderProducts();
+  }
+
   async function loadAvailableDates(){
     try{
-      const res = await fetch(`data/owned/available_dates.json?t=${Date.now()}`, {cache:'no-store'});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const j = await res.json();
+      const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
       AVAILABLE = (j.available_dates||[]).slice().sort();
     }catch(e){
       AVAILABLE = null;
     }
   }
 
-  // events
+  function setToLastNDays(n){
+    const today = new Date();
+    const end = ymd(addDays(today, -1));
+    const start = ymd(addDays(parseYMD(end), -(n-1)));
+    startPicker.value = clampToAvailable(start);
+    endPicker.value = clampToAvailable(end);
+  }
+
+  function setToMTD(){
+    const today = new Date();
+    const end = ymd(addDays(today, -1));
+    const d = parseYMD(end);
+    const start = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+    startPicker.value = clampToAvailable(start);
+    endPicker.value = clampToAvailable(end);
+  }
+
+  // events: view
+  chipDaily.addEventListener('click', ()=>{
+    VIEW='DAILY';
+    setViewActive();
+    const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
+    datePicker.value = d;
+    loadDaily(d);
+  });
+
+  chipRange.addEventListener('click', ()=>{
+    VIEW='RANGE';
+    setViewActive();
+    // 기본: 7D
+    setToLastNDays(7);
+    loadRange(startPicker.value, endPicker.value);
+  });
+
+  // channel chips
   chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterKPI(); renderCampaignButtons(); });
   chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterKPI(); renderCampaignButtons(); });
   chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterKPI(); renderCampaignButtons(); });
@@ -504,42 +707,73 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); });
 
+  // range quick buttons
+  btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value));
+  btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value); });
+  btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value); });
+  btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value); });
+
+  // nav
   btnPrev.addEventListener('click', ()=>{
-    const cur=parseYMD(datePicker.value);
-    const d=ymd(addDays(cur,-1));
-    datePicker.value=d; loadDate(d);
+    if(VIEW==='DAILY'){
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,-1));
+      datePicker.value = clampToAvailable(d);
+      loadDaily(datePicker.value);
+      return;
+    }
+    const s = parseYMD(startPicker.value);
+    const e = parseYMD(endPicker.value);
+    startPicker.value = clampToAvailable(ymd(addDays(s,-1)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,-1)));
+    loadRange(startPicker.value, endPicker.value);
   });
+
   btnNext.addEventListener('click', ()=>{
-    const cur=parseYMD(datePicker.value);
-    const d=ymd(addDays(cur,+1));
-    datePicker.value=d; loadDate(d);
+    if(VIEW==='DAILY'){
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,+1));
+      datePicker.value = clampToAvailable(d);
+      loadDaily(datePicker.value);
+      return;
+    }
+    const s = parseYMD(startPicker.value);
+    const e = parseYMD(endPicker.value);
+    startPicker.value = clampToAvailable(ymd(addDays(s,+1)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,+1)));
+    loadRange(startPicker.value, endPicker.value);
   });
+
   btnToday.addEventListener('click', ()=>{
-    const now=new Date();
-    const d=ymd(now);
-    datePicker.value=d; loadDate(d);
+    if(VIEW==='DAILY'){
+      const d = clampToAvailable(ymd(new Date()));
+      datePicker.value = d;
+      loadDaily(d);
+      return;
+    }
+    setToLastNDays(7);
+    loadRange(startPicker.value, endPicker.value);
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
-  noticeClose.addEventListener('click', hideNotice);
 
   // init
   (async function init(){
     setChipActive();
-
     await loadAvailableDates();
 
-    // default date: latest available, else yesterday
+    // 기본: 최신 available date를 DAILY로 로드
     let d;
     if(AVAILABLE && AVAILABLE.length){
       d = AVAILABLE[AVAILABLE.length-1];
     }else{
-      const today = new Date();
-      d = ymd(addDays(today,-1));
+      d = ymd(addDays(new Date(), -1));
     }
-
     datePicker.value = d;
-    loadDate(d);
+
+    VIEW='DAILY';
+    setViewActive();
+    await loadDaily(d);
   })();
 
 })();
