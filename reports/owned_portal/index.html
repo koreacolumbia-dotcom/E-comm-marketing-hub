@@ -58,12 +58,6 @@
     }
     .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
     .btn-primary{ background: #002d72; border-color: #002d72; color: white; }
-    .btn:disabled, .chip:disabled{
-      opacity: .55;
-      cursor: not-allowed;
-      transform:none !important;
-      box-shadow:none !important;
-    }
     .muted{ color:#64748b; }
     .small-label{
       font-size: 10px;
@@ -278,7 +272,7 @@
       </div>
 
       <div class="muted font-semibold text-xs mt-3">
-        데이터: GA4 BigQuery Export · send_id 규칙: KAKAO=manual_term, EDM/LMS=campaign · purchase 기준 상품 집계
+        데이터: GA4 BigQuery Export · send_id 규칙: KAKAO=term, EDM/LMS=campaign · purchase 기준 상품 집계
       </div>
     </div>
   </div>
@@ -347,10 +341,10 @@
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
   let CHANNEL = 'ALL';
-  let RAW = null;      // {kpi:[], prod:[]}
-  let KPI = [];        // filtered KPI rows
-  let PROD = [];       // filtered PROD rows
+  let RAW = null;      // {date, kpi:[], prod:[]}
+  let KPI = [];
   let SELECTED = null; // {channel, send_id}
+  let AVAILABLE = null; // [YYYY-MM-DD...]
 
   function setChipActive(){
     [chipAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
@@ -360,17 +354,10 @@
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
   }
 
-  function filterRows(){
-    if(!RAW){ KPI=[]; PROD=[]; return; }
+  function filterKPI(){
+    if(!RAW){ KPI=[]; return; }
     const qq = (q.value||'').trim().toLowerCase();
-
     KPI = RAW.kpi.filter(r=>{
-      if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
-      if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
-      return true;
-    });
-
-    PROD = RAW.prod.filter(r=>{
       if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
       if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
       return true;
@@ -385,19 +372,15 @@
     }
 
     const limit = Math.max(1, parseInt(topN.value||'30',10));
-    // Sort by sessions desc
     const rows = KPI.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
 
-    const html = rows.map(r=>{
+    campaignWrap.innerHTML = rows.map(r=>{
       const label = `${r.send_id}`;
       const meta = `${r.channel} · S:${r.sessions}`;
       const active = (SELECTED && SELECTED.channel===r.channel && SELECTED.send_id===r.send_id) ? 'active' : '';
       return `<button class="chip ${active}" data-channel="${r.channel}" data-send="${encodeURIComponent(r.send_id)}" title="${meta}">${label}</button>`;
     }).join('');
 
-    campaignWrap.innerHTML = html;
-
-    // bind
     Array.from(campaignWrap.querySelectorAll('button.chip')).forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const ch = btn.getAttribute('data-channel');
@@ -408,7 +391,7 @@
   }
 
   function aggregateKPIForSelected(){
-    if(!SELECTED){
+    if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
       selChannel.textContent='-'; selSendId.textContent='-';
@@ -444,7 +427,7 @@
   }
 
   function renderProducts(){
-    if(!SELECTED){
+    if(!SELECTED || !RAW){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">캠페인을 선택하면 상품 리스트가 표시돼.</td></tr>`;
       return;
     }
@@ -487,7 +470,7 @@
       RAW = await res.json();
     }catch(e){
       RAW = null;
-      KPI = []; PROD = [];
+      KPI = [];
       campaignWrap.innerHTML = '';
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${d}.json</td></tr>`;
       showNotice(`데이터가 없어서 표시할 수 없어. (${d})`);
@@ -495,35 +478,68 @@
       return;
     }
 
-    filterRows();
+    filterKPI();
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderProducts();
   }
 
-  // events
-  chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterRows(); renderCampaignButtons(); });
-  chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterRows(); renderCampaignButtons(); });
-  chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterRows(); renderCampaignButtons(); });
-  chipKAKAO.addEventListener('click', ()=>{ CHANNEL='KAKAO'; setChipActive(); filterRows(); renderCampaignButtons(); });
+  async function loadAvailableDates(){
+    try{
+      const res = await fetch(`data/owned/available_dates.json?t=${Date.now()}`, {cache:'no-store'});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      AVAILABLE = (j.available_dates||[]).slice().sort();
+    }catch(e){
+      AVAILABLE = null;
+    }
+  }
 
-  q.addEventListener('input', ()=>{ filterRows(); renderCampaignButtons(); });
+  // events
+  chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+  chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+  chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+  chipKAKAO.addEventListener('click', ()=>{ CHANNEL='KAKAO'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+
+  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); });
 
-  btnPrev.addEventListener('click', ()=>{ const cur=parseYMD(datePicker.value); const d=ymd(addDays(cur,-1)); datePicker.value=d; loadDate(d); });
-  btnNext.addEventListener('click', ()=>{ const cur=parseYMD(datePicker.value); const d=ymd(addDays(cur,+1)); datePicker.value=d; loadDate(d); });
-  btnToday.addEventListener('click', ()=>{ const now=new Date(); const d=ymd(now); datePicker.value=d; loadDate(d); });
+  btnPrev.addEventListener('click', ()=>{
+    const cur=parseYMD(datePicker.value);
+    const d=ymd(addDays(cur,-1));
+    datePicker.value=d; loadDate(d);
+  });
+  btnNext.addEventListener('click', ()=>{
+    const cur=parseYMD(datePicker.value);
+    const d=ymd(addDays(cur,+1));
+    datePicker.value=d; loadDate(d);
+  });
+  btnToday.addEventListener('click', ()=>{
+    const now=new Date();
+    const d=ymd(now);
+    datePicker.value=d; loadDate(d);
+  });
 
   btnReload.addEventListener('click', ()=> location.reload());
   noticeClose.addEventListener('click', hideNotice);
 
-  // init date: yesterday (KST-ish; browser local ok for UX)
-  (function init(){
-    const today = new Date();
-    const d = ymd(addDays(today,-1));
+  // init
+  (async function init(){
+    setChipActive();
+
+    await loadAvailableDates();
+
+    // default date: latest available, else yesterday
+    let d;
+    if(AVAILABLE && AVAILABLE.length){
+      d = AVAILABLE[AVAILABLE.length-1];
+    }else{
+      const today = new Date();
+      d = ymd(addDays(today,-1));
+    }
+
     datePicker.value = d;
     loadDate(d);
-    setChipActive();
   })();
 
 })();
