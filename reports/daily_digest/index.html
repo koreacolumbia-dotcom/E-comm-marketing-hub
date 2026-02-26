@@ -340,9 +340,11 @@
     }
   }
 
+  // ✅✅✅ SAFE scrub (prevents blank screen)
   function scrubReportUI(doc){
     if(!doc) return;
 
+    // keep scrolling usable inside iframe
     let style = doc.getElementById('hub_scrub_css');
     if(!style){
       style = doc.createElement('style');
@@ -355,6 +357,7 @@
       doc.head.appendChild(style);
     }
 
+    // 1) Hide top title "Daily Digest" (if present)
     for(const h of Array.from(doc.querySelectorAll('h1, h2'))){
       const t = (h.textContent||'').trim();
       if(t === 'Daily Digest'){
@@ -363,39 +366,45 @@
       }
     }
 
+    // 2) Hide Hub/Daily/Weekly tabs block (if present)
     const tabTexts = new Set(['Hub','Daily','Weekly']);
-    const tabBtns = Array.from(doc.querySelectorAll('button, a')).filter(el => tabTexts.has(((el.textContent||'').trim())));
-    if(tabBtns.length){
-      for(const b of tabBtns){
-        let p = b.parentElement;
-        for(let i=0;i<8 && p && p !== doc.body && p !== doc.documentElement;i++){
-          const txt = (p.textContent||'').replace(/\s+/g,' ').trim();
-          if(txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly')){
-            p.style.display = 'none';
-            p.setAttribute('data-hub-hidden','tabs');
-            p = null;
-            break;
-          }
-          p = p.parentElement;
+    const tabBtns = Array.from(doc.querySelectorAll('button, a'))
+      .filter(el => tabTexts.has(((el.textContent||'').trim())));
+
+    for(const b of tabBtns){
+      let p = b.parentElement;
+      for(let i=0;i<10 && p && p !== doc.body && p !== doc.documentElement;i++){
+        const txt = (p.textContent||'').replace(/\s+/g,' ').trim();
+        if(txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly')){
+          p.style.display = 'none';
+          p.setAttribute('data-hub-hidden','tabs');
+          break;
         }
+        p = p.parentElement;
       }
     }
 
-    const anchor = doc.querySelector('#cmpMode, #cmpA, #cmpB, #cmpBtn');
-    if(anchor){
-      let card = anchor.closest('div');
-      for(let up=0; up<10 && card && card !== doc.body && card !== doc.documentElement; up++){
-        const cls = (card.getAttribute('class')||'');
-        const txt = (card.textContent||'').replace(/\s+/g,' ').trim();
-        const looksLikeCard = (cls.includes('border') || cls.includes('rounded')) && (cls.includes('p-') || cls.includes('px-') || cls.includes('py-'));
-        const hasControls = !!card.querySelector('#cmpMode') && !!card.querySelector('#cmpBtn');
+    // 3) Hide ONLY the in-report "Compare" card safely
+    // - must contain #cmpMode and #cmpBtn
+    // - must NOT contain any <canvas> (avoid hiding whole report)
+    // - must look like compare controls block
+    const cmpMode = doc.getElementById('cmpMode');
+    const cmpBtn  = doc.getElementById('cmpBtn');
+
+    if(cmpMode && cmpBtn){
+      let p = cmpMode.parentElement;
+      for(let i=0;i<25 && p && p !== doc.body && p !== doc.documentElement;i++){
+        const hasCmp = !!p.querySelector('#cmpMode') && !!p.querySelector('#cmpBtn');
+        const hasCanvas = p.querySelector('canvas') !== null;
+        const txt = (p.textContent||'').replace(/\s+/g,' ').trim();
         const looksLikeCompare = txt.includes('Compare') && (txt.includes('Preset') || txt.includes('DoD') || txt.includes('YoY'));
-        if(looksLikeCard && hasControls && looksLikeCompare){
-          card.style.display = 'none';
-          card.setAttribute('data-hub-hidden','compare');
+
+        if(hasCmp && !hasCanvas && looksLikeCompare){
+          p.style.display = 'none';
+          p.setAttribute('data-hub-hidden','compare');
           break;
         }
-        card = card.parentElement;
+        p = p.parentElement;
       }
     }
   }
@@ -583,7 +592,4 @@
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-25 HUB FIX (BASE fixed, scrub uses hide not remove; prevents blank 2025 iframe) -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 11:45 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 13:28 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 14:02 KST -->
+<!-- BUILD_STAMP: 2026-02-26 HUB FIX (SAFE scrub compare; prevent blank iframe) -->
