@@ -44,10 +44,9 @@ on:
         options: ["false", "true"]
 
   schedule:
-    # ✅ KST 06:30 = UTC 21:30 (전날)
+    # KST 06:30 = UTC 21:30 (전날)
     - cron: "30 21 * * *"
 
-# ✅ 동시 실행 레이스 방지
 concurrency:
   group: daily-update-main
   cancel-in-progress: true
@@ -99,10 +98,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-          # ✅ BigQuery/Pandas
+          # BigQuery/Pandas
           pip install db-dtypes pyarrow google-cloud-bigquery pandas
 
-          # ✅ HTML→PNG 렌더링용
+          # HTML→PNG 렌더링용
           pip install playwright
           playwright install --with-deps chromium
 
@@ -122,7 +121,7 @@ jobs:
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       # =========================================================
-      # ✅ Daily Digest Report (어제 + YoY만 생성) — HUB FIXED
+      # Daily Digest Report (어제 + YoY만 생성) — HUB FIXED (허브는 고정)
       # =========================================================
       - name: Run Daily Digest report (yesterday + YoY only)
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
@@ -134,10 +133,10 @@ jobs:
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
 
-          # ✅ 리포트는 강제 재생성
+          # 리포트는 강제 재생성
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
 
-          # ✅ 허브는 고정 (덮어쓰기 금지)
+          # 허브는 고정 (index.html 덮어쓰기 방지)
           DAILY_DIGEST_SKIP_HUB_WRITE: "true"
         run: |
           set -euo pipefail
@@ -161,23 +160,23 @@ jobs:
           YOY="$(TZ=Asia/Seoul date -d "${YMD} - 364 days" '+%Y-%m-%d')"
           echo "[INFO] Build only: YMD=${YMD}, YOY=${YOY}"
 
-          # ✅ 리포트 산출물만 삭제해서 강제 재생성 (허브는 건드리지 않음)
+          # 리포트 산출물만 삭제해서 강제 재생성 (허브는 건드리지 않음)
           rm -f "reports/daily_digest/daily/${YMD}.html" "reports/daily_digest/weekly/END_${YMD}.html" || true
           rm -f "reports/daily_digest/daily/${YOY}.html" "reports/daily_digest/weekly/END_${YOY}.html" || true
           rm -f "reports/daily_digest/data/daily/${YMD}.json" "reports/daily_digest/data/weekly/END_${YMD}.json" || true
           rm -f "reports/daily_digest/data/daily/${YOY}.json" "reports/daily_digest/data/weekly/END_${YOY}.json" || true
 
-          # ✅ 1) 어제만 생성
+          # 1) 어제만 생성
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest || true
+          python -u daily_digest_live_final_static_hub.py --out-dir reports/daily_digest || true
 
-          # ✅ 2) YoY 기준일만 생성
+          # 2) YoY 기준일만 생성
           export GA4_START_DATE="${YOY}"
           export GA4_END_DATE="${YOY}"
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest || true
+          python -u daily_digest_live_final_static_hub.py --out-dir reports/daily_digest || true
 
-          # build stamp (허브 고정이므로 "append"는 원하면 유지)
+          # build stamp (허브는 고정이지만, 코멘트 append는 원하면 유지)
           if [ -f reports/daily_digest/index.html ]; then
             echo "<!-- BUILD_STAMP: ${KST_STAMP} -->" >> reports/daily_digest/index.html
           fi
@@ -189,7 +188,7 @@ jobs:
           ls -la reports/daily_digest/data/weekly | tail -n 40 || true
 
       # =========================================================
-      # ✅ Render yesterday daily HTML -> PNG (for email)
+      # Render yesterday daily HTML -> PNG (for email)
       # =========================================================
       - name: Render yesterday Daily Digest PNG
         if: ${{ success() }}
@@ -223,12 +222,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -u naver_crawl_columbia_c6c7_title_min.py \
-            --limit 999999 \
-            --output_html reports/naver_lowest_price.html \
-            --history_dir . \
-            --cache_dir .naver_cache \
-            || true
+          python -u naver_crawl_columbia_c6c7_title_min.py             --limit 999999             --output_html reports/naver_lowest_price.html             --history_dir .             --cache_dir .naver_cache             || true
           ls -la reports/naver_lowest_price.html || true
 
       # ----------------------------
@@ -308,13 +302,7 @@ jobs:
           rm -rf reports/voc_blog || true
           mkdir -p reports/voc_blog
 
-          python -u build_blog_voc_report.py \
-            --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말" \
-            --days 60 \
-            --per-query 100 \
-            --headless \
-            --out-dir reports/voc_blog \
-            || true
+          python -u build_blog_voc_report.py             --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말"             --days 60             --per-query 100             --headless             --out-dir reports/voc_blog             || true
 
           ls -la reports/voc_blog/index.html || true
 
@@ -333,7 +321,7 @@ jobs:
           ls -la reports/index.html reports/meta.json || true
 
       # =========================================================
-      # ✅ (NEW) OWNED Campaign Portal (EDM/LMS/KAKAO → products)
+      # (NEW) OWNED Campaign Portal (EDM/LMS/KAKAO → products)
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
@@ -359,20 +347,10 @@ jobs:
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
             echo "[INFO] OWNED backfill from 2025-01-01"
-            python -u build_owned_campaign_portal.py \
-              --project "${BQ_PROJECT}" \
-              --dataset "${BQ_DATASET}" \
-              --start 2025-01-01 \
-              --site-dir reports/owned_portal \
-              || true
+            python -u build_owned_campaign_portal.py               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --start 2025-01-01               --site-dir reports/owned_portal               || true
           else
             echo "[INFO] OWNED recent-days=7"
-            python -u build_owned_campaign_portal.py \
-              --project "${BQ_PROJECT}" \
-              --dataset "${BQ_DATASET}" \
-              --recent-days 7 \
-              --site-dir reports/owned_portal \
-              || true
+            python -u build_owned_campaign_portal.py               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --recent-days 7               --site-dir reports/owned_portal               || true
           fi
 
           ls -la reports/owned_portal || true
@@ -428,7 +406,7 @@ jobs:
           exit 1
 
       # ----------------------------
-      # ✅ Success Email (PNG inline 우선 + 첨부)
+      # Success Email (PNG inline 우선 + 첨부)
       # ----------------------------
       - name: Send success email (yesterday daily report PNG)
         if: ${{ success() }}
