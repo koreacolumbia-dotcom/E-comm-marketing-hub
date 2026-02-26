@@ -115,6 +115,11 @@ CHANNEL_BUCKETS = {
 }
 PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
 
+# ✅ Paid detail (custom) — fixed order / labels
+# - 기존 Paid Search/Paid Social/Display/Total 대신 아래 라벨로 노출
+# - source 기준(= sessionSource)으로 집계
+PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
+
 
 # =========================
 # Utilities
@@ -689,9 +694,25 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
     ]]
 
 def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    dims = ["sessionDefaultChannelGroup"]
+    """
+    Paid Detail — custom breakdown (requested)
+
+    ✅ Keep UI/design unchanged (same table schema), but change the *rows* to:
+      naverbs / criteo / meta / google / naver mo / instagram
+
+    Logic:
+    - Dimension: sessionSource
+    - Filter: (Paid Search|Paid Social|Display) AND sessionSource in PAID_DETAIL_SOURCES
+    - 3-way: Current vs Prev vs YoY
+    """
+    dims = ["sessionSource"]
     mets = ["sessions", "purchaseRevenue"]
-    filt = ga_filter_in("sessionDefaultChannelGroup", PAID_SUBGROUPS)
+
+    # paid traffic only + limited sources
+    filt = ga_filter_and([
+        ga_filter_in("sessionDefaultChannelGroup", PAID_SUBGROUPS),
+        ga_filter_in("sessionSource", PAID_DETAIL_SOURCES),
+    ])
 
     cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, dimension_filter=filt)
     prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, dimension_filter=filt)
@@ -701,37 +722,28 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
     if prev.empty: prev = pd.DataFrame(columns=dims + mets)
     if yoy.empty:  yoy = pd.DataFrame(columns=dims + mets)
 
-    cur = cur.rename(columns={"sessionDefaultChannelGroup": "sub_channel"})
-    prev = prev.rename(columns={"sessionDefaultChannelGroup": "sub_channel"})
-    yoy = yoy.rename(columns={"sessionDefaultChannelGroup": "sub_channel"})
+    cur = cur.rename(columns={"sessionSource": "sub_channel"})
+    prev = prev.rename(columns={"sessionSource": "sub_channel"})
+    yoy = yoy.rename(columns={"sessionSource": "sub_channel"})
 
     for df in (cur, prev, yoy):
+        df["sub_channel"] = df["sub_channel"].astype(str).str.strip()
         df[mets] = df[mets].apply(pd.to_numeric, errors="coerce").fillna(0.0)
 
     out = (
-        pd.DataFrame({"sub_channel": PAID_SUBGROUPS})
+        pd.DataFrame({"sub_channel": PAID_DETAIL_SOURCES})
         .merge(cur, on="sub_channel", how="left")
         .merge(prev, on="sub_channel", how="left", suffixes=("", "_prev"))
         .merge(yoy, on="sub_channel", how="left", suffixes=("", "_yoy"))
         .fillna(0.0)
     )
-    out["rev_vs_prev"] = out.apply(lambda r: pct_change(r["purchaseRevenue"], r["purchaseRevenue_prev"]), axis=1)
-    out["rev_yoy"] = out.apply(lambda r: pct_change(r["purchaseRevenue"], r["purchaseRevenue_yoy"]), axis=1)
 
-    total_cur_rev = float(out["purchaseRevenue"].sum())
-    total_prev_rev = float(out["purchaseRevenue_prev"].sum())
-    total_yoy_rev = float(out["purchaseRevenue_yoy"].sum())
+    out["rev_vs_prev"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
+    out["rev_yoy"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_yoy"])), axis=1)
 
-    total = pd.DataFrame([{
-        "sub_channel": "Total",
-        "sessions": float(out["sessions"].sum()),
-        "purchaseRevenue": total_cur_rev,
-        "rev_vs_prev": pct_change(total_cur_rev, total_prev_rev),
-        "rev_yoy": pct_change(total_cur_rev, total_yoy_rev),
-    }])
+    # Keep output schema identical to old paid_detail table renderer
+    return out[["sub_channel", "sessions", "purchaseRevenue", "rev_vs_prev", "rev_yoy"]]
 
-    out2 = out[["sub_channel", "sessions", "purchaseRevenue", "rev_vs_prev", "rev_yoy"]]
-    return pd.concat([out2, total], ignore_index=True)
 
 def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     if w.mode != "daily":
@@ -1491,7 +1503,7 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_vs_prev', 0) or 0))}'>{('+' if float(getattr(r,'rev_vs_prev',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_vs_prev',0) or 0),1)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
-            ], bold=(str(getattr(r, "sub_channel", "")) == "Total"))
+            ], bold=(str(getattr(r, "sub_channel", "")).strip().lower() == "google"))
 
     # --- Best sellers cards
     bs_rows = ""
