@@ -220,8 +220,8 @@
   // ✅ 너가 말한 실제 배포 구조:
   // /E-comm-marketing-hub/reports/daily_digest/index.html 에서 열고
   // /E-comm-marketing-hub/reports/daily_digest/daily/2025-02-25.html 가 존재
-  // => 상대경로 기준 BASE는 './' (index 기준 동일 폴더)
-  const BASE = './';
+  // => 상대경로 기준 BASE는 무조건 ''이 정답
+  const BASE = '';
 
   // Utils
   function kstNowDate(){
@@ -357,7 +357,7 @@
 function scrubReportUI(doc){
   if(!doc) return;
 
-  // 안전 CSS (스크롤 유지)
+  // keep scrolling usable inside iframe
   let style = doc.getElementById('hub_scrub_css');
   if(!style){
     style = doc.createElement('style');
@@ -370,69 +370,52 @@ function scrubReportUI(doc){
     doc.head.appendChild(style);
   }
 
-  // 1) 상단 "Daily Digest" 타이틀(있는 경우)만 숨김
-  const titleNodes = Array.from(doc.querySelectorAll('h1, h2, div, span'));
-  for(const n of titleNodes){
-    const t = (n.textContent||'').trim();
+  // 1) Hide top title "Daily Digest" (if present)
+  for(const h of Array.from(doc.querySelectorAll('h1, h2'))){
+    const t = (h.textContent||'').trim();
     if(t === 'Daily Digest'){
-      n.style.display = 'none';
+      h.style.display = 'none';
       break;
     }
   }
 
-  // 2) Hub/Daily/Weekly 탭 묶음 숨김 (remove 금지)
-  const btns = Array.from(doc.querySelectorAll('button, a'));
-  const tabBtns = btns.filter(b=>{
-    const t=(b.textContent||'').trim();
-    return t==='Hub' || t==='Daily' || t==='Weekly';
-  });
-
-  function hasAll3(el){
-    if(!el) return false;
-    const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
-    return txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly');
-  }
-
-  for(const b of tabBtns){
-    let p = b.parentElement;
-    for(let i=0;i<6 && p;i++){
-      if(p === doc.body || p === doc.documentElement) break;
-      if(hasAll3(p)){
-        p.style.display = 'none';
-        p.setAttribute('data-hub-hidden','tabs');
-        break;
-      }
-      p = p.parentElement;
-    }
-  }
-
-  // ✅ 3) "Compare 카드" 숨김 (핵심)
-  // 시그니처 텍스트: "No extra GA/BQ cost (uses cached JSON)"
-  const SIGN = 'No extra GA/BQ cost';
-  const nodes = Array.from(doc.querySelectorAll('div, section, article'));
-  for(const n of nodes){
-    const txt = (n.textContent||'').replace(/\s+/g,' ').trim();
-    if(!txt) continue;
-    if(txt.includes(SIGN)){
-      // 너무 상위로 올라가면 페이지가 날아가니, "카드처럼 보이는" 선에서 멈춤
-      let p = n;
-      for(let up=0; up<7 && p && p.parentElement; up++){
-        if(p === doc.body || p === doc.documentElement) break;
-
-        // "Compare / Preset / 버튼"이 같이 포함된 블록이면 카드로 간주
-        const t = (p.textContent||'').replace(/\s+/g,' ').trim();
-        const looksLikeCompareCard =
-          t.includes('Compare') &&
-          (t.includes('Preset: DoD') || t.includes('Preset: YoY') || t.includes('Preset')) &&
-          (t.includes('No extra GA/BQ cost') || t.includes('uses cached JSON'));
-
-        if(looksLikeCompareCard){
+  // 2) Hide Hub/Daily/Weekly tabs block (if present)
+  const tabTexts = new Set(['Hub','Daily','Weekly']);
+  const tabBtns = Array.from(doc.querySelectorAll('button, a')).filter(el => tabTexts.has(((el.textContent||'').trim())));
+  if(tabBtns.length){
+    // find nearest ancestor that contains all three labels
+    for(const b of tabBtns){
+      let p = b.parentElement;
+      for(let i=0;i<8 && p && p !== doc.body && p !== doc.documentElement;i++){
+        const txt = (p.textContent||'').replace(/\s+/g,' ').trim();
+        if(txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly')){
           p.style.display = 'none';
-          p.setAttribute('data-hub-hidden','compare');
+          p.setAttribute('data-hub-hidden','tabs');
+          p = null;
           break;
         }
         p = p.parentElement;
       }
+    }
+  }
+
+  // 3) Hide in-report "Compare" card safely
+  // We anchor by known controls IDs to avoid nuking the whole page.
+  const anchor = doc.querySelector('#cmpMode, #cmpA, #cmpB, #cmpBtn');
+  if(anchor){
+    let card = anchor.closest('div');
+    for(let up=0; up<10 && card && card !== doc.body && card !== doc.documentElement; up++){
+      const cls = (card.getAttribute('class')||'');
+      const txt = (card.textContent||'').replace(/\s+/g,' ').trim();
+      const looksLikeCard = (cls.includes('border') || cls.includes('rounded')) && (cls.includes('p-') || cls.includes('px-') || cls.includes('py-'));
+      const hasControls = !!card.querySelector('#cmpMode') && !!card.querySelector('#cmpBtn');
+      const looksLikeCompare = txt.includes('Compare') && (txt.includes('Preset') || txt.includes('DoD') || txt.includes('YoY'));
+      if(looksLikeCard && hasControls && looksLikeCompare){
+        card.style.display = 'none';
+        card.setAttribute('data-hub-hidden','compare');
+        break;
+      }
+      card = card.parentElement;
     }
   }
 }
@@ -632,5 +615,3 @@ function scrubReportUI(doc){
 </html>
 <!-- BUILD_STAMP: 2026-02-25 HUB FIX (BASE fixed, scrub uses hide not remove; prevents blank 2025 iframe) -->
 <!-- BUILD_STAMP: 2026.02.25 (Wed) 11:45 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 13:08 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 13:15 KST -->
