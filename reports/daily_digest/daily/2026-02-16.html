@@ -9,9 +9,18 @@
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }
   </style>
+
+  <script>
+    (function(){
+      try{
+        const p = new URLSearchParams(location.search);
+        if(p.get('embed') === '1') document.documentElement.setAttribute('data-embed','1');
+      }catch(e){}
+    })();
+  </script>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-6xl p-6">
+  <div class="mx-auto max-w-6xl p-6 embed-tight">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
@@ -19,62 +28,10 @@
         <div class="text-sm text-slate-500">2026-02-16 ~ 2026-02-16 · DoD vs 2026-02-15 ~ 2026-02-15 · YoY 2025-02-17 ~ 2025-02-17</div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="../index.html" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+        <a href="../index.html" class="embed-hide rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
 
-    
-    <div class="mt-4 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Compare</div>
-        <select id="cmpMode" class="ml-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly (7D)</option>
-        </select>
-        <input id="cmpA" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
-        <input id="cmpB" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
-        <button id="presetPrev" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold hover:bg-slate-50">전기준</button>
-        <button id="presetYoY" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold hover:bg-slate-50">YoY</button>
-        <button id="cmpBtn" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Compare</button>
-      </div>
-      <div id="cmpErr" class="mt-2 text-sm font-semibold text-orange-700"></div>
-    </div>
-
-    <div id="cmpModal" class="fixed inset-0 z-[9999] hidden">
-      <div id="cmpBackdrop" class="absolute inset-0 bg-black/40"></div>
-      <div class="absolute left-1/2 top-1/2 w-[min(980px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl">
-        <div class="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
-          <div>
-            <div id="cmpTitle" class="text-lg font-black text-slate-900">Compare</div>
-            <div id="cmpSub" class="mt-1 text-sm text-slate-500"></div>
-          </div>
-          <button id="cmpClose" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">닫기</button>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2">
-          <div class="rounded-2xl border border-slate-200 p-4">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">KPIs</div>
-            <table class="mt-3 w-full text-sm">
-              <tbody id="cmpKPIs"></tbody>
-            </table>
-          </div>
-          <div class="rounded-2xl border border-slate-200 p-4">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Revenue</div>
-            <table class="mt-3 w-full text-sm">
-              <thead>
-                <tr class="text-xs text-slate-500">
-                  <th class="px-3 py-2 text-left">Bucket</th>
-                  <th class="px-3 py-2 text-right">A</th>
-                  <th class="px-3 py-2 text-right">B</th>
-                  <th class="px-3 py-2 text-right">Diff</th>
-                </tr>
-              </thead>
-              <tbody id="cmpChannels"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
     
 
     <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
@@ -110,26 +67,6 @@
         </div>
         
     </div>
-
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
-      <div class="mt-3">
-    <svg width="100%" viewBox="0 0 820 240" preserveAspectRatio="none" style="display:block;">
-      <line x1='46' y1='194.0' x2='804' y2='194.0' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='158.8' x2='804' y2='158.8' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='123.6' x2='804' y2='123.6' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='88.4' x2='804' y2='88.4' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='53.2' x2='804' y2='53.2' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='18.0' x2='804' y2='18.0' stroke='#eef2ff' stroke-width='1'/>
-      
-      <line x1='46' y1='18' x2='46' y2='194' stroke='#c7d2fe' stroke-width='1'/>
-      <line x1='46' y1='194' x2='804' y2='194' stroke='#c7d2fe' stroke-width='1'/>
-    
-      <polyline fill='none' stroke='#0055a5' stroke-width='2.6' points='46.0,154.4 172.3,169.1 298.7,63.1 425.0,168.0 551.3,66.3 677.7,146.6 804.0,160.6'/><polyline fill='none' stroke='#16a34a' stroke-width='2.6' points='46.0,154.4 172.3,174.4 298.7,85.8 425.0,182.1 551.3,32.9 677.7,163.7 804.0,138.1'/><polyline fill='none' stroke='#c2410c' stroke-width='2.6' points='46.0,154.4 172.3,164.9 298.7,153.7 425.0,179.4 551.3,45.8 677.7,123.6 804.0,115.7'/>
-      <circle cx='46.0' cy='154.4' r='3.0' fill='#0055a5'/><circle cx='172.3' cy='169.1' r='3.0' fill='#0055a5'/><circle cx='298.7' cy='63.1' r='3.0' fill='#0055a5'/><circle cx='425.0' cy='168.0' r='3.0' fill='#0055a5'/><circle cx='551.3' cy='66.3' r='3.0' fill='#0055a5'/><circle cx='677.7' cy='146.6' r='3.0' fill='#0055a5'/><circle cx='804.0' cy='160.6' r='3.0' fill='#0055a5'/><circle cx='46.0' cy='154.4' r='3.0' fill='#16a34a'/><circle cx='172.3' cy='174.4' r='3.0' fill='#16a34a'/><circle cx='298.7' cy='85.8' r='3.0' fill='#16a34a'/><circle cx='425.0' cy='182.1' r='3.0' fill='#16a34a'/><circle cx='551.3' cy='32.9' r='3.0' fill='#16a34a'/><circle cx='677.7' cy='163.7' r='3.0' fill='#16a34a'/><circle cx='804.0' cy='138.1' r='3.0' fill='#16a34a'/><circle cx='46.0' cy='154.4' r='3.0' fill='#c2410c'/><circle cx='172.3' cy='164.9' r='3.0' fill='#c2410c'/><circle cx='298.7' cy='153.7' r='3.0' fill='#c2410c'/><circle cx='425.0' cy='179.4' r='3.0' fill='#c2410c'/><circle cx='551.3' cy='45.8' r='3.0' fill='#c2410c'/><circle cx='677.7' cy='123.6' r='3.0' fill='#c2410c'/><circle cx='804.0' cy='115.7' r='3.0' fill='#c2410c'/>
-      <text x='38' y='197.0' text-anchor='end' font-size='10' fill='#6b7280'>73</text><text x='38' y='161.8' text-anchor='end' font-size='10' fill='#6b7280'>97</text><text x='38' y='126.6' text-anchor='end' font-size='10' fill='#6b7280'>121</text><text x='38' y='91.4' text-anchor='end' font-size='10' fill='#6b7280'>145</text><text x='38' y='56.2' text-anchor='end' font-size='10' fill='#6b7280'>169</text><text x='38' y='21.0' text-anchor='end' font-size='10' fill='#6b7280'>192</text>
-      <text x='46.0' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/10</text><text x='172.3' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/11</text><text x='298.7' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/12</text><text x='425.0' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/13</text><text x='551.3' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/14</text><text x='677.7' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/15</text><text x='804.0' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/16</text>
-      <text x='46' y='232' font-size='10' fill='#94a3b8'>Index (D-7 = 100)</text>
-      <g transform='translate(46,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#0055a5' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Sessions</text></g><g transform='translate(206,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#16a34a' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Revenue</text></g><g transform='translate(366,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#c2410c' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>CVR</text></g>
-    </svg>
-    </div>
-    </div>
-
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
@@ -163,6 +100,24 @@
           <tbody><tr class=''><td class='px-3 py-2 border-b border-slate-100 font-medium'>Paid Search</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>507</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩2,436,302</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+253.7%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+721.3%</div></td></tr><tr class=''><td class='px-3 py-2 border-b border-slate-100 font-medium'>Paid Social</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>188</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-100.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td></tr><tr class=''><td class='px-3 py-2 border-b border-slate-100 font-medium'>Display</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>2,560</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩823,750</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+2.1%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-32.0%</div></td></tr><tr class='bg-slate-50'><td class='px-3 py-2 border-b border-slate-100 font-extrabold'>Total</td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>3,255</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>₩3,260,052</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right text-blue-600'>+96.1%</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right text-blue-600'>+116.2%</div></td></tr></tbody>
         </table>
       </div>
+    </div>
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
+      <div class="mt-3">
+    <svg width="100%" viewBox="0 0 820 240" preserveAspectRatio="none" style="display:block;">
+      <line x1='46' y1='194.0' x2='804' y2='194.0' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='158.8' x2='804' y2='158.8' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='123.6' x2='804' y2='123.6' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='88.4' x2='804' y2='88.4' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='53.2' x2='804' y2='53.2' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='18.0' x2='804' y2='18.0' stroke='#eef2ff' stroke-width='1'/>
+      
+      <line x1='46' y1='18' x2='46' y2='194' stroke='#c7d2fe' stroke-width='1'/>
+      <line x1='46' y1='194' x2='804' y2='194' stroke='#c7d2fe' stroke-width='1'/>
+    
+      <polyline fill='none' stroke='#0055a5' stroke-width='2.6' points='46.0,154.4 172.3,169.1 298.7,63.1 425.0,168.0 551.3,66.3 677.7,146.6 804.0,160.6'/><polyline fill='none' stroke='#16a34a' stroke-width='2.6' points='46.0,154.4 172.3,174.4 298.7,85.8 425.0,182.1 551.3,32.9 677.7,163.7 804.0,138.1'/><polyline fill='none' stroke='#c2410c' stroke-width='2.6' points='46.0,154.4 172.3,164.9 298.7,153.7 425.0,179.4 551.3,45.8 677.7,123.6 804.0,115.7'/>
+      <circle cx='46.0' cy='154.4' r='3.0' fill='#0055a5'/><circle cx='172.3' cy='169.1' r='3.0' fill='#0055a5'/><circle cx='298.7' cy='63.1' r='3.0' fill='#0055a5'/><circle cx='425.0' cy='168.0' r='3.0' fill='#0055a5'/><circle cx='551.3' cy='66.3' r='3.0' fill='#0055a5'/><circle cx='677.7' cy='146.6' r='3.0' fill='#0055a5'/><circle cx='804.0' cy='160.6' r='3.0' fill='#0055a5'/><circle cx='46.0' cy='154.4' r='3.0' fill='#16a34a'/><circle cx='172.3' cy='174.4' r='3.0' fill='#16a34a'/><circle cx='298.7' cy='85.8' r='3.0' fill='#16a34a'/><circle cx='425.0' cy='182.1' r='3.0' fill='#16a34a'/><circle cx='551.3' cy='32.9' r='3.0' fill='#16a34a'/><circle cx='677.7' cy='163.7' r='3.0' fill='#16a34a'/><circle cx='804.0' cy='138.1' r='3.0' fill='#16a34a'/><circle cx='46.0' cy='154.4' r='3.0' fill='#c2410c'/><circle cx='172.3' cy='164.9' r='3.0' fill='#c2410c'/><circle cx='298.7' cy='153.7' r='3.0' fill='#c2410c'/><circle cx='425.0' cy='179.4' r='3.0' fill='#c2410c'/><circle cx='551.3' cy='45.8' r='3.0' fill='#c2410c'/><circle cx='677.7' cy='123.6' r='3.0' fill='#c2410c'/><circle cx='804.0' cy='115.7' r='3.0' fill='#c2410c'/>
+      <text x='38' y='197.0' text-anchor='end' font-size='10' fill='#6b7280'>73</text><text x='38' y='161.8' text-anchor='end' font-size='10' fill='#6b7280'>97</text><text x='38' y='126.6' text-anchor='end' font-size='10' fill='#6b7280'>121</text><text x='38' y='91.4' text-anchor='end' font-size='10' fill='#6b7280'>145</text><text x='38' y='56.2' text-anchor='end' font-size='10' fill='#6b7280'>169</text><text x='38' y='21.0' text-anchor='end' font-size='10' fill='#6b7280'>192</text>
+      <text x='46.0' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/10</text><text x='172.3' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/11</text><text x='298.7' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/12</text><text x='425.0' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/13</text><text x='551.3' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/14</text><text x='677.7' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/15</text><text x='804.0' y='212' text-anchor='middle' font-size='10' fill='#6b7280'>02/16</text>
+      <text x='46' y='232' font-size='10' fill='#94a3b8'>Index (D-7 = 100)</text>
+      <g transform='translate(46,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#0055a5' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Sessions</text></g><g transform='translate(206,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#16a34a' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Revenue</text></g><g transform='translate(366,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#c2410c' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>CVR</text></g>
+    </svg>
+    </div>
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -645,187 +600,5 @@
   </div>
 
   
-<script>
-(() => {
-  const CURRENT_BUNDLE = "../data/daily/2026-02-16.json";
-  const MODE = "daily";
-  const DEFAULT_A = "2026-02-16";
-  const DEFAULT_B = "2026-02-15";
-
-  const $ = (sel) => document.querySelector(sel);
-  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-
-  function bundlePath(mode, dateStr) {
-    if(!dateStr) return "";
-    if(mode === "weekly") return "../data/weekly/END_" + dateStr + ".json";
-    return "../data/daily/" + dateStr + ".json";
-  }
-
-  function fmtInt(x) {
-    const n = Number(x || 0);
-    return n.toLocaleString("en-US");
-  }
-  function fmtKRW(x) {
-    const n = Math.round(Number(x || 0));
-    return "₩" + n.toLocaleString("en-US");
-  }
-  function fmtPct(p, digits=1) {
-    const n = Number(p || 0) * 100;
-    return n.toFixed(digits) + "%";
-  }
-  function fmtPP(p, digits=2) {
-    const n = Number(p || 0) * 100;
-    return n.toFixed(digits) + "%p";
-  }
-  function pctChange(curr, prev) {
-    curr = Number(curr || 0); prev = Number(prev || 0);
-    if(prev === 0) return (curr === 0) ? 0 : 1;
-    return (curr - prev) / prev;
-  }
-
-  async function fetchJSON(path) {
-    const res = await fetch(path, { cache: "force-cache" });
-    if(!res.ok) throw new Error("Fetch failed: " + path);
-    return await res.json();
-  }
-
-  function kpiFromBundle(b) {
-    const cur = (b.overall && b.overall.current) || {};
-    const sessions = Number(cur.sessions || 0);
-    const orders = Number(cur.transactions || 0);
-    const revenue = Number(cur.purchaseRevenue || 0);
-    const cvr = Number(cur.cvr || 0);
-    const su = Number((b.signup_users && b.signup_users.current) || 0);
-    return { sessions, orders, revenue, cvr, signup: su };
-  }
-
-  function renderCompareModal(a, b, mode) {
-    const aMeta = a.meta || {};
-    const bMeta = b.meta || {};
-    const aK = kpiFromBundle(a);
-    const bK = kpiFromBundle(b);
-
-    const rows = [
-      ["Sessions", fmtInt(aK.sessions), fmtInt(bK.sessions), (pctChange(aK.sessions, bK.sessions))],
-      ["Orders", fmtInt(aK.orders), fmtInt(bK.orders), (pctChange(aK.orders, bK.orders))],
-      ["Revenue", fmtKRW(aK.revenue), fmtKRW(bK.revenue), (pctChange(aK.revenue, bK.revenue))],
-      ["CVR", (aK.cvr*100).toFixed(2)+"%", (bK.cvr*100).toFixed(2)+"%", (aK.cvr - bK.cvr)],
-      ["Sign-up Users", fmtInt(aK.signup), fmtInt(bK.signup), (pctChange(aK.signup, bK.signup))],
-    ];
-
-    const diffCell = (metric, diff) => {
-      let txt = "";
-      if(metric === "CVR") {
-        txt = (diff>=0?"+":"") + fmtPP(diff, 2);
-      } else {
-        txt = (diff>=0?"+":"") + fmtPct(diff, 1);
-      }
-      const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
-      return `<span class="${cls} font-extrabold">${esc(txt)}</span>`;
-    };
-
-    const kpiTable = rows.map(r => `
-      <tr class="border-b border-slate-100">
-        <td class="px-3 py-2 font-extrabold">${esc(r[0])}</td>
-        <td class="px-3 py-2 text-right font-semibold">${esc(r[1])}</td>
-        <td class="px-3 py-2 text-right font-semibold">${esc(r[2])}</td>
-        <td class="px-3 py-2 text-right">${diffCell(r[0], r[3])}</td>
-      </tr>
-    `).join("");
-
-    const aCh = Array.isArray(a.channel_snapshot) ? a.channel_snapshot : [];
-    const bCh = Array.isArray(b.channel_snapshot) ? b.channel_snapshot : [];
-    const byKey = (arr) => {
-      const m = new Map();
-      arr.forEach(x => m.set(x.bucket, x));
-      return m;
-    };
-    const am = byKey(aCh), bm = byKey(bCh);
-    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Total"];
-    const chRows = buckets.map(k => {
-      const aa = am.get(k) || {};
-      const bb = bm.get(k) || {};
-      const ar = Number(aa.purchaseRevenue || 0);
-      const br = Number(bb.purchaseRevenue || 0);
-      const d = pctChange(ar, br);
-      const cls = d>=0 ? "text-blue-600" : "text-orange-700";
-      return `
-        <tr class="border-b border-slate-100">
-          <td class="px-3 py-2 font-extrabold">${esc(k)}</td>
-          <td class="px-3 py-2 text-right">${esc(fmtKRW(ar))}</td>
-          <td class="px-3 py-2 text-right">${esc(fmtKRW(br))}</td>
-          <td class="px-3 py-2 text-right"><span class="${cls} font-extrabold">${esc((d>=0?"+":"")+fmtPct(d,1))}</span></td>
-        </tr>
-      `;
-    }).join("");
-
-    const title = `${mode.toUpperCase()} Compare · A(${aMeta.end_date||""}) vs B(${bMeta.end_date||""})`;
-
-    $("#cmpTitle").textContent = title;
-    $("#cmpSub").textContent = `A period: ${aMeta.cur_start||""} ~ ${aMeta.cur_end||""}   |   B period: ${bMeta.cur_start||""} ~ ${bMeta.cur_end||""}`;
-    $("#cmpKPIs").innerHTML = kpiTable;
-    $("#cmpChannels").innerHTML = chRows;
-
-    $("#cmpModal").classList.remove("hidden");
-  }
-
-  async function onCompareClick() {
-    const mode = $("#cmpMode").value;
-    const aDate = $("#cmpA").value;
-    const bDate = $("#cmpB").value;
-
-    const aPath = bundlePath(mode, aDate);
-    const bPath = bundlePath(mode, bDate);
-
-    $("#cmpErr").textContent = "";
-    $("#cmpBtn").disabled = true;
-    $("#cmpBtn").textContent = "Loading...";
-
-    try {
-      const [a, b] = await Promise.all([fetchJSON(aPath), fetchJSON(bPath)]);
-      renderCompareModal(a, b, mode);
-    } catch(e) {
-      $("#cmpErr").textContent = "Compare failed. JSON not found for selected date(s). 먼저 해당 날짜 리포트를 생성해야 합니다.";
-      console.error(e);
-    } finally {
-      $("#cmpBtn").disabled = false;
-      $("#cmpBtn").textContent = "Compare";
-    }
-  }
-
-  function presetYoY() {
-    fetchJSON(CURRENT_BUNDLE).then(b => {
-      const m = b.meta || {};
-      $("#cmpMode").value = m.mode || MODE;
-      $("#cmpA").value = m.end_date || DEFAULT_A;
-      $("#cmpB").value = m.yoy_end || m.yoy_start || DEFAULT_B;
-    }).catch(()=>{});
-  }
-
-  function presetPrev() {
-    fetchJSON(CURRENT_BUNDLE).then(b => {
-      const m = b.meta || {};
-      $("#cmpMode").value = m.mode || MODE;
-      $("#cmpA").value = m.end_date || DEFAULT_A;
-      $("#cmpB").value = m.prev_end || DEFAULT_B;
-    }).catch(()=>{});
-  }
-
-  function init() {
-    $("#cmpMode").value = MODE;
-    $("#cmpA").value = DEFAULT_A;
-    $("#cmpB").value = DEFAULT_B;
-
-    $("#cmpBtn").addEventListener("click", onCompareClick);
-    $("#cmpClose").addEventListener("click", () => $("#cmpModal").classList.add("hidden"));
-    $("#cmpBackdrop").addEventListener("click", () => $("#cmpModal").classList.add("hidden"));
-    $("#presetPrev").addEventListener("click", presetPrev);
-    $("#presetYoY").addEventListener("click", presetYoY);
-  }
-
-  document.addEventListener("DOMContentLoaded", init);
-})();
-</script>
-
 </body>
 </html>
