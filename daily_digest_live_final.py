@@ -1617,7 +1617,6 @@ return f"""<!doctype html>
       }} catch (e) {{}}
     }})();
   </script>
-"""
 
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -1626,11 +1625,12 @@ return f"""<!doctype html>
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
-</div>
+      </div>
       <div class="flex items-center gap-2">
-        <a href="{esc(nav_links.get(\'hub\',\'#\'))}" class="embed-hide rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+        <a href="{esc(nav_links.get('hub','#'))}" class="embed-hide rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
+"""
 
     {compare_bar_html}
 
