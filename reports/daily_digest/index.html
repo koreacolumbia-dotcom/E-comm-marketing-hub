@@ -97,7 +97,6 @@
       overflow: auto;
     }
 
-    /* ✅ 로딩 오버레이 */
     .loading-backdrop{
       position: fixed;
       inset: 0;
@@ -162,7 +161,6 @@
     </div>
 
     <div class="glass p-5">
-      <!-- Row 1: DATE + COMPARE -->
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <div class="small-label">Date</div>
         <div class="w-[160px]"><input id="aDate" type="date" /></div>
@@ -179,7 +177,6 @@
         <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
       </div>
 
-      <!-- Row 2: RANGE -->
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <div class="small-label">Range A</div>
         <div class="w-[160px]"><input id="aStart" type="date" /></div>
@@ -207,7 +204,6 @@
     </div>
   </div>
 
-  <!-- Loading overlay -->
   <div id="loading" class="loading-backdrop">
     <div class="loading-card">
       <div class="spinner"></div>
@@ -217,14 +213,8 @@
 
 <script>
 (function(){
-  /*
-   ✅ PATCH 1) BASE 자동계산 (index.html 현재 위치 기준)
-   - GitHub Pages에서 상대경로/슬래시/리다이렉트 꼬임 방지
-   - 결과: BASE = ".../reports/daily_digest/"
-  */
-  const BASE = new URL('./', location.href).href;
+  const BASE = '';
 
-  // Utils
   function kstNowDate(){
     const now = new Date();
     const utc = now.getTime() + now.getTimezoneOffset()*60000;
@@ -246,7 +236,6 @@
     return x;
   }
 
-  // DOM
   const modeDaily = document.getElementById('modeDaily');
   const modeWeekly = document.getElementById('modeWeekly');
   const btnReload = document.getElementById('btnReload');
@@ -280,28 +269,23 @@
   const loading = document.getElementById('loading');
   const loadingText = document.getElementById('loadingText');
 
-  // State
   let MODE = 'daily';
   let COMPARE = false;
 
   function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
 
-  // Paths (✅ URL 안전 조합)
   function buildReportPath(dateStr){
-    const rel = (MODE === 'daily')
-      ? `daily/${dateStr}.html`
-      : `weekly/END_${dateStr}.html`;
-    const u = new URL(rel, BASE).toString();
-    return u + `?embed=1`;
+    const base = (MODE === 'daily')
+      ? `${BASE}daily/${dateStr}.html`
+      : `${BASE}weekly/END_${dateStr}.html`;
+    return base + `?embed=1`;
   }
   function buildCachePath(dateStr){
-    const rel = (MODE === 'daily')
-      ? `data/daily/${dateStr}.json`
-      : `data/weekly/END_${dateStr}.json`;
-    return new URL(rel, BASE).toString();
+    return (MODE === 'daily')
+      ? `${BASE}data/daily/${dateStr}.json`
+      : `${BASE}data/weekly/END_${dateStr}.json`;
   }
 
-  // Loading UX
   const ACTION_BTNS = [btnReload, btnCompareGo, btnRangeGo];
   const MODE_BTNS = [modeDaily, modeWeekly, btnCompareToggle, btnPresetPrev, btnPresetYoY, btnPrev, btnNext, btnYesterday, btnToday, btnRangeClear];
 
@@ -318,9 +302,8 @@
     }
   }
 
-  // EXISTS (HEAD) cache
-  const LS_KEY = 'ddhub_exists_cache_v8'; // ✅ PATCH 2) 버전 올려서 이전 잘못된 캐시 싹 무시
-  const TTL_MS = 2 * 60 * 60 * 1000;      // ✅ TTL도 6h → 2h로 줄임 (파일 생성/누락 변동 대응)
+  const LS_KEY = 'ddhub_exists_cache_v7';
+  const TTL_MS = 6 * 60 * 60 * 1000;
   const memCache = new Map();
 
   function loadLS(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}')||{} }catch(e){ return {}; } }
@@ -357,11 +340,9 @@
     }
   }
 
-  // ---------- iframe scrub ----------
   function scrubReportUI(doc){
     if(!doc) return;
 
-    // keep scrolling usable inside iframe
     let style = doc.getElementById('hub_scrub_css');
     if(!style){
       style = doc.createElement('style');
@@ -374,7 +355,6 @@
       doc.head.appendChild(style);
     }
 
-    // 1) Hide top title "Daily Digest" (if present)
     for(const h of Array.from(doc.querySelectorAll('h1, h2'))){
       const t = (h.textContent||'').trim();
       if(t === 'Daily Digest'){
@@ -383,7 +363,6 @@
       }
     }
 
-    // 2) Hide Hub/Daily/Weekly tabs block (if present)
     const tabTexts = new Set(['Hub','Daily','Weekly']);
     const tabBtns = Array.from(doc.querySelectorAll('button, a')).filter(el => tabTexts.has(((el.textContent||'').trim())));
     if(tabBtns.length){
@@ -402,7 +381,6 @@
       }
     }
 
-    // 3) Hide in-report "Compare" card safely
     const anchor = doc.querySelector('#cmpMode, #cmpA, #cmpB, #cmpBtn');
     if(anchor){
       let card = anchor.closest('div');
@@ -422,109 +400,26 @@
     }
   }
 
-  /*
-   ✅ PATCH 3) iframe가 GitHub Pages 404(파일 없음)를 로드했을 때 자동 복구
-   - exists 캐시가 과거에 true로 저장돼있으면 fallback이 안 타고 그대로 404가 뜰 수 있음
-   - 그래서 "404 문서 감지" → 캐시 false로 강제 → 주변 날짜 탐색 → 자동 로드
-  */
-  function isGhPages404(doc){
-    try{
-      const t = (doc && doc.title) ? doc.title : '';
-      const bodyTxt = (doc && doc.body && doc.body.innerText) ? doc.body.innerText : '';
-      const s = (t + ' ' + bodyTxt).replace(/\s+/g,' ').toLowerCase();
-      return s.includes('404') && (s.includes('file not found') || s.includes('the site configured at this address'));
-    }catch(e){
-      return false;
-    }
-  }
-
-  async function recoverFrameIf404(frame, which){
-    // which: 'A' | 'B'
-    const guardKey = which === 'A' ? '__ddhub_recoveredA' : '__ddhub_recoveredB';
-    if(frame.dataset[guardKey] === '1') return; // 무한루프 방지
-
-    let doc = null;
-    try{ doc = frame.contentDocument || frame.contentWindow.document; }catch(e){ return; }
-    if(!doc) return;
-
-    if(!isGhPages404(doc)) return;
-
-    frame.dataset[guardKey] = '1'; // 일단 1회만 복구 시도
-
-    // 현재 src의 base (캐시 무효화)
-    const cur = (frame.src || '').split('?')[0];
-    if(cur) cacheSet(cur, false);
-
-    // aDate/bDate 기준으로 주변 날짜 탐색 (최대 21일)
-    const baseDateStr = (which === 'A') ? (aDate.value||'').trim() : (bDate.value||'').trim();
-    if(!baseDateStr) return;
-
-    setBusy(true, `404 감지 → ${which} 폴백 탐색…`);
-
-    const baseD = parseYMD(baseDateStr);
-    const deltas = [];
-    for(let i=1;i<=21;i++){
-      deltas.push(-i);
-      deltas.push(+i);
-    }
-
-    let found = null;
-    for(const delta of deltas){
-      const cand = fmtYMD(addDays(baseD, delta));
-      if(await exists(buildReportPath(cand))){
-        found = cand;
-        break;
-      }
-    }
-
-    if(found){
-      if(which === 'A'){
-        aDate.value = found;
-        await loadA(found);
-      }else{
-        bDate.value = found;
-        await loadB(found);
-      }
-    }
-
-    setBusy(false);
-  }
-
-  function onFrameLoad(frame, which){
+  function onFrameLoad(frame){
     try{
       const doc = frame.contentDocument || frame.contentWindow.document;
-      if(doc) scrubReportUI(doc);
+      if(!doc) return;
+      scrubReportUI(doc);
     }catch(e){}
-
-    // 404 복구 (비동기)
-    recoverFrameIf404(frame, which).catch(()=>{});
   }
 
-  viewerA.addEventListener('load', ()=>{
-    onFrameLoad(viewerA, 'A');
-    setTimeout(()=>onFrameLoad(viewerA, 'A'), 300);
-    setBusy(false);
-  });
+  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setTimeout(()=>onFrameLoad(viewerA), 300); setBusy(false); });
+  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setTimeout(()=>onFrameLoad(viewerB), 300); setBusy(false); });
 
-  viewerB.addEventListener('load', ()=>{
-    onFrameLoad(viewerB, 'B');
-    setTimeout(()=>onFrameLoad(viewerB, 'B'), 300);
-    setBusy(false);
-  });
-
-  // Load A/B
   async function loadA(dateStr){
-    viewerA.dataset.__ddhub_recoveredA = '0'; // 복구 플래그 리셋
     viewerA.src = buildReportPath(dateStr);
     viewerATitle.textContent = `A: ${MODE.toUpperCase()} · ${dateStr}`;
   }
   async function loadB(dateStr){
-    viewerB.dataset.__ddhub_recoveredB = '0'; // 복구 플래그 리셋
     viewerB.src = buildReportPath(dateStr);
     viewerBTitle.textContent = `B: ${MODE.toUpperCase()} · ${dateStr}`;
   }
 
-  // YoY preset: 캐시 yoy.end 우선
   async function yoyEndFor(dateStr){
     try{
       const res = await fetch(buildCachePath(dateStr) + `?t=${Date.now()}`, { cache:'no-store' });
@@ -538,7 +433,6 @@
     }
   }
 
-  // Layout
   function updateCompareLayout(){
     if(COMPARE){
       viewerBWrap.classList.remove('hidden');
@@ -556,7 +450,6 @@
     updateCompareLayout();
   }
 
-  // Apply A (존재 확인 + fallback)
   async function applyA(){
     const d = (aDate.value||'').trim();
     if(!d) return;
@@ -575,7 +468,6 @@
     await loadA(target);
   }
 
-  // Compare: "비교하기" 누르면 B에 바로 리포트
   async function doCompare(){
     const a = (aDate.value||'').trim();
     const b = (bDate.value||'').trim();
@@ -594,7 +486,6 @@
     await loadB(targetB);
   }
 
-  // Range Compare: A/B 각각 END 로드
   async function doRangeCompare(){
     const ae = (aEnd.value||'').trim();
     const be = (bEnd.value||'').trim();
@@ -621,7 +512,6 @@
     bStart.value = ''; bEnd.value = '';
   }
 
-  // Mode
   async function setMode(next){
     MODE = next;
     modeDaily.classList.toggle('active', MODE==='daily');
@@ -631,7 +521,6 @@
     if(COMPARE) await doCompare();
   }
 
-  // Events
   modeDaily.addEventListener('click', ()=> setMode('daily'));
   modeWeekly.addEventListener('click', ()=> setMode('weekly'));
 
@@ -673,13 +562,11 @@
   btnPrev.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays())); applyA(); });
   btnNext.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays())); applyA(); });
 
-  // Init
   (function init(){
     const y = addDays(kstNowDate(), -1);
     aDate.value = fmtYMD(y);
     bDate.value = fmtYMD(addDays(y, -1));
 
-    // default range: 최근21일 vs 이전21일
     const ae = fmtYMD(y);
     const as = fmtYMD(addDays(y, -20));
     const be = fmtYMD(addDays(y, -21));
@@ -696,5 +583,6 @@
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026.02.26 HUB FINAL (BASE auto + 404 recover + exists cache v8) -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 13:46 KST -->
+<!-- BUILD_STAMP: 2026-02-25 HUB FIX (BASE fixed, scrub uses hide not remove; prevents blank 2025 iframe) -->
+<!-- BUILD_STAMP: 2026.02.25 (Wed) 11:45 KST -->
+<!-- BUILD_STAMP: 2026.02.26 (Thu) 13:28 KST -->
