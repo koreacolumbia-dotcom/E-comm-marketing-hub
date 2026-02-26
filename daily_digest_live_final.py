@@ -1931,10 +1931,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
     dates = sorted(dates)
     if not dates:
         dates = [dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1)]
-    latest = dates[0]
-    for d in dates:
-        if d > latest:
-            latest = d
+    latest = dates[-1]
 
     date_opts = "\n".join([f"<option value='{d.strftime('%Y-%m-%d')}'>{d.strftime('%Y-%m-%d')}</option>" for d in reversed(dates)])
 
