@@ -1581,244 +1581,11 @@ def render_page_html(
     default_b = ymd(w.prev_end)
 
     compare_js = f"""
-<script>
-(() => {{
-  const CURRENT_BUNDLE = "{bundle_rel_path}";
-  const MODE = "{w.mode}";
-  const DEFAULT_A = "{default_a}";
-  const DEFAULT_B = "{default_b}";
-
-  const $ = (sel) => document.querySelector(sel);
-  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}}[c]));
-
-  function bundlePath(mode, dateStr) {{
-    if(!dateStr) return "";
-    if(mode === "weekly") return "../data/weekly/END_" + dateStr + ".json";
-    return "../data/daily/" + dateStr + ".json";
-  }}
-
-  function fmtInt(x) {{
-    const n = Number(x || 0);
-    return n.toLocaleString("en-US");
-  }}
-  function fmtKRW(x) {{
-    const n = Math.round(Number(x || 0));
-    return "₩" + n.toLocaleString("en-US");
-  }}
-  function fmtPct(p, digits=1) {{
-    const n = Number(p || 0) * 100;
-    return n.toFixed(digits) + "%";
-  }}
-  function fmtPP(p, digits=2) {{
-    const n = Number(p || 0) * 100;
-    return n.toFixed(digits) + "%p";
-  }}
-  function pctChange(curr, prev) {{
-    curr = Number(curr || 0); prev = Number(prev || 0);
-    if(prev === 0) return (curr === 0) ? 0 : 1;
-    return (curr - prev) / prev;
-  }}
-
-  async function fetchJSON(path) {{
-    const res = await fetch(path, {{ cache: "force-cache" }});
-    if(!res.ok) throw new Error("Fetch failed: " + path);
-    return await res.json();
-  }}
-
-  function kpiFromBundle(b) {{
-    const cur = (b.overall && b.overall.current) || {{}};
-    const sessions = Number(cur.sessions || 0);
-    const orders = Number(cur.transactions || 0);
-    const revenue = Number(cur.purchaseRevenue || 0);
-    const cvr = Number(cur.cvr || 0);
-    const su = Number((b.signup_users && b.signup_users.current) || 0);
-    return {{ sessions, orders, revenue, cvr, signup: su }};
-  }}
-
-  function renderCompareModal(a, b, mode) {{
-    const aMeta = a.meta || {{}};
-    const bMeta = b.meta || {{}};
-    const aK = kpiFromBundle(a);
-    const bK = kpiFromBundle(b);
-
-    const rows = [
-      ["Sessions", fmtInt(aK.sessions), fmtInt(bK.sessions), (pctChange(aK.sessions, bK.sessions))],
-      ["Orders", fmtInt(aK.orders), fmtInt(bK.orders), (pctChange(aK.orders, bK.orders))],
-      ["Revenue", fmtKRW(aK.revenue), fmtKRW(bK.revenue), (pctChange(aK.revenue, bK.revenue))],
-      ["CVR", (aK.cvr*100).toFixed(2)+"%", (bK.cvr*100).toFixed(2)+"%", (aK.cvr - bK.cvr)],
-      ["Sign-up Users", fmtInt(aK.signup), fmtInt(bK.signup), (pctChange(aK.signup, bK.signup))],
-    ];
-
-    const diffCell = (metric, diff) => {{
-      let txt = "";
-      if(metric === "CVR") {{
-        txt = (diff>=0?"+":"") + fmtPP(diff, 2);
-      }} else {{
-        txt = (diff>=0?"+":"") + fmtPct(diff, 1);
-      }}
-      const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
-      return `<span class="${{cls}} font-extrabold">${{esc(txt)}}</span>`;
-    }};
-
-    const kpiTable = rows.map(r => `
-      <tr class="border-b border-slate-100">
-        <td class="px-3 py-2 font-extrabold">${{esc(r[0])}}</td>
-        <td class="px-3 py-2 text-right font-semibold">${{esc(r[1])}}</td>
-        <td class="px-3 py-2 text-right font-semibold">${{esc(r[2])}}</td>
-        <td class="px-3 py-2 text-right">${{diffCell(r[0], r[3])}}</td>
-      </tr>
-    `).join("");
-
-    const aCh = Array.isArray(a.channel_snapshot) ? a.channel_snapshot : [];
-    const bCh = Array.isArray(b.channel_snapshot) ? b.channel_snapshot : [];
-    const byKey = (arr) => {{
-      const m = new Map();
-      arr.forEach(x => m.set(x.bucket, x));
-      return m;
-    }};
-    const am = byKey(aCh), bm = byKey(bCh);
-    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Total"];
-    const chRows = buckets.map(k => {{
-      const aa = am.get(k) || {{}};
-      const bb = bm.get(k) || {{}};
-      const ar = Number(aa.purchaseRevenue || 0);
-      const br = Number(bb.purchaseRevenue || 0);
-      const d = pctChange(ar, br);
-      const cls = d>=0 ? "text-blue-600" : "text-orange-700";
-      return `
-        <tr class="border-b border-slate-100">
-          <td class="px-3 py-2 font-extrabold">${{esc(k)}}</td>
-          <td class="px-3 py-2 text-right">${{esc(fmtKRW(ar))}}</td>
-          <td class="px-3 py-2 text-right">${{esc(fmtKRW(br))}}</td>
-          <td class="px-3 py-2 text-right"><span class="${{cls}} font-extrabold">${{esc((d>=0?"+":"")+fmtPct(d,1))}}</span></td>
-        </tr>
-      `;
-    }}).join("");
-
-    const title = `${{mode.toUpperCase()}} Compare · A(${{aMeta.end_date||""}}) vs B(${{bMeta.end_date||""}})`;
-
-    $("#cmpTitle").textContent = title;
-    $("#cmpSub").textContent = `A period: ${{aMeta.cur_start||""}} ~ ${{aMeta.cur_end||""}}   |   B period: ${{bMeta.cur_start||""}} ~ ${{bMeta.cur_end||""}}`;
-    $("#cmpKPIs").innerHTML = kpiTable;
-    $("#cmpChannels").innerHTML = chRows;
-
-    $("#cmpModal").classList.remove("hidden");
-  }}
-
-  async function onCompareClick() {{
-    const mode = $("#cmpMode").value;
-    const aDate = $("#cmpA").value;
-    const bDate = $("#cmpB").value;
-
-    const aPath = bundlePath(mode, aDate);
-    const bPath = bundlePath(mode, bDate);
-
-    $("#cmpErr").textContent = "";
-    $("#cmpBtn").disabled = true;
-    $("#cmpBtn").textContent = "Loading...";
-
-    try {{
-      const [a, b] = await Promise.all([fetchJSON(aPath), fetchJSON(bPath)]);
-      renderCompareModal(a, b, mode);
-    }} catch(e) {{
-      $("#cmpErr").textContent = "Compare failed. JSON not found for selected date(s). 먼저 해당 날짜 리포트를 생성해야 합니다.";
-      console.error(e);
-    }} finally {{
-      $("#cmpBtn").disabled = false;
-      $("#cmpBtn").textContent = "Compare";
-    }}
-  }}
-
-  function presetYoY() {{
-    fetchJSON(CURRENT_BUNDLE).then(b => {{
-      const m = b.meta || {{}};
-      $("#cmpMode").value = m.mode || MODE;
-      $("#cmpA").value = m.end_date || DEFAULT_A;
-      $("#cmpB").value = m.yoy_end || m.yoy_start || DEFAULT_B;
-    }}).catch(()=>{{}});
-  }}
-
-  function presetPrev() {{
-    fetchJSON(CURRENT_BUNDLE).then(b => {{
-      const m = b.meta || {{}};
-      $("#cmpMode").value = m.mode || MODE;
-      $("#cmpA").value = m.end_date || DEFAULT_A;
-      $("#cmpB").value = m.prev_end || DEFAULT_B;
-    }}).catch(()=>{{}});
-  }}
-
-  function init() {{
-    $("#cmpMode").value = MODE;
-    $("#cmpA").value = DEFAULT_A;
-    $("#cmpB").value = DEFAULT_B;
-
-    $("#cmpBtn").addEventListener("click", onCompareClick);
-    $("#cmpClose").addEventListener("click", () => $("#cmpModal").classList.add("hidden"));
-    $("#cmpBackdrop").addEventListener("click", () => $("#cmpModal").classList.add("hidden"));
-    $("#presetPrev").addEventListener("click", presetPrev);
-    $("#presetYoY").addEventListener("click", presetYoY);
-  }}
-
-  document.addEventListener("DOMContentLoaded", init);
-}})();
-</script>
 """
 
-    compare_bar_html = f"""
-    <div class="mt-4 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Compare</div>
-        <select id="cmpMode" class="ml-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly (7D)</option>
-        </select>
-        <input id="cmpA" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
-        <input id="cmpB" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
-        <button id="presetPrev" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold hover:bg-slate-50">전기준</button>
-        <button id="presetYoY" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold hover:bg-slate-50">YoY</button>
-        <button id="cmpBtn" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Compare</button>
-      </div>
-      <div id="cmpErr" class="mt-2 text-sm font-semibold text-orange-700"></div>
-    </div>
+    compare_bar_html = ""
 
-    <div id="cmpModal" class="fixed inset-0 z-[9999] hidden">
-      <div id="cmpBackdrop" class="absolute inset-0 bg-black/40"></div>
-      <div class="absolute left-1/2 top-1/2 w-[min(980px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl">
-        <div class="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
-          <div>
-            <div id="cmpTitle" class="text-lg font-black text-slate-900">Compare</div>
-            <div id="cmpSub" class="mt-1 text-sm text-slate-500"></div>
-          </div>
-          <button id="cmpClose" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">닫기</button>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2">
-          <div class="rounded-2xl border border-slate-200 p-4">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">KPIs</div>
-            <table class="mt-3 w-full text-sm">
-              <tbody id="cmpKPIs"></tbody>
-            </table>
-          </div>
-          <div class="rounded-2xl border border-slate-200 p-4">
-            <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Revenue</div>
-            <table class="mt-3 w-full text-sm">
-              <thead>
-                <tr class="text-xs text-slate-500">
-                  <th class="px-3 py-2 text-left">Bucket</th>
-                  <th class="px-3 py-2 text-right">A</th>
-                  <th class="px-3 py-2 text-right">B</th>
-                  <th class="px-3 py-2 text-right">Diff</th>
-                </tr>
-              </thead>
-              <tbody id="cmpChannels"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
-
-    return f"""<!doctype html>
+return f"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -1829,17 +1596,33 @@ def render_page_html(
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
   </style>
+
+  <style>
+    /* ✅ iframe embed=1 로드 시 상단 컨트롤/허브 버튼/모달 숨김 */
+    html[data-embed="1"] .embed-hide { display:none !important; }
+    html[data-embed="1"] body { background: transparent !important; }
+    html[data-embed="1"] .embed-tight { padding: 0 !important; }
+  </style>
+
+  <script>
+    (function(){
+      try{
+        const p = new URLSearchParams(location.search);
+        if(p.get('embed') === '1') document.documentElement.setAttribute('data-embed','1');
+      }catch(e){}
+    })();
+  </script>
+
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-6xl p-6">
+  <div class="mx-auto max-w-6xl p-6 embed-tight">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
-        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
-      </div>
+</div>
       <div class="flex items-center gap-2">
-        <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+        <a href="{esc(nav_links.get(\'hub\',\'#\'))}" class="embed-hide rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
 
@@ -1849,14 +1632,14 @@ def render_page_html(
       {kpis_cards}
     </div>
 
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
       <div class="mt-3">{trend_svg}</div>
     </div>
 
-    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
         <table class="mt-3 w-full text-sm">
           <thead class="text-xs text-slate-500">
             <tr>
