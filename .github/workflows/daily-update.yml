@@ -322,7 +322,7 @@ jobs:
       # =========================================================
       # (UPDATED) OWNED Campaign Portal (EDM/LMS/KAKAO → products)
       # - schedule(자동): 전날 1일치만 생성/갱신
-      # - dispatch owned_backfill=true: 2025-01-01 ~ 전날 전체 백필
+      # - dispatch owned_backfill=true: 2025-01-01 ~ 전날 전체 백필 (overwrite)
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
@@ -348,13 +348,14 @@ jobs:
           mkdir -p reports/owned_portal
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
-            echo "[INFO] OWNED backfill: 2025-01-01 ~ ${YMD}"
+            echo "[INFO] OWNED backfill: 2025-01-01 ~ ${YMD} (overwrite)"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
               --start "2025-01-01" \
               --end "${YMD}" \
-              --site-dir reports/owned_portal
+              --site-dir reports/owned_portal \
+              --overwrite
           else
             echo "[INFO] OWNED daily incremental: ${YMD} only"
             python -u build_owned_campaign_portal.py \
