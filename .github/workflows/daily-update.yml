@@ -134,6 +134,10 @@ jobs:
           GA4_START_DATE: ${{ vars.GA4_START_DATE }}
           GA4_END_DATE: ${{ vars.GA4_END_DATE }}
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
+
+          # ✅ NEW: 기존 HTML이 있어도 다시 렌더링(덮어쓰기) + 허브도 덮어쓰기
+          DAILY_DIGEST_SKIP_IF_EXISTS: "false"
+          DAILY_DIGEST_FORCE_HUB_OVERWRITE: "true"
         run: |
           set -euo pipefail
 
