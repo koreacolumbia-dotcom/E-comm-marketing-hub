@@ -1,257 +1,303 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-OWNED Campaign Portal Builder (FINAL)
+OWNED Campaign → Product Performance Portal (GA4 BigQuery Export)
 
-What this script does
-- Pulls GA4 BigQuery Export data for a date range
-- Builds daily JSON bundles:
-    <site_dir>/data/owned/owned_YYYY-MM-DD.json
-  each containing:
-    { date, kpi:[...], prod:[...] }
-- Generates/updates:
-    <site_dir>/data/owned/available_dates.json
-- (Optional) Writes portal index.html (range-aggregate UI)
+What it does
+- Pulls performance + purchased products by send_id (campaign/term/source) from GA4 BigQuery export
+- Writes per-day JSON files:
+    <site-dir>/data/owned/owned_YYYY-MM-DD.json
+    <site-dir>/data/owned/available_dates.json
+- (Optional) Writes <site-dir>/index.html (static portal)
 
-Recommended operations
-1) One-time backfill (from 2025-01-01 to yesterday, KST)
-2) Daily incremental (yesterday only) via GitHub Actions at KST 06:00
-
-Requirements
-- python >= 3.10
-- pip install google-cloud-bigquery pandas pyarrow
+Designed for:
+- One-time backfill (e.g., 2025-01-01 ~ yesterday)
+- Daily incremental (yesterday only), via GitHub Actions
 
 Auth
-- Prefer GOOGLE_APPLICATION_CREDENTIALS pointing to a service account json file, OR
-- Provide GOOGLE_SA_JSON_B64 (base64-encoded SA json) and set it to /tmp/ga_sa.json in CI before running.
+- Uses GOOGLE_APPLICATION_CREDENTIALS (recommended)
+- Or set GOOGLE_SA_JSON_B64 and this script will write /tmp/ga_sa.json
 
-Notes
-- Users metric is range-summed (not deduplicated across days) when you aggregate in the UI.
+Requirements
+  pip install google-cloud-bigquery pandas pyarrow db-dtypes
+
+Usage examples
+  # Backfill
+  python build_owned_campaign_portal.py --project columbia-ga4 --dataset analytics_358593394 \
+    --start 2025-01-01 --end 2026-02-25 --site-dir reports/owned_portal --overwrite --write-index
+
+  # Daily incremental (yesterday only)
+  python build_owned_campaign_portal.py --project columbia-ga4 --dataset analytics_358593394 \
+    --start 2026-02-25 --end 2026-02-25 --site-dir reports/owned_portal
 """
 
-from __future__ import annotations
-
-import argparse
-import base64
-import json
 import os
 import re
-import sys
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+import json
+import base64
+import argparse
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 
 import pandas as pd
 from google.cloud import bigquery
 
-
 KST = timezone(timedelta(hours=9))
 
 
-# -------------------------
-# Helpers
-# -------------------------
-def die(msg: str, code: int = 1) -> None:
-    print(f"[ERROR] {msg}", file=sys.stderr)
-    raise SystemExit(code)
+# ----------------------------
+# Time helpers
+# ----------------------------
+def kst_today() -> date:
+    return datetime.now(tz=KST).date()
 
 
-def ensure_dir(p: Path) -> None:
-    p.mkdir(parents=True, exist_ok=True)
+def kst_yesterday() -> date:
+    return kst_today() - timedelta(days=1)
+
+
+def parse_ymd(s: str) -> date:
+    return datetime.strptime(s, "%Y-%m-%d").date()
 
 
 def ymd(d: date) -> str:
     return d.strftime("%Y-%m-%d")
 
 
-def ymd_to_suffix(s: str) -> str:
-    # YYYY-MM-DD -> YYYYMMDD
-    return s.replace("-", "")
+def ymd_suffix(d: date) -> str:
+    return d.strftime("%Y%m%d")
 
 
-def parse_ymd(s: str) -> date:
-    try:
-        return datetime.strptime(s, "%Y-%m-%d").date()
-    except Exception:
-        die(f"Invalid date: {s} (expected YYYY-MM-DD)")
-
-
-def daterange(start: date, end: date) -> Iterable[date]:
+def daterange(start: date, end: date) -> List[date]:
+    out: List[date] = []
     cur = start
     while cur <= end:
-        yield cur
+        out.append(cur)
         cur += timedelta(days=1)
+    return out
 
 
+# ----------------------------
+# Auth helper
+# ----------------------------
+def maybe_write_sa_from_b64() -> None:
+    b64 = (os.getenv("GOOGLE_SA_JSON_B64") or "").strip()
+    if not b64:
+        return
+    p = Path("/tmp/ga_sa.json")
+    p.write_bytes(base64.b64decode(b64))
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(p)
+
+
+# ----------------------------
+# BigQuery SQL
+# ----------------------------
+def build_sql(table_fq: str, start_suffix: str, end_suffix: str) -> str:
+    """
+    Verified mapping (based on your BQ test runs):
+      send_id = COALESCE(event_params['campaign'], event_params['term'], traffic_source.source)
+
+    Revenue / items_purchased:
+      Use UNNEST(items) + SUM(item_revenue), SUM(quantity)
+      (matches your validated CSV output)
+
+    Notes:
+    - We exclude "(direct)/(none)/(not set)"-style send_id so it doesn't pollute the portal.
+    """
+    return f"""
+DECLARE start_suffix STRING DEFAULT '{start_suffix}';
+DECLARE end_suffix   STRING DEFAULT '{end_suffix}';
+
+WITH base AS (
+  SELECT
+    PARSE_DATE('%Y%m%d', event_date) AS date,
+    event_name,
+    user_pseudo_id,
+    traffic_source.source AS ts_source,
+    traffic_source.medium AS ts_medium,
+
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='campaign') AS p_campaign,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='term')     AS p_term,
+
+    ecommerce.transaction_id AS transaction_id,
+    items
+  FROM {table_fq}
+  WHERE _TABLE_SUFFIX BETWEEN start_suffix AND end_suffix
+),
+
+norm AS (
+  SELECT
+    date,
+    event_name,
+    user_pseudo_id,
+
+    COALESCE(NULLIF(p_campaign,''), NULLIF(p_term,''), NULLIF(ts_source,'')) AS send_id,
+    ts_source,
+    ts_medium,
+    transaction_id,
+    items
+  FROM base
+),
+
+owned AS (
+  SELECT
+    date,
+    event_name,
+    user_pseudo_id,
+    send_id,
+
+    CASE
+      WHEN UPPER(send_id) LIKE 'KAKAO%' OR UPPER(ts_source) LIKE 'KAKAO%' OR UPPER(ts_medium) LIKE 'KAKAO%' THEN 'KAKAO'
+      WHEN UPPER(send_id) LIKE 'LMS%'   OR UPPER(ts_source) LIKE 'LMS%'   OR UPPER(ts_medium) LIKE 'LMS%'   THEN 'LMS'
+      ELSE 'EDM'
+    END AS channel,
+
+    transaction_id,
+    items
+  FROM norm
+  WHERE
+    send_id IS NOT NULL
+    AND NOT REGEXP_CONTAINS(send_id, r'^\\(.*\\)$')  -- (direct)/(none)/(not set) 방지
+),
+
+kpi_core AS (
+  SELECT
+    date,
+    channel,
+    send_id,
+    COUNTIF(event_name='session_start') AS sessions,
+    COUNT(DISTINCT IF(event_name='session_start', user_pseudo_id, NULL)) AS users,
+    COUNT(DISTINCT IF(event_name='purchase', transaction_id, NULL)) AS purchases
+  FROM owned
+  GROUP BY date, channel, send_id
+),
+
+rev AS (
+  SELECT
+    o.date,
+    o.channel,
+    o.send_id,
+    SUM(IFNULL(it.quantity, 0)) AS items_purchased,
+    SUM(IFNULL(it.item_revenue, 0)) AS revenue
+  FROM owned o,
+  UNNEST(o.items) AS it
+  WHERE o.event_name = 'purchase'
+  GROUP BY o.date, o.channel, o.send_id
+),
+
+kpi AS (
+  SELECT
+    k.date,
+    k.channel,
+    k.send_id,
+    k.sessions,
+    k.users,
+    k.purchases,
+    IFNULL(r.revenue, 0) AS revenue,
+    IFNULL(r.items_purchased, 0) AS items_purchased
+  FROM kpi_core k
+  LEFT JOIN rev r
+    ON k.date = r.date AND k.channel = r.channel AND k.send_id = r.send_id
+),
+
+prod AS (
+  SELECT
+    o.date,
+    o.channel,
+    o.send_id,
+    it.item_id AS item_id,
+    it.item_name AS item_name,
+    SUM(IFNULL(it.quantity, 0)) AS prod_items,
+    SUM(IFNULL(it.item_revenue, 0)) AS prod_revenue
+  FROM owned o,
+  UNNEST(o.items) AS it
+  WHERE o.event_name='purchase'
+  GROUP BY o.date, o.channel, o.send_id, item_id, item_name
+)
+
+SELECT
+  'kpi' AS row_type,
+  CAST(k.date AS STRING) AS date,
+  k.channel,
+  k.send_id,
+  NULL AS item_id,
+  NULL AS item_name,
+  NULL AS prod_items,
+  NULL AS prod_revenue,
+  k.sessions,
+  k.users,
+  k.purchases,
+  k.revenue AS kpi_revenue,
+  k.items_purchased
+FROM kpi k
+
+UNION ALL
+
+SELECT
+  'prod' AS row_type,
+  CAST(p.date AS STRING) AS date,
+  p.channel,
+  p.send_id,
+  p.item_id,
+  p.item_name,
+  p.prod_items,
+  p.prod_revenue,
+  NULL AS sessions,
+  NULL AS users,
+  NULL AS purchases,
+  NULL AS kpi_revenue,
+  NULL AS items_purchased
+FROM prod p
+;
+"""
+
+
+# ----------------------------
+# JSON writers
+# ----------------------------
 def scan_existing_owned_dates(out_dir: Path) -> List[str]:
     if not out_dir.exists():
         return []
     dates: List[str] = []
     for p in out_dir.glob("owned_????-??-??.json"):
-        m = re.match(r"owned_(\d{4}-\d{2}-\d{2})\.json$", p.name)
+        m = re.match(r"owned_(\\d{4}-\\d{2}-\\d{2})\\.json$", p.name)
         if m:
             dates.append(m.group(1))
     return sorted(set(dates))
 
 
-def write_json(path: Path, obj: dict) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2)
-    tmp.replace(path)
-
-
 def write_available_dates(out_dir: Path, dates: List[str]) -> None:
-    ensure_dir(out_dir)
-    write_json(out_dir / "available_dates.json", {"available_dates": sorted(dates)})
+    out_dir.mkdir(parents=True, exist_ok=True)
+    p = out_dir / "available_dates.json"
+    p.write_text(json.dumps({"available_dates": dates}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def classify_channel(source: str, medium: str, send_id: str) -> str:
-    su = (source or "").upper()
-    mu = (medium or "").upper()
-    sid = (send_id or "").upper()
-
-    # KAKAO: usually shows up in source/medium or send_id
-    if su.startswith("KAKAO") or mu.startswith("KAKAO") or "KAKAO" in sid:
-        return "KAKAO"
-    # LMS: often embedded in send_id
-    if "LMS" in sid:
-        return "LMS"
-    # Default: EDM bucket (includes CRM/Email/Newsletter/etc.)
-    return "EDM"
+def write_daily_json(out_dir: Path, day: str, kpi_rows: List[Dict[str, Any]], prod_rows: List[Dict[str, Any]], overwrite: bool) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    p = out_dir / f"owned_{day}.json"
+    if p.exists() and not overwrite:
+        return
+    payload = {
+        "date": day,
+        "kpi": kpi_rows,
+        "prod": prod_rows,
+    }
+    p.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-# -------------------------
-# BigQuery
-# -------------------------
-@dataclass
-class BQConfig:
-    table_wildcard: str
-    start_suffix: str
-    end_suffix: str
-
-
-def bq_client() -> bigquery.Client:
-    return bigquery.Client()
-
-
-def query_kpi_with_revenue(cfg: BQConfig) -> pd.DataFrame:
-    sql = f"""
-    WITH base AS (
-      SELECT
-        PARSE_DATE('%Y%m%d', event_date) AS date,
-        traffic_source.source AS source,
-        traffic_source.medium AS medium,
-        COALESCE(
-          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='campaign'),
-          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='term'),
-          traffic_source.source
-        ) AS send_id,
-        user_pseudo_id,
-        event_name
-      FROM `{cfg.table_wildcard}`
-      WHERE _TABLE_SUFFIX BETWEEN @start_suffix AND @end_suffix
-    ),
-    kpi AS (
-      SELECT
-        date, source, medium, send_id,
-        COUNTIF(event_name='session_start') AS sessions,
-        COUNT(DISTINCT user_pseudo_id) AS users,
-        COUNTIF(event_name='purchase') AS purchases
-      FROM base
-      WHERE send_id IS NOT NULL
-      GROUP BY 1,2,3,4
-    ),
-    rev AS (
-      SELECT
-        PARSE_DATE('%Y%m%d', event_date) AS date,
-        traffic_source.source AS source,
-        traffic_source.medium AS medium,
-        COALESCE(
-          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='campaign'),
-          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='term'),
-          traffic_source.source
-        ) AS send_id,
-        SUM(item.item_revenue) AS revenue,
-        SUM(item.quantity) AS items_purchased
-      FROM `{cfg.table_wildcard}`, UNNEST(items) AS item
-      WHERE _TABLE_SUFFIX BETWEEN @start_suffix AND @end_suffix
-        AND event_name='purchase'
-      GROUP BY 1,2,3,4
-    )
-    SELECT
-      kpi.date,
-      kpi.source,
-      kpi.medium,
-      kpi.send_id,
-      kpi.sessions,
-      kpi.users,
-      kpi.purchases,
-      IFNULL(rev.revenue, 0) AS revenue,
-      IFNULL(rev.items_purchased, 0) AS items_purchased
-    FROM kpi
-    LEFT JOIN rev
-      ON kpi.date=rev.date AND kpi.send_id=rev.send_id AND kpi.source=rev.source AND kpi.medium=rev.medium
-    ORDER BY 1;
-    """
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("start_suffix", "STRING", cfg.start_suffix),
-            bigquery.ScalarQueryParameter("end_suffix", "STRING", cfg.end_suffix),
-        ]
-    )
-    print("[BQ] KPI+Revenue query running...")
-    df = bq_client().query(sql, job_config=job_config).to_dataframe(create_bqstorage_client=True)
-    print(f"[BQ] KPI+Revenue rows: {len(df):,}")
-    return df
-
-
-def query_products(cfg: BQConfig) -> pd.DataFrame:
-    sql = f"""
-    WITH base AS (
-      SELECT
-        PARSE_DATE('%Y%m%d', event_date) AS date,
-        traffic_source.source AS source,
-        traffic_source.medium AS medium,
-        COALESCE(
-          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='campaign'),
-          (SELECT value.string_value FROM UNNEST(event_params) WHERE key='term'),
-          traffic_source.source
-        ) AS send_id,
-        item.item_id AS item_id,
-        item.item_name AS item_name,
-        item.quantity AS quantity,
-        item.item_revenue AS item_revenue
-      FROM `{cfg.table_wildcard}`, UNNEST(items) AS item
-      WHERE _TABLE_SUFFIX BETWEEN @start_suffix AND @end_suffix
-        AND event_name='purchase'
-    )
-    SELECT
-      date, source, medium, send_id, item_id, item_name,
-      SUM(quantity) AS prod_items,
-      SUM(item_revenue) AS prod_revenue
-    FROM base
-    WHERE send_id IS NOT NULL
-    GROUP BY 1,2,3,4,5,6
-    ORDER BY 1;
-    """
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("start_suffix", "STRING", cfg.start_suffix),
-            bigquery.ScalarQueryParameter("end_suffix", "STRING", cfg.end_suffix),
-        ]
-    )
-    print("[BQ] Products query running...")
-    df = bq_client().query(sql, job_config=job_config).to_dataframe(create_bqstorage_client=True)
-    print(f"[BQ] Products rows: {len(df):,}")
-    return df
-
-
-# -------------------------
+# ----------------------------
 # HTML (optional)
-# -------------------------
-INDEX_HTML = r"""<!doctype html>
+# ----------------------------
+def build_index_html_range() -> str:
+    """
+    Range-based portal UI:
+    - Reads data/owned/available_dates.json
+    - Lets user select date range (From/To) and aggregates daily JSONs in-browser
+    """
+    # This is the exact HTML you were using in the earlier range patch (with the "no-data clears UI" fix included).
+    return r"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -535,7 +581,7 @@ INDEX_HTML = r"""<!doctype html>
       </div>
 
       <div class="muted font-semibold text-xs mt-3">
-        데이터: GA4 BigQuery Export (daily JSON) · send_id = campaign/term/source 우선순위
+        데이터: GA4 BigQuery Export (daily JSON) · send_id: campaign/term/source COALESCE · purchase 기준 상품 집계
       </div>
     </div>
   </div>
@@ -609,10 +655,28 @@ INDEX_HTML = r"""<!doctype html>
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
   let CHANNEL = 'ALL';
-  let RAW = null;      // {range:{start,end,dates}, kpi:[], prod:[]}
+
+  let RAW = null;      // aggregated range result
   let KPI = [];
   let SELECTED = null; // {channel, send_id}
   let AVAILABLE = null; // [YYYY-MM-DD...]
+
+  function clearAllUI(rangeText){
+    RAW = null;
+    KPI = [];
+    SELECTED = null;
+
+    kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
+    kSessionsSub.textContent = rangeText || '-';
+    kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
+
+    selChannel.textContent='-';
+    selSendId.textContent='-';
+    selRange.textContent = rangeText || '-';
+
+    campaignWrap.innerHTML = '';
+    tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 기간 데이터가 없어.</td></tr>`;
+  }
 
   function setChipActive(){
     [chipAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
@@ -620,16 +684,6 @@ INDEX_HTML = r"""<!doctype html>
     if(CHANNEL==='EDM') chipEDM.classList.add('active');
     if(CHANNEL==='LMS') chipLMS.classList.add('active');
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
-  }
-
-  function clearAllUI(rangeText){
-    RAW = null; KPI = []; SELECTED = null;
-    kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
-    kSessionsSub.textContent = rangeText || '-';
-    kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
-    selChannel.textContent='-'; selSendId.textContent='-'; selRange.textContent = rangeText || '-';
-    campaignWrap.innerHTML = '';
-    tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 기간 데이터가 없어.</td></tr>`;
   }
 
   function filterKPI(){
@@ -648,6 +702,7 @@ INDEX_HTML = r"""<!doctype html>
       campaignWrap.innerHTML = `<div class="muted font-semibold text-sm">캠페인이 없거나(또는 필터가 너무 좁아) 결과가 없어.</div>`;
       return;
     }
+
     const limit = Math.max(1, parseInt(topN.value||'30',10));
     const rows = KPI.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
 
@@ -669,9 +724,8 @@ INDEX_HTML = r"""<!doctype html>
 
   function aggregateKPIForSelected(){
     if(!SELECTED || !RAW){
-      kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
-      kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
-      selChannel.textContent='-'; selSendId.textContent='-'; selRange.textContent='-';
+      clearAllUI(selRange.textContent||'-');
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">캠페인을 선택하면 상품 리스트가 표시돼.</td></tr>`;
       return;
     }
     const row = RAW.kpi.find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
@@ -710,6 +764,7 @@ INDEX_HTML = r"""<!doctype html>
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">캠페인을 선택하면 상품 리스트가 표시돼.</td></tr>`;
       return;
     }
+
     const rows = RAW.prod
       .filter(r=> r.channel===SELECTED.channel && r.send_id===SELECTED.send_id)
       .slice()
@@ -739,9 +794,10 @@ INDEX_HTML = r"""<!doctype html>
 
   function getDatesInRange(startYMD, endYMD){
     if(!AVAILABLE || !AVAILABLE.length) return [];
+    const s = startYMD, e = endYMD;
     const out = [];
     for(const d of AVAILABLE){
-      if(d >= startYMD && d <= endYMD) out.push(d);
+      if(d >= s && d <= e) out.push(d);
     }
     return out;
   }
@@ -764,8 +820,13 @@ INDEX_HTML = r"""<!doctype html>
       for(const r of (day.kpi||[])){
         const key = `${r.channel}||${r.send_id}`;
         const cur = kMap.get(key) || {
-          channel: r.channel, send_id: r.send_id,
-          sessions: 0, users: 0, purchases: 0, revenue: 0, items_purchased: 0,
+          channel: r.channel,
+          send_id: r.send_id,
+          sessions: 0,
+          users: 0,
+          purchases: 0,
+          revenue: 0,
+          items_purchased: 0,
         };
         cur.sessions += normalizeNumber(r.sessions);
         cur.users += normalizeNumber(r.users);
@@ -781,9 +842,12 @@ INDEX_HTML = r"""<!doctype html>
       for(const r of (day.prod||[])){
         const key = `${r.channel}||${r.send_id}||${r.item_id}||${r.item_name}`;
         const cur = pMap.get(key) || {
-          channel: r.channel, send_id: r.send_id,
-          item_id: r.item_id, item_name: r.item_name,
-          prod_items: 0, prod_revenue: 0,
+          channel: r.channel,
+          send_id: r.send_id,
+          item_id: r.item_id,
+          item_name: r.item_name,
+          prod_items: 0,
+          prod_revenue: 0,
         };
         cur.prod_items += normalizeNumber(r.prod_items);
         cur.prod_revenue += normalizeNumber(r.prod_revenue);
@@ -812,25 +876,22 @@ INDEX_HTML = r"""<!doctype html>
       return;
     }
     if(startYMD > endYMD){
-      const rt = `${startYMD} ~ ${endYMD}`;
       showNotice('From 날짜가 To보다 뒤야. 날짜를 바꿔줘.');
-      clearAllUI(rt);
+      clearAllUI(`${startYMD} ~ ${endYMD}`);
       return;
     }
 
     const days = getDatesInRange(startYMD, endYMD);
     if(!days.length){
-      const rt = `${startYMD} ~ ${endYMD}`;
-      showNotice(`선택한 기간에 데이터 파일이 없어. (${rt})`);
-      clearAllUI(rt);
+      const rangeText = `${startYMD} ~ ${endYMD}`;
+      showNotice(`선택한 기간에 데이터 파일이 없어. (${rangeText})`);
+      clearAllUI(rangeText);
       return;
     }
 
-    // Safety: very long ranges can be heavy
-    if(days.length > 800){
-      showNotice(`기간이 너무 길어(${days.length}일) 브라우저가 느려질 수 있어. 기간을 줄여줘.`);
-      const rt = `${startYMD} ~ ${endYMD}`;
-      clearAllUI(rt);
+    if(days.length > 180){
+      showNotice(`기간이 너무 길어(${days.length}일) 브라우저가 느려질 수 있어. 180일 이하로 줄여줘.`);
+      clearAllUI(`${startYMD} ~ ${endYMD}`);
       return;
     }
 
@@ -902,6 +963,7 @@ INDEX_HTML = r"""<!doctype html>
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
+  noticeClose.addEventListener('click', hideNotice);
 
   (async function init(){
     setChipActive();
@@ -925,140 +987,161 @@ INDEX_HTML = r"""<!doctype html>
 """
 
 
-def maybe_write_index(site_dir: Path, enabled: bool) -> None:
-    if not enabled:
-        return
-    ensure_dir(site_dir)
-    out = site_dir / "index.html"
-    out.write_text(INDEX_HTML, encoding="utf-8")
-    print(f"[OK] Wrote index.html: {out.resolve()}")
-
-
-# -------------------------
+# ----------------------------
 # Main build
-# -------------------------
-def build_daily_jsons(
-    site_dir: Path,
-    table_wildcard: str,
-    start_date: str,
-    end_date: str,
-    overwrite: bool,
-) -> None:
-    out_dir = site_dir / "data" / "owned"
-    ensure_dir(out_dir)
+# ----------------------------
+def run_query(client: bigquery.Client, sql: str) -> pd.DataFrame:
+    job = client.query(sql)
+    return job.result().to_dataframe(create_bqstorage_client=False)
 
-    cfg = BQConfig(
-        table_wildcard=table_wildcard,
-        start_suffix=ymd_to_suffix(start_date),
-        end_suffix=ymd_to_suffix(end_date),
-    )
 
-    df_kpi = query_kpi_with_revenue(cfg)
-    df_prod = query_products(cfg)
+def split_rows(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    kpi = df[df["row_type"] == "kpi"].copy()
+    prod = df[df["row_type"] == "prod"].copy()
+    return kpi, prod
 
-    if df_kpi.empty and df_prod.empty:
-        print("[WARN] Both KPI and product queries returned 0 rows. Will still write available_dates.json from existing files.")
-        existing = scan_existing_owned_dates(out_dir)
-        write_available_dates(out_dir, existing)
-        return
 
-    # Normalize dtypes
-    for col in ["date"]:
-        if col in df_kpi.columns:
-            df_kpi[col] = pd.to_datetime(df_kpi[col]).dt.date
-        if col in df_prod.columns:
-            df_prod[col] = pd.to_datetime(df_prod[col]).dt.date
+def build_day_payloads(kpi_df: pd.DataFrame, prod_df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
+    """
+    Returns dict keyed by YYYY-MM-DD:
+      { "2026-02-25": {"kpi":[...], "prod":[...]} }
+    """
+    out: Dict[str, Dict[str, Any]] = {}
 
-    # Add channel in python
-    if not df_kpi.empty:
-        df_kpi["channel"] = df_kpi.apply(lambda r: classify_channel(r.get("source",""), r.get("medium",""), r.get("send_id","")), axis=1)
-        df_kpi = df_kpi.groupby(["date","channel","send_id"], as_index=False)[
-            ["sessions","users","purchases","revenue","items_purchased"]
-        ].sum()
-
-    if not df_prod.empty:
-        df_prod["channel"] = df_prod.apply(lambda r: classify_channel(r.get("source",""), r.get("medium",""), r.get("send_id","")), axis=1)
-        df_prod = df_prod.groupby(["date","channel","send_id","item_id","item_name"], as_index=False)[
-            ["prod_items","prod_revenue"]
-        ].sum()
-
-    start_d = parse_ymd(start_date)
-    end_d = parse_ymd(end_date)
-
-    wrote = 0
-    for d in daterange(start_d, end_d):
-        d_str = ymd(d)
-        out_path = out_dir / f"owned_{d_str}.json"
-        if out_path.exists() and not overwrite:
-            continue
-
-        k_rows: List[dict] = []
-        p_rows: List[dict] = []
-
-        if not df_kpi.empty:
-            sub = df_kpi[df_kpi["date"] == d]
-            for _, r in sub.iterrows():
-                k_rows.append({
+    if not kpi_df.empty:
+        for day, g in kpi_df.groupby("date"):
+            rows = []
+            for _, r in g.iterrows():
+                rows.append({
                     "channel": str(r["channel"]),
                     "send_id": str(r["send_id"]),
-                    "sessions": float(r["sessions"]),
-                    "users": float(r["users"]),
-                    "purchases": float(r["purchases"]),
-                    "revenue": float(r["revenue"]),
-                    "items_purchased": float(r["items_purchased"]),
+                    "sessions": int(r["sessions"] or 0),
+                    "users": int(r["users"] or 0),
+                    "purchases": int(r["purchases"] or 0),
+                    "revenue": float(r["kpi_revenue"] or 0),
+                    "items_purchased": float(r["items_purchased"] or 0),
                 })
+            out.setdefault(day, {})["kpi"] = rows
 
-        if not df_prod.empty:
-            subp = df_prod[df_prod["date"] == d]
-            for _, r in subp.iterrows():
-                p_rows.append({
+    if not prod_df.empty:
+        for day, g in prod_df.groupby("date"):
+            rows = []
+            for _, r in g.iterrows():
+                rows.append({
                     "channel": str(r["channel"]),
                     "send_id": str(r["send_id"]),
-                    "item_id": None if pd.isna(r["item_id"]) else str(r["item_id"]),
-                    "item_name": None if pd.isna(r["item_name"]) else str(r["item_name"]),
-                    "prod_items": float(r["prod_items"]),
-                    "prod_revenue": float(r["prod_revenue"]),
+                    "item_id": "" if pd.isna(r["item_id"]) else str(r["item_id"]),
+                    "item_name": "" if pd.isna(r["item_name"]) else str(r["item_name"]),
+                    "prod_items": float(r["prod_items"] or 0),
+                    "prod_revenue": float(r["prod_revenue"] or 0),
                 })
+            out.setdefault(day, {})["prod"] = rows
 
-        payload = {
-            "date": d_str,
-            "kpi": k_rows,
-            "prod": p_rows,
-        }
-        write_json(out_path, payload)
-        wrote += 1
+    # Ensure keys exist
+    for day in list(out.keys()):
+        out[day].setdefault("kpi", [])
+        out[day].setdefault("prod", [])
 
-    existing = scan_existing_owned_dates(out_dir)
-    write_available_dates(out_dir, existing)
-
-    print(f"[OK] Wrote/updated daily JSONs: {wrote} files")
-    print(f"[OK] available_dates.json days={len(existing)} -> { (out_dir / 'available_dates.json').resolve() }")
+    return out
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--site-dir", default="reports/owned_portal", help="Output site directory (default: reports/owned_portal)")
-    ap.add_argument("--table", default="columbia-ga4.analytics_358593394.events_*", help="GA4 BigQuery Export table wildcard, e.g. project.dataset.events_*")
-    ap.add_argument("--start", required=True, help="Start date YYYY-MM-DD")
-    ap.add_argument("--end", required=True, help="End date YYYY-MM-DD")
-    ap.add_argument("--overwrite", action="store_true", help="Overwrite existing owned_YYYY-MM-DD.json files")
-    ap.add_argument("--write-index", action="store_true", help="Also write site/index.html (range UI)")
+    ap.add_argument("--project", default="", help="BigQuery project id (for events_* table)")
+    ap.add_argument("--dataset", default="", help="BigQuery dataset id (for events_* table)")
+    ap.add_argument("--table", default="", help="Full table wildcard (optional), e.g. `proj.ds.events_*`")
+
+    ap.add_argument("--start", default="", help="YYYY-MM-DD (inclusive)")
+    ap.add_argument("--end", default="", help="YYYY-MM-DD (inclusive)")
+    ap.add_argument("--recent-days", type=int, default=0, help="If start/end omitted, fetch last N days ending yesterday(KST)")
+
+    ap.add_argument("--site-dir", default="reports/owned_portal", help="Output site dir (contains index.html, data/owned/*)")
+    ap.add_argument("--overwrite", action="store_true", help="Overwrite existing owned_YYYY-MM-DD.json")
+    ap.add_argument("--write-index", action="store_true", help="Write/overwrite index.html (range UI)")
+
     args = ap.parse_args()
 
-    site_dir = Path(args.site_dir)
-    s = parse_ymd(args.start)
-    e = parse_ymd(args.end)
-    if s > e:
-        die("start must be <= end")
+    maybe_write_sa_from_b64()
 
-    maybe_write_index(site_dir, args.write_index)
-    build_daily_jsons(
-        site_dir=site_dir,
-        table_wildcard=args.table,
-        start_date=args.start,
-        end_date=args.end,
-        overwrite=args.overwrite,
-    )
+    site_dir = Path(args.site_dir)
+    data_dir = site_dir / "data" / "owned"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resolve table fq
+    if args.table.strip():
+        table_fq = args.table.strip()
+        if not (table_fq.startswith("`") and table_fq.endswith("`")):
+            table_fq = f"`{table_fq.strip('`')}`"
+    else:
+        if not args.project or not args.dataset:
+            raise SystemExit("[ERROR] Provide --table or (--project and --dataset).")
+        table_fq = f"`{args.project}.{args.dataset}.events_*`"
+
+    # Resolve date range
+    if args.start and args.end:
+        start_d = parse_ymd(args.start)
+        end_d = parse_ymd(args.end)
+    elif args.recent_days and args.recent_days > 0:
+        end_d = kst_yesterday()
+        start_d = end_d - timedelta(days=args.recent_days - 1)
+    else:
+        # safe default: last 7 days ending yesterday
+        end_d = kst_yesterday()
+        start_d = end_d - timedelta(days=6)
+
+    if start_d > end_d:
+        raise SystemExit("[ERROR] start > end.")
+
+    start_suf = ymd_suffix(start_d)
+    end_suf = ymd_suffix(end_d)
+
+    print(f"[INFO] Table: {table_fq}")
+    print(f"[INFO] Range: {ymd(start_d)} ~ {ymd(end_d)}  (suffix {start_suf} ~ {end_suf})")
+    print(f"[INFO] Out: {data_dir.resolve()}")
+
+    client = bigquery.Client()
+
+    sql = build_sql(table_fq, start_suf, end_suf)
+    df = run_query(client, sql)
+
+    if df.empty:
+        print("[WARN] Query returned 0 rows. Will still refresh available_dates.json.")
+        dates = scan_existing_owned_dates(data_dir)
+        write_available_dates(data_dir, dates)
+        if args.write_index:
+            (site_dir / "index.html").write_text(build_index_html_range(), encoding="utf-8")
+        print(f"[OK] available_dates.json refreshed (days={len(dates)})")
+        return
+
+    kpi_df, prod_df = split_rows(df)
+    day_payloads = build_day_payloads(kpi_df, prod_df)
+
+    # Write per-day JSON
+    for day in sorted(day_payloads.keys()):
+        write_daily_json(
+            out_dir=data_dir,
+            day=day,
+            kpi_rows=day_payloads[day].get("kpi", []),
+            prod_rows=day_payloads[day].get("prod", []),
+            overwrite=args.overwrite,
+        )
+
+    # Refresh available_dates
+    dates = scan_existing_owned_dates(data_dir)
+    write_available_dates(data_dir, dates)
+    print(f"[OK] Wrote {len(day_payloads)} daily JSON(s). available_dates={len(dates)}")
+
+    # Optional index
+    if args.write_index:
+        (site_dir / "index.html").write_text(build_index_html_range(), encoding="utf-8")
+        # pages friendly
+        (site_dir / ".nojekyll").write_text("", encoding="utf-8")
+        print(f"[OK] index.html written: {(site_dir / 'index.html').resolve()}")
+
+    # quick preview
+    print("[INFO] Sample files:")
+    for p in sorted(data_dir.glob("owned_*.json"))[-5:]:
+        print(" -", p.name)
 
 
 if __name__ == "__main__":
