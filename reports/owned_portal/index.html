@@ -189,9 +189,17 @@
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <div class="small-label">Date</div>
-        <div class="w-[160px]"><input id="datePicker" type="date" /></div>
+
+        <!-- ✅ Range pickers -->
+        <div class="w-[160px]"><input id="startPicker" type="date" /></div>
+        <div class="text-slate-400 font-black">~</div>
+        <div class="w-[160px]"><input id="endPicker" type="date" /></div>
+
+        <button id="btnApply" class="btn btn-primary" type="button">적용</button>
         <button id="btnPrev" class="btn" type="button">◀</button>
         <button id="btnNext" class="btn" type="button">▶</button>
+        <button id="btn7d" class="btn" type="button">최근 7일</button>
+        <button id="btn30d" class="btn" type="button">최근 30일</button>
         <button id="btnToday" class="btn" type="button">오늘</button>
 
         <div class="ml-2 small-label">Channel</div>
@@ -252,7 +260,11 @@
       <!-- Products -->
       <div class="flex items-center gap-2 mb-2">
         <div class="small-label">Products</div>
-        <div id="selMeta" class="pill"><span class="mono" id="selChannel">-</span> · <span class="mono" id="selSendId">-</span></div>
+        <div id="selMeta" class="pill">
+          <span class="mono" id="selChannel">-</span> · <span class="mono" id="selSendId">-</span>
+          <span class="text-slate-400 font-black">·</span>
+          <span class="mono" id="selRange">-</span>
+        </div>
       </div>
 
       <div class="overflow-auto rounded-[18px]">
@@ -272,7 +284,7 @@
       </div>
 
       <div class="muted font-semibold text-xs mt-3">
-        데이터: GA4 BigQuery Export · send_id 규칙: KAKAO=term, EDM/LMS=campaign · purchase 기준 상품 집계
+        데이터: GA4 BigQuery Export (daily JSON) · send_id 규칙: KAKAO=term, EDM/LMS=campaign · purchase 기준 상품 집계
       </div>
     </div>
   </div>
@@ -286,9 +298,13 @@
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
   noticeClose.addEventListener('click', hideNotice);
 
-  const datePicker = document.getElementById('datePicker');
+  const startPicker = document.getElementById('startPicker');
+  const endPicker   = document.getElementById('endPicker');
+  const btnApply = document.getElementById('btnApply');
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
+  const btn7d = document.getElementById('btn7d');
+  const btn30d = document.getElementById('btn30d');
   const btnToday = document.getElementById('btnToday');
   const btnReload = document.getElementById('btnReload');
 
@@ -315,6 +331,7 @@
 
   const selChannel = document.getElementById('selChannel');
   const selSendId = document.getElementById('selSendId');
+  const selRange = document.getElementById('selRange');
 
   function fmt(n){
     if(n === null || n === undefined) return '-';
@@ -341,7 +358,9 @@
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
   let CHANNEL = 'ALL';
-  let RAW = null;      // {date, kpi:[], prod:[]}
+
+  // ✅ RAW now holds aggregated range result
+  let RAW = null;      // {range:{start,end,dates}, kpi:[], prod:[]}
   let KPI = [];
   let SELECTED = null; // {channel, send_id}
   let AVAILABLE = null; // [YYYY-MM-DD...]
@@ -394,7 +413,7 @@
     if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
-      selChannel.textContent='-'; selSendId.textContent='-';
+      selChannel.textContent='-'; selSendId.textContent='-'; selRange.textContent='-';
       return;
     }
     const row = RAW.kpi.find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
@@ -416,14 +435,17 @@
     const aov = purchases ? (revenue/purchases) : 0;
     const ips = purchases ? (items/purchases) : 0;
 
-    kSessionsSub.textContent = `-`;
-    kUsersSub.textContent = `-`;
+    const rangeText = `${RAW.range.start} ~ ${RAW.range.end} (${RAW.range.dates.length}d)`;
+    kSessionsSub.textContent = rangeText;
+    // ⚠️ Users는 daily 합산(중복 제거 X)이라 범위가 길면 실제 unique보다 크게 나올 수 있음
+    kUsersSub.textContent = `Range sum (not dedup)`;
     kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
 
     selChannel.textContent = SELECTED.channel;
     selSendId.textContent = SELECTED.send_id;
+    selRange.textContent = rangeText;
   }
 
   function renderProducts(){
@@ -459,22 +481,120 @@
     renderProducts();
   }
 
-  async function loadDate(d){
+  function getDatesInRange(startYMD, endYMD){
+    // AVAILABLE 기준으로만(= 실제 파일 있는 날짜만) 리턴
+    if(!AVAILABLE || !AVAILABLE.length) return [];
+    const s = startYMD, e = endYMD;
+    const out = [];
+    for(const d of AVAILABLE){
+      if(d >= s && d <= e) out.push(d);
+    }
+    return out;
+  }
+
+  async function fetchDay(d){
+    const url = `data/owned/owned_${d}.json?t=${Date.now()}`;
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  function normalizeNumber(x){
+    const n = Number(x);
+    return isFinite(n) ? n : 0;
+  }
+
+  function aggregateRangePayload(startYMD, endYMD, daysPayload){
+    // KPI: key = channel|send_id
+    const kMap = new Map();
+    for(const day of daysPayload){
+      for(const r of (day.kpi||[])){
+        const key = `${r.channel}||${r.send_id}`;
+        const cur = kMap.get(key) || {
+          channel: r.channel,
+          send_id: r.send_id,
+          sessions: 0,
+          users: 0,
+          purchases: 0,
+          revenue: 0,
+          items_purchased: 0,
+        };
+        cur.sessions += normalizeNumber(r.sessions);
+        cur.users += normalizeNumber(r.users);
+        cur.purchases += normalizeNumber(r.purchases);
+        cur.revenue += normalizeNumber(r.revenue);
+        cur.items_purchased += normalizeNumber(r.items_purchased);
+        kMap.set(key, cur);
+      }
+    }
+
+    // PROD: key = channel|send_id|item_id|item_name
+    const pMap = new Map();
+    for(const day of daysPayload){
+      for(const r of (day.prod||[])){
+        const key = `${r.channel}||${r.send_id}||${r.item_id}||${r.item_name}`;
+        const cur = pMap.get(key) || {
+          channel: r.channel,
+          send_id: r.send_id,
+          item_id: r.item_id,
+          item_name: r.item_name,
+          prod_items: 0,
+          prod_revenue: 0,
+        };
+        cur.prod_items += normalizeNumber(r.prod_items);
+        cur.prod_revenue += normalizeNumber(r.prod_revenue);
+        pMap.set(key, cur);
+      }
+    }
+
+    return {
+      range: { start: startYMD, end: endYMD, dates: daysPayload.map(x=>x.date).filter(Boolean) },
+      kpi: Array.from(kMap.values()),
+      prod: Array.from(pMap.values()),
+    };
+  }
+
+  async function loadRange(startYMD, endYMD){
     hideNotice();
     SELECTED = null;
+    RAW = null;
+    KPI = [];
+    campaignWrap.innerHTML = '';
+    tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">데이터 로딩 중…</td></tr>`;
 
-    const url = `data/owned/owned_${d}.json?t=${Date.now()}`;
+    if(!startYMD || !endYMD){
+      showNotice('기간(From/To)을 먼저 선택해줘.');
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">기간을 선택해줘.</td></tr>`;
+      return;
+    }
+    if(startYMD > endYMD){
+      showNotice('From 날짜가 To보다 뒤야. 날짜를 바꿔줘.');
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">기간 설정 오류</td></tr>`;
+      return;
+    }
+
+    const days = getDatesInRange(startYMD, endYMD);
+    if(!days.length){
+      showNotice(`선택한 기간에 데이터 파일이 없어. (${startYMD} ~ ${endYMD})`);
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 기간 데이터가 없어.</td></tr>`;
+      return;
+    }
+
+    // 안전장치: 너무 긴 범위는 브라우저 fetch 폭발 방지
+    if(days.length > 180){
+      showNotice(`기간이 너무 길어(${days.length}일) 브라우저가 느려질 수 있어. 180일 이하로 줄여줘.`);
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">기간이 너무 김</td></tr>`;
+      return;
+    }
+
     try{
-      const res = await fetch(url, {cache:'no-store'});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      RAW = await res.json();
+      // 병렬 fetch
+      const payloads = await Promise.all(days.map(d => fetchDay(d)));
+      RAW = aggregateRangePayload(startYMD, endYMD, payloads);
     }catch(e){
       RAW = null;
-      KPI = [];
-      campaignWrap.innerHTML = '';
-      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${d}.json</td></tr>`;
-      showNotice(`데이터가 없어서 표시할 수 없어. (${d})`);
-      aggregateKPIForSelected();
+      showNotice(`로드 중 오류: ${e && e.message ? e.message : e}`);
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">로드 실패</td></tr>`;
       return;
     }
 
@@ -495,6 +615,26 @@
     }
   }
 
+  function setRangeToLastNDays(n){
+    const today = new Date();
+    const end = ymd(today);
+    const start = ymd(addDays(today, -(n-1)));
+    startPicker.value = start;
+    endPicker.value = end;
+    loadRange(start, end);
+  }
+
+  function shiftRange(deltaDays){
+    const s = parseYMD(startPicker.value);
+    const e = parseYMD(endPicker.value);
+    if(!startPicker.value || !endPicker.value) return;
+    const ns = ymd(addDays(s, deltaDays));
+    const ne = ymd(addDays(e, deltaDays));
+    startPicker.value = ns;
+    endPicker.value = ne;
+    loadRange(ns, ne);
+  }
+
   // events
   chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterKPI(); renderCampaignButtons(); });
   chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterKPI(); renderCampaignButtons(); });
@@ -504,20 +644,16 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); });
 
-  btnPrev.addEventListener('click', ()=>{
-    const cur=parseYMD(datePicker.value);
-    const d=ymd(addDays(cur,-1));
-    datePicker.value=d; loadDate(d);
-  });
-  btnNext.addEventListener('click', ()=>{
-    const cur=parseYMD(datePicker.value);
-    const d=ymd(addDays(cur,+1));
-    datePicker.value=d; loadDate(d);
-  });
+  btnApply.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value));
+  btnPrev.addEventListener('click', ()=> shiftRange(-1));
+  btnNext.addEventListener('click', ()=> shiftRange(+1));
+  btn7d.addEventListener('click', ()=> setRangeToLastNDays(7));
+  btn30d.addEventListener('click', ()=> setRangeToLastNDays(30));
   btnToday.addEventListener('click', ()=>{
-    const now=new Date();
-    const d=ymd(now);
-    datePicker.value=d; loadDate(d);
+    const d = ymd(new Date());
+    startPicker.value = d;
+    endPicker.value = d;
+    loadRange(d, d);
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
@@ -526,20 +662,18 @@
   // init
   (async function init(){
     setChipActive();
-
     await loadAvailableDates();
 
-    // default date: latest available, else yesterday
+    // default: latest available day (1day range). fallback: yesterday
     let d;
     if(AVAILABLE && AVAILABLE.length){
       d = AVAILABLE[AVAILABLE.length-1];
     }else{
-      const today = new Date();
-      d = ymd(addDays(today,-1));
+      d = ymd(addDays(new Date(), -1));
     }
-
-    datePicker.value = d;
-    loadDate(d);
+    startPicker.value = d;
+    endPicker.value = d;
+    loadRange(d, d);
   })();
 
 })();
