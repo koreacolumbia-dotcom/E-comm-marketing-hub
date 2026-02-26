@@ -32,6 +32,7 @@ Usage:
 
 import os
 import json
+import re
 import argparse
 from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
@@ -836,6 +837,18 @@ def write_available_dates(out_dir: Path, dates: List[str]) -> None:
     (out_dir / "available_dates.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def scan_existing_owned_dates(out_dir: Path) -> List[str]:
+    """Scan out_dir for owned_YYYY-MM-DD.json and return sorted dates."""
+    if not out_dir.exists():
+        return []
+    dates: List[str] = []
+    for p in out_dir.glob("owned_????-??-??.json"):
+        m = re.match(r"owned_(\d{4}-\d{2}-\d{2})\.json$", p.name)
+        if m:
+            dates.append(m.group(1))
+    return sorted(set(dates))
+
+
 # ----------------------------
 # Main
 # ----------------------------
@@ -897,7 +910,12 @@ def main():
     wf_path.write_text(build_pages_workflow(), encoding="utf-8")
 
     if df.empty:
-        print("[WARN] Query returned no rows.")
+        print("[WARN] Query returned no rows. Will still write available_dates.json (possibly empty).")
+        # Even when there is no fresh data, keep UI stable by writing the manifest.
+        data_dir.mkdir(parents=True, exist_ok=True)
+        existing = scan_existing_owned_dates(data_dir)
+        write_available_dates(data_dir, existing)
+        print(f"[OK] Wrote available_dates.json (days={len(existing)}) to: {data_dir.resolve()}")
         return
 
     # Normalize
