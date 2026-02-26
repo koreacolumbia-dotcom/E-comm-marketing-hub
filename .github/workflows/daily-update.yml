@@ -135,7 +135,7 @@ jobs:
           GA4_END_DATE: ${{ vars.GA4_END_DATE }}
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
 
-          # ✅ NEW: 기존 HTML이 있어도 다시 렌더링(덮어쓰기) + 허브도 덮어쓰기
+          # ✅ 덮어쓰기 강제
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_FORCE_HUB_OVERWRITE: "true"
         run: |
@@ -152,14 +152,23 @@ jobs:
 
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
-
-          python -c "import json; json.load(open('/tmp/ga_sa.json')); print('JSON_OK')" || true
+          python -c "import json; json.load(open('/tmp/ga_sa.json')); print('JSON_OK')"
 
           mkdir -p reports/daily_digest/daily reports/daily_digest/weekly
 
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest \
-            || python -u daily_digest_live_final.py \
-            || true
+          # ✅ 절대 fallback으로 out-dir 없는 실행 하지 않기 (경로 꼬임 방지)
+          # ✅ 필요하면 recent-days로 시간을 줄여서 안정화 (원하면 7/14로 조절)
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest --recent-days 14 || true
+
+          # ✅ 생성 결과 sanity check (placeholder 감지)
+          YMD="${{ steps.set_time.outputs.yesterday_ymd }}"
+          DAILY_HTML="reports/daily_digest/daily/${YMD}.html"
+          if [ -f "$DAILY_HTML" ]; then
+            if grep -q "render_page_html HTML은 원본 그대로 유지하세요" "$DAILY_HTML"; then
+              echo "[WARN] Placeholder text detected in ${DAILY_HTML}"
+              # 여기서 fail로 돌리고 싶으면 exit 1로 바꾸면 됨 (지금은 continue-on-error라 warn만)
+            fi
+          fi
 
           if [ -f reports/daily_digest/index.html ]; then
             echo "<!-- BUILD_STAMP: ${KST_STAMP} -->" >> reports/daily_digest/index.html
