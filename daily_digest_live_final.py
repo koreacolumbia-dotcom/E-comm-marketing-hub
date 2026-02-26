@@ -1580,44 +1580,28 @@ def render_page_html(
     default_a = ymd(w.end_date)
     default_b = ymd(w.prev_end)
 
-    compare_js = f"""
-"""
-
+    compare_js = ""
     compare_bar_html = ""
-
-return f"""<!doctype html>
+    return f"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CSK E-COMM | Daily Digest</title>
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-
     body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
-
-    /* ✅ iframe embed=1 로드 시 상단 컨트롤/허브 버튼/모달 숨김 */
-    html[data-embed="1"] .embed-hide {{ display: none !important; }}
-    html[data-embed="1"] body {{ background: transparent !important; }}
-    html[data-embed="1"] .embed-tight {{ padding: 0 !important; }}
-
-    /* ✅ iframe 내부 스크롤 제거 */
-    html[data-embed="1"] body {{ overflow: hidden !important; }}
   </style>
 
   <script>
-    (function() {{
-      try {{
+    (function(){{
+      try{{
         const p = new URLSearchParams(location.search);
-        if (p.get('embed') === '1') {{
-          document.documentElement.setAttribute('data-embed', '1');
-        }}
-      }} catch (e) {{}}
+        if(p.get('embed') === '1') document.documentElement.setAttribute('data-embed','1');
+      }}catch(e){{}}
     }})();
   </script>
-
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="mx-auto max-w-6xl p-6 embed-tight">
@@ -1625,27 +1609,21 @@ return f"""<!doctype html>
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
+        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
       </div>
       <div class="flex items-center gap-2">
         <a href="{esc(nav_links.get('hub','#'))}" class="embed-hide rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
-"""
 
     {compare_bar_html}
 
     <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
       {kpis_cards}
     </div>
-
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
-      <div class="mt-3">{trend_svg}</div>
-    </div>
-
         <table class="mt-3 w-full text-sm">
           <thead class="text-xs text-slate-500">
             <tr>
@@ -1676,6 +1654,10 @@ return f"""<!doctype html>
           <tbody>{paid_html}</tbody>
         </table>
       </div>
+    </div>
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
+      <div class="mt-3">{trend_svg}</div>
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1741,7 +1723,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-6xl p-6">
+  <div class="mx-auto max-w-6xl p-6 embed-tight">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest Hub</div>
