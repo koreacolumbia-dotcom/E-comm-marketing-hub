@@ -99,7 +99,7 @@ YOY_WEEKLY_END_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_WEEKLY_END", "").strip()  
 SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "true").strip().lower() in ("1", "true", "yes", "y")
 
 # ✅ New: hub index write control (keep your own static index.html)
-SKIP_HUB_WRITE = os.getenv(\"DAILY_DIGEST_SKIP_HUB_WRITE\", \"true\").strip().lower() in (\"1\",\"true\",\"yes\",\"y\")
+SKIP_HUB_WRITE = os.getenv("DAILY_DIGEST_SKIP_HUB_WRITE", "true").strip().lower() in ("1", "true", "yes", "y")
 
 # ✅ New: data cache (bundle JSON)
 USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
