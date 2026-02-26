@@ -1592,26 +1592,29 @@ return f"""<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CSK E-COMM | Daily Digest</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
-  </style>
 
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+
+    body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
+
     /* ✅ iframe embed=1 로드 시 상단 컨트롤/허브 버튼/모달 숨김 */
-    html[data-embed="1"] .embed-hide { display:none !important; }
-    html[data-embed="1"] body { background: transparent !important; }
-    html[data-embed="1"] .embed-tight { padding: 0 !important; }
+    html[data-embed="1"] .embed-hide {{ display: none !important; }}
+    html[data-embed="1"] body {{ background: transparent !important; }}
+    html[data-embed="1"] .embed-tight {{ padding: 0 !important; }}
   </style>
 
   <script>
-    (function(){
-      try{
+    (function() {{
+      try {{
         const p = new URLSearchParams(location.search);
-        if(p.get('embed') === '1') document.documentElement.setAttribute('data-embed','1');
-      }catch(e){}
-    })();
+        if (p.get('embed') === '1') {{
+          document.documentElement.setAttribute('data-embed', '1');
+        }}
+      }} catch (e) {{}}
+    }})();
   </script>
+"""
 
 </head>
 <body class="bg-slate-50 text-slate-900">
