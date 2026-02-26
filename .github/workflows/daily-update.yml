@@ -37,14 +37,14 @@ on:
         options: ["false", "true"]
 
       owned_backfill:
-        description: "Backfill OWNED portal from 2025-01-01 to today? (warning: can be heavy)"
+        description: "Backfill OWNED portal from 2025-01-01 to yesterday? (warning: can be heavy)"
         required: true
         default: "false"
         type: choice
         options: ["false", "true"]
 
   schedule:
-    # KST 06:30 = UTC 21:30 (전날)
+    # ✅ KST 06:30 = UTC 21:30 (전날)
     - cron: "30 21 * * *"
 
 concurrency:
@@ -157,9 +157,6 @@ jobs:
           YOY="$(TZ=Asia/Seoul date -d "${YMD} - 364 days" '+%Y-%m-%d')"
           echo "[INFO] Build only: YMD=${YMD}, YOY=${YOY}"
 
-          # ✅ 중요: rm로 산출물 삭제하지 말 것 (생성 실패 시 404 방지)
-          # ✅ 중요: python 실패를 숨기지 말 것 (|| true 제거)
-
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
@@ -213,7 +210,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -u naver_crawl_columbia_c6c7_title_min.py             --limit 999999             --output_html reports/naver_lowest_price.html             --history_dir .             --cache_dir .naver_cache             || true
+          python -u naver_crawl_columbia_c6c7_title_min.py \
+            --limit 999999 \
+            --output_html reports/naver_lowest_price.html \
+            --history_dir . \
+            --cache_dir .naver_cache \
+            || true
           ls -la reports/naver_lowest_price.html || true
 
       # ----------------------------
@@ -293,7 +295,13 @@ jobs:
           rm -rf reports/voc_blog || true
           mkdir -p reports/voc_blog
 
-          python -u build_blog_voc_report.py             --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말"             --days 60             --per-query 100             --headless             --out-dir reports/voc_blog             || true
+          python -u build_blog_voc_report.py \
+            --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말" \
+            --days 60 \
+            --per-query 100 \
+            --headless \
+            --out-dir reports/voc_blog \
+            || true
 
           ls -la reports/voc_blog/index.html || true
 
@@ -312,17 +320,20 @@ jobs:
           ls -la reports/index.html reports/meta.json || true
 
       # =========================================================
-      # (NEW) OWNED Campaign Portal (EDM/LMS/KAKAO → products)
+      # (UPDATED) OWNED Campaign Portal (EDM/LMS/KAKAO → products)
+      # - schedule(자동): 전날 1일치만 생성/갱신
+      # - dispatch owned_backfill=true: 2025-01-01 ~ 전날 전체 백필
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
         if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           BQ_PROJECT: columbia-ga4
           BQ_DATASET: analytics_358593394
           OWNED_BACKFILL: ${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
 
@@ -337,15 +348,26 @@ jobs:
           mkdir -p reports/owned_portal
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
-            echo "[INFO] OWNED backfill from 2025-01-01"
-            python -u build_owned_campaign_portal.py               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --start 2025-01-01               --site-dir reports/owned_portal               || true
+            echo "[INFO] OWNED backfill: 2025-01-01 ~ ${YMD}"
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/owned_portal
           else
-            echo "[INFO] OWNED recent-days=7"
-            python -u build_owned_campaign_portal.py               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --recent-days 7               --site-dir reports/owned_portal               || true
+            echo "[INFO] OWNED daily incremental: ${YMD} only"
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "${YMD}" \
+              --end "${YMD}" \
+              --site-dir reports/owned_portal
           fi
 
+          echo "[INFO] Owned outputs:"
           ls -la reports/owned_portal || true
-          ls -la reports/owned_portal/data/owned | head -n 60 || true
+          ls -la reports/owned_portal/data/owned | head -n 80 || true
 
       # ----------------------------
       # 7) Commit & push results (safe rebase + retry)
