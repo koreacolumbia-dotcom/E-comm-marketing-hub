@@ -223,6 +223,28 @@ def write_json(path: str, obj: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
+def parse_date_list_env(name: str) -> List[dt.date]:
+    raw = (os.getenv(name, "") or "").strip()
+    if not raw:
+        return []
+    out: List[dt.date] = []
+    for token in raw.replace(";", ",").split(","):
+        s = token.strip()
+        if not s:
+            continue
+        d = parse_yyyy_mm_dd(s)
+        if d:
+            out.append(d)
+    return out
+
+def clamp_recent_dates(dates: List[dt.date], max_days: int) -> List[dt.date]:
+    # 안전장치: 실수로 수백일 넣었을 때 방지(원하면 지워도 됨)
+    if not dates:
+        return dates
+    dates = sorted(set(dates))
+    if len(dates) <= max_days:
+        return dates
+    return dates[-max_days:]
 
 # =========================
 # GA4 Filters / Report
