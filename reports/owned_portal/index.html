@@ -193,7 +193,7 @@
         <button id="chipRange" class="chip" type="button">RANGE</button>
 
         <div class="ml-2 small-label">Date</div>
-        <div class="w-[160px]"><input id="datePicker" type="date" /></div>
+        <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
 
         <div id="rangeBox" class="hidden items-center gap-2">
           <div class="small-label">From</div>
@@ -311,6 +311,7 @@
   const chipDaily = document.getElementById('chipDaily');
   const chipRange = document.getElementById('chipRange');
   const rangeBox = document.getElementById('rangeBox');
+  const dailyBox = document.getElementById('dailyBox');
 
   const datePicker = document.getElementById('datePicker');
   const startPicker = document.getElementById('startPicker');
@@ -393,8 +394,16 @@
 
   function setViewActive(){
     [chipDaily, chipRange].forEach(el=>el.classList.remove('active'));
-    if(VIEW==='DAILY'){ chipDaily.classList.add('active'); rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex'); datePicker.parentElement.classList.remove('hidden'); }
-    if(VIEW==='RANGE'){ chipRange.classList.add('active'); rangeBox.classList.remove('hidden'); rangeBox.classList.add('flex'); datePicker.parentElement.classList.add('hidden'); }
+    if(VIEW==='DAILY'){
+      chipDaily.classList.add('active');
+      rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
+      dailyBox.classList.remove('hidden');
+    }
+    if(VIEW==='RANGE'){
+      chipRange.classList.add('active');
+      rangeBox.classList.remove('hidden'); rangeBox.classList.add('flex');
+      dailyBox.classList.add('hidden');
+    }
   }
 
   function setChipActive(){
@@ -481,7 +490,14 @@
     const ips = purchases ? (items/purchases) : 0;
 
     kSessionsSub.textContent = `-`;
-    kUsersSub.textContent = `-`;
+
+    // ✅ RANGE에서는 users가 "일자 합산(sum)"이라 과대계상 가능 (유니크 아님)
+    if (VIEW === 'RANGE') {
+      kUsersSub.textContent = 'Users: sum of daily (may overcount)';
+    } else {
+      kUsersSub.textContent = `-`;
+    }
+
     kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
@@ -540,7 +556,6 @@
     let cur = map.get(key);
     if(!cur){
       cur = Object.assign({}, obj);
-      // 숫자 필드 0 보장
       fields.forEach(f=>{ cur[f] = Number(cur[f]||0); });
       map.set(key, cur);
       return;
@@ -551,8 +566,6 @@
   }
 
   function buildAggregated(dailyJsonList){
-    // 기대 shape:
-    // { kpi:[{channel,send_id,sessions,users,purchases,revenue,items_purchased}], prod:[{channel,send_id,item_id,item_name,prod_items,prod_revenue}] }
     const kpiMap = new Map();   // key = channel||send_id
     const prodMap = new Map();  // key = channel||send_id||item_id
 
@@ -632,7 +645,6 @@
       return;
     }
 
-    // 청크 로딩(10개씩)
     const all = [];
     const chunkSize = 10;
     for(let i=0;i<dates.length;i+=chunkSize){
@@ -640,9 +652,8 @@
       showNotice(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
       const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
       const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
-      res.forEach((r,idx)=>{
+      res.forEach((r)=>{
         if(r.status==='fulfilled') all.push(r.value);
-        // 일부 날짜 파일이 비어도 전체는 진행 (available_dates가 100% 신뢰가 아닐 수 있음)
       });
     }
     hideNotice();
@@ -693,7 +704,6 @@
   chipRange.addEventListener('click', ()=>{
     VIEW='RANGE';
     setViewActive();
-    // 기본: 7D
     setToLastNDays(7);
     loadRange(startPicker.value, endPicker.value);
   });
@@ -761,6 +771,15 @@
   (async function init(){
     setChipActive();
     await loadAvailableDates();
+
+    // ✅ 달력 min/max 제한 (available_dates 기준)
+    if(AVAILABLE && AVAILABLE.length){
+      const minD = AVAILABLE[0];
+      const maxD = AVAILABLE[AVAILABLE.length - 1];
+      datePicker.min = minD; datePicker.max = maxD;
+      startPicker.min = minD; startPicker.max = maxD;
+      endPicker.min = minD; endPicker.max = maxD;
+    }
 
     // 기본: 최신 available date를 DAILY로 로드
     let d;
