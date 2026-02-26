@@ -217,11 +217,12 @@
 
 <script>
 (function(){
-  // ✅ 너가 말한 실제 배포 구조:
-  // /E-comm-marketing-hub/reports/daily_digest/index.html 에서 열고
-  // /E-comm-marketing-hub/reports/daily_digest/daily/2025-02-25.html 가 존재
-  // => 상대경로 기준 BASE는 무조건 ''이 정답
-  const BASE = '';
+  /*
+   ✅ PATCH 1) BASE 자동계산 (index.html 현재 위치 기준)
+   - GitHub Pages에서 상대경로/슬래시/리다이렉트 꼬임 방지
+   - 결과: BASE = ".../reports/daily_digest/"
+  */
+  const BASE = new URL('./', location.href).href;
 
   // Utils
   function kstNowDate(){
@@ -285,17 +286,19 @@
 
   function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
 
-  // Paths
+  // Paths (✅ URL 안전 조합)
   function buildReportPath(dateStr){
-    const base = (MODE === 'daily')
-      ? `${BASE}daily/${dateStr}.html`
-      : `${BASE}weekly/END_${dateStr}.html`;
-    return base + `?embed=1`;
+    const rel = (MODE === 'daily')
+      ? `daily/${dateStr}.html`
+      : `weekly/END_${dateStr}.html`;
+    const u = new URL(rel, BASE).toString();
+    return u + `?embed=1`;
   }
   function buildCachePath(dateStr){
-    return (MODE === 'daily')
-      ? `${BASE}data/daily/${dateStr}.json`
-      : `${BASE}data/weekly/END_${dateStr}.json`;
+    const rel = (MODE === 'daily')
+      ? `data/daily/${dateStr}.json`
+      : `data/weekly/END_${dateStr}.json`;
+    return new URL(rel, BASE).toString();
   }
 
   // Loading UX
@@ -316,8 +319,8 @@
   }
 
   // EXISTS (HEAD) cache
-  const LS_KEY = 'ddhub_exists_cache_v7';
-  const TTL_MS = 6 * 60 * 60 * 1000;
+  const LS_KEY = 'ddhub_exists_cache_v8'; // ✅ PATCH 2) 버전 올려서 이전 잘못된 캐시 싹 무시
+  const TTL_MS = 2 * 60 * 60 * 1000;      // ✅ TTL도 6h → 2h로 줄임 (파일 생성/누락 변동 대응)
   const memCache = new Map();
 
   function loadLS(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}')||{} }catch(e){ return {}; } }
@@ -354,89 +357,169 @@
     }
   }
 
-function scrubReportUI(doc){
-  if(!doc) return;
+  // ---------- iframe scrub ----------
+  function scrubReportUI(doc){
+    if(!doc) return;
 
-  // keep scrolling usable inside iframe
-  let style = doc.getElementById('hub_scrub_css');
-  if(!style){
-    style = doc.createElement('style');
-    style.id = 'hub_scrub_css';
-    style.type = 'text/css';
-    style.textContent = `
-      html, body{ overflow:auto !important; }
-      body{ margin:0 !important; }
-    `;
-    doc.head.appendChild(style);
-  }
-
-  // 1) Hide top title "Daily Digest" (if present)
-  for(const h of Array.from(doc.querySelectorAll('h1, h2'))){
-    const t = (h.textContent||'').trim();
-    if(t === 'Daily Digest'){
-      h.style.display = 'none';
-      break;
+    // keep scrolling usable inside iframe
+    let style = doc.getElementById('hub_scrub_css');
+    if(!style){
+      style = doc.createElement('style');
+      style.id = 'hub_scrub_css';
+      style.type = 'text/css';
+      style.textContent = `
+        html, body{ overflow:auto !important; }
+        body{ margin:0 !important; }
+      `;
+      doc.head.appendChild(style);
     }
-  }
 
-  // 2) Hide Hub/Daily/Weekly tabs block (if present)
-  const tabTexts = new Set(['Hub','Daily','Weekly']);
-  const tabBtns = Array.from(doc.querySelectorAll('button, a')).filter(el => tabTexts.has(((el.textContent||'').trim())));
-  if(tabBtns.length){
-    // find nearest ancestor that contains all three labels
-    for(const b of tabBtns){
-      let p = b.parentElement;
-      for(let i=0;i<8 && p && p !== doc.body && p !== doc.documentElement;i++){
-        const txt = (p.textContent||'').replace(/\s+/g,' ').trim();
-        if(txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly')){
-          p.style.display = 'none';
-          p.setAttribute('data-hub-hidden','tabs');
-          p = null;
-          break;
-        }
-        p = p.parentElement;
-      }
-    }
-  }
-
-  // 3) Hide in-report "Compare" card safely
-  // We anchor by known controls IDs to avoid nuking the whole page.
-  const anchor = doc.querySelector('#cmpMode, #cmpA, #cmpB, #cmpBtn');
-  if(anchor){
-    let card = anchor.closest('div');
-    for(let up=0; up<10 && card && card !== doc.body && card !== doc.documentElement; up++){
-      const cls = (card.getAttribute('class')||'');
-      const txt = (card.textContent||'').replace(/\s+/g,' ').trim();
-      const looksLikeCard = (cls.includes('border') || cls.includes('rounded')) && (cls.includes('p-') || cls.includes('px-') || cls.includes('py-'));
-      const hasControls = !!card.querySelector('#cmpMode') && !!card.querySelector('#cmpBtn');
-      const looksLikeCompare = txt.includes('Compare') && (txt.includes('Preset') || txt.includes('DoD') || txt.includes('YoY'));
-      if(looksLikeCard && hasControls && looksLikeCompare){
-        card.style.display = 'none';
-        card.setAttribute('data-hub-hidden','compare');
+    // 1) Hide top title "Daily Digest" (if present)
+    for(const h of Array.from(doc.querySelectorAll('h1, h2'))){
+      const t = (h.textContent||'').trim();
+      if(t === 'Daily Digest'){
+        h.style.display = 'none';
         break;
       }
-      card = card.parentElement;
+    }
+
+    // 2) Hide Hub/Daily/Weekly tabs block (if present)
+    const tabTexts = new Set(['Hub','Daily','Weekly']);
+    const tabBtns = Array.from(doc.querySelectorAll('button, a')).filter(el => tabTexts.has(((el.textContent||'').trim())));
+    if(tabBtns.length){
+      for(const b of tabBtns){
+        let p = b.parentElement;
+        for(let i=0;i<8 && p && p !== doc.body && p !== doc.documentElement;i++){
+          const txt = (p.textContent||'').replace(/\s+/g,' ').trim();
+          if(txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly')){
+            p.style.display = 'none';
+            p.setAttribute('data-hub-hidden','tabs');
+            p = null;
+            break;
+          }
+          p = p.parentElement;
+        }
+      }
+    }
+
+    // 3) Hide in-report "Compare" card safely
+    const anchor = doc.querySelector('#cmpMode, #cmpA, #cmpB, #cmpBtn');
+    if(anchor){
+      let card = anchor.closest('div');
+      for(let up=0; up<10 && card && card !== doc.body && card !== doc.documentElement; up++){
+        const cls = (card.getAttribute('class')||'');
+        const txt = (card.textContent||'').replace(/\s+/g,' ').trim();
+        const looksLikeCard = (cls.includes('border') || cls.includes('rounded')) && (cls.includes('p-') || cls.includes('px-') || cls.includes('py-'));
+        const hasControls = !!card.querySelector('#cmpMode') && !!card.querySelector('#cmpBtn');
+        const looksLikeCompare = txt.includes('Compare') && (txt.includes('Preset') || txt.includes('DoD') || txt.includes('YoY'));
+        if(looksLikeCard && hasControls && looksLikeCompare){
+          card.style.display = 'none';
+          card.setAttribute('data-hub-hidden','compare');
+          break;
+        }
+        card = card.parentElement;
+      }
     }
   }
-}
 
-  function onFrameLoad(frame){
+  /*
+   ✅ PATCH 3) iframe가 GitHub Pages 404(파일 없음)를 로드했을 때 자동 복구
+   - exists 캐시가 과거에 true로 저장돼있으면 fallback이 안 타고 그대로 404가 뜰 수 있음
+   - 그래서 "404 문서 감지" → 캐시 false로 강제 → 주변 날짜 탐색 → 자동 로드
+  */
+  function isGhPages404(doc){
     try{
-      const doc = frame.contentDocument || frame.contentWindow.document;
-      if(!doc) return;
-      scrubReportUI(doc);
-    }catch(e){}
+      const t = (doc && doc.title) ? doc.title : '';
+      const bodyTxt = (doc && doc.body && doc.body.innerText) ? doc.body.innerText : '';
+      const s = (t + ' ' + bodyTxt).replace(/\s+/g,' ').toLowerCase();
+      return s.includes('404') && (s.includes('file not found') || s.includes('the site configured at this address'));
+    }catch(e){
+      return false;
+    }
   }
 
-  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setTimeout(()=>onFrameLoad(viewerA), 300); setBusy(false); });
-  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setTimeout(()=>onFrameLoad(viewerB), 300); setBusy(false); });
+  async function recoverFrameIf404(frame, which){
+    // which: 'A' | 'B'
+    const guardKey = which === 'A' ? '__ddhub_recoveredA' : '__ddhub_recoveredB';
+    if(frame.dataset[guardKey] === '1') return; // 무한루프 방지
+
+    let doc = null;
+    try{ doc = frame.contentDocument || frame.contentWindow.document; }catch(e){ return; }
+    if(!doc) return;
+
+    if(!isGhPages404(doc)) return;
+
+    frame.dataset[guardKey] = '1'; // 일단 1회만 복구 시도
+
+    // 현재 src의 base (캐시 무효화)
+    const cur = (frame.src || '').split('?')[0];
+    if(cur) cacheSet(cur, false);
+
+    // aDate/bDate 기준으로 주변 날짜 탐색 (최대 21일)
+    const baseDateStr = (which === 'A') ? (aDate.value||'').trim() : (bDate.value||'').trim();
+    if(!baseDateStr) return;
+
+    setBusy(true, `404 감지 → ${which} 폴백 탐색…`);
+
+    const baseD = parseYMD(baseDateStr);
+    const deltas = [];
+    for(let i=1;i<=21;i++){
+      deltas.push(-i);
+      deltas.push(+i);
+    }
+
+    let found = null;
+    for(const delta of deltas){
+      const cand = fmtYMD(addDays(baseD, delta));
+      if(await exists(buildReportPath(cand))){
+        found = cand;
+        break;
+      }
+    }
+
+    if(found){
+      if(which === 'A'){
+        aDate.value = found;
+        await loadA(found);
+      }else{
+        bDate.value = found;
+        await loadB(found);
+      }
+    }
+
+    setBusy(false);
+  }
+
+  function onFrameLoad(frame, which){
+    try{
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if(doc) scrubReportUI(doc);
+    }catch(e){}
+
+    // 404 복구 (비동기)
+    recoverFrameIf404(frame, which).catch(()=>{});
+  }
+
+  viewerA.addEventListener('load', ()=>{
+    onFrameLoad(viewerA, 'A');
+    setTimeout(()=>onFrameLoad(viewerA, 'A'), 300);
+    setBusy(false);
+  });
+
+  viewerB.addEventListener('load', ()=>{
+    onFrameLoad(viewerB, 'B');
+    setTimeout(()=>onFrameLoad(viewerB, 'B'), 300);
+    setBusy(false);
+  });
 
   // Load A/B
   async function loadA(dateStr){
+    viewerA.dataset.__ddhub_recoveredA = '0'; // 복구 플래그 리셋
     viewerA.src = buildReportPath(dateStr);
     viewerATitle.textContent = `A: ${MODE.toUpperCase()} · ${dateStr}`;
   }
   async function loadB(dateStr){
+    viewerB.dataset.__ddhub_recoveredB = '0'; // 복구 플래그 리셋
     viewerB.src = buildReportPath(dateStr);
     viewerBTitle.textContent = `B: ${MODE.toUpperCase()} · ${dateStr}`;
   }
@@ -613,6 +696,4 @@ function scrubReportUI(doc){
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-25 HUB FIX (BASE fixed, scrub uses hide not remove; prevents blank 2025 iframe) -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 11:45 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 13:28 KST -->
+<!-- BUILD_STAMP: 2026.02.26 HUB FINAL (BASE auto + 404 recover + exists cache v8) -->
