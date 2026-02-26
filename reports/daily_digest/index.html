@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Digest Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+
+    html, body { height: 100%; overflow: auto; }
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }
+    .glass{
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.85);
+      border-radius: 26px;
+      box-shadow: 0 24px 60px rgba(0,45,114,0.07);
+    }
+    .chip{
+      border: 1px solid rgba(148,163,184,0.35);
+      background: rgba(255,255,255,0.78);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+    }
+    .chip:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .chip.active{
+      background: rgba(0,45,114,0.08);
+      border-color: rgba(0,45,114,0.28);
+      color: var(--brand);
+    }
+    .btn{
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.88);
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .btn-primary{ background: #002d72; border-color: #002d72; color: white; }
+    .btn:disabled, .chip:disabled{
+      opacity: .55;
+      cursor: not-allowed;
+      transform:none !important;
+      box-shadow:none !important;
+    }
+    .muted{ color:#64748b; }
+    .small-label{
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    input[type="date"]{
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.90);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      outline: none;
+      width: 100%;
+    }
+    input[type="date"]:focus{
+      border-color: rgba(0,45,114,0.40);
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
+    }
+
+    .viewer-frame{
+      width: 100%;
+      min-height: 820px;
+      border: 0;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.55);
+      overflow: auto;
+    }
+
+    /* ✅ 로딩 오버레이 */
+    .loading-backdrop{
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .loading-card{
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(148,163,184,0.22);
+      border-radius: 18px;
+      padding: 14px 16px;
+      box-shadow: 0 18px 48px rgba(0,0,0,0.12);
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-weight:900;
+      color:#0f172a;
+    }
+    .spinner{
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 3px solid rgba(2,45,114,0.18);
+      border-top-color: rgba(2,45,114,0.95);
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn .btn-spin{
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.45);
+      border-top-color: rgba(255,255,255,0.95);
+      animation: spin 0.8s linear infinite;
+      display:none;
+    }
+    .btn.loading .btn-spin{ display:inline-block; }
+  </style>
+</head>
+
+<body class="p-6 md:p-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+      <div>
+        <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
+        <div class="muted font-semibold mt-1">기본: 어제(KST) · 비교 ON이면 A/B 각각 리포트 표시 · 구간비교는 A/B END 리포트 로드</div>
+      </div>
+
+      <div class="flex items-center gap-3 flex-wrap justify-end">
+        <div class="flex items-center gap-2">
+          <div class="small-label mr-2">Mode</div>
+          <button id="modeDaily" class="chip active" type="button">Daily</button>
+          <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
+        </div>
+        <button id="btnReload" class="btn btn-primary" type="button"><span class="btn-spin"></span>새로고침</button>
+      </div>
+    </div>
+
+    <div class="glass p-5">
+      <!-- Row 1: DATE + COMPARE -->
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <div class="small-label">Date</div>
+        <div class="w-[160px]"><input id="aDate" type="date" /></div>
+        <button id="btnPrev" class="btn" type="button">◀</button>
+        <button id="btnNext" class="btn" type="button">▶</button>
+        <button id="btnYesterday" class="btn" type="button">어제</button>
+        <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
+
+        <div class="ml-2 small-label">Compare</div>
+        <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
+        <button id="btnPresetPrev" class="btn" type="button">전기준</button>
+        <button id="btnPresetYoY" class="btn" type="button">YoY</button>
+        <div class="w-[160px]"><input id="bDate" type="date" /></div>
+        <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
+      </div>
+
+      <!-- Row 2: RANGE -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <div class="small-label">Range A</div>
+        <div class="w-[160px]"><input id="aStart" type="date" /></div>
+        <div class="w-[160px]"><input id="aEnd" type="date" /></div>
+
+        <div class="ml-2 small-label">Range B</div>
+        <div class="w-[160px]"><input id="bStart" type="date" /></div>
+        <div class="w-[160px]"><input id="bEnd" type="date" /></div>
+
+        <button id="btnRangeGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>구간비교</button>
+        <button id="btnRangeClear" class="btn" type="button">Range 해제</button>
+      </div>
+
+      <div id="viewerGrid" class="grid grid-cols-1 gap-4">
+        <div>
+          <div class="text-xs muted font-semibold mb-2" id="viewerATitle">A: -</div>
+          <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
+        </div>
+
+        <div id="viewerBWrap" class="hidden">
+          <div class="text-xs muted font-semibold mb-2" id="viewerBTitle">B: -</div>
+          <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading" class="loading-backdrop">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div id="loadingText">로딩 중…</div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // ✅ 너가 말한 실제 배포 구조:
+  // /E-comm-marketing-hub/reports/daily_digest/index.html 에서 열고
+  // /E-comm-marketing-hub/reports/daily_digest/daily/2025-02-25.html 가 존재
+  // => 상대경로 기준 BASE는 './' (index 기준 동일 폴더)
+  const BASE = './';
+
+  // Utils
+  function kstNowDate(){
+    const now = new Date();
+    const utc = now.getTime() + now.getTimezoneOffset()*60000;
+    return new Date(utc + 9*60*60000);
+  }
+  function fmtYMD(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  function parseYMD(s){
+    const [y,m,d] = (s||'').split('-').map(Number);
+    return new Date(y, (m||1)-1, d||1);
+  }
+  function addDays(d, n){
+    const x = new Date(d);
+    x.setDate(x.getDate()+n);
+    return x;
+  }
+
+  // DOM
+  const modeDaily = document.getElementById('modeDaily');
+  const modeWeekly = document.getElementById('modeWeekly');
+  const btnReload = document.getElementById('btnReload');
+
+  const aDate = document.getElementById('aDate');
+  const bDate = document.getElementById('bDate');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  const btnYesterday = document.getElementById('btnYesterday');
+  const btnToday = document.getElementById('btnToday');
+
+  const btnCompareToggle = document.getElementById('btnCompareToggle');
+  const btnPresetPrev = document.getElementById('btnPresetPrev');
+  const btnPresetYoY = document.getElementById('btnPresetYoY');
+  const btnCompareGo = document.getElementById('btnCompareGo');
+
+  const aStart = document.getElementById('aStart');
+  const aEnd = document.getElementById('aEnd');
+  const bStart = document.getElementById('bStart');
+  const bEnd = document.getElementById('bEnd');
+  const btnRangeGo = document.getElementById('btnRangeGo');
+  const btnRangeClear = document.getElementById('btnRangeClear');
+
+  const viewerA = document.getElementById('viewerA');
+  const viewerB = document.getElementById('viewerB');
+  const viewerBWrap = document.getElementById('viewerBWrap');
+  const viewerGrid = document.getElementById('viewerGrid');
+  const viewerATitle = document.getElementById('viewerATitle');
+  const viewerBTitle = document.getElementById('viewerBTitle');
+
+  const loading = document.getElementById('loading');
+  const loadingText = document.getElementById('loadingText');
+
+  // State
+  let MODE = 'daily';
+  let COMPARE = false;
+
+  function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
+
+  // Paths
+  function buildReportPath(dateStr){
+    const base = (MODE === 'daily')
+      ? `${BASE}daily/${dateStr}.html`
+      : `${BASE}weekly/END_${dateStr}.html`;
+    return base + `?embed=1`;
+  }
+  function buildCachePath(dateStr){
+    return (MODE === 'daily')
+      ? `${BASE}data/daily/${dateStr}.json`
+      : `${BASE}data/weekly/END_${dateStr}.json`;
+  }
+
+  // Loading UX
+  const ACTION_BTNS = [btnReload, btnCompareGo, btnRangeGo];
+  const MODE_BTNS = [modeDaily, modeWeekly, btnCompareToggle, btnPresetPrev, btnPresetYoY, btnPrev, btnNext, btnYesterday, btnToday, btnRangeClear];
+
+  function setBusy(on, msg){
+    if(on){
+      loadingText.textContent = msg || '로딩 중…';
+      loading.style.display = 'flex';
+      for(const b of ACTION_BTNS){ b.disabled = true; b.classList.add('loading'); }
+      for(const b of MODE_BTNS){ b.disabled = true; }
+    }else{
+      loading.style.display = 'none';
+      for(const b of ACTION_BTNS){ b.disabled = false; b.classList.remove('loading'); }
+      for(const b of MODE_BTNS){ b.disabled = false; }
+    }
+  }
+
+  // EXISTS (HEAD) cache
+  const LS_KEY = 'ddhub_exists_cache_v7';
+  const TTL_MS = 6 * 60 * 60 * 1000;
+  const memCache = new Map();
+
+  function loadLS(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}')||{} }catch(e){ return {}; } }
+  function saveLS(obj){ try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }catch(e){} }
+  function cacheGet(u){
+    if(memCache.has(u)) return memCache.get(u);
+    const db = loadLS();
+    const hit = db[u];
+    if(hit && (Date.now()-hit.ts)<TTL_MS){ memCache.set(u, hit.ok); return hit.ok; }
+    return null;
+  }
+  function cacheSet(u, ok){
+    memCache.set(u, ok);
+    const db = loadLS();
+    db[u] = { ok: !!ok, ts: Date.now() };
+    const keys = Object.keys(db);
+    if(keys.length>900){
+      keys.sort((a,b)=> (db[a].ts||0)-(db[b].ts||0));
+      for(let i=0;i<keys.length-700;i++) delete db[keys[i]];
+    }
+    saveLS(db);
+  }
+  async function exists(url){
+    const base = url.split('?')[0];
+    const cached = cacheGet(base);
+    if(cached !== null) return cached;
+    try{
+      const res = await fetch(base + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
+      cacheSet(base, res.ok);
+      return res.ok;
+    }catch(e){
+      cacheSet(base, false);
+      return false;
+    }
+  }
+
+function scrubReportUI(doc){
+  if(!doc) return;
+
+  // 안전 CSS (스크롤 유지)
+  let style = doc.getElementById('hub_scrub_css');
+  if(!style){
+    style = doc.createElement('style');
+    style.id = 'hub_scrub_css';
+    style.type = 'text/css';
+    style.textContent = `
+      html, body{ overflow:auto !important; }
+      body{ margin:0 !important; }
+    `;
+    doc.head.appendChild(style);
+  }
+
+  // 1) 상단 "Daily Digest" 타이틀(있는 경우)만 숨김
+  const titleNodes = Array.from(doc.querySelectorAll('h1, h2, div, span'));
+  for(const n of titleNodes){
+    const t = (n.textContent||'').trim();
+    if(t === 'Daily Digest'){
+      n.style.display = 'none';
+      break;
+    }
+  }
+
+  // 2) Hub/Daily/Weekly 탭 묶음 숨김 (remove 금지)
+  const btns = Array.from(doc.querySelectorAll('button, a'));
+  const tabBtns = btns.filter(b=>{
+    const t=(b.textContent||'').trim();
+    return t==='Hub' || t==='Daily' || t==='Weekly';
+  });
+
+  function hasAll3(el){
+    if(!el) return false;
+    const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
+    return txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly');
+  }
+
+  for(const b of tabBtns){
+    let p = b.parentElement;
+    for(let i=0;i<6 && p;i++){
+      if(p === doc.body || p === doc.documentElement) break;
+      if(hasAll3(p)){
+        p.style.display = 'none';
+        p.setAttribute('data-hub-hidden','tabs');
+        break;
+      }
+      p = p.parentElement;
+    }
+  }
+
+  // ✅ 3) "Compare 카드" 숨김 (핵심)
+  // 시그니처 텍스트: "No extra GA/BQ cost (uses cached JSON)"
+  const SIGN = 'No extra GA/BQ cost';
+  const nodes = Array.from(doc.querySelectorAll('div, section, article'));
+  for(const n of nodes){
+    const txt = (n.textContent||'').replace(/\s+/g,' ').trim();
+    if(!txt) continue;
+    if(txt.includes(SIGN)){
+      // 너무 상위로 올라가면 페이지가 날아가니, "카드처럼 보이는" 선에서 멈춤
+      let p = n;
+      for(let up=0; up<7 && p && p.parentElement; up++){
+        if(p === doc.body || p === doc.documentElement) break;
+
+        // "Compare / Preset / 버튼"이 같이 포함된 블록이면 카드로 간주
+        const t = (p.textContent||'').replace(/\s+/g,' ').trim();
+        const looksLikeCompareCard =
+          t.includes('Compare') &&
+          (t.includes('Preset: DoD') || t.includes('Preset: YoY') || t.includes('Preset')) &&
+          (t.includes('No extra GA/BQ cost') || t.includes('uses cached JSON'));
+
+        if(looksLikeCompareCard){
+          p.style.display = 'none';
+          p.setAttribute('data-hub-hidden','compare');
+          break;
+        }
+        p = p.parentElement;
+      }
+    }
+  }
+}
+
+  function onFrameLoad(frame){
+    try{
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if(!doc) return;
+      scrubReportUI(doc);
+    }catch(e){}
+  }
+
+  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setTimeout(()=>onFrameLoad(viewerA), 300); setBusy(false); });
+  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setTimeout(()=>onFrameLoad(viewerB), 300); setBusy(false); });
+
+  // Load A/B
+  async function loadA(dateStr){
+    viewerA.src = buildReportPath(dateStr);
+    viewerATitle.textContent = `A: ${MODE.toUpperCase()} · ${dateStr}`;
+  }
+  async function loadB(dateStr){
+    viewerB.src = buildReportPath(dateStr);
+    viewerBTitle.textContent = `B: ${MODE.toUpperCase()} · ${dateStr}`;
+  }
+
+  // YoY preset: 캐시 yoy.end 우선
+  async function yoyEndFor(dateStr){
+    try{
+      const res = await fetch(buildCachePath(dateStr) + `?t=${Date.now()}`, { cache:'no-store' });
+      if(!res.ok) throw new Error('no cache');
+      const j = await res.json();
+      const y = j && j.yoy && j.yoy.end ? String(j.yoy.end) : '';
+      if(!y) throw new Error('no yoy.end');
+      return y;
+    }catch(e){
+      return fmtYMD(addDays(parseYMD(dateStr), -364));
+    }
+  }
+
+  // Layout
+  function updateCompareLayout(){
+    if(COMPARE){
+      viewerBWrap.classList.remove('hidden');
+      viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4';
+    }else{
+      viewerBWrap.classList.add('hidden');
+      viewerGrid.className = 'grid grid-cols-1 gap-4';
+    }
+  }
+
+  function setCompare(on){
+    COMPARE = !!on;
+    btnCompareToggle.classList.toggle('active', COMPARE);
+    btnCompareToggle.textContent = COMPARE ? '비교 ON' : '비교 OFF';
+    updateCompareLayout();
+  }
+
+  // Apply A (존재 확인 + fallback)
+  async function applyA(){
+    const d = (aDate.value||'').trim();
+    if(!d) return;
+    setBusy(true, 'A 리포트 로딩…');
+
+    let target = d;
+    if(!(await exists(buildReportPath(target)))){
+      const step = stepDays();
+      const tries = [-step, +step, -1, +1];
+      for(const delta of tries){
+        const cand = fmtYMD(addDays(parseYMD(target), delta));
+        if(await exists(buildReportPath(cand))){ target=cand; break; }
+      }
+      aDate.value = target;
+    }
+    await loadA(target);
+  }
+
+  // Compare: "비교하기" 누르면 B에 바로 리포트
+  async function doCompare(){
+    const a = (aDate.value||'').trim();
+    const b = (bDate.value||'').trim();
+    if(!a || !b) return;
+
+    setCompare(true);
+    setBusy(true, 'A/B 리포트 로딩…');
+
+    await applyA();
+
+    let targetB = b;
+    if(!(await exists(buildReportPath(targetB)))){
+      targetB = aDate.value;
+      bDate.value = targetB;
+    }
+    await loadB(targetB);
+  }
+
+  // Range Compare: A/B 각각 END 로드
+  async function doRangeCompare(){
+    const ae = (aEnd.value||'').trim();
+    const be = (bEnd.value||'').trim();
+    if(!ae || !be) return;
+
+    setCompare(true);
+    setBusy(true, '구간비교 로딩…');
+
+    aDate.value = ae;
+    bDate.value = be;
+
+    await applyA();
+
+    let targetB = be;
+    if(!(await exists(buildReportPath(targetB)))){
+      targetB = ae;
+      bDate.value = targetB;
+    }
+    await loadB(targetB);
+  }
+
+  function clearRange(){
+    aStart.value = ''; aEnd.value = '';
+    bStart.value = ''; bEnd.value = '';
+  }
+
+  // Mode
+  async function setMode(next){
+    MODE = next;
+    modeDaily.classList.toggle('active', MODE==='daily');
+    modeWeekly.classList.toggle('active', MODE==='weekly');
+    setBusy(true, '모드 변경 중…');
+    await applyA();
+    if(COMPARE) await doCompare();
+  }
+
+  // Events
+  modeDaily.addEventListener('click', ()=> setMode('daily'));
+  modeWeekly.addEventListener('click', ()=> setMode('weekly'));
+
+  btnReload.addEventListener('click', ()=>{
+    setBusy(true, '새로고침…');
+    location.reload();
+  });
+
+  btnCompareToggle.addEventListener('click', ()=> setCompare(!COMPARE));
+
+  btnPresetPrev.addEventListener('click', ()=>{
+    const a = aDate.value;
+    if(!a) return;
+    bDate.value = fmtYMD(addDays(parseYMD(a), -stepDays()));
+    setCompare(true);
+  });
+
+  btnPresetYoY.addEventListener('click', async ()=>{
+    const a = aDate.value;
+    if(!a) return;
+    setBusy(true, 'YoY 날짜 계산…');
+    bDate.value = await yoyEndFor(a);
+    setBusy(false);
+    setCompare(true);
+  });
+
+  btnCompareGo.addEventListener('click', doCompare);
+
+  btnRangeGo.addEventListener('click', doRangeCompare);
+  btnRangeClear.addEventListener('click', ()=>{ clearRange(); });
+
+  btnYesterday.addEventListener('click', ()=>{ aDate.value = fmtYMD(addDays(kstNowDate(), -1)); applyA(); });
+  btnToday.addEventListener('click', async ()=>{
+    const t = fmtYMD(kstNowDate());
+    aDate.value = (await exists(buildReportPath(t))) ? t : fmtYMD(addDays(kstNowDate(), -1));
+    applyA();
+  });
+
+  btnPrev.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays())); applyA(); });
+  btnNext.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays())); applyA(); });
+
+  // Init
+  (function init(){
+    const y = addDays(kstNowDate(), -1);
+    aDate.value = fmtYMD(y);
+    bDate.value = fmtYMD(addDays(y, -1));
+
+    // default range: 최근21일 vs 이전21일
+    const ae = fmtYMD(y);
+    const as = fmtYMD(addDays(y, -20));
+    const be = fmtYMD(addDays(y, -21));
+    const bs = fmtYMD(addDays(y, -41));
+
+    aStart.value = as; aEnd.value = ae;
+    bStart.value = bs; bEnd.value = be;
+
+    setCompare(false);
+    setMode('daily');
+  })();
+
+})();
+</script>
+</body>
+</html>
+<!-- BUILD_STAMP: 2026-02-25 HUB FIX (BASE fixed, scrub uses hide not remove; prevents blank 2025 iframe) -->
+<!-- BUILD_STAMP: 2026.02.25 (Wed) 11:45 KST -->
