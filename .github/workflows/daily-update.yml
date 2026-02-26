@@ -162,11 +162,11 @@ jobs:
 
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
-          python -u daily_digest_live_final_static_hub.py --out-dir reports/daily_digest
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest
 
           export GA4_START_DATE="${YOY}"
           export GA4_END_DATE="${YOY}"
-          python -u daily_digest_live_final_static_hub.py --out-dir reports/daily_digest
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest
 
           if [ -f reports/daily_digest/index.html ]; then
             echo "<!-- BUILD_STAMP: ${KST_STAMP} -->" >> reports/daily_digest/index.html
