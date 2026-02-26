@@ -1602,6 +1602,9 @@ return f"""<!doctype html>
     html[data-embed="1"] .embed-hide {{ display: none !important; }}
     html[data-embed="1"] body {{ background: transparent !important; }}
     html[data-embed="1"] .embed-tight {{ padding: 0 !important; }}
+
+    /* ✅ iframe 내부 스크롤 제거 */
+    html[data-embed="1"] body {{ overflow: hidden !important; }}
   </style>
 
   <script>
