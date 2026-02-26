@@ -3,770 +3,384 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Daily & Weekly Reports Hub</title>
+  <title>CSK E-COMM | Daily Digest Hub</title>
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
-
-    html, body { height: 100%; overflow: auto; }
-    body{
-      background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      color:#0f172a;
-      min-height:100vh;
-    }
-    .glass{
-      background: rgba(255,255,255,0.72);
-      backdrop-filter: blur(18px);
-      border: 1px solid rgba(255,255,255,0.85);
-      border-radius: 26px;
-      box-shadow: 0 24px 60px rgba(0,45,114,0.07);
-    }
-    .chip{
-      border: 1px solid rgba(148,163,184,0.35);
-      background: rgba(255,255,255,0.78);
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-weight: 900;
-      font-size: 12px;
-      color: #0f172a;
-      transition: all .15s ease;
-      user-select:none;
-      white-space: nowrap;
-    }
-    .chip:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
-    .chip.active{
-      background: rgba(0,45,114,0.08);
-      border-color: rgba(0,45,114,0.28);
-      color: var(--brand);
-    }
-    .btn{
-      border-radius: 14px;
-      padding: 10px 14px;
-      font-weight: 900;
-      font-size: 12px;
-      border: 1px solid rgba(148,163,184,0.28);
-      background: rgba(255,255,255,0.88);
-      transition: all .15s ease;
-      user-select:none;
-      white-space: nowrap;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-    }
-    .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
-    .btn-primary{ background: #002d72; border-color: #002d72; color: white; }
-    .btn:disabled, .chip:disabled{
-      opacity: .55;
-      cursor: not-allowed;
-      transform:none !important;
-      box-shadow:none !important;
-    }
-    .muted{ color:#64748b; }
-    .small-label{
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: .22em;
-      text-transform: uppercase;
-      color: #94a3b8;
-    }
-    input[type="date"]{
-      border: 1px solid rgba(148,163,184,0.28);
-      background: rgba(255,255,255,0.90);
-      border-radius: 14px;
-      padding: 10px 12px;
-      font-weight: 900;
-      font-size: 12px;
-      color: #0f172a;
-      outline: none;
-      width: 100%;
-    }
-    input[type="date"]:focus{
-      border-color: rgba(0,45,114,0.40);
-      box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
-    }
-
-    /* ✅ iframe 내부 스크롤 제거용: 스크롤은 바깥(페이지)만 */
-    .viewer-frame{
-      width: 100%;
-      border: 0;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.55);
-      overflow: hidden;     /* iframe 자체 overflow 숨김 */
-      display:block;
-      height: 980px;        /* 초기값(로드 후 JS로 실제 높이로 자동 조정) */
-    }
-
-    /* 알림 배너 */
-    .notice{
-      border: 1px solid rgba(148,163,184,0.25);
-      background: rgba(255,255,255,0.86);
-      border-radius: 18px;
-      padding: 10px 12px;
-      font-weight: 800;
-      font-size: 12px;
-      color:#0f172a;
-      display:none;
-      align-items:center;
-      gap:10px;
-      box-shadow: 0 10px 28px rgba(0,0,0,0.06);
-    }
-    .notice .dot{
-      width:10px; height:10px; border-radius:999px;
-      background: rgba(2,45,114,0.85);
-      flex: 0 0 auto;
-    }
-    .notice .x{
-      margin-left:auto;
-      border: 1px solid rgba(148,163,184,0.28);
-      background: rgba(255,255,255,0.85);
-      border-radius: 12px;
-      padding: 6px 10px;
-      font-weight: 900;
-      cursor:pointer;
-    }
-
-    /* 로딩 오버레이 */
-    .loading-backdrop{
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.18);
-      backdrop-filter: blur(2px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-    .loading-card{
-      background: rgba(255,255,255,0.92);
-      border: 1px solid rgba(148,163,184,0.22);
-      border-radius: 18px;
-      padding: 14px 16px;
-      box-shadow: 0 18px 48px rgba(0,0,0,0.12);
-      display:flex;
-      align-items:center;
-      gap:10px;
-      font-weight:900;
-      color:#0f172a;
-    }
-    .spinner{
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      border: 3px solid rgba(2,45,114,0.18);
-      border-top-color: rgba(2,45,114,0.95);
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .btn .btn-spin{
-      width: 14px;
-      height: 14px;
-      border-radius: 999px;
-      border: 2px solid rgba(255,255,255,0.45);
-      border-top-color: rgba(255,255,255,0.95);
-      animation: spin 0.8s linear infinite;
-      display:none;
-    }
-    .btn.loading .btn-spin{ display:inline-block; }
+    body{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }
   </style>
 </head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="mx-auto max-w-6xl p-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="text-2xl font-black">Daily Digest Hub</div>
+        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">STATIC</div>
+      </div>
+      <div class="text-sm text-slate-500">Data cache 기반 · Compare는 브라우저에서 JSON 합산</div>
+    </div>
 
-<body class="p-6 md:p-10">
-  <div class="max-w-7xl mx-auto">
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
-      <div>
-        <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
-        <div class="muted font-semibold mt-1">기본: 어제(KST) · 비교 ON이면 A/B 각각 리포트 표시 · 구간비교는 A/B END 리포트 로드</div>
+    <!-- Quick open -->
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Open report</div>
+        <div class="mt-3 flex items-center gap-2">
+          <select id="openDate" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value='2026-02-25'>2026-02-25</option>
+<option value='2026-02-24'>2026-02-24</option>
+<option value='2026-02-23'>2026-02-23</option>
+<option value='2026-02-22'>2026-02-22</option>
+<option value='2026-02-21'>2026-02-21</option>
+<option value='2026-02-20'>2026-02-20</option>
+<option value='2026-02-19'>2026-02-19</option>
+<option value='2026-02-18'>2026-02-18</option>
+<option value='2026-02-17'>2026-02-17</option>
+<option value='2026-02-16'>2026-02-16</option>
+<option value='2026-02-15'>2026-02-15</option>
+<option value='2026-02-14'>2026-02-14</option>
+<option value='2026-02-13'>2026-02-13</option>
+<option value='2026-02-12'>2026-02-12</option>
+          </select>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button id="openDaily" class="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
+          <button id="openWeekly" class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
+        </div>
       </div>
 
-      <div class="flex items-center gap-3 flex-wrap justify-end">
-        <div class="flex items-center gap-2">
-          <div class="small-label mr-2">Mode</div>
-          <button id="modeDaily" class="chip active" type="button">Daily</button>
-          <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
+      <!-- Range compare -->
+      <div class="md:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Range Compare</div>
+          <select id="mode" class="ml-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly (END date)</option>
+          </select>
         </div>
-        <button id="btnReload" class="btn btn-primary" type="button"><span class="btn-spin"></span>새로고침</button>
+
+        <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="text-xs font-extrabold text-slate-600">A 구간</div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <input id="aStart" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+              <input id="aEnd" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+              <button id="aYoY" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">A→YoY</button>
+              <button id="aPrev" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">A→Prev</button>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <div class="text-xs font-extrabold text-slate-600">B 구간</div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <input id="bStart" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+              <input id="bEnd" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+              <button id="swap" class="rounded-xl bg-slate-900 px-3 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Swap</button>
+              <button id="run" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Compare</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="rangeErr" class="mt-3 text-sm font-semibold text-orange-700"></div>
       </div>
     </div>
 
-    <div id="notice" class="notice mb-4">
-      <div class="dot"></div>
-      <div id="noticeText">-</div>
-      <button id="noticeClose" class="x" type="button">닫기</button>
-    </div>
-
-    <div class="glass p-5">
-      <div class="flex flex-wrap items-center gap-2 mb-3">
-        <div class="small-label">Date</div>
-        <div class="w-[160px]"><input id="aDate" type="date" /></div>
-        <button id="btnPrev" class="btn" type="button">◀</button>
-        <button id="btnNext" class="btn" type="button">▶</button>
-        <button id="btnYesterday" class="btn" type="button">어제</button>
-        <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
-
-        <div class="ml-2 small-label">Compare</div>
-        <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
-        <button id="btnPresetPrev" class="btn" type="button">전기준</button>
-        <button id="btnPresetYoY" class="btn" type="button">YoY</button>
-        <div class="w-[160px]"><input id="bDate" type="date" /></div>
-        <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
+    <!-- Output -->
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">KPIs</div>
+        <div id="kpiOut" class="mt-3 text-sm text-slate-500">구간을 선택하고 Compare를 누르면 계산됩니다.</div>
       </div>
-
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <div class="small-label">Range A</div>
-        <div class="w-[160px]"><input id="aStart" type="date" /></div>
-        <div class="w-[160px]"><input id="aEnd" type="date" /></div>
-
-        <div class="ml-2 small-label">Range B</div>
-        <div class="w-[160px]"><input id="bStart" type="date" /></div>
-        <div class="w-[160px]"><input id="bEnd" type="date" /></div>
-
-        <button id="btnRangeGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>구간비교</button>
-        <button id="btnRangeClear" class="btn" type="button">Range 해제</button>
-      </div>
-
-      <div id="viewerGrid" class="grid grid-cols-1 gap-4">
-        <div>
-          <div class="text-xs muted font-semibold mb-2" id="viewerATitle">A: -</div>
-          <!-- ✅ scrolling="no"로 내부 스크롤 금지 -->
-          <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="no"></iframe>
-        </div>
-
-        <div id="viewerBWrap" class="hidden">
-          <div class="text-xs muted font-semibold mb-2" id="viewerBTitle">B: -</div>
-          <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="no"></iframe>
-        </div>
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Revenue</div>
+        <div id="chOut" class="mt-3 text-sm text-slate-500">—</div>
       </div>
     </div>
-  </div>
 
-  <div id="loading" class="loading-backdrop">
-    <div class="loading-card">
-      <div class="spinner"></div>
-      <div id="loadingText">로딩 중…</div>
+    <!-- Recent list -->
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Recent</div>
+      <div id="recentList" class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2"></div>
     </div>
   </div>
 
 <script>
-(function(){
-  const BASE = '';
+(() => {
+  const dates = ["2026-02-12", "2026-02-13", "2026-02-14", "2026-02-15", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", "2026-02-21", "2026-02-22", "2026-02-23", "2026-02-24", "2026-02-25"];
+  const latest = "2026-02-25";
 
-  function kstNowDate(){
-    const now = new Date();
-    const utc = now.getTime() + now.getTimezoneOffset()*60000;
-    return new Date(utc + 9*60*60000);
-  }
-  function fmtYMD(d){
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const dd = String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${dd}`;
-  }
-  function parseYMD(s){
-    const [y,m,d] = (s||'').split('-').map(Number);
-    return new Date(y, (m||1)-1, d||1);
-  }
-  function addDays(d, n){
-    const x = new Date(d);
-    x.setDate(x.getDate()+n);
-    return x;
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const fmtInt = (x) => Number(x||0).toLocaleString("en-US");
+  const fmtKRW = (x) => "₩" + Math.round(Number(x||0)).toLocaleString("en-US");
+  const pctChange = (c,p) => (Number(p||0)===0) ? ((Number(c||0)===0)?0:1) : ((Number(c||0)-Number(p||0))/Number(p||0));
+  const fmtPct = (p,d=1) => (Number(p||0)*100).toFixed(d)+"%";
+  const fmtPP = (p,d=2) => (Number(p||0)*100).toFixed(d)+"%p";
+
+  function bundlePath(mode, d) {
+    if(mode==="weekly") return "data/weekly/END_"+d+".json";
+    return "data/daily/"+d+".json";
   }
 
-  const modeDaily = document.getElementById('modeDaily');
-  const modeWeekly = document.getElementById('modeWeekly');
-  const btnReload = document.getElementById('btnReload');
-
-  const aDate = document.getElementById('aDate');
-  const bDate = document.getElementById('bDate');
-  const btnPrev = document.getElementById('btnPrev');
-  const btnNext = document.getElementById('btnNext');
-  const btnYesterday = document.getElementById('btnYesterday');
-  const btnToday = document.getElementById('btnToday');
-
-  const btnCompareToggle = document.getElementById('btnCompareToggle');
-  const btnPresetPrev = document.getElementById('btnPresetPrev');
-  const btnPresetYoY = document.getElementById('btnPresetYoY');
-  const btnCompareGo = document.getElementById('btnCompareGo');
-
-  const aStart = document.getElementById('aStart');
-  const aEnd = document.getElementById('aEnd');
-  const bStart = document.getElementById('bStart');
-  const bEnd = document.getElementById('bEnd');
-  const btnRangeGo = document.getElementById('btnRangeGo');
-  const btnRangeClear = document.getElementById('btnRangeClear');
-
-  const viewerA = document.getElementById('viewerA');
-  const viewerB = document.getElementById('viewerB');
-  const viewerBWrap = document.getElementById('viewerBWrap');
-  const viewerGrid = document.getElementById('viewerGrid');
-  const viewerATitle = document.getElementById('viewerATitle');
-  const viewerBTitle = document.getElementById('viewerBTitle');
-
-  const loading = document.getElementById('loading');
-  const loadingText = document.getElementById('loadingText');
-
-  const notice = document.getElementById('notice');
-  const noticeText = document.getElementById('noticeText');
-  const noticeClose = document.getElementById('noticeClose');
-
-  let MODE = 'daily';
-  let COMPARE = false;
-
-  // ✅ 로딩 동기화
-  let pendingLoads = 0;
-
-  function stepDays(){ return (MODE === 'weekly') ? 7 : 1; }
-
-  function buildReportPath(dateStr){
-    const base = (MODE === 'daily')
-      ? `${BASE}daily/${dateStr}.html`
-      : `${BASE}weekly/END_${dateStr}.html`;
-    return base + `?embed=1`;
+  function ymdToDate(s) {
+    const [y,m,d] = s.split("-").map(x=>parseInt(x,10));
+    return new Date(y, m-1, d);
   }
-  function buildCachePath(dateStr){
-    return (MODE === 'daily')
-      ? `${BASE}data/daily/${dateStr}.json`
-      : `${BASE}data/weekly/END_${dateStr}.json`;
+  function dateToYmd(dt) {
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth()+1).padStart(2,"0");
+    const d = String(dt.getDate()).padStart(2,"0");
+    return `${y}-${m}-${d}`;
   }
 
-  function showNotice(msg){
-    noticeText.textContent = msg;
-    notice.style.display = 'flex';
-  }
-  function hideNotice(){
-    notice.style.display = 'none';
-    noticeText.textContent = '-';
-  }
-  noticeClose.addEventListener('click', hideNotice);
-
-  const ACTION_BTNS = [btnReload, btnCompareGo, btnRangeGo];
-  const MODE_BTNS = [modeDaily, modeWeekly, btnCompareToggle, btnPresetPrev, btnPresetYoY, btnPrev, btnNext, btnYesterday, btnToday, btnRangeClear];
-
-  function setBusy(on, msg){
-    if(on){
-      loadingText.textContent = msg || '로딩 중…';
-      loading.style.display = 'flex';
-      for(const b of ACTION_BTNS){ b.disabled = true; b.classList.add('loading'); }
-      for(const b of MODE_BTNS){ b.disabled = true; }
-    }else{
-      loading.style.display = 'none';
-      for(const b of ACTION_BTNS){ b.disabled = false; b.classList.remove('loading'); }
-      for(const b of MODE_BTNS){ b.disabled = false; }
-    }
-  }
-  function beginLoads(n, msg){
-    pendingLoads = Math.max(0, n|0);
-    setBusy(true, msg || '로딩 중…');
-  }
-  function endOneLoad(){
-    pendingLoads = Math.max(0, pendingLoads - 1);
-    if(pendingLoads === 0) setBusy(false);
+  function rangeDates(start, end) {
+    const out = [];
+    let a = ymdToDate(start);
+    const b = ymdToDate(end);
+    if(a>b) return out;
+    for(; a<=b; a.setDate(a.getDate()+1)) out.push(dateToYmd(a));
+    return out;
   }
 
-  // EXISTS cache
-  const LS_KEY = 'ddhub_exists_cache_v10';
-  const TTL_MS = 6 * 60 * 60 * 1000;
-  const memCache = new Map();
-
-  function loadLS(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}')||{} }catch(e){ return {}; } }
-  function saveLS(obj){ try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }catch(e){} }
-  function cacheGet(u){
-    if(memCache.has(u)) return memCache.get(u);
-    const db = loadLS();
-    const hit = db[u];
-    if(hit && (Date.now()-hit.ts)<TTL_MS){ memCache.set(u, hit.ok); return hit.ok; }
-    return null;
-  }
-  function cacheSet(u, ok){
-    memCache.set(u, ok);
-    const db = loadLS();
-    db[u] = { ok: !!ok, ts: Date.now() };
-    const keys = Object.keys(db);
-    if(keys.length>900){
-      keys.sort((a,b)=> (db[a].ts||0)-(db[b].ts||0));
-      for(let i=0;i<keys.length-700;i++) delete db[keys[i]];
-    }
-    saveLS(db);
+  async function fetchJSON(path) {
+    const r = await fetch(path, {cache:"force-cache"});
+    if(!r.ok) throw new Error(path);
+    return await r.json();
   }
 
-  // ✅ HEAD 막히는 환경 대비: HEAD 실패하면 GET 재시도
-  async function exists(url){
-    const base = url.split('?')[0];
-    const cached = cacheGet(base);
-    if(cached !== null) return cached;
-
-    const bust = `t=${Date.now()}`;
-    try{
-      const res = await fetch(base + `?${bust}`, { method:'HEAD', cache:'no-store' });
-      cacheSet(base, res.ok);
-      return res.ok;
-    }catch(e1){
-      try{
-        const res2 = await fetch(base + `?${bust}`, { method:'GET', cache:'no-store' });
-        cacheSet(base, res2.ok);
-        return res2.ok;
-      }catch(e2){
-        cacheSet(base, false);
-        return false;
-      }
-    }
+  function initDefaults() {
+    $("#openDate").value = latest;
+    $("#mode").value = "daily";
+    $("#aStart").value = latest;
+    $("#aEnd").value = latest;
+    // default B: previous day
+    const dt = ymdToDate(latest); dt.setDate(dt.getDate()-1);
+    const prev = dateToYmd(dt);
+    $("#bStart").value = prev;
+    $("#bEnd").value = prev;
   }
 
-  // ====== 리포트 UI 숨김 (네 기존 로직 유지)
-  function scrubReportUI(doc){
-    if(!doc) return;
-
-    let style = doc.getElementById('hub_scrub_css');
-    if(!style){
-      style = doc.createElement('style');
-      style.id = 'hub_scrub_css';
-      style.type = 'text/css';
-      style.textContent = `
-        html, body{ overflow:visible !important; } /* ✅ 내부 스크롤 자체를 없애는 방향 */
-        body{ margin:0 !important; }
-      `;
-      doc.head.appendChild(style);
-    }
-
-    for(const n of Array.from(doc.querySelectorAll('h1,h2,div,span'))){
-      const t = (n.textContent||'').trim();
-      if(t === 'Daily Digest'){
-        n.style.display = 'none';
-        break;
-      }
-    }
-
-    const tabBtns = Array.from(doc.querySelectorAll('button,a')).filter(el=>{
-      const t = (el.textContent||'').trim();
-      return t === 'Hub' || t === 'Daily' || t === 'Weekly';
-    });
-
-    function hasAll3(el){
-      if(!el) return false;
-      const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
-      return txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly');
-    }
-
-    for(const b of tabBtns){
-      let p = b.parentElement;
-      for(let i=0;i<6 && p;i++){
-        if(p === doc.body || p === doc.documentElement) break;
-        if(hasAll3(p)){
-          p.style.display = 'none';
-          p.setAttribute('data-hub-hidden','tabs');
-          break;
-        }
-        p = p.parentElement;
-      }
-    }
-
-    const SIGN = 'No extra GA/BQ cost';
-    const mustHave = ['Preset: DoD', 'Preset: YoY', 'Compare'];
-
-    const candidates = Array.from(doc.querySelectorAll('div,section,article'));
-    for(const el of candidates){
-      const txt = (el.textContent||'').replace(/\s+/g,' ').trim();
-      if(!txt) continue;
-      if(!txt.includes(SIGN)) continue;
-      if(!mustHave.every(s => txt.includes(s))) continue;
-      if(txt.includes('Top KPIs') || txt.includes('Channel Snapshot')) continue;
-
-      const hasCompareBtn = Array.from(el.querySelectorAll('button')).some(b => (b.textContent||'').trim() === 'Compare');
-      if(!hasCompareBtn) continue;
-
-      el.style.display = 'none';
-      el.setAttribute('data-hub-hidden','compare-card');
-      break;
-    }
+  function renderRecent() {
+    const items = dates.slice(-10).reverse();
+    $("#recentList").innerHTML = items.map(d => `
+      <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3">
+        <div class="text-sm font-extrabold">${esc(d)}</div>
+        <div class="flex gap-2">
+          <a class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${esc(d)}.html">Daily</a>
+          <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${esc(d)}.html">Weekly</a>
+        </div>
+      </div>
+    `).join("");
   }
 
-  // ✅ iframe 자동 높이 조정(내부 스크롤 제거의 핵심)
-  const frameObservers = new WeakMap();
-
-  function calcDocHeight(doc){
-    const de = doc.documentElement;
-    const b = doc.body;
-    const h = Math.max(
-      de ? de.scrollHeight : 0,
-      de ? de.offsetHeight : 0,
-      b ? b.scrollHeight : 0,
-      b ? b.offsetHeight : 0
-    );
-    return h;
+  function sumAgg() {
+    return {
+      sessions:0, orders:0, revenue:0, cvr_num:0, cvr_den:0, signups:0,
+      channels: {} // bucket -> revenue
+    };
   }
 
-  function resizeFrameToContent(frame){
-    try{
-      const doc = frame.contentDocument || frame.contentWindow.document;
-      if(!doc) return;
-      const h = calcDocHeight(doc);
+  function addBundle(agg, b) {
+    const cur = (b.overall && b.overall.current) || {};
+    const sessions = Number(cur.sessions||0);
+    const orders = Number(cur.transactions||0);
+    const revenue = Number(cur.purchaseRevenue||0);
+    const signups = Number((b.signup_users && b.signup_users.current)||0);
 
-      // 너무 작은/튀는 값 방지 (최소 820, 최대 20000)
-      const clamped = Math.max(820, Math.min(20000, h + 20));
-      frame.style.height = clamped + 'px';
-    }catch(e){
-      // cross-origin이면 접근 불가 → 이 경우는 내부 스크롤 제거가 원천적으로 불가
-    }
-  }
+    agg.sessions += sessions;
+    agg.orders += orders;
+    agg.revenue += revenue;
+    agg.signups += signups;
+    agg.cvr_num += orders;
+    agg.cvr_den += sessions;
 
-  function attachAutoResize(frame){
-    try{
-      const doc = frame.contentDocument || frame.contentWindow.document;
-      if(!doc) return;
-
-      // 기존 옵저버 제거
-      const prev = frameObservers.get(frame);
-      if(prev){ try{ prev.disconnect(); }catch(e){} }
-
-      // 최초 1~2회 보정
-      resizeFrameToContent(frame);
-      setTimeout(()=>resizeFrameToContent(frame), 350);
-      setTimeout(()=>resizeFrameToContent(frame), 1200);
-
-      const obs = new MutationObserver(()=>{
-        // DOM 변동이 잦으면 너무 자주 계산될 수 있어서 rAF로 완충
-        requestAnimationFrame(()=>resizeFrameToContent(frame));
+    const ch = (b.channels) ? b.channels : null; // hub-friendly
+    if(ch && typeof ch === "object") {
+      Object.keys(ch).forEach(k => {
+        const rev = Number((ch[k] && ch[k].revenue)||0);
+        agg.channels[k] = (agg.channels[k]||0) + rev;
       });
-      obs.observe(doc.documentElement || doc.body, { childList:true, subtree:true, attributes:true, characterData:true });
-      frameObservers.set(frame, obs);
-    }catch(e){}
-  }
-
-  function onFrameLoad(frame){
-    try{
-      const doc = frame.contentDocument || frame.contentWindow.document;
-      if(!doc) return;
-      scrubReportUI(doc);
-      setTimeout(()=>scrubReportUI(doc), 1200);
-
-      // ✅ 내부 스크롤 없애기: 내용 높이에 맞춰 iframe 키우기
-      attachAutoResize(frame);
-    }catch(e){}
-  }
-
-  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); endOneLoad(); });
-  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); endOneLoad(); });
-
-  async function loadA(dateStr){
-    viewerA.src = buildReportPath(dateStr);
-    viewerATitle.textContent = `A: ${MODE.toUpperCase()} · ${dateStr}`;
-  }
-  async function loadB(dateStr){
-    viewerB.src = buildReportPath(dateStr);
-    viewerBTitle.textContent = `B: ${MODE.toUpperCase()} · ${dateStr}`;
-  }
-
-  async function yoyEndFor(dateStr){
-    try{
-      const res = await fetch(buildCachePath(dateStr) + `?t=${Date.now()}`, { cache:'no-store' });
-      if(!res.ok) throw new Error('no cache');
-      const j = await res.json();
-      const y = j && j.yoy && j.yoy.end ? String(j.yoy.end) : '';
-      if(!y) throw new Error('no yoy.end');
-      return y;
-    }catch(e){
-      return fmtYMD(addDays(parseYMD(dateStr), -364));
+    } else if(Array.isArray(b.channel_snapshot)) {
+      b.channel_snapshot.forEach(x => {
+        const k = x.bucket;
+        if(!k) return;
+        const rev = Number(x.purchaseRevenue||0);
+        agg.channels[k] = (agg.channels[k]||0) + rev;
+      });
     }
   }
 
-  function updateCompareLayout(){
-    if(COMPARE){
-      viewerBWrap.classList.remove('hidden');
-      viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4';
-    }else{
-      viewerBWrap.classList.add('hidden');
-      viewerGrid.className = 'grid grid-cols-1 gap-4';
+  function finalize(agg) {
+    const cvr = (agg.cvr_den===0)?0:(agg.cvr_num/agg.cvr_den);
+    return {
+      sessions: agg.sessions,
+      orders: agg.orders,
+      revenue: agg.revenue,
+      cvr,
+      signups: agg.signups,
+      channels: agg.channels
+    };
+  }
+
+  function renderCompare(a, b) {
+    const rows = [
+      ["Sessions", fmtInt(a.sessions), fmtInt(b.sessions), pctChange(a.sessions, b.sessions), false],
+      ["Orders", fmtInt(a.orders), fmtInt(b.orders), pctChange(a.orders, b.orders), false],
+      ["Revenue", fmtKRW(a.revenue), fmtKRW(b.revenue), pctChange(a.revenue, b.revenue), false],
+      ["CVR", (a.cvr*100).toFixed(2)+"%", (b.cvr*100).toFixed(2)+"%", (a.cvr - b.cvr), true],
+      ["Sign-ups", fmtInt(a.signups), fmtInt(b.signups), pctChange(a.signups, b.signups), false],
+    ];
+    const kpiTable = `
+      <table class="w-full text-sm">
+        <thead class="text-xs text-slate-500">
+          <tr>
+            <th class="px-3 py-2 text-left">Metric</th>
+            <th class="px-3 py-2 text-right">A</th>
+            <th class="px-3 py-2 text-right">B</th>
+            <th class="px-3 py-2 text-right">Diff</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>{
+            const diff = r[3];
+            const isPP = r[4];
+            const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
+            const txt = isPP ? ((diff>=0?"+":"")+fmtPP(diff,2)) : ((diff>=0?"+":"")+fmtPct(diff,1));
+            return `
+              <tr class="border-b border-slate-100">
+                <td class="px-3 py-2 font-extrabold">${esc(r[0])}</td>
+                <td class="px-3 py-2 text-right font-semibold">${esc(r[1])}</td>
+                <td class="px-3 py-2 text-right font-semibold">${esc(r[2])}</td>
+                <td class="px-3 py-2 text-right"><span class="${cls} font-extrabold">${esc(txt)}</span></td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    `;
+    $("#kpiOut").innerHTML = kpiTable;
+
+    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Total"];
+    const chRows = buckets.map(k => {
+      const ar = Number(a.channels[k]||0);
+      const br = Number(b.channels[k]||0);
+      const diff = pctChange(ar, br);
+      const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
+      return `
+        <tr class="border-b border-slate-100">
+          <td class="px-3 py-2 font-extrabold">${esc(k)}</td>
+          <td class="px-3 py-2 text-right">${esc(fmtKRW(ar))}</td>
+          <td class="px-3 py-2 text-right">${esc(fmtKRW(br))}</td>
+          <td class="px-3 py-2 text-right"><span class="${cls} font-extrabold">${esc((diff>=0?"+":"")+fmtPct(diff,1))}</span></td>
+        </tr>
+      `;
+    }).join("");
+
+    $("#chOut").innerHTML = `
+      <table class="w-full text-sm">
+        <thead class="text-xs text-slate-500">
+          <tr>
+            <th class="px-3 py-2 text-left">Bucket</th>
+            <th class="px-3 py-2 text-right">A</th>
+            <th class="px-3 py-2 text-right">B</th>
+            <th class="px-3 py-2 text-right">Diff</th>
+          </tr>
+        </thead>
+        <tbody>${chRows}</tbody>
+      </table>
+    `;
+  }
+
+  async function runCompare() {
+    $("#rangeErr").textContent = "";
+    const mode = $("#mode").value;
+    const aS = $("#aStart").value, aE = $("#aEnd").value;
+    const bS = $("#bStart").value, bE = $("#bEnd").value;
+    if(!aS||!aE||!bS||!bE) {
+      $("#rangeErr").textContent = "A/B 구간 날짜를 모두 선택해줘.";
+      return;
     }
-  }
-
-  function setCompare(on){
-    COMPARE = !!on;
-    btnCompareToggle.classList.toggle('active', COMPARE);
-    btnCompareToggle.textContent = COMPARE ? '비교 ON' : '비교 OFF';
-    updateCompareLayout();
-  }
-
-  async function applyA(){
-    const d = (aDate.value||'').trim();
-    if(!d) return;
-    hideNotice();
-
-    beginLoads(1, 'A 리포트 로딩…');
-
-    let target = d;
-    if(!(await exists(buildReportPath(target)))){
-      const step = stepDays();
-      const tries = [-step, +step, -1, +1];
-      let replaced = false;
-
-      for(const delta of tries){
-        const cand = fmtYMD(addDays(parseYMD(target), delta));
-        if(await exists(buildReportPath(cand))){ target=cand; replaced=true; break; }
-      }
-      aDate.value = target;
-
-      if(replaced) showNotice(`A 리포트가 없어 가장 가까운 날짜(${target})로 대체했어.`);
-      else showNotice(`A 리포트를 찾지 못했어. (요청: ${d})`);
+    const aDates = rangeDates(aS, aE);
+    const bDates = rangeDates(bS, bE);
+    if(aDates.length===0 || bDates.length===0) {
+      $("#rangeErr").textContent = "구간이 잘못됐어. (start <= end)";
+      return;
     }
 
-    await loadA(target);
-  }
+    const aAgg = sumAgg();
+    const bAgg = sumAgg();
 
-  async function doCompare(){
-    const a = (aDate.value||'').trim();
-    const b = (bDate.value||'').trim();
-    if(!a || !b) return;
-
-    hideNotice();
-    setCompare(true);
-    beginLoads(2, 'A/B 리포트 로딩…');
-
-    // A 정규화
-    let aTarget = a;
-    if(!(await exists(buildReportPath(aTarget)))){
-      const step = stepDays();
-      const tries = [-step, +step, -1, +1];
-      for(const delta of tries){
-        const cand = fmtYMD(addDays(parseYMD(aTarget), delta));
-        if(await exists(buildReportPath(cand))){ aTarget=cand; break; }
-      }
-      aDate.value = aTarget;
-      showNotice(`A 리포트가 없어 가장 가까운 날짜(${aTarget})로 대체했어.`);
+    try {
+      await Promise.all(aDates.map(async d => {
+        const b = await fetchJSON(bundlePath(mode, d));
+        addBundle(aAgg, b);
+      }));
+      await Promise.all(bDates.map(async d => {
+        const b = await fetchJSON(bundlePath(mode, d));
+        addBundle(bAgg, b);
+      }));
+    } catch(e) {
+      $("#rangeErr").textContent = "JSON이 없는 날짜가 있어. 먼저 해당 날짜 리포트가 생성돼 있어야 해.";
+      console.error(e);
+      return;
     }
-    await loadA(aTarget);
 
-    // B 정규화
-    let bTarget = b;
-    if(!(await exists(buildReportPath(bTarget)))){
-      bTarget = aTarget;
-      bDate.value = bTarget;
-      showNotice(`B 리포트 HTML이 없어 A(${aTarget})로 대체했어. (요청: ${b})`);
-    }
-    await loadB(bTarget);
+    renderCompare(finalize(aAgg), finalize(bAgg));
   }
 
-  async function doRangeCompare(){
-    const ae = (aEnd.value||'').trim();
-    const be = (bEnd.value||'').trim();
-    if(!ae || !be) return;
-
-    hideNotice();
-    setCompare(true);
-    beginLoads(2, '구간비교 로딩…');
-
-    aDate.value = ae;
-    bDate.value = be;
-
-    await loadA(ae);
-
-    let bTarget = be;
-    if(!(await exists(buildReportPath(bTarget)))){
-      bTarget = ae;
-      bDate.value = bTarget;
-      showNotice(`Range B(END=${be}) 리포트 HTML이 없어 A END(${ae})로 대체했어.`);
-    }
-    await loadB(bTarget);
+  function swapAB() {
+    const as = $("#aStart").value, ae = $("#aEnd").value;
+    $("#aStart").value = $("#bStart").value;
+    $("#aEnd").value = $("#bEnd").value;
+    $("#bStart").value = as;
+    $("#bEnd").value = ae;
   }
 
-  function clearRange(){
-    aStart.value = ''; aEnd.value = '';
-    bStart.value = ''; bEnd.value = '';
+  function shiftRange(start, end, days) {
+    let s = ymdToDate(start);
+    let e = ymdToDate(end);
+    s.setDate(s.getDate()+days);
+    e.setDate(e.getDate()+days);
+    return [dateToYmd(s), dateToYmd(e)];
   }
 
-  async function setMode(next){
-    MODE = next;
-    modeDaily.classList.toggle('active', MODE==='daily');
-    modeWeekly.classList.toggle('active', MODE==='weekly');
-    hideNotice();
-
-    if(COMPARE){
-      await doCompare();
-    }else{
-      await applyA();
-    }
+  function presetPrevFromA() {
+    const as = $("#aStart").value, ae = $("#aEnd").value;
+    if(!as||!ae) return;
+    const aDates = rangeDates(as, ae);
+    const len = aDates.length;
+    const [bs, be] = shiftRange(as, ae, -len);
+    $("#bStart").value = bs;
+    $("#bEnd").value = be;
   }
 
-  modeDaily.addEventListener('click', ()=> setMode('daily'));
-  modeWeekly.addEventListener('click', ()=> setMode('weekly'));
+  function presetYoYFromA() {
+    const as = $("#aStart").value, ae = $("#aEnd").value;
+    if(!as||!ae) return;
+    const [bs, be] = shiftRange(as, ae, -364);
+    $("#bStart").value = bs;
+    $("#bEnd").value = be;
+  }
 
-  btnReload.addEventListener('click', ()=>{
-    beginLoads(1, '새로고침…');
-    location.reload();
-  });
-
-  btnCompareToggle.addEventListener('click', ()=> setCompare(!COMPARE));
-
-  btnPresetPrev.addEventListener('click', ()=>{
-    const a = aDate.value;
-    if(!a) return;
-    bDate.value = fmtYMD(addDays(parseYMD(a), -stepDays()));
-    setCompare(true);
-  });
-
-  // ✅ 요청 반영: YoY 누르면 "바로 비교 실행"
-  btnPresetYoY.addEventListener('click', async ()=>{
-    const a = aDate.value;
-    if(!a) return;
-    hideNotice();
-
-    beginLoads(1, 'YoY 날짜 계산…');
-    const y = await yoyEndFor(a);
-
-    // 날짜 계산은 로딩 끝
-    pendingLoads = 0;
-    setBusy(false);
-
-    bDate.value = y;
-    setCompare(true);
-
-    // 바로 비교 실행
-    await doCompare();
-  });
-
-  btnCompareGo.addEventListener('click', doCompare);
-
-  btnRangeGo.addEventListener('click', doRangeCompare);
-  btnRangeClear.addEventListener('click', ()=>{ clearRange(); });
-
-  btnYesterday.addEventListener('click', ()=>{ aDate.value = fmtYMD(addDays(kstNowDate(), -1)); applyA(); });
-  btnToday.addEventListener('click', async ()=>{
-    const t = fmtYMD(kstNowDate());
-    aDate.value = (await exists(buildReportPath(t))) ? t : fmtYMD(addDays(kstNowDate(), -1));
-    applyA();
-  });
-
-  btnPrev.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays())); applyA(); });
-  btnNext.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays())); applyA(); });
-
-  (function init(){
-    const y = addDays(kstNowDate(), -1);
-    aDate.value = fmtYMD(y);
-    bDate.value = fmtYMD(addDays(y, -1));
-
-    const ae = fmtYMD(y);
-    const as = fmtYMD(addDays(y, -20));
-    const be = fmtYMD(addDays(y, -21));
-    const bs = fmtYMD(addDays(y, -41));
-
-    aStart.value = as; aEnd.value = ae;
-    bStart.value = bs; bEnd.value = be;
-
-    setCompare(false);
-    applyA();
-  })();
-
+  function init() {
+    initDefaults();
+    renderRecent();
+    $("#openDaily").addEventListener("click", () => {
+      const d = $("#openDate").value;
+      window.location.href = "daily/" + d + ".html";
+    });
+    $("#openWeekly").addEventListener("click", () => {
+      const d = $("#openDate").value;
+      window.location.href = "weekly/END_" + d + ".html";
+    });
+    $("#run").addEventListener("click", runCompare);
+    $("#swap").addEventListener("click", swapAB);
+    $("#aPrev").addEventListener("click", presetPrevFromA);
+    $("#aYoY").addEventListener("click", presetYoYFromA);
+  }
+  document.addEventListener("DOMContentLoaded", init);
 })();
 </script>
+
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-25 HUB FIX v3 (YoY auto-compare + iframe auto-height to remove inner scroll) -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 14:43 KST -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 14:56 KST -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 16:11 KST -->
-<!-- BUILD_STAMP: 2026.02.25 (Wed) 18:46 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 06:56 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 10:24 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 10:32 KST -->
+<!-- BUILD_STAMP: 2026.02.26 (Thu) 10:46 KST -->
