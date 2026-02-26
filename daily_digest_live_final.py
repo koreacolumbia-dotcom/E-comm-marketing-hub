@@ -98,6 +98,9 @@ YOY_WEEKLY_END_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_WEEKLY_END", "").strip()  
 # Cost-saving: if HTML exists for same date, skip all queries and keep HTML as-is
 SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "true").strip().lower() in ("1", "true", "yes", "y")
 
+# ✅ New: hub index write control (keep your own static index.html)
+SKIP_HUB_WRITE = os.getenv(\"DAILY_DIGEST_SKIP_HUB_WRITE\", \"true\").strip().lower() in (\"1\",\"true\",\"yes\",\"y\")
+
 # ✅ New: data cache (bundle JSON)
 USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
@@ -2482,13 +2485,16 @@ def main():
     hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
 
-    if (not force_overwrite) and os.path.exists(hub_path):
+    if SKIP_HUB_WRITE:
+        print(f"[SKIP] HUB write disabled (keeping existing): {hub_path}")
+    elif (not force_overwrite) and os.path.exists(hub_path):
         print(f"[SKIP] HUB exists (no overwrite): {hub_path}")
     else:
         hub = render_hub_index(dates=dates)
         with open(hub_path, "w", encoding="utf-8") as f:
             f.write(hub)
         print(f"[OK] Wrote HUB: {hub_path}")
+
 
 
 if __name__ == "__main__":
