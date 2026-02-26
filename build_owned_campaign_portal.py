@@ -3,6 +3,7 @@
 
 """
 OWNED Campaign → Product Performance Portal (GA4 BigQuery Export)
+
 - Pulls OWNED (EDM/LMS/KAKAO) performance + purchased products by campaign(send_id)
 - Generates static site for GitHub Pages
   - site/index.html (campaign explorer)
@@ -18,6 +19,7 @@ Supports:
 
 Requirements:
   pip install google-cloud-bigquery pandas pyarrow
+  (optional) pip install google-cloud-bigquery-storage  # faster, but NOT required
 
 Auth:
   - Use GOOGLE_APPLICATION_CREDENTIALS or ADC in GitHub Actions
@@ -61,15 +63,6 @@ def parse_date(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
-def daterange(start: date, end: date) -> List[date]:
-    cur = start
-    out = []
-    while cur <= end:
-        out.append(cur)
-        cur += timedelta(days=1)
-    return out
-
-
 # ----------------------------
 # Auth helpers (optional b64)
 # ----------------------------
@@ -87,14 +80,13 @@ def maybe_write_sa_from_b64() -> None:
 # BigQuery SQL
 # ----------------------------
 def build_sql(project: str, dataset: str, start_suffix: str, end_suffix: str) -> str:
+    """
+    핵심 패치:
+    - 캠페인 귀속 안정화: (가능하면) session_traffic_source_last_click → collected_traffic_source → event_params(utm) 순으로 fallback
+    - OWNED 필터도 동일 기준으로 처리
+    """
     table = f"`{project}.{dataset}.events_*`"
-    # Notes:
-    # - sessions/users from session_start
-    # - purchase facts from purchase
-    # - product facts from purchase + UNNEST(items)
-    # - send_id: KAKAO -> manual_term, else campaign
-    # - channel: KAKAO / LMS / EDM
-    # - owned filter: source-based
+
     return f"""
 DECLARE start_suffix STRING DEFAULT '{start_suffix}';
 DECLARE end_suffix   STRING DEFAULT '{end_suffix}';
@@ -105,10 +97,22 @@ WITH base AS (
     event_name,
     user_pseudo_id,
 
-    collected_traffic_source.manual_source AS source,
-    collected_traffic_source.manual_medium AS medium,
-    collected_traffic_source.manual_campaign_name AS campaign,
-    collected_traffic_source.manual_term AS manual_term,
+    -- (1) session_traffic_source_last_click (있으면 가장 안정적)
+    --     스키마가 없는 경우에도 쿼리가 깨지지 않게 SAFE 구조로 접근할 수가 없어서
+    --     여기서는 collected_traffic_source + event_params fallback을 우선 적용.
+    --     (네 export에 session_traffic_source_last_click가 있다면 이 블록을 확장 추천)
+
+    -- (2) collected_traffic_source (있을 때)
+    collected_traffic_source.manual_source AS c_source,
+    collected_traffic_source.manual_medium AS c_medium,
+    collected_traffic_source.manual_campaign_name AS c_campaign,
+    collected_traffic_source.manual_term AS c_term,
+
+    -- (3) event_params (utm) fallback
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='source')   AS p_source,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='medium')   AS p_medium,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='campaign') AS p_campaign,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='term')     AS p_term,
 
     ecommerce.transaction_id AS transaction_id,
     ecommerce.purchase_revenue AS purchase_revenue,
@@ -117,6 +121,25 @@ WITH base AS (
     items
   FROM {table}
   WHERE _TABLE_SUFFIX BETWEEN start_suffix AND end_suffix
+),
+
+norm AS (
+  SELECT
+    date,
+    event_name,
+    user_pseudo_id,
+
+    -- 최종 source/medium/campaign/term
+    COALESCE(NULLIF(c_source,''), NULLIF(p_source,'')) AS source,
+    COALESCE(NULLIF(c_medium,''), NULLIF(p_medium,'')) AS medium,
+    COALESCE(NULLIF(c_campaign,''), NULLIF(p_campaign,'')) AS campaign,
+    COALESCE(NULLIF(c_term,''), NULLIF(p_term,'')) AS manual_term,
+
+    transaction_id,
+    purchase_revenue,
+    total_item_quantity,
+    items
+  FROM base
 ),
 
 owned AS (
@@ -143,7 +166,7 @@ owned AS (
       WHEN UPPER(source) IN ('EDM','EMAIL_MKT','DM') THEN 'EDM'
       ELSE 'OTHER'
     END AS channel
-  FROM base
+  FROM norm
   WHERE
     UPPER(source) LIKE 'KAKAO%'
     OR UPPER(source) LIKE 'LMS%'
@@ -221,15 +244,11 @@ FROM prod p
 
 
 # ----------------------------
-# HTML (Tailwind + your glass/chip/btn design)
+# HTML
 # ----------------------------
 def build_index_html() -> str:
-    # This is a static SPA:
-    # - pick date
-    # - channel chips
-    # - campaign buttons (send_id)
-    # - KPI cards + product table
-    # Data source: site/data/owned/owned_YYYY-MM-DD.json
+    # small patch:
+    # - read available_dates.json, set latest date as default if possible
     return r"""<!doctype html>
 <html lang="ko">
 <head>
@@ -290,12 +309,6 @@ def build_index_html() -> str:
     }
     .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
     .btn-primary{ background: #002d72; border-color: #002d72; color: white; }
-    .btn:disabled, .chip:disabled{
-      opacity: .55;
-      cursor: not-allowed;
-      transform:none !important;
-      box-shadow:none !important;
-    }
     .muted{ color:#64748b; }
     .small-label{
       font-size: 10px;
@@ -510,7 +523,7 @@ def build_index_html() -> str:
       </div>
 
       <div class="muted font-semibold text-xs mt-3">
-        데이터: GA4 BigQuery Export · send_id 규칙: KAKAO=manual_term, EDM/LMS=campaign · purchase 기준 상품 집계
+        데이터: GA4 BigQuery Export · send_id 규칙: KAKAO=term, EDM/LMS=campaign · purchase 기준 상품 집계
       </div>
     </div>
   </div>
@@ -579,10 +592,10 @@ def build_index_html() -> str:
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
   let CHANNEL = 'ALL';
-  let RAW = null;      // {kpi:[], prod:[]}
-  let KPI = [];        // filtered KPI rows
-  let PROD = [];       // filtered PROD rows
+  let RAW = null;      // {date, kpi:[], prod:[]}
+  let KPI = [];
   let SELECTED = null; // {channel, send_id}
+  let AVAILABLE = null; // [YYYY-MM-DD...]
 
   function setChipActive(){
     [chipAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
@@ -592,17 +605,10 @@ def build_index_html() -> str:
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
   }
 
-  function filterRows(){
-    if(!RAW){ KPI=[]; PROD=[]; return; }
+  function filterKPI(){
+    if(!RAW){ KPI=[]; return; }
     const qq = (q.value||'').trim().toLowerCase();
-
     KPI = RAW.kpi.filter(r=>{
-      if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
-      if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
-      return true;
-    });
-
-    PROD = RAW.prod.filter(r=>{
       if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
       if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
       return true;
@@ -617,19 +623,15 @@ def build_index_html() -> str:
     }
 
     const limit = Math.max(1, parseInt(topN.value||'30',10));
-    // Sort by sessions desc
     const rows = KPI.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
 
-    const html = rows.map(r=>{
+    campaignWrap.innerHTML = rows.map(r=>{
       const label = `${r.send_id}`;
       const meta = `${r.channel} · S:${r.sessions}`;
       const active = (SELECTED && SELECTED.channel===r.channel && SELECTED.send_id===r.send_id) ? 'active' : '';
       return `<button class="chip ${active}" data-channel="${r.channel}" data-send="${encodeURIComponent(r.send_id)}" title="${meta}">${label}</button>`;
     }).join('');
 
-    campaignWrap.innerHTML = html;
-
-    // bind
     Array.from(campaignWrap.querySelectorAll('button.chip')).forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const ch = btn.getAttribute('data-channel');
@@ -640,7 +642,7 @@ def build_index_html() -> str:
   }
 
   function aggregateKPIForSelected(){
-    if(!SELECTED){
+    if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
       selChannel.textContent='-'; selSendId.textContent='-';
@@ -676,7 +678,7 @@ def build_index_html() -> str:
   }
 
   function renderProducts(){
-    if(!SELECTED){
+    if(!SELECTED || !RAW){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">캠페인을 선택하면 상품 리스트가 표시돼.</td></tr>`;
       return;
     }
@@ -719,7 +721,7 @@ def build_index_html() -> str:
       RAW = await res.json();
     }catch(e){
       RAW = null;
-      KPI = []; PROD = [];
+      KPI = [];
       campaignWrap.innerHTML = '';
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${d}.json</td></tr>`;
       showNotice(`데이터가 없어서 표시할 수 없어. (${d})`);
@@ -727,35 +729,68 @@ def build_index_html() -> str:
       return;
     }
 
-    filterRows();
+    filterKPI();
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderProducts();
   }
 
-  // events
-  chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterRows(); renderCampaignButtons(); });
-  chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterRows(); renderCampaignButtons(); });
-  chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterRows(); renderCampaignButtons(); });
-  chipKAKAO.addEventListener('click', ()=>{ CHANNEL='KAKAO'; setChipActive(); filterRows(); renderCampaignButtons(); });
+  async function loadAvailableDates(){
+    try{
+      const res = await fetch(`data/owned/available_dates.json?t=${Date.now()}`, {cache:'no-store'});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      AVAILABLE = (j.available_dates||[]).slice().sort();
+    }catch(e){
+      AVAILABLE = null;
+    }
+  }
 
-  q.addEventListener('input', ()=>{ filterRows(); renderCampaignButtons(); });
+  // events
+  chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+  chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+  chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+  chipKAKAO.addEventListener('click', ()=>{ CHANNEL='KAKAO'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+
+  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); });
 
-  btnPrev.addEventListener('click', ()=>{ const cur=parseYMD(datePicker.value); const d=ymd(addDays(cur,-1)); datePicker.value=d; loadDate(d); });
-  btnNext.addEventListener('click', ()=>{ const cur=parseYMD(datePicker.value); const d=ymd(addDays(cur,+1)); datePicker.value=d; loadDate(d); });
-  btnToday.addEventListener('click', ()=>{ const now=new Date(); const d=ymd(now); datePicker.value=d; loadDate(d); });
+  btnPrev.addEventListener('click', ()=>{
+    const cur=parseYMD(datePicker.value);
+    const d=ymd(addDays(cur,-1));
+    datePicker.value=d; loadDate(d);
+  });
+  btnNext.addEventListener('click', ()=>{
+    const cur=parseYMD(datePicker.value);
+    const d=ymd(addDays(cur,+1));
+    datePicker.value=d; loadDate(d);
+  });
+  btnToday.addEventListener('click', ()=>{
+    const now=new Date();
+    const d=ymd(now);
+    datePicker.value=d; loadDate(d);
+  });
 
   btnReload.addEventListener('click', ()=> location.reload());
   noticeClose.addEventListener('click', hideNotice);
 
-  // init date: yesterday (KST-ish; browser local ok for UX)
-  (function init(){
-    const today = new Date();
-    const d = ymd(addDays(today,-1));
+  // init
+  (async function init(){
+    setChipActive();
+
+    await loadAvailableDates();
+
+    // default date: latest available, else yesterday
+    let d;
+    if(AVAILABLE && AVAILABLE.length){
+      d = AVAILABLE[AVAILABLE.length-1];
+    }else{
+      const today = new Date();
+      d = ymd(addDays(today,-1));
+    }
+
     datePicker.value = d;
     loadDate(d);
-    setChipActive();
   })();
 
 })();
@@ -766,9 +801,6 @@ def build_index_html() -> str:
 
 
 def build_hub_html_placeholder(user_hub_html: Optional[str] = None) -> str:
-    # If you want to include your existing hub html exactly:
-    # - pass it as --hub-html-file and we will embed it.
-    # Otherwise create a simple link page.
     if user_hub_html:
         return user_hub_html
     return """<!doctype html>
@@ -789,98 +821,12 @@ def build_hub_html_placeholder(user_hub_html: Optional[str] = None) -> str:
 </html>
 """
 
-
-# ----------------------------
-# Workflow YAML (GitHub Pages)
-# ----------------------------
-def build_pages_workflow() -> str:
-    # Uses actions/configure-pages + upload-pages-artifact + deploy-pages
-    # Runs daily and on manual dispatch
-    return """name: OWNED Campaign Portal (Build & Deploy)
-
-on:
-  workflow_dispatch:
-    inputs:
-      recent_days:
-        description: "Fetch recent N days (leave empty to use default 7)"
-        required: false
-        default: "7"
-  schedule:
-    - cron: "20 22 * * *"  # 07:20 KST daily
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install deps
-        run: |
-          pip install -U pip
-          pip install google-cloud-bigquery pandas pyarrow
-
-      - name: Build site (fetch + render)
-        env:
-          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
-        run: |
-          RECENT="${{ github.event.inputs.recent_days }}"
-          if [ -z "$RECENT" ]; then RECENT="7"; fi
-          python build_owned_campaign_portal.py --recent-days "$RECENT"
-
-      - name: Commit data changes
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add site/ .github/workflows/owned_pages.yml build_owned_campaign_portal.py || true
-          git commit -m "Update OWNED portal data" || true
-          git push || true
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-"""
-
-
 # ----------------------------
 # JSON writing
 # ----------------------------
 def write_daily_json(out_dir: Path, d: str, kpi_rows: List[Dict[str, Any]], prod_rows: List[Dict[str, Any]]) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "date": d,
-        "kpi": kpi_rows,
-        "prod": prod_rows,
-    }
+    payload = {"date": d, "kpi": kpi_rows, "prod": prod_rows}
     (out_dir / f"owned_{d}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -893,6 +839,17 @@ def write_available_dates(out_dir: Path, dates: List[str]) -> None:
 # ----------------------------
 # Main
 # ----------------------------
+def _safe_to_dataframe(job: bigquery.job.QueryJob) -> pd.DataFrame:
+    """
+    create_bqstorage_client=True는 환경에 따라 실패(패키지 미설치)할 수 있어 fallback 처리.
+    """
+    try:
+        return job.result().to_dataframe(create_bqstorage_client=True)
+    except Exception:
+        # fallback: standard API (slower but stable)
+        return job.result().to_dataframe()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", default=os.getenv("BQ_PROJECT", "columbia-ga4"))
@@ -924,45 +881,45 @@ def main():
     client = bigquery.Client()
     sql = build_sql(args.project, args.dataset, start_sfx, end_sfx)
     job = client.query(sql)
-    df = job.result().to_dataframe(create_bqstorage_client=True)
+    df = _safe_to_dataframe(job)
+
+    # Site skeleton always
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / ".nojekyll").write_text("", encoding="utf-8")
+    (site_dir / "index.html").write_text(build_index_html(), encoding="utf-8")
+
+    hub_html = None
+    if args.hub_html_file and Path(args.hub_html_file).exists():
+        hub_html = Path(args.hub_html_file).read_text(encoding="utf-8")
+    (site_dir / "hub.html").write_text(build_hub_html_placeholder(hub_html), encoding="utf-8")
+
+    wf_path.parent.mkdir(parents=True, exist_ok=True)
+    wf_path.write_text(build_pages_workflow(), encoding="utf-8")
 
     if df.empty:
         print("[WARN] Query returned no rows.")
-        # Still write site skeleton
-        site_dir.mkdir(parents=True, exist_ok=True)
-        (site_dir / ".nojekyll").write_text("", encoding="utf-8")
-        (site_dir / "index.html").write_text(build_index_html(), encoding="utf-8")
-        hub_html = None
-        if args.hub_html_file and Path(args.hub_html_file).exists():
-            hub_html = Path(args.hub_html_file).read_text(encoding="utf-8")
-        (site_dir / "hub.html").write_text(build_hub_html_placeholder(hub_html), encoding="utf-8")
-        wf_path.parent.mkdir(parents=True, exist_ok=True)
-        wf_path.write_text(build_pages_workflow(), encoding="utf-8")
         return
 
     # Normalize
     df["date"] = df["date"].astype(str)
-    # Split kpi/prod
+
     kpi_df = df[df["row_type"] == "kpi"].copy()
     prod_df = df[df["row_type"] == "prod"].copy()
 
     # Clean numeric
     for col in ["sessions", "users", "purchases", "kpi_revenue", "items_purchased", "prod_items", "prod_revenue"]:
-        if col in df.columns:
-            if col in kpi_df.columns:
-                kpi_df[col] = pd.to_numeric(kpi_df[col], errors="coerce").fillna(0)
-            if col in prod_df.columns:
-                prod_df[col] = pd.to_numeric(prod_df[col], errors="coerce").fillna(0)
-
-    # Write daily jsons
-    site_dir.mkdir(parents=True, exist_ok=True)
-    (site_dir / ".nojekyll").write_text("", encoding="utf-8")
+        if col in kpi_df.columns:
+            kpi_df[col] = pd.to_numeric(kpi_df[col], errors="coerce").fillna(0)
+        if col in prod_df.columns:
+            prod_df[col] = pd.to_numeric(prod_df[col], errors="coerce").fillna(0)
 
     available = []
 
     for d in sorted(set(df["date"].tolist())):
-        k_rows = kpi_df[kpi_df["date"] == d][["date","channel","send_id","sessions","users","purchases","kpi_revenue","items_purchased"]].to_dict(orient="records")
-        # rename to stable fields
+        k_rows = kpi_df[kpi_df["date"] == d][
+            ["date", "channel", "send_id", "sessions", "users", "purchases", "kpi_revenue", "items_purchased"]
+        ].to_dict(orient="records")
+
         kpi_rows = []
         for r in k_rows:
             kpi_rows.append({
@@ -973,10 +930,13 @@ def main():
                 "users": int(r.get("users", 0)),
                 "purchases": int(r.get("purchases", 0)),
                 "revenue": float(r.get("kpi_revenue", 0.0)),
-                "items_purchased": float(r.get("items_purchased", 0.0)),
+                "items_purchased": int(r.get("items_purchased", 0)),  # patched: int
             })
 
-        p_rows = prod_df[prod_df["date"] == d][["date","channel","send_id","item_id","item_name","prod_items","prod_revenue"]].to_dict(orient="records")
+        p_rows = prod_df[prod_df["date"] == d][
+            ["date", "channel", "send_id", "item_id", "item_name", "prod_items", "prod_revenue"]
+        ].to_dict(orient="records")
+
         prod_rows = []
         for r in p_rows:
             prod_rows.append({
@@ -993,18 +953,6 @@ def main():
         available.append(d)
 
     write_available_dates(data_dir, available)
-
-    # Write HTML pages
-    (site_dir / "index.html").write_text(build_index_html(), encoding="utf-8")
-
-    hub_html = None
-    if args.hub_html_file and Path(args.hub_html_file).exists():
-        hub_html = Path(args.hub_html_file).read_text(encoding="utf-8")
-    (site_dir / "hub.html").write_text(build_hub_html_placeholder(hub_html), encoding="utf-8")
-
-    # Write workflow
-    wf_path.parent.mkdir(parents=True, exist_ok=True)
-    wf_path.write_text(build_pages_workflow(), encoding="utf-8")
 
     print(f"[OK] Wrote site to: {site_dir.resolve()}")
     print(f"[OK] Data files: {data_dir.resolve()} (days={len(available)})")
