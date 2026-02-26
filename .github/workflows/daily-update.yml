@@ -123,9 +123,8 @@ jobs:
       # =========================================================
       # Daily Digest Report (어제 + YoY만 생성) — HUB FIXED (허브는 고정)
       # =========================================================
-      - name: Run Daily Digest report (yesterday + YoY only)
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.daily_only == 'true' || (inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
-        continue-on-error: true
+      - name: Build Daily Digest (daily+weekly) — reports
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
@@ -133,10 +132,10 @@ jobs:
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
 
-          # 리포트는 강제 재생성
+          # 리포트는 덮어쓰기 허용
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
 
-          # 허브는 고정 (index.html 덮어쓰기 방지)
+          # 허브는 고정
           DAILY_DIGEST_SKIP_HUB_WRITE: "true"
         run: |
           set -euo pipefail
@@ -152,31 +151,23 @@ jobs:
 
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
-          python -c "import json; json.load(open('/tmp/ga_sa.json')); print('JSON_OK')" || true
 
           mkdir -p reports/daily_digest/daily reports/daily_digest/weekly reports/daily_digest/data/daily reports/daily_digest/data/weekly
 
-          # YoY 날짜 = 어제 - 364d
           YOY="$(TZ=Asia/Seoul date -d "${YMD} - 364 days" '+%Y-%m-%d')"
           echo "[INFO] Build only: YMD=${YMD}, YOY=${YOY}"
 
-          # 리포트 산출물만 삭제해서 강제 재생성 (허브는 건드리지 않음)
-          rm -f "reports/daily_digest/daily/${YMD}.html" "reports/daily_digest/weekly/END_${YMD}.html" || true
-          rm -f "reports/daily_digest/daily/${YOY}.html" "reports/daily_digest/weekly/END_${YOY}.html" || true
-          rm -f "reports/daily_digest/data/daily/${YMD}.json" "reports/daily_digest/data/weekly/END_${YMD}.json" || true
-          rm -f "reports/daily_digest/data/daily/${YOY}.json" "reports/daily_digest/data/weekly/END_${YOY}.json" || true
+          # ✅ 중요: rm로 산출물 삭제하지 말 것 (생성 실패 시 404 방지)
+          # ✅ 중요: python 실패를 숨기지 말 것 (|| true 제거)
 
-          # 1) 어제만 생성
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
-          python -u daily_digest_live_final_static_hub.py --out-dir reports/daily_digest || true
+          python -u daily_digest_live_final_static_hub.py --out-dir reports/daily_digest
 
-          # 2) YoY 기준일만 생성
           export GA4_START_DATE="${YOY}"
           export GA4_END_DATE="${YOY}"
-          python -u daily_digest_live_final_static_hub.py --out-dir reports/daily_digest || true
+          python -u daily_digest_live_final_static_hub.py --out-dir reports/daily_digest
 
-          # build stamp (허브는 고정이지만, 코멘트 append는 원하면 유지)
           if [ -f reports/daily_digest/index.html ]; then
             echo "<!-- BUILD_STAMP: ${KST_STAMP} -->" >> reports/daily_digest/index.html
           fi
