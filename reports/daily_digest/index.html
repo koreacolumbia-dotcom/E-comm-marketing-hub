@@ -93,7 +93,7 @@
       min-height: 820px;
       border: 0;
       border-radius: 18px;
-      background: rgba(255,255,255,0.55);
+      background: transparent; /* ✅ embed 리포트가 자체 배경/투명 처리 */
       overflow: auto;
     }
 
@@ -278,7 +278,7 @@
     const base = (MODE === 'daily')
       ? `${BASE}daily/${dateStr}.html`
       : `${BASE}weekly/END_${dateStr}.html`;
-    return base + `?embed=1`;
+    return base + `?embed=1`; // ✅ Daily/Weekly 리포트가 embed=1이면 스스로 UI 숨김
   }
   function buildCachePath(dateStr){
     return (MODE === 'daily')
@@ -340,11 +340,10 @@
     }
   }
 
-  // ✅✅✅ SAFE scrub (prevents blank screen)
+  // ✅✅✅ Minimal scrub: "scroll/margin only" (Daily 리포트가 embed=1에서 UI 자체 숨김)
   function scrubReportUI(doc){
     if(!doc) return;
 
-    // keep scrolling usable inside iframe
     let style = doc.getElementById('hub_scrub_css');
     if(!style){
       style = doc.createElement('style');
@@ -355,57 +354,6 @@
         body{ margin:0 !important; }
       `;
       doc.head.appendChild(style);
-    }
-
-    // 1) Hide top title "Daily Digest" (if present)
-    for(const h of Array.from(doc.querySelectorAll('h1, h2'))){
-      const t = (h.textContent||'').trim();
-      if(t === 'Daily Digest'){
-        h.style.display = 'none';
-        break;
-      }
-    }
-
-    // 2) Hide Hub/Daily/Weekly tabs block (if present)
-    const tabTexts = new Set(['Hub','Daily','Weekly']);
-    const tabBtns = Array.from(doc.querySelectorAll('button, a'))
-      .filter(el => tabTexts.has(((el.textContent||'').trim())));
-
-    for(const b of tabBtns){
-      let p = b.parentElement;
-      for(let i=0;i<10 && p && p !== doc.body && p !== doc.documentElement;i++){
-        const txt = (p.textContent||'').replace(/\s+/g,' ').trim();
-        if(txt.includes('Hub') && txt.includes('Daily') && txt.includes('Weekly')){
-          p.style.display = 'none';
-          p.setAttribute('data-hub-hidden','tabs');
-          break;
-        }
-        p = p.parentElement;
-      }
-    }
-
-    // 3) Hide ONLY the in-report "Compare" card safely
-    // - must contain #cmpMode and #cmpBtn
-    // - must NOT contain any <canvas> (avoid hiding whole report)
-    // - must look like compare controls block
-    const cmpMode = doc.getElementById('cmpMode');
-    const cmpBtn  = doc.getElementById('cmpBtn');
-
-    if(cmpMode && cmpBtn){
-      let p = cmpMode.parentElement;
-      for(let i=0;i<25 && p && p !== doc.body && p !== doc.documentElement;i++){
-        const hasCmp = !!p.querySelector('#cmpMode') && !!p.querySelector('#cmpBtn');
-        const hasCanvas = p.querySelector('canvas') !== null;
-        const txt = (p.textContent||'').replace(/\s+/g,' ').trim();
-        const looksLikeCompare = txt.includes('Compare') && (txt.includes('Preset') || txt.includes('DoD') || txt.includes('YoY'));
-
-        if(hasCmp && !hasCanvas && looksLikeCompare){
-          p.style.display = 'none';
-          p.setAttribute('data-hub-hidden','compare');
-          break;
-        }
-        p = p.parentElement;
-      }
     }
   }
 
@@ -592,5 +540,5 @@
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-26 HUB FIX (SAFE scrub compare; prevent blank iframe) -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 14:36 KST -->
+<!-- BUILD_STAMP: 2026-02-26 HUB FIX (embed=1; minimal scrub only; no DOM hiding) -->
+<!-- BUILD_STAMP: 2026.02.26 (Thu) KST -->
