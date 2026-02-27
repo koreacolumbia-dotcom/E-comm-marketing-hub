@@ -8,7 +8,6 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
-
     html, body { height: 100%; overflow: auto; }
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
@@ -93,11 +92,7 @@
       gap:10px;
       box-shadow: 0 10px 28px rgba(0,0,0,0.06);
     }
-    .notice .dot{
-      width:10px; height:10px; border-radius:999px;
-      background: rgba(2,45,114,0.85);
-      flex: 0 0 auto;
-    }
+    .notice .dot{ width:10px; height:10px; border-radius:999px; background: rgba(2,45,114,0.85); flex: 0 0 auto; }
     .notice .x{
       margin-left:auto;
       border: 1px solid rgba(148,163,184,0.28);
@@ -119,16 +114,16 @@
     .kpi-value{ font-size: 20px; font-weight: 900; margin-top: 6px; }
     .kpi-sub{ font-size: 12px; font-weight: 800; color:#64748b; margin-top: 2px; }
 
-    .kpi-mini{
+    .mini-card{
       border: 1px solid rgba(148,163,184,0.22);
-      background: rgba(255,255,255,0.86);
+      background: rgba(255,255,255,0.80);
       border-radius: 18px;
       padding: 10px 12px;
-      box-shadow: 0 10px 24px rgba(0,0,0,0.05);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.05);
     }
-    .kpi-mini .t{ font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color:#94a3b8; }
-    .kpi-mini .v{ font-size: 15px; font-weight: 900; margin-top: 4px; }
-    .kpi-mini .s{ font-size: 11px; font-weight: 800; color:#64748b; margin-top: 2px; }
+    .mini-title{ font-size: 10px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; color:#94a3b8; }
+    .mini-value{ font-size: 16px; font-weight: 900; margin-top: 4px; }
+    .mini-sub{ font-size: 12px; font-weight: 800; color:#64748b; margin-top: 2px; }
 
     table{
       width:100%;
@@ -175,23 +170,34 @@
     }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .sec-title{ font-size: 11px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color:#94a3b8; }
-
-    .collapse-wrap{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .toggle-btn{
-      border-radius: 999px;
+    .year-title{
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color:#94a3b8;
+      margin-top: 10px;
+      margin-bottom: 8px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .year-title .bar{ height:1px; flex:1; background: rgba(148,163,184,0.22); }
+    .toggle{
+      border-radius: 14px;
       padding: 8px 12px;
       font-weight: 900;
       font-size: 12px;
       border: 1px solid rgba(148,163,184,0.25);
-      background: rgba(255,255,255,0.88);
+      background: rgba(255,255,255,0.86);
       transition: all .15s ease;
       user-select:none;
       white-space: nowrap;
-      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
     }
-    .toggle-btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
-
-    .year-chip{ padding: 6px 10px; font-size: 11px; }
+    .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
   </style>
 </head>
 
@@ -200,9 +206,8 @@
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">OWNED Campaign Explorer</div>
-        <div class="muted font-semibold mt-1">MMDD 그룹 → TERM 드릴다운 → 구매 상품 (EDM/LMS/KAKAO)</div>
+        <div class="muted font-semibold mt-1">By Date(MMDD, year-split) → TERM 드릴다운 → 구매 상품 (EDM/LMS/KAKAO)</div>
       </div>
-
       <div class="flex items-center gap-3 flex-wrap justify-end">
         <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
       </div>
@@ -237,7 +242,6 @@
           <button id="btn30d" class="btn" type="button">30D</button>
           <button id="btnMTD" class="btn" type="button">MTD</button>
           <button id="btnWEEK" class="btn" type="button">WEEK</button>
-          <button id="btnALL" class="btn" type="button">ALL</button>
         </div>
 
         <button id="btnPrev" class="btn" type="button">◀</button>
@@ -254,7 +258,6 @@
         <div class="w-[260px]"><input id="q" type="text" placeholder="campaign/term/0226 검색…" /></div>
 
         <div class="ml-auto flex items-center gap-2">
-          <button id="btnYTD" class="btn" type="button">YTD · This year vs Previous year</button>
           <div class="small-label">Top</div>
           <select id="topN" class="w-[120px]">
             <option value="30" selected>30</option>
@@ -262,41 +265,47 @@
             <option value="120">120</option>
             <option value="300">300</option>
           </select>
+          <button id="btnYTD" class="toggle" type="button">YTD · This year vs Previous year</button>
         </div>
       </div>
 
-      <!-- Channel totals (fixed, independent) -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5" id="channelTotalsRow">
-        <div class="kpi-mini">
-          <div class="t">ALL · Sessions</div>
-          <div class="v" id="totAllSessions">-</div>
-          <div class="s">Revenue <span id="totAllRevenue">-</span></div>
+      <!-- Channel Totals (period fixed, selection-independent) -->
+      <div class="mb-5">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="small-label">Channel totals</div>
+          <div class="muted font-semibold text-sm" id="periodText">-</div>
+          <div class="pill ml-auto" id="ytdPill" style="display:none;">
+            <span class="mono">YTD</span> ·
+            <span id="ytdThis" class="mono">-</span>
+            <span class="muted font-semibold">vs</span>
+            <span id="ytdPrev" class="mono">-</span>
+          </div>
         </div>
-        <div class="kpi-mini">
-          <div class="t">EDM · Sessions</div>
-          <div class="v" id="totEdmSessions">-</div>
-          <div class="s">Revenue <span id="totEdmRevenue">-</span></div>
-        </div>
-        <div class="kpi-mini">
-          <div class="t">LMS · Sessions</div>
-          <div class="v" id="totLmsSessions">-</div>
-          <div class="s">Revenue <span id="totLmsRevenue">-</span></div>
-        </div>
-        <div class="kpi-mini">
-          <div class="t">KAKAO · Sessions</div>
-          <div class="v" id="totKakaoSessions">-</div>
-          <div class="s">Revenue <span id="totKakaoRevenue">-</span></div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div class="mini-card">
+            <div class="mini-title">All</div>
+            <div class="mini-value"><span id="totAllSessions">-</span></div>
+            <div class="mini-sub">Revenue: <span id="totAllRevenue">-</span></div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-title">EDM</div>
+            <div class="mini-value"><span id="totEdmSessions">-</span></div>
+            <div class="mini-sub">Revenue: <span id="totEdmRevenue">-</span></div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-title">LMS</div>
+            <div class="mini-value"><span id="totLmsSessions">-</span></div>
+            <div class="mini-sub">Revenue: <span id="totLmsRevenue">-</span></div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-title">KAKAO</div>
+            <div class="mini-value"><span id="totKakaoSessions">-</span></div>
+            <div class="mini-sub">Revenue: <span id="totKakaoRevenue">-</span></div>
+          </div>
         </div>
       </div>
 
-      <!-- YTD comparison (compact) -->
-      <div class="kpi-mini mb-5" id="ytdBar" style="display:none">
-        <div class="t">YTD · This year vs Previous year (same period)</div>
-        <div class="v" id="ytdLine">-</div>
-        <div class="s muted" id="ytdHint">-</div>
-      </div>
-
-      <!-- KPI (selection) - moved ABOVE terms -->
+      <!-- KPI (selection) moved ABOVE terms -->
       <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-5">
         <div class="kpi-card">
           <div class="kpi-title">Sessions</div>
@@ -329,54 +338,46 @@
       <div class="mb-4">
         <div class="small-label mb-2">Campaigns (grouped by MMDD)</div>
 
-        <div class="flex flex-wrap items-center gap-2 mb-3">
-          <div class="small-label">Year Filter</div>
-          <div id="yearChips" class="flex flex-wrap gap-2"></div>
-        </div>
-
         <div id="secEDM" class="mb-4">
           <div class="sec-title mb-2">By Date (MMDD)</div>
-          <div id="wrapEDMDate" class="flex flex-col gap-3"></div>
-
-          <div class="collapse-wrap mt-2">
+          <div id="wrapEDMDate"></div>
+          <div class="flex items-center gap-3 mt-3">
             <div class="sec-title">Other campaigns</div>
-            <button class="toggle-btn" type="button" id="toggleEdmOther">펼치기</button>
+            <button id="toggleEdmOther" class="toggle ml-auto" type="button">펼치기</button>
           </div>
           <div id="wrapEDMOther" class="mt-2 hidden"></div>
         </div>
 
         <div id="secLMS" class="mb-4">
           <div class="sec-title mb-2">By Date (MMDD)</div>
-          <div id="wrapLMSDate" class="flex flex-col gap-3"></div>
-
-          <div class="collapse-wrap mt-2">
+          <div id="wrapLMSDate"></div>
+          <div class="flex items-center gap-3 mt-3">
             <div class="sec-title">Other campaigns</div>
-            <button class="toggle-btn" type="button" id="toggleLmsOther">펼치기</button>
+            <button id="toggleLmsOther" class="toggle ml-auto" type="button">펼치기</button>
           </div>
           <div id="wrapLMSOther" class="mt-2 hidden"></div>
         </div>
 
         <div id="secKAKAO" class="mb-4">
           <div class="sec-title mb-2">By Date (MMDD)</div>
-          <div id="wrapKakaoDate" class="flex flex-col gap-3"></div>
-
-          <div class="collapse-wrap mt-2">
+          <div id="wrapKakaoDate"></div>
+          <div class="flex items-center gap-3 mt-3">
             <div class="sec-title">Other campaigns</div>
-            <button class="toggle-btn" type="button" id="toggleKakaoOther">펼치기</button>
+            <button id="toggleKakaoOther" class="toggle ml-auto" type="button">펼치기</button>
           </div>
           <div id="wrapKakaoOther" class="mt-2 hidden"></div>
         </div>
 
-        <div id="secOTHER" class="mb-2">
-          <div class="collapse-wrap">
-            <div class="sec-title">Other campaigns (non-owned)</div>
-            <button class="toggle-btn" type="button" id="toggleOtherAll">펼치기</button>
+        <div id="secOTHER" class="mb-4">
+          <div class="flex items-center gap-3">
+            <div class="sec-title">Other channels</div>
+            <button id="toggleOtherChannels" class="toggle ml-auto" type="button">펼치기</button>
           </div>
-          <div id="wrapOtherAll" class="mt-2 hidden"></div>
+          <div id="wrapOtherChannels" class="mt-2 hidden"></div>
         </div>
       </div>
 
-      <!-- Terms (drilldown list for date group) -->
+      <!-- Terms (drilldown) -->
       <div id="termSection" class="hidden mb-5">
         <div class="flex items-center gap-2 mb-2">
           <div class="small-label">Terms</div>
@@ -414,7 +415,6 @@
           <span class="mono" id="selChannel">-</span> ·
           <span class="mono" id="selCampaign">-</span> ·
           <span class="mono" id="selTerm">-</span>
-          <span id="selPeriod" class="muted font-semibold"></span>
         </div>
       </div>
 
@@ -429,7 +429,7 @@
             </tr>
           </thead>
           <tbody id="tb">
-            <tr><td colspan="4" class="muted font-semibold">TERM을 선택하면 상품 리스트가 표시돼.</td></tr>
+            <tr><td colspan="4" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.</td></tr>
           </tbody>
         </table>
       </div>
@@ -448,103 +448,6 @@
   function showNotice(msg){ noticeText.textContent = msg; notice.style.display='flex'; }
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
   noticeClose.addEventListener('click', hideNotice);
-
-  function fmt(n){
-    if(n === null || n === undefined) return '-';
-    const x = Number(n);
-    if(!isFinite(x)) return '-';
-    return x.toLocaleString('en-US');
-  }
-  function fmtMoney(n){
-    if(n === null || n === undefined) return '-';
-    const x = Number(n);
-    if(!isFinite(x)) return '-';
-    return x.toLocaleString('en-US', { maximumFractionDigits: 0 });
-  }
-  function pct(a,b){
-    const A = Number(a||0), B = Number(b||0);
-    if(B === 0){
-      if(A === 0) return '0.0%';
-      return '+∞';
-    }
-    const p = (A-B)/B*100;
-    return (p>=0?'+':'') + p.toFixed(1) + '%';
-  }
-
-  function ymd(d){
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const dd = String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${dd}`;
-  }
-  function parseYMD(s){
-    const [y,m,d] = (s||'').split('-').map(Number);
-    return new Date(y,(m||1)-1,d||1);
-  }
-  function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
-
-  function startOfWeekMon(d){
-    const x = new Date(d);
-    const day = x.getDay();
-    const diff = (day === 0) ? -6 : (1 - day);
-    x.setDate(x.getDate() + diff);
-    return x;
-  }
-  function endOfWeekSun(d){
-    const s = startOfWeekMon(d);
-    const e = new Date(s);
-    e.setDate(e.getDate() + 6);
-    return e;
-  }
-
-  function mmddFromText(txt){
-    const raw = String(txt||'');
-    if(!raw) return null;
-    const tokens = raw.replace(/[^A-Za-z0-9]+/g,'_').split('_').filter(Boolean);
-    for(const t of tokens){
-      if(/^[0-9]{4}$/.test(t)){
-        const mm = parseInt(t.slice(0,2),10);
-        const dd = parseInt(t.slice(2,4),10);
-        if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return t;
-      }
-    }
-    const m = raw.match(/^(\d{2})(\d{2})/);
-    if(m){
-      const mm = +m[1], dd = +m[2];
-      if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return `${m[1]}${m[2]}`;
-    }
-    return null;
-  }
-
-  // ✅ date_code = YYYY-MMDD (separate years)
-  function dateCodeOfRow(r){
-    const mmdd = mmddFromText(r.campaign) || mmddFromText(r.term);
-    if(!mmdd) return null;
-    const year = String(r.date || '').slice(0,4);
-    if(!/^\d{4}$/.test(year)) return null;
-    return `${year}-${mmdd}`;
-  }
-  function yearOfDateCode(dc){
-    const y = String(dc||'').slice(0,4);
-    return (/^\d{4}$/.test(y)) ? y : null;
-  }
-  function mmddOfDateCode(dc){
-    const m = String(dc||'').match(/^\d{4}-(\d{4})$/);
-    return m ? m[1] : null;
-  }
-
-  function clampToAvailable(dStr){
-    if(!AVAILABLE || !AVAILABLE.length) return dStr;
-    if(AVAILABLE.includes(dStr)) return dStr;
-    for(let i=AVAILABLE.length-1;i>=0;i--){
-      if(AVAILABLE[i] <= dStr) return AVAILABLE[i];
-    }
-    return AVAILABLE[0];
-  }
-  function listDatesBetween(startStr, endStr){
-    if(!AVAILABLE || !AVAILABLE.length) return [];
-    return AVAILABLE.filter(d => d >= startStr && d <= endStr);
-  }
 
   const btnReload = document.getElementById('btnReload');
 
@@ -565,7 +468,6 @@
   const btn30d = document.getElementById('btn30d');
   const btnMTD = document.getElementById('btnMTD');
   const btnWEEK = document.getElementById('btnWEEK');
-  const btnALL = document.getElementById('btnALL');
 
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
@@ -583,25 +485,38 @@
 
   const q = document.getElementById('q');
   const topN = document.getElementById('topN');
+  const btnYTD = document.getElementById('btnYTD');
+
+  const periodText = document.getElementById('periodText');
+  const ytdPill = document.getElementById('ytdPill');
+  const ytdThis = document.getElementById('ytdThis');
+  const ytdPrev = document.getElementById('ytdPrev');
+
+  const totAllSessions = document.getElementById('totAllSessions');
+  const totAllRevenue = document.getElementById('totAllRevenue');
+  const totEdmSessions = document.getElementById('totEdmSessions');
+  const totEdmRevenue = document.getElementById('totEdmRevenue');
+  const totLmsSessions = document.getElementById('totLmsSessions');
+  const totLmsRevenue = document.getElementById('totLmsRevenue');
+  const totKakaoSessions = document.getElementById('totKakaoSessions');
+  const totKakaoRevenue = document.getElementById('totKakaoRevenue');
 
   const wrapEDMDate = document.getElementById('wrapEDMDate');
   const wrapLMSDate = document.getElementById('wrapLMSDate');
   const wrapKakaoDate = document.getElementById('wrapKakaoDate');
+  const wrapEDMOther = document.getElementById('wrapEDMOther');
+  const wrapLMSOther = document.getElementById('wrapLMSOther');
+  const wrapKakaoOther = document.getElementById('wrapKakaoOther');
+  const wrapOtherChannels = document.getElementById('wrapOtherChannels');
 
   const toggleEdmOther = document.getElementById('toggleEdmOther');
   const toggleLmsOther = document.getElementById('toggleLmsOther');
   const toggleKakaoOther = document.getElementById('toggleKakaoOther');
-  const toggleOtherAll = document.getElementById('toggleOtherAll');
-
-  const wrapEDMOther = document.getElementById('wrapEDMOther');
-  const wrapLMSOther = document.getElementById('wrapLMSOther');
-  const wrapKakaoOther = document.getElementById('wrapKakaoOther');
-  const wrapOtherAll = document.getElementById('wrapOtherAll');
-
-  const yearChips = document.getElementById('yearChips');
+  const toggleOtherChannels = document.getElementById('toggleOtherChannels');
 
   const termSection = document.getElementById('termSection');
   const termTb = document.getElementById('termTb');
+
   const tb = document.getElementById('tb');
 
   const kSessions = document.getElementById('kSessions');
@@ -618,33 +533,96 @@
   const selChannel = document.getElementById('selChannel');
   const selCampaign  = document.getElementById('selCampaign');
   const selTerm  = document.getElementById('selTerm');
-  const selPeriod  = document.getElementById('selPeriod');
 
-  const totAllSessions = document.getElementById('totAllSessions');
-  const totAllRevenue = document.getElementById('totAllRevenue');
-  const totEdmSessions = document.getElementById('totEdmSessions');
-  const totEdmRevenue = document.getElementById('totEdmRevenue');
-  const totLmsSessions = document.getElementById('totLmsSessions');
-  const totLmsRevenue = document.getElementById('totLmsRevenue');
-  const totKakaoSessions = document.getElementById('totKakaoSessions');
-  const totKakaoRevenue = document.getElementById('totKakaoRevenue');
+  function fmt(n){
+    if(n === null || n === undefined) return '-';
+    const x = Number(n);
+    if(!isFinite(x)) return '-';
+    return x.toLocaleString('en-US');
+  }
+  function fmtMoney(n){
+    if(n === null || n === undefined) return '-';
+    const x = Number(n);
+    if(!isFinite(x)) return '-';
+    return x.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
 
-  const btnYTD = document.getElementById('btnYTD');
-  const ytdBar = document.getElementById('ytdBar');
-  const ytdLine = document.getElementById('ytdLine');
-  const ytdHint = document.getElementById('ytdHint');
+  function ymd(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  function parseYMD(s){
+    const [y,m,d] = (s||'').split('-').map(Number);
+    return new Date(y,(m||1)-1,d||1);
+  }
+  function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
-  let VIEW = 'DAILY';
-  let CHANNEL = 'ALL';
+  function startOfWeekMon(d){
+    const x = new Date(d);
+    const day = x.getDay(); // 0=Sun
+    const diff = (day === 0) ? -6 : (1 - day);
+    x.setDate(x.getDate() + diff);
+    return x;
+  }
+  function endOfWeekSun(d){
+    const s = startOfWeekMon(d);
+    const e = new Date(s);
+    e.setDate(e.getDate() + 6);
+    return e;
+  }
 
-  let RAW = null;
+  // MMDD extractor from campaign or term
+  function mmddFromText(txt){
+    const raw = String(txt||'');
+    if(!raw) return null;
+    const tokens = raw.replace(/[^A-Za-z0-9]+/g,'_').split('_').filter(Boolean);
+    for(const t of tokens){
+      if(/^[0-9]{4}$/.test(t)){
+        const mm = parseInt(t.slice(0,2),10);
+        const dd = parseInt(t.slice(2,4),10);
+        if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return t;
+      }
+    }
+    const m = raw.match(/^(\d{2})(\d{2})/);
+    if(m){
+      const mm = +m[1], dd = +m[2];
+      if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return `${m[1]}${m[2]}`;
+    }
+    return null;
+  }
+
+  function mmddOfRow(r){
+    return mmddFromText(r.campaign) || mmddFromText(r.term);
+  }
+
+  // year-split group key: {year, mmdd}
+  function parseGroupKey(gk){
+    const m = String(gk||'').match(/^(\d{4})-(\d{4})$/);
+    if(!m) return null;
+    return {year:m[1], mmdd:m[2]};
+  }
+
+  function clampToAvailable(dStr){
+    if(!AVAILABLE || !AVAILABLE.length) return dStr;
+    if(AVAILABLE.includes(dStr)) return dStr;
+    for(let i=AVAILABLE.length-1;i>=0;i--){
+      if(AVAILABLE[i] <= dStr) return AVAILABLE[i];
+    }
+    return AVAILABLE[0];
+  }
+
+  let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
+  let CHANNEL = 'ALL';    // ALL | EDM | LMS | KAKAO
+
+  let RAW = null;         // {kpi:[], prod:[]}  (DAILY single, WEEK/RANGE aggregated)
   let KPI = [];
-  let SELECTED = null;
-  let AVAILABLE = null;
-  let YEAR_FILTER = 'ALL';
-  let SHOW_YTD = false;
+  let SELECTED = null;    // {type:'single', channel, campaign, term} or {type:'group', channel, year, mmdd}
+  let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
 
-  const collapse = { edmOther:true, lmsOther:true, kakaoOther:true, allOther:true };
+  // Caches for YTD aggregation per (channel, thisStart, thisEnd, prevStart, prevEnd)
+  const YTD_CACHE = new Map();
 
   function setViewActive(){
     [chipDaily, chipWeek, chipRange].forEach(el=>el.classList.remove('active'));
@@ -681,16 +659,48 @@
     secEDM.style.display = (showAll || CHANNEL==='EDM') ? '' : 'none';
     secLMS.style.display = (showAll || CHANNEL==='LMS') ? '' : 'none';
     secKAKAO.style.display = (showAll || CHANNEL==='KAKAO') ? '' : 'none';
-    secOTHER.style.display = (showAll) ? '' : 'none';
+    // Other channels only on ALL
+    secOTHER.style.display = showAll ? '' : 'none';
   }
 
   function periodLabel(){
-    if(VIEW==='DAILY') return ` · ${datePicker.value || '-'}`;
+    if(VIEW==='DAILY'){
+      return `${datePicker.value || '-'}`;
+    }
     if(VIEW==='WEEK'){
       const cur = parseYMD(datePicker.value || ymd(new Date()));
-      return ` · WEEK ${ymd(startOfWeekMon(cur))} ~ ${ymd(endOfWeekSun(cur))}`;
+      const s = ymd(startOfWeekMon(cur));
+      const e = ymd(endOfWeekSun(cur));
+      return `WEEK ${s} ~ ${e}`;
     }
-    return ` · ${startPicker.value || '-'} ~ ${endPicker.value || '-'}`;
+    return `${startPicker.value || '-'} ~ ${endPicker.value || '-'}`;
+  }
+
+  function currentPeriodEndDate(){
+    if(VIEW==='DAILY'){
+      return datePicker.value || ymd(addDays(new Date(), -1));
+    }
+    if(VIEW==='WEEK'){
+      const cur = parseYMD(datePicker.value || ymd(addDays(new Date(), -1)));
+      return ymd(endOfWeekSun(cur));
+    }
+    return endPicker.value || ymd(addDays(new Date(), -1));
+  }
+
+  function filterKPI(){
+    if(!RAW){ KPI=[]; return; }
+    const qq = (q.value||'').trim().toLowerCase();
+    KPI = (RAW.kpi||[]).filter(r=>{
+      if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
+      if(qq){
+        const c = String(r.campaign||'').toLowerCase();
+        const t = String(r.term||'').toLowerCase();
+        const mmdd = String(mmddOfRow(r)||'');
+        const yr = String(r.date||'').slice(0,4);
+        if(c.indexOf(qq)===-1 && t.indexOf(qq)===-1 && mmdd.indexOf(qq)===-1 && yr.indexOf(qq)===-1) return false;
+      }
+      return true;
+    });
   }
 
   function makeChip(label, title, active, dataAttrs){
@@ -711,173 +721,28 @@
     return out;
   }
 
-  function filterKPI(){
-    if(!RAW){ KPI=[]; return; }
-    const qq = (q.value||'').trim().toLowerCase();
-    KPI = (RAW.kpi||[]).filter(r=>{
-      if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
-      if(YEAR_FILTER!=='ALL'){
-        const y = String(r.date||'').slice(0,4);
-        if(y !== YEAR_FILTER) return false;
-      }
-      if(qq){
-        const c = String(r.campaign||'').toLowerCase();
-        const t = String(r.term||'').toLowerCase();
-        const dc = String(dateCodeOfRow(r)||'').toLowerCase();
-        if(c.indexOf(qq)===-1 && t.indexOf(qq)===-1 && dc.indexOf(qq)===-1) return false;
-      }
-      return true;
-    });
-  }
-
-  function setOtherVisibility(){
-    wrapEDMOther.classList.toggle('hidden', collapse.edmOther);
-    wrapLMSOther.classList.toggle('hidden', collapse.lmsOther);
-    wrapKakaoOther.classList.toggle('hidden', collapse.kakaoOther);
-    wrapOtherAll.classList.toggle('hidden', collapse.allOther);
-
-    toggleEdmOther.textContent = collapse.edmOther ? '펼치기' : '접기';
-    toggleLmsOther.textContent = collapse.lmsOther ? '펼치기' : '접기';
-    toggleKakaoOther.textContent = collapse.kakaoOther ? '펼치기' : '접기';
-    toggleOtherAll.textContent = collapse.allOther ? '펼치기' : '접기';
-  }
-
-  function renderYearChips(){
-    yearChips.innerHTML = '';
-    const years = new Set();
-    if(RAW && RAW.kpi){
-      for(const r of RAW.kpi){
-        const y = String(r.date||'').slice(0,4);
-        if(/^\d{4}$/.test(y)) years.add(y);
-      }
-    }
-    const ys = Array.from(years).sort((a,b)=>Number(b)-Number(a));
-    const chips = [makeChip('ALL','All years', YEAR_FILTER==='ALL', {y:'ALL'})]
-      .concat(ys.map(y=> makeChip(y,y,YEAR_FILTER===y,{y})));
-    yearChips.innerHTML = `<div class="flex flex-wrap gap-2">${chips.join('')}</div>`;
-    Array.from(yearChips.querySelectorAll('button.chip')).forEach(btn=>{
-      btn.classList.add('year-chip');
-      btn.addEventListener('click', ()=>{
-        YEAR_FILTER = btn.getAttribute('data-y') || 'ALL';
-        filterKPI();
-        renderCampaignButtons();
-        aggregateKPIForSelected();
-        renderTerms();
-        renderProducts();
-        renderChannelTotals();
-        if(SHOW_YTD) renderYTD();
-      });
-    });
-  }
-
-  function renderDateGroupsForChannel(channel, wrapEl, otherEl){
-    wrapEl.innerHTML = '';
-    otherEl.innerHTML = '';
-
-    const limit = Math.max(1, parseInt(topN.value||'30',10));
-    const rows = KPI.filter(r => r.channel === channel);
-
-    if(!rows.length){
-      wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
-      otherEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+  function updateChannelTotals(){
+    periodText.textContent = `· ${periodLabel()}`;
+    if(!RAW || !RAW.kpi){
+      totAllSessions.textContent='-'; totAllRevenue.textContent='-';
+      totEdmSessions.textContent='-'; totEdmRevenue.textContent='-';
+      totLmsSessions.textContent='-'; totLmsRevenue.textContent='-';
+      totKakaoSessions.textContent='-'; totKakaoRevenue.textContent='-';
       return;
     }
+    const all = aggregateRow(RAW.kpi);
+    const edm = aggregateRow(RAW.kpi.filter(r=>r.channel==='EDM'));
+    const lms = aggregateRow(RAW.kpi.filter(r=>r.channel==='LMS'));
+    const kakao = aggregateRow(RAW.kpi.filter(r=>r.channel==='KAKAO'));
 
-    const byDate = new Map();
-    const other = [];
-
-    for(const r of rows){
-      const dc = dateCodeOfRow(r);
-      if(dc){
-        if(!byDate.has(dc)) byDate.set(dc, []);
-        byDate.get(dc).push(r);
-      }else{
-        other.push(r);
-      }
-    }
-
-    const byYear = new Map();
-    for(const [dc, list] of byDate.entries()){
-      const y = yearOfDateCode(dc);
-      const mmdd = mmddOfDateCode(dc) || dc;
-      const agg = aggregateRow(list);
-      if(!y) continue;
-      if(!byYear.has(y)) byYear.set(y, []);
-      byYear.get(y).push({dc, mmdd, agg, rows:list});
-    }
-
-    const years = Array.from(byYear.keys()).sort((a,b)=>Number(b)-Number(a));
-    let html = '';
-    for(const y of years){
-      const arr = byYear.get(y).slice().sort((a,b)=> (b.agg.sessions||0)-(a.agg.sessions||0)).slice(0, limit);
-      if(!arr.length) continue;
-      html += `<div class="muted font-black text-xs tracking-widest mt-1">${y}</div>`;
-      html += `<div class="flex flex-wrap gap-2">` + arr.map(x=>{
-        const active = (SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.date_code===x.dc);
-        return makeChip(x.mmdd, `${channel} · ${x.dc}`, active, {type:'group', channel, dc:x.dc});
-      }).join('') + `</div>`;
-    }
-    wrapEl.innerHTML = html || `<div class="muted font-semibold text-sm">-</div>`;
-
-    Array.from(wrapEl.querySelectorAll('button.chip')).forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-dc'));
-      });
-    });
-
-    const otherTop = other.slice().sort((a,b)=> (Number(b.sessions||0)-Number(a.sessions||0))).slice(0, limit);
-    if(!otherTop.length){
-      otherEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
-      return;
-    }
-
-    otherEl.innerHTML = `<div class="flex flex-wrap gap-2">` + otherTop.map(r=>{
-      const label = `${r.campaign || '-'} · ${r.term || '-'}`;
-      const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
-      return makeChip(label, `${channel} · sessions:${r.sessions}`, active, {
-        type:'single', channel, campaign:encodeURIComponent(r.campaign||''), term:encodeURIComponent(r.term||'')
-      });
-    }).join('') + `</div>`;
-
-    Array.from(otherEl.querySelectorAll('button.chip')).forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        selectSingle(
-          btn.getAttribute('data-channel'),
-          decodeURIComponent(btn.getAttribute('data-campaign')||''),
-          decodeURIComponent(btn.getAttribute('data-term')||'')
-        );
-      });
-    });
-  }
-
-  function renderOtherAll(){
-    wrapOtherAll.innerHTML = '';
-    const limit = Math.max(1, parseInt(topN.value||'30',10));
-    const rows = KPI.filter(r => !(['EDM','LMS','KAKAO'].includes(r.channel)));
-
-    if(!rows.length){
-      wrapOtherAll.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
-      return;
-    }
-
-    const top = rows.slice().sort((a,b)=> (Number(b.sessions||0)-Number(a.sessions||0))).slice(0, limit);
-    wrapOtherAll.innerHTML = `<div class="flex flex-wrap gap-2">` + top.map(r=>{
-      const label = `${r.channel} · ${r.campaign||'-'} · ${r.term||'-'}`;
-      const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
-      return makeChip(label, `sessions:${r.sessions}`, active, {
-        type:'single', channel:r.channel, campaign:encodeURIComponent(r.campaign||''), term:encodeURIComponent(r.term||'')
-      });
-    }).join('') + `</div>`;
-
-    Array.from(wrapOtherAll.querySelectorAll('button.chip')).forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        selectSingle(
-          btn.getAttribute('data-channel'),
-          decodeURIComponent(btn.getAttribute('data-campaign')||''),
-          decodeURIComponent(btn.getAttribute('data-term')||'')
-        );
-      });
-    });
+    totAllSessions.textContent = fmt(all.sessions);
+    totAllRevenue.textContent = fmtMoney(all.revenue);
+    totEdmSessions.textContent = fmt(edm.sessions);
+    totEdmRevenue.textContent = fmtMoney(edm.revenue);
+    totLmsSessions.textContent = fmt(lms.sessions);
+    totLmsRevenue.textContent = fmtMoney(lms.revenue);
+    totKakaoSessions.textContent = fmt(kakao.sessions);
+    totKakaoRevenue.textContent = fmtMoney(kakao.revenue);
   }
 
   function renderCampaignButtons(){
@@ -887,7 +752,7 @@
     wrapEDMOther.innerHTML = '';
     wrapLMSOther.innerHTML = '';
     wrapKakaoOther.innerHTML = '';
-    wrapOtherAll.innerHTML = '';
+    wrapOtherChannels.innerHTML = '';
 
     if(!KPI.length){
       const empty = `<div class="muted font-semibold text-sm">결과가 없어. (필터가 너무 좁거나, 해당 기간에 데이터가 없을 수 있어)</div>`;
@@ -897,20 +762,134 @@
       wrapEDMOther.innerHTML = empty;
       wrapLMSOther.innerHTML = empty;
       wrapKakaoOther.innerHTML = empty;
-      wrapOtherAll.innerHTML = empty;
+      wrapOtherChannels.innerHTML = empty;
       return;
     }
 
-    renderDateGroupsForChannel('EDM', wrapEDMDate, wrapEDMOther);
-    renderDateGroupsForChannel('LMS', wrapLMSDate, wrapLMSOther);
-    renderDateGroupsForChannel('KAKAO', wrapKakaoDate, wrapKakaoOther);
-    renderOtherAll();
-    setOtherVisibility();
+    const limit = Math.max(1, parseInt(topN.value||'30',10));
+    const by = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
+    const otherByChannel = {EDM:[], LMS:[], KAKAO:[]};
+    const otherChannels = [];
+
+    for(const r of KPI){
+      if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
+        const mmdd = mmddOfRow(r);
+        const year = String(r.date||'').slice(0,4);
+        if(mmdd && /^\d{4}$/.test(year)){
+          const gk = `${year}-${mmdd}`;
+          const m = by[r.channel];
+          if(!m.has(gk)) m.set(gk, []);
+          m.get(gk).push(r);
+        }else{
+          otherByChannel[r.channel].push(r);
+        }
+      }else{
+        otherChannels.push(r);
+      }
+    }
+
+    function renderByDate(channel, wrapEl){
+      const m = by[channel];
+      const groups = Array.from(m.entries()).map(([gk, rows])=>{
+        const a = aggregateRow(rows);
+        const p = parseGroupKey(gk);
+        return {gk, year:p.year, mmdd:p.mmdd, rows, agg:a};
+      }).sort((a,b)=> (b.agg.sessions||0)-(a.agg.sessions||0));
+
+      // Split by year (descending)
+      const byYear = new Map();
+      for(const g of groups){
+        if(!byYear.has(g.year)) byYear.set(g.year, []);
+        byYear.get(g.year).push(g);
+      }
+      const years = Array.from(byYear.keys()).sort((a,b)=> b.localeCompare(a));
+
+      let html = '';
+      for(const yr of years){
+        const arr = byYear.get(yr).slice(0, limit);
+        html += `<div class="year-title"><span>${yr}</span><div class="bar"></div></div>`;
+        html += `<div class="flex flex-wrap gap-2">` + arr.map(g=>{
+          const active = (SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd);
+          const title = `${g.year}-${g.mmdd} · sessions:${g.agg.sessions} · terms:${g.rows.length}`;
+          return makeChip(g.mmdd, title, active, {type:'group', channel, year:g.year, mmdd:g.mmdd});
+        }).join('') + `</div>`;
+      }
+      wrapEl.innerHTML = html || `<div class="muted font-semibold text-sm">-</div>`;
+
+      Array.from(wrapEl.querySelectorAll('button.chip')).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+        });
+      });
+    }
+
+    renderByDate('EDM', wrapEDMDate);
+    renderByDate('LMS', wrapLMSDate);
+    renderByDate('KAKAO', wrapKakaoDate);
+
+    function renderOtherCampaigns(channel, wrapEl){
+      const rows = otherByChannel[channel].slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+      if(!rows.length){
+        wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+        return;
+      }
+      wrapEl.innerHTML = `<div class="flex flex-wrap gap-2">` + rows.map(r=>{
+        const label = `${r.campaign||'(no-campaign)'}${r.term?(' · '+r.term):''}`;
+        const title = `sessions:${r.sessions} · revenue:${r.revenue||0}`;
+        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
+        return makeChip(label, title, active, {
+          type:'single',
+          channel:r.channel,
+          campaign:encodeURIComponent(r.campaign||''),
+          term:encodeURIComponent(r.term||'')
+        });
+      }).join('') + `</div>`;
+
+      Array.from(wrapEl.querySelectorAll('button.chip')).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          selectSingle(
+            btn.getAttribute('data-channel'),
+            decodeURIComponent(btn.getAttribute('data-campaign')||''),
+            decodeURIComponent(btn.getAttribute('data-term')||'')
+          );
+        });
+      });
+    }
+
+    renderOtherCampaigns('EDM', wrapEDMOther);
+    renderOtherCampaigns('LMS', wrapLMSOther);
+    renderOtherCampaigns('KAKAO', wrapKakaoOther);
+
+    // Other channels (ALL only; collapsible)
+    const oc = otherChannels.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+    if(!oc.length){
+      wrapOtherChannels.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+    }else{
+      wrapOtherChannels.innerHTML = `<div class="flex flex-wrap gap-2">` + oc.map(r=>{
+        const label = `${r.channel} · ${(r.campaign||'-')}${r.term?(' · '+r.term):''}`;
+        const title = `sessions:${r.sessions} · revenue:${r.revenue||0}`;
+        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
+        return makeChip(label, title, active, {
+          type:'single',
+          channel:r.channel,
+          campaign:encodeURIComponent(r.campaign||''),
+          term:encodeURIComponent(r.term||'')
+        });
+      }).join('') + `</div>`;
+
+      Array.from(wrapOtherChannels.querySelectorAll('button.chip')).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          selectSingle(
+            btn.getAttribute('data-channel'),
+            decodeURIComponent(btn.getAttribute('data-campaign')||''),
+            decodeURIComponent(btn.getAttribute('data-term')||'')
+          );
+        });
+      });
+    }
   }
 
   function aggregateKPIForSelected(){
-    selPeriod.textContent = periodLabel();
-
     if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
@@ -925,17 +904,13 @@
       selCampaign.textContent = SELECTED.campaign || '-';
       selTerm.textContent = SELECTED.term || '-';
     }else{
-      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && String(dateCodeOfRow(x)||'')===SELECTED.date_code);
+      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && String(x.date||'').slice(0,4)===SELECTED.year && String(mmddOfRow(x)||'')===SELECTED.mmdd);
       selChannel.textContent = SELECTED.channel;
-      const y = yearOfDateCode(SELECTED.date_code) || '-';
-      const mmdd = mmddOfDateCode(SELECTED.date_code) || SELECTED.date_code;
-      selCampaign.textContent = `${y} ${mmdd} (group)`;
+      selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd} (group)`;
       selTerm.textContent = `terms:${rows.length}`;
     }
 
-    if(!rows.length) return;
     const a = aggregateRow(rows);
-
     kSessions.textContent = fmt(a.sessions);
     kUsers.textContent = fmt(a.users);
     kPurchases.textContent = fmt(a.purchases);
@@ -953,53 +928,9 @@
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
   }
 
-  function renderProducts(){
-    if(!SELECTED || !RAW){
-      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM/그룹을 선택하면 상품 리스트가 표시돼.</td></tr>`;
-      return;
-    }
-
-    let rows = [];
-    if(SELECTED.type==='single'){
-      rows = (RAW.prod||[]).filter(r =>
-        r.channel===SELECTED.channel &&
-        (r.campaign||'')===(SELECTED.campaign||'') &&
-        (r.term||'')===(SELECTED.term||'')
-      );
-    }else{
-      const kRows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && String(dateCodeOfRow(x)||'')===SELECTED.date_code);
-      const keySet = new Set(kRows.map(x => `${x.channel}||${x.campaign||''}||${x.term||''}`));
-      rows = (RAW.prod||[]).filter(p => keySet.has(`${p.channel}||${p.campaign||''}||${p.term||''}`));
-    }
-
-    if(!rows.length){
-      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
-      return;
-    }
-
-    const m = new Map();
-    for(const r of rows){
-      const key = String(r.item_id||'');
-      if(!m.has(key)) m.set(key, {item_id:r.item_id, item_name:r.item_name, prod_items:0, prod_revenue:0});
-      const cur = m.get(key);
-      cur.prod_items += Number(r.prod_items||0);
-      cur.prod_revenue += Number(r.prod_revenue||0);
-      if(!cur.item_name && r.item_name) cur.item_name = r.item_name;
-    }
-
-    const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
-    tb.innerHTML = out.map(r=>`
-      <tr>
-        <td>${(r.item_name||'-')}</td>
-        <td class="mono">${(r.item_id||'-')}</td>
-        <td>${fmt(r.prod_items||0)}</td>
-        <td>${fmtMoney(r.prod_revenue||0)}</td>
-      </tr>
-    `).join('');
-  }
-
   function renderTerms(){
     if(!termSection || !termTb) return;
+
     if(!SELECTED || SELECTED.type!=='group' || !RAW){
       termSection.classList.add('hidden');
       termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
@@ -1007,8 +938,9 @@
     }
 
     const rows = (RAW.kpi||[])
-      .filter(r => r.channel===SELECTED.channel && String(dateCodeOfRow(r)||'')===SELECTED.date_code)
-      .slice().sort((a,b)=> (Number(b.sessions||0) - Number(a.sessions||0)));
+      .filter(r => r.channel===SELECTED.channel && String(r.date||'').slice(0,4)===SELECTED.year && String(mmddOfRow(r)||'')===SELECTED.mmdd)
+      .slice()
+      .sort((a,b)=> (Number(b.sessions||0) - Number(a.sessions||0)));
 
     termSection.classList.remove('hidden');
 
@@ -1040,6 +972,92 @@
     });
   }
 
+  function renderProductsForSingle(sel){
+    const rows = (RAW.prod||[]).filter(r =>
+      r.channel===sel.channel &&
+      (r.campaign||'')===(sel.campaign||'') &&
+      (r.term||'')===(sel.term||'')
+    );
+
+    if(!rows.length){
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
+      return;
+    }
+
+    const m = new Map();
+    for(const r of rows){
+      const key = String(r.item_id||'');
+      if(!m.has(key)){
+        m.set(key, {item_id:r.item_id, item_name:r.item_name, prod_items:0, prod_revenue:0});
+      }
+      const cur = m.get(key);
+      cur.prod_items += Number(r.prod_items||0);
+      cur.prod_revenue += Number(r.prod_revenue||0);
+      if(!cur.item_name && r.item_name) cur.item_name = r.item_name;
+    }
+
+    const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+    tb.innerHTML = out.map(r=>`
+      <tr>
+        <td>${(r.item_name||'-')}</td>
+        <td class="mono">${(r.item_id||'-')}</td>
+        <td>${fmt(r.prod_items||0)}</td>
+        <td>${fmtMoney(r.prod_revenue||0)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderProductsForGroup(sel){
+    // group: aggregate across all matching (year, mmdd) terms for that channel
+    const prod = (RAW.prod||[]).filter(p =>
+      p.channel===sel.channel &&
+      String(p.date||'').slice(0,4)===sel.year &&
+      String(mmddOfRow(p)||'')===sel.mmdd
+    );
+
+    if(!prod.length){
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
+      return;
+    }
+
+    const m = new Map();
+    for(const p of prod){
+      const key = String(p.item_id||'');
+      if(!m.has(key)){
+        m.set(key, {item_id:p.item_id, item_name:p.item_name, prod_items:0, prod_revenue:0});
+      }
+      const cur = m.get(key);
+      cur.prod_items += Number(p.prod_items||0);
+      cur.prod_revenue += Number(p.prod_revenue||0);
+      if(!cur.item_name && p.item_name) cur.item_name = p.item_name;
+    }
+
+    const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+    tb.innerHTML = out.map(r=>`
+      <tr>
+        <td>${(r.item_name||'-')}</td>
+        <td class="mono">${(r.item_id||'-')}</td>
+        <td>${fmt(r.prod_items||0)}</td>
+        <td>${fmtMoney(r.prod_revenue||0)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderProducts(){
+    if(!SELECTED || !RAW){
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.</td></tr>`;
+      return;
+    }
+    if(SELECTED.type==='single'){
+      renderProductsForSingle(SELECTED);
+      return;
+    }
+    if(SELECTED.type==='group'){
+      renderProductsForGroup(SELECTED);
+      return;
+    }
+  }
+
   function selectSingle(channel, campaign, term){
     SELECTED = {type:'single', channel, campaign, term};
     renderCampaignButtons();
@@ -1047,18 +1065,24 @@
     renderTerms();
     renderProducts();
   }
-  function selectGroup(channel, date_code){
-    SELECTED = {type:'group', channel, date_code};
+
+  function selectGroup(channel, year, mmdd){
+    SELECTED = {type:'group', channel, year, mmdd};
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderTerms();
-    renderProducts();
+    renderProducts(); // ✅ group click -> products aggregated instantly
   }
 
   async function fetchJson(url){
     const res = await fetch(url, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
+  }
+
+  function listDatesBetween(startStr, endStr){
+    if(!AVAILABLE || !AVAILABLE.length) return [];
+    return AVAILABLE.filter(d => d >= startStr && d <= endStr);
   }
 
   function sumInto(map, key, obj, fields){
@@ -1069,62 +1093,55 @@
       map.set(key, cur);
       return;
     }
-    fields.forEach(f=>{ cur[f] = Number(cur[f]||0) + Number(obj[f]||0); });
+    fields.forEach(f=>{
+      cur[f] = Number(cur[f]||0) + Number(obj[f]||0);
+    });
   }
 
   function buildAggregated(dailyJsonList){
-    const kpiMap = new Map();
-    const prodMap = new Map();
+    const kpiMap = new Map();   // key = date||channel||campaign||term  (keep date to support year-split)
+    const prodMap = new Map();  // key = date||channel||campaign||term||item_id (keep date)
+
     for(const j of dailyJsonList){
       for(const r of (j.kpi||[])){
-        const key = `${r.channel}||${r.campaign||''}||${r.term||''}`;
+        const key = `${r.date}||${r.channel}||${r.campaign||''}||${r.term||''}`;
         sumInto(kpiMap, key, r, ['sessions','users','purchases','revenue','items_purchased']);
       }
       for(const p of (j.prod||[])){
-        const key = `${p.channel}||${p.campaign||''}||${p.term||''}||${p.item_id||''}`;
+        const key = `${p.date}||${p.channel}||${p.campaign||''}||${p.term||''}||${p.item_id||''}`;
         sumInto(prodMap, key, p, ['prod_items','prod_revenue']);
       }
     }
-    return { kpi: Array.from(kpiMap.values()), prod: Array.from(prodMap.values()) };
-  }
 
-  async function loadAvailableDates(){
-    try{
-      const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
-      AVAILABLE = (j.available_dates||[]).slice().sort();
-    }catch(e){
-      AVAILABLE = null;
-    }
+    return { kpi: Array.from(kpiMap.values()), prod: Array.from(prodMap.values()) };
   }
 
   async function loadDaily(dStr){
     hideNotice();
     SELECTED = null;
     const url = `data/owned/owned_${dStr}.json?t=${Date.now()}`;
+
     try{
       RAW = await fetchJson(url);
     }catch(e){
       RAW = null;
       KPI = [];
-      renderYearChips();
+      updateChannelTotals();
       renderCampaignButtons();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
-      renderChannelTotals();
       showNotice(`데이터가 없어서 표시할 수 없어. (${dStr})`);
       return;
     }
 
     toggleSections();
-    renderYearChips();
     filterKPI();
+    updateChannelTotals();
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
-    renderChannelTotals();
-    if(SHOW_YTD) renderYTD();
   }
 
   async function loadRange(startStr, endStr){
@@ -1133,15 +1150,14 @@
 
     if(!AVAILABLE || !AVAILABLE.length){
       showNotice('available_dates.json을 읽지 못해서 기간 누적을 할 수 없어.');
-      RAW = null; KPI = [];
+      RAW = null;
+      KPI = [];
+      updateChannelTotals();
       toggleSections();
-      renderYearChips();
       renderCampaignButtons();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
-      renderChannelTotals();
-      if(SHOW_YTD) renderYTD();
       return;
     }
 
@@ -1155,16 +1171,15 @@
 
     const dates = listDatesBetween(s, e);
     if(!dates.length){
-      RAW = null; KPI = [];
+      RAW = null;
+      KPI = [];
+      updateChannelTotals();
       showNotice(`선택한 기간에 데이터가 없어. (${s} ~ ${e})`);
       toggleSections();
-      renderYearChips();
       renderCampaignButtons();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
-      renderChannelTotals();
-      if(SHOW_YTD) renderYTD();
       return;
     }
 
@@ -1175,190 +1190,185 @@
       showNotice(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
       const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
       const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
-      res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
+      res.forEach((r)=>{
+        if(r.status==='fulfilled') all.push(r.value);
+      });
     }
     hideNotice();
 
     RAW = buildAggregated(all);
     toggleSections();
-    renderYearChips();
     filterKPI();
+    updateChannelTotals();
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
-    renderChannelTotals();
-    if(SHOW_YTD) renderYTD();
   }
 
   async function loadWeekByDate(dStr){
     const cur = parseYMD(dStr);
-    await loadRange(ymd(startOfWeekMon(cur)), ymd(endOfWeekSun(cur)));
+    const s = ymd(startOfWeekMon(cur));
+    const e = ymd(endOfWeekSun(cur));
+    await loadRange(s, e);
   }
 
-  function renderChannelTotals(){
-    if(!RAW || !RAW.kpi){
-      totAllSessions.textContent='-'; totAllRevenue.textContent='-';
-      totEdmSessions.textContent='-'; totEdmRevenue.textContent='-';
-      totLmsSessions.textContent='-'; totLmsRevenue.textContent='-';
-      totKakaoSessions.textContent='-'; totKakaoRevenue.textContent='-';
-      return;
-    }
-    const sumOwned = (ch) => {
-      let sessions=0, revenue=0;
-      for(const r of RAW.kpi){
-        if(!['EDM','LMS','KAKAO'].includes(r.channel)) continue;
-        if(ch!=='ALL' && r.channel!==ch) continue;
-        sessions += Number(r.sessions||0);
-        revenue += Number(r.revenue||0);
-      }
-      return {sessions, revenue};
-    };
-
-    const all = sumOwned('ALL');
-    const edm = sumOwned('EDM');
-    const lms = sumOwned('LMS');
-    const kakao = sumOwned('KAKAO');
-
-    totAllSessions.textContent = fmt(all.sessions);
-    totAllRevenue.textContent = fmtMoney(all.revenue);
-    totEdmSessions.textContent = fmt(edm.sessions);
-    totEdmRevenue.textContent = fmtMoney(edm.revenue);
-    totLmsSessions.textContent = fmt(lms.sessions);
-    totLmsRevenue.textContent = fmtMoney(lms.revenue);
-    totKakaoSessions.textContent = fmt(kakao.sessions);
-    totKakaoRevenue.textContent = fmtMoney(kakao.revenue);
-  }
-
-  function currentEndDate(){
-    if(VIEW === 'DAILY') return datePicker.value;
-    if(VIEW === 'WEEK'){
-      const cur = parseYMD(datePicker.value || ymd(new Date()));
-      return ymd(endOfWeekSun(cur));
-    }
-    return endPicker.value;
-  }
-
-  function ytdRangeFor(endDateStr){
-    const d = parseYMD(endDateStr);
-    const y = d.getFullYear();
-    return {start:`${y}-01-01`, end:endDateStr, year:y};
-  }
-  function prevYtdRangeFor(endDateStr){
-    const d = parseYMD(endDateStr);
-    const y = d.getFullYear()-1;
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const dd = String(d.getDate()).padStart(2,'0');
-    return {start:`${y}-01-01`, end:`${y}-${mm}-${dd}`, year:y};
-  }
-
-  async function loadAggregateForRange(startStr, endStr, channel){
-    if(!AVAILABLE || !AVAILABLE.length) return {sessions:0, revenue:0};
-    const dates = listDatesBetween(startStr, endStr);
-    if(!dates.length) return {sessions:0, revenue:0};
-
-    const chunkSize = 12;
-    let sessions=0, revenue=0;
-
-    for(let i=0;i<dates.length;i+=chunkSize){
-      const chunk = dates.slice(i, i+chunkSize);
-      const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
-      const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
-      for(const r of res){
-        if(r.status !== 'fulfilled') continue;
-        const j = r.value;
-        for(const row of (j.kpi||[])){
-          if(channel !== 'ALL' && row.channel !== channel) continue;
-          if(channel === 'ALL' && !['EDM','LMS','KAKAO'].includes(row.channel)) continue;
-          sessions += Number(row.sessions||0);
-          revenue += Number(row.revenue||0);
-        }
-      }
-    }
-    return {sessions, revenue};
-  }
-
-  async function renderYTD(){
-    if(!SHOW_YTD){ ytdBar.style.display = 'none'; return; }
-    ytdBar.style.display = '';
-
-    const end = clampToAvailable(currentEndDate() || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
-    const cur = ytdRangeFor(end);
-    const prev = prevYtdRangeFor(end);
-
-    const prevEnd = clampToAvailable(prev.end);
-    const prevStart = `${prev.year}-01-01`;
-
-    showNotice(`YTD 계산중… (${CHANNEL})`);
+  async function loadAvailableDates(){
     try{
-      const a = await loadAggregateForRange(cur.start, cur.end, CHANNEL);
-      const b = await loadAggregateForRange(prevStart, prevEnd, CHANNEL);
-
-      const chLabel = (CHANNEL==='ALL') ? 'ALL' : CHANNEL;
-      ytdLine.textContent = `${chLabel} · Sessions ${fmt(a.sessions)} vs ${fmt(b.sessions)} (${pct(a.sessions,b.sessions)}) · Revenue ${fmtMoney(a.revenue)} vs ${fmtMoney(b.revenue)} (${pct(a.revenue,b.revenue)})`;
-      ytdHint.textContent = `This year: ${cur.start} ~ ${cur.end} · Previous year: ${prevStart} ~ ${prevEnd}`;
+      const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
+      AVAILABLE = (j.available_dates||[]).slice().sort();
     }catch(e){
-      ytdLine.textContent = 'YTD 계산 실패';
-      ytdHint.textContent = String(e);
-    }finally{
-      hideNotice();
+      AVAILABLE = null;
     }
   }
-
-  toggleEdmOther.addEventListener('click', ()=>{ collapse.edmOther = !collapse.edmOther; setOtherVisibility(); });
-  toggleLmsOther.addEventListener('click', ()=>{ collapse.lmsOther = !collapse.lmsOther; setOtherVisibility(); });
-  toggleKakaoOther.addEventListener('click', ()=>{ collapse.kakaoOther = !collapse.kakaoOther; setOtherVisibility(); });
-  toggleOtherAll.addEventListener('click', ()=>{ collapse.allOther = !collapse.allOther; setOtherVisibility(); });
-
-  btnYTD.addEventListener('click', async ()=>{
-    SHOW_YTD = !SHOW_YTD;
-    btnYTD.classList.toggle('btn-primary', SHOW_YTD);
-    await renderYTD();
-  });
 
   function setToLastNDays(n){
-    const end = ymd(addDays(new Date(), -1));
+    const today = new Date();
+    const end = ymd(addDays(today, -1));
     const start = ymd(addDays(parseYMD(end), -(n-1)));
     startPicker.value = clampToAvailable(start);
     endPicker.value = clampToAvailable(end);
   }
+
   function setToMTD(){
-    const end = ymd(addDays(new Date(), -1));
+    const today = new Date();
+    const end = ymd(addDays(today, -1));
     const d = parseYMD(end);
     const start = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
     startPicker.value = clampToAvailable(start);
     endPicker.value = clampToAvailable(end);
   }
+
   function setToWeek(){
     const end = parseYMD(endPicker.value || ymd(addDays(new Date(), -1)));
-    startPicker.value = clampToAvailable(ymd(startOfWeekMon(end)));
-    endPicker.value = clampToAvailable(ymd(endOfWeekSun(end)));
-  }
-  function setToAll(){
-    if(!AVAILABLE || !AVAILABLE.length) return;
-    startPicker.value = AVAILABLE[0];
-    endPicker.value = AVAILABLE[AVAILABLE.length-1];
+    const mon = startOfWeekMon(end);
+    const sun = endOfWeekSun(end);
+    startPicker.value = clampToAvailable(ymd(mon));
+    endPicker.value = clampToAvailable(ymd(sun));
   }
 
+  function safeShiftYear(dateStr, deltaYears){
+    const d = parseYMD(dateStr);
+    const y = d.getFullYear() + deltaYears;
+    const m = d.getMonth();
+    const day = d.getDate();
+    const cand = new Date(y, m, day);
+    if(cand.getMonth() !== m){
+      const last = new Date(y, m+1, 0);
+      return ymd(last);
+    }
+    return ymd(cand);
+  }
+
+  async function computeYTD(){
+    if(!AVAILABLE || !AVAILABLE.length) return;
+    const end = currentPeriodEndDate();
+    const year = String(end).slice(0,4);
+    if(!/^\d{4}$/.test(year)) return;
+
+    const thisStart = `${year}-01-01`;
+    const thisEnd = clampToAvailable(end);
+
+    const prevYear = String(Number(year)-1);
+    const prevStart = `${prevYear}-01-01`;
+    const prevEnd = clampToAvailable(safeShiftYear(thisEnd, -1));
+
+    const key = `${CHANNEL}||${thisStart}||${thisEnd}||${prevStart}||${prevEnd}`;
+    if(YTD_CACHE.has(key)){
+      const v = YTD_CACHE.get(key);
+      ytdPill.style.display = '';
+      ytdThis.textContent = `TY S:${fmt(v.this.sessions)} · R:${fmtMoney(v.this.revenue)}`;
+      ytdPrev.textContent = `LY S:${fmt(v.prev.sessions)} · R:${fmtMoney(v.prev.revenue)}`;
+      return;
+    }
+
+    async function loadAgg(startStr, endStr){
+      const dates = listDatesBetween(startStr, endStr);
+      if(!dates.length) return {kpi:[]};
+      const all = [];
+      const chunkSize = 10;
+      for(let i=0;i<dates.length;i+=chunkSize){
+        const chunk = dates.slice(i, i+chunkSize);
+        showNotice(`YTD 로딩… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+        const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
+        const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
+        res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
+      }
+      hideNotice();
+      const kpiMap = new Map();
+      for(const j of all){
+        for(const r of (j.kpi||[])){
+          const k = `${r.channel}||${r.campaign||''}||${r.term||''}`;
+          sumInto(kpiMap, k, r, ['sessions','users','purchases','revenue','items_purchased']);
+        }
+      }
+      return {kpi: Array.from(kpiMap.values())};
+    }
+
+    const thisAgg = await loadAgg(thisStart, thisEnd);
+    const prevAgg = await loadAgg(prevStart, prevEnd);
+
+    const thisRows = (CHANNEL==='ALL') ? (thisAgg.kpi||[]) : (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
+    const prevRows = (CHANNEL==='ALL') ? (prevAgg.kpi||[]) : (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
+
+    const thisSum = aggregateRow(thisRows);
+    const prevSum = aggregateRow(prevRows);
+
+    YTD_CACHE.set(key, {this:thisSum, prev:prevSum});
+
+    ytdPill.style.display = '';
+    ytdThis.textContent = `TY S:${fmt(thisSum.sessions)} · R:${fmtMoney(thisSum.revenue)}`;
+    ytdPrev.textContent = `LY S:${fmt(prevSum.sessions)} · R:${fmtMoney(prevSum.revenue)}`;
+  }
+
+  // Toggle helpers (collapsed by default)
+  function bindToggle(btn, wrap){
+    let open = false;
+    function sync(){
+      if(open){
+        wrap.classList.remove('hidden');
+        btn.textContent = '접기';
+      }else{
+        wrap.classList.add('hidden');
+        btn.textContent = '펼치기';
+      }
+    }
+    btn.addEventListener('click', ()=>{ open = !open; sync(); });
+    sync();
+  }
+
+  bindToggle(toggleEdmOther, wrapEDMOther);
+  bindToggle(toggleLmsOther, wrapLMSOther);
+  bindToggle(toggleKakaoOther, wrapKakaoOther);
+  bindToggle(toggleOtherChannels, wrapOtherChannels);
+
+  // View toggles
   chipDaily.addEventListener('click', ()=>{
-    VIEW='DAILY'; setViewActive();
+    VIEW='DAILY';
+    setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
-    loadDaily(d);
+    loadDaily(d).then(()=>computeYTD());
   });
+
   chipWeek.addEventListener('click', async ()=>{
-    VIEW='WEEK'; setViewActive();
+    VIEW='WEEK';
+    setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
     await loadWeekByDate(d);
-  });
-  chipRange.addEventListener('click', ()=>{
-    VIEW='RANGE'; setViewActive();
-    setToLastNDays(7);
-    loadRange(startPicker.value, endPicker.value);
+    await computeYTD();
   });
 
-  async function applyChannel(ch){
+  chipRange.addEventListener('click', ()=>{
+    VIEW='RANGE';
+    setViewActive();
+    setToLastNDays(7);
+    loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
+  });
+
+  // Channel chips (YTD updates per channel)
+  function onChannelChange(ch){
     CHANNEL = ch;
     setChipActive();
     toggleSections();
@@ -1367,65 +1377,105 @@
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
-    renderChannelTotals();
-    if(SHOW_YTD) await renderYTD();
+    computeYTD();
   }
-  chipAll.addEventListener('click', ()=>applyChannel('ALL'));
-  chipEDM.addEventListener('click', ()=>applyChannel('EDM'));
-  chipLMS.addEventListener('click', ()=>applyChannel('LMS'));
-  chipKAKAO.addEventListener('click', ()=>applyChannel('KAKAO'));
+  chipAll.addEventListener('click', ()=>onChannelChange('ALL'));
+  chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
+  chipLMS.addEventListener('click', ()=>onChannelChange('LMS'));
+  chipKAKAO.addEventListener('click', ()=>onChannelChange('KAKAO'));
 
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value));
-  btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value); });
-  btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value); });
-  btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value); });
-  btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value); });
-  btnALL.addEventListener('click', ()=>{ setToAll(); loadRange(startPicker.value, endPicker.value); });
+  // Range quick buttons
+  btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()));
+  btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
 
+  // Nav buttons
   btnPrev.addEventListener('click', async ()=>{
     if(VIEW==='DAILY'){
-      datePicker.value = clampToAvailable(ymd(addDays(parseYMD(datePicker.value), -1)));
-      loadDaily(datePicker.value); return;
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,-1));
+      datePicker.value = clampToAvailable(d);
+      await loadDaily(datePicker.value);
+      await computeYTD();
+      return;
     }
     if(VIEW==='WEEK'){
-      datePicker.value = clampToAvailable(ymd(addDays(parseYMD(datePicker.value), -7)));
-      await loadWeekByDate(datePicker.value); return;
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,-7));
+      datePicker.value = clampToAvailable(d);
+      await loadWeekByDate(datePicker.value);
+      await computeYTD();
+      return;
     }
-    startPicker.value = clampToAvailable(ymd(addDays(parseYMD(startPicker.value), -7)));
-    endPicker.value = clampToAvailable(ymd(addDays(parseYMD(endPicker.value), -7)));
-    loadRange(startPicker.value, endPicker.value);
+    const s = parseYMD(startPicker.value);
+    const e = parseYMD(endPicker.value);
+    startPicker.value = clampToAvailable(ymd(addDays(s,-7)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,-7)));
+    await loadRange(startPicker.value, endPicker.value);
+    await computeYTD();
   });
+
   btnNext.addEventListener('click', async ()=>{
     if(VIEW==='DAILY'){
-      datePicker.value = clampToAvailable(ymd(addDays(parseYMD(datePicker.value), +1)));
-      loadDaily(datePicker.value); return;
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,+1));
+      datePicker.value = clampToAvailable(d);
+      await loadDaily(datePicker.value);
+      await computeYTD();
+      return;
     }
     if(VIEW==='WEEK'){
-      datePicker.value = clampToAvailable(ymd(addDays(parseYMD(datePicker.value), +7)));
-      await loadWeekByDate(datePicker.value); return;
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,+7));
+      datePicker.value = clampToAvailable(d);
+      await loadWeekByDate(datePicker.value);
+      await computeYTD();
+      return;
     }
-    startPicker.value = clampToAvailable(ymd(addDays(parseYMD(startPicker.value), +7)));
-    endPicker.value = clampToAvailable(ymd(addDays(parseYMD(endPicker.value), +7)));
-    loadRange(startPicker.value, endPicker.value);
+    const s = parseYMD(startPicker.value);
+    const e = parseYMD(endPicker.value);
+    startPicker.value = clampToAvailable(ymd(addDays(s,+7)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,+7)));
+    await loadRange(startPicker.value, endPicker.value);
+    await computeYTD();
   });
 
   btnToday.addEventListener('click', async ()=>{
     const d = clampToAvailable(ymd(new Date()));
-    if(VIEW==='DAILY'){ datePicker.value = d; loadDaily(d); return; }
-    if(VIEW==='WEEK'){ datePicker.value = d; await loadWeekByDate(d); return; }
+    if(VIEW==='DAILY'){
+      datePicker.value = d;
+      await loadDaily(d);
+      await computeYTD();
+      return;
+    }
+    if(VIEW==='WEEK'){
+      datePicker.value = d;
+      await loadWeekByDate(d);
+      await computeYTD();
+      return;
+    }
     setToLastNDays(7);
-    loadRange(startPicker.value, endPicker.value);
+    await loadRange(startPicker.value, endPicker.value);
+    await computeYTD();
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
 
+  // YTD button just forces recompute / show
+  btnYTD.addEventListener('click', async ()=>{
+    ytdPill.style.display = '';
+    await computeYTD();
+  });
+
+  // init
   (async function init(){
     setChipActive();
     toggleSections();
-    setOtherVisibility();
     await loadAvailableDates();
 
     if(AVAILABLE && AVAILABLE.length){
@@ -1438,10 +1488,13 @@
 
     const d = (AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1));
     datePicker.value = d;
+
     VIEW='DAILY';
     setViewActive();
     await loadDaily(d);
+    await computeYTD();
   })();
+
 })();
 </script>
 </body>
