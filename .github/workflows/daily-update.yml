@@ -124,7 +124,7 @@ jobs:
       # Daily Digest Report (어제 + YoY만 생성) — HUB FIXED (허브는 고정)
       # =========================================================
       - name: Build Daily Digest (daily+weekly) — reports
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.voc_only != 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
@@ -202,7 +202,7 @@ jobs:
       # 1) Naver Lowest Price
       # ----------------------------
       - name: Run Naver Lowest Price crawler
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
         continue-on-error: true
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -222,7 +222,7 @@ jobs:
       # 2) Hero banner
       # ----------------------------
       - name: Run Hero banner crawler
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
         continue-on-error: true
         shell: bash
         run: |
@@ -234,7 +234,7 @@ jobs:
       # 3) External Signal (VOC)
       # ----------------------------
       - name: Run External Signal (VOC)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
         continue-on-error: true
         shell: bash
         env:
@@ -249,7 +249,7 @@ jobs:
       # 4) Crema VOC
       # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
         continue-on-error: true
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
@@ -283,7 +283,7 @@ jobs:
       # 4.5) Naver Blog VOC
       # ----------------------------
       - name: Run Naver Blog VOC (Columbia mentions)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.owned_backfill != 'true') }}
         continue-on-error: true
         shell: bash
         env:
@@ -309,7 +309,7 @@ jobs:
       # 5) Summary
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
         continue-on-error: true
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
@@ -325,7 +325,7 @@ jobs:
       # - dispatch owned_backfill=true: 2025-01-01 ~ 전날 전체 백필 (overwrite)
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true') }}
+        if: ${{ (github.event_name != 'workflow_dispatch') || (inputs.owned_backfill == 'true') || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
         continue-on-error: false
         shell: bash
         env:
