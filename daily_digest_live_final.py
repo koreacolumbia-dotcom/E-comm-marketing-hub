@@ -108,10 +108,14 @@ CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1",
 
 CHANNEL_BUCKETS = {
     "Organic": {"Organic Search"},
-    "Paid AD": {"Paid Search", "Paid Social", "Display"},
+    # Paid Other는 GA 기본 채널그룹에서 Paid로 분류되지만 기존 버킷에서 누락되어 Awareness로 떨어지던 원인
+    "Paid AD": {"Paid Search", "Paid Social", "Display", "Paid Other"},
     "Owned": {"Email", "SMS", "Mobile Push Notifications", "Direct"},
-    "Awareness": {"Referral", "Video", "Organic Video", "Affiliates", "Cross-network"},
+    # Awareness는 "인지/레퍼럴" 성격만 남김 (Unassigned 등은 Other로 분리)
+    "Awareness": {"Referral", "Video", "Organic Video", "Cross-network", "Affiliates"},
     "SNS": {"Organic Social"},
+    # GA UI에서 Unassigned/Organic Shopping 등이 많은 경우를 대비한 안전 버킷
+    "Other": {"Unassigned", "Organic Shopping"},
 }
 PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
 
@@ -178,10 +182,11 @@ def parse_yyyy_mm_dd(s: str) -> Optional[dt.date]:
         return None
 
 def bucket_channel(ch: str) -> str:
+    # ✅ 안전: 정의되지 않은 채널은 Awareness로 몰지 말고 Other로 분리
     for bucket, members in CHANNEL_BUCKETS.items():
         if ch in members:
             return bucket
-    return "Awareness"
+    return "Other"
 
 def index_series(vals: List[float]) -> List[float]:
     base = vals[0] if vals and vals[0] else 1.0
@@ -655,7 +660,7 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
     prev_agg = prev.groupby("bucket", as_index=False)[mets].sum()
     yoy_agg = yoy.groupby("bucket", as_index=False)[mets].sum()
 
-    buckets = ["Organic", "Paid AD", "Owned", "Awareness", "SNS"]
+    buckets = ["Organic", "Paid AD", "Owned", "Awareness", "SNS", "Other"]
     base = pd.DataFrame({"bucket": buckets})
 
     out = (
