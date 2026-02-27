@@ -929,6 +929,11 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
     out = out.merge(merged[["bucket","purchaseRevenue_prev","purchaseRevenue_yoy"]], on="bucket", how="left")
     out["rev_dod"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
     out["rev_yoy"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_yoy"])), axis=1)
+    # ✅ aliases expected by current HTML renderer
+    out["rev_vs_prev"] = out["rev_dod"]
+    # keep rev_yoy name as-is and also provide rev_yoy alias for clarity
+    out["rev_yoy"] = out["rev_yoy"]
+
 
     # ordering
     order = {"Organic":0, "Paid AD":1, "Owned":2, "Awareness":3, "SNS":4, "Other":5}
