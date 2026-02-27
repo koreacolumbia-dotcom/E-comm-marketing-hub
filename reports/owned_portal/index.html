@@ -191,6 +191,7 @@
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
         <button id="chipWeek" class="chip" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
+        <button id="btnTotal" class="btn" type="button" title="현재 선택된 Channel의 전체 합(기간/주간 포함)">TOTAL</button>
 
         <div class="ml-2 small-label">Date</div>
         <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
@@ -207,6 +208,7 @@
           <button id="btn30d" class="btn" type="button">30D</button>
           <button id="btnMTD" class="btn" type="button">MTD</button>
           <button id="btnWEEK" class="btn" type="button">WEEK</button>
+          <button id="btnALL" class="btn" type="button">ALL</button>
         </div>
 
         <button id="btnPrev" class="btn" type="button">◀</button>
@@ -240,24 +242,32 @@
         <div id="secEDM" class="mb-3">
           <div class="sec-title mb-2">EDM · By Date (MMDD)</div>
           <div id="wrapEDMDate" class="flex flex-wrap gap-2"></div>
+
+          <div class="sec-title mt-3 mb-2">EDM · Other campaigns</div>
+          <div id="wrapEDMOther" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div id="secLMS" class="mb-3">
           <div class="sec-title mb-2">LMS · By Date (MMDD)</div>
           <div id="wrapLMSDate" class="flex flex-wrap gap-2"></div>
+
+          <div class="sec-title mt-3 mb-2">LMS · Other campaigns</div>
+          <div id="wrapLMSOther" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div id="secKAKAO" class="mb-3">
           <div class="sec-title mb-2">KAKAO · By Date (MMDD)</div>
           <div id="wrapKakaoDate" class="flex flex-wrap gap-2"></div>
+
+          <div class="sec-title mt-3 mb-2">KAKAO · Other campaigns</div>
+          <div id="wrapKakaoOther" class="flex flex-wrap gap-2"></div>
         </div>
 
-        <div id="secOTHER">
-          <div class="sec-title mb-2">Other campaigns</div>
+        <div id="secOTHER" class="mb-3">
+          <div class="sec-title mb-2">Other channels</div>
           <div id="wrapOther" class="flex flex-wrap gap-2"></div>
         </div>
       </div>
-
       <!-- Terms (drilldown list for date group) -->
       <div id="termSection" class="hidden mb-5">
         <div class="flex items-center gap-2 mb-2">
@@ -279,13 +289,13 @@
               </tr>
             </thead>
             <tbody id="termTb">
-              <tr><td colspan="7" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시됩니당.</td></tr>
+              <tr><td colspan="7" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="muted font-semibold text-xs mt-2">
-          TIP: 행 클릭 → 해당 (channel+campaign+term) 단위로 KPI/상품이 드릴다운됩니당
+          TIP: 행 클릭 → 해당 (channel+campaign+term) 단위로 KPI/상품이 드릴다운돼.
         </div>
       </div>
 
@@ -340,7 +350,7 @@
             </tr>
           </thead>
           <tbody id="tb">
-            <tr><td colspan="4" class="muted font-semibold">TERM을 선택하면 상품 리스트가 표시됩니당.</td></tr>
+            <tr><td colspan="4" class="muted font-semibold">TERM을 선택하면 상품 리스트가 표시돼.</td></tr>
           </tbody>
         </table>
       </div>
@@ -365,6 +375,7 @@
   const chipDaily = document.getElementById('chipDaily');
   const chipWeek  = document.getElementById('chipWeek');
   const chipRange = document.getElementById('chipRange');
+  const btnTotal = document.getElementById('btnTotal');
 
   const rangeBox  = document.getElementById('rangeBox');
   const dailyBox  = document.getElementById('dailyBox');
@@ -379,6 +390,7 @@
   const btn30d = document.getElementById('btn30d');
   const btnMTD = document.getElementById('btnMTD');
   const btnWEEK = document.getElementById('btnWEEK');
+  const btnALL = document.getElementById('btnALL');
 
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
@@ -398,8 +410,11 @@
   const topN = document.getElementById('topN');
 
   const wrapEDMDate = document.getElementById('wrapEDMDate');
+  const wrapEDMOther = document.getElementById('wrapEDMOther');
   const wrapLMSDate = document.getElementById('wrapLMSDate');
+  const wrapLMSOther = document.getElementById('wrapLMSOther');
   const wrapKakaoDate = document.getElementById('wrapKakaoDate');
+  const wrapKakaoOther = document.getElementById('wrapKakaoOther');
   const wrapOther = document.getElementById('wrapOther');
 
   const termSection = document.getElementById('termSection');
@@ -589,32 +604,41 @@
 
   function renderCampaignButtons(){
     wrapEDMDate.innerHTML = '';
+    wrapEDMOther.innerHTML = '';
     wrapLMSDate.innerHTML = '';
+    wrapLMSOther.innerHTML = '';
     wrapKakaoDate.innerHTML = '';
+    wrapKakaoOther.innerHTML = '';
     wrapOther.innerHTML = '';
 
     if(!KPI.length){
       const empty = `<div class="muted font-semibold text-sm">결과가 없어. (필터가 너무 좁거나, 해당 기간에 데이터가 없을 수 있어)</div>`;
-      wrapEDMDate.innerHTML = empty;
-      wrapLMSDate.innerHTML = empty;
-      wrapKakaoDate.innerHTML = empty;
+      wrapEDMDate.innerHTML = empty; wrapEDMOther.innerHTML = '';
+      wrapLMSDate.innerHTML = empty; wrapLMSOther.innerHTML = '';
+      wrapKakaoDate.innerHTML = empty; wrapKakaoOther.innerHTML = '';
       wrapOther.innerHTML = empty;
       return;
     }
 
     const limit = Math.max(1, parseInt(topN.value||'30',10));
 
+    // channel별로 date group(mmdd) / other(no mmdd) 분리
     const byDate = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
-    const others = [];
+    const byOther = {EDM:[], LMS:[], KAKAO:[]};
+    const otherChannels = [];
 
     for(const r of KPI){
-      const dc = dateCodeOfRow(r);
-      if(dc && (r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO')){
-        const m = byDate[r.channel];
-        if(!m.has(dc)) m.set(dc, []);
-        m.get(dc).push(r);
+      if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
+        const dc = dateCodeOfRow(r);
+        if(dc){
+          const m = byDate[r.channel];
+          if(!m.has(dc)) m.set(dc, []);
+          m.get(dc).push(r);
+        }else{
+          byOther[r.channel].push(r);
+        }
       }else{
-        others.push(r);
+        otherChannels.push(r);
       }
     }
 
@@ -644,19 +668,55 @@
       });
     }
 
-    renderDateGroup('EDM', wrapEDMDate);
-    renderDateGroup('LMS', wrapLMSDate);
-    renderDateGroup('KAKAO', wrapKakaoDate);
+    function renderOtherCampaigns(channel, wrapEl){
+      // 같은 (campaign,term) 단위 유지. label은 term 있으면 campaign · term, 없으면 campaign만.
+      const rows = byOther[channel].slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+      if(!rows.length){
+        wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+        return;
+      }
+      wrapEl.innerHTML = rows.map(r=>{
+        const hasTerm = !!(r.term && String(r.term).trim());
+        const label = hasTerm ? `${r.campaign||'-'} · ${r.term}` : `${r.campaign||'-'}`;
+        const title = `${r.channel} · sessions:${r.sessions} · purchases:${r.purchases||0} · revenue:${r.revenue||0}`;
+        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
+        return makeChip(label, title, active, {
+          type:'single',
+          channel:r.channel,
+          campaign:encodeURIComponent(r.campaign||''),
+          term:encodeURIComponent(r.term||'')
+        });
+      }).join('');
 
-    // Other campaigns (ALL mode only)
-    const oRows = others.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+      Array.from(wrapEl.querySelectorAll('button.chip')).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          selectSingle(
+            btn.getAttribute('data-channel'),
+            decodeURIComponent(btn.getAttribute('data-campaign')||''),
+            decodeURIComponent(btn.getAttribute('data-term')||'')
+          );
+        });
+      });
+    }
+
+    renderDateGroup('EDM', wrapEDMDate);
+    renderOtherCampaigns('EDM', wrapEDMOther);
+
+    renderDateGroup('LMS', wrapLMSDate);
+    renderOtherCampaigns('LMS', wrapLMSOther);
+
+    renderDateGroup('KAKAO', wrapKakaoDate);
+    renderOtherCampaigns('KAKAO', wrapKakaoOther);
+
+    // 기타 채널: ALL에서만 표시
+    const oRows = otherChannels.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
     if(!oRows.length){
       wrapOther.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
     }else{
       wrapOther.innerHTML = oRows.map(r=>{
-        const label = `${r.channel}_${r.campaign||''}_${r.term||''}`;
+        const label = `${r.channel} · ${r.campaign||'-'}${r.term?(' · '+r.term):''}`;
         const title = `${r.channel} · sessions:${r.sessions}`;
-        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && SELECTED.campaign===r.campaign && SELECTED.term===r.term);
+        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
         return makeChip(label, title, active, {
           type:'single',
           channel:r.channel,
@@ -677,6 +737,7 @@
     }
   }
 
+
   function aggregateKPIForSelected(){
     selPeriod.textContent = periodLabel();
 
@@ -688,7 +749,13 @@
     }
 
     let rows = [];
-    if(SELECTED.type==='single'){
+    if(SELECTED.type==='total'){
+      if(SELECTED.channel==='ALL') rows = (RAW.kpi||[]).slice();
+      else rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel);
+      selChannel.textContent = (SELECTED.channel==='ALL') ? 'ALL' : SELECTED.channel;
+      selCampaign.textContent = 'TOTAL';
+      selTerm.textContent = `rows:${rows.length}`;
+    }else if(SELECTED.type==='single'){
       rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && (x.campaign||'')===(SELECTED.campaign||'') && (x.term||'')===(SELECTED.term||''));
       selChannel.textContent = SELECTED.channel;
       selCampaign.textContent = SELECTED.campaign || '-';
@@ -721,16 +788,30 @@
   }
 
   function renderProducts(){
-    if(!SELECTED || !RAW || SELECTED.type!=='single'){
-      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM을 선택하면 상품 리스트가 표시돼.</td></tr>`;
+    if(!SELECTED || !RAW){
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">캠페인을 선택하면 상품 리스트가 표시돼.</td></tr>`;
       return;
     }
 
-    const rows = (RAW.prod||[]).filter(r =>
-      r.channel===SELECTED.channel &&
-      (r.campaign||'')===(SELECTED.campaign||'') &&
-      (r.term||'')===(SELECTED.term||'')
-    );
+    let rows = [];
+    if(SELECTED.type==='total'){
+      rows = (RAW.prod||[]).filter(r => (SELECTED.channel==='ALL') ? true : r.channel===SELECTED.channel);
+    }else if(SELECTED.type==='single'){
+      rows = (RAW.prod||[]).filter(r =>
+        r.channel===SELECTED.channel &&
+        (r.campaign||'')===(SELECTED.campaign||'') &&
+        (r.term||'')===(SELECTED.term||'')
+      );
+    }else if(SELECTED.type==='group'){
+      // ✅ group: 해당 MMDD 그룹에 속한 모든 TERM의 구매상품을 합산
+      rows = (RAW.prod||[]).filter(r =>
+        r.channel===SELECTED.channel &&
+        String(dateCodeOfRow(r)||'')===SELECTED.date_code
+      );
+    }else{
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">캠페인을 선택하면 상품 리스트가 표시돼.</td></tr>`;
+      return;
+    }
 
     if(!rows.length){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
@@ -760,7 +841,6 @@
       </tr>
     `).join('');
   }
-
   function renderTerms(){
     if(!termSection || !termTb) return;
 
@@ -820,6 +900,16 @@
     renderTerms();
     renderProducts();
   }
+
+  function selectTotal(){
+    // 현재 채널 기준 전체합 (ALL이면 전체)
+    SELECTED = {type:'total', channel: (CHANNEL==='ALL' ? 'ALL' : CHANNEL)};
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderTerms();
+    renderProducts();
+  }
+
 
   async function fetchJson(url){
     const res = await fetch(url, {cache:'no-store'});
@@ -990,6 +1080,16 @@
     endPicker.value = clampToAvailable(ymd(sun));
   }
 
+
+  function setToAll(){
+    if(!AVAILABLE || !AVAILABLE.length){
+      showNotice('available_dates.json을 읽지 못해서 ALL 범위를 설정할 수 없어.');
+      return;
+    }
+    startPicker.value = AVAILABLE[0];
+    endPicker.value = AVAILABLE[AVAILABLE.length - 1];
+  }
+
   // View toggles
   chipDaily.addEventListener('click', ()=>{
     VIEW='DAILY';
@@ -1014,6 +1114,10 @@
     loadRange(startPicker.value, endPicker.value);
   });
 
+  // Total
+  btnTotal.addEventListener('click', ()=>{ selectTotal(); });
+
+
   // Channel chips
   chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); toggleSections(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); toggleSections(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
@@ -1029,6 +1133,7 @@
   btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value); });
   btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value); });
   btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value); });
+  btnALL.addEventListener('click', ()=>{ setToAll(); loadRange(startPicker.value, endPicker.value); });
 
   // Nav buttons
   btnPrev.addEventListener('click', async ()=>{
