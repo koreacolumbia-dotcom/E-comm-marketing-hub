@@ -245,6 +245,9 @@ jobs:
 
           # 허브는 고정
           DAILY_DIGEST_SKIP_HUB_WRITE: "true"
+
+          # ✅ PATCH: Summary fallback용 bundle 캐시 강제 생성
+          DAILY_DIGEST_WRITE_DATA_CACHE: "true"
         run: |
           set -euo pipefail
 
@@ -425,6 +428,10 @@ jobs:
         run: |
           set -euo pipefail
           python -u build_summary.py || true
+
+          # ✅ PATCH: Hub 캐시 bust용 meta.json 강제 갱신
+          echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
+
           ls -la reports/index.html reports/meta.json || true
 
       # =========================================================
