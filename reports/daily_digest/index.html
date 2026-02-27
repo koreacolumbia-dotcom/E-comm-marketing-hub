@@ -93,7 +93,7 @@
       min-height: 820px;
       border: 0;
       border-radius: 18px;
-      background: transparent; /* ✅ embed 리포트가 자체 배경/투명 처리 */
+      background: transparent;
       overflow: auto;
     }
 
@@ -147,7 +147,7 @@
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
-        <div class="muted font-semibold mt-1">기본: 어제(KST) · 비교 ON이면 A/B 각각 리포트 표시 · 구간비교는 A/B END 리포트 로드</div>
+        <div class="muted font-semibold mt-1">기본: 최신 리포트 자동 탐색(기본 어제 KST) · 비교 ON이면 A/B 각각 리포트 표시 · 구간비교는 A/B END 리포트 로드</div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap justify-end">
@@ -278,7 +278,12 @@
     const base = (MODE === 'daily')
       ? `${BASE}daily/${dateStr}.html`
       : `${BASE}weekly/END_${dateStr}.html`;
-    return base + `?embed=1`; // ✅ Daily/Weekly 리포트가 embed=1이면 스스로 UI 숨김
+    return base + `?embed=1`;
+  }
+  function buildReportBase(dateStr){
+    return (MODE === 'daily')
+      ? `${BASE}daily/${dateStr}.html`
+      : `${BASE}weekly/END_${dateStr}.html`;
   }
   function buildCachePath(dateStr){
     return (MODE === 'daily')
@@ -302,17 +307,36 @@
     }
   }
 
-  const LS_KEY = 'ddhub_exists_cache_v7';
+  // -----------------------------
+  // ✅ exists() 캐시 강화
+  // - "최근 N일"은 negative cache 무시(리포트가 방금 생성됐는데도 '없음'으로 고정되는 문제 방지)
+  // - 그 외는 TTL 캐시로 비용/속도 절감
+  // -----------------------------
+  const LS_KEY = 'ddhub_exists_cache_v8';
   const TTL_MS = 6 * 60 * 60 * 1000;
+  const RECENT_DAYS_NO_NEG_CACHE = 3;
   const memCache = new Map();
 
   function loadLS(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{}')||{} }catch(e){ return {}; } }
   function saveLS(obj){ try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }catch(e){} }
+
+  function isRecentDateStr(dateStr){
+    try{
+      const d = parseYMD(dateStr);
+      const now = kstNowDate();
+      const diffDays = Math.floor((now - d) / (24*60*60*1000));
+      return diffDays >= 0 && diffDays <= RECENT_DAYS_NO_NEG_CACHE;
+    }catch(e){ return false; }
+  }
+
   function cacheGet(u){
     if(memCache.has(u)) return memCache.get(u);
     const db = loadLS();
     const hit = db[u];
-    if(hit && (Date.now()-hit.ts)<TTL_MS){ memCache.set(u, hit.ok); return hit.ok; }
+    if(hit && (Date.now()-hit.ts)<TTL_MS){
+      memCache.set(u, hit.ok);
+      return hit.ok;
+    }
     return null;
   }
   function cacheSet(u, ok){
@@ -326,10 +350,20 @@
     }
     saveLS(db);
   }
-  async function exists(url){
-    const base = url.split('?')[0];
+
+  async function existsReport(dateStr){
+    const base = buildReportBase(dateStr);
     const cached = cacheGet(base);
-    if(cached !== null) return cached;
+
+    // ✅ 최근 날짜는 "없음(false)" 캐시를 믿지 않고 재확인
+    if(cached !== null){
+      if(cached === false && isRecentDateStr(dateStr)){
+        // ignore negative cache for recent dates
+      }else{
+        return cached;
+      }
+    }
+
     try{
       const res = await fetch(base + `?t=${Date.now()}`, { method:'HEAD', cache:'no-store' });
       cacheSet(base, res.ok);
@@ -340,19 +374,14 @@
     }
   }
 
-  // ✅✅✅ Minimal scrub: "scroll/margin only" (Daily 리포트가 embed=1에서 UI 자체 숨김)
   function scrubReportUI(doc){
     if(!doc) return;
-
     let style = doc.getElementById('hub_scrub_css');
     if(!style){
       style = doc.createElement('style');
       style.id = 'hub_scrub_css';
       style.type = 'text/css';
-      style.textContent = `
-        html, body{ overflow:auto !important; }
-        body{ margin:0 !important; }
-      `;
+      style.textContent = `html, body{ overflow:auto !important; } body{ margin:0 !important; }`;
       doc.head.appendChild(style);
     }
   }
@@ -407,21 +436,38 @@
     updateCompareLayout();
   }
 
+  // -----------------------------
+  // ✅ 최신 리포트 자동 탐색
+  // - 기본: 어제부터 뒤로 maxScanDays 만큼 스캔해서 "존재하는 가장 최신" 날짜 선택
+  // - Weekly면 END_YYYY-MM-DD.html 기준으로 동일하게 스캔
+  // -----------------------------
+  async function resolveLatestAvailableDate(preferredDateStr, maxScanDays){
+    let d0 = parseYMD(preferredDateStr);
+    for(let i=0;i<=maxScanDays;i++){
+      const cand = fmtYMD(addDays(d0, -i));
+      if(await existsReport(cand)) return cand;
+    }
+    return preferredDateStr; // fallback
+  }
+
   async function applyA(){
     const d = (aDate.value||'').trim();
     if(!d) return;
     setBusy(true, 'A 리포트 로딩…');
 
     let target = d;
-    if(!(await exists(buildReportPath(target)))){
+
+    // ✅ 선택 날짜가 없으면 주변 탐색(기존 로직 유지)
+    if(!(await existsReport(target))){
       const step = stepDays();
-      const tries = [-step, +step, -1, +1];
+      const tries = [-step, +step, -1, +1, -2, +2];
       for(const delta of tries){
         const cand = fmtYMD(addDays(parseYMD(target), delta));
-        if(await exists(buildReportPath(cand))){ target=cand; break; }
+        if(await existsReport(cand)){ target=cand; break; }
       }
       aDate.value = target;
     }
+
     await loadA(target);
   }
 
@@ -436,7 +482,7 @@
     await applyA();
 
     let targetB = b;
-    if(!(await exists(buildReportPath(targetB)))){
+    if(!(await existsReport(targetB))){
       targetB = aDate.value;
       bDate.value = targetB;
     }
@@ -457,7 +503,7 @@
     await applyA();
 
     let targetB = be;
-    if(!(await exists(buildReportPath(targetB)))){
+    if(!(await existsReport(targetB))){
       targetB = ae;
       bDate.value = targetB;
     }
@@ -473,7 +519,23 @@
     MODE = next;
     modeDaily.classList.toggle('active', MODE==='daily');
     modeWeekly.classList.toggle('active', MODE==='weekly');
+
+    // ✅ 모드 바꾸면 "기본 날짜"도 다시 최신 탐색
     setBusy(true, '모드 변경 중…');
+
+    const baseY = fmtYMD(addDays(kstNowDate(), -1));
+    const latest = await resolveLatestAvailableDate(baseY, 30);
+    aDate.value = latest;
+    bDate.value = fmtYMD(addDays(parseYMD(latest), -stepDays()));
+
+    // range 기본값도 갱신
+    const ae = latest;
+    const as = fmtYMD(addDays(parseYMD(latest), -20));
+    const be = fmtYMD(addDays(parseYMD(latest), -21));
+    const bs = fmtYMD(addDays(parseYMD(latest), -41));
+    aStart.value = as; aEnd.value = ae;
+    bStart.value = bs; bEnd.value = be;
+
     await applyA();
     if(COMPARE) await doCompare();
   }
@@ -484,8 +546,8 @@
   btnReload.addEventListener('click', ()=>{
     setBusy(true, '새로고침…');
     try{
-      localStorage.removeItem('ddhub_exists_cache_v7');
-      if(window.memCache && window.memCache.clear){ memCache.clear(); }
+      localStorage.removeItem('ddhub_exists_cache_v8');
+      memCache.clear();
     }catch(e){}
     location.reload();
   });
@@ -513,44 +575,49 @@
   btnRangeGo.addEventListener('click', doRangeCompare);
   btnRangeClear.addEventListener('click', ()=>{ clearRange(); });
 
-  btnYesterday.addEventListener('click', ()=>{ aDate.value = fmtYMD(addDays(kstNowDate(), -1)); applyA(); });
+  btnYesterday.addEventListener('click', async ()=>{
+    const baseY = fmtYMD(addDays(kstNowDate(), -1));
+    setBusy(true, '최신 리포트 탐색…');
+    aDate.value = await resolveLatestAvailableDate(baseY, 30);
+    setBusy(false);
+    applyA();
+  });
+
   btnToday.addEventListener('click', async ()=>{
+    setBusy(true, '오늘 리포트 확인…');
     const t = fmtYMD(kstNowDate());
-    aDate.value = (await exists(buildReportPath(t))) ? t : fmtYMD(addDays(kstNowDate(), -1));
+    aDate.value = (await existsReport(t)) ? t : await resolveLatestAvailableDate(fmtYMD(addDays(kstNowDate(), -1)), 30);
+    setBusy(false);
     applyA();
   });
 
   btnPrev.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays())); applyA(); });
   btnNext.addEventListener('click', ()=>{ const cur=aDate.value; if(!cur) return; aDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays())); applyA(); });
 
-  (function init(){
-    const y = addDays(kstNowDate(), -1);
-    aDate.value = fmtYMD(y);
-    bDate.value = fmtYMD(addDays(y, -1));
+  (async function init(){
+    setCompare(false);
 
-    const ae = fmtYMD(y);
-    const as = fmtYMD(addDays(y, -20));
-    const be = fmtYMD(addDays(y, -21));
-    const bs = fmtYMD(addDays(y, -41));
+    // ✅ 최초 진입 시: "어제부터 최신 리포트" 자동 탐색
+    const baseY = fmtYMD(addDays(kstNowDate(), -1));
+    setBusy(true, '최신 리포트 탐색…');
+    const latest = await resolveLatestAvailableDate(baseY, 30);
+    setBusy(false);
+
+    aDate.value = latest;
+    bDate.value = fmtYMD(addDays(parseYMD(latest), -1));
+
+    const ae = latest;
+    const as = fmtYMD(addDays(parseYMD(latest), -20));
+    const be = fmtYMD(addDays(parseYMD(latest), -21));
+    const bs = fmtYMD(addDays(parseYMD(latest), -41));
 
     aStart.value = as; aEnd.value = ae;
     bStart.value = bs; bEnd.value = be;
 
-    setCompare(false);
-    setMode('daily');
+    await setMode('daily'); // 내부에서 applyA 호출
   })();
 
 })();
 </script>
 </body>
 </html>
-<!-- BUILD_STAMP: 2026-02-26 HUB FIX (embed=1; minimal scrub only; no DOM hiding) -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 14:41 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 15:15 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 15:25 KST -->
-<!-- BUILD_STAMP: 2026.02.26 (Thu) 16:27 KST -->
-<!-- BUILD_STAMP: 2026.02.27 (Fri) 10:32 KST -->
-<!-- BUILD_STAMP: 2026.02.27 (Fri) 13:52 KST -->
-<!-- BUILD_STAMP: 2026.02.27 (Fri) 14:13 KST -->
-<!-- BUILD_STAMP: 2026.02.27 (Fri) 14:21 KST -->
