@@ -3,19 +3,12 @@
 
 """
 build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH + KPI TOP STRIP + CREMA CARD)
-
-✅ Requested (THIS PATCH):
-- Summary 상단 KPI strip에 DoD + YoY 모두 표시
-- Weekly KPI strip (7D) 추가 (WoW + YoY 표시)
-
-Input JSON (best-effort; 없으면 '-'로 표시):
-- reports/daily_kpi.json   (daily + dod + yoy)
-- reports/weekly_kpi.json  (weekly + wow + yoy)
-
-Existing:
-- Generates reports/index.html (embed-friendly)
-- Hero keywords from hero_main_banners_*.csv (+ optional crawl)
-- Crema VOC summary card (reports/voc_crema/index.html)
+✅ PATCH (KPI auto-refresh, no extra GA4/BQ cost):
+- If reports/daily_kpi.json / reports/weekly_kpi.json is missing or stale,
+  auto-build them from latest cached DailyDigest bundle JSONs:
+    - reports/daily_digest/data/daily/YYYY-MM-DD.json
+    - reports/daily_digest/data/weekly/END_YYYY-MM-DD.json
+- Computes DoD/YoY/WoW/YoY from adjacent cached bundles when available.
 """
 
 from __future__ import annotations
@@ -26,7 +19,7 @@ import os
 import re
 import time
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from typing import Any, Dict, Optional, List, Tuple
 
 import pandas as pd
@@ -45,8 +38,19 @@ KST = timezone(timedelta(hours=9))
 # -----------------------
 # Helpers
 # -----------------------
+def now_kst() -> datetime:
+    return datetime.now(KST)
+
+
 def now_kst_label() -> str:
-    return datetime.now(KST).strftime("%Y.%m.%d (%a) %H:%M KST")
+    return now_kst().strftime("%Y.%m.%d (%a) %H:%M KST")
+
+
+def parse_ymd(s: str) -> Optional[date]:
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return None
 
 
 def _read_csv_any(path: Path) -> pd.DataFrame:
@@ -112,7 +116,7 @@ def fmt_krw_symbol(x: Any) -> str:
 
 
 def fmt_cvr(x: Any) -> str:
-    """x is fraction (0.0762) -> 7.62%"""
+    """x is fraction (0.0071) -> 0.71%"""
     try:
         if x is None or (isinstance(x, float) and pd.isna(x)):
             return "-"
@@ -177,22 +181,219 @@ def _read_json_path(p: Path) -> Optional[Dict[str, Any]]:
     return None
 
 
-# -----------------------
-# ✅ KPI loaders
-# -----------------------
-def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
-    """
-    reports/daily_kpi.json (recommended)
-    expected keys:
-      date, sessions, orders, revenue, cvr, signups
-      dod: {sessions, orders, revenue, cvr_pp, signups}
-      yoy: {sessions, orders, revenue, cvr_pp, signups}
-      updated
-    """
-    p = reports_dir / "daily_kpi.json"
-    j = _read_json_path(p)
+def _write_json_path(p: Path, obj: Dict[str, Any]) -> None:
+    try:
+        p.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
-    if not j:
+
+# -----------------------
+# ✅ KPI auto-build from cached bundles (NO GA4/BQ)
+# -----------------------
+def _find_latest_daily_bundle(reports_dir: Path) -> Optional[Path]:
+    ddir = reports_dir / "daily_digest" / "data" / "daily"
+    if not ddir.exists():
+        return None
+    files = sorted(ddir.glob("*.json"))
+    # prefer filename date order if possible
+    dated: List[Tuple[date, Path]] = []
+    for f in files:
+        ymd = parse_ymd(f.stem)
+        if ymd:
+            dated.append((ymd, f))
+    if dated:
+        dated.sort(key=lambda x: x[0], reverse=True)
+        return dated[0][1]
+    # fallback mtime
+    files = [f for f in files if f.is_file()]
+    if not files:
+        return None
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return files[0]
+
+
+def _find_latest_weekly_bundle(reports_dir: Path) -> Optional[Path]:
+    wdir = reports_dir / "daily_digest" / "data" / "weekly"
+    if not wdir.exists():
+        return None
+    files = sorted(wdir.glob("END_*.json"))
+    dated: List[Tuple[date, Path]] = []
+    for f in files:
+        stem = f.stem  # END_YYYY-MM-DD
+        m = re.match(r"END_(\d{4}-\d{2}-\d{2})$", stem)
+        if m:
+            ymd = parse_ymd(m.group(1))
+            if ymd:
+                dated.append((ymd, f))
+    if dated:
+        dated.sort(key=lambda x: x[0], reverse=True)
+        return dated[0][1]
+    files = [f for f in files if f.is_file()]
+    if not files:
+        return None
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return files[0]
+
+
+def _bundle_date_from_path(p: Path) -> Optional[str]:
+    # daily: YYYY-MM-DD.json
+    ymd = parse_ymd(p.stem)
+    if ymd:
+        return ymd.strftime("%Y-%m-%d")
+    # weekly: END_YYYY-MM-DD.json
+    m = re.match(r"END_(\d{4}-\d{2}-\d{2})$", p.stem)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _safe_float(x: Any) -> Optional[float]:
+    try:
+        if x is None:
+            return None
+        if isinstance(x, float) and pd.isna(x):
+            return None
+        return float(x)
+    except Exception:
+        return None
+
+
+def _safe_int(x: Any) -> Optional[int]:
+    try:
+        if x is None:
+            return None
+        if isinstance(x, float) and pd.isna(x):
+            return None
+        return int(round(float(x)))
+    except Exception:
+        return None
+
+
+def _deep_get_candidates(obj: Any, candidates: List[str]) -> Optional[Any]:
+    """
+    Find first matching key (case-insensitive) anywhere in nested dict/list.
+    Returns the value if found.
+    """
+    cand_set = {c.lower(): c for c in candidates}
+
+    def walk(o: Any) -> Optional[Any]:
+        if isinstance(o, dict):
+            # direct hit (case-insensitive)
+            lowered = {str(k).lower(): k for k in o.keys()}
+            for ck in cand_set.keys():
+                if ck in lowered:
+                    return o.get(lowered[ck])
+            # recurse
+            for v in o.values():
+                r = walk(v)
+                if r is not None:
+                    return r
+        elif isinstance(o, list):
+            for it in o:
+                r = walk(it)
+                if r is not None:
+                    return r
+        return None
+
+    return walk(obj)
+
+
+def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Best-effort KPI extraction from arbitrary daily/weekly digest bundle.
+    We search broadly for common keys.
+    """
+    sessions = _deep_get_candidates(bundle, ["sessions", "session", "ga_sessions"])
+    orders = _deep_get_candidates(bundle, ["orders", "transactions", "purchases", "order_count", "purchase_count"])
+    revenue = _deep_get_candidates(bundle, ["revenue", "purchase_revenue", "total_revenue", "sales"])
+    signups = _deep_get_candidates(bundle, ["signups", "sign_up_users", "signup_users", "registrations", "new_users_signup"])
+    cvr = _deep_get_candidates(bundle, ["cvr", "conversion_rate", "purchase_cvr", "txn_rate"])
+
+    # normalize
+    out = {
+        "sessions": _safe_int(sessions),
+        "orders": _safe_int(orders),
+        "revenue": _safe_float(revenue),
+        "signups": _safe_int(signups),
+        "cvr": _safe_float(cvr),
+    }
+
+    # if cvr looks like percent (e.g. 0.71), convert to fraction heuristically
+    if out["cvr"] is not None and out["cvr"] > 1.0:
+        # 71 -> 0.71? / 100
+        out["cvr"] = out["cvr"] / 100.0
+
+    return out
+
+
+def _ratio(cur: Optional[float], prev: Optional[float]) -> Optional[float]:
+    if cur is None or prev is None:
+        return None
+    try:
+        if prev == 0:
+            return None
+        return (cur - prev) / prev
+    except Exception:
+        return None
+
+
+def _pp(cur: Optional[float], prev: Optional[float]) -> Optional[float]:
+    if cur is None or prev is None:
+        return None
+    try:
+        return cur - prev
+    except Exception:
+        return None
+
+
+def _load_bundle(p: Path) -> Optional[Dict[str, Any]]:
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _daily_bundle_path(reports_dir: Path, ymd: str) -> Path:
+    return reports_dir / "daily_digest" / "data" / "daily" / f"{ymd}.json"
+
+
+def _weekly_bundle_path(reports_dir: Path, end_ymd: str) -> Path:
+    return reports_dir / "daily_digest" / "data" / "weekly" / f"END_{end_ymd}.json"
+
+
+def _ymd_minus_days(ymd: str, days: int) -> Optional[str]:
+    d = parse_ymd(ymd)
+    if not d:
+        return None
+    return (d - timedelta(days=days)).strftime("%Y-%m-%d")
+
+
+def _ensure_daily_kpi_json(reports_dir: Path) -> Dict[str, Any]:
+    """
+    Returns daily_kpi dict. Auto-builds reports/daily_kpi.json if missing/stale.
+    Stale 기준: latest daily bundle date != daily_kpi.json['date']
+    """
+    out_path = reports_dir / "daily_kpi.json"
+
+    latest_bundle = _find_latest_daily_bundle(reports_dir)
+    latest_date = _bundle_date_from_path(latest_bundle) if latest_bundle else None
+
+    existing = _read_json_path(out_path) or {}
+    existing_date = existing.get("date")
+
+    need_rebuild = (not existing) or (latest_date and existing_date != latest_date)
+
+    if not need_rebuild:
+        # ensure updated label exists
+        if not existing.get("updated"):
+            existing["updated"] = now_kst_label()
+            _write_json_path(out_path, existing)
+        return existing
+
+    # build from bundles
+    if not latest_bundle or not latest_date:
+        # cannot build; keep existing fallback
         return {
             "date": None,
             "sessions": None,
@@ -206,33 +407,81 @@ def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
             "source": None,
         }
 
-    return {
-        "date": j.get("date"),
-        "sessions": j.get("sessions"),
-        "orders": j.get("orders"),
-        "revenue": j.get("revenue"),
-        "cvr": j.get("cvr"),
-        "signups": j.get("signups"),
-        "dod": j.get("dod") or {},
-        "yoy": j.get("yoy") or {},
-        "updated": j.get("updated") or now_kst_label(),
-        "source": str(p),
+    cur_bundle = _load_bundle(latest_bundle) or {}
+    cur_kpis = _extract_kpis_from_bundle(cur_bundle)
+
+    prev_date = _ymd_minus_days(latest_date, 1)
+    yoy_date = _ymd_minus_days(latest_date, 364)  # your existing convention
+
+    prev_kpis = {}
+    yoy_kpis = {}
+
+    if prev_date:
+        pp = _daily_bundle_path(reports_dir, prev_date)
+        bj = _load_bundle(pp)
+        if bj:
+            prev_kpis = _extract_kpis_from_bundle(bj)
+
+    if yoy_date:
+        yp = _daily_bundle_path(reports_dir, yoy_date)
+        yj = _load_bundle(yp)
+        if yj:
+            yoy_kpis = _extract_kpis_from_bundle(yj)
+
+    dod = {
+        "sessions": _ratio(cur_kpis.get("sessions"), prev_kpis.get("sessions")),
+        "orders": _ratio(cur_kpis.get("orders"), prev_kpis.get("orders")),
+        "revenue": _ratio(cur_kpis.get("revenue"), prev_kpis.get("revenue")),
+        "signups": _ratio(cur_kpis.get("signups"), prev_kpis.get("signups")),
+        "cvr_pp": _pp(cur_kpis.get("cvr"), prev_kpis.get("cvr")),
+    }
+    yoy = {
+        "sessions": _ratio(cur_kpis.get("sessions"), yoy_kpis.get("sessions")),
+        "orders": _ratio(cur_kpis.get("orders"), yoy_kpis.get("orders")),
+        "revenue": _ratio(cur_kpis.get("revenue"), yoy_kpis.get("revenue")),
+        "signups": _ratio(cur_kpis.get("signups"), yoy_kpis.get("signups")),
+        "cvr_pp": _pp(cur_kpis.get("cvr"), yoy_kpis.get("cvr")),
     }
 
+    built = {
+        "date": latest_date,
+        "sessions": cur_kpis.get("sessions"),
+        "orders": cur_kpis.get("orders"),
+        "revenue": cur_kpis.get("revenue"),
+        "cvr": cur_kpis.get("cvr"),
+        "signups": cur_kpis.get("signups"),
+        "dod": dod,
+        "yoy": yoy,
+        "updated": now_kst_label(),
+        "source": str(latest_bundle),
+    }
 
-def build_weekly_kpis(reports_dir: Path) -> Dict[str, Any]:
-    """
-    reports/weekly_kpi.json (new)
-    expected keys:
-      start, end, sessions, orders, revenue, cvr, signups
-      wow: {sessions, orders, revenue, cvr_pp, signups}
-      yoy: {sessions, orders, revenue, cvr_pp, signups}
-      updated
-    """
-    p = reports_dir / "weekly_kpi.json"
-    j = _read_json_path(p)
+    _write_json_path(out_path, built)
+    return built
 
-    if not j:
+
+def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
+    """
+    Returns weekly_kpi dict. Auto-builds reports/weekly_kpi.json if missing/stale.
+    Stale 기준: latest weekly END date != weekly_kpi.json['end']
+    """
+    out_path = reports_dir / "weekly_kpi.json"
+
+    latest_bundle = _find_latest_weekly_bundle(reports_dir)
+    latest_end = _bundle_date_from_path(latest_bundle) if latest_bundle else None
+
+    existing = _read_json_path(out_path) or {}
+    existing_end = existing.get("end")
+
+    need_rebuild = (not existing) or (latest_end and existing_end != latest_end)
+
+    if not need_rebuild:
+        if not existing.get("updated"):
+            existing["updated"] = now_kst_label()
+            _write_json_path(out_path, existing)
+        return existing
+
+    if not latest_bundle or not latest_end:
         return {
             "start": None,
             "end": None,
@@ -247,19 +496,73 @@ def build_weekly_kpis(reports_dir: Path) -> Dict[str, Any]:
             "source": None,
         }
 
-    return {
-        "start": j.get("start"),
-        "end": j.get("end"),
-        "sessions": j.get("sessions"),
-        "orders": j.get("orders"),
-        "revenue": j.get("revenue"),
-        "cvr": j.get("cvr"),
-        "signups": j.get("signups"),
-        "wow": j.get("wow") or {},
-        "yoy": j.get("yoy") or {},
-        "updated": j.get("updated") or now_kst_label(),
-        "source": str(p),
+    cur_bundle = _load_bundle(latest_bundle) or {}
+    cur_kpis = _extract_kpis_from_bundle(cur_bundle)
+
+    # weekly window: end-6 ~ end
+    end_d = parse_ymd(latest_end)
+    start_s = (end_d - timedelta(days=6)).strftime("%Y-%m-%d") if end_d else None
+
+    prev_end = _ymd_minus_days(latest_end, 7)
+    yoy_end = _ymd_minus_days(latest_end, 364)
+
+    prev_kpis = {}
+    yoy_kpis = {}
+
+    if prev_end:
+        pp = _weekly_bundle_path(reports_dir, prev_end)
+        pj = _load_bundle(pp)
+        if pj:
+            prev_kpis = _extract_kpis_from_bundle(pj)
+
+    if yoy_end:
+        yp = _weekly_bundle_path(reports_dir, yoy_end)
+        yj = _load_bundle(yp)
+        if yj:
+            yoy_kpis = _extract_kpis_from_bundle(yj)
+
+    wow = {
+        "sessions": _ratio(cur_kpis.get("sessions"), prev_kpis.get("sessions")),
+        "orders": _ratio(cur_kpis.get("orders"), prev_kpis.get("orders")),
+        "revenue": _ratio(cur_kpis.get("revenue"), prev_kpis.get("revenue")),
+        "signups": _ratio(cur_kpis.get("signups"), prev_kpis.get("signups")),
+        "cvr_pp": _pp(cur_kpis.get("cvr"), prev_kpis.get("cvr")),
     }
+    yoy = {
+        "sessions": _ratio(cur_kpis.get("sessions"), yoy_kpis.get("sessions")),
+        "orders": _ratio(cur_kpis.get("orders"), yoy_kpis.get("orders")),
+        "revenue": _ratio(cur_kpis.get("revenue"), yoy_kpis.get("revenue")),
+        "signups": _ratio(cur_kpis.get("signups"), yoy_kpis.get("signups")),
+        "cvr_pp": _pp(cur_kpis.get("cvr"), yoy_kpis.get("cvr")),
+    }
+
+    built = {
+        "start": start_s,
+        "end": latest_end,
+        "sessions": cur_kpis.get("sessions"),
+        "orders": cur_kpis.get("orders"),
+        "revenue": cur_kpis.get("revenue"),
+        "cvr": cur_kpis.get("cvr"),
+        "signups": cur_kpis.get("signups"),
+        "wow": wow,
+        "yoy": yoy,
+        "updated": now_kst_label(),
+        "source": str(latest_bundle),
+    }
+
+    _write_json_path(out_path, built)
+    return built
+
+
+# -----------------------
+# ✅ KPI loaders (use ensured JSON)
+# -----------------------
+def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
+    return _ensure_daily_kpi_json(reports_dir)
+
+
+def build_weekly_kpis(reports_dir: Path) -> Dict[str, Any]:
+    return _ensure_weekly_kpi_json(reports_dir)
 
 
 # -----------------------
@@ -566,7 +869,6 @@ def build_hero_metrics(reports_dir: Path, crawl_limit: int = 40, crawl_sleep: fl
     }
 
 
-
 # -----------------------
 # reports/summary.json (structured metrics) loader
 # -----------------------
@@ -578,6 +880,7 @@ def _read_summary_json(reports_dir: Path) -> Dict[str, Any]:
         return json.loads(p.read_text(encoding="utf-8")) or {}
     except Exception:
         return {}
+
 
 # -----------------------
 # VOC metrics (best-effort)
@@ -599,12 +902,13 @@ def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
         mentions = ext.get("total_mentions")
         target_days = ext.get("target_days") or 7
         updated = ext.get("updated_at") or now_kst_label()
-        # normalize ints
+
         def _to_int(x):
             try:
                 return int(x)
             except Exception:
                 return None
+
         return {
             "posts": _to_int(posts),
             "mentions": _to_int(mentions),
@@ -633,7 +937,6 @@ def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
 
 # -----------------------
 # Crema metrics (best-effort)
-# ----------------------- (best-effort)
 # -----------------------
 def _read_json_if_exists(p: Path) -> Optional[Dict[str, Any]]:
     try:
@@ -769,9 +1072,6 @@ def render_index_html(
     crema_range = crema.get("date_range") or "-"
     crema_top5 = _fmt_top5(crema.get("complaint_top5"))
 
-    # ----------------
-    # KPI strips
-    # ----------------
     def kpi_tile(title: str, value: str, line1: str, line2: str) -> str:
         return f"""
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
@@ -991,6 +1291,7 @@ def main() -> None:
     reports_dir = repo_root / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
 
+    # ✅ KPI: always ensured from latest cached bundles (no GA4/BQ)
     daily = build_daily_kpis(reports_dir)
     weekly = build_weekly_kpis(reports_dir)
 
@@ -1007,16 +1308,8 @@ def main() -> None:
     out.write_text(render_index_html(daily, weekly, naver, hero, voc, crema), encoding="utf-8")
 
     print(f"[OK] Wrote: {out}")
-    if daily.get("source"):
-        print(f"[OK] Daily KPI source: {daily.get('source')}")
-    else:
-        print("[WARN] reports/daily_kpi.json not found. Daily KPI strip will show '-' until generated.")
-    if weekly.get("source"):
-        print(f"[OK] Weekly KPI source: {weekly.get('source')}")
-    else:
-        print("[WARN] reports/weekly_kpi.json not found. Weekly KPI strip will show '-' until generated.")
-    if crema.get("source"):
-        print(f"[OK] Crema meta source: {crema.get('source')}")
+    print(f"[OK] Daily KPI date: {daily.get('date')} (source: {daily.get('source')})")
+    print(f"[OK] Weekly KPI end: {weekly.get('end')} (source: {weekly.get('source')})")
 
 
 if __name__ == "__main__":
