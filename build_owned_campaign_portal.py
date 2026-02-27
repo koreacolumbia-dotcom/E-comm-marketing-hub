@@ -4,34 +4,34 @@
 """
 OWNED Campaign → Product Performance Portal (GA4 BigQuery Export)
 
-- Pulls OWNED (EDM/LMS/KAKAO) performance + purchased products by campaign(send_id)
-- Generates static site for GitHub Pages
-  - site/index.html (campaign explorer)
-  - site/data/owned/*.json (per date)
-  - site/data/owned/available_dates.json
-  - .github/workflows/owned_pages.yml (deploy to GitHub Pages)
-  - site/.nojekyll
+✅ What this script does
+- Pulls OWNED (EDM/LMS/KAKAO) session performance + purchased products by UTM (session-scoped)
+- Generates a static portal (index.html + daily JSON bundles) that can be served via GitHub Pages
 
-Default: 2025-01-01 ~ today(KST)
-Supports:
-  - backfill: fetch entire range and write daily json files
-  - incremental: fetch recent N days only
+✅ Key fixes in this patched version (B안)
+1) **Session campaign / manual term 양쪽 모두 매칭**
+   - EDM/LMS: send_id = COALESCE(utm_campaign, utm_term)
+   - KAKAO:   send_id = COALESCE(utm_term, utm_campaign)
+2) **세션 수가 작게 잡히는 문제 완화**
+   - session_start 한 이벤트만 보지 않고, 세션 내 전체 이벤트에서
+     traffic_source / collected_traffic_source / event_params('source','medium','campaign','term','utm_*')를
+     시간순으로 최초 1개를 채택해 session UTM을 복원합니다.
+3) 대소문자 변형 없음 (send_id 원본 그대로 사용, channel 판별만 lower 사용)
+4) index.html은 사용자가 준 최신(DAILY/RANGE 누적 지원) 버전을 그대로 포함합니다.
+
+Outputs (when --site-dir is e.g. reports/owned_portal)
+- <site-dir>/index.html
+- <site-dir>/data/owned/owned_YYYY-MM-DD.json
+- <site-dir>/data/owned/available_dates.json
+- <site-dir>/.nojekyll
 
 Requirements:
   pip install google-cloud-bigquery pandas pyarrow
-  (optional) pip install google-cloud-bigquery-storage  # faster, but NOT required
-
-Auth:
-  - Use GOOGLE_APPLICATION_CREDENTIALS or ADC in GitHub Actions
-  - Or set env GOOGLE_SA_JSON_B64 and it will write to /tmp/ga_sa.json
-
-Usage:
-  python build_owned_campaign_portal.py --project columbia-ga4 --dataset analytics_358593394 --start 2025-01-01 --end 2026-02-25
-  python build_owned_campaign_portal.py --recent-days 7
 """
 
 import os
 import json
+import base64
 import argparse
 from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
@@ -51,10 +51,6 @@ def kst_today() -> date:
     return datetime.now(tz=KST).date()
 
 
-def ymd(d: date) -> str:
-    return d.strftime("%Y-%m-%d")
-
-
 def suffix(d: date) -> str:
     return d.strftime("%Y%m%d")
 
@@ -70,66 +66,99 @@ def maybe_write_sa_from_b64() -> None:
     b64 = (os.getenv("GOOGLE_SA_JSON_B64") or "").strip()
     if not b64:
         return
-    import base64
     p = Path("/tmp/ga_sa.json")
     p.write_bytes(base64.b64decode(b64))
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(p)
 
 
 # ----------------------------
-# BigQuery SQL
+# BigQuery SQL (Session-scoped UTM reconstruction)
 # ----------------------------
 def build_sql(project: str, dataset: str, start_suffix: str, end_suffix: str) -> str:
-    """
-    GA4 Exploration(세션 스코프 UTM) 정합 버전
-
-    - send_id:
-        * EDM/LMS/EMAIL (utm_medium in email/edm/lms) => utm_campaign
-        * KAKAO (utm_source or utm_medium contains 'kakao') => utm_term
-    - Session 차원:
-        * session_start 이벤트의 collected_traffic_source.manual_* 사용(UTM)
-    - KPI:
-        * sessions: COUNT(DISTINCT session_key)
-        * users: COUNT(DISTINCT user_pseudo_id)  (세션 시작 기준)
-        * purchases: purchase 이벤트 건수(=row count). (중복 트랜잭션 id에 의존하지 않음)
-        * revenue: SUM(ecommerce.purchase_revenue)
-        * items_purchased: SUM(items.quantity) (purchase items)
-    - Products:
-        * purchase items를 세션의 send_id로 귀속
-        * prod_revenue: COALESCE(item_revenue, price*quantity, 0)
-    """
     table = f"`{project}.{dataset}.events_*`"
 
     return f"""
 DECLARE start_suffix STRING DEFAULT '{start_suffix}';
 DECLARE end_suffix   STRING DEFAULT '{end_suffix}';
 
--- 1) Session 스코프 UTM: session_start 기반
-WITH sessions AS (
+WITH base AS (
   SELECT
     PARSE_DATE('%Y%m%d', event_date) AS date,
+    event_timestamp,
     user_pseudo_id,
     (SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS ga_session_id,
 
-    collected_traffic_source.manual_source AS utm_source,
-    collected_traffic_source.manual_medium AS utm_medium,
-    collected_traffic_source.manual_campaign_name AS utm_campaign,
-    collected_traffic_source.manual_term AS utm_term
+    collected_traffic_source.manual_source AS cts_source,
+    collected_traffic_source.manual_medium AS cts_medium,
+    collected_traffic_source.manual_campaign_name AS cts_campaign,
+    collected_traffic_source.manual_term AS cts_term,
+
+    traffic_source.source AS ts_source,
+    traffic_source.medium AS ts_medium,
+    traffic_source.name   AS ts_campaign,
+
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='source') AS ep_source,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='medium') AS ep_medium,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='campaign') AS ep_campaign,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='term') AS ep_term,
+
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='utm_source') AS ep_utm_source,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='utm_medium') AS ep_utm_medium,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='utm_campaign') AS ep_utm_campaign,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key='utm_term') AS ep_utm_term,
+
+    event_name,
+    ecommerce.purchase_revenue AS purchase_revenue,
+    items
   FROM {table}
   WHERE _TABLE_SUFFIX BETWEEN start_suffix AND end_suffix
-    AND event_name = 'session_start'
 ),
-sessions_norm AS (
+
+base2 AS (
   SELECT
     date,
+    event_timestamp,
     user_pseudo_id,
     ga_session_id,
     CONCAT(user_pseudo_id, '.', CAST(ga_session_id AS STRING)) AS session_key,
 
-    LOWER(IFNULL(utm_source, '')) AS utm_source_l,
-    LOWER(IFNULL(utm_medium, '')) AS utm_medium_l,
-    IFNULL(utm_campaign, '') AS utm_campaign,
-    IFNULL(utm_term, '') AS utm_term,
+    COALESCE(NULLIF(cts_source,''), NULLIF(ts_source,''), NULLIF(ep_source,''), NULLIF(ep_utm_source,'')) AS utm_source,
+    COALESCE(NULLIF(cts_medium,''), NULLIF(ts_medium,''), NULLIF(ep_medium,''), NULLIF(ep_utm_medium,'')) AS utm_medium,
+    COALESCE(NULLIF(cts_campaign,''), NULLIF(ts_campaign,''), NULLIF(ep_campaign,''), NULLIF(ep_utm_campaign,'')) AS utm_campaign,
+    COALESCE(NULLIF(cts_term,''), NULLIF(ep_term,''), NULLIF(ep_utm_term,'')) AS utm_term,
+
+    event_name,
+    IFNULL(purchase_revenue, 0) AS purchase_revenue,
+    items
+  FROM base
+  WHERE ga_session_id IS NOT NULL
+),
+
+session_dim AS (
+  SELECT
+    date,
+    user_pseudo_id,
+    ga_session_id,
+    session_key,
+
+    ARRAY_AGG(utm_source   IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_source,
+    ARRAY_AGG(utm_medium   IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_medium,
+    ARRAY_AGG(utm_campaign IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_campaign,
+    ARRAY_AGG(utm_term     IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_term
+  FROM base2
+  GROUP BY 1,2,3,4
+),
+
+sessions_owned AS (
+  SELECT
+    date,
+    user_pseudo_id,
+    ga_session_id,
+    session_key,
+    utm_source,
+    utm_medium,
+    utm_campaign,
+    utm_term,
 
     CASE
       WHEN LOWER(IFNULL(utm_medium,'')) = 'lms' THEN 'LMS'
@@ -140,46 +169,38 @@ sessions_norm AS (
 
     CASE
       WHEN LOWER(IFNULL(utm_medium,'')) IN ('lms','edm','email')
-        THEN COALESCE(NULLIF(utm_campaign,''), NULLIF(utm_term,''))  -- campaign 우선, 없으면 term
+        THEN COALESCE(NULLIF(utm_campaign,''), NULLIF(utm_term,''))
       WHEN LOWER(IFNULL(utm_source,'')) LIKE '%kakao%' OR LOWER(IFNULL(utm_medium,'')) LIKE '%kakao%'
-        THEN NULLIF(utm_term,'')
+        THEN COALESCE(NULLIF(utm_term,''), NULLIF(utm_campaign,''))
       ELSE NULL
-    END AS send_id_raw
-  FROM sessions
-  WHERE ga_session_id IS NOT NULL
-),
-sessions_owned AS (
-  SELECT
-    date,
-    user_pseudo_id,
-    ga_session_id,
-    session_key,
-    utm_source_l,
-    utm_medium_l,
-    utm_campaign,
-    utm_term,
-    channel,
-    CASE
-      WHEN channel IN ('EDM','LMS') THEN COALESCE(REGEXP_EXTRACT(send_id_raw, r'(\d{3,8})'), send_id_raw)
-      ELSE send_id_raw
     END AS send_id
-  FROM sessions_norm
-  WHERE send_id_raw IS NOT NULL
-    AND channel IN ('EDM','LMS','KAKAO')
+  FROM session_dim
+  WHERE (LOWER(IFNULL(utm_medium,'')) IN ('lms','edm','email')
+     OR LOWER(IFNULL(utm_source,'')) LIKE '%kakao%'
+     OR LOWER(IFNULL(utm_medium,'')) LIKE '%kakao%')
 ),
 
--- 2) Purchase events (KPI revenue) — purchase_revenue 우선
+session_kpi AS (
+  SELECT
+    date,
+    channel,
+    send_id,
+    COUNT(DISTINCT session_key) AS sessions,
+    COUNT(DISTINCT user_pseudo_id) AS users
+  FROM sessions_owned
+  WHERE send_id IS NOT NULL
+  GROUP BY 1,2,3
+),
+
 purchase_events AS (
   SELECT
-    PARSE_DATE('%Y%m%d', event_date) AS date,
-    user_pseudo_id,
-    (SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS ga_session_id,
-    CONCAT(user_pseudo_id, '.', CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS STRING)) AS session_key,
-    IFNULL(ecommerce.purchase_revenue, 0) AS purchase_revenue
-  FROM {table}
-  WHERE _TABLE_SUFFIX BETWEEN start_suffix AND end_suffix
-    AND event_name = 'purchase'
+    b.date,
+    b.session_key,
+    IFNULL(b.purchase_revenue, 0) AS purchase_revenue
+  FROM base2 b
+  WHERE b.event_name = 'purchase'
 ),
+
 purchase_kpi AS (
   SELECT
     p.date,
@@ -190,41 +211,23 @@ purchase_kpi AS (
   FROM purchase_events p
   JOIN sessions_owned s
     ON s.session_key = p.session_key
+  WHERE s.send_id IS NOT NULL
   GROUP BY 1,2,3
 ),
 
--- 3) Session KPI
-session_kpi AS (
-  SELECT
-    date,
-    channel,
-    send_id,
-    COUNT(DISTINCT session_key) AS sessions,
-    COUNT(DISTINCT user_pseudo_id) AS users
-  FROM sessions_owned
-  GROUP BY 1,2,3
-),
-
--- 4) Purchase items (items_purchased + products)
 purchase_items AS (
   SELECT
-    PARSE_DATE('%Y%m%d', e.event_date) AS date,
-    e.user_pseudo_id,
-    CONCAT(
-      e.user_pseudo_id, '.', CAST(
-        (SELECT value.int_value FROM UNNEST(e.event_params) WHERE key='ga_session_id') AS STRING
-      )
-    ) AS session_key,
-
+    b.date,
+    b.session_key,
     i.item_id AS item_id,
     i.item_name AS item_name,
     IFNULL(i.quantity, 0) AS qty,
     COALESCE(i.item_revenue, i.price * i.quantity, 0) AS item_rev
-  FROM {table} e,
-  UNNEST(e.items) i
-  WHERE _TABLE_SUFFIX BETWEEN start_suffix AND end_suffix
-    AND e.event_name = 'purchase'
+  FROM base2 b,
+  UNNEST(b.items) i
+  WHERE b.event_name = 'purchase'
 ),
+
 items_kpi AS (
   SELECT
     pi.date,
@@ -234,8 +237,10 @@ items_kpi AS (
   FROM purchase_items pi
   JOIN sessions_owned s
     ON s.session_key = pi.session_key
+  WHERE s.send_id IS NOT NULL
   GROUP BY 1,2,3
 ),
+
 kpi AS (
   SELECT
     sk.date,
@@ -265,6 +270,7 @@ prod AS (
   FROM purchase_items pi
   JOIN sessions_owned s
     ON s.session_key = pi.session_key
+  WHERE s.send_id IS NOT NULL
   GROUP BY 1,2,3,4
 )
 
@@ -304,13 +310,12 @@ FROM prod p
 ;
 """
 
+
 # ----------------------------
-# HTML
+# HTML (user provided)
 # ----------------------------
 def build_index_html() -> str:
-    # small patch:
-    # - read available_dates.json, set latest date as default if possible
-    return r"""<!doctype html>
+    return """<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -500,8 +505,25 @@ def build_index_html() -> str:
     <div class="glass p-5">
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-2 mb-4">
-        <div class="small-label">Date</div>
-        <div class="w-[160px]"><input id="datePicker" type="date" /></div>
+        <div class="small-label">View</div>
+        <button id="chipDaily" class="chip active" type="button">DAILY</button>
+        <button id="chipRange" class="chip" type="button">RANGE</button>
+
+        <div class="ml-2 small-label">Date</div>
+        <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
+
+        <div id="rangeBox" class="hidden items-center gap-2">
+          <div class="small-label">From</div>
+          <div class="w-[160px]"><input id="startPicker" type="date" /></div>
+          <div class="small-label">To</div>
+          <div class="w-[160px]"><input id="endPicker" type="date" /></div>
+
+          <button id="btnApplyRange" class="btn btn-primary" type="button">적용</button>
+          <button id="btn7d" class="btn" type="button">7D</button>
+          <button id="btn30d" class="btn" type="button">30D</button>
+          <button id="btnMTD" class="btn" type="button">MTD</button>
+        </div>
+
         <button id="btnPrev" class="btn" type="button">◀</button>
         <button id="btnNext" class="btn" type="button">▶</button>
         <button id="btnToday" class="btn" type="button">오늘</button>
@@ -564,7 +586,10 @@ def build_index_html() -> str:
       <!-- Products -->
       <div class="flex items-center gap-2 mb-2">
         <div class="small-label">Products</div>
-        <div id="selMeta" class="pill"><span class="mono" id="selChannel">-</span> · <span class="mono" id="selSendId">-</span></div>
+        <div id="selMeta" class="pill">
+          <span class="mono" id="selChannel">-</span> · <span class="mono" id="selSendId">-</span>
+          <span id="selPeriod" class="muted font-semibold"></span>
+        </div>
       </div>
 
       <div class="overflow-auto rounded-[18px]">
@@ -584,7 +609,7 @@ def build_index_html() -> str:
       </div>
 
       <div class="muted font-semibold text-xs mt-3">
-        데이터: GA4 BigQuery Export · send_id 규칙: KAKAO=term, EDM/LMS=campaign · purchase 기준 상품 집계
+        데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · 기간 조회는 클라이언트 합산
       </div>
     </div>
   </div>
@@ -598,11 +623,24 @@ def build_index_html() -> str:
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
   noticeClose.addEventListener('click', hideNotice);
 
+  const btnReload = document.getElementById('btnReload');
+
+  const chipDaily = document.getElementById('chipDaily');
+  const chipRange = document.getElementById('chipRange');
+  const rangeBox = document.getElementById('rangeBox');
+  const dailyBox = document.getElementById('dailyBox');
+
   const datePicker = document.getElementById('datePicker');
+  const startPicker = document.getElementById('startPicker');
+  const endPicker = document.getElementById('endPicker');
+  const btnApplyRange = document.getElementById('btnApplyRange');
+  const btn7d = document.getElementById('btn7d');
+  const btn30d = document.getElementById('btn30d');
+  const btnMTD = document.getElementById('btnMTD');
+
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
   const btnToday = document.getElementById('btnToday');
-  const btnReload = document.getElementById('btnReload');
 
   const chipAll = document.getElementById('chipAll');
   const chipEDM = document.getElementById('chipEDM');
@@ -627,6 +665,7 @@ def build_index_html() -> str:
 
   const selChannel = document.getElementById('selChannel');
   const selSendId = document.getElementById('selSendId');
+  const selPeriod = document.getElementById('selPeriod');
 
   function fmt(n){
     if(n === null || n === undefined) return '-';
@@ -652,11 +691,37 @@ def build_index_html() -> str:
   }
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
+  function clampToAvailable(dStr){
+    if(!AVAILABLE || !AVAILABLE.length) return dStr;
+    if(AVAILABLE.includes(dStr)) return dStr;
+    // 가장 가까운 과거 날짜로 스냅
+    for(let i=AVAILABLE.length-1;i>=0;i--){
+      if(AVAILABLE[i] <= dStr) return AVAILABLE[i];
+    }
+    return AVAILABLE[0];
+  }
+
+  let VIEW = 'DAILY'; // DAILY | RANGE
   let CHANNEL = 'ALL';
-  let RAW = null;      // {date, kpi:[], prod:[]}
+
+  let RAW = null;        // 현재 화면 데이터(DAILY면 단일 JSON, RANGE면 합산 결과)
   let KPI = [];
-  let SELECTED = null; // {channel, send_id}
-  let AVAILABLE = null; // [YYYY-MM-DD...]
+  let SELECTED = null;   // {channel, send_id}
+  let AVAILABLE = null;  // [YYYY-MM-DD...]
+
+  function setViewActive(){
+    [chipDaily, chipRange].forEach(el=>el.classList.remove('active'));
+    if(VIEW==='DAILY'){
+      chipDaily.classList.add('active');
+      rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
+      dailyBox.classList.remove('hidden');
+    }
+    if(VIEW==='RANGE'){
+      chipRange.classList.add('active');
+      rangeBox.classList.remove('hidden'); rangeBox.classList.add('flex');
+      dailyBox.classList.add('hidden');
+    }
+  }
 
   function setChipActive(){
     [chipAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
@@ -666,10 +731,20 @@ def build_index_html() -> str:
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
   }
 
+  function periodLabel(){
+    if(VIEW==='DAILY'){
+      const d = datePicker.value || '-';
+      return ` · ${d}`;
+    }
+    const s = startPicker.value || '-';
+    const e = endPicker.value || '-';
+    return ` · ${s} ~ ${e}`;
+  }
+
   function filterKPI(){
     if(!RAW){ KPI=[]; return; }
     const qq = (q.value||'').trim().toLowerCase();
-    KPI = RAW.kpi.filter(r=>{
+    KPI = (RAW.kpi||[]).filter(r=>{
       if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
       if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
       return true;
@@ -703,13 +778,16 @@ def build_index_html() -> str:
   }
 
   function aggregateKPIForSelected(){
+    selPeriod.textContent = periodLabel();
+
     if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
       selChannel.textContent='-'; selSendId.textContent='-';
       return;
     }
-    const row = RAW.kpi.find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
+
+    const row = (RAW.kpi||[]).find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
     if(!row) return;
 
     const sessions = row.sessions||0;
@@ -729,7 +807,14 @@ def build_index_html() -> str:
     const ips = purchases ? (items/purchases) : 0;
 
     kSessionsSub.textContent = `-`;
-    kUsersSub.textContent = `-`;
+
+    // ✅ RANGE에서는 users가 "일자 합산(sum)"이라 과대계상 가능 (유니크 아님)
+    if (VIEW === 'RANGE') {
+      kUsersSub.textContent = 'Users: sum of daily (may overcount)';
+    } else {
+      kUsersSub.textContent = `-`;
+    }
+
     kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
@@ -744,7 +829,7 @@ def build_index_html() -> str:
       return;
     }
 
-    const rows = RAW.prod
+    const rows = (RAW.prod||[])
       .filter(r=> r.channel===SELECTED.channel && r.send_id===SELECTED.send_id)
       .slice()
       .sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
@@ -771,21 +856,68 @@ def build_index_html() -> str:
     renderProducts();
   }
 
-  async function loadDate(d){
+  async function fetchJson(url){
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  function listDatesBetween(startStr, endStr){
+    if(!AVAILABLE || !AVAILABLE.length) return [];
+    const s = startStr;
+    const e = endStr;
+    return AVAILABLE.filter(d => d >= s && d <= e);
+  }
+
+  function sumInto(map, key, obj, fields){
+    let cur = map.get(key);
+    if(!cur){
+      cur = Object.assign({}, obj);
+      fields.forEach(f=>{ cur[f] = Number(cur[f]||0); });
+      map.set(key, cur);
+      return;
+    }
+    fields.forEach(f=>{
+      cur[f] = Number(cur[f]||0) + Number(obj[f]||0);
+    });
+  }
+
+  function buildAggregated(dailyJsonList){
+    const kpiMap = new Map();   // key = channel||send_id
+    const prodMap = new Map();  // key = channel||send_id||item_id
+
+    for(const j of dailyJsonList){
+      const kpi = (j.kpi||[]);
+      for(const r of kpi){
+        const key = `${r.channel}||${r.send_id}`;
+        sumInto(kpiMap, key, r, ['sessions','users','purchases','revenue','items_purchased']);
+      }
+      const prod = (j.prod||[]);
+      for(const p of prod){
+        const key = `${p.channel}||${p.send_id}||${p.item_id}`;
+        sumInto(prodMap, key, p, ['prod_items','prod_revenue']);
+      }
+    }
+
+    return {
+      kpi: Array.from(kpiMap.values()),
+      prod: Array.from(prodMap.values())
+    };
+  }
+
+  async function loadDaily(dStr){
     hideNotice();
     SELECTED = null;
+    const url = `data/owned/owned_${dStr}.json?t=${Date.now()}`;
 
-    const url = `data/owned/owned_${d}.json?t=${Date.now()}`;
     try{
-      const res = await fetch(url, {cache:'no-store'});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      RAW = await res.json();
+      RAW = await fetchJson(url);
     }catch(e){
       RAW = null;
       KPI = [];
       campaignWrap.innerHTML = '';
-      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${d}.json</td></tr>`;
-      showNotice(`데이터가 없어서 표시할 수 없어. (${d})`);
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${dStr}.json</td></tr>`;
+      showNotice(`데이터가 없어서 표시할 수 없어. (${dStr})`);
       aggregateKPIForSelected();
       return;
     }
@@ -796,18 +928,104 @@ def build_index_html() -> str:
     renderProducts();
   }
 
+  async function loadRange(startStr, endStr){
+    hideNotice();
+    SELECTED = null;
+
+    if(!AVAILABLE || !AVAILABLE.length){
+      showNotice('available_dates.json을 읽지 못해서 기간 누적을 할 수 없어.');
+      RAW = null;
+      KPI = [];
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderProducts();
+      return;
+    }
+
+    let s = startStr;
+    let e = endStr;
+    if(s > e){ const tmp=s; s=e; e=tmp; }
+
+    s = clampToAvailable(s);
+    e = clampToAvailable(e);
+    startPicker.value = s;
+    endPicker.value = e;
+
+    const dates = listDatesBetween(s, e);
+    if(!dates.length){
+      RAW = null;
+      KPI = [];
+      showNotice(`선택한 기간에 데이터가 없어. (${s} ~ ${e})`);
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderProducts();
+      return;
+    }
+
+    const all = [];
+    const chunkSize = 10;
+    for(let i=0;i<dates.length;i+=chunkSize){
+      const chunk = dates.slice(i, i+chunkSize);
+      showNotice(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+      const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
+      const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
+      res.forEach((r)=>{
+        if(r.status==='fulfilled') all.push(r.value);
+      });
+    }
+    hideNotice();
+
+    RAW = buildAggregated(all);
+
+    filterKPI();
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderProducts();
+  }
+
   async function loadAvailableDates(){
     try{
-      const res = await fetch(`data/owned/available_dates.json?t=${Date.now()}`, {cache:'no-store'});
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const j = await res.json();
+      const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
       AVAILABLE = (j.available_dates||[]).slice().sort();
     }catch(e){
       AVAILABLE = null;
     }
   }
 
-  // events
+  function setToLastNDays(n){
+    const today = new Date();
+    const end = ymd(addDays(today, -1));
+    const start = ymd(addDays(parseYMD(end), -(n-1)));
+    startPicker.value = clampToAvailable(start);
+    endPicker.value = clampToAvailable(end);
+  }
+
+  function setToMTD(){
+    const today = new Date();
+    const end = ymd(addDays(today, -1));
+    const d = parseYMD(end);
+    const start = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+    startPicker.value = clampToAvailable(start);
+    endPicker.value = clampToAvailable(end);
+  }
+
+  // events: view
+  chipDaily.addEventListener('click', ()=>{
+    VIEW='DAILY';
+    setViewActive();
+    const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
+    datePicker.value = d;
+    loadDaily(d);
+  });
+
+  chipRange.addEventListener('click', ()=>{
+    VIEW='RANGE';
+    setViewActive();
+    setToLastNDays(7);
+    loadRange(startPicker.value, endPicker.value);
+  });
+
+  // channel chips
   chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterKPI(); renderCampaignButtons(); });
   chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterKPI(); renderCampaignButtons(); });
   chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterKPI(); renderCampaignButtons(); });
@@ -816,42 +1034,82 @@ def build_index_html() -> str:
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); });
 
+  // range quick buttons
+  btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value));
+  btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value); });
+  btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value); });
+  btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value); });
+
+  // nav
   btnPrev.addEventListener('click', ()=>{
-    const cur=parseYMD(datePicker.value);
-    const d=ymd(addDays(cur,-1));
-    datePicker.value=d; loadDate(d);
+    if(VIEW==='DAILY'){
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,-1));
+      datePicker.value = clampToAvailable(d);
+      loadDaily(datePicker.value);
+      return;
+    }
+    const s = parseYMD(startPicker.value);
+    const e = parseYMD(endPicker.value);
+    startPicker.value = clampToAvailable(ymd(addDays(s,-1)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,-1)));
+    loadRange(startPicker.value, endPicker.value);
   });
+
   btnNext.addEventListener('click', ()=>{
-    const cur=parseYMD(datePicker.value);
-    const d=ymd(addDays(cur,+1));
-    datePicker.value=d; loadDate(d);
+    if(VIEW==='DAILY'){
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,+1));
+      datePicker.value = clampToAvailable(d);
+      loadDaily(datePicker.value);
+      return;
+    }
+    const s = parseYMD(startPicker.value);
+    const e = parseYMD(endPicker.value);
+    startPicker.value = clampToAvailable(ymd(addDays(s,+1)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,+1)));
+    loadRange(startPicker.value, endPicker.value);
   });
+
   btnToday.addEventListener('click', ()=>{
-    const now=new Date();
-    const d=ymd(now);
-    datePicker.value=d; loadDate(d);
+    if(VIEW==='DAILY'){
+      const d = clampToAvailable(ymd(new Date()));
+      datePicker.value = d;
+      loadDaily(d);
+      return;
+    }
+    setToLastNDays(7);
+    loadRange(startPicker.value, endPicker.value);
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
-  noticeClose.addEventListener('click', hideNotice);
 
   // init
   (async function init(){
     setChipActive();
-
     await loadAvailableDates();
 
-    // default date: latest available, else yesterday
+    // ✅ 달력 min/max 제한 (available_dates 기준)
+    if(AVAILABLE && AVAILABLE.length){
+      const minD = AVAILABLE[0];
+      const maxD = AVAILABLE[AVAILABLE.length - 1];
+      datePicker.min = minD; datePicker.max = maxD;
+      startPicker.min = minD; startPicker.max = maxD;
+      endPicker.min = minD; endPicker.max = maxD;
+    }
+
+    // 기본: 최신 available date를 DAILY로 로드
     let d;
     if(AVAILABLE && AVAILABLE.length){
       d = AVAILABLE[AVAILABLE.length-1];
     }else{
-      const today = new Date();
-      d = ymd(addDays(today,-1));
+      d = ymd(addDays(new Date(), -1));
     }
-
     datePicker.value = d;
-    loadDate(d);
+
+    VIEW='DAILY';
+    setViewActive();
+    await loadDaily(d);
   })();
 
 })();
@@ -861,9 +1119,7 @@ def build_index_html() -> str:
 """
 
 
-def build_hub_html_placeholder(user_hub_html: Optional[str] = None) -> str:
-    if user_hub_html:
-        return user_hub_html
+def build_hub_html_placeholder() -> str:
     return """<!doctype html>
 <html lang="ko">
 <head>
@@ -875,12 +1131,13 @@ def build_hub_html_placeholder(user_hub_html: Optional[str] = None) -> str:
 <body class="p-8">
   <div class="max-w-3xl mx-auto">
     <div class="text-3xl font-black mb-2">Hub</div>
-    <div class="text-slate-600 font-semibold mb-6">원래 사용하던 Daily/Weekly Hub HTML을 여기에 붙여넣어서 사용할 수 있어.</div>
+    <div class="text-slate-600 font-semibold mb-6">원래 사용하던 Hub가 있으면 hub.html로 교체해서 쓰면 돼.</div>
     <a class="px-4 py-3 rounded-xl bg-slate-900 text-white font-black inline-block" href="./index.html">OWNED Campaign Explorer로 이동</a>
   </div>
 </body>
 </html>
 """
+
 
 # ----------------------------
 # JSON writing
@@ -901,13 +1158,9 @@ def write_available_dates(out_dir: Path, dates: List[str]) -> None:
 # Main
 # ----------------------------
 def _safe_to_dataframe(job: bigquery.job.QueryJob) -> pd.DataFrame:
-    """
-    create_bqstorage_client=True는 환경에 따라 실패(패키지 미설치)할 수 있어 fallback 처리.
-    """
     try:
         return job.result().to_dataframe(create_bqstorage_client=True)
     except Exception:
-        # fallback: standard API (slower but stable)
         return job.result().to_dataframe()
 
 
@@ -919,96 +1172,79 @@ def main():
     ap.add_argument("--end", default=None)
     ap.add_argument("--recent-days", type=int, default=None, help="If set, fetch only recent N days ending today(KST).")
     ap.add_argument("--site-dir", default="site")
-    ap.add_argument("--hub-html-file", default=None, help="Optional: path to your existing Hub HTML (will be copied to site/hub.html).")
     args = ap.parse_args()
 
     maybe_write_sa_from_b64()
 
     site_dir = Path(args.site_dir)
     data_dir = site_dir / "data" / "owned"
-    wf_path = Path(".github/workflows/owned_pages.yml")
 
-    # Determine date range
     end_d = parse_date(args.end) if args.end else kst_today()
     if args.recent_days and args.recent_days > 0:
         start_d = end_d - timedelta(days=args.recent_days - 1)
     else:
         start_d = parse_date(args.start)
 
-    start_sfx = suffix(start_d)
-    end_sfx = suffix(end_d)
-
-    # BigQuery query
-    client = bigquery.Client()
-    sql = build_sql(args.project, args.dataset, start_sfx, end_sfx)
+    client = bigquery.Client(project=args.project)
+    sql = build_sql(args.project, args.dataset, suffix(start_d), suffix(end_d))
     job = client.query(sql)
     df = _safe_to_dataframe(job)
 
-    # Site skeleton always
+    # Site skeleton
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / ".nojekyll").write_text("", encoding="utf-8")
     (site_dir / "index.html").write_text(build_index_html(), encoding="utf-8")
-
-    hub_html = None
-    if args.hub_html_file and Path(args.hub_html_file).exists():
-        hub_html = Path(args.hub_html_file).read_text(encoding="utf-8")
-    (site_dir / "hub.html").write_text(build_hub_html_placeholder(hub_html), encoding="utf-8")
-
-    wf_path.parent.mkdir(parents=True, exist_ok=True)
-    wf_path.write_text(build_pages_workflow(), encoding="utf-8")
+    (site_dir / "hub.html").write_text(build_hub_html_placeholder(), encoding="utf-8")
 
     if df.empty:
         print("[WARN] Query returned no rows.")
+        write_available_dates(data_dir, [])
         return
 
-    # Normalize
     df["date"] = df["date"].astype(str)
 
     kpi_df = df[df["row_type"] == "kpi"].copy()
     prod_df = df[df["row_type"] == "prod"].copy()
 
-    # Clean numeric
-    for col in ["sessions", "users", "purchases", "kpi_revenue", "items_purchased", "prod_items", "prod_revenue"]:
+    for col in ["sessions", "users", "purchases", "kpi_revenue", "items_purchased"]:
         if col in kpi_df.columns:
             kpi_df[col] = pd.to_numeric(kpi_df[col], errors="coerce").fillna(0)
+
+    for col in ["prod_items", "prod_revenue"]:
         if col in prod_df.columns:
             prod_df[col] = pd.to_numeric(prod_df[col], errors="coerce").fillna(0)
 
-    available = []
+    available: List[str] = []
 
     for d in sorted(set(df["date"].tolist())):
         k_rows = kpi_df[kpi_df["date"] == d][
             ["date", "channel", "send_id", "sessions", "users", "purchases", "kpi_revenue", "items_purchased"]
         ].to_dict(orient="records")
 
-        kpi_rows = []
-        for r in k_rows:
-            kpi_rows.append({
-                "date": r.get("date"),
-                "channel": r.get("channel"),
-                "send_id": r.get("send_id"),
-                "sessions": int(r.get("sessions", 0)),
-                "users": int(r.get("users", 0)),
-                "purchases": int(r.get("purchases", 0)),
-                "revenue": float(r.get("kpi_revenue", 0.0)),
-                "items_purchased": int(r.get("items_purchased", 0)),  # patched: int
-            })
+        kpi_rows = [{
+            "date": r.get("date"),
+            "channel": r.get("channel"),
+            "send_id": r.get("send_id"),
+            "sessions": int(r.get("sessions", 0)),
+            "users": int(r.get("users", 0)),
+            "purchases": int(r.get("purchases", 0)),
+            "revenue": float(r.get("kpi_revenue", 0.0)),
+            "items_purchased": int(r.get("items_purchased", 0)),
+        } for r in k_rows]
 
         p_rows = prod_df[prod_df["date"] == d][
             ["date", "channel", "send_id", "item_id", "item_name", "prod_items", "prod_revenue"]
         ].to_dict(orient="records")
 
-        prod_rows = []
-        for r in p_rows:
-            prod_rows.append({
-                "date": r.get("date"),
-                "channel": r.get("channel"),
-                "send_id": r.get("send_id"),
-                "item_id": r.get("item_id"),
-                "item_name": r.get("item_name"),
-                "prod_items": float(r.get("prod_items", 0.0)),
-                "prod_revenue": float(r.get("prod_revenue", 0.0)),
-            })
+        prod_rows = [{
+            "date": r.get("date"),
+            "channel": r.get("channel"),
+            "send_id": r.get("send_id"),
+            "item_id": r.get("item_id"),
+            "item_name": r.get("item_name"),
+            "prod_items": int(r.get("prod_items", 0)),
+            "prod_revenue": float(r.get("prod_revenue", 0.0)),
+        } for r in p_rows]
 
         write_daily_json(data_dir, d, kpi_rows, prod_rows)
         available.append(d)
@@ -1017,7 +1253,6 @@ def main():
 
     print(f"[OK] Wrote site to: {site_dir.resolve()}")
     print(f"[OK] Data files: {data_dir.resolve()} (days={len(available)})")
-    print("[OK] Next: push to GitHub, enable Pages (Deploy from Actions).")
 
 
 if __name__ == "__main__":
