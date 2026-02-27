@@ -71,9 +71,15 @@ def build_sql(project: str, dataset: str, start_suffix: str, end_suffix: str) ->
 DECLARE start_suffix STRING DEFAULT '{start_suffix}';
 DECLARE end_suffix   STRING DEFAULT '{end_suffix}';
 
+-- Notes
+-- 1) session_key = user_pseudo_id + ga_session_id (GA4 session scope)
+-- 2) 세션 attribution은 "세션 내 최초 이벤트" 기준으로 복원
+-- 3) 구매/상품은 session_key로 조인 (date 조인 제거) → 자정 넘어가는 구매도 누락 방지
+-- 4) revenue는 ecommerce.purchase_revenue가 비어있는 경우 items.item_revenue 합으로 fallback
+
 WITH base AS (
   SELECT
-    PARSE_DATE('%Y%m%d', event_date) AS date,
+    PARSE_DATE('%Y%m%d', event_date) AS event_date,
     event_timestamp,
     user_pseudo_id,
     (SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS ga_session_id,
@@ -98,10 +104,8 @@ WITH base AS (
     (SELECT value.string_value FROM UNNEST(event_params) WHERE key='utm_term')     AS ep_utm_term,
 
     event_name,
-    ecommerce.purchase_revenue AS ecommerce_purchase_revenue,
-    ecommerce.purchase_revenue_in_usd AS ecommerce_purchase_revenue_usd,
-    (SELECT COALESCE(value.double_value, CAST(value.int_value AS FLOAT64), CAST(value.float_value AS FLOAT64))
-     FROM UNNEST(event_params) WHERE key='value') AS ep_value,
+    SAFE_CAST(ecommerce.purchase_revenue AS FLOAT64) AS purchase_revenue,
+    ecommerce.transaction_id AS transaction_id,
     items
   FROM {table}
   WHERE _TABLE_SUFFIX BETWEEN start_suffix AND end_suffix
@@ -109,29 +113,30 @@ WITH base AS (
 
 base2 AS (
   SELECT
-    date,
+    event_date,
     event_timestamp,
     user_pseudo_id,
     ga_session_id,
     CONCAT(user_pseudo_id, '-', CAST(ga_session_id AS STRING)) AS session_key,
 
-    -- priority: collected_traffic_source > event_params(utm_*) > event_params(source/medium/..) > traffic_source
+    -- 우선순위: collected_traffic_source > event_params(utm_*) > event_params(source/medium/..) > traffic_source
     NULLIF(COALESCE(cts_source,   ep_utm_source,   ep_source,   ts_source),   '') AS utm_source,
     NULLIF(COALESCE(cts_medium,   ep_utm_medium,   ep_medium,   ts_medium),   '') AS utm_medium,
     NULLIF(COALESCE(cts_campaign, ep_utm_campaign, ep_campaign, ts_campaign), '') AS utm_campaign,
     NULLIF(COALESCE(cts_term,     ep_utm_term,     ep_term),                 '') AS utm_term,
 
     event_name,
-    COALESCE(ecommerce_purchase_revenue, ecommerce_purchase_revenue_usd, ep_value, 0) AS purchase_revenue,
+    IFNULL(purchase_revenue, 0) AS purchase_revenue,
+    transaction_id,
     items
   FROM base
   WHERE ga_session_id IS NOT NULL
 ),
 
 session_dim AS (
-  -- per session: take first non-null utm fields by timestamp
+  -- 세션별 최초 값(세션 스코프 UTM) + 세션 시작일(최초 event_date)
   SELECT
-    date,
+    MIN(event_date) AS date,
     user_pseudo_id,
     ga_session_id,
     session_key,
@@ -140,7 +145,7 @@ session_dim AS (
     ARRAY_AGG(utm_campaign IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_campaign,
     ARRAY_AGG(utm_term     IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_term
   FROM base2
-  GROUP BY 1,2,3,4
+  GROUP BY 2,3,4
 ),
 
 sessions_owned AS (
@@ -155,34 +160,50 @@ sessions_owned AS (
 
     CASE
       WHEN (
-        LOWER(IFNULL(utm_medium,'')) = 'lms'
-        OR LOWER(IFNULL(utm_medium,'')) LIKE 'lms%'
-        OR LOWER(IFNULL(utm_medium,'')) LIKE '%lms%'
+        LOWER(IFNULL(utm_medium,'')) LIKE '%lms%'
+        OR LOWER(IFNULL(utm_source,'')) LIKE '%lms%'
+        OR LOWER(IFNULL(utm_campaign,'')) LIKE '%lms%'
       ) THEN 'LMS'
+
       WHEN (
-        LOWER(IFNULL(utm_medium,'')) IN ('edm','email')
-        OR LOWER(IFNULL(utm_medium,'')) LIKE 'edm%'
-        OR LOWER(IFNULL(utm_medium,'')) LIKE '%edm%'
-        OR LOWER(IFNULL(utm_medium,'')) LIKE 'email%'
+        LOWER(IFNULL(utm_medium,'')) LIKE '%edm%'
         OR LOWER(IFNULL(utm_medium,'')) LIKE '%email%'
+        OR LOWER(IFNULL(utm_source,'')) LIKE '%email%'
+        OR LOWER(IFNULL(utm_campaign,'')) LIKE 'edm%'
+        OR LOWER(IFNULL(utm_campaign,'')) LIKE '%_edm%'
+        OR LOWER(IFNULL(utm_campaign,'')) LIKE '%email%'
       ) THEN 'EDM'
-      WHEN LOWER(IFNULL(utm_source,'')) LIKE '%kakao%' OR LOWER(IFNULL(utm_medium,'')) LIKE '%kakao%' THEN 'KAKAO'
+
+      WHEN (
+        LOWER(IFNULL(utm_source,'')) LIKE '%kakao%'
+        OR LOWER(IFNULL(utm_medium,'')) LIKE '%kakao%'
+        OR LOWER(IFNULL(utm_campaign,'')) LIKE '%kakao%'
+        OR LOWER(IFNULL(utm_campaign,'')) LIKE 'kakao%'
+      ) THEN 'KAKAO'
+
       ELSE 'OTHER'
     END AS channel,
 
     NULLIF(utm_campaign,'') AS campaign,
-    NULLIF(utm_term,'') AS term
+    NULLIF(utm_term,'')     AS term
   FROM session_dim
   WHERE (
-    LOWER(IFNULL(utm_medium,'')) IN ('lms','edm','email')
-    OR LOWER(IFNULL(utm_medium,'')) LIKE 'lms%'
-    OR LOWER(IFNULL(utm_medium,'')) LIKE '%lms%'
-    OR LOWER(IFNULL(utm_medium,'')) LIKE 'edm%'
+    -- ✅ owned만 남기기: medium/source/campaign 어느 쪽이든 신호가 있으면 포함
+    LOWER(IFNULL(utm_medium,'')) LIKE '%lms%'
+    OR LOWER(IFNULL(utm_source,'')) LIKE '%lms%'
+    OR LOWER(IFNULL(utm_campaign,'')) LIKE '%lms%'
+
     OR LOWER(IFNULL(utm_medium,'')) LIKE '%edm%'
-    OR LOWER(IFNULL(utm_medium,'')) LIKE 'email%'
     OR LOWER(IFNULL(utm_medium,'')) LIKE '%email%'
+    OR LOWER(IFNULL(utm_source,'')) LIKE '%email%'
+    OR LOWER(IFNULL(utm_campaign,'')) LIKE 'edm%'
+    OR LOWER(IFNULL(utm_campaign,'')) LIKE '%_edm%'
+    OR LOWER(IFNULL(utm_campaign,'')) LIKE '%email%'
+
     OR LOWER(IFNULL(utm_source,'')) LIKE '%kakao%'
     OR LOWER(IFNULL(utm_medium,'')) LIKE '%kakao%'
+    OR LOWER(IFNULL(utm_campaign,'')) LIKE '%kakao%'
+    OR LOWER(IFNULL(utm_campaign,'')) LIKE 'kakao%'
   )
 ),
 
@@ -199,19 +220,35 @@ session_kpi AS (
   GROUP BY 1,2,3,4
 ),
 
+purchase_events AS (
+  SELECT
+    session_key,
+    event_timestamp,
+    transaction_id,
+    -- revenue fallback: purchase_revenue가 0이면 item_revenue 합 사용
+    CASE
+      WHEN IFNULL(purchase_revenue,0) > 0 THEN IFNULL(purchase_revenue,0)
+      ELSE (
+        SELECT IFNULL(SUM(IFNULL(it.item_revenue,0)),0)
+        FROM UNNEST(items) it
+      )
+    END AS revenue,
+    items
+  FROM base2
+  WHERE event_name='purchase'
+),
+
 purchase_kpi AS (
   SELECT
     s.date,
     s.channel,
     s.campaign,
     s.term,
-    COUNT(1) AS purchases,
-    SUM(b.purchase_revenue) AS revenue
+    COUNT(DISTINCT COALESCE(p.transaction_id, CAST(p.event_timestamp AS STRING))) AS purchases,
+    SUM(p.revenue) AS revenue
   FROM sessions_owned s
-  JOIN base2 b
-    ON b.session_key = s.session_key
-   AND b.date = s.date
-   AND b.event_name = 'purchase'
+  JOIN purchase_events p
+    ON p.session_key = s.session_key
   GROUP BY 1,2,3,4
 ),
 
@@ -223,11 +260,9 @@ items_kpi AS (
     s.term,
     SUM(IFNULL(it.quantity,0)) AS items_purchased
   FROM sessions_owned s
-  JOIN base2 b
-    ON b.session_key = s.session_key
-   AND b.date = s.date
-   AND b.event_name = 'purchase'
-  CROSS JOIN UNNEST(b.items) it
+  JOIN purchase_events p
+    ON p.session_key = s.session_key
+  CROSS JOIN UNNEST(p.items) it
   GROUP BY 1,2,3,4
 ),
 
@@ -242,11 +277,9 @@ prod_rows AS (
     SUM(IFNULL(it.quantity,0)) AS prod_items,
     SUM(IFNULL(it.item_revenue,0)) AS prod_revenue
   FROM sessions_owned s
-  JOIN base2 b
-    ON b.session_key = s.session_key
-   AND b.date = s.date
-   AND b.event_name = 'purchase'
-  CROSS JOIN UNNEST(b.items) it
+  JOIN purchase_events p
+    ON p.session_key = s.session_key
+  CROSS JOIN UNNEST(p.items) it
   GROUP BY 1,2,3,4,5
 ),
 
