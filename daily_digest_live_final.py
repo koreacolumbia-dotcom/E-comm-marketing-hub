@@ -107,17 +107,20 @@ WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lo
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
 CHANNEL_BUCKETS = {
-    "Organic": {"Organic Search"},
-    # Paid Other는 GA 기본 채널그룹에서 Paid로 분류되지만 기존 버킷에서 누락되어 Awareness로 떨어지던 원인
-    "Paid AD": {"Paid Search", "Paid Social", "Display", "Paid Other"},
-    "Owned": {"Email", "SMS", "Mobile Push Notifications", "Direct"},
-    # Awareness는 "인지/레퍼럴" 성격만 남김 (Unassigned 등은 Other로 분리)
-    "Awareness": {"Referral", "Video", "Organic Video", "Cross-network", "Affiliates"},
+    # ✅ Looker(퍼널) 기준에 최대한 정렬
+    # - Awareness: Paid Social / Paid Video (상단 퍼널) + GA의 상단성격 채널들
+    # - Paid AD: Paid Search / Display / Paid Other
+    # - Organic: Organic Search + Direct + Referral(루커스 Organic Traffic에 맞춤)
+    # - Owned: Email/SMS/Push
+    # - SNS: Organic Social
+    "Organic": {"Organic Search", "Direct", "Referral"},
+    "Paid AD": {"Paid Search", "Display", "Paid Other"},
+    "Owned": {"Email", "SMS", "Mobile Push Notifications"},
+    "Awareness": {"Paid Social", "Paid Video", "Organic Video", "Cross-network"},
     "SNS": {"Organic Social"},
-    # GA UI에서 Unassigned/Organic Shopping 등이 많은 경우를 대비한 안전 버킷
-    "Other": {"Unassigned", "Organic Shopping"},
+    # 정의되지 않은 채널은 Other로 분리 (bucket_channel fallback)
 }
-PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
+PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display", "Paid Other"]
 
 # ✅ Paid detail (custom) — fixed order / labels
 # - 기존 Paid Search/Paid Social/Display/Total 대신 아래 라벨로 노출
@@ -660,7 +663,7 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
     prev_agg = prev.groupby("bucket", as_index=False)[mets].sum()
     yoy_agg = yoy.groupby("bucket", as_index=False)[mets].sum()
 
-    buckets = ["Organic", "Paid AD", "Owned", "Awareness", "SNS", "Other"]
+    buckets = ["Organic", "Paid AD", "Owned", "Awareness", "SNS"]
     base = pd.DataFrame({"bucket": buckets})
 
     out = (
@@ -1725,6 +1728,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
     latest = dates[-1]
 
     date_opts = "\n".join([f"<option value='{d.strftime('%Y-%m-%d')}'>{d.strftime('%Y-%m-%d')}</option>" for d in reversed(dates)])
+    latest_ymd = (max(dates).strftime('%Y-%m-%d') if dates else '')
 
     # Minimal hub UI; does NOT trigger GA/BQ calls. It reads cached bundle JSON in /data/.
     return f"""<!doctype html>
@@ -1739,7 +1743,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
     body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body class="bg-slate-50 text-slate-900" data-latest="{latest_ymd}">
   <div class="mx-auto max-w-6xl p-6 embed-tight">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
