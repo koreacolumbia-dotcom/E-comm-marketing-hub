@@ -229,25 +229,27 @@ jobs:
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       # =========================================================
-      # Daily Digest Report (어제 + YoY만 생성) — HUB FIXED (허브는 고정)
+      # Daily Digest Report (특정 날짜만 생성) — 2026-02-26
       # =========================================================
-      - name: Build Daily Digest (daily+weekly) — reports
+      - name: Build Daily Digest (only 2026-02-26)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
-          KST_STAMP: ${{ steps.set_time.outputs.kst }}
-          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
 
-          # 리포트는 덮어쓰기 허용
+          # ✅ 특정 날짜 고정
+          YMD: "2026-02-26"
+          YOY: "2025-02-27"
+
+          # 덮어쓰기 + 캐시 무시 (해당 날짜만 새로 조회)
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
+          DAILY_DIGEST_USE_DATA_CACHE: "false"
+          DAILY_DIGEST_WRITE_DATA_CACHE: "true"
 
           # 허브는 고정
           DAILY_DIGEST_SKIP_HUB_WRITE: "true"
 
-          # ✅ PATCH: Summary fallback용 bundle 캐시 강제 생성
-          DAILY_DIGEST_WRITE_DATA_CACHE: "true"
         run: |
           set -euo pipefail
 
@@ -263,28 +265,21 @@ jobs:
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
 
-          mkdir -p reports/daily_digest/daily reports/daily_digest/weekly reports/daily_digest/data/daily reports/daily_digest/data/weekly
+          mkdir -p reports/daily_digest/daily reports/daily_digest/data/daily
 
-          YOY="$(TZ=Asia/Seoul date -d "${YMD} - 364 days" '+%Y-%m-%d')"
-          echo "[INFO] Build only: YMD=${YMD}, YOY=${YOY}"
+          echo "[INFO] Purge old outputs for ${YMD}"
+          rm -f "reports/daily_digest/daily/${YMD}.html" \
+                "reports/daily_digest/data/daily/${YMD}.json" || true
+
+          echo "[INFO] Build only: ${YMD}"
 
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
 
-          export GA4_START_DATE="${YOY}"
-          export GA4_END_DATE="${YOY}"
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest
-
-          if [ -f reports/daily_digest/index.html ]; then
-            echo "<!-- BUILD_STAMP: ${KST_STAMP} -->" >> reports/daily_digest/index.html
-          fi
-
           echo "[INFO] Outputs:"
           ls -la reports/daily_digest/daily | tail -n 40 || true
-          ls -la reports/daily_digest/weekly | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
-          ls -la reports/daily_digest/data/weekly | tail -n 40 || true
 
       # =========================================================
       # Render yesterday daily HTML -> PNG (for email)
