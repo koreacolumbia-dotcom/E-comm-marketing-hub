@@ -10,13 +10,15 @@
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
 
-    html, body { height: 100%; overflow: auto; }
+    html, body { height: 100%; }
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
       color:#0f172a;
       min-height:100vh;
+      overflow-y: auto; /* ✅ 전체 페이지 스크롤만 사용 */
     }
+
     .glass{
       background: rgba(255,255,255,0.72);
       backdrop-filter: blur(18px);
@@ -35,6 +37,10 @@
       transition: all .15s ease;
       user-select:none;
       white-space: nowrap;
+      line-height: 1;
+      height: 36px;
+      display:inline-flex;
+      align-items:center;
     }
     .chip:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
     .chip.active{
@@ -55,6 +61,8 @@
       display:inline-flex;
       align-items:center;
       gap:8px;
+      line-height: 1;
+      height: 36px;
     }
     .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
     .btn-primary{ background: #002d72; border-color: #002d72; color: white; }
@@ -64,6 +72,7 @@
       transform:none !important;
       box-shadow:none !important;
     }
+
     .muted{ color:#64748b; }
     .small-label{
       font-size: 10px;
@@ -72,6 +81,7 @@
       text-transform: uppercase;
       color: #94a3b8;
     }
+
     input[type="date"]{
       border: 1px solid rgba(148,163,184,0.28);
       background: rgba(255,255,255,0.90);
@@ -82,19 +92,23 @@
       color: #0f172a;
       outline: none;
       width: 100%;
+      height: 36px;
+      line-height: 1;
     }
     input[type="date"]:focus{
       border-color: rgba(0,45,114,0.40);
       box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
     }
 
+    /* ✅ iframe 내부 스크롤 제거: 높이는 JS가 자동으로 맞춤 */
     .viewer-frame{
       width: 100%;
-      min-height: 820px;
       border: 0;
       border-radius: 18px;
       background: transparent;
-      overflow: auto;
+      overflow: hidden;     /* ✅ iframe 자체 스크롤 숨김 */
+      display:block;
+      height: 1100px;       /* ✅ 초기값(로딩 전) */
     }
 
     .loading-backdrop{
@@ -161,44 +175,47 @@
     </div>
 
     <div class="glass p-5">
-      <div class="flex flex-wrap items-center gap-2 mb-3">
-        <div class="small-label">Date</div>
-        <div class="w-[160px]"><input id="aDate" type="date" /></div>
-        <button id="btnPrev" class="btn" type="button">◀</button>
-        <button id="btnNext" class="btn" type="button">▶</button>
-        <button id="btnYesterday" class="btn" type="button">어제</button>
-        <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
+      <!-- ✅ 컨트롤 바: 줄바꿈 안정화(그리드) -->
+      <div class="grid grid-cols-1 gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="small-label">Date</div>
+          <div class="w-[160px] min-w-[160px]"><input id="aDate" type="date" /></div>
+          <button id="btnPrev" class="btn" type="button">◀</button>
+          <button id="btnNext" class="btn" type="button">▶</button>
+          <button id="btnYesterday" class="btn" type="button">어제</button>
+          <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
 
-        <div class="ml-2 small-label">Compare</div>
-        <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
-        <button id="btnPresetPrev" class="btn" type="button">전기준</button>
-        <button id="btnPresetYoY" class="btn" type="button">YoY</button>
-        <div class="w-[160px]"><input id="bDate" type="date" /></div>
-        <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
+          <div class="ml-2 small-label">Compare</div>
+          <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
+          <button id="btnPresetPrev" class="btn" type="button">전기준</button>
+          <button id="btnPresetYoY" class="btn" type="button">YoY</button>
+          <div class="w-[160px] min-w-[160px]"><input id="bDate" type="date" /></div>
+          <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="small-label">Range A</div>
+          <div class="w-[160px] min-w-[160px]"><input id="aStart" type="date" /></div>
+          <div class="w-[160px] min-w-[160px]"><input id="aEnd" type="date" /></div>
+
+          <div class="ml-2 small-label">Range B</div>
+          <div class="w-[160px] min-w-[160px]"><input id="bStart" type="date" /></div>
+          <div class="w-[160px] min-w-[160px]"><input id="bEnd" type="date" /></div>
+
+          <button id="btnRangeGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>구간비교</button>
+          <button id="btnRangeClear" class="btn" type="button">Range 해제</button>
+        </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <div class="small-label">Range A</div>
-        <div class="w-[160px]"><input id="aStart" type="date" /></div>
-        <div class="w-[160px]"><input id="aEnd" type="date" /></div>
-
-        <div class="ml-2 small-label">Range B</div>
-        <div class="w-[160px]"><input id="bStart" type="date" /></div>
-        <div class="w-[160px]"><input id="bEnd" type="date" /></div>
-
-        <button id="btnRangeGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>구간비교</button>
-        <button id="btnRangeClear" class="btn" type="button">Range 해제</button>
-      </div>
-
-      <div id="viewerGrid" class="grid grid-cols-1 gap-4">
+      <div id="viewerGrid" class="grid grid-cols-1 gap-4 mt-4">
         <div>
           <div class="text-xs muted font-semibold mb-2" id="viewerATitle">A: -</div>
-          <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
+          <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="no"></iframe>
         </div>
 
         <div id="viewerBWrap" class="hidden">
           <div class="text-xs muted font-semibold mb-2" id="viewerBTitle">B: -</div>
-          <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="auto"></iframe>
+          <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="no"></iframe>
         </div>
       </div>
     </div>
@@ -309,8 +326,6 @@
 
   // -----------------------------
   // ✅ exists() 캐시 강화
-  // - "최근 N일"은 negative cache 무시(리포트가 방금 생성됐는데도 '없음'으로 고정되는 문제 방지)
-  // - 그 외는 TTL 캐시로 비용/속도 절감
   // -----------------------------
   const LS_KEY = 'ddhub_exists_cache_v8';
   const TTL_MS = 6 * 60 * 60 * 1000;
@@ -355,7 +370,6 @@
     const base = buildReportBase(dateStr);
     const cached = cacheGet(base);
 
-    // ✅ 최근 날짜는 "없음(false)" 캐시를 믿지 않고 재확인
     if(cached !== null){
       if(cached === false && isRecentDateStr(dateStr)){
         // ignore negative cache for recent dates
@@ -374,6 +388,30 @@
     }
   }
 
+  // ✅ iframe 내부 스크롤 없애기: 문서 높이에 맞춰 iframe 높이 자동 조정
+  function resizeFrameToContent(frame){
+    try{
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if(!doc) return;
+
+      const body = doc.body;
+      const html = doc.documentElement;
+
+      const h = Math.max(
+        body ? body.scrollHeight : 0,
+        html ? html.scrollHeight : 0,
+        body ? body.offsetHeight : 0,
+        html ? html.offsetHeight : 0
+      );
+
+      // 최소/최대 가드 (너무 작거나 말도 안되게 커지는 것 방지)
+      const clamped = Math.max(900, Math.min(h + 12, 12000));
+      frame.style.height = clamped + "px";
+    }catch(e){
+      // cross-origin 이면 접근 불가 → 그냥 기본 height 유지
+    }
+  }
+
   function scrubReportUI(doc){
     if(!doc) return;
     let style = doc.getElementById('hub_scrub_css');
@@ -381,7 +419,10 @@
       style = doc.createElement('style');
       style.id = 'hub_scrub_css';
       style.type = 'text/css';
-      style.textContent = `html, body{ overflow:auto !important; } body{ margin:0 !important; }`;
+      style.textContent = `
+        html, body{ overflow:visible !important; }
+        body{ margin:0 !important; }
+      `;
       doc.head.appendChild(style);
     }
   }
@@ -389,19 +430,26 @@
   function onFrameLoad(frame){
     try{
       const doc = frame.contentDocument || frame.contentWindow.document;
-      if(!doc) return;
-      scrubReportUI(doc);
+      if(doc) scrubReportUI(doc);
     }catch(e){}
+    resizeFrameToContent(frame);
+
+    // ✅ 로드 후에도 이미지/폰트 로딩으로 높이 변할 수 있어서 2~3회 재측정
+    setTimeout(()=>resizeFrameToContent(frame), 200);
+    setTimeout(()=>resizeFrameToContent(frame), 800);
+    setTimeout(()=>resizeFrameToContent(frame), 1600);
   }
 
-  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setTimeout(()=>onFrameLoad(viewerA), 300); setBusy(false); });
-  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setTimeout(()=>onFrameLoad(viewerB), 300); setBusy(false); });
+  viewerA.addEventListener('load', ()=>{ onFrameLoad(viewerA); setBusy(false); });
+  viewerB.addEventListener('load', ()=>{ onFrameLoad(viewerB); setBusy(false); });
 
   async function loadA(dateStr){
+    viewerA.style.height = "1100px";
     viewerA.src = buildReportPath(dateStr);
     viewerATitle.textContent = `A: ${MODE.toUpperCase()} · ${dateStr}`;
   }
   async function loadB(dateStr){
+    viewerB.style.height = "1100px";
     viewerB.src = buildReportPath(dateStr);
     viewerBTitle.textContent = `B: ${MODE.toUpperCase()} · ${dateStr}`;
   }
@@ -422,10 +470,10 @@
   function updateCompareLayout(){
     if(COMPARE){
       viewerBWrap.classList.remove('hidden');
-      viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4';
+      viewerGrid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4';
     }else{
       viewerBWrap.classList.add('hidden');
-      viewerGrid.className = 'grid grid-cols-1 gap-4';
+      viewerGrid.className = 'grid grid-cols-1 gap-4 mt-4';
     }
   }
 
@@ -436,18 +484,13 @@
     updateCompareLayout();
   }
 
-  // -----------------------------
-  // ✅ 최신 리포트 자동 탐색
-  // - 기본: 어제부터 뒤로 maxScanDays 만큼 스캔해서 "존재하는 가장 최신" 날짜 선택
-  // - Weekly면 END_YYYY-MM-DD.html 기준으로 동일하게 스캔
-  // -----------------------------
   async function resolveLatestAvailableDate(preferredDateStr, maxScanDays){
     let d0 = parseYMD(preferredDateStr);
     for(let i=0;i<=maxScanDays;i++){
       const cand = fmtYMD(addDays(d0, -i));
       if(await existsReport(cand)) return cand;
     }
-    return preferredDateStr; // fallback
+    return preferredDateStr;
   }
 
   async function applyA(){
@@ -456,8 +499,6 @@
     setBusy(true, 'A 리포트 로딩…');
 
     let target = d;
-
-    // ✅ 선택 날짜가 없으면 주변 탐색(기존 로직 유지)
     if(!(await existsReport(target))){
       const step = stepDays();
       const tries = [-step, +step, -1, +1, -2, +2];
@@ -520,7 +561,6 @@
     modeDaily.classList.toggle('active', MODE==='daily');
     modeWeekly.classList.toggle('active', MODE==='weekly');
 
-    // ✅ 모드 바꾸면 "기본 날짜"도 다시 최신 탐색
     setBusy(true, '모드 변경 중…');
 
     const baseY = fmtYMD(addDays(kstNowDate(), -1));
@@ -528,7 +568,6 @@
     aDate.value = latest;
     bDate.value = fmtYMD(addDays(parseYMD(latest), -stepDays()));
 
-    // range 기본값도 갱신
     const ae = latest;
     const as = fmtYMD(addDays(parseYMD(latest), -20));
     const be = fmtYMD(addDays(parseYMD(latest), -21));
@@ -597,7 +636,6 @@
   (async function init(){
     setCompare(false);
 
-    // ✅ 최초 진입 시: "어제부터 최신 리포트" 자동 탐색
     const baseY = fmtYMD(addDays(kstNowDate(), -1));
     setBusy(true, '최신 리포트 탐색…');
     const latest = await resolveLatestAvailableDate(baseY, 30);
@@ -610,11 +648,10 @@
     const as = fmtYMD(addDays(parseYMD(latest), -20));
     const be = fmtYMD(addDays(parseYMD(latest), -21));
     const bs = fmtYMD(addDays(parseYMD(latest), -41));
-
     aStart.value = as; aEnd.value = ae;
     bStart.value = bs; bEnd.value = be;
 
-    await setMode('daily'); // 내부에서 applyA 호출
+    await setMode('daily');
   })();
 
 })();
