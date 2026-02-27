@@ -191,10 +191,12 @@
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <div class="small-label">View</div>
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
+        <button id="chipWeek" class="chip" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
 
         <div class="ml-2 small-label">Date</div>
-        <div class="w-[160px]"><input id="datePicker" type="date" /></div>
+        <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
+        <div id="weekHint" class="hidden text-xs font-extrabold text-slate-500">(Mon ~ Sun)</div>
 
         <div id="rangeBox" class="hidden items-center gap-2">
           <div class="small-label">From</div>
@@ -220,7 +222,7 @@
         <button id="chipKAKAO" class="chip" type="button">KAKAO</button>
 
         <div class="ml-2 small-label">Search</div>
-        <div class="w-[260px]"><input id="q" type="text" placeholder="캠페인명(send_id) 검색…" /></div>
+        <div class="w-[260px]"><input id="q" type="text" placeholder="send_id/0226 검색…" /></div>
 
         <div class="ml-auto flex items-center gap-2">
           <div class="small-label">Top</div>
@@ -233,7 +235,7 @@
         </div>
       </div>
 
-      <!-- Campaign buttons -->
+      <!-- Campaign groups -->
       <div class="mb-4">
         <div class="small-label mb-2">Campaigns (grouped)</div>
 
@@ -258,12 +260,11 @@
         </div>
       </div>
 
-
-      <!-- Terms (for date group) -->
+      <!-- Terms (drilldown list for date group) -->
       <div id="termSection" class="hidden mb-5">
         <div class="flex items-center gap-2 mb-2">
           <div class="small-label">Terms</div>
-          <div class="muted font-semibold text-sm">선택한 날짜(MMDD) 그룹에 포함된 개별 TERM(=send_id) 목록</div>
+          <div class="muted font-semibold text-sm">선택한 날짜(MMDD) 그룹의 개별 TERM(=send_id)</div>
         </div>
 
         <div class="overflow-auto rounded-[18px]">
@@ -344,7 +345,7 @@
       </div>
 
       <div class="muted font-semibold text-xs mt-3">
-        데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · 기간 조회는 클라이언트 합산
+        데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · 기간/주간 조회는 클라이언트 합산
       </div>
     </div>
   </div>
@@ -361,12 +362,17 @@
   const btnReload = document.getElementById('btnReload');
 
   const chipDaily = document.getElementById('chipDaily');
+  const chipWeek  = document.getElementById('chipWeek');
   const chipRange = document.getElementById('chipRange');
-  const rangeBox = document.getElementById('rangeBox');
 
-  const datePicker = document.getElementById('datePicker');
+  const rangeBox  = document.getElementById('rangeBox');
+  const dailyBox  = document.getElementById('dailyBox');
+  const weekHint  = document.getElementById('weekHint');
+
+  const datePicker  = document.getElementById('datePicker');
   const startPicker = document.getElementById('startPicker');
-  const endPicker = document.getElementById('endPicker');
+  const endPicker   = document.getElementById('endPicker');
+
   const btnApplyRange = document.getElementById('btnApplyRange');
   const btn7d = document.getElementById('btn7d');
   const btn30d = document.getElementById('btn30d');
@@ -381,6 +387,7 @@
   const chipEDM = document.getElementById('chipEDM');
   const chipLMS = document.getElementById('chipLMS');
   const chipKAKAO = document.getElementById('chipKAKAO');
+
   const q = document.getElementById('q');
   const topN = document.getElementById('topN');
 
@@ -389,10 +396,10 @@
   const wrapKakaoDate = document.getElementById('wrapKakaoDate');
   const wrapOther = document.getElementById('wrapOther');
 
-  const tb = document.getElementById('tb');
-
   const termSection = document.getElementById('termSection');
   const termTb = document.getElementById('termTb');
+
+  const tb = document.getElementById('tb');
 
   const kSessions = document.getElementById('kSessions');
   const kUsers = document.getElementById('kUsers');
@@ -406,8 +413,8 @@
   const kItemsSub = document.getElementById('kItemsSub');
 
   const selChannel = document.getElementById('selChannel');
-  const selSendId = document.getElementById('selSendId');
-  const selPeriod = document.getElementById('selPeriod');
+  const selSendId  = document.getElementById('selSendId');
+  const selPeriod  = document.getElementById('selPeriod');
 
   function fmt(n){
     if(n === null || n === undefined) return '-';
@@ -421,6 +428,7 @@
     if(!isFinite(x)) return '-';
     return x.toLocaleString('en-US', { maximumFractionDigits: 0 });
   }
+
   function ymd(d){
     const y = d.getFullYear();
     const m = String(d.getMonth()+1).padStart(2,'0');
@@ -433,6 +441,41 @@
   }
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 
+  function startOfWeekMon(d){
+    const x = new Date(d);
+    const day = x.getDay(); // 0=Sun
+    const diff = (day === 0) ? -6 : (1 - day);
+    x.setDate(x.getDate() + diff);
+    return x;
+  }
+  function endOfWeekSun(d){
+    const s = startOfWeekMon(d);
+    const e = new Date(s);
+    e.setDate(e.getDate() + 6);
+    return e;
+  }
+
+  // ✅ send_id에서 날짜(MMDD) 추출: EDM_0224 / ..._0226_... / 0224xxx 모두 인식
+  function dateCodeOf(sendId){
+    const raw = String(sendId||'');
+    if(!raw) return null;
+    const tokens = raw.replace(/[^A-Za-z0-9]+/g,'_').split('_').filter(Boolean);
+    for(const t of tokens){
+      if(/^[0-9]{4}$/.test(t)){
+        const mm = parseInt(t.slice(0,2), 10);
+        const dd = parseInt(t.slice(2,4), 10);
+        if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return t;
+      }
+    }
+    // prefix 0224xxxx fallback
+    const m = raw.match(/^(\d{2})(\d{2})/);
+    if(m){
+      const mm = Number(m[1]), dd = Number(m[2]);
+      if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return `${m[1]}${m[2]}`;
+    }
+    return null;
+  }
+
   function clampToAvailable(dStr){
     if(!AVAILABLE || !AVAILABLE.length) return dStr;
     if(AVAILABLE.includes(dStr)) return dStr;
@@ -442,50 +485,33 @@
     return AVAILABLE[0];
   }
 
-  // send_id에서 날짜코드(MMDD) 추출
-  // - KAKAO_CH_MESSAGE_0226_NEWARRIVAL  → 0226
-  // - EDM_0224                         → 0224
-  // - EDM_0224_SOMETHING               → 0224
-  // - *_0220 / 0220_* 형태 모두 지원
-  function dateCodeOf(sendId){
-    const raw = String(sendId||'');
-    if(!raw) return null;
+  let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
+  let CHANNEL = 'ALL';    // ALL | EDM | LMS | KAKAO
 
-    // 토큰화: 알파벳/숫자 제외는 '_' 로 치환 후 split
-    const tokens = raw.replace(/[^A-Za-z0-9]+/g,'_').split('_').filter(Boolean);
-
-    for(const t of tokens){
-      if(/^[0-9]{4}$/.test(t)){
-        const mm = parseInt(t.slice(0,2), 10);
-        const dd = parseInt(t.slice(2,4), 10);
-        // MMDD 유효범위(대략) 체크: 01-12 / 01-31
-        if(mm>=1 && mm<=12 && dd>=1 && dd<=31){
-          return t;
-        }
-      }
-    }
-    return null;
-  }
-
-  let VIEW = 'DAILY'; // DAILY | RANGE
-  let CHANNEL = 'ALL';
-
-  let RAW = null;
+  let RAW = null;         // {kpi:[], prod:[]}  (DAILY면 단일, WEEK/RANGE면 합산)
   let KPI = [];
-  let SELECTED = null;   // {type:'single'|'group', channel, send_id? , date_code?}
-  let AVAILABLE = null;
+  let SELECTED = null;    // {type:'single', channel, send_id} or {type:'group', channel, date_code}
+  let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
 
   function setViewActive(){
-    [chipDaily, chipRange].forEach(el=>el.classList.remove('active'));
+    [chipDaily, chipWeek, chipRange].forEach(el=>el.classList.remove('active'));
     if(VIEW==='DAILY'){
       chipDaily.classList.add('active');
       rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
-      datePicker.parentElement.classList.remove('hidden');
+      dailyBox.classList.remove('hidden');
+      weekHint.classList.add('hidden');
+    }
+    if(VIEW==='WEEK'){
+      chipWeek.classList.add('active');
+      rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
+      dailyBox.classList.remove('hidden');
+      weekHint.classList.remove('hidden');
     }
     if(VIEW==='RANGE'){
       chipRange.classList.add('active');
       rangeBox.classList.remove('hidden'); rangeBox.classList.add('flex');
-      datePicker.parentElement.classList.add('hidden');
+      dailyBox.classList.add('hidden');
+      weekHint.classList.add('hidden');
     }
   }
 
@@ -499,12 +525,15 @@
 
   function periodLabel(){
     if(VIEW==='DAILY'){
-      const d = datePicker.value || '-';
-      return ` · ${d}`;
+      return ` · ${datePicker.value || '-'}`;
     }
-    const s = startPicker.value || '-';
-    const e = endPicker.value || '-';
-    return ` · ${s} ~ ${e}`;
+    if(VIEW==='WEEK'){
+      const cur = parseYMD(datePicker.value || ymd(new Date()));
+      const s = ymd(startOfWeekMon(cur));
+      const e = ymd(endOfWeekSun(cur));
+      return ` · WEEK ${s} ~ ${e}`;
+    }
+    return ` · ${startPicker.value || '-'} ~ ${endPicker.value || '-'}`;
   }
 
   function filterKPI(){
@@ -547,7 +576,6 @@
   }
 
   function renderCampaignButtons(){
-    // clear
     wrapEDMDate.innerHTML = '';
     wrapLMSDate.innerHTML = '';
     wrapKakaoDate.innerHTML = '';
@@ -564,7 +592,6 @@
 
     const limit = Math.max(1, parseInt(topN.value||'30',10));
 
-    // group by channel + datecode
     const byDate = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
     const others = [];
 
@@ -593,7 +620,7 @@
 
       wrapEl.innerHTML = arr.map(x=>{
         const label = `${x.dc}`;
-        const title = `${x.channel} · ${x.dc} · sessions:${x.agg.sessions} · campaigns:${x.rows.length}`;
+        const title = `${x.channel} · ${x.dc} · sessions:${x.agg.sessions} · terms:${x.rows.length}`;
         const active = isActiveGroup(x.channel, x.dc);
         return makeChip(label, title, active, {type:'group', channel:x.channel, dc:x.dc});
       }).join('');
@@ -611,7 +638,6 @@
     renderDateGroup('LMS', wrapLMSDate);
     renderDateGroup('KAKAO', wrapKakaoDate);
 
-    // others: show individual send_id (sorted by sessions) limited
     const oRows = others.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
     if(!oRows.length){
       wrapOther.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
@@ -646,8 +672,12 @@
     let rows = [];
     if(SELECTED.type==='single'){
       rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
+      selChannel.textContent = SELECTED.channel;
+      selSendId.textContent = SELECTED.send_id;
     }else{
       rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && dateCodeOf(x.send_id)===SELECTED.date_code);
+      selChannel.textContent = SELECTED.channel;
+      selSendId.textContent = `${SELECTED.date_code} (group)`;
     }
     if(!rows.length) return;
 
@@ -664,17 +694,12 @@
     const ips = a.purchases ? (a.items_purchased/a.purchases) : 0;
 
     kSessionsSub.textContent = `-`;
-    kUsersSub.textContent = `-`;
+    if (VIEW !== 'DAILY') kUsersSub.textContent = 'Users: sum of daily (may overcount)';
+    else kUsersSub.textContent = `-`;
+
     kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
-
-    selChannel.textContent = SELECTED.channel;
-    if(SELECTED.type==='single'){
-      selSendId.textContent = SELECTED.send_id;
-    }else{
-      selSendId.textContent = `${SELECTED.date_code} (group)`;
-    }
   }
 
   function renderProducts(){
@@ -695,7 +720,6 @@
       return;
     }
 
-    // aggregate by item_id
     const m = new Map();
     for(const r of rows){
       const key = String(r.item_id||'');
@@ -720,11 +744,9 @@
     `).join('');
   }
 
-
   function renderTerms(){
     if(!termSection || !termTb) return;
 
-    // 기본 숨김
     if(!SELECTED || SELECTED.type!=='group' || !RAW){
       termSection.classList.add('hidden');
       termTb.innerHTML = `<tr><td colspan="6" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
@@ -769,6 +791,7 @@
     renderTerms();
     renderProducts();
   }
+
   function selectGroup(channel, date_code){
     SELECTED = {type:'group', channel, date_code};
     renderCampaignButtons();
@@ -785,9 +808,7 @@
 
   function listDatesBetween(startStr, endStr){
     if(!AVAILABLE || !AVAILABLE.length) return [];
-    const s = startStr;
-    const e = endStr;
-    return AVAILABLE.filter(d => d >= s && d <= e);
+    return AVAILABLE.filter(d => d >= startStr && d <= endStr);
   }
 
   function sumInto(map, key, obj, fields){
@@ -808,22 +829,17 @@
     const prodMap = new Map();
 
     for(const j of dailyJsonList){
-      const kpi = (j.kpi||[]);
-      for(const r of kpi){
+      for(const r of (j.kpi||[])){
         const key = `${r.channel}||${r.send_id}`;
         sumInto(kpiMap, key, r, ['sessions','users','purchases','revenue','items_purchased']);
       }
-      const prod = (j.prod||[]);
-      for(const p of prod){
+      for(const p of (j.prod||[])){
         const key = `${p.channel}||${p.send_id}||${p.item_id}`;
         sumInto(prodMap, key, p, ['prod_items','prod_revenue']);
       }
     }
 
-    return {
-      kpi: Array.from(kpiMap.values()),
-      prod: Array.from(prodMap.values())
-    };
+    return { kpi: Array.from(kpiMap.values()), prod: Array.from(prodMap.values()) };
   }
 
   async function loadDaily(dStr){
@@ -869,8 +885,7 @@
       return;
     }
 
-    let s = startStr;
-    let e = endStr;
+    let s = startStr, e = endStr;
     if(s > e){ const tmp=s; s=e; e=tmp; }
 
     s = clampToAvailable(s);
@@ -904,12 +919,18 @@
     hideNotice();
 
     RAW = buildAggregated(all);
-
     filterKPI();
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
+  }
+
+  async function loadWeekByDate(dStr){
+    const cur = parseYMD(dStr);
+    const s = ymd(startOfWeekMon(cur));
+    const e = ymd(endOfWeekSun(cur));
+    await loadRange(s, e);
   }
 
   async function loadAvailableDates(){
@@ -939,23 +960,28 @@
   }
 
   function setToWeek(){
-    // 기준: endPicker 기준으로 그 주 월~일
     const end = parseYMD(endPicker.value || ymd(addDays(new Date(), -1)));
-    const day = end.getDay(); // 0=Sun..6=Sat
-    const diffToMon = (day===0) ? -6 : (1 - day); // to Monday
-    const mon = addDays(end, diffToMon);
-    const sun = addDays(mon, 6);
+    const mon = startOfWeekMon(end);
+    const sun = endOfWeekSun(end);
     startPicker.value = clampToAvailable(ymd(mon));
     endPicker.value = clampToAvailable(ymd(sun));
   }
 
-  // events: view
+  // View toggles
   chipDaily.addEventListener('click', ()=>{
     VIEW='DAILY';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
     loadDaily(d);
+  });
+
+  chipWeek.addEventListener('click', async ()=>{
+    VIEW='WEEK';
+    setViewActive();
+    const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
+    datePicker.value = d;
+    await loadWeekByDate(d);
   });
 
   chipRange.addEventListener('click', ()=>{
@@ -965,7 +991,7 @@
     loadRange(startPicker.value, endPicker.value);
   });
 
-  // channel chips
+  // Channel chips
   chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
@@ -974,20 +1000,27 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  // range quick buttons
+  // Range quick buttons
   btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value));
   btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value); });
   btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value); });
   btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value); });
   btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value); });
 
-  // nav
-  btnPrev.addEventListener('click', ()=>{
+  // Nav buttons
+  btnPrev.addEventListener('click', async ()=>{
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,-1));
       datePicker.value = clampToAvailable(d);
       loadDaily(datePicker.value);
+      return;
+    }
+    if(VIEW==='WEEK'){
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,-7));
+      datePicker.value = clampToAvailable(d);
+      await loadWeekByDate(datePicker.value);
       return;
     }
     const s = parseYMD(startPicker.value);
@@ -997,12 +1030,19 @@
     loadRange(startPicker.value, endPicker.value);
   });
 
-  btnNext.addEventListener('click', ()=>{
+  btnNext.addEventListener('click', async ()=>{
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,+1));
       datePicker.value = clampToAvailable(d);
       loadDaily(datePicker.value);
+      return;
+    }
+    if(VIEW==='WEEK'){
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,+7));
+      datePicker.value = clampToAvailable(d);
+      await loadWeekByDate(datePicker.value);
       return;
     }
     const s = parseYMD(startPicker.value);
@@ -1012,11 +1052,16 @@
     loadRange(startPicker.value, endPicker.value);
   });
 
-  btnToday.addEventListener('click', ()=>{
+  btnToday.addEventListener('click', async ()=>{
+    const d = clampToAvailable(ymd(new Date()));
     if(VIEW==='DAILY'){
-      const d = clampToAvailable(ymd(new Date()));
       datePicker.value = d;
       loadDaily(d);
+      return;
+    }
+    if(VIEW==='WEEK'){
+      datePicker.value = d;
+      await loadWeekByDate(d);
       return;
     }
     setToLastNDays(7);
@@ -1030,12 +1075,15 @@
     setChipActive();
     await loadAvailableDates();
 
-    let d;
     if(AVAILABLE && AVAILABLE.length){
-      d = AVAILABLE[AVAILABLE.length-1];
-    }else{
-      d = ymd(addDays(new Date(), -1));
+      const minD = AVAILABLE[0];
+      const maxD = AVAILABLE[AVAILABLE.length - 1];
+      datePicker.min = minD; datePicker.max = maxD;
+      startPicker.min = minD; startPicker.max = maxD;
+      endPicker.min = minD; endPicker.max = maxD;
     }
+
+    const d = (AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1));
     datePicker.value = d;
 
     VIEW='DAILY';
