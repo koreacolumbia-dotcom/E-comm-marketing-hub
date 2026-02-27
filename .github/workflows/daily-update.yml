@@ -43,6 +43,20 @@ on:
         type: choice
         options: ["false", "true"]
 
+      owned_backfill:
+        description: "Backfill OWNED portal from 2025-01-01 to yesterday? (warning: can be heavy)"
+        required: true
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+      owned_recent_days:
+        description: "OWNED incremental refresh window (days). Used when owned_backfill=false"
+        required: true
+        default: "7"
+        type: choice
+        options: ["1", "3", "7", "14", "30"]
+
   schedule:
     # ✅ KST 06:30 = UTC 21:30 (전날)
     - cron: "30 21 * * *"
@@ -72,18 +86,112 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
 
-      - name: Validate dispatch inputs (only one true)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+      # ---------------------------------------------------------
+      # ✅ Mode resolver (핵심)
+      # - owned_only=true 또는 owned_backfill=true면: OWNED만 실행
+      # - daily_only/voc_only/blog_only 중 하나면: 그것만 실행
+      # - 그 외(스케줄/수동 all false): 전체 실행
+      # ---------------------------------------------------------
+      - name: Resolve run modes
+        id: modes
         shell: bash
         run: |
           set -euo pipefail
-          cnt=0
-          [ "${{ inputs.daily_only }}" = "true" ] && cnt=$((cnt+1))
-          [ "${{ inputs.voc_only }}"   = "true" ] && cnt=$((cnt+1))
-          [ "${{ inputs.blog_only }}"  = "true" ] && cnt=$((cnt+1))
-          if [ "$cnt" -gt 1 ]; then
-            echo "[ERROR] Only one of daily_only/voc_only/blog_only can be true."
-            exit 1
+
+          EVENT="${{ github.event_name }}"
+
+          DAILY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}"
+          VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
+          BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
+          OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
+          OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
+
+          # Validate only one "only mode" selected (owned_backfill counts as owned-only mode)
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            cnt=0
+            [ "$DAILY_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$VOC_ONLY"   = "true" ] && cnt=$((cnt+1))
+            [ "$BLOG_ONLY"  = "true" ] && cnt=$((cnt+1))
+            [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
+            if [ "$cnt" -gt 1 ]; then
+              echo "[ERROR] Only one of daily_only/voc_only/blog_only/owned_only/owned_backfill can be true."
+              exit 1
+            fi
+          fi
+
+          # Default (schedule OR manual-all-false): run everything
+          RUN_DAILY=true
+          RUN_PRICE=true
+          RUN_HERO=true
+          RUN_EXTSIG=true
+          RUN_CREMA=true
+          RUN_BLOG=true
+          RUN_SUMMARY=true
+          RUN_OWNED=true
+
+          # If owned_backfill or owned_only => run owned only
+          if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=true
+          fi
+
+          # If other "only" => that only
+          if [ "$DAILY_ONLY" = "true" ]; then
+            RUN_DAILY=true
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+          fi
+
+          if [ "$VOC_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=true
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+          fi
+
+          if [ "$BLOG_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=true
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+          fi
+
+          echo "run_daily=$RUN_DAILY"       >> $GITHUB_OUTPUT
+          echo "run_price=$RUN_PRICE"       >> $GITHUB_OUTPUT
+          echo "run_hero=$RUN_HERO"         >> $GITHUB_OUTPUT
+          echo "run_extsig=$RUN_EXTSIG"     >> $GITHUB_OUTPUT
+          echo "run_crema=$RUN_CREMA"       >> $GITHUB_OUTPUT
+          echo "run_blog=$RUN_BLOG"         >> $GITHUB_OUTPUT
+          echo "run_summary=$RUN_SUMMARY"   >> $GITHUB_OUTPUT
+          echo "run_owned=$RUN_OWNED"       >> $GITHUB_OUTPUT
+
+          echo "owned_backfill=$OWNED_BACKFILL" >> $GITHUB_OUTPUT
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "owned_recent_days=${{ inputs.owned_recent_days }}" >> $GITHUB_OUTPUT
+            echo "debug=${{ inputs.debug }}" >> $GITHUB_OUTPUT
+          else
+            echo "owned_recent_days=7" >> $GITHUB_OUTPUT
+            echo "debug=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Setup Python
@@ -124,7 +232,7 @@ jobs:
       # Daily Digest Report (어제 + YoY만 생성) — HUB FIXED (허브는 고정)
       # =========================================================
       - name: Build Daily Digest (daily+weekly) — reports
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
+        if: ${{ steps.modes.outputs.run_daily == 'true' }}
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
@@ -179,7 +287,7 @@ jobs:
       # Render yesterday daily HTML -> PNG (for email)
       # =========================================================
       - name: Render yesterday Daily Digest PNG
-        if: ${{ success() }}
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
         shell: bash
         env:
@@ -202,7 +310,7 @@ jobs:
       # 1) Naver Lowest Price
       # ----------------------------
       - name: Run Naver Lowest Price crawler
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
+        if: ${{ steps.modes.outputs.run_price == 'true' }}
         continue-on-error: true
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
@@ -222,7 +330,7 @@ jobs:
       # 2) Hero banner
       # ----------------------------
       - name: Run Hero banner crawler
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
+        if: ${{ steps.modes.outputs.run_hero == 'true' }}
         continue-on-error: true
         shell: bash
         run: |
@@ -234,11 +342,11 @@ jobs:
       # 3) External Signal (VOC)
       # ----------------------------
       - name: Run External Signal (VOC)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
+        if: ${{ steps.modes.outputs.run_extsig == 'true' }}
         continue-on-error: true
         shell: bash
         env:
-          DEBUG: ${{ github.event_name == 'workflow_dispatch' && inputs.debug == 'true' }}
+          DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
           TARGET_DAYS: 7
         run: |
           set -euo pipefail
@@ -249,7 +357,7 @@ jobs:
       # 4) Crema VOC
       # ----------------------------
       - name: Run Crema VOC (reviews + images + dashboard)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
+        if: ${{ steps.modes.outputs.run_crema == 'true' }}
         continue-on-error: true
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
@@ -283,7 +391,7 @@ jobs:
       # 4.5) Naver Blog VOC
       # ----------------------------
       - name: Run Naver Blog VOC (Columbia mentions)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.owned_backfill != 'true') }}
+        if: ${{ steps.modes.outputs.run_blog == 'true' }}
         continue-on-error: true
         shell: bash
         env:
@@ -309,7 +417,7 @@ jobs:
       # 5) Summary
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
-        if: ${{ github.event_name != 'workflow_dispatch' || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
+        if: ${{ steps.modes.outputs.run_summary == 'true' }}
         continue-on-error: true
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
@@ -320,19 +428,21 @@ jobs:
           ls -la reports/index.html reports/meta.json || true
 
       # =========================================================
-      # (UPDATED) OWNED Campaign Portal (EDM/LMS/KAKAO → products)
-      # - schedule(자동): 전날 1일치만 생성/갱신
+      # ✅ OWNED Campaign Portal (EDM/LMS/KAKAO → products)
+      # - schedule(자동): 최근 N일만 갱신(기본 7일)  -> 누락/지연 보정
       # - dispatch owned_backfill=true: 2025-01-01 ~ 전날 전체 백필 (overwrite)
+      # - dispatch owned_only=true: OWNED만(최근 N일)
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
-        if: ${{ (github.event_name != 'workflow_dispatch') || (inputs.owned_backfill == 'true') || (inputs.daily_only != 'true' && inputs.voc_only != 'true' && inputs.blog_only != 'true' && inputs.owned_backfill != 'true') }}
+        if: ${{ steps.modes.outputs.run_owned == 'true' }}
         continue-on-error: false
         shell: bash
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           BQ_PROJECT: columbia-ga4
           BQ_DATASET: analytics_358593394
-          OWNED_BACKFILL: ${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}
+          OWNED_BACKFILL: ${{ steps.modes.outputs.owned_backfill }}
+          OWNED_RECENT_DAYS: ${{ steps.modes.outputs.owned_recent_days }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
@@ -357,18 +467,17 @@ jobs:
               --site-dir reports/owned_portal \
               --overwrite
           else
-            echo "[INFO] OWNED daily incremental: ${YMD} only"
+            echo "[INFO] OWNED incremental: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
-              --start "${YMD}" \
-              --end "${YMD}" \
+              --recent-days "${OWNED_RECENT_DAYS}" \
               --site-dir reports/owned_portal
           fi
 
           echo "[INFO] Owned outputs:"
           ls -la reports/owned_portal || true
-          ls -la reports/owned_portal/data/owned | head -n 80 || true
+          ls -la reports/owned_portal/data/owned | head -n 120 || true
 
       # ----------------------------
       # 7) Commit & push results (safe rebase + retry)
@@ -423,7 +532,7 @@ jobs:
       # Success Email (PNG inline 우선 + 첨부)
       # ----------------------------
       - name: Send success email (yesterday daily report PNG)
-        if: ${{ success() }}
+        if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
