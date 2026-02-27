@@ -162,27 +162,7 @@
       font-size: 12px;
     }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
-    /* ✅ campaign group header */
-    .group-title{
-      margin-top: 10px;
-      margin-bottom: 6px;
-      display:flex;
-      align-items:center;
-      gap:10px;
-    }
-    .group-title .bar{
-      height:1px; flex:1;
-      background: rgba(148,163,184,0.25);
-    }
-    .group-title .label{
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: .22em;
-      text-transform: uppercase;
-      color: #94a3b8;
-      white-space: nowrap;
-    }
+    .sec-title{ font-size: 11px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color:#94a3b8; }
   </style>
 </head>
 
@@ -211,15 +191,10 @@
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <div class="small-label">View</div>
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
-        <button id="chipWeek" class="chip" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
 
         <div class="ml-2 small-label">Date</div>
-        <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
-
-        <div id="weekHint" class="hidden text-xs font-extrabold text-slate-500">
-          (Mon ~ Sun)
-        </div>
+        <div class="w-[160px]"><input id="datePicker" type="date" /></div>
 
         <div id="rangeBox" class="hidden items-center gap-2">
           <div class="small-label">From</div>
@@ -231,6 +206,7 @@
           <button id="btn7d" class="btn" type="button">7D</button>
           <button id="btn30d" class="btn" type="button">30D</button>
           <button id="btnMTD" class="btn" type="button">MTD</button>
+          <button id="btnWEEK" class="btn" type="button">WEEK</button>
         </div>
 
         <button id="btnPrev" class="btn" type="button">◀</button>
@@ -259,8 +235,27 @@
 
       <!-- Campaign buttons -->
       <div class="mb-4">
-        <div class="small-label mb-2">Campaigns</div>
-        <div id="campaignWrap" class="flex flex-col gap-2"></div>
+        <div class="small-label mb-2">Campaigns (grouped)</div>
+
+        <div class="mb-3">
+          <div class="sec-title mb-2">EDM · by date (####)</div>
+          <div id="wrapEDMDate" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div class="mb-3">
+          <div class="sec-title mb-2">LMS · by date (####)</div>
+          <div id="wrapLMSDate" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div class="mb-3">
+          <div class="sec-title mb-2">KAKAO · by date (####)</div>
+          <div id="wrapKakaoDate" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div>
+          <div class="sec-title mb-2">Other campaigns</div>
+          <div id="wrapOther" class="flex flex-wrap gap-2"></div>
+        </div>
       </div>
 
       <!-- KPI -->
@@ -318,7 +313,7 @@
       </div>
 
       <div class="muted font-semibold text-xs mt-3">
-        데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · 기간/주간 조회는 클라이언트 합산
+        데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · 기간 조회는 클라이언트 합산
       </div>
     </div>
   </div>
@@ -335,11 +330,8 @@
   const btnReload = document.getElementById('btnReload');
 
   const chipDaily = document.getElementById('chipDaily');
-  const chipWeek = document.getElementById('chipWeek');
   const chipRange = document.getElementById('chipRange');
   const rangeBox = document.getElementById('rangeBox');
-  const dailyBox = document.getElementById('dailyBox');
-  const weekHint = document.getElementById('weekHint');
 
   const datePicker = document.getElementById('datePicker');
   const startPicker = document.getElementById('startPicker');
@@ -348,6 +340,7 @@
   const btn7d = document.getElementById('btn7d');
   const btn30d = document.getElementById('btn30d');
   const btnMTD = document.getElementById('btnMTD');
+  const btnWEEK = document.getElementById('btnWEEK');
 
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
@@ -360,7 +353,11 @@
   const q = document.getElementById('q');
   const topN = document.getElementById('topN');
 
-  const campaignWrap = document.getElementById('campaignWrap');
+  const wrapEDMDate = document.getElementById('wrapEDMDate');
+  const wrapLMSDate = document.getElementById('wrapLMSDate');
+  const wrapKakaoDate = document.getElementById('wrapKakaoDate');
+  const wrapOther = document.getElementById('wrapOther');
+
   const tb = document.getElementById('tb');
 
   const kSessions = document.getElementById('kSessions');
@@ -411,79 +408,32 @@
     return AVAILABLE[0];
   }
 
-  // ✅ WEEK range (Mon~Sun)
-  function startOfWeekMon(d){
-    const x = new Date(d);
-    const day = x.getDay(); // 0=Sun ... 1=Mon
-    const diff = (day === 0) ? -6 : (1 - day);
-    x.setDate(x.getDate() + diff);
-    return x;
-  }
-  function endOfWeekSun(d){
-    const s = startOfWeekMon(d);
-    const e = new Date(s);
-    e.setDate(e.getDate() + 6);
-    return e;
+  // send_id에서 날짜코드(####) 추출
+  function dateCodeOf(sendId){
+    const s = String(sendId||'');
+    const m = s.match(/(?:^|_)(\d{4})(?:_|$)/);
+    return m ? m[1] : null;
   }
 
-  // ✅ EDM send_id date key extractor
-  // returns "MMDD" if can parse; else null
-  function extractEdmDateKey(sendId){
-    const s = String(sendId || '').trim();
-
-    // 1) YYYY-MM-DD
-    let m = s.match(/(20\d{2})-(\d{2})-(\d{2})/);
-    if(m) return `${m[2]}${m[3]}`;
-
-    // 2) YYYYMMDD
-    m = s.match(/(20\d{2})(\d{2})(\d{2})/);
-    if(m) return `${m[2]}${m[3]}`;
-
-    // 3) MMDD (standalone or prefix)
-    m = s.match(/\b(\d{2})(\d{2})\b/);
-    if(m){
-      const mm = Number(m[1]), dd = Number(m[2]);
-      if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return `${m[1]}${m[2]}`;
-    }
-
-    // 4) prefix like 0226xxxx
-    m = s.match(/^(\d{2})(\d{2})/);
-    if(m){
-      const mm = Number(m[1]), dd = Number(m[2]);
-      if(mm>=1 && mm<=12 && dd>=1 && dd<=31) return `${m[1]}${m[2]}`;
-    }
-
-    return null;
-  }
-
-  let VIEW = 'DAILY'; // DAILY | WEEK | RANGE
+  let VIEW = 'DAILY'; // DAILY | RANGE
   let CHANNEL = 'ALL';
 
   let RAW = null;
   let KPI = [];
-  let SELECTED = null;   // {type:'single', channel, send_id} or {type:'edm_date', dateKey, members:[send_id...]}
+  let SELECTED = null;   // {type:'single'|'group', channel, send_id? , date_code?}
   let AVAILABLE = null;
 
   function setViewActive(){
-    [chipDaily, chipWeek, chipRange].forEach(el=>el.classList.remove('active'));
-
+    [chipDaily, chipRange].forEach(el=>el.classList.remove('active'));
     if(VIEW==='DAILY'){
       chipDaily.classList.add('active');
       rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
-      dailyBox.classList.remove('hidden');
-      weekHint.classList.add('hidden');
-    }
-    if(VIEW==='WEEK'){
-      chipWeek.classList.add('active');
-      rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
-      dailyBox.classList.remove('hidden');
-      weekHint.classList.remove('hidden');
+      datePicker.parentElement.classList.remove('hidden');
     }
     if(VIEW==='RANGE'){
       chipRange.classList.add('active');
       rangeBox.classList.remove('hidden'); rangeBox.classList.add('flex');
-      dailyBox.classList.add('hidden');
-      weekHint.classList.add('hidden');
+      datePicker.parentElement.classList.add('hidden');
     }
   }
 
@@ -500,12 +450,6 @@
       const d = datePicker.value || '-';
       return ` · ${d}`;
     }
-    if(VIEW==='WEEK'){
-      const cur = parseYMD(datePicker.value || ymd(new Date()));
-      const s = ymd(startOfWeekMon(cur));
-      const e = ymd(endOfWeekSun(cur));
-      return ` · WEEK ${s} ~ ${e}`;
-    }
     const s = startPicker.value || '-';
     const e = endPicker.value || '-';
     return ` · ${s} ~ ${e}`;
@@ -516,118 +460,29 @@
     const qq = (q.value||'').trim().toLowerCase();
     KPI = (RAW.kpi||[]).filter(r=>{
       if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
-      if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
+      if(qq){
+        const sid = String(r.send_id||'').toLowerCase();
+        const dc = dateCodeOf(r.send_id);
+        if(sid.indexOf(qq)===-1 && String(dc||'').indexOf(qq)===-1) return false;
+      }
       return true;
     });
   }
 
-  function buildGroupTitle(label){
-    return `
-      <div class="group-title">
-        <div class="label">${label}</div>
-        <div class="bar"></div>
-      </div>
-    `;
+  function isActiveSingle(ch, send){
+    return SELECTED && SELECTED.type==='single' && SELECTED.channel===ch && SELECTED.send_id===send;
+  }
+  function isActiveGroup(ch, dc){
+    return SELECTED && SELECTED.type==='group' && SELECTED.channel===ch && SELECTED.date_code===dc;
   }
 
-  function renderCampaignButtons(){
-    campaignWrap.innerHTML = '';
-    if(!KPI.length){
-      campaignWrap.innerHTML = `<div class="muted font-semibold text-sm">캠페인이 없거나(또는 필터가 너무 좁아) 결과가 없어.</div>`;
-      return;
-    }
-
-    const limit = Math.max(1, parseInt(topN.value||'30',10));
-    const rowsAll = KPI.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0));
-
-    // ✅ EDM은 "일자(MMDD) 그룹"으로 묶어서 표시
-    if(CHANNEL === 'EDM'){
-      const byDate = new Map();    // dateKey -> {dateKey, sessionsSum, members[]}
-      const other = [];           // edm but no dateKey
-
-      for(const r of rowsAll){
-        const key = extractEdmDateKey(r.send_id);
-        if(key){
-          if(!byDate.has(key)){
-            byDate.set(key, { dateKey:key, sessions:0, members:[] });
-          }
-          const g = byDate.get(key);
-          g.sessions += Number(r.sessions||0);
-          g.members.push(String(r.send_id));
-        }else{
-          other.push(r);
-        }
-      }
-
-      // sort groups by sessions desc
-      const groups = Array.from(byDate.values()).sort((a,b)=> b.sessions - a.sessions).slice(0, limit);
-
-      let html = '';
-      if(groups.length){
-        html += buildGroupTitle('EDM · By Date (MMDD)');
-        html += `<div class="flex flex-wrap gap-2">` + groups.map(g=>{
-          const active = (SELECTED && SELECTED.type==='edm_date' && SELECTED.dateKey===g.dateKey) ? 'active' : '';
-          const meta = `EDM · ${g.dateKey} · S:${g.sessions}`;
-          return `<button class="chip ${active}" data-type="edm_date" data-date="${g.dateKey}" title="${meta}">${g.dateKey}</button>`;
-        }).join('') + `</div>`;
-      }
-
-      // EDM other
-      const otherTop = other.slice(0, limit);
-      if(otherTop.length){
-        html += buildGroupTitle('EDM · Other');
-        html += `<div class="flex flex-wrap gap-2">` + otherTop.map(r=>{
-          const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && SELECTED.send_id===r.send_id) ? 'active' : '';
-          const meta = `${r.channel} · S:${r.sessions}`;
-          return `<button class="chip ${active}" data-type="single" data-channel="${r.channel}" data-send="${encodeURIComponent(r.send_id)}" title="${meta}">${r.send_id}</button>`;
-        }).join('') + `</div>`;
-      }
-
-      campaignWrap.innerHTML = html || `<div class="muted font-semibold text-sm">EDM 결과가 없어.</div>`;
-
-      // attach events
-      Array.from(campaignWrap.querySelectorAll('button.chip')).forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          const t = btn.getAttribute('data-type');
-          if(t === 'edm_date'){
-            const dateKey = btn.getAttribute('data-date');
-            const members = (rowsAll.filter(r => extractEdmDateKey(r.send_id) === dateKey).map(r => String(r.send_id)));
-            SELECTED = {type:'edm_date', dateKey, members};
-            renderCampaignButtons();
-            aggregateKPIForSelected();
-            renderProducts();
-            return;
-          }
-          const ch = btn.getAttribute('data-channel');
-          const send = decodeURIComponent(btn.getAttribute('data-send')||'');
-          selectCampaign(ch, send);
-        });
-      });
-      return;
-    }
-
-    // ✅ non-EDM (기존 방식)
-    const rows = rowsAll.slice(0, limit);
-
-    campaignWrap.innerHTML = `<div class="flex flex-wrap gap-2">${
-      rows.map(r=>{
-        const label = `${r.send_id}`;
-        const meta = `${r.channel} · S:${r.sessions}`;
-        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && SELECTED.send_id===r.send_id) ? 'active' : '';
-        return `<button class="chip ${active}" data-type="single" data-channel="${r.channel}" data-send="${encodeURIComponent(r.send_id)}" title="${meta}">${label}</button>`;
-      }).join('')
-    }</div>`;
-
-    Array.from(campaignWrap.querySelectorAll('button.chip')).forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const ch = btn.getAttribute('data-channel');
-        const send = decodeURIComponent(btn.getAttribute('data-send')||'');
-        selectCampaign(ch, send);
-      });
-    });
+  function makeChip(label, title, active, dataAttrs){
+    const cls = active ? 'chip active' : 'chip';
+    const attrs = Object.entries(dataAttrs||{}).map(([k,v])=>`data-${k}="${String(v).replace(/"/g,'&quot;')}"`).join(' ');
+    return `<button class="${cls}" ${attrs} title="${title||''}">${label}</button>`;
   }
 
-  function sumRows(rows){
+  function aggregateRow(rows){
     const out = {sessions:0, users:0, purchases:0, revenue:0, items_purchased:0};
     for(const r of rows){
       out.sessions += Number(r.sessions||0);
@@ -637,6 +492,93 @@
       out.items_purchased += Number(r.items_purchased||0);
     }
     return out;
+  }
+
+  function renderCampaignButtons(){
+    // clear
+    wrapEDMDate.innerHTML = '';
+    wrapLMSDate.innerHTML = '';
+    wrapKakaoDate.innerHTML = '';
+    wrapOther.innerHTML = '';
+
+    if(!KPI.length){
+      const empty = `<div class="muted font-semibold text-sm">결과가 없어. (필터가 너무 좁거나, 해당 기간에 데이터가 없을 수 있어)</div>`;
+      wrapEDMDate.innerHTML = empty;
+      wrapLMSDate.innerHTML = empty;
+      wrapKakaoDate.innerHTML = empty;
+      wrapOther.innerHTML = empty;
+      return;
+    }
+
+    const limit = Math.max(1, parseInt(topN.value||'30',10));
+
+    // group by channel + datecode
+    const byDate = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
+    const others = [];
+
+    for(const r of KPI){
+      const dc = dateCodeOf(r.send_id);
+      if(dc && (r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO')){
+        const m = byDate[r.channel];
+        if(!m.has(dc)) m.set(dc, []);
+        m.get(dc).push(r);
+      }else{
+        others.push(r);
+      }
+    }
+
+    function renderDateGroup(channel, wrapEl){
+      const m = byDate[channel];
+      const arr = Array.from(m.entries()).map(([dc, rows])=>{
+        const a = aggregateRow(rows);
+        return {dc, channel, rows, agg:a};
+      }).sort((a,b)=> (b.agg.sessions||0)-(a.agg.sessions||0)).slice(0, limit);
+
+      if(!arr.length){
+        wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+        return;
+      }
+
+      wrapEl.innerHTML = arr.map(x=>{
+        const label = `${x.channel}_${x.dc}`;
+        const title = `${x.channel} · ${x.dc} · sessions:${x.agg.sessions} · campaigns:${x.rows.length}`;
+        const active = isActiveGroup(x.channel, x.dc);
+        return makeChip(label, title, active, {type:'group', channel:x.channel, dc:x.dc});
+      }).join('');
+
+      Array.from(wrapEl.querySelectorAll('button.chip')).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const ch = btn.getAttribute('data-channel');
+          const dc = btn.getAttribute('data-dc');
+          selectGroup(ch, dc);
+        });
+      });
+    }
+
+    renderDateGroup('EDM', wrapEDMDate);
+    renderDateGroup('LMS', wrapLMSDate);
+    renderDateGroup('KAKAO', wrapKakaoDate);
+
+    // others: show individual send_id (sorted by sessions) limited
+    const oRows = others.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+    if(!oRows.length){
+      wrapOther.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+    }else{
+      wrapOther.innerHTML = oRows.map(r=>{
+        const label = `${r.channel}_${r.send_id}`;
+        const title = `${r.channel} · sessions:${r.sessions}`;
+        const active = isActiveSingle(r.channel, r.send_id);
+        return makeChip(label, title, active, {type:'single', channel:r.channel, send:encodeURIComponent(r.send_id)});
+      }).join('');
+
+      Array.from(wrapOther.querySelectorAll('button.chip')).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const ch = btn.getAttribute('data-channel');
+          const send = decodeURIComponent(btn.getAttribute('data-send')||'');
+          selectSingle(ch, send);
+        });
+      });
+    }
   }
 
   function aggregateKPIForSelected(){
@@ -649,50 +591,38 @@
       return;
     }
 
-    let sessions=0, users=0, purchases=0, revenue=0, items=0;
-
-    if(SELECTED.type === 'edm_date'){
-      const rows = (RAW.kpi||[]).filter(x => x.channel==='EDM' && SELECTED.members.includes(String(x.send_id)));
-      const s = sumRows(rows);
-      sessions=s.sessions; users=s.users; purchases=s.purchases; revenue=s.revenue; items=s.items_purchased;
-
-      selChannel.textContent = 'EDM';
-      selSendId.textContent = `DATE ${SELECTED.dateKey} (group)`;
-    } else {
-      const row = (RAW.kpi||[]).find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
-      if(!row) return;
-
-      sessions = row.sessions||0;
-      users = row.users||0;
-      purchases = row.purchases||0;
-      revenue = row.revenue||0;
-      items = row.items_purchased||0;
-
-      selChannel.textContent = SELECTED.channel;
-      selSendId.textContent = SELECTED.send_id;
+    let rows = [];
+    if(SELECTED.type==='single'){
+      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
+    }else{
+      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && dateCodeOf(x.send_id)===SELECTED.date_code);
     }
+    if(!rows.length) return;
 
-    kSessions.textContent = fmt(sessions);
-    kUsers.textContent = fmt(users);
-    kPurchases.textContent = fmt(purchases);
-    kRevenue.textContent = fmtMoney(revenue);
-    kItems.textContent = fmt(items);
+    const a = aggregateRow(rows);
 
-    const cvr = sessions ? (purchases/sessions*100) : 0;
-    const aov = purchases ? (revenue/purchases) : 0;
-    const ips = purchases ? (items/purchases) : 0;
+    kSessions.textContent = fmt(a.sessions);
+    kUsers.textContent = fmt(a.users);
+    kPurchases.textContent = fmt(a.purchases);
+    kRevenue.textContent = fmtMoney(a.revenue);
+    kItems.textContent = fmt(a.items_purchased);
+
+    const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
+    const aov = a.purchases ? (a.revenue/a.purchases) : 0;
+    const ips = a.purchases ? (a.items_purchased/a.purchases) : 0;
 
     kSessionsSub.textContent = `-`;
-
-    if (VIEW !== 'DAILY') {
-      kUsersSub.textContent = 'Users: sum of daily (may overcount)';
-    } else {
-      kUsersSub.textContent = `-`;
-    }
-
+    kUsersSub.textContent = `-`;
     kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
+
+    selChannel.textContent = SELECTED.channel;
+    if(SELECTED.type==='single'){
+      selSendId.textContent = SELECTED.send_id;
+    }else{
+      selSendId.textContent = `${SELECTED.date_code} (group)`;
+    }
   }
 
   function renderProducts(){
@@ -702,34 +632,10 @@
     }
 
     let rows = [];
-
-    if(SELECTED.type === 'edm_date'){
-      // group: sum products across member send_ids
-      const prod = (RAW.prod||[]).filter(r => r.channel==='EDM' && SELECTED.members.includes(String(r.send_id)));
-
-      // aggregate by item_id
-      const map = new Map();
-      for(const p of prod){
-        const key = String(p.item_id || '');
-        if(!map.has(key)){
-          map.set(key, {
-            item_id: p.item_id,
-            item_name: p.item_name,
-            prod_items: Number(p.prod_items||0),
-            prod_revenue: Number(p.prod_revenue||0),
-          });
-        } else {
-          const cur = map.get(key);
-          cur.prod_items += Number(p.prod_items||0);
-          cur.prod_revenue += Number(p.prod_revenue||0);
-        }
-      }
-      rows = Array.from(map.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
-    } else {
-      rows = (RAW.prod||[])
-        .filter(r=> r.channel===SELECTED.channel && r.send_id===SELECTED.send_id)
-        .slice()
-        .sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+    if(SELECTED.type==='single'){
+      rows = (RAW.prod||[]).filter(r=> r.channel===SELECTED.channel && r.send_id===SELECTED.send_id);
+    }else{
+      rows = (RAW.prod||[]).filter(r=> r.channel===SELECTED.channel && dateCodeOf(r.send_id)===SELECTED.date_code);
     }
 
     if(!rows.length){
@@ -737,7 +643,22 @@
       return;
     }
 
-    tb.innerHTML = rows.map(r=>`
+    // aggregate by item_id
+    const m = new Map();
+    for(const r of rows){
+      const key = String(r.item_id||'');
+      if(!m.has(key)){
+        m.set(key, {item_id:r.item_id, item_name:r.item_name, prod_items:0, prod_revenue:0});
+      }
+      const cur = m.get(key);
+      cur.prod_items += Number(r.prod_items||0);
+      cur.prod_revenue += Number(r.prod_revenue||0);
+      if(!cur.item_name && r.item_name) cur.item_name = r.item_name;
+    }
+
+    const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+
+    tb.innerHTML = out.map(r=>`
       <tr>
         <td>${(r.item_name||'-')}</td>
         <td class="mono">${(r.item_id||'-')}</td>
@@ -747,8 +668,14 @@
     `).join('');
   }
 
-  function selectCampaign(channel, send_id){
+  function selectSingle(channel, send_id){
     SELECTED = {type:'single', channel, send_id};
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderProducts();
+  }
+  function selectGroup(channel, date_code){
+    SELECTED = {type:'group', channel, date_code};
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderProducts();
@@ -813,7 +740,10 @@
     }catch(e){
       RAW = null;
       KPI = [];
-      campaignWrap.innerHTML = '';
+      wrapEDMDate.innerHTML = '';
+      wrapLMSDate.innerHTML = '';
+      wrapKakaoDate.innerHTML = '';
+      wrapOther.innerHTML = '';
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${dStr}.json</td></tr>`;
       showNotice(`데이터가 없어서 표시할 수 없어. (${dStr})`);
       aggregateKPIForSelected();
@@ -881,14 +811,6 @@
     renderProducts();
   }
 
-  async function loadWeekByDate(dStr){
-    // WEEK = datePicker가 속한 주(월~일) 누적
-    const cur = parseYMD(dStr);
-    const s = ymd(startOfWeekMon(cur));
-    const e = ymd(endOfWeekSun(cur));
-    await loadRange(s, e);
-  }
-
   async function loadAvailableDates(){
     try{
       const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
@@ -915,6 +837,17 @@
     endPicker.value = clampToAvailable(end);
   }
 
+  function setToWeek(){
+    // 기준: endPicker 기준으로 그 주 월~일
+    const end = parseYMD(endPicker.value || ymd(addDays(new Date(), -1)));
+    const day = end.getDay(); // 0=Sun..6=Sat
+    const diffToMon = (day===0) ? -6 : (1 - day); // to Monday
+    const mon = addDays(end, diffToMon);
+    const sun = addDays(mon, 6);
+    startPicker.value = clampToAvailable(ymd(mon));
+    endPicker.value = clampToAvailable(ymd(sun));
+  }
+
   // events: view
   chipDaily.addEventListener('click', ()=>{
     VIEW='DAILY';
@@ -922,14 +855,6 @@
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
     loadDaily(d);
-  });
-
-  chipWeek.addEventListener('click', async ()=>{
-    VIEW='WEEK';
-    setViewActive();
-    const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
-    datePicker.value = d;
-    await loadWeekByDate(d);
   });
 
   chipRange.addEventListener('click', ()=>{
@@ -953,9 +878,10 @@
   btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value); });
   btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value); });
   btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value); });
+  btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value); });
 
   // nav
-  btnPrev.addEventListener('click', async ()=>{
+  btnPrev.addEventListener('click', ()=>{
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,-1));
@@ -963,21 +889,14 @@
       loadDaily(datePicker.value);
       return;
     }
-    if(VIEW==='WEEK'){
-      const cur = parseYMD(datePicker.value);
-      const d = ymd(addDays(cur,-7));
-      datePicker.value = clampToAvailable(d);
-      await loadWeekByDate(datePicker.value);
-      return;
-    }
     const s = parseYMD(startPicker.value);
     const e = parseYMD(endPicker.value);
-    startPicker.value = clampToAvailable(ymd(addDays(s,-1)));
-    endPicker.value = clampToAvailable(ymd(addDays(e,-1)));
+    startPicker.value = clampToAvailable(ymd(addDays(s,-7)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,-7)));
     loadRange(startPicker.value, endPicker.value);
   });
 
-  btnNext.addEventListener('click', async ()=>{
+  btnNext.addEventListener('click', ()=>{
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,+1));
@@ -985,31 +904,18 @@
       loadDaily(datePicker.value);
       return;
     }
-    if(VIEW==='WEEK'){
-      const cur = parseYMD(datePicker.value);
-      const d = ymd(addDays(cur,+7));
-      datePicker.value = clampToAvailable(d);
-      await loadWeekByDate(datePicker.value);
-      return;
-    }
     const s = parseYMD(startPicker.value);
     const e = parseYMD(endPicker.value);
-    startPicker.value = clampToAvailable(ymd(addDays(s,+1)));
-    endPicker.value = clampToAvailable(ymd(addDays(e,+1)));
+    startPicker.value = clampToAvailable(ymd(addDays(s,+7)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,+7)));
     loadRange(startPicker.value, endPicker.value);
   });
 
-  btnToday.addEventListener('click', async ()=>{
+  btnToday.addEventListener('click', ()=>{
     if(VIEW==='DAILY'){
       const d = clampToAvailable(ymd(new Date()));
       datePicker.value = d;
       loadDaily(d);
-      return;
-    }
-    if(VIEW==='WEEK'){
-      const d = clampToAvailable(ymd(new Date()));
-      datePicker.value = d;
-      await loadWeekByDate(d);
       return;
     }
     setToLastNDays(7);
@@ -1022,14 +928,6 @@
   (async function init(){
     setChipActive();
     await loadAvailableDates();
-
-    if(AVAILABLE && AVAILABLE.length){
-      const minD = AVAILABLE[0];
-      const maxD = AVAILABLE[AVAILABLE.length - 1];
-      datePicker.min = minD; datePicker.max = maxD;
-      startPicker.min = minD; startPicker.max = maxD;
-      endPicker.min = minD; endPicker.max = maxD;
-    }
 
     let d;
     if(AVAILABLE && AVAILABLE.length){
