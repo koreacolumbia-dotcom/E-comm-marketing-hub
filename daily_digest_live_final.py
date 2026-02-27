@@ -43,6 +43,7 @@ import os
 import json
 import base64
 import datetime as dt
+import re
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
@@ -775,35 +776,100 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
 
 
 def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
-    """Paid detail sub-channel classification (Looker-style custom).
+    """Paid detail sub-channel classification — **Looker Paid Ad rule-aligned**.
 
-    Output labels:
-      - core: naverbs / criteo / meta / google / naver mo / instagram
-      - fallback: normalized source token (lower) e.g., 'bing', 'daum', 'kakao', etc.
+    Inputs:
+      - source_medium: GA4 "Session source / medium" (or sessionSourceMedium)
+      - campaign: GA4 session campaign name (or sessionCampaignName)
+
+    Output:
+      - Core labels (always rendered in UI): naverbs / criteo / meta / google / naver mo / instagram
+      - Additional labels (shown when expanded): naver da / gfa / kakao / signalplay / buzzvill / mobon / snow / smr / tg / t_cafe / toss / blind / shopping_ad / other
     """
     sm = (source_medium or "").strip().lower()
     cp = (campaign or "").strip().lower()
 
-    # --- Core buckets (your paid detail table)
-    if "naverbs" in sm:
+    # Helper: safe regex search
+    def has(p: str, s: str) -> bool:
+        return re.search(p, s, re.IGNORECASE) is not None
+
+    # --- Core (requested fixed labels)
+    if has(r".*naverbs.*", sm):
         return "naverbs"
-    if "criteo" in sm:
-        return "criteo"
-    if "meta" in sm or sm.startswith("facebook") or sm.startswith("fb") or "facebook" in sm:
-        return "meta"
-    if sm.startswith("google") or "google" in sm:
-        return "google"
-    if "m.search.naver.com" in sm or "m.ad.search.naver.com" in sm or "m.search.naver" in sm:
-        return "naver mo"
-    if "ig" in sm or "instagram" in sm or "igshopping" in sm:
+
+    # Instagram paid / IGShopping sometimes comes as ig / paid, igshopping / paid
+    if has(r".*(igshopping|instagram|(^|[^a-z])ig([^a-z]|$)).*", sm):
         return "instagram"
 
-    # --- Fallback: use source token before " / "
-    # e.g. "bing / cpc" -> "bing"
+    # Criteo
+    if has(r".*criteo.*", sm):
+        return "criteo"
+
+    # Meta family
+    if has(r".*(meta|facebook|(^|[^a-z])fb([^a-z]|$)).*", sm):
+        return "meta"
+
+    # Google CPC family (Paid Ad). (Awareness is handled in channel classifier; here we just label.)
+    if has(r".*google\s*/\s*cpc.*", sm) or has(r"(^|[^a-z])google([^a-z]|$)", sm):
+        return "google"
+
+    # Naver mobile search domains frequently show up as m.search.naver.com / cpc, m.ad.search.naver.com / cpc
+    if has(r".*(m\.search\.naver\.com|m\.ad\.search\.naver\.com|m\.search\.naver).*", sm):
+        return "naver mo"
+
+    # Naver CPC (fallback bucket for paid search beyond naverbs)
+    if has(r".*naver.*", sm) and has(r".*cpc.*", sm):
+        return "naver mo"
+
+    # --- Additional paid labels (for expanded view)
+    # Naver DA / banner-style
+    if has(r".*(naver).*", sm) and (has(r".*(da).*", sm) or has(r".*(banner).*", sm)):
+        return "naver da"
+    if has(r".*(nap).*", sm) and has(r".*(da).*", sm):
+        return "naver da"
+
+    # Google display family (GFA)
+    if has(r".*(gfa).*", sm):
+        return "gfa"
+
+    # Naver shopping ad
+    if has(r".*(shopping_ad).*", sm):
+        return "shopping_ad"
+
+    # Kakao paid
+    if has(r".*(kakaobs).*", sm):
+        return "kakaobs"
+    if has(r".*(kakao).*", sm):
+        return "kakao"
+
+    # Networks
+    if has(r".*(signalplay|signal play|signal_play|sg_|signal|manplus).*", sm):
+        return "signalplay"
+    if has(r".*(buzzvill).*", sm):
+        return "buzzvill"
+    if has(r".*(mobon).*", sm):
+        return "mobon"
+    if has(r".*(snow).*", sm):
+        return "snow"
+    if has(r".*(smr).*", sm):
+        return "smr"
+    if has(r".*(tg).*", sm):
+        return "tg"
+    if has(r".*(t_cafe).*", sm):
+        return "t_cafe"
+    if has(r".*(toss).*", sm):
+        return "toss"
+    if has(r".*(blind).*", sm):
+        return "blind"
+
+    # Generic CPC (unknown) - keep visible in expanded
+    if has(r".*(cpc).*", sm):
+        return "cpc other"
+
+    # Fallback: source token before "/"
     base = sm.split("/")[0].strip()
     base = re.sub(r"\s+", " ", base)
     return base or "other"
-
 
 
 def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
