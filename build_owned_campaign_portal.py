@@ -55,6 +55,10 @@ def suffix(d: date) -> str:
     return d.strftime("%Y%m%d")
 
 
+def ymd(d: date) -> str:
+    return d.strftime(\"%Y-%m-%d\")
+
+
 def parse_date(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
@@ -1289,10 +1293,18 @@ def build_hub_html_placeholder() -> str:
 # ----------------------------
 # JSON writing
 # ----------------------------
-def write_daily_json(out_dir: Path, d: str, kpi_rows: List[Dict[str, Any]], prod_rows: List[Dict[str, Any]]) -> None:
+def write_daily_json(out_dir: Path, d: str,
+                     kpi_rows: List[Dict[str, Any]],
+                     prod_rows: List[Dict[str, Any]],
+                     overwrite: bool) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"owned_{d}.json"
+
+    if path.exists() and (not overwrite):
+        return
+
     payload = {"date": d, "kpi": kpi_rows, "prod": prod_rows}
-    (out_dir / f"owned_{d}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def write_available_dates(out_dir: Path, dates: List[str]) -> None:
@@ -1317,10 +1329,26 @@ def main():
     ap.add_argument("--dataset", default=os.getenv("BQ_DATASET", "analytics_358593394"))
     ap.add_argument("--start", default="2025-01-01")
     ap.add_argument("--end", default=None, help="End date (YYYY-MM-DD). Default: yesterday(KST).")
-    ap.add_argument("--backfill", action="store_true", help="Backfill from --backfill-start to end (default yesterday).")
-    ap.add_argument("--backfill-start", default="2025-01-01", help="Backfill start date (YYYY-MM-DD).")
-        ap.add_argument("--write-empty-days", dest="write_empty_days", action="store_true", default=True, help="Write empty JSON for days with no data (recommended).")
-    ap.add_argument("--recent-days", type=int, default=None, help="If set, fetch only recent N days ending today(KST).")
+
+    ap.add_argument("--backfill", action="store_true",
+                    help="Backfill from --backfill-start to end (default yesterday).")
+    ap.add_argument("--backfill-start", default="2025-01-01",
+                    help="Backfill start date (YYYY-MM-DD).")
+
+    # ✅ Workflow compatibility: allow overwrite for backfill runs
+    ap.add_argument("--overwrite", action="store_true",
+                    help="Overwrite existing owned_YYYY-MM-DD.json if exists.")
+
+    # ✅ Write empty JSON on no-data days (default ON). Can be disabled.
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--write-empty-days", dest="write_empty_days", action="store_true",
+                   help="Write empty JSON for days with no data (default).")
+    g.add_argument("--no-write-empty-days", dest="write_empty_days", action="store_false",
+                   help="Do NOT write JSON for days with no data.")
+    ap.set_defaults(write_empty_days=True)
+
+    ap.add_argument("--recent-days", type=int, default=None,
+                    help="If set, fetch only recent N days ending end(yesterday default).")
     ap.add_argument("--site-dir", default="site")
     args = ap.parse_args()
 
@@ -1427,13 +1455,13 @@ def main():
                 "prod_revenue": float(r.get("prod_revenue", 0.0)),
             })
 
-        write_daily_json(data_dir, d, kpi_rows, prod_rows)
+        write_daily_json(data_dir, d, kpi_rows, prod_rows, overwrite=args.overwrite)
         available_set.add(d)
 
     write_available_dates(data_dir, sorted(available_set))
 
     print(f"[OK] Wrote site to: {site_dir.resolve()}")
-    print(f"[OK] Data files: {data_dir.resolve()} (days={len(available)})")
+    print(f"[OK] Data files: {data_dir.resolve()} (days={len(available_set)})")
 
 
 if __name__ == "__main__":
