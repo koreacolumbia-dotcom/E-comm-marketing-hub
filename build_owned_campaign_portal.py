@@ -56,7 +56,7 @@ def suffix(d: date) -> str:
 
 
 def ymd(d: date) -> str:
-    return d.strftime(\"%Y-%m-%d\")
+    return d.strftime("%Y-%m-%d")
 
 
 def parse_date(s: str) -> date:
