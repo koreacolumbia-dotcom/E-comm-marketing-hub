@@ -315,7 +315,7 @@ FROM prod p
 # HTML (user provided)
 # ----------------------------
 def build_index_html() -> str:
-    return """<!doctype html>
+    return r'''<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -479,6 +479,7 @@ def build_index_html() -> str:
       font-size: 12px;
     }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .sec-title{ font-size: 11px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color:#94a3b8; }
   </style>
 </head>
 
@@ -510,7 +511,7 @@ def build_index_html() -> str:
         <button id="chipRange" class="chip" type="button">RANGE</button>
 
         <div class="ml-2 small-label">Date</div>
-        <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
+        <div class="w-[160px]"><input id="datePicker" type="date" /></div>
 
         <div id="rangeBox" class="hidden items-center gap-2">
           <div class="small-label">From</div>
@@ -522,6 +523,7 @@ def build_index_html() -> str:
           <button id="btn7d" class="btn" type="button">7D</button>
           <button id="btn30d" class="btn" type="button">30D</button>
           <button id="btnMTD" class="btn" type="button">MTD</button>
+          <button id="btnWEEK" class="btn" type="button">WEEK</button>
         </div>
 
         <button id="btnPrev" class="btn" type="button">◀</button>
@@ -550,8 +552,27 @@ def build_index_html() -> str:
 
       <!-- Campaign buttons -->
       <div class="mb-4">
-        <div class="small-label mb-2">Campaigns (send_id)</div>
-        <div id="campaignWrap" class="flex flex-wrap gap-2"></div>
+        <div class="small-label mb-2">Campaigns (grouped)</div>
+
+        <div class="mb-3">
+          <div class="sec-title mb-2">EDM · by date (####)</div>
+          <div id="wrapEDMDate" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div class="mb-3">
+          <div class="sec-title mb-2">LMS · by date (####)</div>
+          <div id="wrapLMSDate" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div class="mb-3">
+          <div class="sec-title mb-2">KAKAO · by date (####)</div>
+          <div id="wrapKakaoDate" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div>
+          <div class="sec-title mb-2">Other campaigns</div>
+          <div id="wrapOther" class="flex flex-wrap gap-2"></div>
+        </div>
       </div>
 
       <!-- KPI -->
@@ -628,7 +649,6 @@ def build_index_html() -> str:
   const chipDaily = document.getElementById('chipDaily');
   const chipRange = document.getElementById('chipRange');
   const rangeBox = document.getElementById('rangeBox');
-  const dailyBox = document.getElementById('dailyBox');
 
   const datePicker = document.getElementById('datePicker');
   const startPicker = document.getElementById('startPicker');
@@ -637,6 +657,7 @@ def build_index_html() -> str:
   const btn7d = document.getElementById('btn7d');
   const btn30d = document.getElementById('btn30d');
   const btnMTD = document.getElementById('btnMTD');
+  const btnWEEK = document.getElementById('btnWEEK');
 
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
@@ -649,7 +670,11 @@ def build_index_html() -> str:
   const q = document.getElementById('q');
   const topN = document.getElementById('topN');
 
-  const campaignWrap = document.getElementById('campaignWrap');
+  const wrapEDMDate = document.getElementById('wrapEDMDate');
+  const wrapLMSDate = document.getElementById('wrapLMSDate');
+  const wrapKakaoDate = document.getElementById('wrapKakaoDate');
+  const wrapOther = document.getElementById('wrapOther');
+
   const tb = document.getElementById('tb');
 
   const kSessions = document.getElementById('kSessions');
@@ -694,32 +719,38 @@ def build_index_html() -> str:
   function clampToAvailable(dStr){
     if(!AVAILABLE || !AVAILABLE.length) return dStr;
     if(AVAILABLE.includes(dStr)) return dStr;
-    // 가장 가까운 과거 날짜로 스냅
     for(let i=AVAILABLE.length-1;i>=0;i--){
       if(AVAILABLE[i] <= dStr) return AVAILABLE[i];
     }
     return AVAILABLE[0];
   }
 
+  // send_id에서 날짜코드(####) 추출
+  function dateCodeOf(sendId){
+    const s = String(sendId||'');
+    const m = s.match(/(?:^|_)(\d{4})(?:_|$)/);
+    return m ? m[1] : null;
+  }
+
   let VIEW = 'DAILY'; // DAILY | RANGE
   let CHANNEL = 'ALL';
 
-  let RAW = null;        // 현재 화면 데이터(DAILY면 단일 JSON, RANGE면 합산 결과)
+  let RAW = null;
   let KPI = [];
-  let SELECTED = null;   // {channel, send_id}
-  let AVAILABLE = null;  // [YYYY-MM-DD...]
+  let SELECTED = null;   // {type:'single'|'group', channel, send_id? , date_code?}
+  let AVAILABLE = null;
 
   function setViewActive(){
     [chipDaily, chipRange].forEach(el=>el.classList.remove('active'));
     if(VIEW==='DAILY'){
       chipDaily.classList.add('active');
       rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
-      dailyBox.classList.remove('hidden');
+      datePicker.parentElement.classList.remove('hidden');
     }
     if(VIEW==='RANGE'){
       chipRange.classList.add('active');
       rangeBox.classList.remove('hidden'); rangeBox.classList.add('flex');
-      dailyBox.classList.add('hidden');
+      datePicker.parentElement.classList.add('hidden');
     }
   }
 
@@ -746,35 +777,125 @@ def build_index_html() -> str:
     const qq = (q.value||'').trim().toLowerCase();
     KPI = (RAW.kpi||[]).filter(r=>{
       if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
-      if(qq && String(r.send_id||'').toLowerCase().indexOf(qq)===-1) return false;
+      if(qq){
+        const sid = String(r.send_id||'').toLowerCase();
+        const dc = dateCodeOf(r.send_id);
+        if(sid.indexOf(qq)===-1 && String(dc||'').indexOf(qq)===-1) return false;
+      }
       return true;
     });
   }
 
+  function isActiveSingle(ch, send){
+    return SELECTED && SELECTED.type==='single' && SELECTED.channel===ch && SELECTED.send_id===send;
+  }
+  function isActiveGroup(ch, dc){
+    return SELECTED && SELECTED.type==='group' && SELECTED.channel===ch && SELECTED.date_code===dc;
+  }
+
+  function makeChip(label, title, active, dataAttrs){
+    const cls = active ? 'chip active' : 'chip';
+    const attrs = Object.entries(dataAttrs||{}).map(([k,v])=>`data-${k}="${String(v).replace(/"/g,'&quot;')}"`).join(' ');
+    return `<button class="${cls}" ${attrs} title="${title||''}">${label}</button>`;
+  }
+
+  function aggregateRow(rows){
+    const out = {sessions:0, users:0, purchases:0, revenue:0, items_purchased:0};
+    for(const r of rows){
+      out.sessions += Number(r.sessions||0);
+      out.users += Number(r.users||0);
+      out.purchases += Number(r.purchases||0);
+      out.revenue += Number(r.revenue||0);
+      out.items_purchased += Number(r.items_purchased||0);
+    }
+    return out;
+  }
+
   function renderCampaignButtons(){
-    campaignWrap.innerHTML = '';
+    // clear
+    wrapEDMDate.innerHTML = '';
+    wrapLMSDate.innerHTML = '';
+    wrapKakaoDate.innerHTML = '';
+    wrapOther.innerHTML = '';
+
     if(!KPI.length){
-      campaignWrap.innerHTML = `<div class="muted font-semibold text-sm">캠페인이 없거나(또는 필터가 너무 좁아) 결과가 없어.</div>`;
+      const empty = `<div class="muted font-semibold text-sm">결과가 없어. (필터가 너무 좁거나, 해당 기간에 데이터가 없을 수 있어)</div>`;
+      wrapEDMDate.innerHTML = empty;
+      wrapLMSDate.innerHTML = empty;
+      wrapKakaoDate.innerHTML = empty;
+      wrapOther.innerHTML = empty;
       return;
     }
 
     const limit = Math.max(1, parseInt(topN.value||'30',10));
-    const rows = KPI.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
 
-    campaignWrap.innerHTML = rows.map(r=>{
-      const label = `${r.send_id}`;
-      const meta = `${r.channel} · S:${r.sessions}`;
-      const active = (SELECTED && SELECTED.channel===r.channel && SELECTED.send_id===r.send_id) ? 'active' : '';
-      return `<button class="chip ${active}" data-channel="${r.channel}" data-send="${encodeURIComponent(r.send_id)}" title="${meta}">${label}</button>`;
-    }).join('');
+    // group by channel + datecode
+    const byDate = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
+    const others = [];
 
-    Array.from(campaignWrap.querySelectorAll('button.chip')).forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const ch = btn.getAttribute('data-channel');
-        const send = decodeURIComponent(btn.getAttribute('data-send')||'');
-        selectCampaign(ch, send);
+    for(const r of KPI){
+      const dc = dateCodeOf(r.send_id);
+      if(dc && (r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO')){
+        const m = byDate[r.channel];
+        if(!m.has(dc)) m.set(dc, []);
+        m.get(dc).push(r);
+      }else{
+        others.push(r);
+      }
+    }
+
+    function renderDateGroup(channel, wrapEl){
+      const m = byDate[channel];
+      const arr = Array.from(m.entries()).map(([dc, rows])=>{
+        const a = aggregateRow(rows);
+        return {dc, channel, rows, agg:a};
+      }).sort((a,b)=> (b.agg.sessions||0)-(a.agg.sessions||0)).slice(0, limit);
+
+      if(!arr.length){
+        wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+        return;
+      }
+
+      wrapEl.innerHTML = arr.map(x=>{
+        const label = `${x.channel}_${x.dc}`;
+        const title = `${x.channel} · ${x.dc} · sessions:${x.agg.sessions} · campaigns:${x.rows.length}`;
+        const active = isActiveGroup(x.channel, x.dc);
+        return makeChip(label, title, active, {type:'group', channel:x.channel, dc:x.dc});
+      }).join('');
+
+      Array.from(wrapEl.querySelectorAll('button.chip')).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const ch = btn.getAttribute('data-channel');
+          const dc = btn.getAttribute('data-dc');
+          selectGroup(ch, dc);
+        });
       });
-    });
+    }
+
+    renderDateGroup('EDM', wrapEDMDate);
+    renderDateGroup('LMS', wrapLMSDate);
+    renderDateGroup('KAKAO', wrapKakaoDate);
+
+    // others: show individual send_id (sorted by sessions) limited
+    const oRows = others.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+    if(!oRows.length){
+      wrapOther.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+    }else{
+      wrapOther.innerHTML = oRows.map(r=>{
+        const label = `${r.channel}_${r.send_id}`;
+        const title = `${r.channel} · sessions:${r.sessions}`;
+        const active = isActiveSingle(r.channel, r.send_id);
+        return makeChip(label, title, active, {type:'single', channel:r.channel, send:encodeURIComponent(r.send_id)});
+      }).join('');
+
+      Array.from(wrapOther.querySelectorAll('button.chip')).forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const ch = btn.getAttribute('data-channel');
+          const send = decodeURIComponent(btn.getAttribute('data-send')||'');
+          selectSingle(ch, send);
+        });
+      });
+    }
   }
 
   function aggregateKPIForSelected(){
@@ -787,40 +908,38 @@ def build_index_html() -> str:
       return;
     }
 
-    const row = (RAW.kpi||[]).find(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
-    if(!row) return;
+    let rows = [];
+    if(SELECTED.type==='single'){
+      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && x.send_id===SELECTED.send_id);
+    }else{
+      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && dateCodeOf(x.send_id)===SELECTED.date_code);
+    }
+    if(!rows.length) return;
 
-    const sessions = row.sessions||0;
-    const users = row.users||0;
-    const purchases = row.purchases||0;
-    const revenue = row.revenue||0;
-    const items = row.items_purchased||0;
+    const a = aggregateRow(rows);
 
-    kSessions.textContent = fmt(sessions);
-    kUsers.textContent = fmt(users);
-    kPurchases.textContent = fmt(purchases);
-    kRevenue.textContent = fmtMoney(revenue);
-    kItems.textContent = fmt(items);
+    kSessions.textContent = fmt(a.sessions);
+    kUsers.textContent = fmt(a.users);
+    kPurchases.textContent = fmt(a.purchases);
+    kRevenue.textContent = fmtMoney(a.revenue);
+    kItems.textContent = fmt(a.items_purchased);
 
-    const cvr = sessions ? (purchases/sessions*100) : 0;
-    const aov = purchases ? (revenue/purchases) : 0;
-    const ips = purchases ? (items/purchases) : 0;
+    const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
+    const aov = a.purchases ? (a.revenue/a.purchases) : 0;
+    const ips = a.purchases ? (a.items_purchased/a.purchases) : 0;
 
     kSessionsSub.textContent = `-`;
-
-    // ✅ RANGE에서는 users가 "일자 합산(sum)"이라 과대계상 가능 (유니크 아님)
-    if (VIEW === 'RANGE') {
-      kUsersSub.textContent = 'Users: sum of daily (may overcount)';
-    } else {
-      kUsersSub.textContent = `-`;
-    }
-
+    kUsersSub.textContent = `-`;
     kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
 
     selChannel.textContent = SELECTED.channel;
-    selSendId.textContent = SELECTED.send_id;
+    if(SELECTED.type==='single'){
+      selSendId.textContent = SELECTED.send_id;
+    }else{
+      selSendId.textContent = `${SELECTED.date_code} (group)`;
+    }
   }
 
   function renderProducts(){
@@ -829,17 +948,34 @@ def build_index_html() -> str:
       return;
     }
 
-    const rows = (RAW.prod||[])
-      .filter(r=> r.channel===SELECTED.channel && r.send_id===SELECTED.send_id)
-      .slice()
-      .sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+    let rows = [];
+    if(SELECTED.type==='single'){
+      rows = (RAW.prod||[]).filter(r=> r.channel===SELECTED.channel && r.send_id===SELECTED.send_id);
+    }else{
+      rows = (RAW.prod||[]).filter(r=> r.channel===SELECTED.channel && dateCodeOf(r.send_id)===SELECTED.date_code);
+    }
 
     if(!rows.length){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어. (purchase가 없거나 items가 비어있을 수 있어)</td></tr>`;
       return;
     }
 
-    tb.innerHTML = rows.map(r=>`
+    // aggregate by item_id
+    const m = new Map();
+    for(const r of rows){
+      const key = String(r.item_id||'');
+      if(!m.has(key)){
+        m.set(key, {item_id:r.item_id, item_name:r.item_name, prod_items:0, prod_revenue:0});
+      }
+      const cur = m.get(key);
+      cur.prod_items += Number(r.prod_items||0);
+      cur.prod_revenue += Number(r.prod_revenue||0);
+      if(!cur.item_name && r.item_name) cur.item_name = r.item_name;
+    }
+
+    const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+
+    tb.innerHTML = out.map(r=>`
       <tr>
         <td>${(r.item_name||'-')}</td>
         <td class="mono">${(r.item_id||'-')}</td>
@@ -849,8 +985,14 @@ def build_index_html() -> str:
     `).join('');
   }
 
-  function selectCampaign(channel, send_id){
-    SELECTED = {channel, send_id};
+  function selectSingle(channel, send_id){
+    SELECTED = {type:'single', channel, send_id};
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderProducts();
+  }
+  function selectGroup(channel, date_code){
+    SELECTED = {type:'group', channel, date_code};
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderProducts();
@@ -883,8 +1025,8 @@ def build_index_html() -> str:
   }
 
   function buildAggregated(dailyJsonList){
-    const kpiMap = new Map();   // key = channel||send_id
-    const prodMap = new Map();  // key = channel||send_id||item_id
+    const kpiMap = new Map();
+    const prodMap = new Map();
 
     for(const j of dailyJsonList){
       const kpi = (j.kpi||[]);
@@ -915,7 +1057,10 @@ def build_index_html() -> str:
     }catch(e){
       RAW = null;
       KPI = [];
-      campaignWrap.innerHTML = '';
+      wrapEDMDate.innerHTML = '';
+      wrapLMSDate.innerHTML = '';
+      wrapKakaoDate.innerHTML = '';
+      wrapOther.innerHTML = '';
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${dStr}.json</td></tr>`;
       showNotice(`데이터가 없어서 표시할 수 없어. (${dStr})`);
       aggregateKPIForSelected();
@@ -1009,6 +1154,17 @@ def build_index_html() -> str:
     endPicker.value = clampToAvailable(end);
   }
 
+  function setToWeek(){
+    // 기준: endPicker 기준으로 그 주 월~일
+    const end = parseYMD(endPicker.value || ymd(addDays(new Date(), -1)));
+    const day = end.getDay(); // 0=Sun..6=Sat
+    const diffToMon = (day===0) ? -6 : (1 - day); // to Monday
+    const mon = addDays(end, diffToMon);
+    const sun = addDays(mon, 6);
+    startPicker.value = clampToAvailable(ymd(mon));
+    endPicker.value = clampToAvailable(ymd(sun));
+  }
+
   // events: view
   chipDaily.addEventListener('click', ()=>{
     VIEW='DAILY';
@@ -1039,6 +1195,7 @@ def build_index_html() -> str:
   btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value); });
   btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value); });
   btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value); });
+  btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value); });
 
   // nav
   btnPrev.addEventListener('click', ()=>{
@@ -1051,8 +1208,8 @@ def build_index_html() -> str:
     }
     const s = parseYMD(startPicker.value);
     const e = parseYMD(endPicker.value);
-    startPicker.value = clampToAvailable(ymd(addDays(s,-1)));
-    endPicker.value = clampToAvailable(ymd(addDays(e,-1)));
+    startPicker.value = clampToAvailable(ymd(addDays(s,-7)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,-7)));
     loadRange(startPicker.value, endPicker.value);
   });
 
@@ -1066,8 +1223,8 @@ def build_index_html() -> str:
     }
     const s = parseYMD(startPicker.value);
     const e = parseYMD(endPicker.value);
-    startPicker.value = clampToAvailable(ymd(addDays(s,+1)));
-    endPicker.value = clampToAvailable(ymd(addDays(e,+1)));
+    startPicker.value = clampToAvailable(ymd(addDays(s,+7)));
+    endPicker.value = clampToAvailable(ymd(addDays(e,+7)));
     loadRange(startPicker.value, endPicker.value);
   });
 
@@ -1089,16 +1246,6 @@ def build_index_html() -> str:
     setChipActive();
     await loadAvailableDates();
 
-    // ✅ 달력 min/max 제한 (available_dates 기준)
-    if(AVAILABLE && AVAILABLE.length){
-      const minD = AVAILABLE[0];
-      const maxD = AVAILABLE[AVAILABLE.length - 1];
-      datePicker.min = minD; datePicker.max = maxD;
-      startPicker.min = minD; startPicker.max = maxD;
-      endPicker.min = minD; endPicker.max = maxD;
-    }
-
-    // 기본: 최신 available date를 DAILY로 로드
     let d;
     if(AVAILABLE && AVAILABLE.length){
       d = AVAILABLE[AVAILABLE.length-1];
@@ -1116,7 +1263,7 @@ def build_index_html() -> str:
 </script>
 </body>
 </html>
-"""
+'''
 
 
 def build_hub_html_placeholder() -> str:
@@ -1169,7 +1316,10 @@ def main():
     ap.add_argument("--project", default=os.getenv("BQ_PROJECT", "columbia-ga4"))
     ap.add_argument("--dataset", default=os.getenv("BQ_DATASET", "analytics_358593394"))
     ap.add_argument("--start", default="2025-01-01")
-    ap.add_argument("--end", default=None)
+    ap.add_argument("--end", default=None, help="End date (YYYY-MM-DD). Default: yesterday(KST).")
+    ap.add_argument("--backfill", action="store_true", help="Backfill from --backfill-start to end (default yesterday).")
+    ap.add_argument("--backfill-start", default="2025-01-01", help="Backfill start date (YYYY-MM-DD).")
+        ap.add_argument("--write-empty-days", dest="write_empty_days", action="store_true", default=True, help="Write empty JSON for days with no data (recommended).")
     ap.add_argument("--recent-days", type=int, default=None, help="If set, fetch only recent N days ending today(KST).")
     ap.add_argument("--site-dir", default="site")
     args = ap.parse_args()
@@ -1179,9 +1329,12 @@ def main():
     site_dir = Path(args.site_dir)
     data_dir = site_dir / "data" / "owned"
 
-    end_d = parse_date(args.end) if args.end else kst_today()
+    end_d = parse_date(args.end) if args.end else (kst_today() - timedelta(days=1))
+    # Range priority: --recent-days (incremental) > --backfill > --start
     if args.recent_days and args.recent_days > 0:
         start_d = end_d - timedelta(days=args.recent_days - 1)
+    elif args.backfill:
+        start_d = parse_date(args.backfill_start)
     else:
         start_d = parse_date(args.start)
 
@@ -1214,42 +1367,70 @@ def main():
         if col in prod_df.columns:
             prod_df[col] = pd.to_numeric(prod_df[col], errors="coerce").fillna(0)
 
-    available: List[str] = []
+    available_set: set[str] = set()
 
-    for d in sorted(set(df["date"].tolist())):
+    # Merge with existing available_dates.json (so incremental runs keep history)
+    existing_path = data_dir / "available_dates.json"
+    if existing_path.exists():
+        try:
+            existing = json.loads(existing_path.read_text(encoding="utf-8"))
+            for dd in (existing.get("available_dates") or []):
+                if isinstance(dd, str) and dd:
+                    available_set.add(dd)
+        except Exception:
+            pass
+
+    # Build list of days we SHOULD write this run (including empty days if enabled)
+    days_to_write: List[date] = []
+    cur = start_d
+    while cur <= end_d:
+        days_to_write.append(cur)
+        cur += timedelta(days=1)
+
+    for day in days_to_write:
+        d = ymd(day)
+
         k_rows = kpi_df[kpi_df["date"] == d][
             ["date", "channel", "send_id", "sessions", "users", "purchases", "kpi_revenue", "items_purchased"]
         ].to_dict(orient="records")
-
-        kpi_rows = [{
-            "date": r.get("date"),
-            "channel": r.get("channel"),
-            "send_id": r.get("send_id"),
-            "sessions": int(r.get("sessions", 0)),
-            "users": int(r.get("users", 0)),
-            "purchases": int(r.get("purchases", 0)),
-            "revenue": float(r.get("kpi_revenue", 0.0)),
-            "items_purchased": int(r.get("items_purchased", 0)),
-        } for r in k_rows]
 
         p_rows = prod_df[prod_df["date"] == d][
             ["date", "channel", "send_id", "item_id", "item_name", "prod_items", "prod_revenue"]
         ].to_dict(orient="records")
 
-        prod_rows = [{
-            "date": r.get("date"),
-            "channel": r.get("channel"),
-            "send_id": r.get("send_id"),
-            "item_id": r.get("item_id"),
-            "item_name": r.get("item_name"),
-            "prod_items": int(r.get("prod_items", 0)),
-            "prod_revenue": float(r.get("prod_revenue", 0.0)),
-        } for r in p_rows]
+        if (not k_rows) and (not p_rows) and (not args.write_empty_days):
+            # Skip writing empty days if user asked (but still keep previous data files)
+            continue
+
+        kpi_rows = []
+        for r in k_rows:
+            kpi_rows.append({
+                "date": r.get("date"),
+                "channel": r.get("channel"),
+                "send_id": r.get("send_id"),
+                "sessions": int(r.get("sessions", 0)),
+                "users": int(r.get("users", 0)),
+                "purchases": int(r.get("purchases", 0)),
+                "revenue": float(r.get("kpi_revenue", 0.0)),
+                "items_purchased": int(r.get("items_purchased", 0)),
+            })
+
+        prod_rows = []
+        for r in p_rows:
+            prod_rows.append({
+                "date": r.get("date"),
+                "channel": r.get("channel"),
+                "send_id": r.get("send_id"),
+                "item_id": r.get("item_id"),
+                "item_name": r.get("item_name"),
+                "prod_items": float(r.get("prod_items", 0.0)),
+                "prod_revenue": float(r.get("prod_revenue", 0.0)),
+            })
 
         write_daily_json(data_dir, d, kpi_rows, prod_rows)
-        available.append(d)
+        available_set.add(d)
 
-    write_available_dates(data_dir, available)
+    write_available_dates(data_dir, sorted(available_set))
 
     print(f"[OK] Wrote site to: {site_dir.resolve()}")
     print(f"[OK] Data files: {data_dir.resolve()} (days={len(available)})")
