@@ -559,23 +559,54 @@ def build_index_html() -> str:
         <div class="small-label mb-2">Campaigns (grouped)</div>
 
         <div class="mb-3">
-          <div class="sec-title mb-2">EDM · by date (####)</div>
+          <div class="sec-title mb-2">EDM · By Date (MMDD)</div>
           <div id="wrapEDMDate" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div class="mb-3">
-          <div class="sec-title mb-2">LMS · by date (####)</div>
+          <div class="sec-title mb-2">LMS · By Date (MMDD)</div>
           <div id="wrapLMSDate" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div class="mb-3">
-          <div class="sec-title mb-2">KAKAO · by date (####)</div>
+          <div class="sec-title mb-2">KAKAO · By Date (MMDD)</div>
           <div id="wrapKakaoDate" class="flex flex-wrap gap-2"></div>
         </div>
 
         <div>
           <div class="sec-title mb-2">Other campaigns</div>
           <div id="wrapOther" class="flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+
+
+      <!-- Terms (for date group) -->
+      <div id="termSection" class="hidden mb-5">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="small-label">Terms</div>
+          <div class="muted font-semibold text-sm">선택한 날짜(MMDD) 그룹에 포함된 개별 TERM(=send_id) 목록</div>
+        </div>
+
+        <div class="overflow-auto rounded-[18px]">
+          <table>
+            <thead>
+              <tr>
+                <th style="min-width:260px">Term (send_id)</th>
+                <th style="min-width:120px">Sessions</th>
+                <th style="min-width:120px">Users</th>
+                <th style="min-width:120px">Purchases</th>
+                <th style="min-width:140px">Revenue</th>
+                <th style="min-width:120px">Items</th>
+              </tr>
+            </thead>
+            <tbody id="termTb">
+              <tr><td colspan="6" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="muted font-semibold text-xs mt-2">
+          TIP: TERM(행)을 클릭하면 해당 TERM 단위로 상품/성과가 드릴다운돼.
         </div>
       </div>
 
@@ -681,6 +712,9 @@ def build_index_html() -> str:
 
   const tb = document.getElementById('tb');
 
+  const termSection = document.getElementById('termSection');
+  const termTb = document.getElementById('termTb');
+
   const kSessions = document.getElementById('kSessions');
   const kUsers = document.getElementById('kUsers');
   const kPurchases = document.getElementById('kPurchases');
@@ -729,11 +763,29 @@ def build_index_html() -> str:
     return AVAILABLE[0];
   }
 
-  // send_id에서 날짜코드(####) 추출
+  // send_id에서 날짜코드(MMDD) 추출
+  // - KAKAO_CH_MESSAGE_0226_NEWARRIVAL  → 0226
+  // - EDM_0224                         → 0224
+  // - EDM_0224_SOMETHING               → 0224
+  // - *_0220 / 0220_* 형태 모두 지원
   function dateCodeOf(sendId){
-    const s = String(sendId||'');
-    const m = s.match(/(?:^|_)(\d{4})(?:_|$)/);
-    return m ? m[1] : null;
+    const raw = String(sendId||'');
+    if(!raw) return null;
+
+    // 토큰화: 알파벳/숫자 제외는 '_' 로 치환 후 split
+    const tokens = raw.replace(/[^A-Za-z0-9]+/g,'_').split('_').filter(Boolean);
+
+    for(const t of tokens){
+      if(/^[0-9]{4}$/.test(t)){
+        const mm = parseInt(t.slice(0,2), 10);
+        const dd = parseInt(t.slice(2,4), 10);
+        // MMDD 유효범위(대략) 체크: 01-12 / 01-31
+        if(mm>=1 && mm<=12 && dd>=1 && dd<=31){
+          return t;
+        }
+      }
+    }
+    return null;
   }
 
   let VIEW = 'DAILY'; // DAILY | RANGE
@@ -861,7 +913,7 @@ def build_index_html() -> str:
       }
 
       wrapEl.innerHTML = arr.map(x=>{
-        const label = `${x.channel}_${x.dc}`;
+        const label = `${x.dc}`;
         const title = `${x.channel} · ${x.dc} · sessions:${x.agg.sessions} · campaigns:${x.rows.length}`;
         const active = isActiveGroup(x.channel, x.dc);
         return makeChip(label, title, active, {type:'group', channel:x.channel, dc:x.dc});
@@ -989,16 +1041,60 @@ def build_index_html() -> str:
     `).join('');
   }
 
+
+  function renderTerms(){
+    if(!termSection || !termTb) return;
+
+    // 기본 숨김
+    if(!SELECTED || SELECTED.type!=='group' || !RAW){
+      termSection.classList.add('hidden');
+      termTb.innerHTML = `<tr><td colspan="6" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
+      return;
+    }
+
+    const rows = (RAW.kpi||[])
+      .filter(r => r.channel===SELECTED.channel && dateCodeOf(r.send_id)===SELECTED.date_code);
+
+    termSection.classList.remove('hidden');
+
+    if(!rows.length){
+      termTb.innerHTML = `<tr><td colspan="6" class="muted font-semibold">해당 날짜 그룹에 TERM 데이터가 없어.</td></tr>`;
+      return;
+    }
+
+    const sorted = rows.slice().sort((a,b)=> (Number(b.sessions||0) - Number(a.sessions||0)));
+
+    termTb.innerHTML = sorted.map(r=>`
+      <tr class="cursor-pointer" data-send="${encodeURIComponent(r.send_id||'')}">
+        <td class="mono">${(r.send_id||'-')}</td>
+        <td>${fmt(r.sessions||0)}</td>
+        <td>${fmt(r.users||0)}</td>
+        <td>${fmt(r.purchases||0)}</td>
+        <td>${fmtMoney(r.revenue||0)}</td>
+        <td>${fmt(r.items_purchased||0)}</td>
+      </tr>
+    `).join('');
+
+    Array.from(termTb.querySelectorAll('tr[data-send]')).forEach(tr=>{
+      tr.addEventListener('click', ()=>{
+        const send = decodeURIComponent(tr.getAttribute('data-send')||'');
+        selectSingle(SELECTED.channel, send);
+      });
+    });
+  }
+
   function selectSingle(channel, send_id){
     SELECTED = {type:'single', channel, send_id};
     renderCampaignButtons();
     aggregateKPIForSelected();
+    renderTerms();
     renderProducts();
   }
   function selectGroup(channel, date_code){
     SELECTED = {type:'group', channel, date_code};
     renderCampaignButtons();
     aggregateKPIForSelected();
+    renderTerms();
     renderProducts();
   }
 
@@ -1068,12 +1164,14 @@ def build_index_html() -> str:
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">해당 날짜 데이터 파일이 없어: owned_${dStr}.json</td></tr>`;
       showNotice(`데이터가 없어서 표시할 수 없어. (${dStr})`);
       aggregateKPIForSelected();
+      renderTerms();
       return;
     }
 
     filterKPI();
     renderCampaignButtons();
     aggregateKPIForSelected();
+    renderTerms();
     renderProducts();
   }
 
@@ -1087,6 +1185,7 @@ def build_index_html() -> str:
       KPI = [];
       renderCampaignButtons();
       aggregateKPIForSelected();
+      renderTerms();
       renderProducts();
       return;
     }
@@ -1107,6 +1206,7 @@ def build_index_html() -> str:
       showNotice(`선택한 기간에 데이터가 없어. (${s} ~ ${e})`);
       renderCampaignButtons();
       aggregateKPIForSelected();
+      renderTerms();
       renderProducts();
       return;
     }
@@ -1129,6 +1229,7 @@ def build_index_html() -> str:
     filterKPI();
     renderCampaignButtons();
     aggregateKPIForSelected();
+    renderTerms();
     renderProducts();
   }
 
@@ -1186,13 +1287,13 @@ def build_index_html() -> str:
   });
 
   // channel chips
-  chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterKPI(); renderCampaignButtons(); });
-  chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterKPI(); renderCampaignButtons(); });
-  chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterKPI(); renderCampaignButtons(); });
-  chipKAKAO.addEventListener('click', ()=>{ CHANNEL='KAKAO'; setChipActive(); filterKPI(); renderCampaignButtons(); });
+  chipAll.addEventListener('click', ()=>{ CHANNEL='ALL'; setChipActive(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  chipEDM.addEventListener('click', ()=>{ CHANNEL='EDM'; setChipActive(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  chipLMS.addEventListener('click', ()=>{ CHANNEL='LMS'; setChipActive(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  chipKAKAO.addEventListener('click', ()=>{ CHANNEL='KAKAO'; setChipActive(); filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); });
-  topN.addEventListener('change', ()=>{ renderCampaignButtons(); });
+  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
   // range quick buttons
   btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value));
