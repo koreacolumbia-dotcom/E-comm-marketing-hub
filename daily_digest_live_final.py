@@ -41,7 +41,6 @@ from __future__ import annotations
 
 import os
 import json
-import re
 import base64
 import datetime as dt
 from dataclasses import dataclass
@@ -108,7 +107,6 @@ WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lo
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
 CHANNEL_BUCKETS = {
-    # NOTE: Legacy GA default-channel-group buckets (kept for Paid filters only)
     "Organic": {"Organic Search"},
     "Paid AD": {"Paid Search", "Paid Social", "Display"},
     "Owned": {"Email", "SMS", "Mobile Push Notifications", "Direct"},
@@ -117,17 +115,7 @@ CHANNEL_BUCKETS = {
 }
 PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
 
-# ✅ Looker Studio channel taxonomy (custom) — source/medium/campaign CASE WHEN (provided by you)
-# Output labels kept identical to Looker:
-#  1. Awareness / 2. Paid Ad / 3. Organic Traffic / 4. Official SNS / 5. Owned Channel / 6. etc
-LOOKER_BUCKET_ORDER = [
-    "1. Awareness",
-    "2. Paid Ad",
-    "3. Organic Traffic",
-    "4. Official SNS",
-    "5. Owned Channel",
-    "6. etc",
-]
+# ✅ Paid detail (custom) — fixed order / labels
 # - 기존 Paid Search/Paid Social/Display/Total 대신 아래 라벨로 노출
 # - source 기준(= sessionSource)으로 집계
 PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
@@ -189,161 +177,11 @@ def parse_yyyy_mm_dd(s: str) -> Optional[dt.date]:
     except Exception:
         return None
 
-def bucket_channel(source_medium: str, campaign: str = "") -> str:
-    """
-    Looker Studio custom channel taxonomy (source/medium + campaign).
-    Mirrors the CASE WHEN rules in the provided RTF.
-
-    Args:
-      source_medium: e.g. "naverbs / cpc"
-      campaign: session campaign name (may be empty if not available)
-
-    Returns:
-      One of:
-        "1. Awareness", "2. Paid Ad", "3. Organic Traffic",
-        "4. Official SNS", "5. Owned Channel", "6. etc"
-    """
-    sm = (source_medium or "").strip().lower()
-    cp = (campaign or "").strip().lower()
-
-    # Helper (case-insensitive regex via simple substring/regex where needed)
-    def has(pattern: str, s: str) -> bool:
-        return re.search(pattern, s, flags=re.IGNORECASE) is not None
-
-    # --- Priority order (must match Looker)
-    if has(r".*(instagram).*", sm) and has(r".*(story).*", sm):
-        return "4. Official SNS"
-
-    if has(r".*(benz).*", sm):
-        return "3. Organic Traffic"
-
-    if has(r".*(nap).*", sm) and has(r".*(da).*", sm):
-        return "2. Paid Ad"
-
-    if has(r".*(toss).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(blind).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(kakaobs).*", sm):
-        return "2. Paid Ad"
-
-    if has(r".*(inhouse).*", sm):
-        return "3. Organic Traffic"
-
-    if has(r".*(lms).*", sm) or has(r".*(lms).*", cp):
-        return "5. Owned Channel"
-    if has(r".*(email|edm).*", sm):
-        return "5. Owned Channel"
-    if has(r".*(kakao_fridnstalk).*", sm):
-        return "5. Owned Channel"
-
-    # mkt / _bd (note: original rule also checks campaign with special escaping)
-    if has(r".*(mkt|_bd).*", sm) or has(r".*(mkt|_bd).*", cp):
-        return "1. Awareness"
-
-    if has(r".*(igshopping).*", sm):
-        return "4. Official SNS"
-
-    if has(r".*(facebook).*", sm) and has(r".*(referral).*", sm):
-        return "3. Organic Traffic"
-    if has(r".*(instagram).*", sm) and has(r".*(referral).*", sm):
-        return "4. Official SNS"
-
-    if has(r".*(meta|facebook|instagram|ig|fb).*", sm):
-        return "2. Paid Ad"
-
-    # Google cpc (campaign-based)
-    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(\|\|\|\|dg|demandgen).*", cp):
-        return "1. Awareness"
-    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(pmax).*", cp):
-        return "2. Paid Ad"
-    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(\|yt|youtube|instream|vac|vvc).*", cp):
-        return "1. Awareness"
-    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(discovery).*", cp):
-        return "1. Awareness"
-    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(sa|ss|).*", cp):
-        return "2. Paid Ad"
-    if has(r".*(google\s*/\s*cpc).*", sm):
-        return "2. Paid Ad"
-
-    if has(r".*(google\s*/\s*organic).*", sm):
-        return "3. Organic Traffic"
-    if has(r".*(google).*", sm):
-        return "3. Organic Traffic"
-
-    if has(r".*(youtube).*", sm):
-        return "3. Organic Traffic"
-
-    if has(r".*(naver).*", sm) and has(r".*(da).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(gfa).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(naverbs).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(naver).*", sm) and has(r".*(cpc).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(shopping_ad).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(naver).*", sm) and has(r".*(shopping).*", sm):
-        return "3. Organic Traffic"
-    if has(r".*(naver).*", sm) and has(r".*(organic).*", sm):
-        return "3. Organic Traffic"
-    if has(r".*(naver).*", sm):
-        return "3. Organic Traffic"
-
-    if has(r".*(daum\s*/\s*organic).*", sm):
-        return "3. Organic Traffic"
-    if has(r".*(daum).*", sm) and has(r".*(referral).*", sm):
-        return "3. Organic Traffic"
-
-    if has(r".*(kakao_ch).*", sm) or has(r".*(kakao_ch).*", cp):
-        return "5. Owned Channel"
-    if has(r".*(kakao_alimtalk).*", sm):
-        return "5. Owned Channel"
-    if has(r".*(kakao_coupon).*", sm):
-        return "5. Owned Channel"
-    if has(r".*(kakao_chatbot).*", sm):
-        return "5. Owned Channel"
-    if has(r".*(kakao).*", sm):
-        return "2. Paid Ad"
-
-    if has(r".*(\(\s*direct\s*\)\s*/\s*\(\s*none\s*\)).*", sm):
-        return "3. Organic Traffic"
-
-    if has(r".*(signalplay|signal play|signal_play|sg_|signal|manplus).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(buzzvill).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(criteo).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(mobon).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(snow).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(smr).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(tg).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(t_cafe).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(blind).*", sm):
-        return "2. Paid Ad"
-
-    if has(r".*(cpc).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(organic).*", sm):
-        return "3. Organic Traffic"
-    if has(r".*(banner|da).*", sm):
-        return "2. Paid Ad"
-    if has(r".*(referral).*", sm):
-        return "3. Organic Traffic"
-    if has(r".*(shopping).*", sm):
-        return "3. Organic Traffic"
-    if has(r".*(social).*", sm):
-        return "3. Organic Traffic"
-
-    return "6. etc"
-
+def bucket_channel(ch: str) -> str:
+    for bucket, members in CHANNEL_BUCKETS.items():
+        if ch in members:
+            return bucket
+    return "Awareness"
 
 def index_series(vals: List[float]) -> List[float]:
     base = vals[0] if vals and vals[0] else 1.0
@@ -797,133 +635,361 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
         "yoy": get_one(w.yoy_start, w.yoy_end),
     }
 
-def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    """
-    Channel Snapshot — Looker-style (custom) channel taxonomy.
+# =========================
+# Channel Buckets (Looker-style) — source/medium + campaign custom rules
+# =========================
+def _rx(p: str):
+    return re.compile(p, re.IGNORECASE)
 
-    Uses sessionSourceMedium (+ sessionCampaignName if available) and applies
-    bucket_channel(source_medium, campaign) which mirrors the Looker CASE WHEN rules.
+def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
+    sm = (source_medium or "").strip()
+    cp = (campaign or "").strip()
+
+    # Follow the CASE order from Looker (샘플.rtf)
+    if _rx(r".*(instagram).*").search(sm) and _rx(r".*(story).*").search(sm):
+        return "SNS"
+    if _rx(r".*(benz).*").search(sm):
+        return "Organic"
+    if _rx(r".*(nap).*").search(sm) and _rx(r".*(da).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(toss).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(blind).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(kakaobs).*").search(sm):
+        return "Paid AD"
+
+    if _rx(r".*(inhouse).*").search(sm):
+        return "Organic"
+    if _rx(r".*(lms).*").search(sm) or _rx(r".*(lms).*").search(cp):
+        return "Owned"
+    if _rx(r".*(email|edm).*").search(sm):
+        return "Owned"
+    if _rx(r".*(kakao_fridnstalk).*").search(sm):
+        return "Owned"
+
+    if _rx(r".*(mkt|_bd).*").search(sm) or _rx(r".*(mkt|_bd).*").search(cp):
+        return "Awareness"
+
+    if _rx(r".*(igshopping).*").search(sm):
+        return "SNS"
+    if _rx(r".*(facebook).*").search(sm) and _rx(r".*(referral).*").search(sm):
+        return "Organic"
+    if _rx(r".*(instagram).*").search(sm) and _rx(r".*(referral).*").search(sm):
+        return "SNS"
+    if _rx(r".*(meta|facebook|instagram|ig|fb).*").search(sm):
+        return "Paid AD"
+
+    # google / cpc split by campaign keyword
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(dg|demandgen).*").search(cp):
+        return "Awareness"
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(pmax).*").search(cp):
+        return "Paid AD"
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(yt|youtube|instream|vac|vvc).*").search(cp):
+        return "Awareness"
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(discovery).*").search(cp):
+        return "Awareness"
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(sa|ss).*").search(cp):
+        return "Paid AD"
+    if _rx(r".*google\s*/\s*cpc.*").search(sm):
+        return "Paid AD"
+
+    if _rx(r".*google\s*/\s*organic.*").search(sm):
+        return "Organic"
+    if _rx(r".*(google).*").search(sm):
+        return "Organic"
+
+    if _rx(r".*(youtube).*").search(sm):
+        return "Organic"
+
+    if _rx(r".*(naver).*").search(sm) and _rx(r".*(da).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(gfa).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(naverbs).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(naver).*").search(sm) and _rx(r".*(cpc).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(shopping_ad).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(naver).*").search(sm) and _rx(r".*(shopping).*").search(sm):
+        return "Organic"
+    if _rx(r".*(naver).*").search(sm) and _rx(r".*(organic).*").search(sm):
+        return "Organic"
+    if _rx(r".*(naver).*").search(sm):
+        return "Organic"
+
+    if _rx(r".*daum\s*/\s*organic.*").search(sm):
+        return "Organic"
+    if _rx(r".*(daum).*").search(sm) and _rx(r".*(referral).*").search(sm):
+        return "Organic"
+
+    if _rx(r".*(kakao_ch).*").search(sm) or _rx(r".*(kakao_ch).*").search(cp):
+        return "Owned"
+    if _rx(r".*(kakao_alimtalk).*").search(sm):
+        return "Owned"
+    if _rx(r".*(kakao_coupon).*").search(sm):
+        return "Owned"
+    if _rx(r".*(kakao_chatbot).*").search(sm):
+        return "Owned"
+    if _rx(r".*(kakao).*").search(sm):
+        return "Paid AD"
+
+    if _rx(r".*\(direct\)\s*/\s*\(none\).*").search(sm):
+        return "Organic"
+
+    if _rx(r".*(signalplay|signal play|signal_play|sg_|signal|manplus).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(buzzvill).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(criteo).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(mobon).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(snow).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(smr).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(tg).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(t_cafe).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(blind).*").search(sm):
+        return "Paid AD"
+
+    # generic fallbacks
+    if _rx(r".*(cpc).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(organic).*").search(sm):
+        return "Organic"
+    if _rx(r".*(banner|da).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(referral).*").search(sm):
+        return "Organic"
+    if _rx(r".*(shopping).*").search(sm):
+        return "Organic"
+    if _rx(r".*(social).*").search(sm):
+        return "Organic"
+
+    return "Other"
+
+
+def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
+    """Paid detail sub-channel classification (Looker-style custom).
+
+    Output labels:
+      - core: naverbs / criteo / meta / google / naver mo / instagram
+      - fallback: normalized source token (lower) e.g., 'bing', 'daum', 'kakao', etc.
     """
+    sm = (source_medium or "").strip().lower()
+    cp = (campaign or "").strip().lower()
+
+    # --- Core buckets (your paid detail table)
+    if "naverbs" in sm:
+        return "naverbs"
+    if "criteo" in sm:
+        return "criteo"
+    if "meta" in sm or sm.startswith("facebook") or sm.startswith("fb") or "facebook" in sm:
+        return "meta"
+    if sm.startswith("google") or "google" in sm:
+        return "google"
+    if "m.search.naver.com" in sm or "m.ad.search.naver.com" in sm or "m.search.naver" in sm:
+        return "naver mo"
+    if "ig" in sm or "instagram" in sm or "igshopping" in sm:
+        return "instagram"
+
+    # --- Fallback: use source token before " / "
+    # e.g. "bing / cpc" -> "bing"
+    base = sm.split("/")[0].strip()
+    base = re.sub(r"\s+", " ", base)
+    return base or "other"
+
+
+
+def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
+    """Channel snapshot using Looker custom classification (source/medium + campaign)."""
+    dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
-    def run_one(start: dt.date, end: dt.date) -> pd.DataFrame:
-        # Prefer campaign-aware version; fallback to source/medium only
-        dims_try = ["sessionSourceMedium", "sessionCampaignName"]
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims_try, mets)
-            if df.empty:
-                return pd.DataFrame(columns=dims_try + mets)
-            return df
-        except Exception as e:
-            print(f"[WARN] Channel snapshot: sessionCampaignName not available (fallback). reason={e}")
-            dims_fallback = ["sessionSourceMedium"]
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims_fallback, mets)
-            if df.empty:
-                df = pd.DataFrame(columns=dims_fallback + mets)
-            df["sessionCampaignName"] = ""
-            return df
+    # Some properties may not allow sessionCampaignName; fallback gracefully.
+    try:
+        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
+        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
+        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
+    except Exception as _e:
+        dims = ["sessionSourceMedium"]
+        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
+        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
+        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
+        cur["sessionCampaignName"] = ""
+        prev["sessionCampaignName"] = ""
+        yoy["sessionCampaignName"] = ""
 
-    cur = run_one(w.cur_start, w.cur_end)
-    prev = run_one(w.prev_start, w.prev_end)
-    yoy = run_one(w.yoy_start, w.yoy_end)
+    if cur.empty:  cur = pd.DataFrame(columns=["sessionSourceMedium","sessionCampaignName"] + mets)
+    if prev.empty: prev = pd.DataFrame(columns=["sessionSourceMedium","sessionCampaignName"] + mets)
+    if yoy.empty:  yoy = pd.DataFrame(columns=["sessionSourceMedium","sessionCampaignName"] + mets)
 
-    for df in (cur, prev, yoy):
-        if "sessionCampaignName" not in df.columns:
-            df["sessionCampaignName"] = ""
-        if "sessionSourceMedium" not in df.columns:
-            df["sessionSourceMedium"] = ""
-        df["bucket"] = df.apply(lambda r: bucket_channel(str(r.get("sessionSourceMedium", "")), str(r.get("sessionCampaignName", ""))), axis=1)
-        df[mets] = df[mets].apply(pd.to_numeric, errors="coerce").fillna(0.0)
+    def _prep(df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        df["bucket"] = [
+            classify_looker_channel(str(sm), str(cp))
+            for sm, cp in zip(df.get("sessionSourceMedium",""), df.get("sessionCampaignName",""))
+        ]
+        for c in ["sessions","transactions","purchaseRevenue"]:
+            df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+        return df.groupby("bucket", as_index=False)[["sessions","transactions","purchaseRevenue"]].sum()
 
-    cur_agg = cur.groupby("bucket", as_index=False)[mets].sum()
-    prev_agg = prev.groupby("bucket", as_index=False)[mets].sum()
-    yoy_agg = yoy.groupby("bucket", as_index=False)[mets].sum()
+    cur_b = _prep(cur)
+    prev_b = _prep(prev)
+    yoy_b = _prep(yoy)
 
-    base = pd.DataFrame({"bucket": LOOKER_BUCKET_ORDER})
-
-    out = (
-        base.merge(cur_agg, on="bucket", how="left")
-            .merge(prev_agg, on="bucket", how="left", suffixes=("", "_prev"))
-            .merge(yoy_agg, on="bucket", how="left", suffixes=("", "_yoy"))
-            .fillna(0.0)
+    # Merge 3-way + compute DoD/YoY deltas (Revenue basis)
+    merged = cur_b.merge(prev_b, on="bucket", how="outer", suffixes=("_cur","_prev")).merge(
+        yoy_b, on="bucket", how="outer"
     )
+    merged = merged.fillna(0.0).rename(columns={
+        "sessions":"sessions_yoy", "transactions":"transactions_yoy", "purchaseRevenue":"purchaseRevenue_yoy"
+    })
 
-    out["rev_vs_prev"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
+    # keep only required output schema used downstream
+    out = pd.DataFrame({
+        "bucket": merged["bucket"],
+        "sessions": merged["sessions_cur"],
+        "transactions": merged["transactions_cur"],
+        "purchaseRevenue": merged["purchaseRevenue_cur"],
+    })
+
+    # Revenue DoD / YoY based on bucket revenue
+    out = out.merge(merged[["bucket","purchaseRevenue_prev","purchaseRevenue_yoy"]], on="bucket", how="left")
+    out["rev_dod"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
     out["rev_yoy"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_yoy"])), axis=1)
 
-    # Total row (matches KPI sessions scope)
-    tot = {
-        "bucket": "Total",
+    # ordering
+    order = {"Organic":0, "Paid AD":1, "Owned":2, "Awareness":3, "SNS":4, "Other":5}
+    out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
+    out = out.sort_values(["__o","bucket"]).drop(columns="__o")
+
+    # Total row
+    total = pd.DataFrame([{
+        "bucket":"Total",
         "sessions": float(out["sessions"].sum()),
         "transactions": float(out["transactions"].sum()),
         "purchaseRevenue": float(out["purchaseRevenue"].sum()),
-        "sessions_prev": float(out["sessions_prev"].sum()),
-        "transactions_prev": float(out["transactions_prev"].sum()),
         "purchaseRevenue_prev": float(out["purchaseRevenue_prev"].sum()),
-        "sessions_yoy": float(out["sessions_yoy"].sum()),
-        "transactions_yoy": float(out["transactions_yoy"].sum()),
         "purchaseRevenue_yoy": float(out["purchaseRevenue_yoy"].sum()),
-    }
-    tot["rev_vs_prev"] = pct_change(float(tot["purchaseRevenue"]), float(tot["purchaseRevenue_prev"]))
-    tot["rev_yoy"] = pct_change(float(tot["purchaseRevenue"]), float(tot["purchaseRevenue_yoy"]))
+        "rev_dod": pct_change(float(out["purchaseRevenue"].sum()), float(out["purchaseRevenue_prev"].sum())),
+        "rev_yoy": pct_change(float(out["purchaseRevenue"].sum()), float(out["purchaseRevenue_yoy"].sum())),
+    }])
+    out = pd.concat([out, total], ignore_index=True)
 
-    out = pd.concat([out, pd.DataFrame([tot])], ignore_index=True)
-
-    # Keep renderer schema stable
-    keep = ["bucket", "sessions", "transactions", "purchaseRevenue", "rev_vs_prev", "rev_yoy"]
-    return out[keep]
+    # Ensure downstream expects these columns
+    return out[["bucket","sessions","transactions","purchaseRevenue","rev_dod","rev_yoy"]]
 
 
 def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    """
-    Paid Detail — custom breakdown (requested)
+    """Paid detail (custom) from source/medium + campaign.
 
-    ✅ Keep UI/design unchanged (same table schema), but change the *rows* to:
-      naverbs / criteo / meta / google / naver mo / instagram
-
-    Logic:
-    - Dimension: sessionSource
-    - Filter: (Paid Search|Paid Social|Display) AND sessionSource in PAID_DETAIL_SOURCES
-    - 3-way: Current vs Prev vs YoY
+    - Filters rows classified as Paid AD (via classify_looker_channel)
+    - Sub-channel is classify_paid_detail()
+    - Default output includes:
+        core 6 rows (naverbs, criteo, meta, google, naver mo, instagram)
+        + up to 6 additional 'other' sources (top by sessions)
+        + Total
+      => total <= 13 rows
     """
-    dims = ["sessionSource"]
+    dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "purchaseRevenue"]
+    try:
+        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
+        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
+        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
+    except Exception:
+        dims = ["sessionSourceMedium"]
+        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
+        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
+        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
+        cur["sessionCampaignName"] = ""
+        prev["sessionCampaignName"] = ""
+        yoy["sessionCampaignName"] = ""
 
-    # paid traffic only + limited sources
-    filt = ga_filter_and([
-        ga_filter_in("sessionDefaultChannelGroup", PAID_SUBGROUPS),
-        ga_filter_in("sessionSource", PAID_DETAIL_SOURCES),
-    ])
+    def _norm(df: pd.DataFrame) -> pd.DataFrame:
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName"] + mets)
+        df = df.copy()
+        df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str)
+        df["sessionCampaignName"] = df.get("sessionCampaignName", "").astype(str)
+        for c in mets:
+            df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+        # bucket + sub
+        df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r.get("sessionCampaignName", "")), axis=1)
+        df = df[df["bucket"] == "Paid AD"].copy()
+        df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r.get("sessionCampaignName", "")), axis=1)
+        return df
 
-    cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, dimension_filter=filt)
-    prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, dimension_filter=filt)
-    yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, dimension_filter=filt)
+    cur = _norm(cur)
+    prev = _norm(prev)
+    yoy = _norm(yoy)
 
-    if cur.empty:  cur = pd.DataFrame(columns=dims + mets)
-    if prev.empty: prev = pd.DataFrame(columns=dims + mets)
-    if yoy.empty:  yoy = pd.DataFrame(columns=dims + mets)
+    def agg(df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return pd.DataFrame(columns=["sub", "sessions", "purchaseRevenue"])
+        return df.groupby("sub", as_index=False)[["sessions", "purchaseRevenue"]].sum()
 
-    cur = cur.rename(columns={"sessionSource": "sub_channel"})
-    prev = prev.rename(columns={"sessionSource": "sub_channel"})
-    yoy = yoy.rename(columns={"sessionSource": "sub_channel"})
+    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "purchaseRevenue": "rev_cur"})
+    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "purchaseRevenue": "rev_prev"})
+    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "purchaseRevenue": "rev_yoy_base"})
 
-    for df in (cur, prev, yoy):
-        df["sub_channel"] = df["sub_channel"].astype(str).str.strip()
-        df[mets] = df[mets].apply(pd.to_numeric, errors="coerce").fillna(0.0)
+    merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
+    merged["rev_vs_prev"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_prev"])), axis=1)
+    merged["rev_yoy"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_yoy_base"])), axis=1)
 
-    out = (
-        pd.DataFrame({"sub_channel": PAID_DETAIL_SOURCES})
-        .merge(cur, on="sub_channel", how="left")
-        .merge(prev, on="sub_channel", how="left", suffixes=("", "_prev"))
-        .merge(yoy, on="sub_channel", how="left", suffixes=("", "_yoy"))
-        .fillna(0.0)
-    )
+    core = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
+    # ensure core exists
+    for c in core:
+        if c not in set(merged["sub"].tolist()):
+            merged = pd.concat([merged, pd.DataFrame([{
+                "sub": c, "sessions_cur": 0.0, "rev_cur": 0.0,
+                "sessions_prev": 0.0, "rev_prev": 0.0,
+                "sessions_yoy": 0.0, "rev_yoy_base": 0.0,
+                "rev_vs_prev": 0.0, "rev_yoy": 0.0
+            }])], ignore_index=True)
 
-    out["rev_vs_prev"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
-    out["rev_yoy"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_yoy"])), axis=1)
+    # pick up to 6 extra subs (so total non-total <= 12)
+    others = merged[~merged["sub"].isin(core)].copy()
+    others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False]).head(6)
 
-    # Keep output schema identical to old paid_detail table renderer
-    return out[["sub_channel", "sessions", "purchaseRevenue", "rev_vs_prev", "rev_yoy"]]
+    ordered = pd.concat([
+        merged[merged["sub"].isin(core)].assign(_ord=lambda d: d["sub"].apply(lambda x: core.index(x))).sort_values("_ord"),
+        others.assign(_ord=999),
+    ], ignore_index=True)
+
+    total = {
+        "sub": "Total",
+        "sessions_cur": float(ordered["sessions_cur"].sum()),
+        "rev_cur": float(ordered["rev_cur"].sum()),
+        "sessions_prev": float(ordered["sessions_prev"].sum()),
+        "rev_prev": float(ordered["rev_prev"].sum()),
+        "sessions_yoy": float(ordered["sessions_yoy"].sum()),
+        "rev_yoy_base": float(ordered["rev_yoy_base"].sum()),
+    }
+    total["rev_vs_prev"] = pct_change(total["rev_cur"], total["rev_prev"])
+    total["rev_yoy"] = pct_change(total["rev_cur"], total["rev_yoy_base"])
+
+    out = ordered[["sub", "sessions_cur", "rev_cur", "rev_vs_prev", "rev_yoy"]].copy()
+    out = out.rename(columns={
+        "sub": "sub_channel",
+        "sessions_cur": "sessions",
+        "rev_cur": "purchaseRevenue",
+    })
+    out = pd.concat([out, pd.DataFrame([{
+        "sub_channel": total["sub"],
+        "sessions": total["sessions_cur"],
+        "purchaseRevenue": total["rev_cur"],
+        "rev_vs_prev": total["rev_vs_prev"],
+        "rev_yoy": total["rev_yoy"],
+    }])], ignore_index=True)
+
+    return out
 
 
 def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
@@ -1265,19 +1331,17 @@ def pdp_cache_path(end_date: dt.date) -> str:
     return os.path.join(OUT_DIR, "cache", "pdp", f"{ymd(end_date)}.json")
 
 def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dict]:
+    """Category PDP Trend (7D) based on BigQuery events (view_item).
+
+    Returns:
+      - DataFrame columns: itemCategory, views_d1, views_avg7d, trend_svg
+      - meta dict (reserved; kept for backward compatibility)
+    """
     axis_dates = [end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
     xlabels = [d.strftime('%m/%d') for d in axis_dates]
 
-    if CACHE_PDP:
-        cached = read_json(pdp_cache_path(end_date))
-        if cached and isinstance(cached.get("rows"), list) and cached.get("x") == xlabels:
-            df = pd.DataFrame(cached["rows"])
-            return df, {"x": cached.get("x", xlabels), "rows": cached["rows"]}
-
     if bigquery is None or not BQ_EVENTS_TABLE:
-        print("[WARN] BigQuery not available; PDP Trend empty.")
-        df = pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
-        return df, {"x": xlabels, "rows": []}
+        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
 
     try:
         bq = bigquery.Client()
@@ -1286,27 +1350,6 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
         end_suffix = end_date.strftime('%Y%m%d')
         lookup_start = (end_date - dt.timedelta(days=30)).strftime('%Y%m%d')
         lookup_end = end_date.strftime('%Y%m%d')
-
-        diag_sql = f"""
-        WITH base AS (
-          SELECT event_date, event_name, items.item_id AS item_id
-          FROM `{BQ_EVENTS_TABLE}`
-          LEFT JOIN UNNEST(items) AS items
-          WHERE _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
-            AND event_name = 'view_item'
-        )
-        SELECT
-          COUNTIF(event_name='view_item') AS view_item_events,
-          COUNTIF(event_name='view_item' AND item_id IS NOT NULL) AS view_item_with_itemid
-        FROM base
-        """
-        diag = bq.query(diag_sql, location=BQ_LOCATION or None).to_dataframe()
-        if not diag.empty:
-            ve = int(diag.loc[0, "view_item_events"] or 0)
-            vi = int(diag.loc[0, "view_item_with_itemid"] or 0)
-            print(f"[DIAG] PDP Trend | view_item_events={ve:,} | view_item_with_itemid={vi:,}")
-            if ve > 0 and vi == 0:
-                print("[WARN] PDP Trend empty: view_item events have NO items[].item_id in BigQuery export.")
 
         sql = f"""
         WITH item_lookup AS (
@@ -1338,58 +1381,45 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
         SELECT d, UPPER(IFNULL(c1,'')) AS c1, IFNULL(c2,'') AS c2, views
         FROM pdp
         """
+
         df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
         if df.empty:
-            out = pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
-            if CACHE_PDP:
-                write_json(pdp_cache_path(end_date), {"x": xlabels, "rows": []})
-            return out, {"x": xlabels, "rows": []}
+            return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
 
         df['d'] = pd.to_datetime(df['d'], errors='coerce').dt.date
         df = df.dropna(subset=['d'])
         df['c1'] = df['c1'].astype(str).str.strip().str.upper()
         df['c2'] = df['c2'].astype(str).str.strip()
-        df['views'] = pd.to_numeric(df['views'], errors="coerce").fillna(0.0)
+        df['views'] = pd.to_numeric(df['views'], errors='coerce').fillna(0.0)
 
         rows = []
-        cache_rows = []
         for c1, subs in PDP_CATEGORY_MAP.items():
             for sub_label, c2_list in subs.items():
                 ys = []
-                for d0 in axis_dates:
-                    m = (df['d'] == d0) & (df['c1'] == c1) & (df['c2'].isin(c2_list))
+                for d in axis_dates:
+                    m = (df['d'] == d) & (df['c1'] == c1)
+                    if c2_list:
+                        m = m & (df['c2'].isin(c2_list))
+                    else:
+                        m = m & (df['c2'] == sub_label)
                     ys.append(float(df.loc[m, 'views'].sum()))
 
                 d1 = ys[-1] if ys else 0.0
                 avg7 = (sum(ys) / len(ys)) if ys else 0.0
-                label = f"{c1} · {sub_label}"
                 rows.append({
-                    "itemCategory": label,
-                    "views_d1": float(d1),
-                    "views_avg7d": float(avg7),
-                    "trend_svg": spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
-                })
-                cache_rows.append({
-                    "itemCategory": label,
-                    "views_d1": float(d1),
-                    "views_avg7d": float(avg7),
-                    "ys": ys
+                    'itemCategory': f"{c1} · {sub_label}",
+                    'views_d1': float(d1),
+                    'views_avg7d': float(avg7),
+                    'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
                 })
 
-        out_df = pd.DataFrame(rows)
-        if CACHE_PDP:
-            write_json(pdp_cache_path(end_date), {"x": xlabels, "rows": cache_rows})
-        return out_df, {"x": xlabels, "rows": cache_rows}
+        return pd.DataFrame(rows), {}
 
     except Exception as e:
-        print(f"[WARN] PDP Trend BigQuery failed: {type(e).__name__}: {e}")
-        out = pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"])
-        return out, {"x": xlabels, "rows": []}
+        print(f"[WARN] PDP Category Trend BigQuery failed: {type(e).__name__}: {e}")
+        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
 
 
-# =========================
-# Search Trends (count 포함)
-# =========================
 def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dict[str, pd.DataFrame]:
     lookback_start = end_date - dt.timedelta(days=13)
     df = run_report(
@@ -1655,11 +1685,11 @@ def render_page_html(
             return f"<img src='{esc(u)}' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>"
         return "<div class='w-8 h-8 rounded-xl bg-slate-100 border border-slate-200'></div>"
 
-    def table_row(cols: List[str], bold=False) -> str:
+    def table_row(cols: List[str], bold=False, row_class: str = "") -> str:
         fw = "font-extrabold" if bold else "font-medium"
         bg = "bg-slate-50" if bold else ""
         tds = "".join([f"<td class='px-3 py-2 border-b border-slate-100 {fw}'>{c}</td>" for c in cols])
-        return f"<tr class='{bg}'>{tds}</tr>"
+        return f"<tr class='{bg} {row_class}'>{tds}</tr>"
 
     # --- Channel snapshot table rows
     chan_html = ""
@@ -1675,16 +1705,42 @@ def render_page_html(
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
 
     # --- Paid detail rows
+    
     paid_html = ""
+    paid_total_row = ""
     if paid_detail is not None and (not paid_detail.empty):
+        # default show: 6 rows, expand: up to 12 rows (excluding Total)
+        show_n = 6
+        max_n = 12
+        idx_non_total = 0
+
         for r in paid_detail.itertuples(index=False):
-            paid_html += table_row([
-                esc(getattr(r, "sub_channel", "")),
+            sub = str(getattr(r, "sub_channel", "") or "").strip()
+            is_total = (sub.lower() == "total")
+            is_bold = (sub.lower() == "total") or (sub.lower() == "google")
+
+            row_cls = ""
+            if (not is_total) and idx_non_total >= show_n:
+                row_cls = "paid-extra hidden"
+            if not is_total:
+                idx_non_total += 1
+
+            row_html = table_row([
+                esc(sub),
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_vs_prev', 0) or 0))}'>{('+' if float(getattr(r,'rev_vs_prev',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_vs_prev',0) or 0),1)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
-            ], bold=(str(getattr(r, "sub_channel", "")).strip().lower() == "google"))
+            ], bold=is_bold, row_class=row_cls)
+
+            if is_total:
+                paid_total_row += row_html
+            else:
+                # hard cap for expansion payload (keep only up to max_n non-total rows)
+                if idx_non_total <= max_n:
+                    paid_html += row_html
+
+        paid_html += paid_total_row
 
     # --- Best sellers cards
     bs_rows = ""
@@ -1775,6 +1831,23 @@ def render_page_html(
 
     compare_js = ""
     compare_bar_html = ""
+    paid_toggle_js = """<script>
+(function(){
+  const btn = document.getElementById('paidToggle');
+  if(!btn) return;
+  let on = false;
+  function set(onNext){
+    on = !!onNext;
+    document.querySelectorAll('.paid-extra').forEach(el=>{
+      if(on) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    });
+    btn.textContent = on ? 'Show less' : 'Show more (12)';
+  }
+  btn.addEventListener('click', ()=> set(!on));
+  set(false);
+})();
+</script>"""
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -1833,7 +1906,12 @@ def render_page_html(
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
+        <div class="flex items-center justify-between gap-3">
+          <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
+          <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-extrabold text-slate-700 hover:bg-white">
+            Show more (12)
+          </button>
+        </div>
         <table class="mt-3 w-full text-sm">
           <thead class="text-xs text-slate-500">
             <tr>
@@ -1884,6 +1962,9 @@ def render_page_html(
   </div>
 
   {compare_js}
+
+  {paid_toggle_js}
+
 </body>
 </html>
 """
