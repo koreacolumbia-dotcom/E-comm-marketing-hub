@@ -128,7 +128,6 @@ LOOKER_BUCKET_ORDER = [
     "5. Owned Channel",
     "6. etc",
 ]
- (custom) — fixed order / labels
 # - 기존 Paid Search/Paid Social/Display/Total 대신 아래 라벨로 노출
 # - source 기준(= sessionSource)으로 집계
 PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
