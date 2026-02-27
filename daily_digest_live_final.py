@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import base64
 import datetime as dt
 from dataclasses import dataclass
@@ -107,22 +108,27 @@ WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lo
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
 CHANNEL_BUCKETS = {
-    # ✅ Looker(퍼널) 기준에 최대한 정렬
-    # - Awareness: Paid Social / Paid Video (상단 퍼널) + GA의 상단성격 채널들
-    # - Paid AD: Paid Search / Display / Paid Other
-    # - Organic: Organic Search + Direct + Referral(루커스 Organic Traffic에 맞춤)
-    # - Owned: Email/SMS/Push
-    # - SNS: Organic Social
-    "Organic": {"Organic Search", "Direct", "Referral"},
-    "Paid AD": {"Paid Search", "Display", "Paid Other"},
-    "Owned": {"Email", "SMS", "Mobile Push Notifications"},
-    "Awareness": {"Paid Social", "Paid Video", "Organic Video", "Cross-network"},
+    # NOTE: Legacy GA default-channel-group buckets (kept for Paid filters only)
+    "Organic": {"Organic Search"},
+    "Paid AD": {"Paid Search", "Paid Social", "Display"},
+    "Owned": {"Email", "SMS", "Mobile Push Notifications", "Direct"},
+    "Awareness": {"Referral", "Video", "Organic Video", "Affiliates", "Cross-network"},
     "SNS": {"Organic Social"},
-    # 정의되지 않은 채널은 Other로 분리 (bucket_channel fallback)
 }
-PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display", "Paid Other"]
+PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
 
-# ✅ Paid detail (custom) — fixed order / labels
+# ✅ Looker Studio channel taxonomy (custom) — source/medium/campaign CASE WHEN (provided by you)
+# Output labels kept identical to Looker:
+#  1. Awareness / 2. Paid Ad / 3. Organic Traffic / 4. Official SNS / 5. Owned Channel / 6. etc
+LOOKER_BUCKET_ORDER = [
+    "1. Awareness",
+    "2. Paid Ad",
+    "3. Organic Traffic",
+    "4. Official SNS",
+    "5. Owned Channel",
+    "6. etc",
+]
+ (custom) — fixed order / labels
 # - 기존 Paid Search/Paid Social/Display/Total 대신 아래 라벨로 노출
 # - source 기준(= sessionSource)으로 집계
 PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
@@ -184,12 +190,161 @@ def parse_yyyy_mm_dd(s: str) -> Optional[dt.date]:
     except Exception:
         return None
 
-def bucket_channel(ch: str) -> str:
-    # ✅ 안전: 정의되지 않은 채널은 Awareness로 몰지 말고 Other로 분리
-    for bucket, members in CHANNEL_BUCKETS.items():
-        if ch in members:
-            return bucket
-    return "Other"
+def bucket_channel(source_medium: str, campaign: str = "") -> str:
+    """
+    Looker Studio custom channel taxonomy (source/medium + campaign).
+    Mirrors the CASE WHEN rules in the provided RTF.
+
+    Args:
+      source_medium: e.g. "naverbs / cpc"
+      campaign: session campaign name (may be empty if not available)
+
+    Returns:
+      One of:
+        "1. Awareness", "2. Paid Ad", "3. Organic Traffic",
+        "4. Official SNS", "5. Owned Channel", "6. etc"
+    """
+    sm = (source_medium or "").strip().lower()
+    cp = (campaign or "").strip().lower()
+
+    # Helper (case-insensitive regex via simple substring/regex where needed)
+    def has(pattern: str, s: str) -> bool:
+        return re.search(pattern, s, flags=re.IGNORECASE) is not None
+
+    # --- Priority order (must match Looker)
+    if has(r".*(instagram).*", sm) and has(r".*(story).*", sm):
+        return "4. Official SNS"
+
+    if has(r".*(benz).*", sm):
+        return "3. Organic Traffic"
+
+    if has(r".*(nap).*", sm) and has(r".*(da).*", sm):
+        return "2. Paid Ad"
+
+    if has(r".*(toss).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(blind).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(kakaobs).*", sm):
+        return "2. Paid Ad"
+
+    if has(r".*(inhouse).*", sm):
+        return "3. Organic Traffic"
+
+    if has(r".*(lms).*", sm) or has(r".*(lms).*", cp):
+        return "5. Owned Channel"
+    if has(r".*(email|edm).*", sm):
+        return "5. Owned Channel"
+    if has(r".*(kakao_fridnstalk).*", sm):
+        return "5. Owned Channel"
+
+    # mkt / _bd (note: original rule also checks campaign with special escaping)
+    if has(r".*(mkt|_bd).*", sm) or has(r".*(mkt|_bd).*", cp):
+        return "1. Awareness"
+
+    if has(r".*(igshopping).*", sm):
+        return "4. Official SNS"
+
+    if has(r".*(facebook).*", sm) and has(r".*(referral).*", sm):
+        return "3. Organic Traffic"
+    if has(r".*(instagram).*", sm) and has(r".*(referral).*", sm):
+        return "4. Official SNS"
+
+    if has(r".*(meta|facebook|instagram|ig|fb).*", sm):
+        return "2. Paid Ad"
+
+    # Google cpc (campaign-based)
+    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(\|\|\|\|dg|demandgen).*", cp):
+        return "1. Awareness"
+    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(pmax).*", cp):
+        return "2. Paid Ad"
+    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(\|yt|youtube|instream|vac|vvc).*", cp):
+        return "1. Awareness"
+    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(discovery).*", cp):
+        return "1. Awareness"
+    if has(r".*(google\s*/\s*cpc).*", sm) and has(r".*(sa|ss|).*", cp):
+        return "2. Paid Ad"
+    if has(r".*(google\s*/\s*cpc).*", sm):
+        return "2. Paid Ad"
+
+    if has(r".*(google\s*/\s*organic).*", sm):
+        return "3. Organic Traffic"
+    if has(r".*(google).*", sm):
+        return "3. Organic Traffic"
+
+    if has(r".*(youtube).*", sm):
+        return "3. Organic Traffic"
+
+    if has(r".*(naver).*", sm) and has(r".*(da).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(gfa).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(naverbs).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(naver).*", sm) and has(r".*(cpc).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(shopping_ad).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(naver).*", sm) and has(r".*(shopping).*", sm):
+        return "3. Organic Traffic"
+    if has(r".*(naver).*", sm) and has(r".*(organic).*", sm):
+        return "3. Organic Traffic"
+    if has(r".*(naver).*", sm):
+        return "3. Organic Traffic"
+
+    if has(r".*(daum\s*/\s*organic).*", sm):
+        return "3. Organic Traffic"
+    if has(r".*(daum).*", sm) and has(r".*(referral).*", sm):
+        return "3. Organic Traffic"
+
+    if has(r".*(kakao_ch).*", sm) or has(r".*(kakao_ch).*", cp):
+        return "5. Owned Channel"
+    if has(r".*(kakao_alimtalk).*", sm):
+        return "5. Owned Channel"
+    if has(r".*(kakao_coupon).*", sm):
+        return "5. Owned Channel"
+    if has(r".*(kakao_chatbot).*", sm):
+        return "5. Owned Channel"
+    if has(r".*(kakao).*", sm):
+        return "2. Paid Ad"
+
+    if has(r".*(\(\s*direct\s*\)\s*/\s*\(\s*none\s*\)).*", sm):
+        return "3. Organic Traffic"
+
+    if has(r".*(signalplay|signal play|signal_play|sg_|signal|manplus).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(buzzvill).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(criteo).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(mobon).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(snow).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(smr).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(tg).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(t_cafe).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(blind).*", sm):
+        return "2. Paid Ad"
+
+    if has(r".*(cpc).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(organic).*", sm):
+        return "3. Organic Traffic"
+    if has(r".*(banner|da).*", sm):
+        return "2. Paid Ad"
+    if has(r".*(referral).*", sm):
+        return "3. Organic Traffic"
+    if has(r".*(shopping).*", sm):
+        return "3. Organic Traffic"
+    if has(r".*(social).*", sm):
+        return "3. Organic Traffic"
+
+    return "6. etc"
+
 
 def index_series(vals: List[float]) -> List[float]:
     base = vals[0] if vals and vals[0] else 1.0
@@ -644,27 +799,48 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
     }
 
 def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    dims = ["sessionDefaultChannelGroup"]
+    """
+    Channel Snapshot — Looker-style (custom) channel taxonomy.
+
+    Uses sessionSourceMedium (+ sessionCampaignName if available) and applies
+    bucket_channel(source_medium, campaign) which mirrors the Looker CASE WHEN rules.
+    """
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
-    cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets)
-    prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets)
-    yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets)
+    def run_one(start: dt.date, end: dt.date) -> pd.DataFrame:
+        # Prefer campaign-aware version; fallback to source/medium only
+        dims_try = ["sessionSourceMedium", "sessionCampaignName"]
+        try:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims_try, mets)
+            if df.empty:
+                return pd.DataFrame(columns=dims_try + mets)
+            return df
+        except Exception as e:
+            print(f"[WARN] Channel snapshot: sessionCampaignName not available (fallback). reason={e}")
+            dims_fallback = ["sessionSourceMedium"]
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims_fallback, mets)
+            if df.empty:
+                df = pd.DataFrame(columns=dims_fallback + mets)
+            df["sessionCampaignName"] = ""
+            return df
 
-    if cur.empty:  cur = pd.DataFrame(columns=dims + mets)
-    if prev.empty: prev = pd.DataFrame(columns=dims + mets)
-    if yoy.empty:  yoy = pd.DataFrame(columns=dims + mets)
+    cur = run_one(w.cur_start, w.cur_end)
+    prev = run_one(w.prev_start, w.prev_end)
+    yoy = run_one(w.yoy_start, w.yoy_end)
 
     for df in (cur, prev, yoy):
-        df["bucket"] = df["sessionDefaultChannelGroup"].apply(bucket_channel)
+        if "sessionCampaignName" not in df.columns:
+            df["sessionCampaignName"] = ""
+        if "sessionSourceMedium" not in df.columns:
+            df["sessionSourceMedium"] = ""
+        df["bucket"] = df.apply(lambda r: bucket_channel(str(r.get("sessionSourceMedium", "")), str(r.get("sessionCampaignName", ""))), axis=1)
         df[mets] = df[mets].apply(pd.to_numeric, errors="coerce").fillna(0.0)
 
     cur_agg = cur.groupby("bucket", as_index=False)[mets].sum()
     prev_agg = prev.groupby("bucket", as_index=False)[mets].sum()
     yoy_agg = yoy.groupby("bucket", as_index=False)[mets].sum()
 
-    buckets = ["Organic", "Paid AD", "Owned", "Awareness", "SNS"]
-    base = pd.DataFrame({"bucket": buckets})
+    base = pd.DataFrame({"bucket": LOOKER_BUCKET_ORDER})
 
     out = (
         base.merge(cur_agg, on="bucket", how="left")
@@ -676,30 +852,28 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
     out["rev_vs_prev"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
     out["rev_yoy"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_yoy"])), axis=1)
 
-    tot_cur_rev = float(out["purchaseRevenue"].sum())
-    tot_prev_rev = float(out["purchaseRevenue_prev"].sum())
-    tot_yoy_rev = float(out["purchaseRevenue_yoy"].sum())
-    total_row = {
+    # Total row (matches KPI sessions scope)
+    tot = {
         "bucket": "Total",
         "sessions": float(out["sessions"].sum()),
         "transactions": float(out["transactions"].sum()),
-        "purchaseRevenue": tot_cur_rev,
+        "purchaseRevenue": float(out["purchaseRevenue"].sum()),
         "sessions_prev": float(out["sessions_prev"].sum()),
         "transactions_prev": float(out["transactions_prev"].sum()),
-        "purchaseRevenue_prev": tot_prev_rev,
+        "purchaseRevenue_prev": float(out["purchaseRevenue_prev"].sum()),
         "sessions_yoy": float(out["sessions_yoy"].sum()),
         "transactions_yoy": float(out["transactions_yoy"].sum()),
-        "purchaseRevenue_yoy": tot_yoy_rev,
-        "rev_vs_prev": pct_change(tot_cur_rev, tot_prev_rev),
-        "rev_yoy": pct_change(tot_cur_rev, tot_yoy_rev),
+        "purchaseRevenue_yoy": float(out["purchaseRevenue_yoy"].sum()),
     }
+    tot["rev_vs_prev"] = pct_change(float(tot["purchaseRevenue"]), float(tot["purchaseRevenue_prev"]))
+    tot["rev_yoy"] = pct_change(float(tot["purchaseRevenue"]), float(tot["purchaseRevenue_yoy"]))
 
-    out = pd.concat([out, pd.DataFrame([total_row])], ignore_index=True)
-    return out[[
-        "bucket",
-        "sessions", "transactions", "purchaseRevenue",
-        "rev_vs_prev", "rev_yoy"
-    ]]
+    out = pd.concat([out, pd.DataFrame([tot])], ignore_index=True)
+
+    # Keep renderer schema stable
+    keep = ["bucket", "sessions", "transactions", "purchaseRevenue", "rev_vs_prev", "rev_yoy"]
+    return out[keep]
+
 
 def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     """
@@ -1728,7 +1902,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
     latest = dates[-1]
 
     date_opts = "\n".join([f"<option value='{d.strftime('%Y-%m-%d')}'>{d.strftime('%Y-%m-%d')}</option>" for d in reversed(dates)])
-    latest_ymd = (max(dates).strftime('%Y-%m-%d') if dates else '')
 
     # Minimal hub UI; does NOT trigger GA/BQ calls. It reads cached bundle JSON in /data/.
     return f"""<!doctype html>
@@ -1743,7 +1916,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
     body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900" data-latest="{latest_ymd}">
+<body class="bg-slate-50 text-slate-900">
   <div class="mx-auto max-w-6xl p-6 embed-tight">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
