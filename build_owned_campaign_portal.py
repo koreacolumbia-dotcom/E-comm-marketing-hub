@@ -327,6 +327,9 @@ def write_available_dates(data_dir: Path, dates: List[str]) -> None:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--site-dir", required=True, help="site root that contains data/owned/")
+    ap.add_argument("--project", default="", help="BigQuery project id (overrides env BQ_PROJECT)")
+    ap.add_argument("--dataset", default="", help="BigQuery dataset id (overrides env BQ_DATASET)")
+    ap.add_argument("--overwrite", action="store_true", help="if set, delete existing owned_YYYY-MM-DD.json when a day has no rows")
     ap.add_argument("--start", default="", help="YYYY-MM-DD (default: yesterday KST)")
     ap.add_argument("--end", default="", help="YYYY-MM-DD (default: yesterday KST)")
     ap.add_argument("--write-empty-days", action="store_true", help="write empty daily json as well")
@@ -334,11 +337,10 @@ def main():
 
     maybe_write_sa_from_b64()
 
-    project = (os.getenv("BQ_PROJECT") or "").strip()
-    dataset = (os.getenv("BQ_DATASET") or "").strip()
+    project = (args.project or os.getenv("BQ_PROJECT") or "").strip()
+    dataset = (args.dataset or os.getenv("BQ_DATASET") or "").strip()
     if not project or not dataset:
-        raise SystemExit("[ERROR] Please set env BQ_PROJECT and BQ_DATASET")
-
+        raise SystemExit("[ERROR] Please set BQ_PROJECT/BQ_DATASET env or pass --project/--dataset")
     if args.start:
         start_d = parse_date(args.start)
     else:
@@ -408,9 +410,17 @@ def main():
             ["date", "channel", "campaign", "term", "item_id", "item_name", "prod_items", "prod_revenue"]
         ].to_dict(orient="records")
 
+        out_path = data_dir / f"owned_{d}.json"
         if (not k_rows) and (not p_rows) and (not args.write_empty_days):
+            # If overwriting a range, remove stale files/dates for days that became empty.
+            if args.overwrite:
+                if out_path.exists():
+                    out_path.unlink()
+                if d in available_set:
+                    available_set.remove(d)
             continue
 
+        # Build rows (write even if empty when --write-empty-days)
         kpi_rows = [{
             "date": r.get("date"),
             "channel": r.get("channel"),
@@ -435,7 +445,7 @@ def main():
         } for r in p_rows]
 
         out = {"date": d, "kpi": kpi_rows, "prod": prod_rows}
-        (data_dir / f"owned_{d}.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+        out_path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
         available_set.add(d)
 
     write_available_dates(data_dir, sorted(available_set))
