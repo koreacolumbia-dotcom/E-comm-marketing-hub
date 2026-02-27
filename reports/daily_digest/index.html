@@ -483,6 +483,10 @@
 
   btnReload.addEventListener('click', ()=>{
     setBusy(true, '새로고침…');
+    try{
+      localStorage.removeItem('ddhub_exists_cache_v7');
+      if(window.memCache && window.memCache.clear){ memCache.clear(); }
+    }catch(e){}
     location.reload();
   });
 
