@@ -2,42 +2,25 @@
 # -*- coding: utf-8 -*-
 
 """
-OWNED Campaign Explorer — Data Builder (JSON only)
+OWNED Campaign → Data Builder (GA4 BigQuery Export)
+- EDM/LMS/KAKAO 세션 성과 + 구매 상품을 campaign/term 레벨로 집계
+- 일자별 JSON 번들 생성 (정적 index.html에서 로드)
 
-- Pulls GA4 BigQuery Export (events_*) and builds daily JSON bundles for the Owned portal.
-- Writes ONLY:
-    <site_dir>/data/owned/owned_YYYY-MM-DD.json
-    <site_dir>/data/owned/available_dates.json
-  (Does NOT write/overwrite index.html)
+✅ 날짜 그룹핑 케이스 대응 (index.html에서 처리)
+- campaign에 MMDD가 있는 케이스: EDM_0214 / LMS_ECOM_0214 ...
+- campaign이 EDM처럼 고정이고 term에 MMDD가 있는 케이스: EDM + 0226_C75...
 
-JSON schema (per day):
-{
-  "date": "YYYY-MM-DD",
-  "kpi": [
-    {"date","channel","campaign","term","sessions","users","purchases","revenue","items_purchased"}
-  ],
-  "prod": [
-    {"date","channel","campaign","term","item_id","item_name","prod_items","prod_revenue"}
-  ]
-}
+Outputs
+- <site-dir>/data/owned/owned_YYYY-MM-DD.json
+- <site-dir>/data/owned/available_dates.json
+- <site-dir>/.nojekyll
 
-Channel mapping:
-- LMS: utm_medium contains 'lms' (e.g., LMS_ECOM, lms, lms_xxx)
-- EDM: utm_medium in (edm,email) or contains 'edm'/'email'
-- KAKAO: utm_source or utm_medium contains 'kakao'
+Auth
+- GOOGLE_SA_JSON_B64 (optional) : service account json base64
 
-Notes
-- MMDD grouping is handled by index.html on the client:
-  it extracts MMDD from campaign first, then term.
-  (Supports cases like EDM_0214 + term=Birdley..., and campaign=EDM + term=0226_SKU...)
-
-Env
-- BQ_PROJECT: BigQuery project id
-- BQ_DATASET: GA4 export dataset (contains events_* tables)
-- GOOGLE_SA_JSON_B64: optional; base64-encoded service account JSON. If provided, written to /tmp/ga_sa.json.
-
-Usage
-python build_owned_campaign_data_only_FINAL.py --site-dir reports/owned_portal --start 2026-02-20 --end 2026-02-26
+BQ config priority
+1) CLI args: --project / --dataset
+2) env: BQ_PROJECT / BQ_DATASET
 """
 
 import os
@@ -46,31 +29,31 @@ import base64
 import argparse
 from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
 from google.cloud import bigquery
 
-
+# ----------------------------
+# Time helpers (KST)
+# ----------------------------
 KST = timezone(timedelta(hours=9))
-
 
 def kst_today() -> date:
     return datetime.now(tz=KST).date()
 
-
 def suffix(d: date) -> str:
     return d.strftime("%Y%m%d")
-
 
 def ymd(d: date) -> str:
     return d.strftime("%Y-%m-%d")
 
-
 def parse_date(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
-
+# ----------------------------
+# Auth helpers (optional b64)
+# ----------------------------
 def maybe_write_sa_from_b64() -> None:
     b64 = (os.getenv("GOOGLE_SA_JSON_B64") or "").strip()
     if not b64:
@@ -79,7 +62,9 @@ def maybe_write_sa_from_b64() -> None:
     p.write_bytes(base64.b64decode(b64))
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(p)
 
-
+# ----------------------------
+# BigQuery SQL
+# ----------------------------
 def build_sql(project: str, dataset: str, start_suffix: str, end_suffix: str) -> str:
     table = f"`{project}.{dataset}.events_*`"
     return f"""
@@ -113,7 +98,10 @@ WITH base AS (
     (SELECT value.string_value FROM UNNEST(event_params) WHERE key='utm_term')     AS ep_utm_term,
 
     event_name,
-    ecommerce.purchase_revenue AS purchase_revenue,
+    ecommerce.purchase_revenue AS ecommerce_purchase_revenue,
+    ecommerce.purchase_revenue_in_usd AS ecommerce_purchase_revenue_usd,
+    (SELECT COALESCE(value.double_value, CAST(value.int_value AS FLOAT64), CAST(value.float_value AS FLOAT64))
+     FROM UNNEST(event_params) WHERE key='value') AS ep_value,
     items
   FROM {table}
   WHERE _TABLE_SUFFIX BETWEEN start_suffix AND end_suffix
@@ -127,31 +115,32 @@ base2 AS (
     ga_session_id,
     CONCAT(user_pseudo_id, '-', CAST(ga_session_id AS STRING)) AS session_key,
 
-    -- Priority: collected_traffic_source > event_params(utm_*) > event_params(source/medium/..) > traffic_source
+    -- priority: collected_traffic_source > event_params(utm_*) > event_params(source/medium/..) > traffic_source
     NULLIF(COALESCE(cts_source,   ep_utm_source,   ep_source,   ts_source),   '') AS utm_source,
     NULLIF(COALESCE(cts_medium,   ep_utm_medium,   ep_medium,   ts_medium),   '') AS utm_medium,
     NULLIF(COALESCE(cts_campaign, ep_utm_campaign, ep_campaign, ts_campaign), '') AS utm_campaign,
     NULLIF(COALESCE(cts_term,     ep_utm_term,     ep_term),                 '') AS utm_term,
 
     event_name,
-    IFNULL(purchase_revenue, 0) AS purchase_revenue,
+    COALESCE(ecommerce_purchase_revenue, ecommerce_purchase_revenue_usd, ep_value, 0) AS purchase_revenue,
     items
   FROM base
   WHERE ga_session_id IS NOT NULL
 ),
 
 session_dim AS (
-  -- Session-scope UTM: take the first non-null in timestamp order
+  -- per session: take first non-null utm fields by timestamp
   SELECT
     date,
     user_pseudo_id,
+    ga_session_id,
     session_key,
     ARRAY_AGG(utm_source   IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_source,
     ARRAY_AGG(utm_medium   IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_medium,
     ARRAY_AGG(utm_campaign IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_campaign,
     ARRAY_AGG(utm_term     IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[OFFSET(0)] AS utm_term
   FROM base2
-  GROUP BY 1,2,3
+  GROUP BY 1,2,3,4
 ),
 
 sessions_owned AS (
@@ -315,24 +304,30 @@ FROM prod_rows
 ;
 """
 
+# ----------------------------
+# Helpers
+# ----------------------------
+def read_existing_dates(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    try:
+        j = json.loads(path.read_text(encoding="utf-8"))
+        return {d for d in (j.get("available_dates") or []) if isinstance(d, str) and d}
+    except Exception:
+        return set()
 
-def write_available_dates(data_dir: Path, dates: List[str]) -> None:
-    data_dir.mkdir(parents=True, exist_ok=True)
-    (data_dir / "available_dates.json").write_text(
-        json.dumps({"available_dates": sorted(dates)}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
+def write_available_dates(path: Path, dates: set[str]) -> None:
+    path.write_text(json.dumps({"available_dates": sorted(dates)}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--site-dir", required=True, help="site root that contains data/owned/")
-    ap.add_argument("--project", default="", help="BigQuery project id (overrides env BQ_PROJECT)")
-    ap.add_argument("--dataset", default="", help="BigQuery dataset id (overrides env BQ_DATASET)")
-    ap.add_argument("--overwrite", action="store_true", help="if set, delete existing owned_YYYY-MM-DD.json when a day has no rows")
+    ap.add_argument("--site-dir", required=True, help="output site dir (e.g. reports/owned_portal)")
     ap.add_argument("--start", default="", help="YYYY-MM-DD (default: yesterday KST)")
     ap.add_argument("--end", default="", help="YYYY-MM-DD (default: yesterday KST)")
     ap.add_argument("--write-empty-days", action="store_true", help="write empty daily json as well")
+    ap.add_argument("--overwrite", action="store_true", help="overwrite owned_YYYY-MM-DD.json if exists")
+    ap.add_argument("--project", default="", help="BigQuery project id (optional; overrides env BQ_PROJECT)")
+    ap.add_argument("--dataset", default="", help="BigQuery dataset (optional; overrides env BQ_DATASET)")
     args = ap.parse_args()
 
     maybe_write_sa_from_b64()
@@ -340,7 +335,8 @@ def main():
     project = (args.project or os.getenv("BQ_PROJECT") or "").strip()
     dataset = (args.dataset or os.getenv("BQ_DATASET") or "").strip()
     if not project or not dataset:
-        raise SystemExit("[ERROR] Please set BQ_PROJECT/BQ_DATASET env or pass --project/--dataset")
+        raise SystemExit("[ERROR] Please set --project/--dataset or env BQ_PROJECT/BQ_DATASET")
+
     if args.start:
         start_d = parse_date(args.start)
     else:
@@ -354,6 +350,8 @@ def main():
     if end_d < start_d:
         start_d, end_d = end_d, start_d
 
+    print(f"[INFO] OWNED backfill: {ymd(start_d)} ~ {ymd(end_d)} ({'overwrite' if args.overwrite else 'skip existing'})")
+
     sql = build_sql(project, dataset, suffix(start_d), suffix(end_d))
     client = bigquery.Client(project=project)
     df = client.query(sql).result().to_dataframe(create_bqstorage_client=True)
@@ -363,31 +361,16 @@ def main():
     data_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / ".nojekyll").write_text("", encoding="utf-8")
 
-    available_set = set()
-    existing_path = data_dir / "available_dates.json"
-    if existing_path.exists():
-        try:
-            existing = json.loads(existing_path.read_text(encoding="utf-8"))
-            for dd in (existing.get("available_dates") or []):
-                if isinstance(dd, str) and dd:
-                    available_set.add(dd)
-        except Exception:
-            pass
-
-    # Prepare days list
-    days_to_write: List[date] = []
-    cur = start_d
-    while cur <= end_d:
-        days_to_write.append(cur)
-        cur += timedelta(days=1)
-
     if df.empty:
-        # still refresh available_dates.json (keep existing)
-        write_available_dates(data_dir, sorted(available_set))
-        print("[WARN] Query returned no rows. No daily JSON written.")
+        print("[WARN] Query returned no rows.")
+        # still keep available_dates.json if exists
+        av_path = data_dir / "available_dates.json"
+        if not av_path.exists():
+            write_available_dates(av_path, set())
         return
 
     df["date"] = df["date"].astype(str)
+
     kpi_df = df[df["row_type"] == "kpi"].copy()
     prod_df = df[df["row_type"] == "prod"].copy()
 
@@ -399,30 +382,34 @@ def main():
         if col in prod_df.columns:
             prod_df[col] = pd.to_numeric(prod_df[col], errors="coerce").fillna(0)
 
-    for day in days_to_write:
-        d = ymd(day)
+    av_path = data_dir / "available_dates.json"
+    available = read_existing_dates(av_path)
+
+    # days to write
+    cur = start_d
+    while cur <= end_d:
+        d = ymd(cur)
+        out_path = data_dir / f"owned_{d}.json"
+
+        if out_path.exists() and (not args.overwrite):
+            # still make sure available_dates has it
+            available.add(d)
+            cur += timedelta(days=1)
+            continue
 
         k_rows = kpi_df[kpi_df["date"] == d][
-            ["date", "channel", "campaign", "term", "sessions", "users", "purchases", "kpi_revenue", "items_purchased"]
+            ["channel", "campaign", "term", "sessions", "users", "purchases", "kpi_revenue", "items_purchased"]
         ].to_dict(orient="records")
 
         p_rows = prod_df[prod_df["date"] == d][
-            ["date", "channel", "campaign", "term", "item_id", "item_name", "prod_items", "prod_revenue"]
+            ["channel", "campaign", "term", "item_id", "item_name", "prod_items", "prod_revenue"]
         ].to_dict(orient="records")
 
-        out_path = data_dir / f"owned_{d}.json"
         if (not k_rows) and (not p_rows) and (not args.write_empty_days):
-            # If overwriting a range, remove stale files/dates for days that became empty.
-            if args.overwrite:
-                if out_path.exists():
-                    out_path.unlink()
-                if d in available_set:
-                    available_set.remove(d)
+            cur += timedelta(days=1)
             continue
 
-        # Build rows (write even if empty when --write-empty-days)
         kpi_rows = [{
-            "date": r.get("date"),
             "channel": r.get("channel"),
             "campaign": r.get("campaign"),
             "term": r.get("term"),
@@ -434,7 +421,6 @@ def main():
         } for r in k_rows]
 
         prod_rows = [{
-            "date": r.get("date"),
             "channel": r.get("channel"),
             "campaign": r.get("campaign"),
             "term": r.get("term"),
@@ -446,12 +432,13 @@ def main():
 
         out = {"date": d, "kpi": kpi_rows, "prod": prod_rows}
         out_path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
-        available_set.add(d)
+        available.add(d)
 
-    write_available_dates(data_dir, sorted(available_set))
+        cur += timedelta(days=1)
+
+    write_available_dates(av_path, available)
     print(f"[OK] Wrote JSON to: {data_dir}")
-    print(f"[OK] Updated: {data_dir / 'available_dates.json'}")
-
+    print(f"[OK] available_dates: {len(available)}")
 
 if __name__ == "__main__":
     main()
