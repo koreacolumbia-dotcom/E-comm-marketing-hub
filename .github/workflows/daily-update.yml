@@ -419,23 +419,16 @@ jobs:
 
             if [ -s "${INPUT_JSON}" ]; then
               # 50 bytes 이상(빈 {"reviews":[]} 같은 극소 파일 방지)
-              if [ $(wc -c < "${INPUT_JSON}") -ge 50 ]; then
+              if [ "$(wc -c < "${INPUT_JSON}")" -ge 50 ]; then
                 SIZE_OK="true"
               fi
             fi
 
             if [ -f "${HEALTH}" ]; then
-              # failed_chunks == 0 이면 OK (없으면 보수적으로 false)
-              if python - << 'PY'
-import json,sys
-p="reports/crema_raw/health/latest_health.json"
-try:
-  d=json.load(open(p,"r",encoding="utf-8"))
-  sys.exit(0 if int(d.get("failed_chunks",999))==0 else 1)
-except Exception:
-  sys.exit(1)
-PY
-              then
+              # ✅ heredoc 제거 (YAML 깨짐 방지)
+              if python -c 'import json,sys; p="reports/crema_raw/health/latest_health.json"; 
+d=json.load(open(p,"r",encoding="utf-8")); 
+sys.exit(0 if int(d.get("failed_chunks",999))==0 else 1)' ; then
                 FAIL_OK="true"
               fi
             fi
