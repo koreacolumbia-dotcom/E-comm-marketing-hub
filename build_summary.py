@@ -9,6 +9,14 @@ build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH + KPI TOP STRIP + CREMA CARD)
     - reports/daily_digest/data/daily/YYYY-MM-DD.json
     - reports/daily_digest/data/weekly/END_YYYY-MM-DD.json
 - Computes DoD/YoY/WoW/YoY from adjacent cached bundles when available.
+
+✅ NEW (Requested):
+1) 기준일은 항상 "어제(KST)" 기준으로 최신(=어제) 우선 선택
+2) ✅ OWNED YTD YoY 비교 추가
+   - EDM+LMS+KAKAO 3채널 합산 YTD YoY
+   - 채널별(EDM/LMS/KAKAO) YTD YoY
+   - 데이터 소스: 첨부한 OWNED 번들 JSON (owned_YYYY-MM-DD.json)
+   - 추가 GA4/BQ 비용 없음 (캐시 파일 합산만)
 """
 
 from __future__ import annotations
@@ -42,6 +50,14 @@ def now_kst() -> datetime:
     return datetime.now(KST)
 
 
+def kst_today() -> date:
+    return now_kst().date()
+
+
+def kst_yesterday() -> date:
+    return kst_today() - timedelta(days=1)
+
+
 def now_kst_label() -> str:
     return now_kst().strftime("%Y.%m.%d (%a) %H:%M KST")
 
@@ -51,6 +67,10 @@ def parse_ymd(s: str) -> Optional[date]:
         return datetime.strptime(s, "%Y-%m-%d").date()
     except Exception:
         return None
+
+
+def ymd(d: date) -> str:
+    return d.strftime("%Y-%m-%d")
 
 
 def _read_csv_any(path: Path) -> pd.DataFrame:
@@ -191,21 +211,29 @@ def _write_json_path(p: Path, obj: Dict[str, Any]) -> None:
 # -----------------------
 # ✅ KPI auto-build from cached bundles (NO GA4/BQ)
 # -----------------------
+def _find_daily_bundle_for_date(reports_dir: Path, ymd_str: str) -> Optional[Path]:
+    p = reports_dir / "daily_digest" / "data" / "daily" / f"{ymd_str}.json"
+    return p if p.exists() and p.is_file() else None
+
+
+def _find_weekly_bundle_for_end(reports_dir: Path, end_ymd: str) -> Optional[Path]:
+    p = reports_dir / "daily_digest" / "data" / "weekly" / f"END_{end_ymd}.json"
+    return p if p.exists() and p.is_file() else None
+
+
 def _find_latest_daily_bundle(reports_dir: Path) -> Optional[Path]:
     ddir = reports_dir / "daily_digest" / "data" / "daily"
     if not ddir.exists():
         return None
     files = sorted(ddir.glob("*.json"))
-    # prefer filename date order if possible
     dated: List[Tuple[date, Path]] = []
     for f in files:
-        ymd = parse_ymd(f.stem)
-        if ymd:
-            dated.append((ymd, f))
+        y = parse_ymd(f.stem)
+        if y:
+            dated.append((y, f))
     if dated:
         dated.sort(key=lambda x: x[0], reverse=True)
         return dated[0][1]
-    # fallback mtime
     files = [f for f in files if f.is_file()]
     if not files:
         return None
@@ -220,12 +248,11 @@ def _find_latest_weekly_bundle(reports_dir: Path) -> Optional[Path]:
     files = sorted(wdir.glob("END_*.json"))
     dated: List[Tuple[date, Path]] = []
     for f in files:
-        stem = f.stem  # END_YYYY-MM-DD
-        m = re.match(r"END_(\d{4}-\d{2}-\d{2})$", stem)
+        m = re.match(r"END_(\d{4}-\d{2}-\d{2})$", f.stem)
         if m:
-            ymd = parse_ymd(m.group(1))
-            if ymd:
-                dated.append((ymd, f))
+            y = parse_ymd(m.group(1))
+            if y:
+                dated.append((y, f))
     if dated:
         dated.sort(key=lambda x: x[0], reverse=True)
         return dated[0][1]
@@ -237,11 +264,9 @@ def _find_latest_weekly_bundle(reports_dir: Path) -> Optional[Path]:
 
 
 def _bundle_date_from_path(p: Path) -> Optional[str]:
-    # daily: YYYY-MM-DD.json
-    ymd = parse_ymd(p.stem)
-    if ymd:
-        return ymd.strftime("%Y-%m-%d")
-    # weekly: END_YYYY-MM-DD.json
+    y = parse_ymd(p.stem)
+    if y:
+        return ymd(y)
     m = re.match(r"END_(\d{4}-\d{2}-\d{2})$", p.stem)
     if m:
         return m.group(1)
@@ -279,12 +304,10 @@ def _deep_get_candidates(obj: Any, candidates: List[str]) -> Optional[Any]:
 
     def walk(o: Any) -> Optional[Any]:
         if isinstance(o, dict):
-            # direct hit (case-insensitive)
             lowered = {str(k).lower(): k for k in o.keys()}
             for ck in cand_set.keys():
                 if ck in lowered:
                     return o.get(lowered[ck])
-            # recurse
             for v in o.values():
                 r = walk(v)
                 if r is not None:
@@ -300,17 +323,12 @@ def _deep_get_candidates(obj: Any, candidates: List[str]) -> Optional[Any]:
 
 
 def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Best-effort KPI extraction from arbitrary daily/weekly digest bundle.
-    We search broadly for common keys.
-    """
     sessions = _deep_get_candidates(bundle, ["sessions", "session", "ga_sessions"])
     orders = _deep_get_candidates(bundle, ["orders", "transactions", "purchases", "order_count", "purchase_count"])
     revenue = _deep_get_candidates(bundle, ["revenue", "purchase_revenue", "total_revenue", "sales"])
     signups = _deep_get_candidates(bundle, ["signups", "sign_up_users", "signup_users", "registrations", "new_users_signup"])
     cvr = _deep_get_candidates(bundle, ["cvr", "conversion_rate", "purchase_cvr", "txn_rate"])
 
-    # normalize
     out = {
         "sessions": _safe_int(sessions),
         "orders": _safe_int(orders),
@@ -319,9 +337,7 @@ def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Any]:
         "cvr": _safe_float(cvr),
     }
 
-    # if cvr looks like percent (e.g. 0.71), convert to fraction heuristically
     if out["cvr"] is not None and out["cvr"] > 1.0:
-        # 71 -> 0.71? / 100
         out["cvr"] = out["cvr"] / 100.0
 
     return out
@@ -354,29 +370,32 @@ def _load_bundle(p: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _daily_bundle_path(reports_dir: Path, ymd: str) -> Path:
-    return reports_dir / "daily_digest" / "data" / "daily" / f"{ymd}.json"
+def _daily_bundle_path(reports_dir: Path, ymd_str: str) -> Path:
+    return reports_dir / "daily_digest" / "data" / "daily" / f"{ymd_str}.json"
 
 
 def _weekly_bundle_path(reports_dir: Path, end_ymd: str) -> Path:
     return reports_dir / "daily_digest" / "data" / "weekly" / f"END_{end_ymd}.json"
 
 
-def _ymd_minus_days(ymd: str, days: int) -> Optional[str]:
-    d = parse_ymd(ymd)
+def _ymd_minus_days(ymd_str: str, days: int) -> Optional[str]:
+    d = parse_ymd(ymd_str)
     if not d:
         return None
-    return (d - timedelta(days=days)).strftime("%Y-%m-%d")
+    return ymd(d - timedelta(days=days))
 
 
 def _ensure_daily_kpi_json(reports_dir: Path) -> Dict[str, Any]:
     """
     Returns daily_kpi dict. Auto-builds reports/daily_kpi.json if missing/stale.
-    Stale 기준: latest daily bundle date != daily_kpi.json['date']
+    ✅ 기준일: 어제(KST) 파일을 우선 사용. 없으면 최신 파일 fallback.
     """
     out_path = reports_dir / "daily_kpi.json"
 
-    latest_bundle = _find_latest_daily_bundle(reports_dir)
+    target_date = ymd(kst_yesterday())
+    target_bundle = _find_daily_bundle_for_date(reports_dir, target_date)
+
+    latest_bundle = target_bundle or _find_latest_daily_bundle(reports_dir)
     latest_date = _bundle_date_from_path(latest_bundle) if latest_bundle else None
 
     existing = _read_json_path(out_path) or {}
@@ -385,15 +404,12 @@ def _ensure_daily_kpi_json(reports_dir: Path) -> Dict[str, Any]:
     need_rebuild = (not existing) or (latest_date and existing_date != latest_date)
 
     if not need_rebuild:
-        # ensure updated label exists
         if not existing.get("updated"):
             existing["updated"] = now_kst_label()
             _write_json_path(out_path, existing)
         return existing
 
-    # build from bundles
     if not latest_bundle or not latest_date:
-        # cannot build; keep existing fallback
         return {
             "date": None,
             "sessions": None,
@@ -411,7 +427,7 @@ def _ensure_daily_kpi_json(reports_dir: Path) -> Dict[str, Any]:
     cur_kpis = _extract_kpis_from_bundle(cur_bundle)
 
     prev_date = _ymd_minus_days(latest_date, 1)
-    yoy_date = _ymd_minus_days(latest_date, 364)  # your existing convention
+    yoy_date = _ymd_minus_days(latest_date, 364)  # 기존 컨벤션 유지
 
     prev_kpis = {}
     yoy_kpis = {}
@@ -463,11 +479,14 @@ def _ensure_daily_kpi_json(reports_dir: Path) -> Dict[str, Any]:
 def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
     """
     Returns weekly_kpi dict. Auto-builds reports/weekly_kpi.json if missing/stale.
-    Stale 기준: latest weekly END date != weekly_kpi.json['end']
+    ✅ 기준 end: 어제(KST) END_YYYY-MM-DD 를 우선 사용. 없으면 최신 END fallback.
     """
     out_path = reports_dir / "weekly_kpi.json"
 
-    latest_bundle = _find_latest_weekly_bundle(reports_dir)
+    target_end = ymd(kst_yesterday())
+    target_bundle = _find_weekly_bundle_for_end(reports_dir, target_end)
+
+    latest_bundle = target_bundle or _find_latest_weekly_bundle(reports_dir)
     latest_end = _bundle_date_from_path(latest_bundle) if latest_bundle else None
 
     existing = _read_json_path(out_path) or {}
@@ -499,9 +518,8 @@ def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
     cur_bundle = _load_bundle(latest_bundle) or {}
     cur_kpis = _extract_kpis_from_bundle(cur_bundle)
 
-    # weekly window: end-6 ~ end
     end_d = parse_ymd(latest_end)
-    start_s = (end_d - timedelta(days=6)).strftime("%Y-%m-%d") if end_d else None
+    start_s = ymd(end_d - timedelta(days=6)) if end_d else None
 
     prev_end = _ymd_minus_days(latest_end, 7)
     yoy_end = _ymd_minus_days(latest_end, 364)
@@ -563,6 +581,234 @@ def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
 
 def build_weekly_kpis(reports_dir: Path) -> Dict[str, Any]:
     return _ensure_weekly_kpi_json(reports_dir)
+
+
+# -----------------------
+# ✅ OWNED YTD (EDM/LMS/KAKAO) from cached bundles
+# -----------------------
+OWNED_CHANNELS = ("EDM", "LMS", "KAKAO")
+
+
+def _find_owned_data_dir(reports_dir: Path) -> Optional[Path]:
+    """
+    Find reports/**/data/owned directory that contains owned_YYYY-MM-DD.json bundles.
+    Preference: the directory with most owned_*.json files.
+    """
+    candidates: List[Path] = []
+
+    # common expected
+    for p in [
+        reports_dir / "owned_portal" / "data" / "owned",
+        reports_dir / "owned" / "data" / "owned",
+    ]:
+        if p.exists() and p.is_dir():
+            candidates.append(p)
+
+    # broad scan
+    for p in reports_dir.glob("**/data/owned"):
+        if p.exists() and p.is_dir():
+            candidates.append(p)
+
+    uniq: List[Path] = []
+    seen = set()
+    for c in candidates:
+        s = str(c.resolve())
+        if s in seen:
+            continue
+        seen.add(s)
+        uniq.append(c)
+
+    best = None
+    best_n = 0
+    for c in uniq:
+        n = len(list(c.glob("owned_*.json")))
+        if n > best_n:
+            best_n = n
+            best = c
+
+    return best
+
+
+def _owned_file_for_date(owned_dir: Path, ymd_str: str) -> Path:
+    return owned_dir / f"owned_{ymd_str}.json"
+
+
+def _sum_owned_day(owned_dir: Path, ymd_str: str) -> Dict[str, float]:
+    """
+    Sum KPI rows for the day across EDM/LMS/KAKAO.
+    Returns dict with sessions/users/purchases/revenue.
+    """
+    p = _owned_file_for_date(owned_dir, ymd_str)
+    if not p.exists():
+        return {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0}
+
+    try:
+        obj = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0}
+
+    kpi_rows = obj.get("kpi") or []
+    s = u = pch = rev = 0.0
+    for r in kpi_rows:
+        ch = str(r.get("channel") or "").strip().upper()
+        if ch not in OWNED_CHANNELS:
+            continue
+        s += float(r.get("sessions") or 0)
+        u += float(r.get("users") or 0)
+        pch += float(r.get("purchases") or 0)
+        rev += float(r.get("revenue") or 0)
+    return {"sessions": s, "users": u, "purchases": pch, "revenue": rev}
+
+
+def _sum_owned_day_by_channel(owned_dir: Path, ymd_str: str) -> Dict[str, Dict[str, float]]:
+    """
+    Per-channel sum for the day.
+    """
+    p = _owned_file_for_date(owned_dir, ymd_str)
+    out = {ch: {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0} for ch in OWNED_CHANNELS}
+    if not p.exists():
+        return out
+
+    try:
+        obj = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return out
+
+    kpi_rows = obj.get("kpi") or []
+    for r in kpi_rows:
+        ch = str(r.get("channel") or "").strip().upper()
+        if ch not in out:
+            continue
+        out[ch]["sessions"] += float(r.get("sessions") or 0)
+        out[ch]["users"] += float(r.get("users") or 0)
+        out[ch]["purchases"] += float(r.get("purchases") or 0)
+        out[ch]["revenue"] += float(r.get("revenue") or 0)
+
+    return out
+
+
+def _daterange_list(start_d: date, end_d: date) -> List[str]:
+    out = []
+    cur = start_d
+    while cur <= end_d:
+        out.append(ymd(cur))
+        cur += timedelta(days=1)
+    return out
+
+
+def _safe_ratio(cur: float, prev: float) -> Optional[float]:
+    try:
+        if prev == 0:
+            return None
+        return (cur - prev) / prev
+    except Exception:
+        return None
+
+
+def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
+    """
+    Compute YTD (Jan 1 ~ yesterday KST) for OWNED channels:
+    - total EDM+LMS+KAKAO
+    - per channel
+    And YoY vs same-length period in previous year (calendar-aligned by day count).
+    """
+    owned_dir = _find_owned_data_dir(reports_dir)
+    target_end = kst_yesterday()
+
+    result: Dict[str, Any] = {
+        "enabled": False,
+        "owned_dir": str(owned_dir) if owned_dir else None,
+        "period": None,
+        "prev_period": None,
+        "total": {},
+        "total_yoy": {},
+        "by_channel": {},
+        "updated": now_kst_label(),
+    }
+
+    if not owned_dir:
+        return result
+
+    cur_start = date(target_end.year, 1, 1)
+    cur_end = target_end
+    days_len = (cur_end - cur_start).days  # 0-based
+    prev_start = date(target_end.year - 1, 1, 1)
+    prev_end = prev_start + timedelta(days=days_len)
+
+    cur_dates = _daterange_list(cur_start, cur_end)
+    prev_dates = _daterange_list(prev_start, prev_end)
+
+    # totals
+    cur_sum = {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0}
+    prev_sum = {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0}
+
+    for d in cur_dates:
+        s = _sum_owned_day(owned_dir, d)
+        for k in cur_sum:
+            cur_sum[k] += float(s.get(k, 0.0))
+
+    for d in prev_dates:
+        s = _sum_owned_day(owned_dir, d)
+        for k in prev_sum:
+            prev_sum[k] += float(s.get(k, 0.0))
+
+    # cvr = purchases / sessions
+    cur_cvr = (cur_sum["purchases"] / cur_sum["sessions"]) if cur_sum["sessions"] > 0 else None
+    prev_cvr = (prev_sum["purchases"] / prev_sum["sessions"]) if prev_sum["sessions"] > 0 else None
+
+    total_yoy = {
+        "sessions": _safe_ratio(cur_sum["sessions"], prev_sum["sessions"]),
+        "users": _safe_ratio(cur_sum["users"], prev_sum["users"]),
+        "purchases": _safe_ratio(cur_sum["purchases"], prev_sum["purchases"]),
+        "revenue": _safe_ratio(cur_sum["revenue"], prev_sum["revenue"]),
+        "cvr_pp": (cur_cvr - prev_cvr) if (cur_cvr is not None and prev_cvr is not None) else None,
+    }
+
+    total = dict(cur_sum)
+    total["cvr"] = cur_cvr
+
+    # per channel
+    cur_ch_sum = {ch: {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0} for ch in OWNED_CHANNELS}
+    prev_ch_sum = {ch: {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0} for ch in OWNED_CHANNELS}
+
+    for d in cur_dates:
+        day = _sum_owned_day_by_channel(owned_dir, d)
+        for ch in OWNED_CHANNELS:
+            for k in cur_ch_sum[ch]:
+                cur_ch_sum[ch][k] += float(day[ch].get(k, 0.0))
+
+    for d in prev_dates:
+        day = _sum_owned_day_by_channel(owned_dir, d)
+        for ch in OWNED_CHANNELS:
+            for k in prev_ch_sum[ch]:
+                prev_ch_sum[ch][k] += float(day[ch].get(k, 0.0))
+
+    by_channel: Dict[str, Any] = {}
+    for ch in OWNED_CHANNELS:
+        curv = cur_ch_sum[ch]
+        prevv = prev_ch_sum[ch]
+        cur_c = (curv["purchases"] / curv["sessions"]) if curv["sessions"] > 0 else None
+        prev_c = (prevv["purchases"] / prevv["sessions"]) if prevv["sessions"] > 0 else None
+        by_channel[ch] = {
+            "cur": {**curv, "cvr": cur_c},
+            "yoy": {
+                "sessions": _safe_ratio(curv["sessions"], prevv["sessions"]),
+                "users": _safe_ratio(curv["users"], prevv["users"]),
+                "purchases": _safe_ratio(curv["purchases"], prevv["purchases"]),
+                "revenue": _safe_ratio(curv["revenue"], prevv["revenue"]),
+                "cvr_pp": (cur_c - prev_c) if (cur_c is not None and prev_c is not None) else None,
+            },
+        }
+
+    result.update({
+        "enabled": True,
+        "period": f"{ymd(cur_start)} ~ {ymd(cur_end)}",
+        "prev_period": f"{ymd(prev_start)} ~ {ymd(prev_end)}",
+        "total": total,
+        "total_yoy": total_yoy,
+        "by_channel": by_channel,
+    })
+    return result
 
 
 # -----------------------
@@ -894,7 +1140,6 @@ def _parse_first_int(pattern: str, text: str) -> Optional[int]:
 
 
 def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
-    # 1) Prefer structured metrics if available (written by external_signal_combined.py)
     sj = _read_summary_json(reports_dir)
     ext = sj.get("external_signal") or {}
     if isinstance(ext, dict) and ext:
@@ -916,7 +1161,6 @@ def build_voc_metrics(reports_dir: Path) -> Dict[str, Any]:
             "updated": updated,
         }
 
-    # 2) Fallback: parse from external_signal.html (legacy / best-effort)
     p = reports_dir / "external_signal.html"
     if not p.exists():
         return {"posts": None, "mentions": None, "range": "최근 7일", "updated": now_kst_label()}
@@ -1042,6 +1286,7 @@ def _fmt_top5(x: Any) -> str:
 def render_index_html(
     daily: Dict[str, Any],
     weekly: Dict[str, Any],
+    owned_ytd: Dict[str, Any],
     naver: Dict[str, Any],
     hero: Dict[str, Any],
     voc: Dict[str, Any],
@@ -1153,6 +1398,90 @@ def render_index_html(
     </div>
     """
 
+    # OWNED YTD YoY
+    owned_block = ""
+    if owned_ytd.get("enabled"):
+        tot = owned_ytd.get("total") or {}
+        tot_yoy = owned_ytd.get("total_yoy") or {}
+        period = owned_ytd.get("period") or "-"
+        prev_period = owned_ytd.get("prev_period") or "-"
+        upd = owned_ytd.get("updated") or ""
+        owned_dir = owned_ytd.get("owned_dir") or ""
+
+        owned_block = f"""
+        <div class="glass-card rounded-3xl p-5 mb-6">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+            <div class="flex items-center gap-3">
+              <div class="text-base font-black text-slate-900">OWNED YTD YoY (EDM + LMS + KAKAO)</div>
+              <span class="badge-soft">YTD</span>
+            </div>
+            <div class="text-xs text-slate-500">
+              기간: <b class="text-slate-700">{period}</b> · YoY 비교: {prev_period} · updated: {upd}
+            </div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {kpi_tile("Sessions", fmt_int(tot.get("sessions")),
+                      f'YoY <b class="text-slate-900">{fmt_delta_ratio(tot_yoy.get("sessions"))}</b>',
+                      f'—')}
+            {kpi_tile("Users", fmt_int(tot.get("users")),
+                      f'YoY <b class="text-slate-900">{fmt_delta_ratio(tot_yoy.get("users"))}</b>',
+                      f'—')}
+            {kpi_tile("Purchases", fmt_int(tot.get("purchases")),
+                      f'YoY <b class="text-slate-900">{fmt_delta_ratio(tot_yoy.get("purchases"))}</b>',
+                      f'—')}
+            {kpi_tile("Revenue", fmt_krw_symbol(tot.get("revenue")),
+                      f'YoY <b class="text-slate-900">{fmt_delta_ratio(tot_yoy.get("revenue"))}</b>',
+                      f'CVR <b class="text-slate-900">{fmt_cvr(tot.get("cvr"))}</b> · YoY {fmt_pp_from_fraction(tot_yoy.get("cvr_pp"))}')}
+          </div>
+
+          <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
+        """
+
+        by_ch = owned_ytd.get("by_channel") or {}
+        for ch in OWNED_CHANNELS:
+            cur = (by_ch.get(ch) or {}).get("cur") or {}
+            yoy = (by_ch.get(ch) or {}).get("yoy") or {}
+            owned_block += f"""
+            <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{ch} YTD</div>
+                <span class="badge-soft">YoY</span>
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-3">
+                <div>
+                  <div class="text-xs text-slate-500">Sessions</div>
+                  <div class="text-lg font-black text-slate-900">{fmt_int(cur.get("sessions"))}</div>
+                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("sessions"))}</b></div>
+                </div>
+                <div>
+                  <div class="text-xs text-slate-500">Revenue</div>
+                  <div class="text-lg font-black text-slate-900">{fmt_krw_symbol(cur.get("revenue"))}</div>
+                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("revenue"))}</b></div>
+                </div>
+                <div>
+                  <div class="text-xs text-slate-500">Purchases</div>
+                  <div class="text-lg font-black text-slate-900">{fmt_int(cur.get("purchases"))}</div>
+                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("purchases"))}</b></div>
+                </div>
+                <div>
+                  <div class="text-xs text-slate-500">CVR</div>
+                  <div class="text-lg font-black text-slate-900">{fmt_cvr(cur.get("cvr"))}</div>
+                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div>
+                </div>
+              </div>
+            </div>
+            """
+
+        owned_block += f"""
+          </div>
+
+          <div class="mt-3 text-[11px] text-slate-500">
+            source: {owned_dir}
+          </div>
+        </div>
+        """
+
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -1185,11 +1514,15 @@ def render_index_html(
   <div class="px-2 sm:px-6 py-6">
     <div class="mb-6">
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
+      <div class="mt-2 text-xs text-slate-500">기준일 기본값: 어제(KST) · generated: {now_kst_label()}</div>
     </div>
 
     <!-- ✅ KPI strips -->
     {daily_strip}
     {weekly_strip}
+
+    <!-- ✅ OWNED YTD YoY -->
+    {owned_block}
 
     <!-- ✅ 4 cards -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -1291,9 +1624,12 @@ def main() -> None:
     reports_dir = repo_root / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
 
-    # ✅ KPI: always ensured from latest cached bundles (no GA4/BQ)
+    # ✅ KPI: always ensured from cached bundles (prefer yesterday)
     daily = build_daily_kpis(reports_dir)
     weekly = build_weekly_kpis(reports_dir)
+
+    # ✅ OWNED YTD YoY (prefer yesterday range; no GA4/BQ)
+    owned_ytd = build_owned_ytd_yoy(reports_dir)
 
     naver = build_naver_metrics(repo_root)
 
@@ -1305,11 +1641,15 @@ def main() -> None:
     crema = build_crema_metrics(reports_dir)
 
     out = reports_dir / "index.html"
-    out.write_text(render_index_html(daily, weekly, naver, hero, voc, crema), encoding="utf-8")
+    out.write_text(render_index_html(daily, weekly, owned_ytd, naver, hero, voc, crema), encoding="utf-8")
 
     print(f"[OK] Wrote: {out}")
     print(f"[OK] Daily KPI date: {daily.get('date')} (source: {daily.get('source')})")
     print(f"[OK] Weekly KPI end: {weekly.get('end')} (source: {weekly.get('source')})")
+    if owned_ytd.get("enabled"):
+        print(f"[OK] OWNED YTD: {owned_ytd.get('period')}  (source dir: {owned_ytd.get('owned_dir')})")
+    else:
+        print("[WARN] OWNED YTD disabled: owned bundles not found under reports/**/data/owned/owned_*.json")
 
 
 if __name__ == "__main__":
