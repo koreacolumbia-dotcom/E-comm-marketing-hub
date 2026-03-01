@@ -116,15 +116,15 @@ jobs:
             fi
           fi
 
-          # Default: run everything
+          # ✅ Default: run ONLY daily (schedule/normal runs)
           RUN_DAILY=true
-          RUN_PRICE=true
-          RUN_HERO=true
-          RUN_EXTSIG=true
-          RUN_CREMA=true
-          RUN_BLOG=true
-          RUN_SUMMARY=true
-          RUN_OWNED=true
+          RUN_PRICE=false
+          RUN_HERO=false
+          RUN_EXTSIG=false
+          RUN_CREMA=false
+          RUN_BLOG=false
+          RUN_SUMMARY=false
+          RUN_OWNED=false
 
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
             RUN_DAILY=false
@@ -223,18 +223,17 @@ jobs:
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       # =========================================================
-      # Daily Digest Report (특정 날짜만 생성) — 2026-02-26
+      # Daily Digest Report (어제 날짜만 생성)
       # =========================================================
-      - name: Build Daily Digest (only 2026-02-26)
+      - name: Build Daily Digest (yesterday only)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
 
-          # ✅ 특정 날짜 고정
-          YMD: "2026-02-26"
-          YOY: "2025-02-27"
+          # ✅ 항상 어제일자(KST)
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
 
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
