@@ -107,7 +107,7 @@
       border: 1px solid rgba(148,163,184,0.22);
       background: rgba(255,255,255,0.86);
       border-radius: 18px;
-      padding: 12px 14px;
+      padding: 14px 16px; /* ✅ 살짝 여유 */
       box-shadow: 0 12px 32px rgba(0,0,0,0.06);
     }
     .kpi-title{ font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color:#94a3b8; }
@@ -118,7 +118,7 @@
       border: 1px solid rgba(148,163,184,0.22);
       background: rgba(255,255,255,0.80);
       border-radius: 18px;
-      padding: 10px 12px;
+      padding: 12px 14px; /* ✅ 살짝 여유 */
       box-shadow: 0 10px 28px rgba(0,0,0,0.05);
     }
     .mini-title{ font-size: 10px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; color:#94a3b8; }
@@ -176,8 +176,8 @@
       letter-spacing: .16em;
       text-transform: uppercase;
       color:#94a3b8;
-      margin-top: 10px;
-      margin-bottom: 8px;
+      margin-top: 12px;
+      margin-bottom: 10px;
       display:flex;
       align-items:center;
       gap:10px;
@@ -219,9 +219,9 @@
       <button id="noticeClose" class="x" type="button">닫기</button>
     </div>
 
-    <div class="glass p-5">
+    <div class="glass p-6">
       <!-- Controls -->
-      <div class="flex flex-wrap items-center gap-2 mb-4">
+      <div class="flex flex-wrap items-center gap-3 mb-5"><!-- ✅ gap-2 -> gap-3 / mb-4 -> mb-5 -->
         <div class="small-label">View</div>
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
         <button id="chipWeek" class="chip" type="button">WEEK</button>
@@ -269,13 +269,13 @@
         </div>
       </div>
 
-      <!-- Channel Totals (period fixed, selection-independent) -->
-      <div class="mb-5">
-        <div class="flex items-center gap-2 mb-2">
+      <!-- Channel Totals -->
+      <div class="mb-6"><!-- ✅ mb-5 -> mb-6 -->
+        <div class="flex items-center gap-2 mb-3">
           <div class="small-label">Channel totals</div>
           <div class="muted font-semibold text-sm" id="periodText">-</div>
-</div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4"><!-- ✅ gap-3 -> gap-4 -->
           <div class="mini-card">
             <div class="mini-title">All</div>
             <div class="mini-value"><span id="totAllSessions">-</span></div>
@@ -298,8 +298,9 @@
           </div>
         </div>
       </div>
-      <!-- YTD · This year vs Previous year (same period) -->
-      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3" style="display:none">
+
+      <!-- YTD -->
+      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4" style="display:none"><!-- ✅ gap-3->gap-4 -->
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -322,9 +323,8 @@
         </div>
       </div>
 
-
-      <!-- KPI (selection) moved ABOVE terms -->
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-5">
+      <!-- KPI (selection) -->
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5 mb-6"><!-- ✅ gap-3->gap-4 / 여백 조금 -->
         <div class="kpi-card">
           <div class="kpi-title">Sessions</div>
           <div id="kSessions" class="kpi-value">-</div>
@@ -353,33 +353,33 @@
       </div>
 
       <!-- Campaign groups -->
-      <div class="mb-4">
+      <div class="mb-5">
         <div class="small-label mb-2">Campaigns (grouped by MMDD)</div>
 
-        <div id="secEDM" class="mb-4">
+        <div id="secEDM" class="mb-5">
           <div class="sec-title mb-2">By Date (MMDD)</div>
           <div id="wrapEDMDate"></div>
-          <div class="flex items-center gap-3 mt-3">
+          <div class="flex items-center gap-3 mt-4">
             <div class="sec-title">Other campaigns</div>
             <button id="toggleEdmOther" class="toggle ml-auto" type="button">펼치기</button>
           </div>
           <div id="wrapEDMOther" class="mt-2 hidden"></div>
         </div>
 
-        <div id="secLMS" class="mb-4">
+        <div id="secLMS" class="mb-5">
           <div class="sec-title mb-2">By Date (MMDD)</div>
           <div id="wrapLMSDate"></div>
-          <div class="flex items-center gap-3 mt-3">
+          <div class="flex items-center gap-3 mt-4">
             <div class="sec-title">Other campaigns</div>
             <button id="toggleLmsOther" class="toggle ml-auto" type="button">펼치기</button>
           </div>
           <div id="wrapLMSOther" class="mt-2 hidden"></div>
         </div>
 
-        <div id="secKAKAO" class="mb-4">
+        <div id="secKAKAO" class="mb-5">
           <div class="sec-title mb-2">By Date (MMDD)</div>
           <div id="wrapKakaoDate"></div>
-          <div class="flex items-center gap-3 mt-3">
+          <div class="flex items-center gap-3 mt-4">
             <div class="sec-title">Other campaigns</div>
             <button id="toggleKakaoOther" class="toggle ml-auto" type="button">펼치기</button>
           </div>
@@ -395,8 +395,8 @@
         </div>
       </div>
 
-      <!-- Terms (drilldown) -->
-      <div id="termSection" class="hidden mb-5">
+      <!-- Terms -->
+      <div id="termSection" class="hidden mb-6">
         <div class="flex items-center gap-2 mb-2">
           <div class="small-label">Terms</div>
           <div class="muted font-semibold text-sm">선택한 날짜(MMDD) 그룹의 개별 TERM 목록</div>
@@ -597,7 +597,6 @@
     return e;
   }
 
-  // MMDD extractor from campaign or term
   function mmddFromText(txt){
     const raw = String(txt||'');
     if(!raw) return null;
@@ -616,12 +615,10 @@
     }
     return null;
   }
-
   function mmddOfRow(r){
     return mmddFromText(r.campaign) || mmddFromText(r.term);
   }
 
-  // year-split group key: {year, mmdd}
   function parseGroupKey(gk){
     const m = String(gk||'').match(/^(\d{4})-(\d{4})$/);
     if(!m) return null;
@@ -637,15 +634,21 @@
     return AVAILABLE[0];
   }
 
+  /* ✅ (추가) year+mmdd -> YYYY-MM-DD */
+  function dateStrFromYearMmdd(year, mmdd){
+    const mm = String(mmdd||'').slice(0,2);
+    const dd = String(mmdd||'').slice(2,4);
+    return `${year}-${mm}-${dd}`;
+  }
+
   let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
   let CHANNEL = 'ALL';    // ALL | EDM | LMS | KAKAO
 
-  let RAW = null;         // {kpi:[], prod:[]}  (DAILY single, WEEK/RANGE aggregated)
+  let RAW = null;         // {kpi:[], prod:[]}
   let KPI = [];
-  let SELECTED = null;    // {type:'single', channel, campaign, term} or {type:'group', channel, year, mmdd}
+  let SELECTED = null;    // {type:'single', ...} or {type:'group', ...}
   let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
 
-  // Caches for YTD aggregation per (channel, thisStart, thisEnd, prevStart, prevEnd)
   const YTD_CACHE = new Map();
 
   function setViewActive(){
@@ -683,7 +686,6 @@
     secEDM.style.display = (showAll || CHANNEL==='EDM') ? '' : 'none';
     secLMS.style.display = (showAll || CHANNEL==='LMS') ? '' : 'none';
     secKAKAO.style.display = (showAll || CHANNEL==='KAKAO') ? '' : 'none';
-    // Other channels only on ALL
     secOTHER.style.display = showAll ? '' : 'none';
   }
 
@@ -820,7 +822,6 @@
         return {gk, year:p.year, mmdd:p.mmdd, rows, agg:a};
       }).sort((a,b)=> (b.agg.sessions||0)-(a.agg.sessions||0));
 
-      // Split by year (descending)
       const byYear = new Map();
       for(const g of groups){
         if(!byYear.has(g.year)) byYear.set(g.year, []);
@@ -832,7 +833,7 @@
       for(const yr of years){
         const arr = byYear.get(yr).slice(0, limit);
         html += `<div class="year-title"><span>${yr}</span><div class="bar"></div></div>`;
-        html += `<div class="flex flex-wrap gap-2">` + arr.map(g=>{
+        html += `<div class="flex flex-wrap gap-3">` + arr.map(g=>{ /* ✅ gap-2 -> gap-3 */
           const active = (SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd);
           const title = `${g.year}-${g.mmdd} · sessions:${g.agg.sessions} · terms:${g.rows.length}`;
           return makeChip(g.mmdd, title, active, {type:'group', channel, year:g.year, mmdd:g.mmdd});
@@ -857,7 +858,7 @@
         wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
         return;
       }
-      wrapEl.innerHTML = `<div class="flex flex-wrap gap-2">` + rows.map(r=>{
+      wrapEl.innerHTML = `<div class="flex flex-wrap gap-3">` + rows.map(r=>{ /* ✅ gap-2 -> gap-3 */
         const label = `${r.campaign||'(no-campaign)'}${r.term?(' · '+r.term):''}`;
         const title = `sessions:${r.sessions} · revenue:${r.revenue||0}`;
         const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
@@ -884,12 +885,11 @@
     renderOtherCampaigns('LMS', wrapLMSOther);
     renderOtherCampaigns('KAKAO', wrapKakaoOther);
 
-    // Other channels (ALL only; collapsible)
     const oc = otherChannels.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
     if(!oc.length){
       wrapOtherChannels.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
     }else{
-      wrapOtherChannels.innerHTML = `<div class="flex flex-wrap gap-2">` + oc.map(r=>{
+      wrapOtherChannels.innerHTML = `<div class="flex flex-wrap gap-3">` + oc.map(r=>{ /* ✅ gap-2 -> gap-3 */
         const label = `${r.channel} · ${(r.campaign||'-')}${r.term?(' · '+r.term):''}`;
         const title = `sessions:${r.sessions} · revenue:${r.revenue||0}`;
         const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
@@ -1032,7 +1032,6 @@
   }
 
   function renderProductsForGroup(sel){
-    // group: aggregate across all matching (year, mmdd) terms for that channel
     const prod = (RAW.prod||[]).filter(p =>
       p.channel===sel.channel &&
       String(p.date||'').slice(0,4)===sel.year &&
@@ -1090,14 +1089,6 @@
     renderProducts();
   }
 
-  function selectGroup(channel, year, mmdd){
-    SELECTED = {type:'group', channel, year, mmdd};
-    renderCampaignButtons();
-    aggregateKPIForSelected();
-    renderTerms();
-    renderProducts(); // ✅ group click -> products aggregated instantly
-  }
-
   async function fetchJson(url){
     const res = await fetch(url, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1123,8 +1114,8 @@
   }
 
   function buildAggregated(dailyJsonList){
-    const kpiMap = new Map();   // key = date||channel||campaign||term  (keep date to support year-split)
-    const prodMap = new Map();  // key = date||channel||campaign||term||item_id (keep date)
+    const kpiMap = new Map();
+    const prodMap = new Map();
 
     for(const j of dailyJsonList){
       for(const r of (j.kpi||[])){
@@ -1351,20 +1342,20 @@
     YTD_CACHE.set(key, {this:thisSum, prev:prevSum});
     const TY = thisSum;
     const LY = prevSum;
-      if(ytdCards) ytdCards.style.display = '';
-      if(ytdTySessions) ytdTySessions.textContent = fmt(TY.sessions);
-      if(ytdTyRevenue)  ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
-      if(ytdLySessions) ytdLySessions.textContent = fmt(LY.sessions);
-      if(ytdLyRevenue)  ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
-      const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
-      const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
-      if(ytdTySessionsSub) ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-      if(ytdTyRevenueSub)  ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-      if(ytdLySessionsSub) ytdLySessionsSub.textContent = `LY (same period)`;
-      if(ytdLyRevenueSub)  ytdLyRevenueSub.textContent  = `LY (same period)`;
+
+    if(ytdCards) ytdCards.style.display = '';
+    if(ytdTySessions) ytdTySessions.textContent = fmt(TY.sessions);
+    if(ytdTyRevenue)  ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
+    if(ytdLySessions) ytdLySessions.textContent = fmt(LY.sessions);
+    if(ytdLyRevenue)  ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
+    const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
+    const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
+    if(ytdTySessionsSub) ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+    if(ytdTyRevenueSub)  ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+    if(ytdLySessionsSub) ytdLySessionsSub.textContent = `LY (same period)`;
+    if(ytdLyRevenueSub)  ytdLyRevenueSub.textContent  = `LY (same period)`;
   }
 
-  // Toggle helpers (collapsed by default)
   function bindToggle(btn, wrap){
     let open = false;
     function sync(){
@@ -1384,6 +1375,42 @@
   bindToggle(toggleLmsOther, wrapLMSOther);
   bindToggle(toggleKakaoOther, wrapKakaoOther);
   bindToggle(toggleOtherChannels, wrapOtherChannels);
+
+  /* ✅ (추가) MMDD 칩 클릭 시 날짜/시작일 자동 변경 + 데이터 로드 */
+  async function jumpToGroupDate(year, mmdd){
+    const targetRaw = dateStrFromYearMmdd(year, mmdd);
+    const target = clampToAvailable(targetRaw);
+
+    if(VIEW === 'RANGE'){
+      startPicker.value = target;
+      if(!endPicker.value || endPicker.value < target) endPicker.value = target;
+      await loadRange(startPicker.value, endPicker.value);
+      return;
+    }
+
+    // DAILY / WEEK
+    datePicker.value = target;
+    if(VIEW === 'WEEK'){
+      await loadWeekByDate(target);
+    }else{
+      await loadDaily(target);
+    }
+  }
+
+  async function selectGroup(channel, year, mmdd){
+    /* ✅ 핵심: 클릭한 MMDD 기준으로 “리포트 날짜(또는 RANGE 시작일)”을 먼저 이동 */
+    await jumpToGroupDate(year, mmdd);
+
+    /* 그 다음, 새 RAW 기준으로 group 선택/하이라이트/드릴다운 */
+    SELECTED = {type:'group', channel, year, mmdd};
+    filterKPI();
+    updateChannelTotals();
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderTerms();
+    renderProducts();
+    await computeYTD();
+  }
 
   // View toggles
   chipDaily.addEventListener('click', ()=>{
@@ -1410,7 +1437,6 @@
     loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
   });
 
-  // Channel chips (YTD updates per channel)
   function onChannelChange(ch){
     CHANNEL = ch;
     setChipActive();
@@ -1430,14 +1456,12 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  // Range quick buttons
   btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()));
   btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
   btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
   btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
   btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
 
-  // Nav buttons
   btnPrev.addEventListener('click', async ()=>{
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
@@ -1509,13 +1533,11 @@
 
   btnReload.addEventListener('click', ()=> location.reload());
 
-  // YTD button just forces recompute / show
   btnYTD.addEventListener('click', async ()=>{
     if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
   });
 
-  // init
   (async function init(){
     setChipActive();
     toggleSections();
