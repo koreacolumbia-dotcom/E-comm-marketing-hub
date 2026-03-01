@@ -9,7 +9,7 @@ on:
         default: "manual"
 
       daily_only:
-        description: "Run Daily Digest only?"
+        description: "Run Daily Digest report only?"
         required: true
         default: "false"
         type: choice
@@ -22,12 +22,40 @@ on:
         type: choice
         options: ["false", "true"]
 
-      debug:
-        description: "Enable debug logs? (Crema builder debug)"
+      blog_only:
+        description: "Run Blog VOC only?"
         required: true
         default: "false"
         type: choice
         options: ["false", "true"]
+
+      debug:
+        description: "Enable debug logs? (prints more logs, keeps extra debug json)"
+        required: true
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+      owned_only:
+        description: "Run OWNED portal only?"
+        required: true
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+      owned_backfill:
+        description: "Backfill OWNED portal from 2025-01-01 to yesterday? (warning: can be heavy)"
+        required: true
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+      owned_recent_days:
+        description: "OWNED incremental refresh window (days). Used when owned_backfill=false"
+        required: true
+        default: "7"
+        type: choice
+        options: ["1", "3", "7", "14", "30"]
 
   schedule:
     # ✅ KST 06:30 = UTC 21:30 (전날)
@@ -59,7 +87,10 @@ jobs:
           git pull --rebase origin main
 
       # ---------------------------------------------------------
-      # ✅ Mode resolver (딱 2개: Daily / Crema)
+      # ✅ Mode resolver (핵심)
+      # - owned_only=true 또는 owned_backfill=true면: OWNED만 실행
+      # - daily_only/voc_only/blog_only 중 하나면: 그것만 실행
+      # - 그 외(스케줄/수동 all false): 전체 실행
       # ---------------------------------------------------------
       - name: Resolve run modes
         id: modes
@@ -68,40 +99,98 @@ jobs:
           set -euo pipefail
 
           EVENT="${{ github.event_name }}"
+
           DAILY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}"
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
+          BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
+          OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
+          OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
 
           if [ "$EVENT" = "workflow_dispatch" ]; then
             cnt=0
             [ "$DAILY_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$VOC_ONLY"   = "true" ] && cnt=$((cnt+1))
+            [ "$BLOG_ONLY"  = "true" ] && cnt=$((cnt+1))
+            [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of daily_only/voc_only can be true."
+              echo "[ERROR] Only one of daily_only/voc_only/blog_only/owned_only/owned_backfill can be true."
               exit 1
             fi
           fi
 
-          # ✅ Default (schedule/normal): run BOTH
+          # Default (schedule OR manual-all-false): run everything
           RUN_DAILY=true
+          RUN_PRICE=true
+          RUN_HERO=true
+          RUN_EXTSIG=true
           RUN_CREMA=true
+          RUN_BLOG=true
+          RUN_SUMMARY=true
+          RUN_OWNED=true
 
+          # If owned_backfill or owned_only => run owned only
+          if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=true
+          fi
+
+          # If other "only" => that only
           if [ "$DAILY_ONLY" = "true" ]; then
             RUN_DAILY=true
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
             RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
           fi
 
           if [ "$VOC_ONLY" = "true" ]; then
             RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
             RUN_CREMA=true
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
           fi
 
-          echo "run_daily=$RUN_DAILY"   >> $GITHUB_OUTPUT
-          echo "run_crema=$RUN_CREMA"   >> $GITHUB_OUTPUT
+          if [ "$BLOG_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=true
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+          fi
 
+          echo "run_daily=$RUN_DAILY"       >> "$GITHUB_OUTPUT"
+          echo "run_price=$RUN_PRICE"       >> "$GITHUB_OUTPUT"
+          echo "run_hero=$RUN_HERO"         >> "$GITHUB_OUTPUT"
+          echo "run_extsig=$RUN_EXTSIG"     >> "$GITHUB_OUTPUT"
+          echo "run_crema=$RUN_CREMA"       >> "$GITHUB_OUTPUT"
+          echo "run_blog=$RUN_BLOG"         >> "$GITHUB_OUTPUT"
+          echo "run_summary=$RUN_SUMMARY"   >> "$GITHUB_OUTPUT"
+          echo "run_owned=$RUN_OWNED"       >> "$GITHUB_OUTPUT"
+
+          echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" = "workflow_dispatch" ]; then
-            echo "debug=${{ inputs.debug }}" >> $GITHUB_OUTPUT
+            echo "owned_recent_days=${{ inputs.owned_recent_days }}" >> "$GITHUB_OUTPUT"
+            echo "debug=${{ inputs.debug }}" >> "$GITHUB_OUTPUT"
           else
-            echo "debug=false" >> $GITHUB_OUTPUT
+            echo "owned_recent_days=7" >> "$GITHUB_OUTPUT"
+            echo "debug=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Python
@@ -114,15 +203,17 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
 
-          # BigQuery/Pandas 유틸(필요시)
+          # BigQuery/Pandas
           pip install db-dtypes pyarrow google-cloud-bigquery pandas python-dateutil
 
-          # Crema VOC (topics/embeddings 등 쓰는 경우 대비)
+          # Crema VOC ML/NLP (builder가 쓰는 경우)
           pip install scikit-learn sentence-transformers
 
-          # HTML→PNG 렌더링용 (Daily PNG)
+          # HTML→PNG 렌더링용
           pip install playwright
           playwright install --with-deps chromium
 
@@ -130,19 +221,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p reports
+          mkdir -p reports site/data
 
       - name: Set KST time (for badge/meta + yesterday)
         id: set_time
         shell: bash
         run: |
           set -euo pipefail
-          echo "kst=$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')" >> $GITHUB_OUTPUT
-          echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> $GITHUB_OUTPUT
-          echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "kst=$(TZ=Asia/Seoul date '+%Y.%m.%d (%a) %H:%M KST')" >> "$GITHUB_OUTPUT"
+          echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+          echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       # =========================================================
-      # Daily Digest Report (어제 날짜만 생성)
+      # Daily Digest Report (어제 날짜 1일치 생성)
       # =========================================================
       - name: Build Daily Digest (yesterday only)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
@@ -151,6 +242,7 @@ jobs:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
@@ -179,12 +271,16 @@ jobs:
           echo "[INFO] Build only: ${YMD}"
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
+
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
 
           echo "[INFO] Outputs:"
           ls -la reports/daily_digest/daily | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
 
+      # =========================================================
+      # Render yesterday daily HTML -> PNG (for email)
+      # =========================================================
       - name: Render yesterday Daily Digest PNG
         if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
@@ -205,50 +301,99 @@ jobs:
           python -u scripts/render_daily_png.py "$HTML" "$PNG" || true
           ls -la "$PNG" || true
 
-      # =========================================================
-      # Crema VOC (COLLECT + BUILD)  ✅ single entry: voc_crema.py
-      # =========================================================
-      - name: Run Crema VOC (voc_crema.py: collect + build)
+      # ----------------------------
+      # 1) Naver Lowest Price
+      # ----------------------------
+      - name: Run Naver Lowest Price crawler
+        if: ${{ steps.modes.outputs.run_price == 'true' }}
+        continue-on-error: true
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u naver_crawl_columbia_c6c7_title_min.py \
+            --limit 999999 \
+            --output_html reports/naver_lowest_price.html \
+            --history_dir . \
+            --cache_dir .naver_cache \
+            || true
+          ls -la reports/naver_lowest_price.html || true
+
+      # ----------------------------
+      # 2) Hero banner
+      # ----------------------------
+      - name: Run Hero banner crawler
+        if: ${{ steps.modes.outputs.run_hero == 'true' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py || true
+          ls -la reports/hero_main.html || true
+
+      # ----------------------------
+      # 3) External Signal (VOC)
+      # ----------------------------
+      - name: Run External Signal (VOC)
+        if: ${{ steps.modes.outputs.run_extsig == 'true' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
+          TARGET_DAYS: "7"
+        run: |
+          set -euo pipefail
+          python -u external_signal_combined.py || true
+          ls -la reports/external_signal.html || true
+
+      # ----------------------------
+      # 4) Crema VOC (FIXED: collect -> build)
+      # ----------------------------
+      - name: Run Crema VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         continue-on-error: true
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
           OUTPUT_TZ: Asia/Seoul
           PROJECT_ROOT: ${{ github.workspace }}
-          TARGET_DAYS: 7
+          TARGET_DAYS: "7"
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ ! -f "voc_crema.py" ]; then
-            echo "[ERROR] voc_crema.py not found in repo root. (Needed for single-entry pipeline)"
-            ls -la
+          if [ -z "${CREMA_SECURE_DEVICE_TOKEN:-}" ]; then
+            echo "[WARN] CREMA_SECURE_DEVICE_TOKEN is empty. skip crema."
             exit 0
           fi
 
-          # lake 유지: reports/crema_raw 를 rm -rf 하지 않는다
           mkdir -p site/data reports/crema_raw
 
-          # collector output만 정리(필요 최소)
-          rm -f site/data/reviews.json site/data/meta.json || true
+          echo "[INFO] (1) Collect: crema_voc.py --mode daily --recent-days ${TARGET_DAYS}"
+          python -u crema_voc.py --mode daily --recent-days "${TARGET_DAYS}" || true
 
-          echo "[INFO] Run voc_crema.py: daily recent=${TARGET_DAYS} build target=${TARGET_DAYS} debug=${DEBUG}"
-          python -u voc_crema.py \
-            --mode daily \
-            --recent-days "${TARGET_DAYS}" \
-            --build \
-            --target-days "${TARGET_DAYS}" \
-            $( [ "${DEBUG}" = "true" ] && echo "--builder-debug" )
+          if [ ! -f "site/data/reviews.json" ]; then
+            echo "[ERROR] site/data/reviews.json not created by crema_voc.py"
+            ls -lah site/data || true
+            exit 0
+          fi
 
-          # archive site -> reports/voc_crema (커밋 안정성)
+          echo "[INFO] (2) Build dashboard: build_voc_dashboard.py"
+          if [ "${DEBUG}" = "true" ]; then
+            python -u build_voc_dashboard.py --input "site/data/reviews.json" --target-days "${TARGET_DAYS}" --debug || true
+          else
+            python -u build_voc_dashboard.py --input "site/data/reviews.json" --target-days "${TARGET_DAYS}" || true
+          fi
+
+          echo "[INFO] (3) Archive site -> reports/voc_crema"
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
-
           if [ -f "site/index.html" ]; then
             rsync -a --delete site/ reports/voc_crema/ || true
           else
-            echo "[WARN] site/index.html not found after voc build"
+            echo "[WARN] site/index.html not found after build"
             ls -lah site || true
             exit 0
           fi
@@ -256,8 +401,104 @@ jobs:
           echo "[INFO] voc_crema outputs:"
           ls -lah reports/voc_crema | head -n 200 || true
           ls -lah reports/voc_crema/data | head -n 200 || true
-          ls -lah reports/crema_raw | head -n 200 || true
 
+      # ----------------------------
+      # 4.5) Naver Blog VOC
+      # ----------------------------
+      - name: Run Naver Blog VOC (Columbia mentions)
+        if: ${{ steps.modes.outputs.run_blog == 'true' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+
+          rm -rf reports/voc_blog || true
+          mkdir -p reports/voc_blog
+
+          python -u build_blog_voc_report.py \
+            --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말" \
+            --days 60 \
+            --per-query 100 \
+            --headless \
+            --out-dir reports/voc_blog \
+            || true
+
+          ls -la reports/voc_blog/index.html || true
+
+      # ----------------------------
+      # 5) Summary
+      # ----------------------------
+      - name: Build Summary (reports/index.html + meta.json)
+        if: ${{ steps.modes.outputs.run_summary == 'true' }}
+        continue-on-error: true
+        env:
+          UPDATED_KST: ${{ steps.set_time.outputs.kst }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python -u build_summary.py || true
+
+          # ✅ PATCH: Hub 캐시 bust용 meta.json 강제 갱신
+          echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
+
+          ls -la reports/index.html reports/meta.json || true
+
+      # =========================================================
+      # ✅ OWNED Campaign Portal (EDM/LMS/KAKAO → products)
+      # =========================================================
+      - name: Build OWNED campaign portal (products by send_id)
+        if: ${{ steps.modes.outputs.run_owned == 'true' }}
+        continue-on-error: false
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          BQ_PROJECT: columbia-ga4
+          BQ_DATASET: analytics_358593394
+          OWNED_BACKFILL: ${{ steps.modes.outputs.owned_backfill }}
+          OWNED_RECENT_DAYS: ${{ steps.modes.outputs.owned_recent_days }}
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[WARN] GOOGLE_SA_JSON_B64 empty -> skip owned portal"
+            exit 0
+          fi
+
+          echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
+
+          mkdir -p reports/owned_portal
+
+          if [ "${OWNED_BACKFILL}" = "true" ]; then
+            echo "[INFO] OWNED backfill: 2025-01-01 ~ ${YMD} (overwrite)"
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/owned_portal \
+              --overwrite
+          else
+            echo "[INFO] OWNED incremental: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --recent-days "${OWNED_RECENT_DAYS}" \
+              --site-dir reports/owned_portal
+          fi
+
+          echo "[INFO] Owned outputs:"
+          ls -la reports/owned_portal || true
+          ls -la reports/owned_portal/data/owned | head -n 120 || true
+
+      # ----------------------------
+      # 7) Commit & push results (safe rebase + retry)
+      # ----------------------------
       - name: Commit & push results
         shell: bash
         run: |
@@ -277,7 +518,6 @@ jobs:
           git pull --rebase --autostash origin main
 
           git add -A reports site .naver_cache scripts || true
-
           if git diff --cached --quiet; then
             echo "No changes to commit after rebase"
             exit 0
@@ -291,6 +531,7 @@ jobs:
               echo "[OK] pushed"
               exit 0
             fi
+
             echo "[WARN] push rejected. Rebase with latest origin/main and retry..."
             git fetch origin main
             git pull --rebase --autostash origin main
@@ -300,7 +541,7 @@ jobs:
           exit 1
 
       # ----------------------------
-      # Success Email (Daily만)
+      # Success Email (PNG inline 우선 + 첨부)
       # ----------------------------
       - name: Send success email (yesterday daily report PNG)
         if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
@@ -313,12 +554,19 @@ jobs:
           DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
           HUB_URL: ${{ vars.HUB_URL }}
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
+
+          MODE_DAILY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}
+          MODE_VOC_ONLY:   ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
+          MODE_BLOG_ONLY:  ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
+
           REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
+
           DAILY_DIGEST_PNG_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.png
           DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
         shell: bash
         run: |
           set -euo pipefail
+
           echo "[DEBUG] REPORT_DATE=${REPORT_DATE}"
           echo "[DEBUG] DAILY_DIGEST_PNG_PATH=${DAILY_DIGEST_PNG_PATH}"
           echo "[DEBUG] DAILY_DIGEST_HTML_PATH=${DAILY_DIGEST_HTML_PATH}"
