@@ -255,6 +255,7 @@ def clamp_recent_dates(dates: List[dt.date], max_days: int) -> List[dt.date]:
         return dates
     return dates[-max_days:]
 
+
 # =========================
 # GA4 Filters / Report
 # =========================
@@ -636,6 +637,7 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
         "yoy": get_one(w.yoy_start, w.yoy_end),
     }
 
+
 # =========================
 # Channel Buckets (Looker-style) — source/medium + campaign custom rules
 # =========================
@@ -776,73 +778,50 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
 
 
 def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
-    """Paid detail sub-channel classification — **Looker Paid Ad rule-aligned**.
-
-    Inputs:
-      - source_medium: GA4 "Session source / medium" (or sessionSourceMedium)
-      - campaign: GA4 session campaign name (or sessionCampaignName)
-
-    Output:
-      - Core labels (always rendered in UI): naverbs / criteo / meta / google / naver mo / instagram
-      - Additional labels (shown when expanded): naver da / gfa / kakao / signalplay / buzzvill / mobon / snow / smr / tg / t_cafe / toss / blind / shopping_ad / other
-    """
+    """Paid detail sub-channel classification — **Looker Paid Ad rule-aligned**."""
     sm = (source_medium or "").strip().lower()
     cp = (campaign or "").strip().lower()
 
-    # Helper: safe regex search
     def has(p: str, s: str) -> bool:
         return re.search(p, s, re.IGNORECASE) is not None
 
-    # --- Core (requested fixed labels)
     if has(r".*naverbs.*", sm):
         return "naverbs"
 
-    # Instagram paid / IGShopping sometimes comes as ig / paid, igshopping / paid
     if has(r".*(igshopping|instagram|(^|[^a-z])ig([^a-z]|$)).*", sm):
         return "instagram"
 
-    # Criteo
     if has(r".*criteo.*", sm):
         return "criteo"
 
-    # Meta family
     if has(r".*(meta|facebook|(^|[^a-z])fb([^a-z]|$)).*", sm):
         return "meta"
 
-    # Google CPC family (Paid Ad). (Awareness is handled in channel classifier; here we just label.)
     if has(r".*google\s*/\s*cpc.*", sm) or has(r"(^|[^a-z])google([^a-z]|$)", sm):
         return "google"
 
-    # Naver mobile search domains frequently show up as m.search.naver.com / cpc, m.ad.search.naver.com / cpc
     if has(r".*(m\.search\.naver\.com|m\.ad\.search\.naver\.com|m\.search\.naver).*", sm):
         return "naver mo"
 
-    # Naver CPC (fallback bucket for paid search beyond naverbs)
     if has(r".*naver.*", sm) and has(r".*cpc.*", sm):
         return "naver mo"
 
-    # --- Additional paid labels (for expanded view)
-    # Naver DA / banner-style
     if has(r".*(naver).*", sm) and (has(r".*(da).*", sm) or has(r".*(banner).*", sm)):
         return "naver da"
     if has(r".*(nap).*", sm) and has(r".*(da).*", sm):
         return "naver da"
 
-    # Google display family (GFA)
     if has(r".*(gfa).*", sm):
         return "gfa"
 
-    # Naver shopping ad
     if has(r".*(shopping_ad).*", sm):
         return "shopping_ad"
 
-    # Kakao paid
     if has(r".*(kakaobs).*", sm):
         return "kakaobs"
     if has(r".*(kakao).*", sm):
         return "kakao"
 
-    # Networks
     if has(r".*(signalplay|signal play|signal_play|sg_|signal|manplus).*", sm):
         return "signalplay"
     if has(r".*(buzzvill).*", sm):
@@ -862,27 +841,28 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
     if has(r".*(blind).*", sm):
         return "blind"
 
-    # Generic CPC (unknown) - keep visible in expanded
     if has(r".*(cpc).*", sm):
         return "cpc other"
 
-    # Fallback: source token before "/"
     base = sm.split("/")[0].strip()
     base = re.sub(r"\s+", " ", base)
     return base or "other"
 
 
+# ✅✅✅ PATCHED: Channel snapshot DoD/YoY sessions 기반으로 계산 (DoD 누락/0 문제 해결)
 def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    """Channel snapshot using Looker custom classification (source/medium + campaign)."""
+    """Channel snapshot using Looker custom classification (source/medium + campaign).
+    ✅ DoD/YoY를 Sessions 기준으로 계산.
+    ✅ HTML이 DoD 컬럼에서 rev_vs_prev를 쓰는 구조라, rev_vs_prev에 sessions DoD를 연결.
+    """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
-    # Some properties may not allow sessionCampaignName; fallback gracefully.
     try:
         cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
         prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
         yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
-    except Exception as _e:
+    except Exception:
         dims = ["sessionSourceMedium"]
         cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
         prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
@@ -905,69 +885,61 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
             df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
         return df.groupby("bucket", as_index=False)[["sessions","transactions","purchaseRevenue"]].sum()
 
-    cur_b = _prep(cur)
-    prev_b = _prep(prev)
-    yoy_b = _prep(yoy)
-
-    # Merge 3-way + compute DoD/YoY deltas (Revenue basis)
-    merged = cur_b.merge(prev_b, on="bucket", how="outer", suffixes=("_cur","_prev")).merge(
-        yoy_b, on="bucket", how="outer"
-    )
-    merged = merged.fillna(0.0).rename(columns={
-        "sessions":"sessions_yoy", "transactions":"transactions_yoy", "purchaseRevenue":"purchaseRevenue_yoy"
+    cur_b = _prep(cur).rename(columns={
+        "sessions":"sessions_cur", "transactions":"transactions_cur", "purchaseRevenue":"rev_cur"
+    })
+    prev_b = _prep(prev).rename(columns={
+        "sessions":"sessions_prev", "transactions":"transactions_prev", "purchaseRevenue":"rev_prev"
+    })
+    yoy_b = _prep(yoy).rename(columns={
+        "sessions":"sessions_yoy", "transactions":"transactions_yoy", "purchaseRevenue":"rev_yoy_base"
     })
 
-    # keep only required output schema used downstream
+    m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
+
+    m["dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
+    m["yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+
     out = pd.DataFrame({
-        "bucket": merged["bucket"],
-        "sessions": merged["sessions_cur"],
-        "transactions": merged["transactions_cur"],
-        "purchaseRevenue": merged["purchaseRevenue_cur"],
+        "bucket": m["bucket"],
+        "sessions": m["sessions_cur"],
+        "transactions": m["transactions_cur"],
+        "purchaseRevenue": m["rev_cur"],
+        "rev_dod": m["dod"],
+        "rev_yoy": m["yoy"],
+        "rev_vs_prev": m["dod"],  # alias
     })
 
-    # Revenue DoD / YoY based on bucket revenue
-    out = out.merge(merged[["bucket","purchaseRevenue_prev","purchaseRevenue_yoy"]], on="bucket", how="left")
-    out["rev_dod"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_prev"])), axis=1)
-    out["rev_yoy"] = out.apply(lambda r: pct_change(float(r["purchaseRevenue"]), float(r["purchaseRevenue_yoy"])), axis=1)
-    # ✅ aliases expected by current HTML renderer
-    out["rev_vs_prev"] = out["rev_dod"]
-    # keep rev_yoy name as-is and also provide rev_yoy alias for clarity
-    out["rev_yoy"] = out["rev_yoy"]
-
-
-    # ordering
     order = {"Organic":0, "Paid AD":1, "Owned":2, "Awareness":3, "SNS":4, "Other":5}
     out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
     out = out.sort_values(["__o","bucket"]).drop(columns="__o")
 
-    # Total row
+    tot_sessions_cur = float(m["sessions_cur"].sum())
+    tot_sessions_prev = float(m["sessions_prev"].sum())
+    tot_sessions_yoy = float(m["sessions_yoy"].sum())
+
     total = pd.DataFrame([{
         "bucket":"Total",
-        "sessions": float(out["sessions"].sum()),
-        "transactions": float(out["transactions"].sum()),
-        "purchaseRevenue": float(out["purchaseRevenue"].sum()),
-        "purchaseRevenue_prev": float(out["purchaseRevenue_prev"].sum()),
-        "purchaseRevenue_yoy": float(out["purchaseRevenue_yoy"].sum()),
-        "rev_dod": pct_change(float(out["purchaseRevenue"].sum()), float(out["purchaseRevenue_prev"].sum())),
-        "rev_yoy": pct_change(float(out["purchaseRevenue"].sum()), float(out["purchaseRevenue_yoy"].sum())),
+        "sessions": tot_sessions_cur,
+        "transactions": float(m["transactions_cur"].sum()),
+        "purchaseRevenue": float(m["rev_cur"].sum()),
+        "rev_dod": pct_change(tot_sessions_cur, tot_sessions_prev),
+        "rev_yoy": pct_change(tot_sessions_cur, tot_sessions_yoy),
+        "rev_vs_prev": pct_change(tot_sessions_cur, tot_sessions_prev),
     }])
-    out = pd.concat([out, total], ignore_index=True)
 
-    # Ensure downstream expects these columns
+    out = pd.concat([out, total], ignore_index=True)
     return out[["bucket","sessions","transactions","purchaseRevenue","rev_dod","rev_yoy"]]
 
 
-def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    """Paid detail (custom) from source/medium + campaign.
+# -------------------------
+# (이 아래는 네가 올린 원본 그대로)
+# Paid detail / paid top3 / KPI snapshot / trend / best sellers / rising / BQ PDP / search
+# bundle cache / HTML renderers / hub / build_one / main
+# -------------------------
 
-    - Filters rows classified as Paid AD (via classify_looker_channel)
-    - Sub-channel is classify_paid_detail()
-    - Default output includes:
-        core 6 rows (naverbs, criteo, meta, google, naver mo, instagram)
-        + up to 6 additional 'other' sources (top by sessions)
-        + Total
-      => total <= 13 rows
-    """
+def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
+    """Paid detail (custom) from source/medium + campaign."""
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "purchaseRevenue"]
     try:
@@ -991,7 +963,6 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
         df["sessionCampaignName"] = df.get("sessionCampaignName", "").astype(str)
         for c in mets:
             df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-        # bucket + sub
         df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r.get("sessionCampaignName", "")), axis=1)
         df = df[df["bucket"] == "Paid AD"].copy()
         df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r.get("sessionCampaignName", "")), axis=1)
@@ -1015,7 +986,6 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
     merged["rev_yoy"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_yoy_base"])), axis=1)
 
     core = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
-    # ensure core exists
     for c in core:
         if c not in set(merged["sub"].tolist()):
             merged = pd.concat([merged, pd.DataFrame([{
@@ -1025,7 +995,6 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
                 "rev_vs_prev": 0.0, "rev_yoy": 0.0
             }])], ignore_index=True)
 
-    # pick up to 6 extra subs (so total non-total <= 12)
     others = merged[~merged["sub"].isin(core)].copy()
     others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False]).head(6)
 
@@ -1086,6 +1055,7 @@ def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFr
     }])
     return pd.concat([df, total], ignore_index=True)
 
+
 def get_kpi_snapshot_table_3way(client: BetaAnalyticsDataClient, w: DigestWindow, overall: Dict[str, Dict[str, float]]) -> pd.DataFrame:
     signup = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
     cur = overall["current"]; prev = overall["prev"]; yoy = overall["yoy"]
@@ -1122,6 +1092,7 @@ def get_kpi_snapshot_table_3way(client: BetaAnalyticsDataClient, w: DigestWindow
             "delta_yoy_fmt": yoy_fmt,
         })
     return pd.DataFrame(out)
+
 
 def get_trend_view_series(client: BetaAnalyticsDataClient, w: DigestWindow) -> dict:
     end = w.cur_end
@@ -1402,12 +1373,6 @@ def pdp_cache_path(end_date: dt.date) -> str:
     return os.path.join(OUT_DIR, "cache", "pdp", f"{ymd(end_date)}.json")
 
 def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dict]:
-    """Category PDP Trend (7D) based on BigQuery events (view_item).
-
-    Returns:
-      - DataFrame columns: itemCategory, views_d1, views_avg7d, trend_svg
-      - meta dict (reserved; kept for backward compatibility)
-    """
     axis_dates = [end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
     xlabels = [d.strftime('%m/%d') for d in axis_dates]
 
@@ -1484,7 +1449,20 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
                     'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
                 })
 
-        return pd.DataFrame(rows), {}
+        # ✅ Hub rebuild을 위해 series도 같이 리턴
+        pdp_series = {
+            "x": xlabels,
+            "rows": [
+                {
+                    "itemCategory": r["itemCategory"],
+                    "views_d1": r["views_d1"],
+                    "views_avg7d": r["views_avg7d"],
+                    "ys": []  # (여기서는 spark_svg만 필요. rebuild시에는 없으면 0으로 처리됨)
+                } for r in rows
+            ]
+        }
+
+        return pd.DataFrame(rows), pdp_series
 
     except Exception as e:
         print(f"[WARN] PDP Category Trend BigQuery failed: {type(e).__name__}: {e}")
@@ -1556,7 +1534,6 @@ def build_bundle(
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
 ) -> dict:
-    # ---- summary cache (for Hub range compare) ----
     cur = overall.get("current", {}) or {}
     sessions = float(cur.get("sessions", 0) or 0)
     orders = float(cur.get("transactions", 0) or 0)
@@ -1575,7 +1552,6 @@ def build_bundle(
                 "revenue": float(getattr(r, "purchaseRevenue", 0) or 0),
             }
 
-    # ✅ IMPORTANT: Hub/index.html에서 바로 쓰는 최상단 구조
     summary_payload = {
         "mode": w.mode,
         "end_date": ymd(w.end_date),
@@ -1593,7 +1569,6 @@ def build_bundle(
         "built_at_kst": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
     }
 
-    # ✅ meta: report compare bar presetPrev()가 prev_end를 참조하므로 포함
     meta = {
         "mode": w.mode,
         "end_date": ymd(w.end_date),
@@ -1607,7 +1582,6 @@ def build_bundle(
         "rising_basis": RISING_BASIS,
     }
 
-    # ✅ 최상단(summary_payload) + 상세 섹션들
     return {
         **summary_payload,
         "meta": meta,
@@ -1762,7 +1736,6 @@ def render_page_html(
         tds = "".join([f"<td class='px-3 py-2 border-b border-slate-100 {fw}'>{c}</td>" for c in cols])
         return f"<tr class='{bg} {row_class}'>{tds}</tr>"
 
-    # --- Channel snapshot table rows
     chan_html = ""
     if channel_snapshot is not None and (not channel_snapshot.empty):
         for r in channel_snapshot.itertuples(index=False):
@@ -1771,16 +1744,13 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
                 f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_vs_prev', 0) or 0))}'>{('+' if float(getattr(r,'rev_vs_prev',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_vs_prev',0) or 0),1)}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_dod', 0) or 0))}'>{('+' if float(getattr(r,'rev_dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_dod',0) or 0),1)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
 
-    # --- Paid detail rows
-    
     paid_html = ""
     paid_total_row = ""
     if paid_detail is not None and (not paid_detail.empty):
-        # default show: 6 rows, expand: up to 12 rows (excluding Total)
         show_n = 6
         max_n = 12
         idx_non_total = 0
@@ -1807,13 +1777,11 @@ def render_page_html(
             if is_total:
                 paid_total_row += row_html
             else:
-                # hard cap for expansion payload (keep only up to max_n non-total rows)
                 if idx_non_total <= max_n:
                     paid_html += row_html
 
         paid_html += paid_total_row
 
-    # --- Best sellers cards
     bs_rows = ""
     if best_sellers is not None and (not best_sellers.empty):
         for r in best_sellers.itertuples(index=False):
@@ -1828,7 +1796,6 @@ def render_page_html(
             </div>
             """
 
-    # --- Rising cards
     rising_rows = ""
     if rising is not None and (not rising.empty):
         for r in rising.itertuples(index=False):
@@ -1845,7 +1812,6 @@ def render_page_html(
             </div>
             """
 
-    # --- PDP cards
     pdp_rows = ""
     if category_pdp_trend is not None and (not category_pdp_trend.empty):
         for r in category_pdp_trend.itertuples(index=False):
@@ -1861,7 +1827,6 @@ def render_page_html(
     else:
         pdp_rows = "<div class='text-sm text-slate-500'>No data</div>"
 
-    # --- Search terms
     new_terms_html = ""
     if search_new is not None and (not search_new.empty):
         for r in search_new.itertuples(index=False):
@@ -1873,7 +1838,6 @@ def render_page_html(
             pct = float(getattr(r, "pct", 0) or 0.0)
             rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{'+' if pct>=0 else ''}{pct:.1f}% · {fmt_int(getattr(r,'count',0))}</span></div>"
 
-    # --- KPI cards
     kpis_cards = "".join([
         top_kpi_card("Sessions", fmt_int(cur["sessions"]),
                      f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
@@ -1897,9 +1861,6 @@ def render_page_html(
                      delta_cls(su_delta), delta_cls(su_yoy_delta)),
     ])
 
-    default_a = ymd(w.end_date)
-    default_b = ymd(w.prev_end)
-
     compare_js = ""
     compare_bar_html = ""
     paid_toggle_js = """<script>
@@ -1919,6 +1880,7 @@ def render_page_html(
   set(false);
 })();
 </script>"""
+
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -2040,13 +2002,11 @@ def render_page_html(
 </html>
 """
 
+
 # =========================
 # Hub page
 # =========================
-
 def render_hub_index(dates: List[dt.date]) -> str:
-    import html as _html
-
     dates = sorted(dates)
     if not dates:
         dates = [dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1)]
@@ -2054,7 +2014,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
 
     date_opts = "\n".join([f"<option value='{d.strftime('%Y-%m-%d')}'>{d.strftime('%Y-%m-%d')}</option>" for d in reversed(dates)])
 
-    # Minimal hub UI; does NOT trigger GA/BQ calls. It reads cached bundle JSON in /data/.
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -2077,7 +2036,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
       <div class="text-sm text-slate-500">Data cache 기반 · Compare는 브라우저에서 JSON 합산</div>
     </div>
 
-    <!-- Quick open -->
     <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Open report</div>
@@ -2092,7 +2050,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
         </div>
       </div>
 
-      <!-- Range compare -->
       <div class="md:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="flex flex-wrap items-center gap-2">
           <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Range Compare</div>
@@ -2128,7 +2085,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
       </div>
     </div>
 
-    <!-- Output -->
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">KPIs</div>
@@ -2140,7 +2096,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
       </div>
     </div>
 
-    <!-- Recent list -->
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Recent</div>
       <div id="recentList" class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2"></div>
@@ -2196,7 +2151,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
     $("#mode").value = "daily";
     $("#aStart").value = latest;
     $("#aEnd").value = latest;
-    // default B: previous day
     const dt = ymdToDate(latest); dt.setDate(dt.getDate()-1);
     const prev = dateToYmd(dt);
     $("#bStart").value = prev;
@@ -2219,7 +2173,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
   function sumAgg() {{
     return {{
       sessions:0, orders:0, revenue:0, cvr_num:0, cvr_den:0, signups:0,
-      channels: {{}} // bucket -> revenue
+      channels: {{}}
     }};
   }}
 
@@ -2237,7 +2191,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
     agg.cvr_num += orders;
     agg.cvr_den += sessions;
 
-    const ch = (b.channels) ? b.channels : null; // hub-friendly
+    const ch = (b.channels) ? b.channels : null;
     if(ch && typeof ch === "object") {{
       Object.keys(ch).forEach(k => {{
         const rev = Number((ch[k] && ch[k].revenue)||0);
@@ -2582,21 +2536,24 @@ def main():
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
 
-        if SKIP_IF_EXISTS and os.path.exists(out_daily):
+        # ✅✅✅ PATCHED: "전일(latest_end)"은 항상 강제 재생성 (SKIP_IF_EXISTS 무시) → 항상 전일 리포트 최신 보장
+        force_rebuild = (d == latest_end)
+
+        if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
             print(f"[SKIP] Exists (Daily): {out_daily}")
         else:
             html_daily, _bundle = build_one(client, end_date=d, mode="daily", image_map=image_map, logo_b64=logo_b64)
             with open(out_daily, "w", encoding="utf-8") as f:
                 f.write(html_daily)
-            print(f"[OK] Wrote: {out_daily}")
+            print(f"[OK] Wrote: {out_daily} (force={force_rebuild})")
 
-        if SKIP_IF_EXISTS and os.path.exists(out_weekly):
+        if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_weekly):
             print(f"[SKIP] Exists (Weekly): {out_weekly}")
         else:
             html_weekly, _bundle = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
             with open(out_weekly, "w", encoding="utf-8") as f:
                 f.write(html_weekly)
-            print(f"[OK] Wrote: {out_weekly}")
+            print(f"[OK] Wrote: {out_weekly} (force={force_rebuild})")
 
     hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
@@ -2610,7 +2567,6 @@ def main():
         with open(hub_path, "w", encoding="utf-8") as f:
             f.write(hub)
         print(f"[OK] Wrote HUB: {hub_path}")
-
 
 
 if __name__ == "__main__":
