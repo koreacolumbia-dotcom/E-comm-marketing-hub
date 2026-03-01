@@ -108,6 +108,18 @@ SITE_DIR.mkdir(parents=True, exist_ok=True)
 SITE_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def normalize_source(x: Any) -> str:
+    s = str(x or "").strip()
+    if not s:
+        return "Official"
+    low = s.lower()
+    if "naver" in low:
+        return "Naver"
+    if "official" in low:
+        return "Official"
+    return s  # 기타 소스명은 그대로 유지
+
+
 BASE_STOPWORDS = set(
     """
     그리고 그러나 그래서 하지만 또한
@@ -222,6 +234,7 @@ NEG_SEEDS = [
 
 HARD_DEFECT = ["불량", "하자", "찢", "구멍", "파손", "누수", "변색", "오염", "접착", "터짐"]
 DEFECT_ACTION = ["교환", "반품", "환불", "as", "처리", "불편", "문제", "실망", "문의", "응대", "접수"]
+
 NEGATION = ["안", "않", "없", "못", "아니", "별로안", "전혀안"]
 
 
@@ -682,10 +695,6 @@ REQUIRED_FIELDS = ["id", "product_code", "product_name", "rating", "created_at",
 
 
 def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
-    """
-    입력을 그대로 쓰면 타입/필드 누락으로 downstream이 깨질 수 있어서,
-    최소 정규화만 수행 (축약 아님: 안정화)
-    """
     obj = json.loads(path.read_text(encoding="utf-8"))
     reviews = obj.get("reviews")
     if not isinstance(reviews, list):
@@ -695,24 +704,26 @@ def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
     for r in reviews:
         if not isinstance(r, dict):
             continue
-        rr = dict(r)
 
-        rr["id"] = rr.get("id")
-        rr["product_code"] = str(rr.get("product_code") or "").strip() or "-"
-        rr["product_name"] = str(rr.get("product_name") or "").strip() or rr["product_code"]
-        rr["rating"] = int(pd.to_numeric(rr.get("rating"), errors="coerce") or 0)
-        rr["created_at"] = str(rr.get("created_at") or "").strip()
-        rr["text"] = str(rr.get("text") or "").strip()
-        rr["source"] = str(rr.get("source") or "Official").strip() or "Official"
+        # normalize minimal schema
+        r["id"] = r.get("id") if r.get("id") is not None else ""
+        r["product_code"] = str(r.get("product_code") or "").strip() or "-"
+        r["product_name"] = str(r.get("product_name") or "").strip() or r["product_code"]
+        r["rating"] = int(pd.to_numeric(r.get("rating"), errors="coerce") or 0)
+        r["created_at"] = str(r.get("created_at") or "").strip()
+        r["text"] = str(r.get("text") or "").strip()
+        r["source"] = normalize_source(r.get("source"))
 
-        rr["product_url"] = str(rr.get("product_url") or "").strip()
-        rr["option_size"] = str(rr.get("option_size") or "").strip()
-        rr["option_color"] = str(rr.get("option_color") or "").strip()
-        rr["local_product_image"] = str(rr.get("local_product_image") or "").strip()
-        rr["local_review_thumb"] = str(rr.get("local_review_thumb") or "").strip()
-        rr["text_image_path"] = str(rr.get("text_image_path") or "").strip()
+        # optional fields (safe)
+        r["product_url"] = str(r.get("product_url") or "").strip()
+        r["option_size"] = str(r.get("option_size") or "").strip()
+        r["option_color"] = str(r.get("option_color") or "").strip()
+        r["local_product_image"] = str(r.get("local_product_image") or "").strip()
+        r["local_review_thumb"] = str(r.get("local_review_thumb") or "").strip()
+        r["text_image_path"] = str(r.get("text_image_path") or "").strip()
 
-        out.append(ensure_tags_and_direction(rr))
+        out.append(ensure_tags_and_direction(r))
+
     return out
 
 
@@ -984,12 +995,11 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     neg_top5 = attach_rid(neg_top, neg_evidence)
 
     cluster_counts: Dict[str, int] = {k: 0 for k in CLUSTERS.keys()}
-    if rowsN:
-        for r in rowsN:
-            if not is_complaint(r):
-                continue
-            for h in assign_cluster(str(r.get("text") or "")):
-                cluster_counts[h] = cluster_counts.get(h, 0) + 1
+    for r in rowsN:
+        if not is_complaint(r):
+            continue
+        for h in assign_cluster(str(r.get("text") or "")):
+            cluster_counts[h] = cluster_counts.get(h, 0) + 1
 
     size_rows = [r for r in rowsN if isinstance(r.get("tags"), list) and ("size" in r.get("tags"))]
     size_phrases_terms = top_terms(size_rows, topk=10, auto_sw=auto_sw, which="neg") if size_rows else []
