@@ -426,9 +426,7 @@ jobs:
 
             if [ -f "${HEALTH}" ]; then
               # ✅ heredoc 제거 (YAML 깨짐 방지)
-              if python -c 'import json,sys; p="reports/crema_raw/health/latest_health.json"; 
-d=json.load(open(p,"r",encoding="utf-8")); 
-sys.exit(0 if int(d.get("failed_chunks",999))==0 else 1)' ; then
+              if python -c 'import json,sys; p="reports/crema_raw/health/latest_health.json"; d=json.load(open(p,"r",encoding="utf-8")); sys.exit(0 if int(d.get("failed_chunks",999))==0 else 1)' ; then
                 FAIL_OK="true"
               fi
             fi
