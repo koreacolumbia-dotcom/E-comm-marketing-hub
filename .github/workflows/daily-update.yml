@@ -294,9 +294,9 @@ jobs:
           ls -la "$PNG" || true
 
       # ----------------------------
-      # 4) Crema VOC (COLLECT -> BUILD)  ✅ MAX PATCH + ACCUMULATE
+      # 4) Crema VOC (COLLECT -> BUILD)  ✅ FIX: voc_crema.py requires --mode
       # ----------------------------
-      - name: Run Crema VOC (collect->accumulate -> build dashboard)
+      - name: Run Crema VOC (collect -> build dashboard)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         continue-on-error: true
         env:
@@ -305,7 +305,6 @@ jobs:
           PROJECT_ROOT: ${{ github.workspace }}
           TARGET_DAYS: 7
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
-          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         shell: bash
         run: |
           set -euo pipefail
@@ -315,32 +314,56 @@ jobs:
           mkdir -p "${RAW_DIR}"
           rm -f "${RAW_JSON}" || true
 
-          echo "[INFO] Crema collect+accumulate -> ${RAW_JSON}"
+          echo "[INFO] Crema collect (voc_crema.py) -> site/data/reviews.json, then copy -> ${RAW_JSON}"
           echo "[DEBUG] debug=${DEBUG}"
 
-          # ---- 1) COLLECT + ACCUMULATE (from 2025-01-01, daily snapshots)
-          python -u scripts/crema_collect_accumulate_v2.py \
+          # ---- 1) COLLECT (✅ fixed: voc_crema.py requires --mode)
+          # daily mode: 최근 N일만
+          set +e
+          python -u voc_crema.py \
             --mode daily \
             --recent-days "${TARGET_DAYS}" \
-            --out "${RAW_JSON}" \
-            --store-dir "${RAW_DIR}" \
-            --daily-dir "${RAW_DIR}/daily" \
-            $( [ "${DEBUG}" = "true" ] && echo "--debug" ) \
-            || true
+            --keep-site-output
+          RC=$?
+          set -e
 
-          echo "[DEBUG] raw dir:"
-          ls -lah "${RAW_DIR}" || true
-
-          if [ ! -f "${RAW_JSON}" ]; then
-            echo "[ERROR] Raw reviews json not created: ${RAW_JSON}"
+          if [ "$RC" -ne 0 ]; then
+            echo "[WARN] voc_crema.py failed (rc=$RC). Skip build."
             exit 0
           fi
 
-          # ---- 2) BUILD (v6.1 builder + UI template)
-          python -u scripts/build_voc_dashboard_v6.py \
+          # collector output: site/data/reviews.json (standard)
+          if [ ! -f "site/data/reviews.json" ]; then
+            echo "[ERROR] Collector output missing: site/data/reviews.json"
+            echo "[DEBUG] site/data listing:"
+            ls -lah site/data || true
+            exit 0
+          fi
+
+          # copy to RAW_JSON for builder consistency
+          cp -f "site/data/reviews.json" "${RAW_JSON}" || true
+
+          echo "[DEBUG] raw dir:"
+          ls -lah "${RAW_DIR}" || true
+          echo "[DEBUG] raw file size:"
+          ls -lah "${RAW_JSON}" || true
+
+          python - << 'PY'
+          import json
+          p="reports/crema_raw/reviews.json"
+          obj=json.load(open(p,'r',encoding='utf-8'))
+          rv=obj.get("reviews", [])
+          n=len(rv) if isinstance(rv,list) else -1
+          print("[DEBUG] raw keys:", list(obj.keys()))
+          print("[DEBUG] raw reviews len:", n)
+          if n == 0:
+              print("[WARN] raw reviews is 0. Upstream token/endpoint/rate-limit OR window/created_at parse issue.")
+          PY
+
+          # ---- 2) BUILD (✅ fixed: builder is build_voc_dashboard.py)
+          python -u build_voc_dashboard.py \
             --input "${RAW_JSON}" \
             --target-days "${TARGET_DAYS}" \
-            --html-template "site/template.html" \
             $( [ "${DEBUG}" = "true" ] && echo "--debug" ) \
             || true
 
@@ -359,7 +382,6 @@ jobs:
           echo "[INFO] voc_crema outputs:"
           ls -lah reports/voc_crema | head -n 200 || true
           ls -lah reports/voc_crema/data | head -n 200 || true
-
       # ----------------------------
       # 7) Commit & push results
       # ----------------------------
