@@ -8,6 +8,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
+  <!-- ✅ Added: Chart.js for Trend -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- ✅ Added: Plotly for UMAP 2D -->
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
@@ -137,6 +143,63 @@
     .health-ok{ background: rgba(16,185,129,0.10); border: 1px solid rgba(16,185,129,0.18); color:#065f46; }
     .health-warn{ background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); color:#92400e; }
     .health-error{ background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.18); color:#991b1b; }
+
+    /* ✅ Added: AI blocks */
+    .ai-box{
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.78);
+      border-radius: 26px;
+      backdrop-filter: blur(18px);
+      box-shadow: 0 16px 42px rgba(0,45,114,0.04);
+      padding: 16px 16px;
+    }
+    .ai-mini{
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.78);
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(16px);
+      padding: 14px 14px;
+    }
+    .ai-title{
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    .ai-sub{
+      font-size: 12px;
+      font-weight: 800;
+      color: #64748b;
+    }
+    .ai-chip{
+      display:inline-flex; align-items:center; gap:6px;
+      border-radius: 9999px;
+      padding: 7px 10px;
+      border: 1px solid rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.60);
+      font-size: 12px;
+      font-weight: 900;
+      color: #334155;
+      cursor: pointer;
+      user-select: none;
+    }
+    .ai-chip:hover{ transform: translateY(-1px); }
+    .ai-muted{ color:#64748b; font-weight: 800; font-size: 12px; }
+
+    /* Chart canvas looks better */
+    .chart-wrap{
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.80);
+      background: rgba(255,255,255,0.40);
+      padding: 14px 14px;
+    }
+    #umapPlot{
+      width: 100%;
+      height: 420px;
+      border-radius: 22px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.80);
+      background: rgba(255,255,255,0.40);
+    }
   </style>
 </head>
 
@@ -370,6 +433,92 @@
             </div>
           </section>
 
+          <!-- ✅ 4.5 AI Insights (NEW) -->
+          <section class="mb-10">
+            <div class="glass-card p-8">
+              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+                <div>
+                  <div class="small-label text-blue-600 mb-2">4.5 AI Insights</div>
+                  <div class="text-2xl font-black text-slate-900">ML Topic · 1Y Trend · DL Cluster · UMAP</div>
+                </div>
+                <div class="text-xs font-black text-slate-500">
+                  * meta.json에 항목이 없으면 자동 숨김(스킵)
+                </div>
+              </div>
+
+              <!-- 4.5-1 Trend -->
+              <div class="ai-box mb-4">
+                <div class="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <div class="small-label text-blue-600 mb-2">4.5-1) 1Y Trend</div>
+                    <div class="ai-title text-lg">리뷰 볼륨 & 부정 비중 추이</div>
+                    <div class="ai-sub mt-1">daily volume + neg rate</div>
+                  </div>
+                  <div class="text-xs font-black text-slate-500">
+                    <span class="badge">data: meta.trend_daily_1y</span>
+                  </div>
+                </div>
+
+                <div class="chart-wrap mt-4">
+                  <canvas id="trend1yChart" height="110"></canvas>
+                </div>
+
+                <div id="trend1yEmpty" class="hidden mt-3 text-xs font-black text-slate-500">
+                  trend_daily_1y 데이터가 없습니다.
+                </div>
+              </div>
+
+              <!-- 4.5-2 ML Topics -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                <div class="ai-box">
+                  <div class="small-label text-blue-600 mb-2">4.5-2) ML Topics</div>
+                  <div class="ai-title text-lg">토픽 모델링 (1Y)</div>
+                  <div class="ai-sub mt-1">상위 토픽 키워드(클릭하면 검색어로 적용)</div>
+
+                  <div id="mlTopicsBox" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+                  <div id="mlTopicsEmpty" class="hidden mt-3 text-xs font-black text-slate-500">
+                    ml_topics_1y 데이터가 없습니다.
+                  </div>
+                </div>
+
+                <!-- 4.5-3 DL Clusters -->
+                <div class="ai-box">
+                  <div class="small-label text-blue-600 mb-2">4.5-3) DL Semantic Clusters</div>
+                  <div class="ai-title text-lg">문장 임베딩 기반 클러스터</div>
+                  <div class="ai-sub mt-1">클러스터별 대표 문장(클릭→해당 리뷰로 점프)</div>
+
+                  <div id="dlClustersBox" class="mt-4 space-y-3"></div>
+                  <div id="dlClustersEmpty" class="hidden mt-3 text-xs font-black text-slate-500">
+                    dl_clusters_1y 데이터가 없습니다.
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4.5-4 UMAP -->
+              <div class="ai-box">
+                <div class="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <div class="small-label text-blue-600 mb-2">4.5-4) UMAP 2D Map</div>
+                    <div class="ai-title text-lg">리뷰 임베딩 2D 시각화</div>
+                    <div class="ai-sub mt-1">점 클릭 → 해당 리뷰로 이동</div>
+                  </div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <button class="chip active" id="umapMode-all" onclick="switchUmapMode('all')">ALL</button>
+                    <button class="chip" id="umapMode-neg" onclick="switchUmapMode('neg')">NEG</button>
+                    <button class="chip" id="umapMode-pos" onclick="switchUmapMode('pos')">POS</button>
+                    <span class="badge">data: meta.umap_1y</span>
+                  </div>
+                </div>
+
+                <div class="mt-4" id="umapPlot"></div>
+                <div id="umapEmpty" class="hidden mt-3 text-xs font-black text-slate-500">
+                  umap_1y 데이터가 없습니다.
+                </div>
+              </div>
+
+            </div>
+          </section>
+
           <!-- 5 Daily feed -->
           <section class="mb-10">
             <div class="glass-card p-8">
@@ -409,7 +558,8 @@
           <footer class="text-xs font-bold text-slate-500 pb-8">
             * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
             * 섹션4: 최근 1년 누적(제품별 POS/NEG 대표 문장).<br/>
-            * 키워드: 중립/관용구/제품코드성 단어 제거 + 제품군별 자동 stopwords 학습.
+            * 키워드: 중립/관용구/제품코드성 단어 제거 + 제품군별 자동 stopwords 학습.<br/>
+            * 섹션4.5: ML Topic / DL Cluster / UMAP / 1Y Trend (meta.json 제공 시 자동 표시)
           </footer>
         </div>
       </div>
@@ -427,7 +577,10 @@
       rankMode: "size",
       rankExpanded: false,
       chips: { daily: true, size: false, low: false },
-      pendingScrollId: null
+      pendingScrollId: null,
+      umapMode: "all",
+      trendChart: null,
+      umapRendered: false,
     };
 
     // ----------------------------
@@ -573,6 +726,15 @@
       renderAll();
     }
 
+    // ✅ UMAP filter controls
+    function switchUmapMode(mode){
+      uiState.umapMode = mode;
+      document.getElementById("umapMode-all")?.classList.toggle("active", mode==="all");
+      document.getElementById("umapMode-neg")?.classList.toggle("active", mode==="neg");
+      document.getElementById("umapMode-pos")?.classList.toggle("active", mode==="pos");
+      renderUmap(); // re-render only umap
+    }
+
     // ----------------------------
     // Data + metrics
     // ----------------------------
@@ -612,7 +774,7 @@
       if (sort === "latest") rows.sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
       else if (sort === "long") rows.sort((a,b)=> (String(b.text||"").length - String(a.text||"").length));
       else if (sort === "low") rows.sort((a,b)=> (Number(a.rating||0) - Number(b.rating||0)) || (new Date(b.created_at||0) - new Date(a.created_at||0)));
-      // upload: keep original order as-is (input is already upload-ish)
+      // upload: keep original order as-is
 
       return rows;
     }
@@ -743,7 +905,6 @@
       ht.textContent = `HEALTH: ${status.toUpperCase()}`;
       hs.textContent = `Official ${byS.Official ?? 0} · Naver ${byS.Naver ?? 0} · InvalidDT ${parseFail}`;
 
-      // right mini
       document.getElementById("hInput").textContent = h.input_total_reviews ?? "-";
       document.getElementById("h7d").textContent = META?.total_reviews ?? "-";
       document.getElementById("hStale").textContent = "-";
@@ -1027,6 +1188,233 @@
       sel.value = current;
     }
 
+    // ----------------------------
+    // ✅ AI Insights renderers
+    // ----------------------------
+    function renderTrend1Y(){
+      const data = META?.trend_daily_1y || META?.trend_daily || [];
+      const emptyEl = document.getElementById("trend1yEmpty");
+      const canvas = document.getElementById("trend1yChart");
+      if (!canvas) return;
+
+      if (!Array.isArray(data) || data.length === 0){
+        emptyEl?.classList.remove("hidden");
+        try { if (uiState.trendChart) uiState.trendChart.destroy(); } catch(e){}
+        uiState.trendChart = null;
+        return;
+      }
+      emptyEl?.classList.add("hidden");
+
+      const labels = data.map(x => x.day || x.date || "-");
+      const cnt = data.map(x => Number(x.cnt ?? x.count ?? 0));
+      const negRate = data.map(x => {
+        const nr = (x.neg_rate != null) ? Number(x.neg_rate) : (Number(x.neg||0)/Math.max(1,Number(x.cnt||0)));
+        return Math.round(nr * 1000) / 10; // 1 decimal
+      });
+
+      try { if (uiState.trendChart) uiState.trendChart.destroy(); } catch(e){}
+
+      uiState.trendChart = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "Review Volume", data: cnt, borderWidth: 2, tension: 0.25, yAxisID: "y" },
+            { label: "Negative Rate (%)", data: negRate, borderWidth: 2, tension: 0.25, borderDash: [6,6], yAxisID: "y1" },
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { display: true } },
+          scales: {
+            y: { beginAtZero: true },
+            y1: { position: "right", beginAtZero: true, grid: { drawOnChartArea: false } }
+          }
+        }
+      });
+    }
+
+    function renderMLTopics(){
+      const box = document.getElementById("mlTopicsBox");
+      const empty = document.getElementById("mlTopicsEmpty");
+      if (!box) return;
+
+      const obj = META?.ml_topics_1y || META?.ml_topics || null;
+      const enabled = obj?.enabled !== false; // default on
+      const topics = obj?.topics || [];
+
+      if (!enabled || !Array.isArray(topics) || topics.length === 0){
+        empty?.classList.remove("hidden");
+        box.innerHTML = "";
+        return;
+      }
+
+      empty?.classList.add("hidden");
+      const topN = topics.slice(0, 8);
+
+      box.innerHTML = topN.map(t => {
+        const tid = t.topic_id ?? t.id ?? "-";
+        const words = Array.isArray(t.words) ? t.words.slice(0, 10) : [];
+        const score = (t.score != null) ? Number(t.score).toFixed(2) : "";
+        return `
+          <div class="ai-mini">
+            <div class="flex items-center justify-between gap-2">
+              <div class="font-black text-slate-900">Topic ${esc(tid)}</div>
+              ${score ? `<span class="badge">score ${esc(score)}</span>` : ``}
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              ${words.map(w => `<span class="ai-chip" onclick="applyKeywordAndScroll('${esc(w)}','')">#${esc(w)}</span>`).join("")}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderDLClusters(){
+      const box = document.getElementById("dlClustersBox");
+      const empty = document.getElementById("dlClustersEmpty");
+      if (!box) return;
+
+      // 지원 키 이름들(파이썬 구현 따라 변경 가능)
+      const obj = META?.dl_clusters_1y || META?.dl_topics_1y || META?.dl_clusters || null;
+      const enabled = obj?.enabled !== false;
+      const clusters = obj?.clusters || [];
+
+      if (!enabled || !Array.isArray(clusters) || clusters.length === 0){
+        empty?.classList.remove("hidden");
+        box.innerHTML = "";
+        return;
+      }
+
+      empty?.classList.add("hidden");
+      const top = clusters.slice(0, 6);
+
+      box.innerHTML = top.map(c => {
+        const cid = c.cluster_id ?? c.id ?? "-";
+        const label = c.label || c.name || "";
+        const size = c.size != null ? c.size : (Array.isArray(c.samples)? c.samples.length : "");
+        const terms = Array.isArray(c.top_terms) ? c.top_terms.slice(0, 6) : [];
+        const samples = Array.isArray(c.samples) ? c.samples.slice(0, 3) : [];
+
+        return `
+          <div class="ai-mini">
+            <div class="flex items-start justify-between gap-2 flex-wrap">
+              <div>
+                <div class="font-black text-slate-900">Cluster ${esc(cid)} ${label ? `· ${esc(label)}` : ``}</div>
+                <div class="ai-muted mt-1">${size!=="" ? `size: ${esc(size)}` : ``}</div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                ${terms.map(t => `<span class="badge">${esc(t)}</span>`).join("")}
+              </div>
+            </div>
+
+            <div class="mt-3 space-y-2">
+              ${samples.map(s => {
+                const rid = s.id ?? s.review_id ?? "";
+                const text = s.text ?? s.text_snip ?? s.snip ?? "";
+                const created = s.created_at ?? "";
+                const rating = s.rating ?? "";
+                const click = rid ? `onclick="applyKeywordAndScroll('', '${esc(rid)}')"` : "";
+                return `
+                  <div class="p-3 rounded-2xl bg-white/55 border border-white/80 cursor-pointer" ${click}>
+                    <div class="text-xs font-black text-slate-600">★ ${esc(rating)} · ${esc(fmtDT(created))} · id ${esc(rid)}</div>
+                    <div class="text-sm font-extrabold text-slate-800 mt-2 line-clamp-2">${esc(text)}</div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderUmap(){
+      const el = document.getElementById("umapPlot");
+      const empty = document.getElementById("umapEmpty");
+      if (!el) return;
+
+      const obj = META?.umap_1y || META?.umap || null;
+      const enabled = obj?.enabled !== false;
+      const pts = obj?.points || obj?.data || [];
+
+      if (!enabled || !Array.isArray(pts) || pts.length === 0){
+        empty?.classList.remove("hidden");
+        el.innerHTML = "";
+        uiState.umapRendered = false;
+        return;
+      }
+      empty?.classList.add("hidden");
+
+      // filter by mode
+      const mode = uiState.umapMode || "all";
+      const filtered = pts.filter(p => {
+        if (mode === "all") return true;
+        const pol = String(p.polarity || p.sentiment || "").toLowerCase(); // pos/neg
+        if (mode === "neg") return pol.includes("neg");
+        if (mode === "pos") return pol.includes("pos");
+        return true;
+      });
+
+      // group by cluster id for multiple traces (better legend)
+      const group = new Map();
+      for (const p of filtered){
+        const cid = p.cluster_id ?? p.c ?? "C0";
+        if (!group.has(cid)) group.set(cid, []);
+        group.get(cid).push(p);
+      }
+
+      const traces = [];
+      for (const [cid, arr] of group.entries()){
+        const xs = arr.map(a => Number(a.x ?? a.umap_x ?? 0));
+        const ys = arr.map(a => Number(a.y ?? a.umap_y ?? 0));
+        const hover = arr.map(a => {
+          const rid = a.id ?? a.review_id ?? "";
+          const pname = a.product_name ?? "";
+          const text = a.text_snip ?? a.text ?? "";
+          const r = a.rating ?? "";
+          return `Cluster ${cid}<br>★ ${r} · id ${rid}<br>${pname}<br>${esc(String(text).slice(0,120))}`;
+        });
+
+        traces.push({
+          type: "scattergl",
+          mode: "markers",
+          name: `C${cid}`,
+          x: xs,
+          y: ys,
+          text: hover,
+          hoverinfo: "text",
+          customdata: arr.map(a => (a.id ?? a.review_id ?? "")),
+          marker: { size: 6, opacity: 0.75 }
+        });
+      }
+
+      const layout = {
+        margin: {l: 10, r: 10, t: 10, b: 10},
+        height: 420,
+        xaxis: { title: "", zeroline: false, showgrid: true },
+        yaxis: { title: "", zeroline: false, showgrid: true },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        legend: { orientation: "h" }
+      };
+
+      Plotly.newPlot(el, traces, layout, {displayModeBar: false, responsive: true});
+      uiState.umapRendered = true;
+
+      // click => scroll to review
+      el.on('plotly_click', function(data){
+        try{
+          const rid = data?.points?.[0]?.customdata;
+          if (rid) applyKeywordAndScroll("", String(rid));
+        }catch(e){}
+      });
+    }
+
+    // ----------------------------
+    // Main renderAll
+    // ----------------------------
     function renderAll(){
       renderHeader();
       renderHealth();
@@ -1041,6 +1429,12 @@
       renderSizeStructure(metrics);
       renderProductMindmap();
       renderDailyFeed(filtered);
+
+      // ✅ AI (independent of filtered feed)
+      renderTrend1Y();
+      renderMLTopics();
+      renderDLClusters();
+      renderUmap();
 
       tryScrollToReview();
     }
@@ -1063,7 +1457,6 @@
         if (dayInput && META?.period_start && META?.period_end){
           dayInput.min = META.period_start;
           dayInput.max = META.period_end;
-          // default: end day (today)
           if (!dayInput.value) dayInput.value = META.period_end;
         }
 
