@@ -183,6 +183,16 @@ def append_master_jsonl(new_rows: List[Dict[str, Any]], idx: Dict[str, Any]) -> 
 
 
 def run_crema_voc(mode: str, start: Optional[str], end: Optional[str], recent_days: Optional[int]) -> None:
+    """Run existing crema_voc.py with ONLY its supported CLI args.
+
+    crema_voc.py supports:
+      --mode {daily,backfill}
+      --start/--end (backfill)
+      --chunk-days (optional in crema_voc.py, but we don't pass it here)
+      --recent-days (daily)
+
+    It writes output to: site/data/reviews.json (and sometimes site/data/meta.json).
+    """
     crema_script = ROOT / "crema_voc.py"
     if not crema_script.exists():
         raise FileNotFoundError(f"crema_voc.py not found at: {crema_script}")
@@ -198,6 +208,7 @@ def run_crema_voc(mode: str, start: Optional[str], end: Optional[str], recent_da
             cmd += ["--recent-days", str(int(recent_days))]
 
     print("[CMD] " + " ".join(cmd))
+    # ✅ IMPORTANT: actually execute
     subprocess.run(cmd, cwd=str(ROOT), check=True)
 
 
@@ -215,6 +226,17 @@ def write_builder_input(rows: List[Dict[str, Any]]) -> None:
     RAW_REVIEWS_JSON.parent.mkdir(parents=True, exist_ok=True)
     write_json(RAW_REVIEWS_JSON, {"reviews": rows})
 
+
+def write_latest_window(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> pathlib.Path:
+    """Write latest window reviews for downstream builder input."""
+    out = {
+        "created_at": now_kst().strftime("%Y-%m-%d %H:%M:%S"),
+        "meta": meta,
+        "reviews": rows,
+    }
+    p = RAW_DIR / "reviews.json"
+    write_json(p, out)
+    return p
 
 def snapshot_daily(rows: List[Dict[str, Any]], snap_date: str, meta: Dict[str, Any]) -> pathlib.Path:
     out = {
