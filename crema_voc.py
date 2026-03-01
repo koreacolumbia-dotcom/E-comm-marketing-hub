@@ -184,8 +184,6 @@ def run_crema_voc(mode: str, start: Optional[str], end: Optional[str], recent_da
             cmd += ["--recent-days", str(int(recent_days))]
 
     print("[CMD] " + " ".join(cmd))
-    subprocess.run(cmd, cwd=str(ROOT), check=True)
-
 
 def read_crema_output() -> List[Dict[str, Any]]:
     if not CREMA_OUTPUT_JSON.exists():
