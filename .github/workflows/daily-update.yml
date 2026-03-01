@@ -201,7 +201,7 @@ jobs:
           pip install -r requirements.txt
 
           # BigQuery/Pandas
-          pip install db-dtypes pyarrow google-cloud-bigquery pandas
+          pip install db-dtypes pyarrow google-cloud-bigquery pandas python-dateutil
 
 
           # Crema VOC ML/NLP
@@ -309,19 +309,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 1) COLLECT (fixed collector: voc_crema.py -> runs crema_voc.py with supported args)
+          # 1) COLLECT (fixed: use crema_voc.py directly — it requires --mode)
+          rm -rf site/data || true
+          mkdir -p site/data
           rm -rf reports/crema_raw || true
           mkdir -p reports/crema_raw
 
-          echo "[INFO] Crema collect (recent ${TARGET_DAYS}d)"
-          python -u voc_crema.py --mode daily --recent-days "${TARGET_DAYS}"
+          echo "[INFO] Crema collect: mode=daily recent_days=${TARGET_DAYS}"
+          python -u crema_voc.py --mode daily --recent-days "${TARGET_DAYS}"
 
+          # crema_voc.py writes site/data/reviews.json (and meta.json). Copy to a stable path for the builder.
           RAW_JSON="reports/crema_raw/reviews.json"
-          if [ ! -f "${RAW_JSON}" ]; then
-            echo "[ERROR] collector did not create ${RAW_JSON}"
-            ls -lah reports/crema_raw || true
+          if [ ! -f "site/data/reviews.json" ]; then
+            echo "[ERROR] site/data/reviews.json not created by crema_voc.py"
+            ls -lah site || true
             exit 0
           fi
+          cp -f "site/data/reviews.json" "${RAW_JSON}"
+          ls -lah "${RAW_JSON}" || true
 
           python - << 'PY'
           import json
