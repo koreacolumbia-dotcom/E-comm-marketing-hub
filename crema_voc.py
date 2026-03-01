@@ -585,9 +585,25 @@ def load_master_index() -> Dict[str, Any]:
 def save_master_index(idx: Dict[str, Any]) -> None:
     MASTER_INDEX.write_text(json.dumps(idx, ensure_ascii=False, indent=2), encoding="utf-8")
 
+# ✅ PATCH: id가 비는 케이스(또는 None)에서 누적이 깨지는 문제 방지
 def make_key(row: Dict[str, Any]) -> str:
-    # source+id 기준 (id가 문자열/숫자 섞여도 안정)
-    return f"{row.get('source','Official')}::{str(row.get('id'))}"
+    """
+    누적 중복 방지용 안정 키
+    1) source + id 가 있으면 그걸로
+    2) id가 비면 fallback (product_code + created_at + text hash)
+    """
+    src = str(row.get("source") or "Official").strip()
+
+    rid = row.get("id")
+    rid_s = str(rid).strip() if rid is not None else ""
+    if rid_s and rid_s.lower() != "none":
+        return f"{src}::id::{rid_s}"
+
+    pcode = str(row.get("product_code") or "").strip()
+    created = str(row.get("created_at") or "").strip()
+    text = str(row.get("text") or "").strip()
+    fb = sha1(f"{pcode}|{created}|{text}")
+    return f"{src}::fb::{fb}"
 
 def append_master_jsonl(new_rows: List[Dict[str, Any]], idx: Dict[str, Any]) -> Tuple[int, int]:
     keys = idx.setdefault("keys", {})
@@ -700,7 +716,10 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
         if df.empty:
             health_chunks.append({"chunk": chunk_tag, "ok": True, "note": "no_rows", "products": len(codes)})
             continue
-        df = df.drop_duplicates(subset=["id"], keep="first").copy()
+
+        # ✅ PATCH: chunk 내부 dedupe도 누적 키와 동일한 기준으로 (id 비어도 안전)
+        df["dedupe_key"] = df.apply(lambda r: make_key(r.to_dict()), axis=1)
+        df = df.drop_duplicates(subset=["dedupe_key"], keep="first").copy()
 
         # asset localization + text images
         local_product_images: Dict[str, str] = {}
@@ -736,6 +755,9 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
             df.loc[row.name, "text_image_path"] = cap
 
         # master 누적 append
+        # - dedupe_key는 내부 처리용이라 저장/노출에서 제거
+        df = df.drop(columns=["dedupe_key"], errors="ignore")
+
         new_rows = df.to_dict(orient="records")
         added, skipped = append_master_jsonl(new_rows, idx)
         total_added += added
@@ -804,6 +826,10 @@ def main():
     if not args.end:
         y = (now_kst().date() - timedelta(days=1)).isoformat()
         args.end = y
+
+    # (선택) backfill은 항상 2025-01-01로 강제하고 싶으면 아래 2줄 활성화
+    if args.mode == "backfill":
+        args.start = "2025-01-01"
 
     # daily는 보통 전일만: start=end로 주는 게 일반적(하지만 yml에서 이미 그렇게 넣는 구조)
     return run_collect(
