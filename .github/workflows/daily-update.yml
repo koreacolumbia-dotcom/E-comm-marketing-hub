@@ -88,9 +88,6 @@ jobs:
 
       # ---------------------------------------------------------
       # ✅ Mode resolver (핵심)
-      # - owned_only=true 또는 owned_backfill=true면: OWNED만 실행
-      # - daily_only/voc_only/blog_only 중 하나면: 그것만 실행
-      # - 그 외(스케줄/수동 all false): 전체 실행
       # ---------------------------------------------------------
       - name: Resolve run modes
         id: modes
@@ -119,7 +116,6 @@ jobs:
             fi
           fi
 
-          # Default (schedule OR manual-all-false): run everything
           RUN_DAILY=true
           RUN_PRICE=true
           RUN_HERO=true
@@ -129,7 +125,6 @@ jobs:
           RUN_SUMMARY=true
           RUN_OWNED=true
 
-          # If owned_backfill or owned_only => run owned only
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
             RUN_DAILY=false
             RUN_PRICE=false
@@ -141,7 +136,6 @@ jobs:
             RUN_OWNED=true
           fi
 
-          # If other "only" => that only
           if [ "$DAILY_ONLY" = "true" ]; then
             RUN_DAILY=true
             RUN_PRICE=false
@@ -207,13 +201,11 @@ jobs:
             pip install -r requirements.txt
           fi
 
-          # BigQuery/Pandas
           pip install db-dtypes pyarrow google-cloud-bigquery pandas python-dateutil
 
-          # Crema VOC ML/NLP (builder가 쓰는 경우)
+          # Crema VOC ML/NLP
           pip install scikit-learn sentence-transformers
 
-          # HTML→PNG 렌더링용
           pip install playwright
           playwright install --with-deps chromium
 
@@ -233,7 +225,7 @@ jobs:
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       # =========================================================
-      # Daily Digest Report (어제 날짜 1일치 생성)
+      # Daily Digest Report (yesterday only)
       # =========================================================
       - name: Build Daily Digest (yesterday only)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
@@ -349,7 +341,7 @@ jobs:
           ls -la reports/external_signal.html || true
 
       # ----------------------------
-      # 4) Crema VOC (FIXED: collect -> build)
+      # 4) Crema VOC (ONE-TIME backfill from 2025-01-01, then daily incremental by yesterday)
       # ----------------------------
       - name: Run Crema VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
@@ -360,6 +352,7 @@ jobs:
           PROJECT_ROOT: ${{ github.workspace }}
           TARGET_DAYS: "7"
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         shell: bash
         run: |
           set -euo pipefail
@@ -369,25 +362,66 @@ jobs:
             exit 0
           fi
 
-          mkdir -p site/data reports/crema_raw
+          mkdir -p site/data reports/crema_raw reports/crema_raw/daily reports/crema_raw/health
 
-          echo "[INFO] (1) Collect: crema_voc.py --mode daily --recent-days ${TARGET_DAYS}"
-          python -u crema_voc.py --mode daily --recent-days "${TARGET_DAYS}" || true
+          FLAG="reports/crema_raw/backfill_done.flag"
+          echo "[INFO] Crema flag: ${FLAG}"
+          echo "[INFO] Yesterday (YMD): ${YMD}"
 
-          if [ ! -f "site/data/reviews.json" ]; then
-            echo "[ERROR] site/data/reviews.json not created by crema_voc.py"
+          # (1) Collect: first time backfill, then yesterday-only
+          if [ ! -f "${FLAG}" ]; then
+            echo "[INFO] (1) FIRST RUN backfill: 2025-01-01 ~ ${YMD}"
+            python -u crema_voc.py \
+              --mode backfill \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --chunk-days 14 \
+              --keep-site-output \
+              || true
+          else
+            echo "[INFO] (1) Incremental (yesterday only): ${YMD} ~ ${YMD}"
+            python -u crema_voc.py \
+              --mode backfill \
+              --start "${YMD}" \
+              --end "${YMD}" \
+              --chunk-days 1 \
+              --keep-site-output \
+              || true
+          fi
+
+          # (2) Decide builder input: prefer cumulative
+          INPUT_JSON="reports/crema_raw/reviews.json"
+          if [ ! -f "${INPUT_JSON}" ]; then
+            INPUT_JSON="site/data/reviews.json"
+          fi
+
+          if [ ! -f "${INPUT_JSON}" ]; then
+            echo "[ERROR] No input JSON found after crema_voc.py"
+            ls -lah reports/crema_raw || true
             ls -lah site/data || true
             exit 0
           fi
 
-          echo "[INFO] (2) Build dashboard: build_voc_dashboard.py"
-          if [ "${DEBUG}" = "true" ]; then
-            python -u build_voc_dashboard.py --input "site/data/reviews.json" --target-days "${TARGET_DAYS}" --debug || true
-          else
-            python -u build_voc_dashboard.py --input "site/data/reviews.json" --target-days "${TARGET_DAYS}" || true
+          # (2.5) Create flag only when cumulative index exists
+          if [ ! -f "${FLAG}" ]; then
+            if [ -s "reports/crema_raw/master_index.json" ]; then
+              echo "[INFO] Backfill seems done -> create flag ${FLAG}"
+              date -u +"%Y-%m-%dT%H:%M:%SZ" > "${FLAG}"
+            else
+              echo "[WARN] master_index.json missing/empty -> NOT creating flag yet."
+            fi
           fi
 
-          echo "[INFO] (3) Archive site -> reports/voc_crema"
+          # (3) Build dashboard
+          echo "[INFO] (3) Build dashboard: build_voc_dashboard.py"
+          if [ "${DEBUG}" = "true" ]; then
+            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --debug || true
+          else
+            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" || true
+          fi
+
+          # (4) Archive site -> reports/voc_crema
+          echo "[INFO] (4) Archive site -> reports/voc_crema"
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
           if [ -f "site/index.html" ]; then
@@ -442,13 +476,12 @@ jobs:
 
           python -u build_summary.py || true
 
-          # ✅ PATCH: Hub 캐시 bust용 meta.json 강제 갱신
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
 
           ls -la reports/index.html reports/meta.json || true
 
       # =========================================================
-      # ✅ OWNED Campaign Portal (EDM/LMS/KAKAO → products)
+      # ✅ OWNED Campaign Portal
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
@@ -497,7 +530,7 @@ jobs:
           ls -la reports/owned_portal/data/owned | head -n 120 || true
 
       # ----------------------------
-      # 7) Commit & push results (safe rebase + retry)
+      # 7) Commit & push results
       # ----------------------------
       - name: Commit & push results
         shell: bash
@@ -541,7 +574,7 @@ jobs:
           exit 1
 
       # ----------------------------
-      # Success Email (PNG inline 우선 + 첨부)
+      # Success Email
       # ----------------------------
       - name: Send success email (yesterday daily report PNG)
         if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
