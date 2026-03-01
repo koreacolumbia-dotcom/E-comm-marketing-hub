@@ -316,7 +316,14 @@ jobs:
           mkdir -p reports/crema_raw
 
           echo "[INFO] Crema collect: mode=daily recent_days=${TARGET_DAYS}"
-          python -u crema_voc.py --mode daily --recent-days "${TARGET_DAYS}"
+# ✅ Guard: prefer wrapper voc_crema.py to avoid recursive self-invocation loops
+if [ -f "voc_crema.py" ]; then
+  CREMA_ENTRY="voc_crema.py"
+else
+  echo "[WARN] voc_crema.py not found. Falling back to crema_voc.py (collector)."
+  CREMA_ENTRY="crema_voc.py"
+fi
+          python -u "${CREMA_ENTRY:-voc_crema.py}" --mode daily --recent-days "${TARGET_DAYS}"
 
           # crema_voc.py writes site/data/reviews.json (and meta.json). Copy to a stable path for the builder.
           RAW_JSON="reports/crema_raw/reviews.json"
