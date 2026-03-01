@@ -274,13 +274,7 @@
         <div class="flex items-center gap-2 mb-2">
           <div class="small-label">Channel totals</div>
           <div class="muted font-semibold text-sm" id="periodText">-</div>
-          <div class="pill ml-auto" id="ytdPill" style="display:none;">
-            <span class="mono">YTD</span> ·
-            <span id="ytdThis" class="mono">-</span>
-            <span class="muted font-semibold">vs</span>
-            <span id="ytdPrev" class="mono">-</span>
-          </div>
-        </div>
+</div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div class="mini-card">
             <div class="mini-title">All</div>
@@ -304,6 +298,30 @@
           </div>
         </div>
       </div>
+      <!-- YTD · This year vs Previous year (same period) -->
+      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3" style="display:none">
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · TY Sessions</div>
+          <div id="ytdTySessions" class="kpi-value">-</div>
+          <div id="ytdTySessionsSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · TY Revenue</div>
+          <div id="ytdTyRevenue" class="kpi-value">-</div>
+          <div id="ytdTyRevenueSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · LY Sessions</div>
+          <div id="ytdLySessions" class="kpi-value">-</div>
+          <div id="ytdLySessionsSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · LY Revenue</div>
+          <div id="ytdLyRevenue" class="kpi-value">-</div>
+          <div id="ytdLyRevenueSub" class="kpi-sub">-</div>
+        </div>
+      </div>
+
 
       <!-- KPI (selection) moved ABOVE terms -->
       <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-5">
@@ -488,9 +506,15 @@
   const btnYTD = document.getElementById('btnYTD');
 
   const periodText = document.getElementById('periodText');
-  const ytdPill = document.getElementById('ytdPill');
-  const ytdThis = document.getElementById('ytdThis');
-  const ytdPrev = document.getElementById('ytdPrev');
+  const ytdCards = document.getElementById('ytdCards');
+  const ytdTySessions = document.getElementById('ytdTySessions');
+  const ytdTyRevenue  = document.getElementById('ytdTyRevenue');
+  const ytdLySessions = document.getElementById('ytdLySessions');
+  const ytdLyRevenue  = document.getElementById('ytdLyRevenue');
+  const ytdTySessionsSub = document.getElementById('ytdTySessionsSub');
+  const ytdTyRevenueSub  = document.getElementById('ytdTyRevenueSub');
+  const ytdLySessionsSub = document.getElementById('ytdLySessionsSub');
+  const ytdLyRevenueSub  = document.getElementById('ytdLyRevenueSub');
 
   const totAllSessions = document.getElementById('totAllSessions');
   const totAllRevenue = document.getElementById('totAllRevenue');
@@ -1276,9 +1300,19 @@
     const key = `${CHANNEL}||${thisStart}||${thisEnd}||${prevStart}||${prevEnd}`;
     if(YTD_CACHE.has(key)){
       const v = YTD_CACHE.get(key);
-      ytdPill.style.display = '';
-      ytdThis.textContent = `TY S:${fmt(v.this.sessions)} · R:${fmtMoney(v.this.revenue)}`;
-      ytdPrev.textContent = `LY S:${fmt(v.prev.sessions)} · R:${fmtMoney(v.prev.revenue)}`;
+      const TY = v.this;
+      const LY = v.prev;
+      if(ytdCards) ytdCards.style.display = '';
+      if(ytdTySessions) ytdTySessions.textContent = fmt(TY.sessions);
+      if(ytdTyRevenue)  ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
+      if(ytdLySessions) ytdLySessions.textContent = fmt(LY.sessions);
+      if(ytdLyRevenue)  ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
+      const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
+      const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
+      if(ytdTySessionsSub) ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+      if(ytdTyRevenueSub)  ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+      if(ytdLySessionsSub) ytdLySessionsSub.textContent = `LY (same period)`;
+      if(ytdLyRevenueSub)  ytdLyRevenueSub.textContent  = `LY (same period)`;
       return;
     }
 
@@ -1315,10 +1349,19 @@
     const prevSum = aggregateRow(prevRows);
 
     YTD_CACHE.set(key, {this:thisSum, prev:prevSum});
-
-    ytdPill.style.display = '';
-    ytdThis.textContent = `TY S:${fmt(thisSum.sessions)} · R:${fmtMoney(thisSum.revenue)}`;
-    ytdPrev.textContent = `LY S:${fmt(prevSum.sessions)} · R:${fmtMoney(prevSum.revenue)}`;
+    const TY = thisSum;
+    const LY = prevSum;
+      if(ytdCards) ytdCards.style.display = '';
+      if(ytdTySessions) ytdTySessions.textContent = fmt(TY.sessions);
+      if(ytdTyRevenue)  ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
+      if(ytdLySessions) ytdLySessions.textContent = fmt(LY.sessions);
+      if(ytdLyRevenue)  ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
+      const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
+      const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
+      if(ytdTySessionsSub) ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+      if(ytdTyRevenueSub)  ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+      if(ytdLySessionsSub) ytdLySessionsSub.textContent = `LY (same period)`;
+      if(ytdLyRevenueSub)  ytdLyRevenueSub.textContent  = `LY (same period)`;
   }
 
   // Toggle helpers (collapsed by default)
@@ -1468,7 +1511,7 @@
 
   // YTD button just forces recompute / show
   btnYTD.addEventListener('click', async ()=>{
-    ytdPill.style.display = '';
+    if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
   });
 
