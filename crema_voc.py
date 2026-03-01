@@ -2,27 +2,38 @@
 # -*- coding: utf-8 -*-
 
 """
-[CREMA VOC COLLECTOR | v2.1 | crema_voc.py 단일 파일 | accumulate + builder input]
+[CREMA VOC ORCHESTRATOR | v2.3 | crema_voc.py 단일 파일 | accumulate + build]
 
-✅ Goal
-- CLI는 단순하게:
-    --mode {daily,backfill}
-    --start/--end/--chunk-days (backfill)
-    --recent-days (daily)
-- 실행 흐름:
-  1) (현재 레포에 "원래의 크레마 수집기"가 따로 존재한다면) 그 파일을 호출해서 site/data/reviews.json 생성
-     - 기본값: scripts/crema_voc_collector.py 를 찾고, 없으면 "self" 모드로 site/data/reviews.json이 이미 생성돼있다고 가정
-  2) site/data/reviews.json 읽어서
-  3) reports/crema_raw/master_reviews.jsonl + master_index.json 으로 dedupe 누적
-  4) reports/crema_raw/daily/YYYY-MM-DD.json 스냅샷 저장
-  5) ✅ builder가 바로 먹을 input 생성:
-       reports/crema_raw/reviews.json   ({"reviews":[...]})
+✅ What this file does (end-to-end)
+1) Ensure we have an aggregated input JSON: {"reviews":[...]}
+   - If external collector exists -> run it to create site/data/reviews.json (raw aggregated)
+   - Else -> expects an existing aggregated JSON (default: site/data/reviews.json or --input)
+2) Accumulate & dedupe into:
+   - reports/crema_raw/master_reviews.jsonl
+   - reports/crema_raw/master_index.json
+   - reports/crema_raw/daily/YYYY-MM-DD.json (snapshot)
+3) Create builder input:
+   - reports/crema_raw/reviews.json  ({"reviews":[...]})  ✅ build_voc_dashboard.py input
+4) Run builder to generate site outputs:
+   - site/data/reviews.json
+   - site/data/meta.json
+   - site/index.html
 
-⚠️ IMPORTANT
-- 너가 “파일명은 crema_voc.py로만”을 고집하는 상황에서
-  "원래 collector" 코드가 이미 사라졌다면,
-  이 파일은 최소한 "site/data/reviews.json이 이미 만들어져있다" 전제하에 누적/입력생성은 가능.
-- 만약 원래 collector가 따로 있다면, 환경변수 CREMA_COLLECTOR_PATH 로 경로를 지정해줘.
+CLI:
+  --mode {daily,backfill}
+  --recent-days N                 (daily)
+  --start YYYY-MM-DD --end YYYY-MM-DD --chunk-days N   (backfill)
+  --input PATH                    (optional: aggregated reviews.json 직접 지정)
+  --html-template PATH            (optional: builder template override)
+  --target-days N                 (builder window days, default env TARGET_DAYS or 7)
+  --debug                         (builder debug flag)
+  --keep-site-output              (do not delete site/data/reviews.json after reading)
+
+ENV:
+  OUTPUT_TZ=Asia/Seoul
+  PROJECT_ROOT=/path/to/repo
+  CREMA_COLLECTOR_PATH=relative/or/absolute/path/to/external_collector.py
+    - external collector is expected to create site/data/reviews.json (aggregated)
 """
 
 from __future__ import annotations
@@ -47,9 +58,10 @@ TZ = tz.gettz(OUTPUT_TZ)
 DEFAULT_START = "2025-01-01"
 DEFAULT_CHUNK_DAYS = int(os.getenv("CREMA_CHUNK_DAYS", "14") or "14")
 DEFAULT_RECENT_DAYS = int(os.getenv("CREMA_RECENT_DAYS", "7") or "7")
+DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "7") or "7")
 
-# crema collector output (fixed)
-CREMA_OUTPUT_JSON_REL = pathlib.Path("site/data/reviews.json")
+# external collector output (fixed contract)
+SITE_AGG_JSON_REL = pathlib.Path("site/data/reviews.json")
 
 # lake paths
 RAW_DIR_REL = pathlib.Path("reports/crema_raw")
@@ -58,7 +70,7 @@ HEALTH_DIR_REL = RAW_DIR_REL / "health"
 MASTER_JSONL_REL = RAW_DIR_REL / "master_reviews.jsonl"
 MASTER_INDEX_REL = RAW_DIR_REL / "master_index.json"
 
-# ✅ builder input (stable)
+# builder input (stable)
 BUILDER_INPUT_REL = RAW_DIR_REL / "reviews.json"
 
 
@@ -83,20 +95,21 @@ def find_repo_root() -> pathlib.Path:
         return pathlib.Path(env_root).expanduser().resolve()
     here = pathlib.Path(__file__).resolve()
     for p in [here.parent] + list(here.parents):
-        if (p / "site").exists():
-            return p
         if (p / ".git").exists():
+            return p
+        if (p / "site").exists():
             return p
     return pathlib.Path.cwd().resolve()
 
 
 ROOT = find_repo_root()
+
 RAW_DIR = ROOT / RAW_DIR_REL
 DAILY_DIR = ROOT / DAILY_DIR_REL
 HEALTH_DIR = ROOT / HEALTH_DIR_REL
 MASTER_JSONL = ROOT / MASTER_JSONL_REL
 MASTER_INDEX = ROOT / MASTER_INDEX_REL
-CREMA_OUTPUT_JSON = ROOT / CREMA_OUTPUT_JSON_REL
+SITE_AGG_JSON = ROOT / SITE_AGG_JSON_REL
 BUILDER_INPUT = ROOT / BUILDER_INPUT_REL
 
 RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -117,7 +130,18 @@ def safe_str(x: Any) -> str:
     return "" if x is None else str(x)
 
 
+def normalize_review(r: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(r)
+    # 최소한 source는 비워두지 않기
+    if not out.get("source"):
+        out["source"] = "Official"
+    return out
+
+
 def key_of(r: Dict[str, Any]) -> str:
+    """
+    중복키: (source, id) 우선. id 없으면 (product_code|created_at|text_prefix)로 대체.
+    """
     src = safe_str(r.get("source") or "Unknown").strip() or "Unknown"
     rid = safe_str(r.get("id")).strip()
     if not rid:
@@ -125,18 +149,11 @@ def key_of(r: Dict[str, Any]) -> str:
     return f"{src}::{rid}"
 
 
-def normalize_review(r: Dict[str, Any]) -> Dict[str, Any]:
-    out = dict(r)
-    if not out.get("source"):
-        out["source"] = "Official"
-    return out
-
-
 def load_master_index() -> Dict[str, Any]:
     if MASTER_INDEX.exists():
         try:
             obj = load_json(MASTER_INDEX)
-            if isinstance(obj, dict) and "keys" in obj and isinstance(obj["keys"], dict):
+            if isinstance(obj, dict) and isinstance(obj.get("keys"), dict):
                 return obj
         except Exception:
             pass
@@ -154,8 +171,8 @@ def append_master_jsonl(new_rows: List[Dict[str, Any]], idx: Dict[str, Any]) -> 
     added = 0
     skipped = 0
     ts = now_kst().isoformat()
-    MASTER_JSONL.parent.mkdir(parents=True, exist_ok=True)
 
+    MASTER_JSONL.parent.mkdir(parents=True, exist_ok=True)
     with MASTER_JSONL.open("a", encoding="utf-8") as f:
         for r in new_rows:
             rr = normalize_review(r)
@@ -168,55 +185,6 @@ def append_master_jsonl(new_rows: List[Dict[str, Any]], idx: Dict[str, Any]) -> 
             f.write(json.dumps(rr, ensure_ascii=False) + "\n")
             added += 1
     return added, skipped
-
-
-def run_external_collector(mode: str, start: Optional[str], end: Optional[str], recent_days: Optional[int]) -> None:
-    """
-    ✅ 원래 '크레마 수집기'가 별도 파일로 남아있다면 그걸 실행해서 site/data/reviews.json을 만들게 함.
-    - 경로 우선순위:
-      1) ENV: CREMA_COLLECTOR_PATH
-      2) scripts/crema_voc_collector.py (있으면)
-      3) 실행 안 함(이미 site/data/reviews.json이 만들어졌다고 가정)
-    """
-    custom = (os.getenv("CREMA_COLLECTOR_PATH", "") or "").strip()
-    candidates = []
-    if custom:
-        candidates.append(ROOT / custom)
-    candidates.append(ROOT / "scripts" / "crema_voc_collector.py")
-
-    collector = None
-    for c in candidates:
-        if c.exists():
-            collector = c
-            break
-
-    if collector is None:
-        # collector가 없으면 "이미 site/data/reviews.json이 존재해야 함"
-        print("[INFO] No external collector found. Expect site/data/reviews.json to already exist.")
-        return
-
-    cmd = ["python", "-u", str(collector), "--mode", mode]
-    if mode == "backfill":
-        if not start or not end:
-            raise ValueError("backfill requires --start and --end")
-        cmd += ["--start", start, "--end", end]
-        # chunk-days는 외부 collector가 지원할 때만 의미 있는데, 여기서는 넘기지 않음(충돌 방지)
-    else:
-        if recent_days is not None:
-            cmd += ["--recent-days", str(int(recent_days))]
-
-    print("[CMD] " + " ".join(cmd))
-    subprocess.run(cmd, cwd=str(ROOT), check=True)
-
-
-def read_crema_output() -> List[Dict[str, Any]]:
-    if not CREMA_OUTPUT_JSON.exists():
-        raise FileNotFoundError(f"Expected crema output not found: {CREMA_OUTPUT_JSON}")
-    obj = load_json(CREMA_OUTPUT_JSON)
-    reviews = obj.get("reviews")
-    if not isinstance(reviews, list):
-        raise ValueError(f"Invalid crema output structure. Expected {{reviews:[...]}} in {CREMA_OUTPUT_JSON}")
-    return [r for r in reviews if isinstance(r, dict)]
 
 
 def snapshot_daily(rows: List[Dict[str, Any]], snap_date: str, meta: Dict[str, Any]) -> pathlib.Path:
@@ -246,9 +214,87 @@ def daterange_chunks(start_d: date, end_d: date, chunk_days: int) -> List[Tuple[
     return out
 
 
+def ensure_external_collector_exists() -> Optional[pathlib.Path]:
+    """
+    외부 collector 우선순위:
+    1) ENV CREMA_COLLECTOR_PATH
+    2) scripts/crema_voc_collector.py
+    """
+    custom = (os.getenv("CREMA_COLLECTOR_PATH", "") or "").strip()
+    candidates: List[pathlib.Path] = []
+    if custom:
+        p = pathlib.Path(custom).expanduser()
+        candidates.append(p if p.is_absolute() else (ROOT / p))
+    candidates.append(ROOT / "scripts" / "crema_voc_collector.py")
+
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
+
+def run_external_collector(mode: str, start: Optional[str], end: Optional[str], recent_days: Optional[int]) -> None:
+    collector = ensure_external_collector_exists()
+    if collector is None:
+        print("[INFO] No external collector found. Will rely on existing aggregated JSON.")
+        return
+
+    cmd = ["python", "-u", str(collector), "--mode", mode]
+    if mode == "backfill":
+        if not start or not end:
+            raise ValueError("backfill requires --start and --end")
+        cmd += ["--start", start, "--end", end]
+    else:
+        if recent_days is not None:
+            cmd += ["--recent-days", str(int(recent_days))]
+
+    print("[CMD] " + " ".join(cmd))
+    subprocess.run(cmd, cwd=str(ROOT), check=True)
+
+
+def read_aggregated_reviews(path: pathlib.Path) -> List[Dict[str, Any]]:
+    if not path.exists():
+        raise FileNotFoundError(f"Aggregated reviews.json not found: {path}")
+    obj = load_json(path)
+    reviews = obj.get("reviews")
+    if not isinstance(reviews, list):
+        raise ValueError(f"Invalid structure. Expected {{reviews:[...]}} in {path}")
+    return [r for r in reviews if isinstance(r, dict)]
+
+
 def write_builder_input(rows: List[Dict[str, Any]]) -> None:
-    # ✅ build_voc_dashboard.py가 바로 먹을 input
+    # ✅ build_voc_dashboard.py input contract
     write_json(BUILDER_INPUT, {"reviews": rows})
+
+
+def run_builder(
+    input_path: pathlib.Path,
+    html_template: Optional[str],
+    target_days: int,
+    debug: bool,
+) -> None:
+    """
+    build_voc_dashboard.py 실행해서 site/data/reviews.json을 반드시 생성하도록 한다.
+    """
+    builder = ROOT / "build_voc_dashboard.py"
+    if not builder.exists():
+        raise FileNotFoundError(f"build_voc_dashboard.py not found at repo root: {builder}")
+
+    cmd = ["python", "-u", str(builder), "--input", str(input_path)]
+    if html_template:
+        cmd += ["--html-template", html_template]
+    if target_days:
+        cmd += ["--target-days", str(int(target_days))]
+    if debug:
+        cmd += ["--debug"]
+
+    print("[CMD] " + " ".join(cmd))
+    subprocess.run(cmd, cwd=str(ROOT), check=True)
+
+    # post-check (핵심)
+    out_reviews = ROOT / "site" / "data" / "reviews.json"
+    if not out_reviews.exists():
+        raise RuntimeError("site/data/reviews.json was not created by build_voc_dashboard.py (post-check failed).")
 
 
 # ----------------------------
@@ -256,11 +302,15 @@ def write_builder_input(rows: List[Dict[str, Any]]) -> None:
 # ----------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", required=True, choices=["daily", "backfill"], help="daily or backfill")
+    ap.add_argument("--mode", required=True, choices=["daily", "backfill"])
     ap.add_argument("--start", default="", help="backfill start (YYYY-MM-DD)")
     ap.add_argument("--end", default="", help="backfill end (YYYY-MM-DD)")
-    ap.add_argument("--chunk-days", type=int, default=DEFAULT_CHUNK_DAYS, help="backfill chunk size (days)")
-    ap.add_argument("--recent-days", type=int, default=DEFAULT_RECENT_DAYS, help="daily window (days)")
+    ap.add_argument("--chunk-days", type=int, default=DEFAULT_CHUNK_DAYS)
+    ap.add_argument("--recent-days", type=int, default=DEFAULT_RECENT_DAYS)
+    ap.add_argument("--input", default="", help="optional aggregated input JSON path ({reviews:[...]})")
+    ap.add_argument("--html-template", default="", help="optional builder template path")
+    ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS)
+    ap.add_argument("--debug", action="store_true", help="pass --debug to builder")
     ap.add_argument("--keep-site-output", action="store_true", help="do not delete site/data/reviews.json after reading")
     args = ap.parse_args()
 
@@ -276,30 +326,42 @@ def main():
         "skipped_total": 0,
         "errors": [],
         "builder_input": str(BUILDER_INPUT_REL),
+        "builder_target_days": int(args.target_days),
     }
 
     try:
+        # ----------------------------
+        # 0) Determine aggregated input source
+        # ----------------------------
+        cli_input = (args.input or "").strip()
+        if cli_input:
+            agg_path = pathlib.Path(cli_input).expanduser()
+            agg_path = agg_path if agg_path.is_absolute() else (ROOT / agg_path)
+        else:
+            agg_path = SITE_AGG_JSON  # default contract
+
         if args.mode == "daily":
-            # 1) 외부 collector 실행(있으면)
+            # 1) Run external collector if present (creates site/data/reviews.json)
             run_external_collector(mode="daily", start=None, end=None, recent_days=args.recent_days)
 
-            # 2) output read
-            rows = read_crema_output()
+            # 2) Read aggregated
+            rows = read_aggregated_reviews(agg_path)
 
-            # ✅ 3) builder input 생성 (이게 핵심)
-            write_builder_input(rows)
-
-            snap_date = fmt_ymd(now_kst().date())
+            # 3) Accumulate / snapshot
             added, skipped = append_master_jsonl(rows, idx)
             run_meta["added_total"] += added
             run_meta["skipped_total"] += skipped
 
+            snap_date = fmt_ymd(now_kst().date())
             snap_path = snapshot_daily(
                 rows,
                 snap_date=snap_date,
                 meta={"recent_days": int(args.recent_days), "added": added, "skipped": skipped, "rows": len(rows)},
             )
             run_meta["chunks"].append({"type": "daily", "snap": str(snap_path), "rows": len(rows), "added": added, "skipped": skipped})
+
+            # 4) Builder input from today's aggregated
+            write_builder_input(rows)
 
         else:
             start_s = (args.start or DEFAULT_START).strip()
@@ -314,7 +376,7 @@ def main():
                 ce_s = fmt_ymd(ce)
                 try:
                     run_external_collector(mode="backfill", start=cs_s, end=ce_s, recent_days=None)
-                    rows = read_crema_output()
+                    rows = read_aggregated_reviews(agg_path)
                     all_rows.extend(rows)
 
                     added, skipped = append_master_jsonl(rows, idx)
@@ -335,7 +397,6 @@ def main():
                         "added": added,
                         "skipped": skipped,
                     })
-
                 except subprocess.CalledProcessError as e:
                     run_meta["errors"].append({"chunk": f"{cs_s}~{ce_s}", "error": f"collector failed: {e}"})
                     continue
@@ -343,30 +404,41 @@ def main():
                     run_meta["errors"].append({"chunk": f"{cs_s}~{ce_s}", "error": str(e)})
                     continue
 
-            # ✅ backfill도 마지막에 builder input 생성
+            # backfill builder input uses all rows
             write_builder_input(all_rows)
 
+        # save index
         save_master_index(idx)
 
-        # cleanup
-        if (not args.keep_site_output) and CREMA_OUTPUT_JSON.exists():
+        # cleanup site aggregated if desired (ONLY if default path used)
+        if (not args.keep_site_output) and (not cli_input) and SITE_AGG_JSON.exists():
             try:
-                CREMA_OUTPUT_JSON.unlink()
+                SITE_AGG_JSON.unlink()
             except Exception:
                 pass
+
+        # ----------------------------
+        # 5) Run builder (must create site/data/reviews.json)
+        # ----------------------------
+        html_tpl = (args.html_template or "").strip() or None
+        run_builder(
+            input_path=BUILDER_INPUT,
+            html_template=html_tpl,
+            target_days=int(args.target_days or DEFAULT_TARGET_DAYS),
+            debug=bool(args.debug),
+        )
 
         run_meta["finished_at"] = now_kst().strftime("%Y-%m-%d %H:%M:%S")
         collector_health(run_meta)
 
-        print("[OK] Crema collection + accumulation done.")
+        print("[OK] crema_voc.py done (accumulate + build).")
         print(f"- Builder input: {BUILDER_INPUT}")
-        print(f"- Master jsonl:  {MASTER_JSONL}")
-        print(f"- Master index:  {MASTER_INDEX}")
-        print(f"- Daily snaps:   {DAILY_DIR}")
-        print(f"- Health:        {HEALTH_DIR / 'latest_health.json'}")
+        print(f"- Site output:   {ROOT / 'site' / 'index.html'}")
+        print(f"- Site reviews:  {ROOT / 'site' / 'data' / 'reviews.json'}")
+        print(f"- Site meta:     {ROOT / 'site' / 'data' / 'meta.json'}")
         print(f"- Added: {run_meta['added_total']} | Skipped(dup): {run_meta['skipped_total']}")
         if run_meta["errors"]:
-            print(f"[WARN] Some chunks failed: {len(run_meta['errors'])} (see latest_health.json)")
+            print(f"[WARN] Some chunks failed: {len(run_meta['errors'])} (see reports/crema_raw/health/latest_health.json)")
 
     except Exception as e:
         run_meta["errors"].append({"fatal": str(e)})
