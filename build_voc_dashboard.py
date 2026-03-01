@@ -1,4 +1,3 @@
-\
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -205,10 +204,8 @@ def tokenize_ko(s: str, stopwords: Optional[set] = None) -> List[str]:
 
 
 SIZE_KEYWORDS = ["사이즈", "정사이즈", "작아요", "작다", "커요", "크다", "핏", "타이트", "여유", "끼", "기장", "소매", "어깨", "가슴", "발볼", "헐렁", "오버", "업", "다운", "한치수", "반치수"]
-
 REQ_WEAK = ["개선", "아쉬", "했으면", "보완", "수정", "필요", "요청"]
 REQ_STRONG = ["교환", "반품", "환불", "as", "처리", "재배송", "재발송"]
-
 COMPLAINT_HINTS = ["불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악", "실망", "문제", "불편", "파손", "지연", "늦", "안와", "안옴"]
 
 POS_SEEDS = [
@@ -225,7 +222,6 @@ NEG_SEEDS = [
 
 HARD_DEFECT = ["불량", "하자", "찢", "구멍", "파손", "누수", "변색", "오염", "접착", "터짐"]
 DEFECT_ACTION = ["교환", "반품", "환불", "as", "처리", "불편", "문제", "실망", "문의", "응대", "접수"]
-
 NEGATION = ["안", "않", "없", "못", "아니", "별로안", "전혀안"]
 
 
@@ -686,14 +682,37 @@ REQUIRED_FIELDS = ["id", "product_code", "product_name", "rating", "created_at",
 
 
 def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
+    """
+    입력을 그대로 쓰면 타입/필드 누락으로 downstream이 깨질 수 있어서,
+    최소 정규화만 수행 (축약 아님: 안정화)
+    """
     obj = json.loads(path.read_text(encoding="utf-8"))
     reviews = obj.get("reviews")
     if not isinstance(reviews, list):
         raise ValueError('입력 JSON은 {"reviews": [...]} 형태여야 합니다.')
-    out = []
+
+    out: List[Dict[str, Any]] = []
     for r in reviews:
-        if isinstance(r, dict):
-            out.append(ensure_tags_and_direction(r))
+        if not isinstance(r, dict):
+            continue
+        rr = dict(r)
+
+        rr["id"] = rr.get("id")
+        rr["product_code"] = str(rr.get("product_code") or "").strip() or "-"
+        rr["product_name"] = str(rr.get("product_name") or "").strip() or rr["product_code"]
+        rr["rating"] = int(pd.to_numeric(rr.get("rating"), errors="coerce") or 0)
+        rr["created_at"] = str(rr.get("created_at") or "").strip()
+        rr["text"] = str(rr.get("text") or "").strip()
+        rr["source"] = str(rr.get("source") or "Official").strip() or "Official"
+
+        rr["product_url"] = str(rr.get("product_url") or "").strip()
+        rr["option_size"] = str(rr.get("option_size") or "").strip()
+        rr["option_color"] = str(rr.get("option_color") or "").strip()
+        rr["local_product_image"] = str(rr.get("local_product_image") or "").strip()
+        rr["local_review_thumb"] = str(rr.get("local_review_thumb") or "").strip()
+        rr["text_image_path"] = str(rr.get("text_image_path") or "").strip()
+
+        out.append(ensure_tags_and_direction(rr))
     return out
 
 
@@ -978,7 +997,6 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
 
     product_mindmap_1y = build_product_mindmap_1y_sentence(rows_1y=rows1y, rows_7d=rowsN, per_side=2, max_products=24) if rows1y else []
 
-    # trend (window)
     trend_window = []
     if rowsN:
         tmp = []
@@ -1027,7 +1045,13 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     }
 
     if debug:
-        meta["debug"] = {"input_path": str(inp), "input_total_rows": len(all_rows), "window_rows": len(rowsN), "rows_1y": len(rows1y), "output_tz": OUTPUT_TZ}
+        meta["debug"] = {
+            "input_path": str(inp),
+            "input_total_rows": len(all_rows),
+            "window_rows": len(rowsN),
+            "rows_1y": len(rows1y),
+            "output_tz": OUTPUT_TZ,
+        }
 
     out_reviews: List[Dict[str, Any]] = []
     if not dfN.empty:
