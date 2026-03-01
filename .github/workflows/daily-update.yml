@@ -203,6 +203,13 @@ jobs:
           # BigQuery/Pandas
           pip install db-dtypes pyarrow google-cloud-bigquery pandas
 
+
+          # Crema VOC ML/NLP
+          pip install scikit-learn sentence-transformers
+          # ✅ VOC ML/DL (topics + embeddings clusters)
+          pip install scikit-learn
+          pip install sentence-transformers
+
           # HTML→PNG 렌더링용
           pip install playwright
           playwright install --with-deps chromium
@@ -231,15 +238,11 @@ jobs:
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
-
-          # ✅ 항상 어제일자(KST)
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
-
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
           DAILY_DIGEST_SKIP_HUB_WRITE: "false"
-
         run: |
           set -euo pipefail
 
@@ -291,56 +294,9 @@ jobs:
           ls -la "$PNG" || true
 
       # ----------------------------
-      # 1) Naver Lowest Price
+      # 4) Crema VOC (COLLECT -> BUILD)  ✅ MAX PATCH + ACCUMULATE
       # ----------------------------
-      - name: Run Naver Lowest Price crawler
-        if: ${{ steps.modes.outputs.run_price == 'true' }}
-        continue-on-error: true
-        env:
-          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -u naver_crawl_columbia_c6c7_title_min.py \
-            --limit 999999 \
-            --output_html reports/naver_lowest_price.html \
-            --history_dir . \
-            --cache_dir .naver_cache \
-            || true
-          ls -la reports/naver_lowest_price.html || true
-
-      # ----------------------------
-      # 2) Hero banner
-      # ----------------------------
-      - name: Run Hero banner crawler
-        if: ${{ steps.modes.outputs.run_hero == 'true' }}
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py || true
-          ls -la reports/hero_main.html || true
-
-      # ----------------------------
-      # 3) External Signal (VOC)
-      # ----------------------------
-      - name: Run External Signal (VOC)
-        if: ${{ steps.modes.outputs.run_extsig == 'true' }}
-        continue-on-error: true
-        shell: bash
-        env:
-          DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
-          TARGET_DAYS: 7
-        run: |
-          set -euo pipefail
-          python -u external_signal_combined.py || true
-          ls -la reports/external_signal.html || true
-
-      # ----------------------------
-      # 4) Crema VOC (COLLECT -> BUILD)  ✅ MAX PATCH
-      # ----------------------------
-      - name: Run Crema VOC (collect -> build dashboard)
+      - name: Run Crema VOC (collect->accumulate -> build dashboard)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         continue-on-error: true
         env:
@@ -349,6 +305,7 @@ jobs:
           PROJECT_ROOT: ${{ github.workspace }}
           TARGET_DAYS: 7
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         shell: bash
         run: |
           set -euo pipefail
@@ -358,62 +315,32 @@ jobs:
           mkdir -p "${RAW_DIR}"
           rm -f "${RAW_JSON}" || true
 
-          echo "[INFO] Crema collect -> ${RAW_JSON}"
+          echo "[INFO] Crema collect+accumulate -> ${RAW_JSON}"
           echo "[DEBUG] debug=${DEBUG}"
 
-          # ---- 1) COLLECT (collector: crema_voc.py)
-          set +e
-          python -u crema_voc.py --out "${RAW_JSON}" --days "${TARGET_DAYS}"
-          RC=$?
-          if [ "$RC" -ne 0 ]; then
-            echo "[WARN] crema_voc.py --out failed (rc=$RC). Try --output..."
-            python -u crema_voc.py --output "${RAW_JSON}" --days "${TARGET_DAYS}"
-            RC=$?
-          fi
-          if [ "$RC" -ne 0 ]; then
-            echo "[WARN] crema_voc.py explicit output args failed (rc=$RC). Try running without args..."
-            python -u crema_voc.py
-            RC=$?
-          fi
-          set -e
-
-          # fallback: if collector wrote to site/data/reviews.json, copy it to RAW_JSON
-          if [ ! -f "${RAW_JSON}" ] && [ -f "site/data/reviews.json" ]; then
-            echo "[WARN] RAW_JSON not found. Fallback copy from site/data/reviews.json -> ${RAW_JSON}"
-            cp -f "site/data/reviews.json" "${RAW_JSON}" || true
-          fi
+          # ---- 1) COLLECT + ACCUMULATE (from 2025-01-01, daily snapshots)
+          python -u scripts/crema_collect_accumulate_v2.py \
+            --mode daily \
+            --recent-days "${TARGET_DAYS}" \
+            --out "${RAW_JSON}" \
+            --store-dir "${RAW_DIR}" \
+            --daily-dir "${RAW_DIR}/daily" \
+            $( [ "${DEBUG}" = "true" ] && echo "--debug" ) \
+            || true
 
           echo "[DEBUG] raw dir:"
           ls -lah "${RAW_DIR}" || true
 
           if [ ! -f "${RAW_JSON}" ]; then
             echo "[ERROR] Raw reviews json not created: ${RAW_JSON}"
-            echo "[DEBUG] site/data listing:"
-            ls -lah site/data || true
             exit 0
           fi
 
-          echo "[DEBUG] raw file size:"
-          ls -lah "${RAW_JSON}" || true
-
-          python - << 'PY'
-          import json
-          p="reports/crema_raw/reviews.json"
-          obj=json.load(open(p,'r',encoding='utf-8'))
-          rv=obj.get("reviews", [])
-          n=len(rv) if isinstance(rv,list) else -1
-          print("[DEBUG] raw keys:", list(obj.keys()))
-          print("[DEBUG] raw reviews len:", n)
-          if n == 0:
-              print("[WARN] raw reviews is 0. Collector likely failed upstream (token/endpoint/change/rate-limit).")
-          PY
-
-          # ---- 2) BUILD (v6 builder: 반드시 파일명 맞춰서 사용)
-          # ✅ 여기 파일명은 네가 제공한 v6 빌더 파일명으로 맞춰서 사용해야 함.
-          # 예시: python -u build_voc_dashboard_v6.py ...
-          python -u build_voc_dashboard.py \
+          # ---- 2) BUILD (v6.1 builder + UI template)
+          python -u scripts/build_voc_dashboard_v6.py \
             --input "${RAW_JSON}" \
             --target-days "${TARGET_DAYS}" \
+            --html-template "site/template.html" \
             $( [ "${DEBUG}" = "true" ] && echo "--debug" ) \
             || true
 
@@ -434,96 +361,6 @@ jobs:
           ls -lah reports/voc_crema/data | head -n 200 || true
 
       # ----------------------------
-      # 4.5) Naver Blog VOC
-      # ----------------------------
-      - name: Run Naver Blog VOC (Columbia mentions)
-        if: ${{ steps.modes.outputs.run_blog == 'true' }}
-        continue-on-error: true
-        shell: bash
-        env:
-          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-        run: |
-          set -euo pipefail
-
-          rm -rf reports/voc_blog || true
-          mkdir -p reports/voc_blog
-
-          python -u build_blog_voc_report.py \
-            --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말" \
-            --days 60 \
-            --per-query 100 \
-            --headless \
-            --out-dir reports/voc_blog \
-            || true
-
-          ls -la reports/voc_blog/index.html || true
-
-      # ----------------------------
-      # 5) Summary
-      # ----------------------------
-      - name: Build Summary (reports/index.html + meta.json)
-        if: ${{ steps.modes.outputs.run_summary == 'true' }}
-        continue-on-error: true
-        env:
-          UPDATED_KST: ${{ steps.set_time.outputs.kst }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -u build_summary.py || true
-          echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
-          ls -la reports/index.html reports/meta.json || true
-
-      # =========================================================
-      # ✅ OWNED Campaign Portal
-      # =========================================================
-      - name: Build OWNED campaign portal (products by send_id)
-        if: ${{ steps.modes.outputs.run_owned == 'true' }}
-        continue-on-error: false
-        shell: bash
-        env:
-          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
-          BQ_PROJECT: columbia-ga4
-          BQ_DATASET: analytics_358593394
-          OWNED_BACKFILL: ${{ steps.modes.outputs.owned_backfill }}
-          OWNED_RECENT_DAYS: ${{ steps.modes.outputs.owned_recent_days }}
-          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
-            echo "[WARN] GOOGLE_SA_JSON_B64 empty -> skip owned portal"
-            exit 0
-          fi
-
-          echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
-          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
-
-          mkdir -p reports/owned_portal
-
-          if [ "${OWNED_BACKFILL}" = "true" ]; then
-            echo "[INFO] OWNED backfill: 2025-01-01 ~ ${YMD} (overwrite)"
-            python -u build_owned_campaign_portal.py \
-              --project "${BQ_PROJECT}" \
-              --dataset "${BQ_DATASET}" \
-              --start "2025-01-01" \
-              --end "${YMD}" \
-              --site-dir reports/owned_portal \
-              --overwrite
-          else
-            echo "[INFO] OWNED incremental: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
-            python -u build_owned_campaign_portal.py \
-              --project "${BQ_PROJECT}" \
-              --dataset "${BQ_DATASET}" \
-              --recent-days "${OWNED_RECENT_DAYS}" \
-              --site-dir reports/owned_portal
-          fi
-
-          echo "[INFO] Owned outputs:"
-          ls -la reports/owned_portal || true
-          ls -la reports/owned_portal/data/owned | head -n 120 || true
-
-      # ----------------------------
       # 7) Commit & push results
       # ----------------------------
       - name: Commit & push results
@@ -534,7 +371,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A reports site .naver_cache || true
+          git add -A reports site .naver_cache scripts || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
@@ -548,7 +385,7 @@ jobs:
 
           git pull --rebase --autostash origin main
 
-          git add -A reports site .naver_cache || true
+          git add -A reports site .naver_cache scripts || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit after rebase"
@@ -571,8 +408,7 @@ jobs:
 
           echo "[ERROR] failed to push after retries"
           exit 1
-
-      # ----------------------------
+# ----------------------------
       # Success Email
       # ----------------------------
       - name: Send success email (yesterday daily report PNG)
@@ -609,3 +445,4 @@ jobs:
           fi
 
           python -u scripts/send_daily_email.py || true
+ 
