@@ -2,31 +2,34 @@
 # -*- coding: utf-8 -*-
 
 """
-[CREMA VOC COLLECTOR | v2 | Compatible with existing crema_voc.py CLI]
+voc_crema.py  (CREMA VOC COLLECTOR WRAPPER | stable | fixed)
 
-✅ Goal
-- Use your existing `crema_voc.py` (which ONLY supports: --mode/--start/--end/--chunk-days/--recent-days)
-- After each run, read `site/data/reviews.json` (produced by crema_voc.py)
-- Accumulate & deduplicate into an on-disk "lake":
+✅ Your fixed constraints
+- Collector is ALWAYS this file: `voc_crema.py`
+- It calls your existing `crema_voc.py` (CLI supports ONLY: --mode/--start/--end/--chunk-days/--recent-days)
+- It then reads `site/data/reviews.json` (produced by crema_voc.py)
+- It writes a stable builder input file:
+    reports/crema_raw/reviews.json          ✅ (builder input: build_voc_dashboard.py --input this)
+- Optionally accumulates a deduplicated "lake" for long-term storage:
     reports/crema_raw/master_reviews.jsonl
     reports/crema_raw/master_index.json
-    reports/crema_raw/daily/YYYY-MM-DD.json         (snapshot of reviews collected for that run)
-    reports/crema_raw/health/latest_health.json     (collector diagnostics)
+    reports/crema_raw/daily/YYYY-MM-DD.json
+    reports/crema_raw/health/latest_health.json
 
-⚠️ Why this exists
-- Your crema_voc.py does NOT accept --out/--output/--days, so any wrapper MUST NOT pass them.
-- This script is drop-in: it calls crema_voc.py with supported args, then copies/merges outputs.
+Why you needed this:
+- Your `crema_voc.py` REQUIRES `--mode` and does NOT accept `--out/--output/--days`.
+- Previous wrapper version printed CMD but did NOT run it (missing subprocess.run).
 
 Usage
-- Daily (incremental; uses crema_voc.py daily mode):
-    python crema_collect_accumulate_v2.py --mode daily --recent-days 7
+- Daily (incremental):
+    python -u voc_crema.py --mode daily --recent-days 7
 
-- Backfill (chunked; calls crema_voc.py backfill repeatedly by date chunks):
-    python crema_collect_accumulate_v2.py --mode backfill --start 2025-01-01 --end 2026-02-28 --chunk-days 14
+- Backfill (chunked):
+    python -u voc_crema.py --mode backfill --start 2025-01-01 --end 2026-02-28 --chunk-days 14
 
 Environment
-- PROJECT_ROOT: repo root (defaults to auto-detect: folder containing site/ or .git)
-- OUTPUT_TZ: default Asia/Seoul (used for chunking + snapshot naming)
+- PROJECT_ROOT: repo root (auto-detect if not set)
+- OUTPUT_TZ: default Asia/Seoul
 """
 
 from __future__ import annotations
@@ -42,6 +45,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from dateutil import tz
 
 
+# ----------------------------
+# Config
+# ----------------------------
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
 TZ = tz.gettz(OUTPUT_TZ)
 
@@ -57,7 +63,13 @@ HEALTH_DIR_REL = RAW_DIR_REL / "health"
 MASTER_JSONL_REL = RAW_DIR_REL / "master_reviews.jsonl"
 MASTER_INDEX_REL = RAW_DIR_REL / "master_index.json"
 
+# ✅ Stable builder input (always written)
+RAW_REVIEWS_JSON_REL = RAW_DIR_REL / "reviews.json"
 
+
+# ----------------------------
+# Helpers
+# ----------------------------
 def now_kst() -> datetime:
     return datetime.now(tz=TZ)
 
@@ -74,6 +86,7 @@ def find_repo_root() -> pathlib.Path:
     env_root = os.getenv("PROJECT_ROOT", "").strip()
     if env_root:
         return pathlib.Path(env_root).expanduser().resolve()
+
     here = pathlib.Path(__file__).resolve()
     for p in [here.parent] + list(here.parents):
         if (p / "site").exists():
@@ -90,6 +103,7 @@ HEALTH_DIR = ROOT / HEALTH_DIR_REL
 MASTER_JSONL = ROOT / MASTER_JSONL_REL
 MASTER_INDEX = ROOT / MASTER_INDEX_REL
 CREMA_OUTPUT_JSON = ROOT / CREMA_OUTPUT_JSON_REL
+RAW_REVIEWS_JSON = ROOT / RAW_REVIEWS_JSON_REL
 
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 DAILY_DIR.mkdir(parents=True, exist_ok=True)
@@ -184,6 +198,8 @@ def run_crema_voc(mode: str, start: Optional[str], end: Optional[str], recent_da
             cmd += ["--recent-days", str(int(recent_days))]
 
     print("[CMD] " + " ".join(cmd))
+    subprocess.run(cmd, cwd=str(ROOT), check=True)
+
 
 def read_crema_output() -> List[Dict[str, Any]]:
     if not CREMA_OUTPUT_JSON.exists():
@@ -193,6 +209,11 @@ def read_crema_output() -> List[Dict[str, Any]]:
     if not isinstance(reviews, list):
         raise ValueError(f"Invalid crema output structure. Expected {{reviews:[...]}} in {CREMA_OUTPUT_JSON}")
     return [r for r in reviews if isinstance(r, dict)]
+
+
+def write_builder_input(rows: List[Dict[str, Any]]) -> None:
+    RAW_REVIEWS_JSON.parent.mkdir(parents=True, exist_ok=True)
+    write_json(RAW_REVIEWS_JSON, {"reviews": rows})
 
 
 def snapshot_daily(rows: List[Dict[str, Any]], snap_date: str, meta: Dict[str, Any]) -> pathlib.Path:
@@ -230,6 +251,7 @@ def main():
     ap.add_argument("--chunk-days", type=int, default=DEFAULT_CHUNK_DAYS, help="backfill chunk size (days)")
     ap.add_argument("--recent-days", type=int, default=DEFAULT_RECENT_DAYS, help="daily window (days)")
     ap.add_argument("--keep-site-output", action="store_true", help="do not delete site/data/reviews.json after reading")
+    ap.add_argument("--no-lake", action="store_true", help="disable master jsonl/index accumulation (still writes reports/crema_raw/reviews.json)")
     args = ap.parse_args()
 
     idx = load_master_index()
@@ -242,6 +264,7 @@ def main():
         "chunks": [],
         "added_total": 0,
         "skipped_total": 0,
+        "builder_input": str(RAW_REVIEWS_JSON_REL),
         "errors": [],
     }
 
@@ -249,17 +272,26 @@ def main():
         if args.mode == "daily":
             run_crema_voc(mode="daily", start=None, end=None, recent_days=args.recent_days)
             rows = read_crema_output()
-            snap_date = fmt_ymd(now_kst().date())
-            added, skipped = append_master_jsonl(rows, idx)
-            run_meta["added_total"] += added
-            run_meta["skipped_total"] += skipped
 
-            snap_path = snapshot_daily(
-                rows,
-                snap_date=snap_date,
-                meta={"recent_days": int(args.recent_days), "added": added, "skipped": skipped, "rows": len(rows)},
-            )
-            run_meta["chunks"].append({"type": "daily", "snap": str(snap_path), "rows": len(rows), "added": added, "skipped": skipped})
+            # ✅ always write stable builder input
+            write_builder_input(rows)
+
+            snap_date = fmt_ymd(now_kst().date())
+
+            added = skipped = 0
+            if not args.no_lake:
+                added, skipped = append_master_jsonl(rows, idx)
+                run_meta["added_total"] += added
+                run_meta["skipped_total"] += skipped
+
+                snap_path = snapshot_daily(
+                    rows,
+                    snap_date=snap_date,
+                    meta={"recent_days": int(args.recent_days), "added": added, "skipped": skipped, "rows": len(rows)},
+                )
+                run_meta["chunks"].append({"type": "daily", "snap": str(snap_path), "rows": len(rows), "added": added, "skipped": skipped})
+            else:
+                run_meta["chunks"].append({"type": "daily", "rows": len(rows)})
 
         else:
             start_s = (args.start or DEFAULT_START).strip()
@@ -267,31 +299,39 @@ def main():
             start_d = parse_ymd(start_s)
             end_d = parse_ymd(end_s)
 
+            all_rows: List[Dict[str, Any]] = []
+
             for (cs, ce) in daterange_chunks(start_d, end_d, args.chunk_days):
                 cs_s = fmt_ymd(cs)
                 ce_s = fmt_ymd(ce)
                 try:
                     run_crema_voc(mode="backfill", start=cs_s, end=ce_s, recent_days=None)
                     rows = read_crema_output()
-                    snap_date = ce_s
-                    added, skipped = append_master_jsonl(rows, idx)
-                    run_meta["added_total"] += added
-                    run_meta["skipped_total"] += skipped
+                    all_rows.extend(rows)
 
-                    snap_path = snapshot_daily(
-                        rows,
-                        snap_date=snap_date,
-                        meta={"start": cs_s, "end": ce_s, "added": added, "skipped": skipped, "rows": len(rows)},
-                    )
-                    run_meta["chunks"].append({
-                        "type": "backfill",
-                        "start": cs_s,
-                        "end": ce_s,
-                        "snap": str(snap_path),
-                        "rows": len(rows),
-                        "added": added,
-                        "skipped": skipped,
-                    })
+                    added = skipped = 0
+                    if not args.no_lake:
+                        added, skipped = append_master_jsonl(rows, idx)
+                        run_meta["added_total"] += added
+                        run_meta["skipped_total"] += skipped
+
+                        snap_path = snapshot_daily(
+                            rows,
+                            snap_date=ce_s,
+                            meta={"start": cs_s, "end": ce_s, "added": added, "skipped": skipped, "rows": len(rows)},
+                        )
+                        run_meta["chunks"].append({
+                            "type": "backfill",
+                            "start": cs_s,
+                            "end": ce_s,
+                            "snap": str(snap_path),
+                            "rows": len(rows),
+                            "added": added,
+                            "skipped": skipped,
+                        })
+                    else:
+                        run_meta["chunks"].append({"type": "backfill", "start": cs_s, "end": ce_s, "rows": len(rows)})
+
                 except subprocess.CalledProcessError as e:
                     run_meta["errors"].append({"chunk": f"{cs_s}~{ce_s}", "error": f"crema_voc failed: {e}"})
                     continue
@@ -299,7 +339,11 @@ def main():
                     run_meta["errors"].append({"chunk": f"{cs_s}~{ce_s}", "error": str(e)})
                     continue
 
-        save_master_index(idx)
+            # ✅ for backfill too: write stable builder input (merged rows of this run)
+            write_builder_input(all_rows)
+
+        if not args.no_lake:
+            save_master_index(idx)
 
         if (not args.keep_site_output) and CREMA_OUTPUT_JSON.exists():
             try:
@@ -310,12 +354,14 @@ def main():
         run_meta["finished_at"] = now_kst().strftime("%Y-%m-%d %H:%M:%S")
         collector_health(run_meta)
 
-        print("[OK] Crema collection + accumulation done.")
-        print(f"- Master jsonl: {MASTER_JSONL}")
-        print(f"- Master index: {MASTER_INDEX}")
-        print(f"- Daily snaps:  {DAILY_DIR}")
-        print(f"- Health:       {HEALTH_DIR / 'latest_health.json'}")
-        print(f"- Added: {run_meta['added_total']} | Skipped(dup): {run_meta['skipped_total']}")
+        print("[OK] Crema collection done.")
+        print(f"- Builder input: {RAW_REVIEWS_JSON}")
+        if not args.no_lake:
+            print(f"- Master jsonl:  {MASTER_JSONL}")
+            print(f"- Master index:  {MASTER_INDEX}")
+            print(f"- Daily snaps:   {DAILY_DIR}")
+            print(f"- Health:        {HEALTH_DIR / 'latest_health.json'}")
+            print(f"- Added: {run_meta['added_total']} | Skipped(dup): {run_meta['skipped_total']}")
         if run_meta["errors"]:
             print(f"[WARN] Some chunks failed: {len(run_meta['errors'])} (see latest_health.json)")
 
