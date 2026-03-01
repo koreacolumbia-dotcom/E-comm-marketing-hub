@@ -137,12 +137,6 @@
     .health-ok{ background: rgba(16,185,129,0.10); border: 1px solid rgba(16,185,129,0.18); color:#065f46; }
     .health-warn{ background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); color:#92400e; }
     .health-error{ background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.18); color:#991b1b; }
-
-    /* ✅ MLDL section helpers */
-    .bar-track{ height: 10px; border-radius: 9999px; background: rgba(0,45,114,0.12); overflow:hidden; }
-    .bar-fill{ height: 100%; border-radius: 9999px; background: rgba(0,45,114,0.90); }
-    .mini-card{ border-radius: 22px; background: rgba(255,255,255,0.52); border: 1px solid rgba(255,255,255,0.80); backdrop-filter: blur(14px); padding: 14px 14px; }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   </style>
 </head>
 
@@ -361,62 +355,6 @@
               </div>
             </div>
           </section>
-
-          <!-- 4 Mindmap -->
-          <section class="mb-10">
-            <div class="glass-card p-8">
-              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-                <div>
-                  <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
-                  <div class="text-xs font-bold text-slate-500 mt-1">최근 1년 누적 · 제품별 대표 문장(POS/NEG)</div>
-                </div>
-              </div>
-
-              <div id="productMindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
-            </div>
-          </section>
-
-          <!-- ✅ 4.5 ML/DL Topics (1Y) : Mindmap 아래 추가 -->
-          <section class="mb-10">
-            <div class="glass-card p-8">
-              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-                <div>
-                  <div class="small-label text-blue-600 mb-2">4.5 ML/DL Topics</div>
-                  <div class="text-2xl font-black text-slate-900">최근 1년 토픽/클러스터 & 트렌드</div>
-                  <div class="text-xs font-bold text-slate-500 mt-2">
-                    * meta.json: trend_daily_1y / ml_topics_1y(TF-IDF+NMF) / dl_topics_1y(Embedding+KMeans)
-                  </div>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <!-- Trend 1Y -->
-                <div class="summary-card">
-                  <div class="small-label text-blue-600 mb-2">4.5-1) Trend (1Y)</div>
-                  <div class="text-xs font-bold text-slate-500 mb-3">최근 30일(1y series에서 tail) 기준</div>
-                  <div id="trend1yBox" class="space-y-2"></div>
-                  <div class="text-[11px] font-bold text-slate-500 mt-3">
-                    cnt = 리뷰 수 · neg = 불만 판정 수 · neg_rate = neg/cnt
-                  </div>
-                </div>
-
-                <!-- ML Topics -->
-                <div class="summary-card lg:col-span-2">
-                  <div class="small-label text-blue-600 mb-2">4.5-2) ML Topics (TF-IDF + NMF)</div>
-                  <div class="text-xs font-bold text-slate-500 mb-3">토픽별 대표 단어(top_words) + 최근 14일 볼륨</div>
-                  <div id="mlTopicsBox" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-                </div>
-              </div>
-
-              <!-- DL clusters -->
-              <div class="summary-card mt-4">
-                <div class="small-label text-blue-600 mb-2">4.5-3) DL Clusters (Embedding)</div>
-                <div class="text-xs font-bold text-slate-500 mb-3">클러스터별 샘플 문장(최근 7개) + 최근 14일 볼륨</div>
-                <div id="dlClustersBox" class="grid grid-cols-1 lg:grid-cols-2 gap-3"></div>
-              </div>
-            </div>
-          </section>
-
           <!-- 5 Daily feed -->
           <section class="mb-10">
             <div class="glass-card p-8">
@@ -452,6 +390,24 @@
               </div>
             </div>
           </section>
+
+
+
+          <!-- 4 Mindmap -->
+          <section class="mb-10" id="mindmapSection">
+            <div class="glass-card p-8">
+              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+                <div>
+                  <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
+                  <div class="text-xs font-bold text-slate-500 mt-1">최근 1년 누적 · 제품별 대표 문장(POS/NEG)</div>
+                </div>
+              </div>
+
+              <div id="productMindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
+            </div>
+          </section>
+
+
 
           <footer class="text-xs font-bold text-slate-500 pb-8">
             * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
@@ -954,154 +910,6 @@
       }).join("");
     }
 
-    // ----------------------------
-    // ✅ 4.5 ML/DL render
-    // ----------------------------
-    function renderMLDL(){
-      renderTrend1Y();
-      renderMLTopics();
-      renderDLClusters();
-    }
-
-    function renderTrend1Y(){
-      const box = document.getElementById("trend1yBox");
-      if (!box) return;
-
-      const series = asArr(META?.trend_daily_1y);
-      if (!series.length){
-        box.innerHTML = `<div class="text-xs font-black text-slate-500">trend_daily_1y 데이터 없음</div>`;
-        return;
-      }
-
-      const tail = series.slice(-30);
-      const maxCnt = Math.max(1, ...tail.map(x => Number(x.cnt||0)));
-
-      box.innerHTML = tail.map(x => {
-        const day = x.day || "-";
-        const cnt = Number(x.cnt||0);
-        const neg = Number(x.neg||0);
-        const nr  = Number(x.neg_rate||0);
-        const w = Math.round((cnt / maxCnt) * 100);
-        return `
-          <div class="mini-card">
-            <div class="flex items-center justify-between gap-3">
-              <div class="text-xs font-black text-slate-700 mono">${esc(day)}</div>
-              <div class="text-[11px] font-black text-slate-500">
-                cnt <span class="text-slate-800">${esc(cnt)}</span> ·
-                neg <span class="text-slate-800">${esc(neg)}</span> ·
-                rate <span class="text-slate-800">${esc((nr*100).toFixed(0))}%</span>
-              </div>
-            </div>
-            <div class="bar-track mt-2">
-              <div class="bar-fill" style="width:${esc(w)}%"></div>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    function lastNDaysBars(daily, n){
-      const arr = asArr(daily).slice(-n);
-      const maxCnt = Math.max(1, ...arr.map(x => Number(x.cnt||0)));
-      return `
-        <div class="flex items-end gap-1 mt-2">
-          ${arr.map(x => {
-            const c = Number(x.cnt||0);
-            const h = Math.max(2, Math.round((c / maxCnt) * 26));
-            return `<div title="${esc(x.day)}: ${esc(c)}" class="w-2 rounded-md bg-slate-900/15" style="height:${esc(h)}px"></div>`;
-          }).join("")}
-        </div>
-      `;
-    }
-
-    function renderMLTopics(){
-      const root = document.getElementById("mlTopicsBox");
-      if (!root) return;
-
-      const ml = META?.ml_topics_1y || null;
-      if (!ml || ml.enabled !== true){
-        const reason = ml?.reason ? ` (${esc(ml.reason)})` : "";
-        root.innerHTML = `<div class="mini-card md:col-span-2"><div class="text-xs font-black text-slate-500">ML topics 비활성${reason}</div></div>`;
-        return;
-      }
-
-      const topics = asArr(ml.topics);
-      const vol = ml.topic_daily_volume || {};
-
-      if (!topics.length){
-        root.innerHTML = `<div class="mini-card md:col-span-2"><div class="text-xs font-black text-slate-500">topics 없음</div></div>`;
-        return;
-      }
-
-      root.innerHTML = topics.map(t => {
-        const id = t.topic_id ?? "?";
-        const words = asArr(t.words);
-        const daily = vol[String(id)] || [];
-        return `
-          <div class="mini-card">
-            <div class="flex items-center justify-between gap-2">
-              <div class="text-sm font-black text-slate-900">Topic ${esc(id)}</div>
-              <span class="badge"><i class="fa-solid fa-brain"></i> ML</span>
-            </div>
-
-            <div class="mt-2 flex flex-wrap gap-2">
-              ${words.map(w => `<span class="badge">${esc(w)}</span>`).join("")}
-            </div>
-
-            <div class="text-[11px] font-bold text-slate-500 mt-3">최근 14일 볼륨</div>
-            ${lastNDaysBars(daily, 14)}
-          </div>
-        `;
-      }).join("");
-    }
-
-    function renderDLClusters(){
-      const root = document.getElementById("dlClustersBox");
-      if (!root) return;
-
-      const dl = META?.dl_topics_1y || null;
-      if (!dl || dl.enabled !== true){
-        const reason = dl?.reason ? ` (${esc(dl.reason)})` : "";
-        root.innerHTML = `<div class="mini-card lg:col-span-2"><div class="text-xs font-black text-slate-500">DL clusters 비활성${reason}</div></div>`;
-        return;
-      }
-
-      const clusters = asArr(dl.clusters);
-      const vol = dl.cluster_daily_volume || {};
-
-      if (!clusters.length){
-        root.innerHTML = `<div class="mini-card lg:col-span-2"><div class="text-xs font-black text-slate-500">clusters 없음</div></div>`;
-        return;
-      }
-
-      root.innerHTML = clusters.map(c => {
-        const id = c.cluster_id ?? "?";
-        const samples = asArr(c.samples).slice(0,7);
-        const daily = vol[String(id)] || [];
-        return `
-          <div class="mini-card">
-            <div class="flex items-center justify-between gap-2">
-              <div class="text-sm font-black text-slate-900">Cluster ${esc(id)}</div>
-              <span class="badge"><i class="fa-solid fa-network-wired"></i> DL</span>
-            </div>
-
-            <div class="text-[11px] font-bold text-slate-500 mt-3">샘플 문장(최대 7개)</div>
-            <div class="mt-2 space-y-2">
-              ${samples.map(s => `
-                <div class="p-3 rounded-2xl bg-white/55 border border-white/80">
-                  <div class="text-[11px] font-black text-slate-500 mono">${esc(s.day || "-")}</div>
-                  <div class="text-sm font-extrabold text-slate-800 leading-relaxed mt-1">${esc(s.text || "-")}</div>
-                </div>
-              `).join("")}
-            </div>
-
-            <div class="text-[11px] font-bold text-slate-500 mt-3">최근 14일 볼륨</div>
-            ${lastNDaysBars(daily, 14)}
-          </div>
-        `;
-      }).join("");
-    }
-
     function reviewCardHTML(r){
       const t = asArr(r.tags);
       const tags = [];
@@ -1235,10 +1043,6 @@
       renderRanking(metrics);
       renderSizeStructure(metrics);
       renderProductMindmap();
-
-      // ✅ added
-      renderMLDL();
-
       renderDailyFeed(filtered);
 
       tryScrollToReview();
