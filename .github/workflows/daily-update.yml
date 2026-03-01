@@ -320,7 +320,7 @@ jobs:
           # ---- 1) COLLECT (✅ fixed: voc_crema.py requires --mode)
           # daily mode: 최근 N일만
           set +e
-          python -u voc_crema.py \
+          python -u crema_voc.py \
             --mode daily \
             --recent-days "${TARGET_DAYS}" \
             --keep-site-output
@@ -328,7 +328,7 @@ jobs:
           set -e
 
           if [ "$RC" -ne 0 ]; then
-            echo "[WARN] voc_crema.py failed (rc=$RC). Skip build."
+            echo "[WARN] voc_crema.py failed (rc=$RC). Skip build0ㅔ."
             exit 0
           fi
 
@@ -346,7 +346,7 @@ jobs:
           echo "[DEBUG] raw dir:"
           ls -lah "${RAW_DIR}" || true
           echo "[DEBUG] raw file size:"
-          ls -lah "${RAW_JSON}" || true
+          ls -lah "${RAW_JSON}" || true=
 
           python - << 'PY'
           import json
