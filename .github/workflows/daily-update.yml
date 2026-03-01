@@ -87,10 +87,7 @@ jobs:
           git pull --rebase origin main
 
       # ---------------------------------------------------------
-      # ✅ Mode resolver (핵심)
-      # - owned_only=true 또는 owned_backfill=true면: OWNED만 실행
-      # - daily_only/voc_only/blog_only 중 하나면: 그것만 실행
-      # - 그 외(스케줄/수동 all false): 전체 실행
+      # ✅ Mode resolver
       # ---------------------------------------------------------
       - name: Resolve run modes
         id: modes
@@ -106,7 +103,6 @@ jobs:
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
 
-          # Validate only one "only mode" selected (owned_backfill counts as owned-only mode)
           if [ "$EVENT" = "workflow_dispatch" ]; then
             cnt=0
             [ "$DAILY_ONLY" = "true" ] && cnt=$((cnt+1))
@@ -120,7 +116,7 @@ jobs:
             fi
           fi
 
-          # Default (schedule OR manual-all-false): run everything
+          # Default: run everything
           RUN_DAILY=true
           RUN_PRICE=true
           RUN_HERO=true
@@ -130,7 +126,6 @@ jobs:
           RUN_SUMMARY=true
           RUN_OWNED=true
 
-          # If owned_backfill or owned_only => run owned only
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
             RUN_DAILY=false
             RUN_PRICE=false
@@ -142,7 +137,6 @@ jobs:
             RUN_OWNED=true
           fi
 
-          # If other "only" => that only
           if [ "$DAILY_ONLY" = "true" ]; then
             RUN_DAILY=true
             RUN_PRICE=false
@@ -242,12 +236,9 @@ jobs:
           YMD: "2026-02-26"
           YOY: "2025-02-27"
 
-          # 덮어쓰기 + 캐시 무시 (해당 날짜만 새로 조회)
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
-
-          # 허브는 고정
           DAILY_DIGEST_SKIP_HUB_WRITE: "false"
 
         run: |
@@ -272,7 +263,6 @@ jobs:
                 "reports/daily_digest/data/daily/${YMD}.json" || true
 
           echo "[INFO] Build only: ${YMD}"
-
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
@@ -281,9 +271,6 @@ jobs:
           ls -la reports/daily_digest/daily | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
 
-      # =========================================================
-      # Render yesterday daily HTML -> PNG (for email)
-      # =========================================================
       - name: Render yesterday Daily Digest PNG
         if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
@@ -352,38 +339,100 @@ jobs:
           ls -la reports/external_signal.html || true
 
       # ----------------------------
-      # 4) Crema VOC
+      # 4) Crema VOC (COLLECT -> BUILD)  ✅ MAX PATCH
       # ----------------------------
-      - name: Run Crema VOC (reviews + images + dashboard)
+      - name: Run Crema VOC (collect -> build dashboard)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         continue-on-error: true
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
           OUTPUT_TZ: Asia/Seoul
           PROJECT_ROOT: ${{ github.workspace }}
+          TARGET_DAYS: 7
+          DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
 
-          INPUT_JSON="site/data/reviews.json"
-          if [ ! -f "$INPUT_JSON" ]; then
-            echo "[WARN] Missing input JSON: $INPUT_JSON (skip crema)"
+          RAW_DIR="reports/crema_raw"
+          RAW_JSON="${RAW_DIR}/reviews.json"
+          mkdir -p "${RAW_DIR}"
+          rm -f "${RAW_JSON}" || true
+
+          echo "[INFO] Crema collect -> ${RAW_JSON}"
+          echo "[DEBUG] debug=${DEBUG}"
+
+          # ---- 1) COLLECT (collector: crema_voc.py)
+          set +e
+          python -u crema_voc.py --out "${RAW_JSON}" --days "${TARGET_DAYS}"
+          RC=$?
+          if [ "$RC" -ne 0 ]; then
+            echo "[WARN] crema_voc.py --out failed (rc=$RC). Try --output..."
+            python -u crema_voc.py --output "${RAW_JSON}" --days "${TARGET_DAYS}"
+            RC=$?
+          fi
+          if [ "$RC" -ne 0 ]; then
+            echo "[WARN] crema_voc.py explicit output args failed (rc=$RC). Try running without args..."
+            python -u crema_voc.py
+            RC=$?
+          fi
+          set -e
+
+          # fallback: if collector wrote to site/data/reviews.json, copy it to RAW_JSON
+          if [ ! -f "${RAW_JSON}" ] && [ -f "site/data/reviews.json" ]; then
+            echo "[WARN] RAW_JSON not found. Fallback copy from site/data/reviews.json -> ${RAW_JSON}"
+            cp -f "site/data/reviews.json" "${RAW_JSON}" || true
+          fi
+
+          echo "[DEBUG] raw dir:"
+          ls -lah "${RAW_DIR}" || true
+
+          if [ ! -f "${RAW_JSON}" ]; then
+            echo "[ERROR] Raw reviews json not created: ${RAW_JSON}"
+            echo "[DEBUG] site/data listing:"
+            ls -lah site/data || true
             exit 0
           fi
 
+          echo "[DEBUG] raw file size:"
+          ls -lah "${RAW_JSON}" || true
+
+          python - << 'PY'
+          import json
+          p="reports/crema_raw/reviews.json"
+          obj=json.load(open(p,'r',encoding='utf-8'))
+          rv=obj.get("reviews", [])
+          n=len(rv) if isinstance(rv,list) else -1
+          print("[DEBUG] raw keys:", list(obj.keys()))
+          print("[DEBUG] raw reviews len:", n)
+          if n == 0:
+              print("[WARN] raw reviews is 0. Collector likely failed upstream (token/endpoint/change/rate-limit).")
+          PY
+
+          # ---- 2) BUILD (v6 builder: 반드시 파일명 맞춰서 사용)
+          # ✅ 여기 파일명은 네가 제공한 v6 빌더 파일명으로 맞춰서 사용해야 함.
+          # 예시: python -u build_voc_dashboard_v6.py ...
+          python -u crema_voc.py \
+            --input "${RAW_JSON}" \
+            --target-days "${TARGET_DAYS}" \
+            $( [ "${DEBUG}" = "true" ] && echo "--debug" ) \
+            || true
+
+          # ---- 3) archive
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
-
-          python -u crema_voc.py --input "$INPUT_JSON" || true
 
           if [ -f "site/index.html" ]; then
             rsync -a --delete site/ reports/voc_crema/ || true
           else
-            echo "[WARN] site/index.html not found after run (skip)"
+            echo "[WARN] site/index.html not found after build"
+            ls -lah site || true
             exit 0
           fi
 
-          ls -la reports/voc_crema/index.html || true
+          echo "[INFO] voc_crema outputs:"
+          ls -lah reports/voc_crema | head -n 200 || true
+          ls -lah reports/voc_crema/data | head -n 200 || true
 
       # ----------------------------
       # 4.5) Naver Blog VOC
@@ -423,17 +472,11 @@ jobs:
         run: |
           set -euo pipefail
           python -u build_summary.py || true
-
-          # ✅ PATCH: Hub 캐시 bust용 meta.json 강제 갱신
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
-
           ls -la reports/index.html reports/meta.json || true
 
       # =========================================================
-      # ✅ OWNED Campaign Portal (EDM/LMS/KAKAO → products)
-      # - schedule(자동): 최근 N일만 갱신(기본 7일)  -> 누락/지연 보정
-      # - dispatch owned_backfill=true: 2025-01-01 ~ 전날 전체 백필 (overwrite)
-      # - dispatch owned_only=true: OWNED만(최근 N일)
+      # ✅ OWNED Campaign Portal
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
@@ -482,7 +525,7 @@ jobs:
           ls -la reports/owned_portal/data/owned | head -n 120 || true
 
       # ----------------------------
-      # 7) Commit & push results (safe rebase + retry)
+      # 7) Commit & push results
       # ----------------------------
       - name: Commit & push results
         shell: bash
@@ -531,7 +574,7 @@ jobs:
           exit 1
 
       # ----------------------------
-      # Success Email (PNG inline 우선 + 첨부)
+      # Success Email
       # ----------------------------
       - name: Send success email (yesterday daily report PNG)
         if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
