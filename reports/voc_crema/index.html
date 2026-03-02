@@ -573,8 +573,6 @@
 
     function toggleMindmap(){
       uiState.mindmapCollapsed = !uiState.mindmapCollapsed;
-      const sec = document.getElementById("mindmapSection");
-      if (!sec) return;
       const grid = document.getElementById("productMindmap");
       if (grid) grid.style.display = uiState.mindmapCollapsed ? "none" : "";
     }
@@ -653,11 +651,7 @@
       const rankLow  = rows.slice().sort((a,b)=> (b.lowRate - a.lowRate) || (b.reviews - a.reviews));
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || (b.reviews - a.reviews));
 
-      return {
-        total,
-        sizeMentionRate: Math.round((sizeMention/total)*100),
-        rankSize, rankLow, rankBoth,
-      };
+      return { total, rankSize, rankLow, rankBoth };
     }
 
     // ----------------------------
@@ -667,9 +661,13 @@
       const runDate = META?.updated_at || "-";
       const periodText = META?.period_text || "-";
 
-      document.getElementById("runDateSide").textContent    = String(runDate).slice(0,10).replaceAll("-",".");
-      document.getElementById("periodTextSide").textContent = periodText;
-      document.getElementById("headerMeta").textContent     = `${runDate} · ${periodText}`;
+      const sideRun = document.getElementById("runDateSide");
+      const sidePeriod = document.getElementById("periodTextSide");
+      const headerMeta = document.getElementById("headerMeta");
+
+      if (sideRun) sideRun.textContent = String(runDate).slice(0,10).replaceAll("-",".");
+      if (sidePeriod) sidePeriod.textContent = periodText;
+      if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
     function renderSummary(){
@@ -677,18 +675,22 @@
       const pos = META?.pos_top5 || [];
 
       const elNeg = document.getElementById("topNeg");
-      elNeg.innerHTML = neg.map(([k,c,rid]) => `
-        <span class="badge neg kw-chip" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
-          #${esc(k)} <span class="opacity-70">${esc(c)}</span>
-        </span>
-      `).join("");
+      if (elNeg){
+        elNeg.innerHTML = neg.map(([k,c,rid]) => `
+          <span class="badge neg kw-chip" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
+            #${esc(k)} <span class="opacity-70">${esc(c)}</span>
+          </span>
+        `).join("");
+      }
 
       const elPos = document.getElementById("topPos");
-      elPos.innerHTML = pos.map(([k,c,rid]) => `
-        <span class="badge pos kw-chip" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
-          #${esc(k)} <span class="opacity-70">${esc(c)}</span>
-        </span>
-      `).join("");
+      if (elPos){
+        elPos.innerHTML = pos.map(([k,c,rid]) => `
+          <span class="badge pos kw-chip" onclick="applyKeywordAndScroll('${esc(k)}', '${esc(rid||"")}')">
+            #${esc(k)} <span class="opacity-70">${esc(c)}</span>
+          </span>
+        `).join("");
+      }
     }
 
     function renderRanking(metrics){
@@ -699,6 +701,7 @@
 
       const maxRows = uiState.rankExpanded ? Math.min(rows.length, 50) : Math.min(rows.length, 5);
       const tbody = document.getElementById("rankingBody");
+      if (!tbody) return;
 
       tbody.innerHTML = rows.slice(0, maxRows).map(r => `
         <tr>
@@ -727,6 +730,8 @@
 
     function renderProductSelect(){
       const sel = document.getElementById("productSelect");
+      if (!sel) return;
+
       const current = sel.value;
       const map = new Map();
       for (const r of REVIEWS){
@@ -734,6 +739,7 @@
         if (!code) continue;
         if (!map.has(code)) map.set(code, r.product_name || code);
       }
+
       sel.innerHTML = [`<option value="">제품 선택 (전체)</option>`].concat(
         Array.from(map.entries())
           .sort((a,b)=> String(a[1]).localeCompare(String(b[1])))
@@ -744,17 +750,37 @@
 
     function renderSizeSelect(){
       const sel = document.getElementById("sizeSelect");
+      if (!sel) return;
+
       const current = sel.value;
       const set = new Set();
       for (const r of REVIEWS){
         const sz = (r.option_size || "").trim();
         if (sz) set.add(sz);
       }
+
       const opts = Array.from(set).sort((a,b)=> String(a).localeCompare(String(b)));
       sel.innerHTML = [`<option value="">옵션 사이즈 (전체)</option>`]
         .concat(opts.map(sz => `<option value="${esc(sz)}">${esc(sz)}</option>`))
         .join("");
+
       sel.value = current;
+    }
+
+    function renderDailyFeed(reviews){
+      const container = document.getElementById("dailyFeed");
+      const no = document.getElementById("noResults");
+      if (!container || !no) return;
+
+      const rows = reviews.slice(0, 30);
+      if (!rows.length){
+        container.innerHTML = "";
+        no.classList.remove("hidden");
+        return;
+      }
+
+      no.classList.add("hidden");
+      container.innerHTML = rows.map(reviewCardHTML).join("");
     }
 
     function reviewCardHTML(r){
@@ -820,72 +846,67 @@
       `;
     }
 
-    function renderDailyFeed(reviews){
-      const container = document.getElementById("dailyFeed");
-      const no = document.getElementById("noResults");
-      const rows = reviews.slice(0, 30);
-
-      if (!rows.length){
-        container.innerHTML = "";
-        no.classList.remove("hidden");
-        return;
-      }
-
-      no.classList.add("hidden");
-      container.innerHTML = rows.map(reviewCardHTML).join("");
-    }
-
     function renderMLSignals(allFiltered){
       const yday = kstDateStr(-1);
       const yRows = allFiltered.filter(r => String(r.created_at||"").slice(0,10) === yday);
       const yCnt = yRows.length;
 
-      document.getElementById("yCount").textContent = yCnt;
+      const yCountEl = document.getElementById("yCount");
+      if (yCountEl) yCountEl.textContent = yCnt;
 
       const lowCnt = yRows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low")).length;
-      document.getElementById("yLowHint").textContent = (yCnt ? `Low/리스크 추정: ${lowCnt}건` : "어제 데이터가 없습니다.");
+      const hint = document.getElementById("yLowHint");
+      if (hint){
+        hint.textContent = (yCnt ? `Low/리스크 추정: ${lowCnt}건` : "어제 데이터가 없습니다.");
+      }
 
       const canvas = document.getElementById("mindmapCanvas");
-      const graph = META?.kw_graph_3m || {nodes:[], links:[]};
-      const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+      if (canvas){
+        const graph = META?.kw_graph_3m || {nodes:[], links:[]};
+        const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+        if (!nodes.length){
+          canvas.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-sm font-black text-slate-500">키워드 시그널이 없습니다.</div>`;
+        } else {
+          canvas.innerHTML = nodes.slice(0,28).map((n, i) => {
+            const pol = (n.pol||"neutral");
+            const cls = pol==="neg" ? "badge neg" : (pol==="pos" ? "badge pos" : "badge");
+            const left = (8 + Math.random()*84);
+            const top  = (12 + Math.random()*70);
+            const scale = Math.min(1.45, 0.92 + (Number(n.w||1) / 16));
+            const delay = (i % 10) * 60;
 
-      if (!nodes.length){
-        canvas.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-sm font-black text-slate-500">키워드 시그널이 없습니다.</div>`;
-      } else {
-        canvas.innerHTML = nodes.slice(0, 28).map((n, i) => {
-          const pol = (n.pol||"neutral");
-          const cls = pol==="neg" ? "badge neg" : (pol==="pos" ? "badge pos" : "badge");
-          const left = (8 + Math.random()*84);
-          const top  = (12 + Math.random()*70);
-          const scale = Math.min(1.45, 0.92 + (Number(n.w||1) / 16));
-          const delay = (i % 10) * 60;
-          return `
-            <div class="${cls} kw-chip absolute"
-                 data-kw="${esc(n.id)}"
-                 style="left:${left}%; top:${top}%; transform: translate(-50%,-50%) scale(${scale}); transition: transform .18s ease; animation: floaty 6s ease-in-out ${delay}ms infinite;"
-                 onclick="setSearchAndRender('${esc(n.id)}')">
-              #${esc(n.label)} <span class="opacity-70">${esc(n.w)}</span>
-            </div>
-          `;
-        }).join("");
+            return `
+              <div class="${cls} kw-chip absolute"
+                   data-kw="${esc(n.id)}"
+                   style="left:${left}%; top:${top}%; transform: translate(-50%,-50%) scale(${scale}); transition: transform .18s ease; animation: floaty 6s ease-in-out ${delay}ms infinite;"
+                   onclick="setSearchAndRender('${esc(n.id)}')">
+                #${esc(n.label)} <span class="opacity-70">${esc(n.w)}</span>
+              </div>
+            `;
+          }).join("");
+        }
       }
 
       const tr = document.getElementById("topicRow");
-      const topics = META?.ml_topics_3m || [];
-      if (!Array.isArray(topics) || !topics.length){
-        tr.innerHTML = `<span class="text-xs font-bold text-slate-400">토픽 데이터 없음</span>`;
-      } else {
-        tr.innerHTML = topics.slice(0,8).map((t, idx) => {
-          const words = Array.isArray(t?.words) ? t.words : [];
-          const title = words.slice(0,4).join(", ");
-          const key = words[0] || "";
-          return `<span class="badge kw-chip" title="${esc(title)}" onclick="setSearchAndRender('${esc(key)}')"><i class="fa-solid fa-circle-nodes"></i> Topic ${idx+1}: ${esc(words[0]||"-")}</span>`;
-        }).join("");
+      if (tr){
+        const topics = META?.ml_topics_3m || [];
+        if (!Array.isArray(topics) || !topics.length){
+          tr.innerHTML = `<span class="text-xs font-bold text-slate-400">토픽 데이터 없음</span>`;
+        } else {
+          tr.innerHTML = topics.slice(0,8).map((t, idx) => {
+            const words = Array.isArray(t?.words) ? t.words : [];
+            const title = words.slice(0,4).join(", ");
+            const key = words[0] || "";
+            return `<span class="badge kw-chip" title="${esc(title)}" onclick="setSearchAndRender('${esc(key)}')"><i class="fa-solid fa-circle-nodes"></i> Topic ${idx+1}: ${esc(words[0]||"-")}</span>`;
+          }).join("");
+        }
       }
     }
 
     function renderProductMindmap(){
       const root = document.getElementById("productMindmap");
+      if (!root) return;
+
       const mm = META?.product_mindmap_3m || [];
       if (!Array.isArray(mm) || !mm.length){
         root.innerHTML = `<div class="text-sm font-black text-slate-500">product_mindmap_3m 데이터가 없습니다.</div>`;
@@ -907,7 +928,7 @@
         `;
       };
 
-      root.innerHTML = mm.slice(0, 24).map(p => {
+      root.innerHTML = mm.slice(0,24).map(p => {
         const img = p.local_product_image
           ? `<img src="${esc(p.local_product_image)}" alt="" class="w-14 h-14 rounded-2xl object-cover border border-white/80 bg-white/60" />`
           : `<div class="w-14 h-14 rounded-2xl flex items-center justify-center text-[10px] text-slate-400 border border-white/80 bg-white/60">NO IMAGE</div>`;
@@ -967,7 +988,7 @@
         META = meta || {};
         REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
 
-        // ✅ daySelect default = 어제(KST) (가능하면), 아니면 period_end
+        // ✅ daySelect default = yesterday(KST) if in range, else period_end
         const dayInput = document.getElementById("daySelect");
         if (dayInput && META?.period_start && META?.period_end){
           dayInput.min = META.period_start;
