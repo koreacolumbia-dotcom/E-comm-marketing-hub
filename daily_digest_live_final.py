@@ -849,32 +849,41 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
     return base or "other"
 
 
-# ✅✅✅ PATCHED: Channel snapshot DoD/YoY sessions 기반으로 계산 (DoD 누락/0 문제 해결)
 def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    """Channel snapshot using Looker custom classification (source/medium + campaign).
-    ✅ DoD/YoY를 Sessions 기준으로 계산.
-    ✅ HTML이 DoD 컬럼에서 rev_vs_prev를 쓰는 구조라, rev_vs_prev에 sessions DoD를 연결.
     """
-    dims = ["sessionSourceMedium", "sessionCampaignName"]
+    ✅ FIX: Channel Snapshot 세션 합이 Overall KPI 세션과 항상 일치하도록
+    - sessionSourceMedium(+campaign) 기반 합산은 세션이 additivity 보장 안 되는 케이스가 있어 Total이 튈 수 있음
+    - 따라서 sessionDefaultChannelGroup(세션 분해에 안전)으로 가져온 뒤 Bucket으로 매핑
+    - DoD/YoY는 Sessions 기준(요청사항)으로 계산
+    """
+    dims = ["sessionDefaultChannelGroup"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
-    try:
-        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
-        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
-        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
-    except Exception:
-        dims = ["sessionSourceMedium"]
-        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
-        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
-        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
-        cur["sessionCampaignName"] = ""
-        prev["sessionCampaignName"] = ""
-        yoy["sessionCampaignName"] = ""
+    cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
+    prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
+    yoy  = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
 
-    if cur.empty:  cur = pd.DataFrame(columns=["sessionSourceMedium","sessionCampaignName"] + mets)
-    if prev.empty: prev = pd.DataFrame(columns=["sessionSourceMedium","sessionCampaignName"] + mets)
-    if yoy.empty:  yoy = pd.DataFrame(columns=["sessionSourceMedium","sessionCampaignName"] + mets)
+    if cur.empty:
+        cur = pd.DataFrame(columns=dims + mets)
+    if prev.empty:
+        prev = pd.DataFrame(columns=dims + mets)
+    if yoy.empty:
+        yoy = pd.DataFrame(columns=dims + mets)
 
+    def _prep(df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("").map(lambda x: x.strip())
+        for c in mets:
+            df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+
+        # sessionDefaultChannelGroup -> Bucket
+        df["bucket"] = df["sessionDefaultChannelGroup"].map(bucket_channel)
+        out = df.groupby("bucket", as_index=False)[["sessions","transactions","purchaseRevenue"]].sum()
+        return out
+
+    cur_b  = _prep(cur).rename(columns={"sessions":"sessions_cur", "transactions":"transactions_cur", "purchaseRevenue":"rev_cur"})
+    prev_b = _prep(prev).rename(columns={"sessions":"sessions_prev","transactions":"transactions_prev","purchaseRevenue":"rev_prev"})
+    yoy_b  = _prep(yoy).rename(columns={"sessions":"sessions_yoy", "transactions":"transactions_yoy", "purchaseRevenue":"rev_yoy_base"})
     def _prep(df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         df["bucket"] = [
