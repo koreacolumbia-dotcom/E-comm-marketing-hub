@@ -1,22 +1,9 @@
 <!DOCTYPE html>
-<html lang="ko" data-embed="0">
+<html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VOC Dashboard | Official + Naver Reviews</title>
-
-  <!-- ✅ Embed detection (head에서 먼저 실행: 깜빡임 방지) -->
-  <script>
-    (function () {
-      const qs = new URLSearchParams(location.search);
-      const hash = (location.hash || "");
-      const embed =
-        qs.get("embed") === "1" ||
-        qs.get("embedded") === "1" ||
-        /(^|[&#?])embed=1(&|$)/.test(hash);
-      document.documentElement.dataset.embed = embed ? "1" : "0";
-    })();
-  </script>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -39,11 +26,14 @@
       border-radius: 30px;
       box-shadow: 0 20px 50px rgba(0,45,114,0.05);
     }
-    .sidebar{
+
+    /* ✅ Top bar (replaces left sidebar) */
+    .topbar{
       background: rgba(255,255,255,0.70);
       backdrop-filter: blur(15px);
-      border-right: 1px solid rgba(255,255,255,0.80);
+      border-bottom: 1px solid rgba(255,255,255,0.80);
     }
+
     .summary-card{
       border-radius: 26px; background: rgba(255,255,255,0.55);
       border: 1px solid rgba(255,255,255,0.75); backdrop-filter: blur(18px);
@@ -142,32 +132,19 @@
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
 
+    /* embed */
+    body.embedded .topbar, body.embedded .layout-header { display:none !important; }
+    body.embedded main{ padding: 24px !important; }
+
     /* Health banner */
     .health-ok{ background: rgba(16,185,129,0.10); border: 1px solid rgba(16,185,129,0.18); color:#065f46; }
     .health-warn{ background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); color:#92400e; }
     .health-error{ background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.18); color:#991b1b; }
-
-    /* ✅ 모바일 drawer용 dim overlay */
-    .drawer-dim{
-      position: fixed; inset: 0;
-      background: rgba(15,23,42,0.25);
-      backdrop-filter: blur(6px);
-      display:none;
-      z-index: 40;
-    }
-    .drawer-dim.show{ display:block; }
-
-    /* ✅ embed=1: 사이드바/헤더/헬스 숨김 */
-    html[data-embed="1"] #sidebar { display:none !important; }
-    html[data-embed="1"] .layout-header { display:none !important; }
-    html[data-embed="1"] #healthBox { display:none !important; }
-    html[data-embed="1"] body { background: transparent !important; }
-    html[data-embed="1"] main{ padding: 24px !important; }
   </style>
 </head>
 
 <body>
-  <!-- overlay (data loading) -->
+  <!-- overlay -->
   <div id="overlay" class="overlay">
     <div class="flex flex-col items-center gap-3">
       <div class="spinner"></div>
@@ -175,24 +152,11 @@
     </div>
   </div>
 
-  <!-- ✅ 모바일 필터 열릴 때 dim -->
-  <div id="drawerDim" class="drawer-dim" onclick="closeSidebar()"></div>
-
-  <!-- ✅ 핵심: 모바일은 세로, lg부터 가로 -->
-  <div class="min-h-screen flex flex-col lg:flex-row">
-
-    <!-- ✅ sidebar / mobile topbar + collapsible panel -->
-    <aside
-      id="sidebar"
-      class="sidebar
-             w-full lg:w-[280px]
-             lg:sticky lg:top-0 lg:h-screen
-             lg:flex lg:flex-col
-             p-0 lg:p-6
-             border-b lg:border-b-0"
-    >
-      <!-- 모바일 상단바 -->
-      <div class="flex items-center justify-between p-4 lg:hidden">
+  <!-- ✅ Top Bar (was sidebar) -->
+  <header class="topbar sticky top-0 z-50">
+    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <!-- left: title -->
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
             <i class="fa-solid fa-chart-line text-slate-700"></i>
@@ -203,308 +167,262 @@
           </div>
         </div>
 
-        <button
-          id="sidebarToggle"
-          class="tab-btn !px-4 !py-2"
-          onclick="toggleSidebar()"
-          aria-expanded="false"
-          aria-controls="sidebarPanel"
-        >
-          <i class="fa-solid fa-sliders mr-2"></i>필터
-        </button>
+        <!-- right: RUN + FILTER -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full lg:w-auto">
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">RUN</div>
+            <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
+          </div>
+
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">FILTER</div>
+            <div class="flex flex-wrap gap-2">
+              <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
+              <button class="chip" id="chip-size" onclick="toggleChip('size')">Size</button>
+              <button class="chip" id="chip-low" onclick="toggleChip('low')">Low</button>
+            </div>
+            <div class="text-xs font-bold text-slate-500 mt-3">
+              * Daily OFF면 7일 전체 Feed
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- ✅ 모바일: 접혔다/펼쳐졌다 / 데스크탑: 항상 보임 -->
-      <div
-        id="sidebarPanel"
-        class="px-4 pb-4 lg:px-0 lg:pb-0 hidden lg:block"
-      >
-        <!-- 데스크탑 헤더 -->
-        <div class="hidden lg:flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
-            <i class="fa-solid fa-chart-line text-slate-700"></i>
-          </div>
-          <div>
-            <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
-            <div class="text-xs font-bold text-slate-500">Official + Naver</div>
-          </div>
-        </div>
-
-        <div class="mt-4 lg:mt-6 summary-card">
-          <div class="small-label text-blue-600 mb-2">RUN</div>
-          <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
-          <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
-        </div>
-
-        <div class="mt-4 summary-card">
-          <div class="small-label text-blue-600 mb-2">FILTER</div>
-          <div class="flex flex-wrap gap-2">
-            <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
-            <button class="chip" id="chip-size" onclick="toggleChip('size')">Size</button>
-            <button class="chip" id="chip-low" onclick="toggleChip('low')">Low</button>
-          </div>
-          <div class="text-xs font-bold text-slate-500 mt-3">
-            * Daily OFF면 7일 전체 Feed
-          </div>
-        </div>
-
-        <div class="mt-4 lg:mt-auto text-[11px] font-bold text-slate-500 leading-relaxed">
-          * 데이터: site/data/meta.json, site/data/reviews.json<br/>
-          * 빌드: crema_voc v6
-        </div>
+      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
+        * 데이터: site/data/meta.json, site/data/reviews.json &nbsp;·&nbsp; * 빌드: crema_voc v6
       </div>
-    </aside>
+    </div>
+  </header>
 
-    <!-- main -->
-    <main class="flex-1 p-6 md:p-10 w-full">
-      <div class="mx-auto w-full max-w-[1280px]">
-        <div class="max-w-[1320px] mx-auto">
+  <!-- main -->
+  <main class="p-6 md:p-10 w-full">
+    <div class="mx-auto w-full max-w-[1280px]">
+      <div class="max-w-[1320px] mx-auto">
 
-          <div class="layout-header">
-            <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
+        <div class="layout-header">
+          <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
+            <div>
+              <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
+                Official몰 & Naver 리뷰 VOC 대시보드
+              </h1>
+              <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+              <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
+                <i class="fa-solid fa-layer-group mr-2"></i>Combined
+              </button>
+              <button class="tab-btn" data-tab="official" onclick="switchSourceTab('official')">
+                <i class="fa-solid fa-store mr-2"></i>Official
+              </button>
+              <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
+                <i class="fa-brands fa-naver mr-2"></i>Naver
+              </button>
+            </div>
+          </header>
+
+          <!-- Health (✅ OK면 자동 숨김) -->
+          <section class="mb-8" id="healthSection">
+            <div id="healthBox" class="summary-card health-warn">
+              <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <div class="small-label mb-2">HEALTH</div>
+                  <div id="healthTitle" class="text-lg font-black">-</div>
+                  <div id="healthSub" class="text-xs font-bold opacity-80 mt-1">-</div>
+                </div>
+                <div class="text-xs font-black opacity-80">
+                  <div>Input: <span id="hInput">-</span></div>
+                  <div>7d: <span id="h7d">-</span></div>
+                  <div>Stale(h): <span id="hStale">-</span></div>
+                </div>
+              </div>
+              <div id="healthList" class="mt-3 text-xs font-bold leading-relaxed opacity-90"></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- 1 Summary -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
-                <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-                  Official몰 & Naver 리뷰 VOC 대시보드
-                </h1>
-                <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
+                <div class="small-label text-blue-600 mb-2">1. Summary</div>
+                <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
+              </div>
+              <div class="text-xs font-black text-slate-500">
+                * 최근 7일 고정 + 중립/관용구 제거 + 긍/부정 분리
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div class="summary-card">
+                <div class="small-label text-blue-600 mb-2">1-1) Size mention</div>
+                <div class="text-3xl font-black"><span id="sizeMentionRate">-</span>%</div>
+                <div class="text-xs font-bold text-slate-500 mt-2">전체 리뷰 중 사이즈 관련 언급 비중</div>
               </div>
 
-              <div class="flex items-center gap-2 flex-wrap">
-                <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
-                  <i class="fa-solid fa-layer-group mr-2"></i>Combined
-                </button>
-                <button class="tab-btn" data-tab="official" onclick="switchSourceTab('official')">
-                  <i class="fa-solid fa-store mr-2"></i>Official
-                </button>
-                <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
-                  <i class="fa-brands fa-naver mr-2"></i>Naver
-                </button>
-              </div>
-            </header>
+              <div class="summary-card">
+                <div class="small-label text-slate-700 mb-2">1-2) Keywords Top 5</div>
 
-            <!-- Health -->
-            <section class="mb-8">
-              <div id="healthBox" class="summary-card health-warn">
-                <div class="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <div class="small-label mb-2">HEALTH</div>
-                    <div id="healthTitle" class="text-lg font-black">-</div>
-                    <div id="healthSub" class="text-xs font-bold opacity-80 mt-1">-</div>
-                  </div>
-                  <div class="text-xs font-black opacity-80">
-                    <div>Input: <span id="hInput">-</span></div>
-                    <div>7d: <span id="h7d">-</span></div>
-                    <div>Stale(h): <span id="hStale">-</span></div>
-                  </div>
-                </div>
-                <div id="healthList" class="mt-3 text-xs font-bold leading-relaxed opacity-90"></div>
+                <div class="text-xs font-black text-slate-500 mt-1">NEG (불만)</div>
+                <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
+
+                <div class="text-xs font-black text-slate-500 mt-4">POS (공감/강점)</div>
+                <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
+
+                <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 기반(클릭→해당 리뷰 이동)</div>
               </div>
-            </section>
+
+              <div class="summary-card">
+                <div class="small-label text-blue-600 mb-2">1-3) Priority Top 3</div>
+                <ol id="priorityTop3" class="mt-2 space-y-2"></ol>
+                <div class="text-xs font-bold text-slate-500 mt-3">개선 필요 제품 Top 3(사이즈 이슈율)</div>
+              </div>
+            </div>
           </div>
+        </section>
 
-          <!-- 1 Summary -->
-          <section class="mb-10">
-            <div class="glass-card p-8">
-              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-                <div>
-                  <div class="small-label text-blue-600 mb-2">1. Summary</div>
-                  <div class="text-2xl font-black text-slate-900">핵심 이슈 한 장 요약</div>
+        <!-- 2 Ranking -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
+                <div class="text-xs font-bold text-slate-500 mt-1">Top5 기본 노출(접기/펼치기)</div>
+              </div>
+              <div class="flex gap-2 flex-wrap">
+                <button class="chip active" id="rank-size" onclick="switchRankMode('size')">2-1) 사이즈 이슈율</button>
+                <button class="chip" id="rank-low" onclick="switchRankMode('low')">2-2) 저평점 비중</button>
+                <button class="chip" id="rank-both" onclick="switchRankMode('both')">2-3) 교집합</button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end mb-3">
+              <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
+            </div>
+
+            <div class="overflow-auto">
+              <table class="tbl min-w-[980px]">
+                <thead>
+                  <tr>
+                    <th class="text-left">제품명</th>
+                    <th class="text-left">리뷰 수</th>
+                    <th class="text-left">사이즈 이슈율</th>
+                    <th class="text-left">저평점 비중</th>
+                    <th class="text-left">주요 키워드</th>
+                  </tr>
+                </thead>
+                <tbody id="rankingBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3 Size structure -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">3. 사이즈 이슈 구조 분석</div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div class="summary-card">
+                <div class="small-label text-blue-600 mb-2">3-1) small vs big</div>
+                <div class="flex items-center justify-between mt-3">
+                  <span class="badge size">too_small <span id="tooSmall">-</span>%</span>
+                  <span class="badge size">too_big <span id="tooBig">-</span>%</span>
                 </div>
-                <div class="text-xs font-black text-slate-500">
-                  * 최근 7일 고정 + 중립/관용구 제거 + 긍/부정 분리
-                </div>
+                <div class="text-xs font-bold text-slate-500 mt-3">규칙 기반 자동 분류</div>
               </div>
 
-              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div class="summary-card">
-                  <div class="small-label text-blue-600 mb-2">1-1) Size mention</div>
-                  <div class="text-3xl font-black"><span id="sizeMentionRate">-</span>%</div>
-                  <div class="text-xs font-bold text-slate-500 mt-2">전체 리뷰 중 사이즈 관련 언급 비중</div>
-                </div>
-
-                <div class="summary-card">
-                  <div class="small-label text-slate-700 mb-2">1-2) Keywords Top 5</div>
-
-                  <div class="text-xs font-black text-slate-500 mt-1">NEG (불만)</div>
-                  <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
-
-                  <div class="text-xs font-black text-slate-500 mt-4">POS (공감/강점)</div>
-                  <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
-
-                  <div class="text-xs font-bold text-slate-500 mt-3">최근 7일 기반(클릭→해당 리뷰 이동)</div>
-                </div>
-
-                <div class="summary-card">
-                  <div class="small-label text-blue-600 mb-2">1-3) Priority Top 3</div>
-                  <ol id="priorityTop3" class="mt-2 space-y-2"></ol>
-                  <div class="text-xs font-bold text-slate-500 mt-3">개선 필요 제품 Top 3(사이즈 이슈율)</div>
+              <div class="summary-card lg:col-span-2">
+                <div class="small-label text-blue-600 mb-2">3-2) 옵션(사이즈)별 이슈율</div>
+                <div class="text-xs font-bold text-slate-500 mb-2">Top5만 + OS 제외</div>
+                <div class="overflow-auto mt-3">
+                  <table class="tbl min-w-[820px]">
+                    <thead>
+                      <tr>
+                        <th class="text-left">옵션 사이즈</th>
+                        <th class="text-left">리뷰 수</th>
+                        <th class="text-left">too_small</th>
+                        <th class="text-left">too_big</th>
+                        <th class="text-left">정사이즈/기타</th>
+                      </tr>
+                    </thead>
+                    <tbody id="sizeOptBody"></tbody>
+                  </table>
                 </div>
               </div>
             </div>
-          </section>
 
-          <!-- 2 Ranking -->
-          <section class="mb-10">
-            <div class="glass-card p-8">
-              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-                <div>
-                  <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
-                  <div class="text-xs font-bold text-slate-500 mt-1">Top5 기본 노출(접기/펼치기)</div>
-                </div>
-                <div class="flex gap-2 flex-wrap">
-                  <button class="chip active" id="rank-size" onclick="switchRankMode('size')">2-1) 사이즈 이슈율</button>
-                  <button class="chip" id="rank-low" onclick="switchRankMode('low')">2-2) 저평점 비중</button>
-                  <button class="chip" id="rank-both" onclick="switchRankMode('both')">2-3) 교집합</button>
-                </div>
-              </div>
+            <div class="summary-card mt-4">
+              <div class="small-label text-blue-600 mb-2">3-3) 핏 관련 반복 표현</div>
+              <div id="fitWords" class="flex flex-wrap gap-2 mt-2"></div>
+            </div>
+          </div>
+        </section>
 
-              <div class="flex items-center justify-end mb-3">
-                <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
-              </div>
-
-              <div class="overflow-auto">
-                <table class="tbl min-w-[980px]">
-                  <thead>
-                    <tr>
-                      <th class="text-left">제품명</th>
-                      <th class="text-left">리뷰 수</th>
-                      <th class="text-left">사이즈 이슈율</th>
-                      <th class="text-left">저평점 비중</th>
-                      <th class="text-left">주요 키워드</th>
-                    </tr>
-                  </thead>
-                  <tbody id="rankingBody"></tbody>
-                </table>
+        <!-- 5 Daily feed -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">Daily Feed</div>
+                <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">최근 7일 범위 내에서 날짜 선택 가능</div>
               </div>
             </div>
-          </section>
 
-          <!-- 3 Size structure -->
-          <section class="mb-10">
-            <div class="glass-card p-8">
-              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-                <div>
-                  <div class="small-label text-blue-600 mb-2">3. 사이즈 이슈 구조 분석</div>
-                </div>
-              </div>
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-6">
+              <input id="daySelect" type="date" class="input-glass" onchange="renderAll()" />
+              <select id="productSelect" class="input-glass" onchange="renderAll()">
+                <option value="">제품 선택 (전체)</option>
+              </select>
+              <select id="sizeSelect" class="input-glass" onchange="renderAll()">
+                <option value="">옵션 사이즈 (전체)</option>
+              </select>
+              <select id="sortSelect" class="input-glass" onchange="renderAll()">
+                <option value="upload">정렬: 업로드 순 (기본)</option>
+                <option value="latest">최신순</option>
+                <option value="long">리뷰 길이 긴 순</option>
+                <option value="low">저평점순</option>
+              </select>
+              <input id="qInput" class="input-glass" placeholder="텍스트 검색(옵션)" oninput="renderAll()" />
+            </div>
 
-              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div class="summary-card">
-                  <div class="small-label text-blue-600 mb-2">3-1) small vs big</div>
-                  <div class="flex items-center justify-between mt-3">
-                    <span class="badge size">too_small <span id="tooSmall">-</span>%</span>
-                    <span class="badge size">too_big <span id="tooBig">-</span>%</span>
-                  </div>
-                  <div class="text-xs font-bold text-slate-500 mt-3">규칙 기반 자동 분류</div>
-                </div>
+            <div id="dailyFeed" class="review-grid"></div>
 
-                <div class="summary-card lg:col-span-2">
-                  <div class="small-label text-blue-600 mb-2">3-2) 옵션(사이즈)별 이슈율</div>
-                  <div class="text-xs font-bold text-slate-500 mb-2">Top5만 + OS 제외</div>
-                  <div class="overflow-auto mt-3">
-                    <table class="tbl min-w-[820px]">
-                      <thead>
-                        <tr>
-                          <th class="text-left">옵션 사이즈</th>
-                          <th class="text-left">리뷰 수</th>
-                          <th class="text-left">too_small</th>
-                          <th class="text-left">too_big</th>
-                          <th class="text-left">정사이즈/기타</th>
-                        </tr>
-                      </thead>
-                      <tbody id="sizeOptBody"></tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+            <div class="hidden review-card text-center" id="noResults">
+              <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
+            </div>
+          </div>
+        </section>
 
-              <div class="summary-card mt-4">
-                <div class="small-label text-blue-600 mb-2">3-3) 핏 관련 반복 표현</div>
-                <div id="fitWords" class="flex flex-wrap gap-2 mt-2"></div>
+        <!-- 4 Mindmap -->
+        <section class="mb-10" id="mindmapSection">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
+                <div class="text-xs font-bold text-slate-500 mt-1">최근 1년 누적 · 제품별 대표 문장(POS/NEG)</div>
               </div>
             </div>
-          </section>
 
-          <!-- 5 Daily feed -->
-          <section class="mb-10">
-            <div class="glass-card p-8">
-              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-                <div>
-                  <div class="small-label text-blue-600 mb-2">Daily Feed</div>
-                  <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
-                  <div class="text-sm font-bold text-slate-500 mt-2">최근 7일 범위 내에서 날짜 선택 가능</div>
-                </div>
-              </div>
+            <div id="productMindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
+          </div>
+        </section>
 
-              <div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-6">
-                <input id="daySelect" type="date" class="input-glass" onchange="renderAll()" />
-                <select id="productSelect" class="input-glass" onchange="renderAll()">
-                  <option value="">제품 선택 (전체)</option>
-                </select>
-                <select id="sizeSelect" class="input-glass" onchange="renderAll()">
-                  <option value="">옵션 사이즈 (전체)</option>
-                </select>
-                <select id="sortSelect" class="input-glass" onchange="renderAll()">
-                  <option value="upload">정렬: 업로드 순 (기본)</option>
-                  <option value="latest">최신순</option>
-                  <option value="long">리뷰 길이 긴 순</option>
-                  <option value="low">저평점순</option>
-                </select>
-                <input id="qInput" class="input-glass" placeholder="텍스트 검색(옵션)" oninput="renderAll()" />
-              </div>
-
-              <div id="dailyFeed" class="review-grid"></div>
-
-              <div class="hidden review-card text-center" id="noResults">
-                <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
-              </div>
-            </div>
-          </section>
-
-          <!-- 4 Mindmap -->
-          <section class="mb-10" id="mindmapSection">
-            <div class="glass-card p-8">
-              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-                <div>
-                  <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
-                  <div class="text-xs font-bold text-slate-500 mt-1">최근 1년 누적 · 제품별 대표 문장(POS/NEG)</div>
-                </div>
-              </div>
-
-              <div id="productMindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
-            </div>
-          </section>
-
-<<<<<<< Updated upstream
-=======
-          <!-- 6 ML Topics -->
-          <section class="mb-10" id="mlTopicsSection">
-            <div class="glass-card p-8">
-              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-                <div>
-                  <div class="small-label text-blue-600 mb-2">6. ML Topics</div>
-                  <div class="text-2xl font-black text-slate-900">리뷰 토픽(1년 누적)</div>
-                  <div class="text-xs font-bold text-slate-500 mt-2">
-                    TF-IDF + NMF(sklearn) · DL 클러스터(sentence-transformers) 설치 시 활성화
-                  </div>
-                </div>
-              </div>
-
-              <div id="mlTopicsBox" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
-              <div id="dlTopicsBox" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
-            </div>
-          </section>
-
->>>>>>> Stashed changes
-          <footer class="text-xs font-bold text-slate-500 pb-8">
-            * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
-            * 섹션4: 최근 1년 누적(제품별 POS/NEG 대표 문장).<br/>
-            * 키워드: 중립/관용구/제품코드성 단어 제거 + 제품군별 자동 stopwords 학습.
-          </footer>
-        </div>
+        <footer class="text-xs font-bold text-slate-500 pb-8">
+          * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
+          * 섹션4: 최근 1년 누적(제품별 POS/NEG 대표 문장).<br/>
+          * 키워드: 중립/관용구/제품코드성 단어 제거 + 제품군별 자동 stopwords 학습.
+        </footer>
       </div>
-    </main>
-  </div>
+    </div>
+  </main>
 
   <script>
     // ----------------------------
@@ -519,100 +437,6 @@
       chips: { daily: true, size: false, low: false },
       pendingScrollId: null
     };
-
-    // ----------------------------
-    // ✅ Mobile sidebar state (localStorage)
-    // ----------------------------
-    const SIDEBAR_KEY = "voc_sidebar_open_v1";
-    function isDesktop(){
-      return window.matchMedia("(min-width: 1024px)").matches; // tailwind lg
-    }
-    function setDim(show){
-      const dim = document.getElementById("drawerDim");
-      if (!dim) return;
-      dim.classList.toggle("show", !!show);
-    }
-    function openSidebar(){
-      const panel = document.getElementById("sidebarPanel");
-      const btn = document.getElementById("sidebarToggle");
-      if (!panel) return;
-
-      // 데스크탑은 항상 open 상태
-      if (isDesktop()){
-        panel.classList.remove("hidden");
-        setDim(false);
-        if (btn) btn.setAttribute("aria-expanded","true");
-        return;
-      }
-
-      panel.classList.remove("hidden");
-      setDim(true);
-      document.body.style.overflow = "hidden"; // 모바일에서 배경 스크롤 잠금
-      if (btn){
-        btn.setAttribute("aria-expanded","true");
-        btn.innerHTML = `<i class="fa-solid fa-xmark mr-2"></i>닫기`;
-      }
-      try{ localStorage.setItem(SIDEBAR_KEY, "1"); }catch(e){}
-    }
-    function closeSidebar(){
-      const panel = document.getElementById("sidebarPanel");
-      const btn = document.getElementById("sidebarToggle");
-      if (!panel) return;
-
-      if (isDesktop()){
-        panel.classList.remove("hidden");
-        setDim(false);
-        document.body.style.overflow = "";
-        if (btn){
-          btn.setAttribute("aria-expanded","true");
-          btn.innerHTML = `<i class="fa-solid fa-sliders mr-2"></i>필터`;
-        }
-        return;
-      }
-
-      panel.classList.add("hidden");
-      setDim(false);
-      document.body.style.overflow = "";
-      if (btn){
-        btn.setAttribute("aria-expanded","false");
-        btn.innerHTML = `<i class="fa-solid fa-sliders mr-2"></i>필터`;
-      }
-      try{ localStorage.setItem(SIDEBAR_KEY, "0"); }catch(e){}
-    }
-    function toggleSidebar(){
-      const panel = document.getElementById("sidebarPanel");
-      if (!panel) return;
-      const isOpen = !panel.classList.contains("hidden");
-      if (isOpen) closeSidebar();
-      else openSidebar();
-    }
-
-    // ESC to close (mobile)
-    window.addEventListener("keydown", (e)=>{
-      if (e.key === "Escape"){
-        if (!isDesktop()) closeSidebar();
-      }
-    });
-
-    // resize: lg 이상이면 항상 열고 dim 제거
-    window.addEventListener("resize", ()=>{
-      const panel = document.getElementById("sidebarPanel");
-      if (!panel) return;
-      if (isDesktop()){
-        panel.classList.remove("hidden");
-        setDim(false);
-        document.body.style.overflow = "";
-      } else {
-        // 모바일로 내려오면 저장된 상태 반영
-        try{
-          const v = localStorage.getItem(SIDEBAR_KEY);
-          if (v === "1") openSidebar();
-          else closeSidebar();
-        }catch(e){
-          closeSidebar();
-        }
-      }
-    });
 
     // ----------------------------
     // Utils
@@ -655,22 +479,15 @@
       }
     }
 
-    function showFatal(msg){
-      const main = document.querySelector("main > div > div");
-      if (!main) return;
-      main.innerHTML = `
-        <div class="glass-card p-8">
-          <div class="small-label text-blue-600 mb-2">LOAD ERROR</div>
-          <div class="text-2xl font-black text-slate-900">대시보드를 렌더링할 수 없습니다.</div>
-          <div class="text-sm font-extrabold text-slate-700 mt-4 leading-relaxed">
-            ${esc(msg || "unknown error")}
-          </div>
-          <div class="text-xs font-bold text-slate-500 mt-4">
-            * data/meta.json · data/reviews.json 경로/JSON 포맷을 확인하세요.
-          </div>
-        </div>
-      `;
-    }
+    // ----------------------------
+    // Embed detection
+    // ----------------------------
+    (function(){
+      const params = new URLSearchParams(location.search);
+      if (params.get("embed") === "1"){
+        document.body.classList.add("embedded");
+      }
+    })();
 
     // ----------------------------
     // UI actions
@@ -710,7 +527,6 @@
       renderAll();
     }
 
-    // keyword chip click -> set search + scroll
     function applyKeywordAndScroll(keyword, rid){
       const q = document.getElementById("qInput");
       if (q) q.value = keyword || "";
@@ -739,7 +555,6 @@
         option_size: el.dataset.option_size || ""
       };
 
-      // tab
       if (payload.source === "Official") uiState.sourceTab = "official";
       else if (payload.source === "Naver") uiState.sourceTab = "naver";
       else uiState.sourceTab = "combined";
@@ -748,13 +563,11 @@
         b.classList.toggle("active", b.getAttribute("data-tab") === uiState.sourceTab);
       });
 
-      // day
       const dayEl = document.getElementById("daySelect");
       if (uiState.chips.daily && dayEl && payload.created_at){
         dayEl.value = String(payload.created_at).slice(0,10);
       }
 
-      // product / size
       const prodEl = document.getElementById("productSelect");
       if (prodEl) prodEl.value = payload.product_code || "";
       const sizeEl = document.getElementById("sizeSelect");
@@ -770,43 +583,32 @@
     function getFilteredReviews(){
       let rows = REVIEWS.slice();
 
-      // source tab
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
 
-      // daily date filter (only when daily chip ON)
       const day = (document.getElementById("daySelect")?.value || "").trim();
       if (uiState.chips.daily && day){
         rows = rows.filter(r => String(r.created_at || "").slice(0,10) === day);
       }
 
-      // product filter
       const prod = (document.getElementById("productSelect")?.value || "").trim();
       if (prod) rows = rows.filter(r => String(r.product_code || "") === prod);
 
-      // size option filter
       const sz = (document.getElementById("sizeSelect")?.value || "").trim();
       if (sz) rows = rows.filter(r => String(r.option_size || "") === sz);
 
-      // chips
       if (uiState.chips.size) rows = rows.filter(r => asArr(r.tags).includes("size"));
       if (uiState.chips.low)  rows = rows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low"));
 
-      // text search
       const q = (document.getElementById("qInput")?.value || "").trim().toLowerCase();
       if (q){
         rows = rows.filter(r => String(r.text||"").toLowerCase().includes(q) || String(r.product_name||"").toLowerCase().includes(q));
       }
 
-      // sorting
       const sort = document.getElementById("sortSelect")?.value || "upload";
       if (sort === "latest") rows.sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
       else if (sort === "long") rows.sort((a,b)=> (String(b.text||"").length - String(a.text||"").length));
       else if (sort === "low") rows.sort((a,b)=> (Number(a.rating||0) - Number(b.rating||0)) || (new Date(b.created_at||0) - new Date(a.created_at||0)));
-<<<<<<< Updated upstream
-=======
-      // upload: keep original order as-is
->>>>>>> Stashed changes
 
       return rows;
     }
@@ -822,7 +624,6 @@
       const tooSmall = Math.round((smallCnt/denom)*100);
       const tooBig = Math.max(0, 100 - tooSmall);
 
-      // by product
       const byProd = new Map();
       for (const r of reviews){
         const code = r.product_code || "-";
@@ -853,7 +654,6 @@
       const rankLow  = rows.slice().sort((a,b)=> (b.lowRate - a.lowRate) || (b.reviews - a.reviews));
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || (b.reviews - a.reviews));
 
-      // option size table (Top5, OS 제외)
       const sizeMap = new Map();
       for (const r of reviews){
         const sz = (r.option_size || "").trim();
@@ -911,7 +711,9 @@
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
+    // ✅ HEALTH: OK면 숨김(이상 있을 때만 보여줌)
     function renderHealth(){
+      const section = document.getElementById("healthSection");
       const hb = document.getElementById("healthBox");
       const ht = document.getElementById("healthTitle");
       const hs = document.getElementById("healthSub");
@@ -920,6 +722,7 @@
 
       const h = META?.healthcheck || null;
       if (!h){
+        if (section) section.style.display = "";
         hb.className = "summary-card health-warn";
         ht.textContent = "HEALTH: unknown";
         hs.textContent = "meta.healthcheck 없음";
@@ -928,6 +731,15 @@
       }
 
       const status = String(h.health_status || "check").toLowerCase();
+
+      // ✅ OK면 섹션 자체 숨김
+      if (status === "ok"){
+        if (section) section.style.display = "none";
+        return;
+      } else {
+        if (section) section.style.display = "";
+      }
+
       hb.className = "summary-card " + (status === "ok" ? "health-ok" : "health-warn");
 
       const byS = h.input_by_source || {};
@@ -945,7 +757,7 @@
       if ((META?.window_created_at_parse_fail ?? 0) > 0) items.push(`⚠️ window parse_fail: ${esc(META.window_created_at_parse_fail)}`);
       if ((h.duplicate_keys_by_source_id ?? 0) > 0) items.push(`⚠️ duplicates: ${esc(h.duplicate_keys_by_source_id)}`);
 
-      hl.innerHTML = items.length ? items.join("<br/>") : "✅ 이상 징후 없음";
+      hl.innerHTML = items.length ? items.join("<br/>") : "⚠️ 체크 필요";
     }
 
     function renderSummary(metrics){
@@ -1037,10 +849,7 @@
         `).join("");
       }
 
-      const fitWords = (META?.size_phrases && META.size_phrases.length)
-        ? META.size_phrases
-        : (META?.fit_words || ["정사이즈","한치수 크게","한치수 작게","기장","소매","어깨","가슴","발볼"]);
-
+      const fitWords = META?.fit_words || ["정사이즈","한치수 크게","한치수 작게","기장","소매","어깨","가슴","발볼"];
       const fit = document.getElementById("fitWords");
       if (fit){
         fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
@@ -1100,78 +909,6 @@
           </div>
         `;
       }).join("");
-    }
-
-    function renderMLTopics(){
-      const mlRoot = document.getElementById("mlTopicsBox");
-      const dlRoot = document.getElementById("dlTopicsBox");
-      if (!mlRoot || !dlRoot) return;
-
-      const ml = META?.ml_topics_1y || null;
-      const dl = META?.dl_topics_1y || null;
-
-      // ML (TF-IDF + NMF)
-      if (!ml?.enabled){
-        mlRoot.innerHTML = `
-          <div class="summary-card lg:col-span-2">
-            <div class="small-label text-slate-700 mb-2">ML TOPICS (TF-IDF · NMF)</div>
-            <div class="text-sm font-black text-slate-700">
-              비활성화: ${esc(ml?.reason || "no_data")}
-            </div>
-            <div class="text-xs font-bold text-slate-500 mt-2">
-              * GitHub Actions/런타임에 sklearn이 없거나, 1년 누적 문서 수가 부족하면 꺼질 수 있어요.
-            </div>
-          </div>
-        `;
-      } else {
-        const topics = ml.topics || [];
-        mlRoot.innerHTML = topics.map(t => `
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">TOPIC #${esc(t.topic_id)}</div>
-            <div class="flex flex-wrap gap-2 mt-2">
-              ${(t.words||[]).map(w => `<span class="badge">${esc(w)}</span>`).join("")}
-            </div>
-          </div>
-        `).join("") || `
-          <div class="summary-card lg:col-span-2">
-            <div class="text-sm font-black text-slate-700">ML topics 데이터가 비어있습니다.</div>
-          </div>
-        `;
-      }
-
-      // DL (Embeddings clustering)
-      if (!dl?.enabled){
-        dlRoot.innerHTML = `
-          <div class="summary-card lg:col-span-2">
-            <div class="small-label text-slate-700 mb-2">DL TOPICS (Embeddings · KMeans)</div>
-            <div class="text-sm font-black text-slate-700">
-              비활성화: ${esc(dl?.reason || "no_data")}
-            </div>
-            <div class="text-xs font-bold text-slate-500 mt-2">
-              * sentence-transformers 설치 + 텍스트 수 충분할 때만 켜져요.
-            </div>
-          </div>
-        `;
-      } else {
-        const clusters = dl.clusters || [];
-        dlRoot.innerHTML = clusters.slice(0, 6).map(c => `
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">CLUSTER #${esc(c.cluster_id)}</div>
-            <div class="space-y-2 mt-2">
-              ${(c.samples||[]).slice(0,4).map(s => `
-                <div class="text-xs font-extrabold text-slate-700 leading-relaxed bg-white/55 border border-white/80 rounded-2xl p-3">
-                  <div class="text-[10px] font-black text-slate-500 mb-1">${esc(s.day || "-")}</div>
-                  ${esc(s.text || "-")}
-                </div>
-              `).join("")}
-            </div>
-          </div>
-        `).join("") || `
-          <div class="summary-card lg:col-span-2">
-            <div class="text-sm font-black text-slate-700">DL topics 데이터가 비어있습니다.</div>
-          </div>
-        `;
-      }
     }
 
     function reviewCardHTML(r){
@@ -1307,7 +1044,6 @@
       renderRanking(metrics);
       renderSizeStructure(metrics);
       renderProductMindmap();
-      renderMLTopics();
       renderDailyFeed(filtered);
 
       tryScrollToReview();
@@ -1318,17 +1054,14 @@
     // ----------------------------
     async function boot(){
       runWithOverlay("Loading VOC data...", async () => {
-        try{
-          const [metaRes, reviewsRes] = await Promise.all([
-            fetch("./data/meta.json", {cache:"no-store"}),
-            fetch("./data/reviews.json", {cache:"no-store"}),
-          ]);
+        const [meta, reviews] = await Promise.all([
+          fetch("./data/meta.json", {cache:"no-store"}).then(r => r.json()),
+          fetch("./data/reviews.json", {cache:"no-store"}).then(r => r.json()),
+        ]);
 
-          if (!metaRes.ok) throw new Error(`meta.json fetch failed: HTTP ${metaRes.status}`);
-          if (!reviewsRes.ok) throw new Error(`reviews.json fetch failed: HTTP ${reviewsRes.status}`);
+        META = meta;
+        REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
 
-<<<<<<< Updated upstream
-        // date range for day input (v6 meta)
         const dayInput = document.getElementById("daySelect");
         if (dayInput && META?.period_start && META?.period_end){
           dayInput.min = META.period_start;
@@ -1336,45 +1069,7 @@
           if (!dayInput.value) dayInput.value = META.period_end;
         }
 
-        // ✅ sidebar initial state (mobile only) + embed면 강제 닫기
-        const embed = document.documentElement.dataset.embed === "1";
-        if (!embed){
-          if (isDesktop()){
-            openSidebar(); // 데스크탑은 항상 open
-          } else {
-            let v = "0";
-            try{ v = localStorage.getItem(SIDEBAR_KEY) || "0"; }catch(e){}
-            if (v === "1") openSidebar();
-            else closeSidebar();
-          }
-        } else {
-          // embed면 dim/스크롤 잠금 해제만 확실히
-          setDim(false);
-          document.body.style.overflow = "";
-        }
-
         renderAll();
-=======
-          const meta = await metaRes.json();
-          const reviews = await reviewsRes.json();
-
-          META = meta;
-          REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
-
-          // date range for day input (v6 meta)
-          const dayInput = document.getElementById("daySelect");
-          if (dayInput && META?.period_start && META?.period_end){
-            dayInput.min = META.period_start;
-            dayInput.max = META.period_end;
-            if (!dayInput.value) dayInput.value = META.period_end;
-          }
-
-          renderAll();
-        }catch(e){
-          console.error(e);
-          showFatal(String(e?.message || e));
-        }
->>>>>>> Stashed changes
       });
     }
 
