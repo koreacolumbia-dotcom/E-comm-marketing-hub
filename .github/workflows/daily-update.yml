@@ -432,23 +432,17 @@ jobs:
             fi
           fi
 
-          echo "[INFO] (3) Build dashboard: build_voc_dashboard.py"
-          if [ "${DEBUG}" = "true" ]; then
-            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --debug || true
-          else
-            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" || true
-          fi
-
-          echo "[INFO] (4) Archive site -> reports/voc_crema"
+          echo "[INFO] (3) Build dashboard: build_voc_dashboard.py -> reports/voc_crema"
           rm -rf reports/voc_crema || true
-          mkdir -p reports/voc_crema
-          if [ -f "site/index.html" ]; then
-            rsync -a --delete site/ reports/voc_crema/ || true
-          else
-            echo "[WARN] site/index.html not found after build"
-            ls -lah site || true
-            exit 0
-          fi
+
+          # ✅ NEW builder interface:
+          #   reads: site/data/meta.json + site/data/reviews.json
+          #   writes: reports/voc_crema/index.html + reports/voc_crema/data/{meta.json,reviews.json}
+          python -u build_voc_dashboard.py \
+            --src-dir "site/data" \
+            --out-dir "reports/voc_crema" \
+            --asset-prefix "../../site" \
+            || true
 
           echo "[INFO] voc_crema outputs:"
           ls -lah reports/voc_crema | head -n 200 || true
