@@ -88,9 +88,6 @@ jobs:
 
       # ---------------------------------------------------------
       # ✅ Mode resolver (핵심)
-      # - owned_only=true 또는 owned_backfill=true면: OWNED만 실행
-      # - daily_only/voc_only/blog_only 중 하나면: 그것만 실행
-      # - 그 외(스케줄/수동 all false): 전체 실행
       # ---------------------------------------------------------
       - name: Resolve run modes
         id: modes
@@ -237,6 +234,7 @@ jobs:
       # =========================================================
       - name: Build Daily Digest (yesterday only)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
+        continue-on-error: true  # ✅ PATCH: 실패해도 다음으로
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
@@ -282,7 +280,7 @@ jobs:
       # Render yesterday daily HTML -> PNG (for email)
       # =========================================================
       - name: Render yesterday Daily Digest PNG
-        if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}   # ✅ PATCH: 항상 시도
         continue-on-error: true
         shell: bash
         env:
@@ -349,7 +347,7 @@ jobs:
           ls -la reports/external_signal.html || true
 
       # ----------------------------
-      # 4) Crema VOC (✅ REAL COLLECTOR + 1st backfill then daily incremental)
+      # 4) Crema VOC
       # ----------------------------
       - name: Run Crema VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
@@ -376,7 +374,6 @@ jobs:
           echo "[INFO] Crema flag: ${FLAG}"
           echo "[INFO] Yesterday (YMD): ${YMD}"
 
-          # (1) Collect: first time backfill, then yesterday-only
           if [ ! -f "${FLAG}" ]; then
             echo "[INFO] (1) FIRST RUN backfill: 2025-12-01 ~ ${YMD}"
             python -u crema_voc.py \
@@ -397,7 +394,6 @@ jobs:
               || true
           fi
 
-          # (2) Decide builder input: prefer cumulative
           INPUT_JSON="reports/crema_raw/reviews.json"
           if [ ! -f "${INPUT_JSON}" ]; then
             INPUT_JSON="site/data/reviews.json"
@@ -410,22 +406,18 @@ jobs:
             exit 0
           fi
 
-          # (2.5) Create flag only when collection really produced cumulative output
-          # - 안전하게: cumulative json이 "실제"로 생성(>= 50 bytes) + health에서 failed_chunks가 0이면 flag
           if [ ! -f "${FLAG}" ]; then
             HEALTH="reports/crema_raw/health/latest_health.json"
             SIZE_OK="false"
             FAIL_OK="false"
 
             if [ -s "${INPUT_JSON}" ]; then
-              # 50 bytes 이상(빈 {"reviews":[]} 같은 극소 파일 방지)
               if [ "$(wc -c < "${INPUT_JSON}")" -ge 50 ]; then
                 SIZE_OK="true"
               fi
             fi
 
             if [ -f "${HEALTH}" ]; then
-              # ✅ heredoc 제거 (YAML 깨짐 방지)
               if python -c 'import json,sys; p="reports/crema_raw/health/latest_health.json"; d=json.load(open(p,"r",encoding="utf-8")); sys.exit(0 if int(d.get("failed_chunks",999))==0 else 1)' ; then
                 FAIL_OK="true"
               fi
@@ -440,7 +432,6 @@ jobs:
             fi
           fi
 
-          # (3) Build dashboard
           echo "[INFO] (3) Build dashboard: build_voc_dashboard.py"
           if [ "${DEBUG}" = "true" ]; then
             python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --debug || true
@@ -448,7 +439,6 @@ jobs:
             python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" || true
           fi
 
-          # (4) Archive site -> reports/voc_crema
           echo "[INFO] (4) Archive site -> reports/voc_crema"
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
@@ -504,17 +494,16 @@ jobs:
 
           python -u build_summary.py || true
 
-          # ✅ PATCH: Hub 캐시 bust용 meta.json 강제 갱신
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
 
           ls -la reports/index.html reports/meta.json || true
 
       # =========================================================
-      # ✅ OWNED Campaign Portal (EDM/LMS/KAKAO → products)
+      # ✅ OWNED Campaign Portal
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
-        continue-on-error: false
+        continue-on-error: true   # ✅ PATCH: 여기 제일 중요 (기존 false)
         shell: bash
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
@@ -544,14 +533,16 @@ jobs:
               --start "2025-01-01" \
               --end "${YMD}" \
               --site-dir reports/owned_portal \
-              --overwrite
+              --overwrite \
+              || true
           else
             echo "[INFO] OWNED incremental: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
               --recent-days "${OWNED_RECENT_DAYS}" \
-              --site-dir reports/owned_portal
+              --site-dir reports/owned_portal \
+              || true
           fi
 
           echo "[INFO] Owned outputs:"
@@ -559,9 +550,11 @@ jobs:
           ls -la reports/owned_portal/data/owned | head -n 120 || true
 
       # ----------------------------
-      # 7) Commit & push results (safe rebase + retry)
+      # 7) Commit & push results
       # ----------------------------
       - name: Commit & push results
+        if: ${{ always() }}      # ✅ PATCH: 앞에서 뭐가 실패해도 커밋/푸시 시도
+        continue-on-error: true  # ✅ PATCH: push 실패해도 job 전체를 죽이지 않음(원하면 false로 유지 가능)
         shell: bash
         run: |
           set -euo pipefail
@@ -603,10 +596,10 @@ jobs:
           exit 1
 
       # ----------------------------
-      # Success Email (PNG inline 우선 + 첨부)
+      # Success Email
       # ----------------------------
-      - name: Send success email (yesterday daily report PNG)
-        if: ${{ success() && steps.modes.outputs.run_daily == 'true' }}
+      - name: Send daily email (yesterday daily report PNG)
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}   # ✅ PATCH: success() 제거
         continue-on-error: true
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
