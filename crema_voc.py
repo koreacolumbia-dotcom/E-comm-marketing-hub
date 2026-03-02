@@ -646,7 +646,7 @@ def read_master_jsonl() -> List[Dict[str, Any]]:
 # ----------------------------
 # Main collect
 # ----------------------------
-def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_output: bool) -> int:
+def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_output: bool, resume: bool = False) -> int:
     products = load_products_csv(CONFIG_DIR / "products.csv")
     codes = products["product_code"].dropna().astype(str).unique().tolist()
     meta_by_code = {
@@ -656,13 +656,13 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
 
     # ✅ backfill은 start를 2025-01-01로 강제(혹시 CLI로 이상값 들어와도 방지)
     if mode == "backfill":
-        start = "2025-01-01"
-
-        # ✅ resume: progress가 있으면 next_start부터 이어서
-        prog = load_progress()
-        ns = str(prog.get("next_start") or "").strip()
-        if ns:
-            start = ns
+        # start는 main에서 기본값(최근 90일) 세팅됨. 전체 히스토리는 --start로 명시.
+        # ✅ resume: 기존 backfill 이어받기는 --resume 일 때만
+        if resume:
+            prog = load_progress()
+            ns = str(prog.get("next_start") or "").strip()
+            if ns:
+                start = ns
 
     start_d = ymd_to_date(start)
     end_d = ymd_to_date(end)
@@ -857,11 +857,17 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["backfill", "daily"], required=True)
-    ap.add_argument("--start", default="2025-01-01", help="YYYY-MM-DD (KST)")
+    ap.add_argument("--start", default="", help="YYYY-MM-DD (KST). Default: today-90d (~3 months) for first run")
     ap.add_argument("--end", default="", help="YYYY-MM-DD (KST). default=today-1")
     ap.add_argument("--chunk-days", type=int, default=14)
+    ap.add_argument("--resume", action="store_true", help="backfill only: resume from reports/crema_raw/backfill_progress.json")
     ap.add_argument("--keep-site-output", action="store_true", help="also write site/data/reviews.json")
     args = ap.parse_args()
+
+    # ✅ Backfill 기본: 최근 약 3개월만 먼저 수집 (GitHub Actions 6h 제한 회피)
+    # - 전체 히스토리는 --start 2025-01-01 처럼 명시
+    if args.mode == "backfill" and (not str(args.start).strip()):
+        args.start = (now_kst().date() - timedelta(days=90)).isoformat()
 
     # end default = yesterday(KST)
     if not args.end:
@@ -873,6 +879,7 @@ def main():
         end=str(args.end),
         chunk_days=int(args.chunk_days or 1),
         keep_site_output=bool(args.keep_site_output),
+        resume=bool(args.resume),
     )
 
 if __name__ == "__main__":
