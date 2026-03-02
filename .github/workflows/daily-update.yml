@@ -378,12 +378,12 @@ jobs:
 
           # (1) Collect: first time backfill, then yesterday-only
           if [ ! -f "${FLAG}" ]; then
-            echo "[INFO] (1) FIRST RUN backfill: 2025-01-01 ~ ${YMD}"
+            echo "[INFO] (1) FIRST RUN backfill: 2025-12-01 ~ ${YMD}"
             python -u crema_voc.py \
               --mode backfill \
-              --start "2025-01-01" \
+              --start "2025-12-01" \
               --end "${YMD}" \
-              --chunk-days 14 \
+              --chunk-days 31 \
               --keep-site-output \
               || true
           else
