@@ -27,6 +27,13 @@
       box-shadow: 0 20px 50px rgba(0,45,114,0.05);
     }
 
+    /* ✅ Top bar (replaces left sidebar) */
+    .topbar{
+      background: rgba(255,255,255,0.70);
+      backdrop-filter: blur(15px);
+      border-bottom: 1px solid rgba(255,255,255,0.80);
+    }
+
     .summary-card{
       border-radius: 26px; background: rgba(255,255,255,0.55);
       border: 1px solid rgba(255,255,255,0.75); backdrop-filter: blur(18px);
@@ -125,32 +132,8 @@
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
 
-    /* ✅ Top Bar */
-    .topbar{
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      background: rgba(255,255,255,0.70);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid rgba(255,255,255,0.80);
-    }
-    .topbar-inner{
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 14px 16px;
-    }
-    .topbar-card{
-      border-radius: 26px;
-      background: rgba(255,255,255,0.55);
-      border: 1px solid rgba(255,255,255,0.75);
-      backdrop-filter: blur(18px);
-      box-shadow: 0 18px 44px rgba(0,45,114,0.05);
-      padding: 14px 16px;
-    }
-
     /* embed */
-    body.embedded .topbar,
-    body.embedded .layout-header { display:none !important; }
+    body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
 
     /* Health banner */
@@ -169,31 +152,30 @@
     </div>
   </div>
 
-  <!-- ✅ TOP BAR (RUN / FILTER moved from sidebar) -->
-  <div class="topbar">
-    <div class="topbar-inner">
-      <div class="flex flex-col gap-3">
+  <!-- ✅ Top Bar (was sidebar) -->
+  <header class="topbar sticky top-0 z-50">
+    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <!-- left: title -->
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
             <i class="fa-solid fa-chart-line text-slate-700"></i>
           </div>
-          <div class="min-w-0">
+          <div>
             <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
             <div class="text-xs font-bold text-slate-500">Official + Naver</div>
           </div>
-          <div class="ml-auto text-[11px] font-bold text-slate-500 hidden md:block">
-            * 데이터: site/data/meta.json, site/data/reviews.json · 빌드: crema_voc v6
-          </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div class="topbar-card">
+        <!-- right: RUN + FILTER -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full lg:w-auto">
+          <div class="summary-card">
             <div class="small-label text-blue-600 mb-2">RUN</div>
             <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
             <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
           </div>
 
-          <div class="topbar-card">
+          <div class="summary-card">
             <div class="small-label text-blue-600 mb-2">FILTER</div>
             <div class="flex flex-wrap gap-2">
               <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
@@ -206,8 +188,12 @@
           </div>
         </div>
       </div>
+
+      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
+        * 데이터: site/data/meta.json, site/data/reviews.json &nbsp;·&nbsp; * 빌드: crema_voc v6
+      </div>
     </div>
-  </div>
+  </header>
 
   <!-- main -->
   <main class="p-6 md:p-10 w-full">
@@ -236,8 +222,8 @@
             </div>
           </header>
 
-          <!-- Health -->
-          <section class="mb-8">
+          <!-- Health (✅ OK면 자동 숨김) -->
+          <section class="mb-8" id="healthSection">
             <div id="healthBox" class="summary-card health-warn">
               <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
@@ -725,7 +711,9 @@
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
+    // ✅ HEALTH: OK면 숨김(이상 있을 때만 보여줌)
     function renderHealth(){
+      const section = document.getElementById("healthSection");
       const hb = document.getElementById("healthBox");
       const ht = document.getElementById("healthTitle");
       const hs = document.getElementById("healthSub");
@@ -734,6 +722,7 @@
 
       const h = META?.healthcheck || null;
       if (!h){
+        if (section) section.style.display = "";
         hb.className = "summary-card health-warn";
         ht.textContent = "HEALTH: unknown";
         hs.textContent = "meta.healthcheck 없음";
@@ -742,6 +731,15 @@
       }
 
       const status = String(h.health_status || "check").toLowerCase();
+
+      // ✅ OK면 섹션 자체 숨김
+      if (status === "ok"){
+        if (section) section.style.display = "none";
+        return;
+      } else {
+        if (section) section.style.display = "";
+      }
+
       hb.className = "summary-card " + (status === "ok" ? "health-ok" : "health-warn");
 
       const byS = h.input_by_source || {};
@@ -759,7 +757,7 @@
       if ((META?.window_created_at_parse_fail ?? 0) > 0) items.push(`⚠️ window parse_fail: ${esc(META.window_created_at_parse_fail)}`);
       if ((h.duplicate_keys_by_source_id ?? 0) > 0) items.push(`⚠️ duplicates: ${esc(h.duplicate_keys_by_source_id)}`);
 
-      hl.innerHTML = items.length ? items.join("<br/>") : "✅ 이상 징후 없음";
+      hl.innerHTML = items.length ? items.join("<br/>") : "⚠️ 체크 필요";
     }
 
     function renderSummary(metrics){
