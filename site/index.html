@@ -1,9 +1,22 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-embed="0">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VOC Dashboard | Official + Naver Reviews</title>
+
+  <!-- ✅ Embed detection (head에서 먼저 실행: 깜빡임 방지) -->
+  <script>
+    (function () {
+      const qs = new URLSearchParams(location.search);
+      const hash = (location.hash || "");
+      const embed =
+        qs.get("embed") === "1" ||
+        qs.get("embedded") === "1" ||
+        /(^|[&#?])embed=1(&|$)/.test(hash);
+      document.documentElement.dataset.embed = embed ? "1" : "0";
+    })();
+  </script>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -129,19 +142,32 @@
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
 
-    /* embed */
-    body.embedded aside, body.embedded .layout-header { display:none !important; }
-    body.embedded main{ padding: 24px !important; }
-
     /* Health banner */
     .health-ok{ background: rgba(16,185,129,0.10); border: 1px solid rgba(16,185,129,0.18); color:#065f46; }
     .health-warn{ background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); color:#92400e; }
     .health-error{ background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.18); color:#991b1b; }
+
+    /* ✅ 모바일 drawer용 dim overlay */
+    .drawer-dim{
+      position: fixed; inset: 0;
+      background: rgba(15,23,42,0.25);
+      backdrop-filter: blur(6px);
+      display:none;
+      z-index: 40;
+    }
+    .drawer-dim.show{ display:block; }
+
+    /* ✅ embed=1: 사이드바/헤더/헬스 숨김 */
+    html[data-embed="1"] #sidebar { display:none !important; }
+    html[data-embed="1"] .layout-header { display:none !important; }
+    html[data-embed="1"] #healthBox { display:none !important; }
+    html[data-embed="1"] body { background: transparent !important; }
+    html[data-embed="1"] main{ padding: 24px !important; }
   </style>
 </head>
 
 <body>
-  <!-- overlay -->
+  <!-- overlay (data loading) -->
   <div id="overlay" class="overlay">
     <div class="flex flex-col items-center gap-3">
       <div class="spinner"></div>
@@ -149,40 +175,83 @@
     </div>
   </div>
 
-  <div class="min-h-screen flex">
-    <!-- sidebar -->
-    <aside class="sidebar w-[280px] hidden lg:flex flex-col p-6">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
-          <i class="fa-solid fa-chart-line text-slate-700"></i>
+  <!-- ✅ 모바일 필터 열릴 때 dim -->
+  <div id="drawerDim" class="drawer-dim" onclick="closeSidebar()"></div>
+
+  <!-- ✅ 핵심: 모바일은 세로, lg부터 가로 -->
+  <div class="min-h-screen flex flex-col lg:flex-row">
+
+    <!-- ✅ sidebar / mobile topbar + collapsible panel -->
+    <aside
+      id="sidebar"
+      class="sidebar
+             w-full lg:w-[280px]
+             lg:sticky lg:top-0 lg:h-screen
+             lg:flex lg:flex-col
+             p-0 lg:p-6
+             border-b lg:border-b-0"
+    >
+      <!-- 모바일 상단바 -->
+      <div class="flex items-center justify-between p-4 lg:hidden">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
+            <i class="fa-solid fa-chart-line text-slate-700"></i>
+          </div>
+          <div>
+            <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
+            <div class="text-xs font-bold text-slate-500">Official + Naver</div>
+          </div>
         </div>
-        <div>
-          <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
-          <div class="text-xs font-bold text-slate-500">Official + Naver</div>
-        </div>
+
+        <button
+          id="sidebarToggle"
+          class="tab-btn !px-4 !py-2"
+          onclick="toggleSidebar()"
+          aria-expanded="false"
+          aria-controls="sidebarPanel"
+        >
+          <i class="fa-solid fa-sliders mr-2"></i>필터
+        </button>
       </div>
 
-      <div class="mt-6 summary-card">
-        <div class="small-label text-blue-600 mb-2">RUN</div>
-        <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
-        <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
-      </div>
-
-      <div class="mt-4 summary-card">
-        <div class="small-label text-blue-600 mb-2">FILTER</div>
-        <div class="flex flex-wrap gap-2">
-          <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
-          <button class="chip" id="chip-size" onclick="toggleChip('size')">Size</button>
-          <button class="chip" id="chip-low" onclick="toggleChip('low')">Low</button>
+      <!-- ✅ 모바일: 접혔다/펼쳐졌다 / 데스크탑: 항상 보임 -->
+      <div
+        id="sidebarPanel"
+        class="px-4 pb-4 lg:px-0 lg:pb-0 hidden lg:block"
+      >
+        <!-- 데스크탑 헤더 -->
+        <div class="hidden lg:flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
+            <i class="fa-solid fa-chart-line text-slate-700"></i>
+          </div>
+          <div>
+            <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
+            <div class="text-xs font-bold text-slate-500">Official + Naver</div>
+          </div>
         </div>
-        <div class="text-xs font-bold text-slate-500 mt-3">
-          * Daily OFF면 7일 전체 Feed
-        </div>
-      </div>
 
-      <div class="mt-auto text-[11px] font-bold text-slate-500 leading-relaxed">
-        * 데이터: site/data/meta.json, site/data/reviews.json<br/>
-        * 빌드: crema_voc v6
+        <div class="mt-4 lg:mt-6 summary-card">
+          <div class="small-label text-blue-600 mb-2">RUN</div>
+          <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
+          <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
+        </div>
+
+        <div class="mt-4 summary-card">
+          <div class="small-label text-blue-600 mb-2">FILTER</div>
+          <div class="flex flex-wrap gap-2">
+            <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
+            <button class="chip" id="chip-size" onclick="toggleChip('size')">Size</button>
+            <button class="chip" id="chip-low" onclick="toggleChip('low')">Low</button>
+          </div>
+          <div class="text-xs font-bold text-slate-500 mt-3">
+            * Daily OFF면 7일 전체 Feed
+          </div>
+        </div>
+
+        <div class="mt-4 lg:mt-auto text-[11px] font-bold text-slate-500 leading-relaxed">
+          * 데이터: site/data/meta.json, site/data/reviews.json<br/>
+          * 빌드: crema_voc v6
+        </div>
       </div>
     </aside>
 
@@ -355,6 +424,7 @@
               </div>
             </div>
           </section>
+
           <!-- 5 Daily feed -->
           <section class="mb-10">
             <div class="glass-card p-8">
@@ -391,8 +461,6 @@
             </div>
           </section>
 
-
-
           <!-- 4 Mindmap -->
           <section class="mb-10" id="mindmapSection">
             <div class="glass-card p-8">
@@ -406,8 +474,6 @@
               <div id="productMindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
             </div>
           </section>
-
-
 
           <footer class="text-xs font-bold text-slate-500 pb-8">
             * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
@@ -432,6 +498,100 @@
       chips: { daily: true, size: false, low: false },
       pendingScrollId: null
     };
+
+    // ----------------------------
+    // ✅ Mobile sidebar state (localStorage)
+    // ----------------------------
+    const SIDEBAR_KEY = "voc_sidebar_open_v1";
+    function isDesktop(){
+      return window.matchMedia("(min-width: 1024px)").matches; // tailwind lg
+    }
+    function setDim(show){
+      const dim = document.getElementById("drawerDim");
+      if (!dim) return;
+      dim.classList.toggle("show", !!show);
+    }
+    function openSidebar(){
+      const panel = document.getElementById("sidebarPanel");
+      const btn = document.getElementById("sidebarToggle");
+      if (!panel) return;
+
+      // 데스크탑은 항상 open 상태
+      if (isDesktop()){
+        panel.classList.remove("hidden");
+        setDim(false);
+        if (btn) btn.setAttribute("aria-expanded","true");
+        return;
+      }
+
+      panel.classList.remove("hidden");
+      setDim(true);
+      document.body.style.overflow = "hidden"; // 모바일에서 배경 스크롤 잠금
+      if (btn){
+        btn.setAttribute("aria-expanded","true");
+        btn.innerHTML = `<i class="fa-solid fa-xmark mr-2"></i>닫기`;
+      }
+      try{ localStorage.setItem(SIDEBAR_KEY, "1"); }catch(e){}
+    }
+    function closeSidebar(){
+      const panel = document.getElementById("sidebarPanel");
+      const btn = document.getElementById("sidebarToggle");
+      if (!panel) return;
+
+      if (isDesktop()){
+        panel.classList.remove("hidden");
+        setDim(false);
+        document.body.style.overflow = "";
+        if (btn){
+          btn.setAttribute("aria-expanded","true");
+          btn.innerHTML = `<i class="fa-solid fa-sliders mr-2"></i>필터`;
+        }
+        return;
+      }
+
+      panel.classList.add("hidden");
+      setDim(false);
+      document.body.style.overflow = "";
+      if (btn){
+        btn.setAttribute("aria-expanded","false");
+        btn.innerHTML = `<i class="fa-solid fa-sliders mr-2"></i>필터`;
+      }
+      try{ localStorage.setItem(SIDEBAR_KEY, "0"); }catch(e){}
+    }
+    function toggleSidebar(){
+      const panel = document.getElementById("sidebarPanel");
+      if (!panel) return;
+      const isOpen = !panel.classList.contains("hidden");
+      if (isOpen) closeSidebar();
+      else openSidebar();
+    }
+
+    // ESC to close (mobile)
+    window.addEventListener("keydown", (e)=>{
+      if (e.key === "Escape"){
+        if (!isDesktop()) closeSidebar();
+      }
+    });
+
+    // resize: lg 이상이면 항상 열고 dim 제거
+    window.addEventListener("resize", ()=>{
+      const panel = document.getElementById("sidebarPanel");
+      if (!panel) return;
+      if (isDesktop()){
+        panel.classList.remove("hidden");
+        setDim(false);
+        document.body.style.overflow = "";
+      } else {
+        // 모바일로 내려오면 저장된 상태 반영
+        try{
+          const v = localStorage.getItem(SIDEBAR_KEY);
+          if (v === "1") openSidebar();
+          else closeSidebar();
+        }catch(e){
+          closeSidebar();
+        }
+      }
+    });
 
     // ----------------------------
     // Utils
@@ -473,16 +633,6 @@
         hideOverlay();
       }
     }
-
-    // ----------------------------
-    // Embed detection
-    // ----------------------------
-    (function(){
-      const params = new URLSearchParams(location.search);
-      if (params.get("embed") === "1"){
-        document.body.classList.add("embedded");
-      }
-    })();
 
     // ----------------------------
     // UI actions
@@ -615,7 +765,6 @@
       if (sort === "latest") rows.sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
       else if (sort === "long") rows.sort((a,b)=> (String(b.text||"").length - String(a.text||"").length));
       else if (sort === "low") rows.sort((a,b)=> (Number(a.rating||0) - Number(b.rating||0)) || (new Date(b.created_at||0) - new Date(a.created_at||0)));
-      // upload: keep original order as-is (input is already upload-ish)
 
       return rows;
     }
@@ -720,7 +869,6 @@
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
-    // ✅ v6 meta: healthcheck / total_reviews / empty_reason
     function renderHealth(){
       const hb = document.getElementById("healthBox");
       const ht = document.getElementById("healthTitle");
@@ -737,7 +885,7 @@
         return;
       }
 
-      const status = String(h.health_status || "check").toLowerCase(); // ok/check
+      const status = String(h.health_status || "check").toLowerCase();
       hb.className = "summary-card " + (status === "ok" ? "health-ok" : "health-warn");
 
       const byS = h.input_by_source || {};
@@ -746,7 +894,6 @@
       ht.textContent = `HEALTH: ${status.toUpperCase()}`;
       hs.textContent = `Official ${byS.Official ?? 0} · Naver ${byS.Naver ?? 0} · InvalidDT ${parseFail}`;
 
-      // right mini
       document.getElementById("hInput").textContent = h.input_total_reviews ?? "-";
       document.getElementById("h7d").textContent = META?.total_reviews ?? "-";
       document.getElementById("hStale").textContent = "-";
@@ -1066,8 +1213,24 @@
         if (dayInput && META?.period_start && META?.period_end){
           dayInput.min = META.period_start;
           dayInput.max = META.period_end;
-          // default: end day (today)
           if (!dayInput.value) dayInput.value = META.period_end;
+        }
+
+        // ✅ sidebar initial state (mobile only) + embed면 강제 닫기
+        const embed = document.documentElement.dataset.embed === "1";
+        if (!embed){
+          if (isDesktop()){
+            openSidebar(); // 데스크탑은 항상 open
+          } else {
+            let v = "0";
+            try{ v = localStorage.getItem(SIDEBAR_KEY) || "0"; }catch(e){}
+            if (v === "1") openSidebar();
+            else closeSidebar();
+          }
+        } else {
+          // embed면 dim/스크롤 잠금 해제만 확실히
+          setDim(false);
+          document.body.style.overflow = "";
         }
 
         renderAll();
