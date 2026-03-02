@@ -360,9 +360,29 @@
           </div>
         </section>
 
+
+        <!-- 4 Product Mindmap -->
+        <section class="mb-10" id="mindmapSection">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
+                <div class="text-2xl font-black text-slate-900">제품별 대표 문장 (POS/NEG)</div>
+                <div class="text-xs font-bold text-slate-500 mt-2">기본: 최근 3개월 누적 · 제품별 대표 문장(클릭→해당 리뷰로 이동)</div>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button class="chip" onclick="toggleMindmap()">접기/펼치기</button>
+              </div>
+            </div>
+
+            <div id="productMindmap" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
+          </div>
+        </section>
+
         <footer class="text-xs font-bold text-slate-500 pb-8">
           * 데이터 소스: reviews.json (최근 3개월 필터 후 렌더).<br/>
           * ML: TF-IDF + NMF 토픽, 키워드 공기(공출현) 기반 마인드맵(가벼운 그래프).<br/>
+          * Product Mindmap: 제품별 POS/NEG 대표 문장(최근 3개월).<br/>
           * 키워드: 중립/관용구/제품코드성 단어 제거 + 제품군별 auto stopwords.
         </footer>
       </div>
@@ -1000,6 +1020,7 @@ function renderAll(){
 
       renderSummary(metrics);
       renderRanking(metrics);
+      renderProductMindmap();
       renderDailyFeed(filtered);
 
       tryScrollToReview();
