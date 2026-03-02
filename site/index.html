@@ -475,6 +475,27 @@
             </div>
           </section>
 
+<<<<<<< Updated upstream
+=======
+          <!-- 6 ML Topics -->
+          <section class="mb-10" id="mlTopicsSection">
+            <div class="glass-card p-8">
+              <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+                <div>
+                  <div class="small-label text-blue-600 mb-2">6. ML Topics</div>
+                  <div class="text-2xl font-black text-slate-900">리뷰 토픽(1년 누적)</div>
+                  <div class="text-xs font-bold text-slate-500 mt-2">
+                    TF-IDF + NMF(sklearn) · DL 클러스터(sentence-transformers) 설치 시 활성화
+                  </div>
+                </div>
+              </div>
+
+              <div id="mlTopicsBox" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+              <div id="dlTopicsBox" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
+            </div>
+          </section>
+
+>>>>>>> Stashed changes
           <footer class="text-xs font-bold text-slate-500 pb-8">
             * 데이터 소스: reviews.json (최근 7일 필터 후 렌더).<br/>
             * 섹션4: 최근 1년 누적(제품별 POS/NEG 대표 문장).<br/>
@@ -634,6 +655,23 @@
       }
     }
 
+    function showFatal(msg){
+      const main = document.querySelector("main > div > div");
+      if (!main) return;
+      main.innerHTML = `
+        <div class="glass-card p-8">
+          <div class="small-label text-blue-600 mb-2">LOAD ERROR</div>
+          <div class="text-2xl font-black text-slate-900">대시보드를 렌더링할 수 없습니다.</div>
+          <div class="text-sm font-extrabold text-slate-700 mt-4 leading-relaxed">
+            ${esc(msg || "unknown error")}
+          </div>
+          <div class="text-xs font-bold text-slate-500 mt-4">
+            * data/meta.json · data/reviews.json 경로/JSON 포맷을 확인하세요.
+          </div>
+        </div>
+      `;
+    }
+
     // ----------------------------
     // UI actions
     // ----------------------------
@@ -765,6 +803,10 @@
       if (sort === "latest") rows.sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
       else if (sort === "long") rows.sort((a,b)=> (String(b.text||"").length - String(a.text||"").length));
       else if (sort === "low") rows.sort((a,b)=> (Number(a.rating||0) - Number(b.rating||0)) || (new Date(b.created_at||0) - new Date(a.created_at||0)));
+<<<<<<< Updated upstream
+=======
+      // upload: keep original order as-is
+>>>>>>> Stashed changes
 
       return rows;
     }
@@ -995,7 +1037,10 @@
         `).join("");
       }
 
-      const fitWords = META?.fit_words || ["정사이즈","한치수 크게","한치수 작게","기장","소매","어깨","가슴","발볼"];
+      const fitWords = (META?.size_phrases && META.size_phrases.length)
+        ? META.size_phrases
+        : (META?.fit_words || ["정사이즈","한치수 크게","한치수 작게","기장","소매","어깨","가슴","발볼"]);
+
       const fit = document.getElementById("fitWords");
       if (fit){
         fit.innerHTML = fitWords.map(w => `<span class="badge">${esc(w)}</span>`).join("");
@@ -1055,6 +1100,78 @@
           </div>
         `;
       }).join("");
+    }
+
+    function renderMLTopics(){
+      const mlRoot = document.getElementById("mlTopicsBox");
+      const dlRoot = document.getElementById("dlTopicsBox");
+      if (!mlRoot || !dlRoot) return;
+
+      const ml = META?.ml_topics_1y || null;
+      const dl = META?.dl_topics_1y || null;
+
+      // ML (TF-IDF + NMF)
+      if (!ml?.enabled){
+        mlRoot.innerHTML = `
+          <div class="summary-card lg:col-span-2">
+            <div class="small-label text-slate-700 mb-2">ML TOPICS (TF-IDF · NMF)</div>
+            <div class="text-sm font-black text-slate-700">
+              비활성화: ${esc(ml?.reason || "no_data")}
+            </div>
+            <div class="text-xs font-bold text-slate-500 mt-2">
+              * GitHub Actions/런타임에 sklearn이 없거나, 1년 누적 문서 수가 부족하면 꺼질 수 있어요.
+            </div>
+          </div>
+        `;
+      } else {
+        const topics = ml.topics || [];
+        mlRoot.innerHTML = topics.map(t => `
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">TOPIC #${esc(t.topic_id)}</div>
+            <div class="flex flex-wrap gap-2 mt-2">
+              ${(t.words||[]).map(w => `<span class="badge">${esc(w)}</span>`).join("")}
+            </div>
+          </div>
+        `).join("") || `
+          <div class="summary-card lg:col-span-2">
+            <div class="text-sm font-black text-slate-700">ML topics 데이터가 비어있습니다.</div>
+          </div>
+        `;
+      }
+
+      // DL (Embeddings clustering)
+      if (!dl?.enabled){
+        dlRoot.innerHTML = `
+          <div class="summary-card lg:col-span-2">
+            <div class="small-label text-slate-700 mb-2">DL TOPICS (Embeddings · KMeans)</div>
+            <div class="text-sm font-black text-slate-700">
+              비활성화: ${esc(dl?.reason || "no_data")}
+            </div>
+            <div class="text-xs font-bold text-slate-500 mt-2">
+              * sentence-transformers 설치 + 텍스트 수 충분할 때만 켜져요.
+            </div>
+          </div>
+        `;
+      } else {
+        const clusters = dl.clusters || [];
+        dlRoot.innerHTML = clusters.slice(0, 6).map(c => `
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">CLUSTER #${esc(c.cluster_id)}</div>
+            <div class="space-y-2 mt-2">
+              ${(c.samples||[]).slice(0,4).map(s => `
+                <div class="text-xs font-extrabold text-slate-700 leading-relaxed bg-white/55 border border-white/80 rounded-2xl p-3">
+                  <div class="text-[10px] font-black text-slate-500 mb-1">${esc(s.day || "-")}</div>
+                  ${esc(s.text || "-")}
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        `).join("") || `
+          <div class="summary-card lg:col-span-2">
+            <div class="text-sm font-black text-slate-700">DL topics 데이터가 비어있습니다.</div>
+          </div>
+        `;
+      }
     }
 
     function reviewCardHTML(r){
@@ -1190,6 +1307,7 @@
       renderRanking(metrics);
       renderSizeStructure(metrics);
       renderProductMindmap();
+      renderMLTopics();
       renderDailyFeed(filtered);
 
       tryScrollToReview();
@@ -1200,14 +1318,16 @@
     // ----------------------------
     async function boot(){
       runWithOverlay("Loading VOC data...", async () => {
-        const [meta, reviews] = await Promise.all([
-          fetch("./data/meta.json", {cache:"no-store"}).then(r => r.json()),
-          fetch("./data/reviews.json", {cache:"no-store"}).then(r => r.json()),
-        ]);
+        try{
+          const [metaRes, reviewsRes] = await Promise.all([
+            fetch("./data/meta.json", {cache:"no-store"}),
+            fetch("./data/reviews.json", {cache:"no-store"}),
+          ]);
 
-        META = meta;
-        REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
+          if (!metaRes.ok) throw new Error(`meta.json fetch failed: HTTP ${metaRes.status}`);
+          if (!reviewsRes.ok) throw new Error(`reviews.json fetch failed: HTTP ${reviewsRes.status}`);
 
+<<<<<<< Updated upstream
         // date range for day input (v6 meta)
         const dayInput = document.getElementById("daySelect");
         if (dayInput && META?.period_start && META?.period_end){
@@ -1234,6 +1354,27 @@
         }
 
         renderAll();
+=======
+          const meta = await metaRes.json();
+          const reviews = await reviewsRes.json();
+
+          META = meta;
+          REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
+
+          // date range for day input (v6 meta)
+          const dayInput = document.getElementById("daySelect");
+          if (dayInput && META?.period_start && META?.period_end){
+            dayInput.min = META.period_start;
+            dayInput.max = META.period_end;
+            if (!dayInput.value) dayInput.value = META.period_end;
+          }
+
+          renderAll();
+        }catch(e){
+          console.error(e);
+          showFatal(String(e?.message || e));
+        }
+>>>>>>> Stashed changes
       });
     }
 
