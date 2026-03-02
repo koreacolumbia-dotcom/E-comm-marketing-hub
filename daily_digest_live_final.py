@@ -852,9 +852,8 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     """
     ✅ FIX: Channel Snapshot 세션 합이 Overall KPI 세션과 항상 일치하도록
-    - sessionSourceMedium(+campaign) 기반 합산은 세션이 additivity 보장 안 되는 케이스가 있어 Total이 튈 수 있음
-    - 따라서 sessionDefaultChannelGroup(세션 분해에 안전)으로 가져온 뒤 Bucket으로 매핑
-    - DoD/YoY는 Sessions 기준(요청사항)으로 계산
+    - sessionDefaultChannelGroup(세션 분해에 안전) 기반으로 가져온 뒤 Bucket으로 매핑
+    - DoD/YoY는 Sessions 기준으로 계산
     """
     dims = ["sessionDefaultChannelGroup"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
@@ -876,7 +875,6 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
         for c in mets:
             df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
 
-        # sessionDefaultChannelGroup -> Bucket
         df["bucket"] = df["sessionDefaultChannelGroup"].map(bucket_channel)
         out = df.groupby("bucket", as_index=False)[["sessions","transactions","purchaseRevenue"]].sum()
         return out
@@ -884,25 +882,6 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
     cur_b  = _prep(cur).rename(columns={"sessions":"sessions_cur", "transactions":"transactions_cur", "purchaseRevenue":"rev_cur"})
     prev_b = _prep(prev).rename(columns={"sessions":"sessions_prev","transactions":"transactions_prev","purchaseRevenue":"rev_prev"})
     yoy_b  = _prep(yoy).rename(columns={"sessions":"sessions_yoy", "transactions":"transactions_yoy", "purchaseRevenue":"rev_yoy_base"})
-    def _prep(df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        df["bucket"] = [
-            classify_looker_channel(str(sm), str(cp))
-            for sm, cp in zip(df.get("sessionSourceMedium",""), df.get("sessionCampaignName",""))
-        ]
-        for c in ["sessions","transactions","purchaseRevenue"]:
-            df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-        return df.groupby("bucket", as_index=False)[["sessions","transactions","purchaseRevenue"]].sum()
-
-    cur_b = _prep(cur).rename(columns={
-        "sessions":"sessions_cur", "transactions":"transactions_cur", "purchaseRevenue":"rev_cur"
-    })
-    prev_b = _prep(prev).rename(columns={
-        "sessions":"sessions_prev", "transactions":"transactions_prev", "purchaseRevenue":"rev_prev"
-    })
-    yoy_b = _prep(yoy).rename(columns={
-        "sessions":"sessions_yoy", "transactions":"transactions_yoy", "purchaseRevenue":"rev_yoy_base"
-    })
 
     m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
 
@@ -916,7 +895,7 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
         "purchaseRevenue": m["rev_cur"],
         "rev_dod": m["dod"],
         "rev_yoy": m["yoy"],
-        "rev_vs_prev": m["dod"],  # alias
+        "rev_vs_prev": m["dod"],
     })
 
     order = {"Organic":0, "Paid AD":1, "Owned":2, "Awareness":3, "SNS":4, "Other":5}
@@ -939,7 +918,6 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
 
     out = pd.concat([out, total], ignore_index=True)
     return out[["bucket","sessions","transactions","purchaseRevenue","rev_dod","rev_yoy"]]
-
 
 # -------------------------
 # (이 아래는 네가 올린 원본 그대로)
