@@ -50,7 +50,7 @@ except Exception:
 
 
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
-DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "7") or "7")  # last N days including today
+DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "90") or "90")  # last N days including today (default: ~3 months)
 
 AUTO_STOP_MIN_DF = 0.30
 AUTO_STOP_MIN_PRODUCTS = 0.25
@@ -512,6 +512,78 @@ def top_terms(rows: List[Dict[str, Any]], topk: int, auto_sw: Dict[str, Any], wh
     return sorted(freq.items(), key=lambda x: x[1], reverse=True)[:topk]
 
 
+
+
+def build_kw_graph(rows: List[Dict[str, Any]], auto_sw: Dict[str, Any], max_nodes: int = 28) -> Dict[str, Any]:
+    """
+    Build lightweight "keyword mindmap" graph for UI.
+    - nodes: keyword with weight + polarity
+    - links: co-occurrence within the same review (window)
+    """
+    if not rows:
+        return {"window": "empty", "nodes": [], "links": []}
+
+    kw_stats: Dict[str, Dict[str, int]] = {}
+    co: Dict[Tuple[str, str], int] = {}
+
+    for r in rows:
+        ispos = is_positive(r)
+        isneg = is_complaint(r)
+        sw = build_stopwords_for_row(r, auto_sw)
+        toks = list(dict.fromkeys(tokenize_ko(str(r.get("text") or ""), stopwords=sw)))  # unique keep order
+        toks = [t for t in toks if len(t) >= 2][:20]
+        if not toks:
+            continue
+
+        for t in toks:
+            st = kw_stats.setdefault(t, {"total": 0, "pos": 0, "neg": 0})
+            st["total"] += 1
+            if ispos:
+                st["pos"] += 1
+            if isneg:
+                st["neg"] += 1
+
+        # co-occurrence edges (undirected)
+        for i in range(len(toks)):
+            for j in range(i + 1, len(toks)):
+                a, b = toks[i], toks[j]
+                if a == b:
+                    continue
+                if a > b:
+                    a, b = b, a
+                co[(a, b)] = co.get((a, b), 0) + 1
+
+    # pick nodes by total frequency
+    cand = sorted(kw_stats.items(), key=lambda x: x[1]["total"], reverse=True)
+    cand = cand[: max_nodes * 3]
+
+    nodes = []
+    keep = set()
+    for k, st in cand:
+        if len(nodes) >= max_nodes:
+            break
+        # drop near-neutral tokens with tiny evidence
+        if st["total"] < 3:
+            continue
+        pos = st["pos"]
+        neg = st["neg"]
+        pol = "neutral"
+        if neg >= max(2, pos + 1):
+            pol = "neg"
+        elif pos >= max(2, neg + 1):
+            pol = "pos"
+        nodes.append({"id": k, "label": k, "w": int(st["total"]), "pos": int(pos), "neg": int(neg), "pol": pol})
+        keep.add(k)
+
+    links = []
+    for (a, b), w in sorted(co.items(), key=lambda x: x[1], reverse=True):
+        if a in keep and b in keep and w >= 2:
+            links.append({"source": a, "target": b, "w": int(w)})
+        if len(links) >= 80:
+            break
+
+    return {"window": "target", "nodes": nodes, "links": links}
+
 def assign_cluster(text: str) -> List[str]:
     tnorm = normalize_text(text).replace(" ", "")
     hits = []
@@ -616,7 +688,7 @@ def score_sentence(sent: str, mode: str) -> int:
     return score
 
 
-def build_product_mindmap_1y_sentence(
+def build_product_mindmap_3m_sentence(
     rows_1y: List[Dict[str, Any]],
     rows_7d: List[Dict[str, Any]],
     per_side: int = 2,
@@ -944,14 +1016,12 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     all_rows = read_reviews_json(inp)
     now = now_kst()
 
-    hc = healthcheck(all_rows)
-
     target_days = max(1, int(target_days))
     startN = (now - timedelta(days=target_days - 1)).date()
     endN = now.date()
 
-    start1y = (now - timedelta(days=365)).date()
-    end1y = now.date()
+    start1y = startN
+    end1y = endN
 
     rowsN: List[Dict[str, Any]] = []
     rows1y: List[Dict[str, Any]] = []
@@ -1005,7 +1075,7 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     size_phrases_terms = top_terms(size_rows, topk=10, auto_sw=auto_sw, which="neg") if size_rows else []
     size_phrases = [k for k, _ in size_phrases_terms]
 
-    product_mindmap_1y = build_product_mindmap_1y_sentence(rows_1y=rows1y, rows_7d=rowsN, per_side=2, max_products=24) if rows1y else []
+    product_mindmap_3m = build_product_mindmap_3m_sentence(rows_1y=rows1y, rows_7d=rowsN, per_side=2, max_products=24) if rows1y else []
 
     trend_window = []
     if rowsN:
@@ -1021,17 +1091,20 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
         g["neg_rate"] = (g["neg"] / g["cnt"]).fillna(0.0)
         trend_window = g.sort_values("day").to_dict(orient="records")
 
-    trend_1y = build_daily_timeseries(rows1y) if rows1y else []
+    trend_3m = build_daily_timeseries(rows1y) if rows1y else []
     ml_topics = ml_topics_tfidf_nmf(rows1y, n_topics=8, top_words=8, min_df=3) if rows1y else {"enabled": False, "reason": "no_1y_rows"}
     dl_topics = dl_embeddings_cluster(rows1y, n_clusters=10) if rows1y else {"enabled": False, "reason": "no_1y_rows"}
 
-    period_text = f"최근 {target_days}일 ({startN.isoformat()} ~ {endN.isoformat()})"
+    
+    kw_graph = build_kw_graph(rowsN, auto_sw, max_nodes=28) if rowsN else {"window":"empty","nodes":[],"links":[]}
+
+period_text = f"최근 {target_days}일 ({startN.isoformat()} ~ {endN.isoformat()})"
     empty_reason = None
     if not rowsN:
         empty_reason = "No reviews in target window. Check upstream collection, created_at format/timezone, or TARGET_DAYS."
 
     meta: Dict[str, Any] = {
-        "version": "v6.1-maxpatch-ml",
+        "version": "v6.2-3m-ml",
         "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         "period_text": period_text,
         "period_start": startN.isoformat(),
@@ -1043,14 +1116,14 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
         "auto_stopwords": auto_sw,
         "clusters": cluster_counts,
         "size_phrases": size_phrases,
+        "kw_graph_3m": kw_graph,
         "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼", "수납", "가벼움"],
-        "product_mindmap_1y": product_mindmap_1y,
-        "healthcheck": hc,
+        "product_mindmap_3m": product_mindmap_3m,
         "window_created_at_parse_fail": parse_fail_rows,
         "trend_daily": trend_window,
-        "trend_daily_1y": trend_1y,
-        "ml_topics_1y": ml_topics,
-        "dl_topics_1y": dl_topics,
+        "trend_daily_3m": trend_3m,
+        "ml_topics_3m": ml_topics,
+        "dl_topics_3m": dl_topics,
         "empty_reason": empty_reason,
     }
 
