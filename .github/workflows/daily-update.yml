@@ -595,9 +595,8 @@ PY
 )"
           fi
 
-          cat > reports/owned_portal/data/meta.json <<EOF
-          {"built_kst":"${KST}","yesterday":"${YMD}","available_dates_count":${CNT}}
-          EOF
+          # ✅ heredoc 대신 printf로 안전하게 기록
+          printf '{"built_kst":"%s","yesterday":"%s","available_dates_count":%s}\n' "$KST" "$YMD" "$CNT" > reports/owned_portal/data/meta.json
 
           echo "[CHECK] reports/owned_portal/data/meta.json:"
           cat reports/owned_portal/data/meta.json || true
