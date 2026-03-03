@@ -234,7 +234,7 @@ jobs:
       # =========================================================
       - name: Build Daily Digest (yesterday only)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
-        continue-on-error: true  # ✅ PATCH: 실패해도 다음으로
+        continue-on-error: true
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
@@ -280,7 +280,7 @@ jobs:
       # Render yesterday daily HTML -> PNG (for email)
       # =========================================================
       - name: Render yesterday Daily Digest PNG
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}   # ✅ PATCH: 항상 시도
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
         shell: bash
         env:
@@ -346,6 +346,9 @@ jobs:
           python -u external_signal_combined.py || true
           ls -la reports/external_signal.html || true
 
+      # ----------------------------
+      # 4) Crema VOC
+      # ----------------------------
       - name: Run Crema VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         continue-on-error: true
@@ -353,7 +356,7 @@ jobs:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
           OUTPUT_TZ: Asia/Seoul
           PROJECT_ROOT: ${{ github.workspace }}
-          TARGET_DAYS: "90"
+          TARGET_DAYS: "7"
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         shell: bash
@@ -403,7 +406,6 @@ jobs:
             exit 0
           fi
 
-          # (2) backfill flag 생성 로직(원하면 유지)
           if [ ! -f "${FLAG}" ]; then
             HEALTH="reports/crema_raw/health/latest_health.json"
             SIZE_OK="false"
@@ -430,16 +432,34 @@ jobs:
             fi
           fi
 
-          # ✅ 핵심: 여기서 reports/voc_crema를 지우지 말 것 (404 방지)
+          echo "[INFO] (3) Build dashboard: build_voc_dashboard.py"
+          if [ "${DEBUG}" = "true" ]; then
+            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --debug || true
+          else
+            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" || true
+          fi
+
+          echo "[INFO] (4) Archive site -> reports/voc_crema"
+          rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
 
-          echo "[INFO] (3) Build dashboard (site/ + reports/voc_crema mirror with atomic swap)"
-          python -u build_voc_dashboard.py \
-            --input "${INPUT_JSON}" \
-            --target-days "${TARGET_DAYS}" \
-            $( [ "${DEBUG}" = "true" ] && echo "--debug" ) \
-            --out-dir "reports/voc_crema" \
-            || true
+          if [ -f "site/index.html" ]; then
+            rsync -a --delete site/ reports/voc_crema/ || true
+
+            # ✅ 보강: assets/data를 한 번 더 강제 복사 + 체크 (404 방지)
+            mkdir -p reports/voc_crema/assets reports/voc_crema/data
+            rsync -a site/assets/ reports/voc_crema/assets/ || true
+            rsync -a site/data/ reports/voc_crema/data/ || true
+
+            echo "[CHECK] reports/voc_crema/assets:"
+            find reports/voc_crema/assets -maxdepth 2 -type f | head -n 40 || true
+            echo "[CHECK] reports/voc_crema/data:"
+            ls -lah reports/voc_crema/data | head -n 60 || true
+          else
+            echo "[WARN] site/index.html not found after build"
+            ls -lah site || true
+            exit 0
+          fi
 
           echo "[INFO] voc_crema outputs:"
           ls -lah reports/voc_crema | head -n 200 || true
@@ -494,7 +514,7 @@ jobs:
       # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
-        continue-on-error: true   # ✅ PATCH: 여기 제일 중요 (기존 false)
+        continue-on-error: true
         shell: bash
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
@@ -540,12 +560,36 @@ jobs:
           ls -la reports/owned_portal || true
           ls -la reports/owned_portal/data/owned | head -n 120 || true
 
+      # ✅ NEW: Publish OWNED outputs into GitHub Pages folder (site/)
+      - name: Publish OWNED portal to site/
+        if: ${{ steps.modes.outputs.run_owned == 'true' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 1) Data -> site/data/owned  (네가 기대하는 URL 경로)
+          mkdir -p site/data/owned
+          rsync -a --delete reports/owned_portal/data/owned/ site/data/owned/
+
+          # 2) (선택) OWNED index도 pages에서 접근 가능하게 복사
+          #    - 너가 "OWNED Campaign Explorer" 페이지를 어디서 열지에 따라 경로를 정하면 됨
+          mkdir -p site/owned
+          if [ -f "reports/owned_portal/index.html" ]; then
+            cp -f reports/owned_portal/index.html site/owned/index.html
+          fi
+
+          echo "[CHECK] site/data/owned:"
+          ls -lah site/data/owned | head -n 60 || true
+          echo "[CHECK] site/owned:"
+          ls -lah site/owned | head -n 60 || true
+
       # ----------------------------
       # 7) Commit & push results
       # ----------------------------
       - name: Commit & push results
-        if: ${{ always() }}      # ✅ PATCH: 앞에서 뭐가 실패해도 커밋/푸시 시도
-        continue-on-error: true  # ✅ PATCH: push 실패해도 job 전체를 죽이지 않음(원하면 false로 유지 가능)
+        if: ${{ always() }}
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -590,7 +634,7 @@ jobs:
       # Success Email
       # ----------------------------
       - name: Send daily email (yesterday daily report PNG)
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}   # ✅ PATCH: success() 제거
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
