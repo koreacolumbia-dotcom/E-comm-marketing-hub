@@ -432,17 +432,32 @@ jobs:
             fi
           fi
 
-          echo "[INFO] (3) Build dashboard: build_voc_dashboard.py -> reports/voc_crema"
-          rm -rf reports/voc_crema || true
+          echo "[INFO] (3) Build dashboard -> TEMP then ATOMIC swap"
+          TMP_DIR="reports/.tmp_voc_crema"
+          rm -rf "${TMP_DIR}" || true
+          mkdir -p "${TMP_DIR}"
 
-          # ✅ NEW builder interface:
-          #   reads: site/data/meta.json + site/data/reviews.json
-          #   writes: reports/voc_crema/index.html + reports/voc_crema/data/{meta.json,reviews.json}
-          python -u build_voc_dashboard.py \
-            --src-dir "site/data" \
-            --out-dir "reports/voc_crema" \
-            --asset-prefix "../../site" \
-            || true
+          if [ "${DEBUG}" = "true" ]; then
+            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --out-dir "${TMP_DIR}" --assets-src "site/assets" --debug || true
+          else
+            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --out-dir "${TMP_DIR}" --assets-src "site/assets" || true
+          fi
+
+          if [ ! -f "${TMP_DIR}/index.html" ] || [ ! -f "${TMP_DIR}/data/meta.json" ] || [ ! -f "${TMP_DIR}/data/reviews.json" ]; then
+            echo "[ERROR] TMP build missing required files. Keep existing reports/voc_crema unchanged."
+            ls -lah "${TMP_DIR}" || true
+            ls -lah "${TMP_DIR}/data" || true
+            exit 0
+          fi
+
+          echo "[INFO] (4) Atomic publish reports/voc_crema"
+          if [ -d "reports/voc_crema" ]; then
+            rm -rf "reports/.bak_voc_crema" || true
+            mv "reports/voc_crema" "reports/.bak_voc_crema" || true
+          fi
+
+          mv "${TMP_DIR}" "reports/voc_crema" || true
+          rm -rf "reports/.bak_voc_crema" || true
 
           echo "[INFO] voc_crema outputs:"
           ls -lah reports/voc_crema | head -n 200 || true
