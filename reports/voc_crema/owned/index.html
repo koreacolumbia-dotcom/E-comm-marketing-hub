@@ -107,7 +107,7 @@
       border: 1px solid rgba(148,163,184,0.22);
       background: rgba(255,255,255,0.86);
       border-radius: 18px;
-      padding: 14px 16px; /* ✅ 살짝 여유 */
+      padding: 14px 16px;
       box-shadow: 0 12px 32px rgba(0,0,0,0.06);
     }
     .kpi-title{ font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color:#94a3b8; }
@@ -118,7 +118,7 @@
       border: 1px solid rgba(148,163,184,0.22);
       background: rgba(255,255,255,0.80);
       border-radius: 18px;
-      padding: 12px 14px; /* ✅ 살짝 여유 */
+      padding: 12px 14px;
       box-shadow: 0 10px 28px rgba(0,0,0,0.05);
     }
     .mini-title{ font-size: 10px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; color:#94a3b8; }
@@ -221,19 +221,18 @@
 
     <div class="glass p-6">
       <!-- Controls -->
-      <div class="flex flex-wrap items-center gap-3 mb-5"><!-- ✅ gap-2 -> gap-3 / mb-4 -> mb-5 -->
+      <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
         <button id="chipWeek" class="chip" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
 
-        
-
         <label class="ml-2 flex items-center gap-2 text-xs font-extrabold text-slate-600 select-none">
           <input id="toggleGroupJump" type="checkbox" class="accent-slate-900" />
           MMDD 클릭 시 날짜로 이동
         </label>
-<div class="ml-2 small-label">Date</div>
+
+        <div class="ml-2 small-label">Date</div>
         <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
         <div id="weekHint" class="hidden text-xs font-extrabold text-slate-500">(Mon ~ Sun)</div>
 
@@ -276,12 +275,12 @@
       </div>
 
       <!-- Channel Totals -->
-      <div class="mb-6"><!-- ✅ mb-5 -> mb-6 -->
+      <div class="mb-6">
         <div class="flex items-center gap-2 mb-3">
           <div class="small-label">Channel totals</div>
           <div class="muted font-semibold text-sm" id="periodText">-</div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4"><!-- ✅ gap-3 -> gap-4 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div class="mini-card">
             <div class="mini-title">All</div>
             <div class="mini-value"><span id="totAllSessions">-</span></div>
@@ -305,8 +304,8 @@
         </div>
       </div>
 
-      <!-- YTD -->
-      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4" style="display:none"><!-- ✅ gap-3->gap-4 -->
+      <!-- YTD (✅ 디폴트: 항상 표시 / 올해누적 기준으로 계산) -->
+      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -330,7 +329,7 @@
       </div>
 
       <!-- KPI (selection) -->
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5 mb-6"><!-- ✅ gap-3->gap-4 / 여백 조금 -->
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5 mb-6">
         <div class="kpi-card">
           <div class="kpi-title">Sessions</div>
           <div id="kSessions" class="kpi-value">-</div>
@@ -564,6 +563,8 @@
   const selCampaign  = document.getElementById('selCampaign');
   const selTerm  = document.getElementById('selTerm');
 
+  const toggleGroupJump = document.getElementById('toggleGroupJump');
+
   function fmt(n){
     if(n === null || n === undefined) return '-';
     const x = Number(n);
@@ -640,13 +641,13 @@
     return AVAILABLE[0];
   }
 
-  /* ✅ (추가) year+mmdd -> YYYY-MM-DD */
   function dateStrFromYearMmdd(year, mmdd){
     const mm = String(mmdd||'').slice(0,2);
     const dd = String(mmdd||'').slice(2,4);
     return `${year}-${mm}-${dd}`;
   }
 
+  // ✅ 기본값
   let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
   let CHANNEL = 'ALL';    // ALL | EDM | LMS | KAKAO
 
@@ -655,11 +656,8 @@
   let SELECTED = null;    // {type:'single', ...} or {type:'group', ...}
   let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
 
-  // ✅ Group click behavior
-  // - OFF (default): MMDD 그룹은 현재 로드된 RAW 안에서만 드릴다운 (안전)
-  // - ON: MMDD 그룹 클릭 시 available_dates 기준으로 "실제 존재하는 날짜"로 이동 후 드릴다운
-  let GROUP_JUMP_MODE = false;
-
+  // ✅ MMDD 클릭은 "디폴트: 날짜 이동 + 7일 누적" 이므로 기본 ON
+  let GROUP_JUMP_MODE = true;
 
   const YTD_CACHE = new Map();
 
@@ -844,8 +842,8 @@
       let html = '';
       for(const yr of years){
         const arr = byYear.get(yr).slice(0, limit);
-        html += `<div class="year-title"><span>${yr}</span><div class="bar"></div></div>`;
-        html += `<div class="flex flex-wrap gap-3">` + arr.map(g=>{ /* ✅ gap-2 -> gap-3 */
+        html += `<div class="year-title"><span>${yr}년</span><div class="bar"></div></div>`;
+        html += `<div class="flex flex-wrap gap-3">` + arr.map(g=>{
           const active = (SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd);
           const title = `${g.year}-${g.mmdd} · sessions:${g.agg.sessions} · terms:${g.rows.length}`;
           return makeChip(g.mmdd, title, active, {type:'group', channel, year:g.year, mmdd:g.mmdd});
@@ -870,7 +868,7 @@
         wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
         return;
       }
-      wrapEl.innerHTML = `<div class="flex flex-wrap gap-3">` + rows.map(r=>{ /* ✅ gap-2 -> gap-3 */
+      wrapEl.innerHTML = `<div class="flex flex-wrap gap-3">` + rows.map(r=>{
         const label = `${r.campaign||'(no-campaign)'}${r.term?(' · '+r.term):''}`;
         const title = `sessions:${r.sessions} · revenue:${r.revenue||0}`;
         const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
@@ -901,7 +899,7 @@
     if(!oc.length){
       wrapOtherChannels.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
     }else{
-      wrapOtherChannels.innerHTML = `<div class="flex flex-wrap gap-3">` + oc.map(r=>{ /* ✅ gap-2 -> gap-3 */
+      wrapOtherChannels.innerHTML = `<div class="flex flex-wrap gap-3">` + oc.map(r=>{
         const label = `${r.channel} · ${(r.campaign||'-')}${r.term?(' · '+r.term):''}`;
         const title = `sessions:${r.sessions} · revenue:${r.revenue||0}`;
         const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
@@ -1108,46 +1106,45 @@
   }
 
   function normalizeBundle(j){
-  if(!j) return { kpi: [], prod: [] };
+    if(!j) return { kpi: [], prod: [] };
 
-  // ✅ already new schema?
-  if(Array.isArray(j.kpi) || Array.isArray(j.prod)){
-    return {
-      kpi: Array.isArray(j.kpi) ? j.kpi : [],
-      prod: Array.isArray(j.prod) ? j.prod : [],
-    };
+    // already new schema?
+    if(Array.isArray(j.kpi) || Array.isArray(j.prod)){
+      return {
+        kpi: Array.isArray(j.kpi) ? j.kpi : [],
+        prod: Array.isArray(j.prod) ? j.prod : [],
+      };
+    }
+
+    // python schema: campaigns/products -> kpi/prod
+    const kpi = (j.campaigns || []).map(r => ({
+      date: r.date,
+      year: r.year,
+      mmdd: r.mmdd,
+      channel: r.channel,
+      campaign: r.campaign,
+      term: r.term,
+      sessions: Number(r.sessions || 0),
+      users: Number(r.users || 0),
+      purchases: Number(r.purchases || 0),
+      revenue: Number(r.revenue || 0),
+      items_purchased: Number(r.items_purchased || 0),
+    }));
+
+    const prod = (j.products || []).map(p => ({
+      date: p.date,
+      channel: p.channel,
+      campaign: p.campaign,
+      term: p.term,
+      item_id: p.item_id,
+      item_name: p.item_name,
+      prod_items: Number(p.items || 0),
+      prod_revenue: Number(p.revenue || 0),
+    }));
+
+    return { kpi, prod };
   }
 
-  // ✅ python schema: campaigns/products -> kpi/prod로 변환
-  const kpi = (j.campaigns || []).map(r => ({
-    date: r.date,
-    year: r.year,
-    mmdd: r.mmdd,
-    channel: r.channel,
-    campaign: r.campaign,
-    term: r.term,
-    sessions: Number(r.sessions || 0),
-    users: Number(r.users || 0),
-    purchases: Number(r.purchases || 0),
-    revenue: Number(r.revenue || 0),
-    items_purchased: Number(r.items_purchased || 0),
-  }));
-
-  const prod = (j.products || []).map(p => ({
-    date: p.date,
-    channel: p.channel,
-    campaign: p.campaign,
-    term: p.term,
-    item_id: p.item_id,
-    item_name: p.item_name,
-    // 프론트가 쓰는 필드명으로 매핑
-    prod_items: Number(p.items || 0),
-    prod_revenue: Number(p.revenue || 0),
-  }));
-
-  return { kpi, prod };
-}
-  
   function listDatesBetween(startStr, endStr){
     if(!AVAILABLE || !AVAILABLE.length) return [];
     return AVAILABLE.filter(d => d >= startStr && d <= endStr);
@@ -1166,7 +1163,7 @@
     });
   }
 
-function buildAggregated(dailyJsonList) {
+  function buildAggregated(dailyJsonList) {
     const kpiMap = new Map();
     const prodMap = new Map();
 
@@ -1179,7 +1176,7 @@ function buildAggregated(dailyJsonList) {
       }
 
       for (const p of (j.prod || [])) {
-        const key = `${p.date}||${p.channel}||${p.campaign || ''}||${r.term || ''}||${p.item_id || ''}`;
+        const key = `${p.date}||${p.channel}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}`;
         sumInto(prodMap, key, p, ['prod_items', 'prod_revenue']);
       }
     }
@@ -1284,18 +1281,15 @@ function buildAggregated(dailyJsonList) {
     await loadRange(s, e);
   }
 
-async function loadAvailableDates(){
-  try{
-    const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
-
-    // ✅ 배열/객체 둘 다 대응
-    const arr = Array.isArray(j) ? j : (j.available_dates || []);
-
-    AVAILABLE = arr.slice().sort();
-  }catch(e){
-    AVAILABLE = null;
+  async function loadAvailableDates(){
+    try{
+      const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
+      const arr = Array.isArray(j) ? j : (j.available_dates || []);
+      AVAILABLE = arr.slice().sort();
+    }catch(e){
+      AVAILABLE = null;
+    }
   }
-}
 
   function setToLastNDays(n){
     const today = new Date();
@@ -1353,23 +1347,24 @@ async function loadAvailableDates(){
       const v = YTD_CACHE.get(key);
       const TY = v.this;
       const LY = v.prev;
-      if(ytdCards) ytdCards.style.display = '';
-      if(ytdTySessions) ytdTySessions.textContent = fmt(TY.sessions);
-      if(ytdTyRevenue)  ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
-      if(ytdLySessions) ytdLySessions.textContent = fmt(LY.sessions);
-      if(ytdLyRevenue)  ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
+      ytdTySessions.textContent = fmt(TY.sessions);
+      ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
+      ytdLySessions.textContent = fmt(LY.sessions);
+      ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
+
       const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
       const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
-      if(ytdTySessionsSub) ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-      if(ytdTyRevenueSub)  ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-      if(ytdLySessionsSub) ytdLySessionsSub.textContent = `LY (same period)`;
-      if(ytdLyRevenueSub)  ytdLyRevenueSub.textContent  = `LY (same period)`;
+      ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+      ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+      ytdLySessionsSub.textContent = `LY (same period)`;
+      ytdLyRevenueSub.textContent  = `LY (same period)`;
       return;
     }
 
     async function loadAgg(startStr, endStr){
       const dates = listDatesBetween(startStr, endStr);
       if(!dates.length) return {kpi:[]};
+
       const all = [];
       const chunkSize = 10;
       for(let i=0;i<dates.length;i+=chunkSize){
@@ -1380,8 +1375,11 @@ async function loadAvailableDates(){
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
       hideNotice();
+
+      // ✅ normalizeBundle 적용 (기존 schema(campaigns/products)도 YTD에서 누락 없이 합산)
       const kpiMap = new Map();
-      for(const j of all){
+      for(const raw of all){
+        const j = normalizeBundle(raw);
         for(const r of (j.kpi||[])){
           const k = `${r.channel}||${r.campaign||''}||${r.term||''}`;
           sumInto(kpiMap, k, r, ['sessions','users','purchases','revenue','items_purchased']);
@@ -1400,20 +1398,18 @@ async function loadAvailableDates(){
     const prevSum = aggregateRow(prevRows);
 
     YTD_CACHE.set(key, {this:thisSum, prev:prevSum});
-    const TY = thisSum;
-    const LY = prevSum;
 
-    if(ytdCards) ytdCards.style.display = '';
-    if(ytdTySessions) ytdTySessions.textContent = fmt(TY.sessions);
-    if(ytdTyRevenue)  ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
-    if(ytdLySessions) ytdLySessions.textContent = fmt(LY.sessions);
-    if(ytdLyRevenue)  ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
-    const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
-    const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
-    if(ytdTySessionsSub) ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-    if(ytdTyRevenueSub)  ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-    if(ytdLySessionsSub) ytdLySessionsSub.textContent = `LY (same period)`;
-    if(ytdLyRevenueSub)  ytdLyRevenueSub.textContent  = `LY (same period)`;
+    ytdTySessions.textContent = fmt(thisSum.sessions);
+    ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
+    ytdLySessions.textContent = fmt(prevSum.sessions);
+    ytdLyRevenue.textContent  = fmtMoney(prevSum.revenue);
+
+    const dSess = prevSum.sessions ? ((thisSum.sessions - prevSum.sessions)/prevSum.sessions*100) : (thisSum.sessions ? 100 : 0);
+    const dRev  = prevSum.revenue  ? ((thisSum.revenue  - prevSum.revenue )/prevSum.revenue *100) : (thisSum.revenue  ? 100 : 0);
+    ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+    ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+    ytdLySessionsSub.textContent = `LY (same period)`;
+    ytdLyRevenueSub.textContent  = `LY (same period)`;
   }
 
   function bindToggle(btn, wrap){
@@ -1436,19 +1432,7 @@ async function loadAvailableDates(){
   bindToggle(toggleKakaoOther, wrapKakaoOther);
   bindToggle(toggleOtherChannels, wrapOtherChannels);
 
-  /* ✅ (추가) MMDD 칩 클릭 시 날짜/시작일 자동 변경 + 데이터 로드 */
-  async function jumpToGroupDate(year, mmdd){
-    const targetRaw = dateStrFromYearMmdd(year, mmdd);
-    const target = clampToAvailable(targetRaw);
-
-    if(VIEW === 'RANGE'){
-      startPicker.value = target;
-      if(!endPicker.value || endPicker.value < target) endPicker.value = target;
-      await loadRange(startPicker.value, endPicker.value);
-      return;
-    }
-
-
+  // ✅ group(mmdd) -> 실제 존재 날짜로 resolve
   function resolveMmddToAvailableDate(year, mmdd){
     const mm = String(mmdd).slice(0,2);
     const dd = String(mmdd).slice(2,4);
@@ -1470,40 +1454,31 @@ async function loadAvailableDates(){
     return matches[matches.length-1];
   }
 
-  async function jumpToResolvedGroupDate(year, mmdd){
-    const target = resolveMmddToAvailableDate(year, mmdd);
+  // ✅ MMDD 클릭 시: 그 날짜부터 7일 누적(RANGE)로 디폴트 로드
+  async function load7dFromDate(dateStr){
+    const s = clampToAvailable(dateStr);
+    const eRaw = ymd(addDays(parseYMD(s), 6));
+    const e = clampToAvailable(eRaw);
 
-    if(VIEW === 'RANGE'){
-      startPicker.value = target;
-      if(!endPicker.value || endPicker.value < target) endPicker.value = target;
-      await loadRange(startPicker.value, endPicker.value);
-      return;
-    }
+    VIEW = 'RANGE';
+    setViewActive();
+    startPicker.value = s;
+    endPicker.value = e;
 
-    datePicker.value = target;
-    if(VIEW === 'WEEK'){
-      await loadWeekByDate(target);
-    }else{
-      await loadDaily(target);
-    }
-  }
-
-
-    // DAILY / WEEK
-    datePicker.value = target;
-    if(VIEW === 'WEEK'){
-      await loadWeekByDate(target);
-    }else{
-      await loadDaily(target);
-    }
+    await loadRange(s, e);
+    await computeYTD();
   }
 
   async function selectGroup(channel, year, mmdd){
-    /* ✅ 핵심: 클릭한 MMDD 기준으로 “리포트 날짜(또는 RANGE 시작일)”을 먼저 이동 */
+    // ✅ 요구사항: "0226 클릭하면 그 일자부터 누적 7일 데이터"가 디폴트
     if(GROUP_JUMP_MODE){
-      await jumpToResolvedGroupDate(year, mmdd);
+      const target = resolveMmddToAvailableDate(year, mmdd);
+      // datePicker도 같이 맞춰주면 UX 좋음
+      datePicker.value = target;
+      await load7dFromDate(target);
     }
-/* 그 다음, 새 RAW 기준으로 group 선택/하이라이트/드릴다운 */
+
+    // 로드 완료 후: 해당 group 드릴다운/하이라이트
     SELECTED = {type:'group', channel, year, mmdd};
     filterKPI();
     updateChannelTotals();
@@ -1511,7 +1486,6 @@ async function loadAvailableDates(){
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
-    await computeYTD();
   }
 
   // View toggles
@@ -1539,17 +1513,39 @@ async function loadAvailableDates(){
     loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
   });
 
-  function onChannelChange(ch){
+  // ✅ 채널 클릭 시 디폴트 VIEW = WEEK (ALL은 강제하지 않음)
+  async function onChannelChange(ch){
     CHANNEL = ch;
     setChipActive();
     toggleSections();
+
+    if(CHANNEL !== 'ALL'){
+      VIEW = 'WEEK';
+      setViewActive();
+      const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1))));
+      datePicker.value = d;
+      await loadWeekByDate(d);
+    }else{
+      // ALL은 현재 VIEW 유지 + 현재 값 기준 리로드
+      if(VIEW==='RANGE'){
+        await loadRange(startPicker.value, endPicker.value);
+      }else if(VIEW==='WEEK'){
+        const d = clampToAvailable(datePicker.value);
+        await loadWeekByDate(d);
+      }else{
+        const d = clampToAvailable(datePicker.value);
+        await loadDaily(d);
+      }
+    }
+
     filterKPI();
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
-    computeYTD();
+    await computeYTD();
   }
+
   chipAll.addEventListener('click', ()=>onChannelChange('ALL'));
   chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
   chipLMS.addEventListener('click', ()=>onChannelChange('LMS'));
@@ -1635,12 +1631,21 @@ async function loadAvailableDates(){
 
   btnReload.addEventListener('click', ()=> location.reload());
 
+  // ✅ 버튼은 유지하되: 이제 "숨김/표시"가 아니라 "재계산" 트리거로 사용
   btnYTD.addEventListener('click', async ()=>{
-    if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
   });
 
+  // ✅ UI 토글 (기본 ON)
+  toggleGroupJump.addEventListener('change', ()=>{
+    GROUP_JUMP_MODE = !!toggleGroupJump.checked;
+  });
+
   (async function init(){
+    // defaults
+    toggleGroupJump.checked = true;
+    GROUP_JUMP_MODE = true;
+
     setChipActive();
     toggleSections();
     await loadAvailableDates();
@@ -1659,6 +1664,9 @@ async function loadAvailableDates(){
     VIEW='DAILY';
     setViewActive();
     await loadDaily(d);
+
+    // ✅ 첫 화면에서 올해누적(YTD) 바로 계산/표시
+    if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
   })();
 
