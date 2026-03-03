@@ -1166,18 +1166,21 @@
     });
   }
 
-  function buildAggregated(dailyJsonList){
+function buildAggregated(dailyJsonList) {
     const kpiMap = new Map();
     const prodMap = new Map();
 
-    for(const j of dailyJsonList){
-      for(const r of (j.kpi||[])){
-        const key = `${r.date}||${r.channel}||${r.campaign||''}||${r.term||''}`;
-        sumInto(kpiMap, key, r, ['sessions','users','purchases','revenue','items_purchased']);
+    for (const raw of dailyJsonList) {
+      const j = normalizeBundle(raw);
+
+      for (const r of (j.kpi || [])) {
+        const key = `${r.date}||${r.channel}||${r.campaign || ''}||${r.term || ''}`;
+        sumInto(kpiMap, key, r, ['sessions', 'users', 'purchases', 'revenue', 'items_purchased']);
       }
-      for(const p of (j.prod||[])){
-        const key = `${p.date}||${p.channel}||${p.campaign||''}||${p.term||''}||${p.item_id||''}`;
-        sumInto(prodMap, key, p, ['prod_items','prod_revenue']);
+
+      for (const p of (j.prod || [])) {
+        const key = `${p.date}||${p.channel}||${p.campaign || ''}||${r.term || ''}||${p.item_id || ''}`;
+        sumInto(prodMap, key, p, ['prod_items', 'prod_revenue']);
       }
     }
 
