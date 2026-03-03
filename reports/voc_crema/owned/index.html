@@ -1244,7 +1244,7 @@ async function loadAvailableDates(){
   try{
     const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
 
-    // 🔥 배열/객체 모두 지원
+    // ✅ 배열/객체 둘 다 대응
     const arr = Array.isArray(j) ? j : (j.available_dates || []);
 
     AVAILABLE = arr.slice().sort();
