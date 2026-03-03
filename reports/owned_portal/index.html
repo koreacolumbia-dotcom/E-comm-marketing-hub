@@ -1398,10 +1398,8 @@
   }
 
   async function selectGroup(channel, year, mmdd){
-    /* ✅ 핵심: 클릭한 MMDD 기준으로 “리포트 날짜(또는 RANGE 시작일)”을 먼저 이동 */
-    await jumpToGroupDate(year, mmdd);
-
-    /* 그 다음, 새 RAW 기준으로 group 선택/하이라이트/드릴다운 */
+    // ✅ IMPORTANT: group 선택은 현재 로드된 RAW(DAILY/WEEK/RANGE) 안에서만 드릴다운한다.
+    // (MMDD는 send_id/term에서 파싱된 값이라, 자동으로 YYYY-MM-DD 파일로 점프하면 오히려 데이터가 사라질 수 있음)
     SELECTED = {type:'group', channel, year, mmdd};
     filterKPI();
     updateChannelTotals();
