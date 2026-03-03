@@ -349,32 +349,107 @@ def process_data(posts: List[Post]):
 # 4. HTML 생성 (reports/external_signal.html 고정)
 #   - Hot Keywords 제거 -> Summary로 대체
 # =================================================================
-def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/external_signal.html")
-    # ✅ Hub summary.json export (for reports/index.html first screen)
+def export_portal(brand_map, summary_df: pd.DataFrame, raw_posts: List[Post] | None = None, out_path: str = "reports/external_signal.html"):
+    """Build external signal portal (HTML) + write summary.json for Hub."""
+
+    raw_posts = raw_posts or []
+
+    # -----------------------------
+    # Weekly (last 7 days) cumulative + daily trend
+    # -----------------------------
+    patterns = build_brand_patterns()
+
+    def _post_day_kst(p: Post) -> str:
+        try:
+            dt = p.created_at
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=KST)
+            return dt.astimezone(KST).strftime("%Y-%m-%d")
+        except Exception:
+            return "unknown"
+
+    # Per-day totals (mentions, posts)
+    daily = {}
+    for p in raw_posts:
+        day = _post_day_kst(p)
+        if day not in daily:
+            daily[day] = {"posts": 0, "mentions": 0}
+        daily[day]["posts"] += 1
+
+        title = normalize_text(p.title)
+        comments = normalize_text(p.comments)
+
+        comment_sents = split_sentences(comments)
+
+        for b in BRAND_LIST:
+            title_hit = 1 if contains_brand(title, b, patterns) else 0
+            if title_hit:
+                daily[day]["mentions"] += 1  # title mention counts as 1
+
+            # comment sentence mentions (same counting concept as summary: sentence-level)
+            cm = 0
+            for s in comment_sents:
+                if sentence_has_brand(s, b, patterns):
+                    cm += 1
+            # if title has brand, also include boosted mentions from title+content snippet (already handled elsewhere);
+            # here we keep it simple and count comment sentence mentions only.
+            daily[day]["mentions"] += cm
+
+    # Sort recent days desc
+    daily_rows = []
+    for d in sorted(daily.keys(), reverse=True):
+        daily_rows.append({"date": d, "posts": daily[d]["posts"], "mentions": daily[d]["mentions"]})
+    daily_df = pd.DataFrame(daily_rows)
+
+    # Week cumulative (last 7 unique days available)
+    week_dates = list(daily_df["date"].head(7)) if not daily_df.empty else []
+    week_posts = int(daily_df.head(7)["posts"].sum()) if not daily_df.empty else 0
+    week_mentions = int(daily_df.head(7)["mentions"].sum()) if not daily_df.empty else 0
+
+    # Optional previous week (if we crawled >= 14 days)
+    prev_week_posts = int(daily_df.iloc[7:14]["posts"].sum()) if len(daily_df) >= 14 else None
+    prev_week_mentions = int(daily_df.iloc[7:14]["mentions"].sum()) if len(daily_df) >= 14 else None
+
+    def _pct_change(cur: int, prev: int) -> str:
+        if prev == 0:
+            return "—"
+        return f"{((cur - prev) / prev) * 100:+.1f}%"
+
+    wow_posts = _pct_change(week_posts, prev_week_posts) if prev_week_posts is not None else None
+    wow_mentions = _pct_change(week_mentions, prev_week_mentions) if prev_week_mentions is not None else None
+
+    # -----------------------------
+    # Hub summary.json export
+    # -----------------------------
     try:
         active_brands = [b for b in BRAND_LIST if len(brand_map.get(b, [])) > 0]
         total_mentions = int(summary_df["total_mentions"].sum()) if summary_df is not None and (not summary_df.empty) and "total_mentions" in summary_df.columns else 0
+
         payload = {
             "updated_at": _now_kst_str(),
             "gallery_id": GALLERY_ID,
             "target_days": int(TARGET_DAYS),
             "max_pages": int(MAX_PAGES),
-            "posts_collected": int(len(posts)),
+            "posts_collected": int(len(raw_posts)),
             "brands_active": int(len(active_brands)),
             "total_mentions": total_mentions,
+            "week_posts": week_posts,
+            "week_mentions": week_mentions,
             "top5": (summary_df.head(5).to_dict(orient="records") if summary_df is not None and not summary_df.empty else []),
         }
-        # 디버그: 0건이면 원인 힌트
-        if len(posts) == 0:
+        if len(raw_posts) == 0:
             payload["warning"] = "no_posts_collected"
         if summary_df is None or summary_df.empty:
-            payload["warning"] = (payload.get("warning","") + "|no_brand_mentions").strip("|")
+            payload["warning"] = (payload.get("warning", "") + "|no_brand_mentions").strip("|")
+
         _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
     except Exception as e:
         print(f"[WARN] summary.json export failed: {e}")
-:
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
+    # -----------------------------
+    # Build HTML
+    # -----------------------------
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
     active_brands = [b for b in BRAND_LIST if len(brand_map.get(b, [])) > 0]
 
     # ✅ Summary HTML (Top5 노출 + 나머지 접기/펼치기)
@@ -390,54 +465,30 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
 
         def row_html(r):
             return f"""
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">{r['brand']}</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">{int(r['posts_count'])}</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">{int(r['title_hits'])}</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">{int(r['comment_mentions'])}</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">{int(r['total_mentions'])}</td>
+            <tr class="border-b border-slate-200">
+              <td class="py-2 pr-4 font-bold">{r['brand']}</td>
+              <td class="py-2 pr-4 text-right tabular-nums">{int(r['posts_count'])}</td>
+              <td class="py-2 pr-4 text-right tabular-nums">{int(r['title_hits'])}</td>
+              <td class="py-2 pr-4 text-right tabular-nums">{int(r['comment_mentions'])}</td>
+              <td class="py-2 text-right tabular-nums font-extrabold">{int(r['total_mentions'])}</td>
             </tr>
             """
 
-        top_rows = "".join(row_html(r) for _, r in top_df.iterrows())
-        rest_rows = "".join(row_html(r) for _, r in rest_df.iterrows())
 
-        toggle_html = ""
-        if len(rest_df) > 0:
-            toggle_html = f"""
-            <div class="mt-5 flex items-center justify-between">
-              <div class="text-xs text-slate-400 font-bold">
-                Top {top_n} 노출 · 나머지 {len(rest_df)}개는 접혀있음
-              </div>
-              <button
-                id="summaryToggleBtn"
-                onclick="toggleSummaryRest()"
-                class="px-4 py-2 rounded-xl bg-white/70 border border-white text-slate-700 font-black text-xs hover:bg-white transition"
-              >
-                나머지 펼치기 <i class="fa-solid fa-chevron-down ml-2"></i>
-              </button>
-            </div>
-            <div id="summaryRestWrap" class="mt-4" style="display:none;">
-              <div class="overflow-x-auto rounded-2xl border border-white bg-white/35">
-                <table class="w-full text-sm">
-                  <tbody>
-                    {rest_rows}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            """
+        top_rows = "".join([row_html(r) for _, r in top_df.iterrows()])
+        rest_rows = "".join([row_html(r) for _, r in rest_df.iterrows()]) if len(rest_df) else ""
 
         summary_html = f"""
-        <div class="overflow-x-auto rounded-2xl border border-white bg-white/35">
+        <div class="text-slate-700 font-extrabold mb-2">브랜드 언급 요약 (최근 {int(TARGET_DAYS)}일)</div>
+        <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-left text-[11px] uppercase tracking-widest text-slate-400 border-b border-slate-100">
-                <th class="py-3 pr-4">Brand</th>
-                <th class="py-3 pr-4">Posts</th>
-                <th class="py-3 pr-4">Title Hits</th>
-                <th class="py-3 pr-4">Comment Mentions</th>
-                <th class="py-3 pr-4">Total Mentions</th>
+              <tr class="text-slate-500 border-b border-slate-200">
+                <th class="py-2 text-left">Brand</th>
+                <th class="py-2 text-right">Posts</th>
+                <th class="py-2 text-right">Title hits</th>
+                <th class="py-2 text-right">Comment mentions</th>
+                <th class="py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -445,188 +496,185 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
             </tbody>
           </table>
         </div>
-        {toggle_html}
-        """
 
-    tab_menu_html = ""
-    content_area_html = ""
-
-    if not active_brands:
-        tab_menu_html = """
-        <div class="px-6 py-4 rounded-2xl bg-white/60 border border-white text-slate-500 font-bold">
-          최근 기간 내 브랜드 언급 데이터가 없습니다.
+        {'' if not rest_rows else f"""
+        <button class='mt-3 text-xs font-bold text-blue-700 hover:underline' onclick="toggleMore()">+ 더보기</button>
+        <div id='moreBox' class='mt-2 hidden overflow-x-auto'>
+          <table class='w-full text-sm'>
+            <tbody>
+              {rest_rows}
+            </tbody>
+          </table>
         </div>
+        """}
         """
-        content_area_html = f"""
-        <div class="glass-card p-10">
-          <div class="text-slate-800 font-black text-xl mb-2">데이터 없음</div>
-          <div class="text-slate-500 font-medium">
-            최근 수집 기간({TARGET_DAYS}) 동안 해당 브랜드 키워드가 포함된 문장이 발견되지 않았습니다.<br/>
-            갤러리/기간/브랜드 리스트를 조정해보세요.
+
+
+    # ✅ Weekly cumulative + daily trend HTML
+    if daily_df is None or daily_df.empty:
+        weekly_html = """
+        <div class="text-slate-500 font-bold">최근 일주일 추이 데이터가 없습니다.</div>
+        """
+    else:
+        # Build bars relative to max mentions
+        max_m = int(daily_df.head(7)["mentions"].max()) if not daily_df.head(7).empty else 1
+        if max_m <= 0:
+            max_m = 1
+
+        trend_rows = []
+        for _, r in daily_df.head(7).iterrows():
+            w = int((int(r["mentions"]) / max_m) * 100)
+            trend_rows.append(f"""
+            <div class="flex items-center gap-3 py-1">
+              <div class="w-24 text-xs text-slate-600 tabular-nums">{r['date']}</div>
+              <div class="flex-1">
+                <div class="h-2 rounded-full bg-slate-200 overflow-hidden">
+                  <div class="h-2 bg-blue-600" style="width:{w}%"></div>
+                </div>
+              </div>
+              <div class="w-20 text-right text-xs tabular-nums text-slate-700 font-bold">{int(r['mentions'])}</div>
+              <div class="w-16 text-right text-xs tabular-nums text-slate-500">{int(r['posts'])}p</div>
+            </div>
+            """)
+
+        wow_block = ""
+        if wow_posts is not None and wow_mentions is not None:
+            wow_block = f"""
+            <div class="mt-2 text-xs text-slate-600">
+              WoW (이전 7일 대비): Posts {wow_posts} · Mentions {wow_mentions}
+            </div>
+            """
+
+        weekly_html = f"""
+        <div class="text-slate-700 font-extrabold mb-2">최근 7일 누적</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div class="p-3 rounded-xl bg-white border border-slate-200">
+            <div class="text-xs text-slate-500 font-bold">Posts</div>
+            <div class="text-xl font-extrabold tabular-nums">{week_posts}</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white border border-slate-200">
+            <div class="text-xs text-slate-500 font-bold">Mentions</div>
+            <div class="text-xl font-extrabold tabular-nums">{week_mentions}</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white border border-slate-200 col-span-2">
+            <div class="text-xs text-slate-500 font-bold">Coverage</div>
+            <div class="text-sm text-slate-700 font-bold">{(min(7, len(daily_df)))} days · Gallery: {GALLERY_ID}</div>
+            {wow_block}
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <div class="text-slate-700 font-extrabold mb-2">일자별 멘션 추이 (최근 7일)</div>
+          <div class="p-3 rounded-2xl bg-white border border-slate-200">
+            {''.join(trend_rows)}
+            <div class="mt-2 text-[11px] text-slate-500">* Mentions는 제목 1회 + 댓글 문장 단위 언급을 합산한 근사치입니다.</div>
           </div>
         </div>
         """
+
+
+    # ✅ Brand cards
+    def brand_card_html(brand: str, items: List[dict]) -> str:
+        if not items:
+            return ""
+        rows = []
+        for it in items[:40]:  # protect size
+            text = (it.get("text","") or "").strip()
+            url = it.get("url","")
+            title = (it.get("title","") or "").strip()
+            src = it.get("source","")
+            rows.append(f"""
+              <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
+                <div class="text-xs text-slate-500 font-bold mb-1">{src}</div>
+                <a class="text-sm font-extrabold text-blue-700 hover:underline" href="{url}" target="_blank" rel="noopener noreferrer">{title[:120] if title else url}</a>
+                <div class="mt-2 text-sm text-slate-700 leading-relaxed">{text}</div>
+              </div>
+            """)
+        return f"""
+        <section class="mt-6">
+          <div class="flex items-baseline justify-between">
+            <h3 class="text-lg font-extrabold text-slate-800">{brand}</h3>
+            <div class="text-xs text-slate-500 font-bold tabular-nums">{len(items)} mentions</div>
+          </div>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {''.join(rows)}
+          </div>
+        </section>
+        """
+
+
+    brand_sections = []
+    for b in BRAND_LIST:
+        if len(brand_map.get(b, [])) > 0:
+            brand_sections.append(brand_card_html(b, brand_map[b]))
+
+    if not brand_sections:
+        brand_sections_html = "<div class='mt-6 text-slate-500 font-bold'>브랜드 언급이 없습니다.</div>"
     else:
-        for i, brand in enumerate(active_brands):
-            active_class = "bg-[#002d72] text-white shadow-lg" if i == 0 else "bg-white/50 text-slate-500 hover:bg-white"
+        brand_sections_html = "\n".join(brand_sections)
 
-            tab_menu_html += f"""
-            <button onclick="switchTab('{brand}')" id="tab-{brand}" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm {active_class}">
-                {brand} <span class="ml-1 opacity-60 text-xs">{len(brand_map[brand])}</span>
-            </button>"""
-
-            display_style = "grid" if i == 0 else "none"
-            sentence_cards = ""
-
-            for item in brand_map[brand]:
-                title_short = (item.get('title') or "")[:28]
-                if len(item.get('title') or "") > 28:
-                    title_short += "..."
-
-                src = item.get("source", "")
-                if src == "comment(boosted_by_title)":
-                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black">TITLE→COMMENT</span>'
-                elif src == "comment":
-                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black">COMMENT</span>'
-                elif src == "content":
-                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span>'
-                else:
-                    src_badge = '<span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span>'
-
-                sentence_cards += f"""
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE {src_badge}</div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" {item.get('text','')} "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: {title_short}</span>
-                        <a href="{item.get('url','')}" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>"""
-
-            content_area_html += f"""
-            <div id="content-{brand}" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: {display_style};">
-                {sentence_cards}
-            </div>"""
-
-    now_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-
-    full_html = f"""
-<!DOCTYPE html>
+    updated = _now_kst_str()
+    full_html = f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>Columbia M-OS Pro | External Signal (VOC)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>External Signal | DCInside {GALLERY_ID}</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root {{ --brand: #002d72; --bg0: #f6f8fb; --bg1: #eef3f9; }}
-    body {{ background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; min-height: 100vh; }}
-    .glass-card {{ background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }}
-    .sidebar {{ background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }}
-
-    body.embedded aside {{ display:none !important; }}
-    body.embedded header {{ display:none !important; }}
-    body.embedded .sidebar {{ display:none !important; }}
-    body.embedded main {{ padding: 24px !important; }}
-    body.embedded .sticky {{ position: static !important; }}
+    :root {{ --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }}
+    html, body {{ height: 100%; overflow: auto; }}
+    body{{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }}
+    .glass {{
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(15,23,42,.08);
+      box-shadow: 0 10px 30px rgba(2,6,23,.08);
+      backdrop-filter: blur(10px);
+    }}
+    .embedded body {{ background: transparent !important; }}
   </style>
 </head>
-<body class="flex">
-  <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
-    <div class="flex items-center gap-4 mb-16 px-2">
-      <div class="w-12 h-12 bg-[#002d72] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
-        <i class="fa-solid fa-mountain-sun text-xl"></i>
-      </div>
-      <div>
-        <div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div>
-        <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Marketing Portal</div>
-      </div>
-    </div>
-    <nav class="space-y-4">
-      <div class="p-4 rounded-2xl bg-white shadow-sm text-[#002d72] font-black flex items-center gap-4">
-        <i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC 분석</span>
-      </div>
-      <div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4 hover:bg-white/50 transition-all cursor-not-allowed">
-        <i class="fa-solid fa-chart-line"></i> <span>시장 지수</span>
-      </div>
-    </nav>
-  </aside>
 
-  <main class="flex-1 p-8 md:p-16">
-    <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
-      <div>
-        <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">VOC Real-time Analysis</h1>
-  <div class=\"text-sm text-slate-500 mt-2\">__PERIOD_LABEL__</div>
-        <p class="text-slate-500 text-lg font-medium italic">디시인사이드 등산 갤러리 브랜드 언급 데이터</p>
-        <p class="text-slate-400 text-xs mt-2 font-bold">기간: 최근 {TARGET_DAYS}일 · 최대 {MAX_PAGES}페이지 스캔</p>
-      </div>
-      <div class="glass-card px-6 py-4 flex items-center gap-4">
-        <div class="flex h-3 w-3 relative">
-          <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
+<body class="p-5 md:p-8">
+  <div class="max-w-6xl mx-auto">
+    <div class="glass rounded-3xl p-5 md:p-7">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL</div>
+          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside · {GALLERY_ID} (최근 {int(TARGET_DAYS)}일)</h1>
+          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · Posts collected: {len(raw_posts):,} · Active brands: {len(active_brands):,}</div>
         </div>
-        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">{now_str}</span>
-      </div>
-    </header>
-
-    <section class="glass-card p-10 mb-12">
-      <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-6 flex items-center gap-2">
-        <i class="fa-solid fa-chart-simple"></i> Mention Summary
-      </h3>
-      <div class="text-xs text-slate-500 font-bold mb-6">
-        Posts = 해당 브랜드가 1회 이상 언급된 글 수 · Title Hits = 제목 언급 글 수 · Comment Mentions = 댓글 언급 문장 수 · Total Mentions = 전체 문장 언급 수
-      </div>
-      {summary_html}
-    </section>
-
-    <section>
-      <div class="flex flex-wrap gap-2 mb-8">
-        {tab_menu_html}
+        <div class="text-xs text-slate-600 font-bold">
+          * 워크플로에서 이 step이 실패해도 넘어가도록 되어 있으면(continue-on-error), 리포트가 갱신 안 될 수 있어요.
+        </div>
       </div>
 
-      <div class="min-h-[500px]">
-        {content_area_html}
+      <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="glass rounded-3xl p-5">
+          {summary_html}
+        </div>
+        <div class="glass rounded-3xl p-5">
+          {weekly_html}
+        </div>
       </div>
-    </section>
-  </main>
+
+      {brand_sections_html}
+    </div>
+  </div>
 
   <script>
-    function switchTab(brand) {{
-      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-      const target = document.getElementById('content-' + brand);
-      if (target) target.style.display = 'grid';
-
-      document.querySelectorAll('.tab-btn').forEach(btn => {{
-        btn.classList.remove('bg-[#002d72]', 'text-white', 'shadow-lg');
-        btn.classList.add('bg-white/50', 'text-slate-500');
-      }});
-      const activeBtn = document.getElementById('tab-' + brand);
-      if (activeBtn) {{
-        activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
-        activeBtn.classList.remove('bg-white/50', 'text-slate-500');
-      }}
-    }}
-
-    function toggleSummaryRest() {{
-      const wrap = document.getElementById('summaryRestWrap');
-      const btn = document.getElementById('summaryToggleBtn');
-      if (!wrap || !btn) return;
-
-      const opened = wrap.style.display !== 'none';
-      if (opened) {{
-        wrap.style.display = 'none';
-        btn.innerHTML = '나머지 펼치기 <i class="fa-solid fa-chevron-down ml-2"></i>';
-      }} else {{
-        wrap.style.display = 'block';
-        btn.innerHTML = '접기 <i class="fa-solid fa-chevron-up ml-2"></i>';
-      }}
+    function toggleMore() {{
+      var el = document.getElementById('moreBox');
+      if (!el) return;
+      el.classList.toggle('hidden');
     }}
   </script>
 
@@ -647,7 +695,6 @@ def export_portal(brand_map, summary_df: pd.DataFrame, out_path="reports/externa
         f.write(full_html)
 
     print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
-
 # =================================================================
 # main
 # =================================================================
@@ -655,7 +702,7 @@ if __name__ == "__main__":
     raw_data = crawl_dc_engine(days=TARGET_DAYS)
     if raw_data:
         brand_map, summary_df = process_data(raw_data)
-        export_portal(brand_map, summary_df)
+        export_portal(brand_map, summary_df, raw_posts=raw_data)
     else:
-        export_portal({b: [] for b in BRAND_LIST}, pd.DataFrame())
+        export_portal({b: [] for b in BRAND_LIST}, pd.DataFrame(), raw_posts=[])
         print("⚠️ 수집 데이터 0건 (빈 리포트 생성)")
