@@ -39,9 +39,11 @@
       box-shadow: 0 20px 50px rgba(0,45,114,0.05);
       padding: 18px 20px;
     }
+
     .small-label{
       font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 900;
     }
+
     .input-glass{
       background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.80);
       border-radius: 18px; padding: 12px 14px; outline: none; font-weight: 800; color:#0f172a;
@@ -128,25 +130,21 @@
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
 
+    /* bubble mindmap look */
     .bubble{
-      position:absolute;
-      transform: translate(-50%,-50%);
-      border-radius:9999px;
-      padding: 10px 14px;
-      font-weight: 900;
-      font-size: 12px;
+      position:absolute; transform: translate(-50%,-50%);
+      border-radius:9999px; padding: 10px 14px;
+      font-weight: 900; font-size: 12px;
       border: 1px solid rgba(255,255,255,0.90);
       background: rgba(255,255,255,0.72);
       box-shadow: 0 14px 30px rgba(0,45,114,0.08);
-      cursor:pointer;
-      user-select:none;
-      white-space: nowrap;
+      cursor:pointer; user-select:none; white-space: nowrap;
     }
     .bubble.neg{ background: rgba(239,68,68,0.10); color:#b91c1c; border-color: rgba(239,68,68,0.18); }
     .bubble.pos{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
 
-    /* Product ML cards */
-    .ml-card{
+    /* Product ML cluster cards */
+    .cluster-card{
       border-radius: 26px;
       background: rgba(255,255,255,0.55);
       border: 1px solid rgba(255,255,255,0.80);
@@ -154,8 +152,15 @@
       box-shadow: 0 16px 42px rgba(0,45,114,0.04);
       padding: 18px 18px;
     }
-    .ml-grid{ display:grid; grid-template-columns:1fr; gap:14px; }
-    @media (min-width: 1024px){ .ml-grid{ grid-template-columns:1fr 1fr; } }
+    .cluster-title{
+      font-weight: 900;
+      color:#0f172a;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+    }
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
 
     body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
@@ -225,7 +230,7 @@
           </header>
         </div>
 
-        <!-- 0 ML Signals + Yesterday Focus -->
+        <!-- 0 ML Mindmap + Yesterday Focus -->
         <section class="mb-10">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
@@ -292,7 +297,8 @@
                 <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
                   1) <span class="font-black">어제 리뷰</span>부터 확인<br/>
                   2) Low/개선요청 태그로 리스크 리뷰 먼저 보기<br/>
-                  3) 제품 선택 → 저평점/리뷰 길이로 원인 텍스트 빠르게 파악
+                  3) 제품 선택 → 저평점/리뷰 길이로 원인 텍스트 빠르게 파악<br/>
+                  4) <span class="font-black">Product ML</span>로 누적 문장 클러스터(테마) 확인
                 </div>
               </div>
             </div>
@@ -335,49 +341,72 @@
           </div>
         </section>
 
-        <!-- 4 Product ML (Cumulative) -->
+        <!-- 4 Product ML (Cumulative) — Advanced (TFIDF + KMeans) -->
         <section class="mb-10">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
-                <div class="small-label text-blue-600 mb-2">4. Product ML (Cumulative)</div>
-                <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석 (NEG=저평점 기반)</div>
+                <div class="small-label text-blue-600 mb-2">4. PRODUCT ML (CUMULATIVE)</div>
+                <div class="text-2xl font-black text-slate-900">제품별 누적 문장 클러스터링 (테마 그룹)</div>
                 <div class="text-sm font-bold text-slate-500 mt-2">
-                  NEG 기준: ★1~2 (저평점) · POS 기준: ★4~5
+                  NEG = ★1~2 (저평점 기반) · POS = ★4~5 · 문장 단위 TF-IDF + K-Means
                 </div>
               </div>
 
-              <div class="flex gap-2 flex-wrap items-center">
-                <select id="mlWindow" class="input-glass" onchange="renderAll()">
-                  <option value="90" selected>최근 3개월</option>
-                  <option value="180">최근 6개월</option>
-                  <option value="365">최근 12개월</option>
-                  <option value="0">전체</option>
-                </select>
-                <select id="mlMinReviews" class="input-glass" onchange="renderAll()">
-                  <option value="3" selected>최소 리뷰수: 3</option>
-                  <option value="5">최소 리뷰수: 5</option>
-                  <option value="10">최소 리뷰수: 10</option>
-                  <option value="1">최소 리뷰수: 1</option>
-                </select>
-                <button class="chip" onclick="scrollToMLTop()">ML 섹션 보기</button>
+              <div class="flex gap-2 flex-wrap">
+                <button class="chip active" id="ml-pol-neg" onclick="switchMLPol('neg')">NEG (★1~2)</button>
+                <button class="chip" id="ml-pol-pos" onclick="switchMLPol('pos')">POS (★4~5)</button>
+                <button class="chip active" id="ml-chip-3m" onclick="toggleML3M()">최근 3개월</button>
               </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-6 gap-3 mb-6">
+              <select id="mlProductSelect" class="input-glass" onchange="renderProductML()">
+                <option value="">제품 선택 (전체)</option>
+              </select>
+
+              <select id="mlSentenceMode" class="input-glass" onchange="renderProductML()">
+                <option value="sent">문장 단위</option>
+                <option value="review">리뷰(통째)</option>
+              </select>
+
+              <select id="mlKSelect" class="input-glass" onchange="renderProductML()">
+                <option value="3">K=3</option>
+                <option value="4">K=4</option>
+                <option value="5">K=5</option>
+                <option value="6" selected>K=6</option>
+                <option value="8">K=8</option>
+                <option value="10">K=10</option>
+              </select>
+
+              <select id="mlLimitSelect" class="input-glass" onchange="renderProductML()">
+                <option value="60" selected>표시 60</option>
+                <option value="120">표시 120</option>
+                <option value="200">표시 200</option>
+                <option value="400">표시 400</option>
+              </select>
+
+              <select id="mlSortSelect" class="input-glass" onchange="renderProductML()">
+                <option value="latest" selected>정렬: 최신순</option>
+                <option value="rating">정렬: 평점순</option>
+                <option value="long">정렬: 길이 긴 순</option>
+              </select>
+
+              <input id="mlSearchInput" class="input-glass" placeholder="텍스트 검색" oninput="renderProductML()" />
             </div>
 
             <div class="summary-card mb-4">
-              <div class="small-label text-slate-700 mb-2">HOW TO READ</div>
-              <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
-                - NEG: ★1~2 리뷰 텍스트에서 자주 나오는 키워드<br/>
-                - POS: ★4~5 리뷰 텍스트에서 자주 나오는 키워드<br/>
-                - 키워드 클릭 → 아래 Daily Feed 검색으로 필터
+              <div class="small-label text-slate-700 mb-2">ML STATS</div>
+              <div class="text-xs font-bold text-slate-500 leading-relaxed" id="mlStats">-</div>
+              <div class="text-[11px] font-bold text-slate-500 mt-2">
+                * 클러스터는 “테마 그룹(유사 문장 묶음)”이야. 대표 문장은 centroid에 가장 가까운 문장.
               </div>
             </div>
 
-            <div id="mlProductGrid" class="ml-grid"></div>
+            <div id="mlClusters" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
 
-            <div id="mlNoData" class="hidden review-card text-center">
-              <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
-              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver)을 조정해보세요.</div>
+            <div class="hidden review-card text-center" id="mlEmpty">
+              <div class="text-lg font-black text-slate-800">해당 조건의 문장이 없습니다.</div>
             </div>
           </div>
         </section>
@@ -422,6 +451,7 @@
           * 데이터 소스: data/reviews.json / data/meta.json<br/>
           * 기본 동작: 어제(KST) 기준 Daily Feed 표시
         </footer>
+
       </div>
     </div>
   </main>
@@ -429,11 +459,19 @@
   <script>
     let META = null;
     let REVIEWS = [];
+
     const uiState = {
       sourceTab: "combined",
       rankMode: "size",
       rankExpanded: false,
       chips: { daily: true, low: false },
+      pendingScrollId: null,
+
+      // Product ML state
+      mlPol: "neg",     // 'neg'|'pos'
+      mlOnly3M: true,
+      mlCacheKey: null,
+      mlCache: null
     };
 
     function esc(s){
@@ -444,11 +482,13 @@
         .replaceAll('"',"&quot;");
     }
     function asArr(x){ return Array.isArray(x) ? x : []; }
+
     function fmtDT(s){
       if (!s) return "-";
       const t = String(s).replace("T"," ").replace("+09:00","").replace("Z","");
       return t.slice(0,16);
     }
+
     function showOverlay(msg){
       const o = document.getElementById("overlay");
       const t = document.getElementById("overlayText");
@@ -482,21 +522,12 @@
     })();
 
     function pad2(n){ return String(n).padStart(2,"0"); }
-    function kstNow(){
+    function kstDateStr(offsetDays=0){
       const now = new Date();
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-      return new Date(utc + (9 * 60 * 60000));
-    }
-    function kstDateStr(offsetDays=0){
-      const kst = kstNow();
+      const kst = new Date(utc + (9 * 60 * 60000));
       kst.setDate(kst.getDate() + offsetDays);
       return `${kst.getFullYear()}-${pad2(kst.getMonth()+1)}-${pad2(kst.getDate())}`;
-    }
-    function parseDate10(s){
-      if (!s) return null;
-      const d10 = String(s).slice(0,10);
-      const d = new Date(d10 + "T00:00:00");
-      return isNaN(d.getTime()) ? null : d;
     }
 
     function switchSourceTab(tab){
@@ -537,14 +568,7 @@
     function setSearchAndRender(q){
       const el = document.getElementById("qInput");
       if (el) el.value = q || "";
-      // Daily chip on + yesterday by default is OK; just rerender
       renderAll();
-      // (옵션) Daily Feed로 스크롤
-      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
-    }
-
-    function scrollToMLTop(){
-      document.getElementById("mlProductGrid")?.scrollIntoView({behavior:"smooth", block:"start"});
     }
 
     function getFilteredReviews(){
@@ -711,6 +735,7 @@
 
       return `
         <div class="review-card hover:shadow-lg transition" id="review-${esc(r.id)}">
+
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <div class="img-box">${prodImg}</div>
@@ -820,12 +845,13 @@
         if (!nodes.length){
           canvas.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-sm font-black text-slate-500">키워드 시그널이 없습니다.</div>`;
         } else {
+          // random layout for now (cheap)
           canvas.innerHTML = nodes.map((n) => {
             const pol = (n.pol||"neutral");
             const cls = pol==="neg" ? "bubble neg" : (pol==="pos" ? "bubble pos" : "bubble");
             const left = (8 + Math.random()*84);
             const top  = (12 + Math.random()*70);
-            const scale = Math.min(1.6, 0.85 + (Number(n.w||1) / Math.max(10, nodes[0]?.w||10)));
+            const scale = Math.min(1.6, 0.85 + (Number(n.w||1) / Math.max(10, nodes[0].w||10)));
             return `
               <div class="${cls}"
                    data-kw="${esc(n.id)}"
@@ -854,214 +880,550 @@
       }
     }
 
-    // -----------------------------
-    // Product ML (Cumulative): NEG=low rating
-    // -----------------------------
-    const STOPWORDS = new Set([
-      "그리고","그냥","진짜","너무","정말","완전","약간","조금","그래서","하지만","근데","저는","제가","저도","그런데",
-      "합니다","했어요","했는데","되요","돼요","입니다","있어요","없어요","같아요","같습니다","이거","이것","저것","그거",
-      "제품","구매","배송","포장","사진","후기","리뷰","사용","구입","주문","사이즈","size","컬럼비아","콜롬비아",
-      "the","and","to","of","is","are","was","were","it","this","that","with","for","on","in"
-    ]);
-
-    function normalizeText(s){
-      const t = String(s||"")
-        .replace(/[\r\n\t]+/g, " ")
-        .replace(/[0-9]/g, " ")
-        .replace(/[^\p{L}\p{N}\s]/gu, " ")
-        .toLowerCase();
-      return t;
+    // ==========================================================
+    // 4) Product ML (Advanced): TF-IDF sentence vectors + KMeans
+    // ==========================================================
+    function switchMLPol(pol){
+      uiState.mlPol = pol;
+      document.getElementById("ml-pol-neg")?.classList.toggle("active", pol==="neg");
+      document.getElementById("ml-pol-pos")?.classList.toggle("active", pol==="pos");
+      renderProductML();
+    }
+    function toggleML3M(){
+      uiState.mlOnly3M = !uiState.mlOnly3M;
+      document.getElementById("ml-chip-3m")?.classList.toggle("active", uiState.mlOnly3M);
+      renderProductML();
     }
 
-    function extractTokens(text){
-      const t = normalizeText(text);
-      const raw = t.split(/\s+/).filter(Boolean);
+    function renderMLProductSelect(){
+      const sel = document.getElementById("mlProductSelect");
+      if (!sel) return;
 
-      const out = [];
-      for (const w of raw){
-        if (w.length < 2) continue;
-        if (STOPWORDS.has(w)) continue;
-        // 너무 긴 토큰/이상치 컷
-        if (w.length > 22) continue;
-        out.push(w);
+      const current = sel.value;
+      const map = new Map();
+      for (const r of REVIEWS){
+        const code = r.product_code || "";
+        if (!code) continue;
+        if (!map.has(code)) map.set(code, r.product_name || code);
       }
-      return out;
+
+      sel.innerHTML =
+        `<option value="">제품 선택 (전체)</option>` +
+        Array.from(map.entries())
+          .sort((a,b)=> String(a[1]).localeCompare(String(b[1])))
+          .map(([code,name]) => `<option value="${esc(code)}">${esc(name)} (${esc(code)})</option>`)
+          .join("");
+
+      sel.value = current;
     }
 
-    function topKWords(texts, k=6){
-      const freq = new Map();
-      for (const tx of texts){
-        for (const w of extractTokens(tx)){
-          freq.set(w, (freq.get(w)||0) + 1);
+    function isNeg(r){ return Number(r.rating||0) <= 2; }
+    function isPos(r){ return Number(r.rating||0) >= 4; }
+
+    function dateToMs(ymd){
+      const s = String(ymd||"").slice(0,10);
+      if (!s || s.length < 10) return 0;
+      return new Date(s+"T00:00:00+09:00").getTime();
+    }
+    function msToYmd(ms){
+      const d = new Date(ms);
+      const yyyy = d.getFullYear();
+      const mm = pad2(d.getMonth()+1);
+      const dd = pad2(d.getDate());
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function splitToSentencesKo(text){
+      const s = String(text||"").trim();
+      if (!s) return [];
+      // basic sentence split for KO/EN mixed
+      // keep punctuation
+      const parts = s
+        .replace(/\r/g, "")
+        .split(/(?<=[\.\!\?\。\！\？\n])\s+/g)
+        .flatMap(x => x.split(/\n+/g))
+        .map(x => x.trim())
+        .filter(Boolean);
+
+      // fallback: if no split
+      if (!parts.length) return s ? [s] : [];
+      return parts;
+    }
+
+    // Tokenizer: lightweight (KO/EN)
+    function tokenize(text){
+      const t = String(text||"")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!t) return [];
+      const raw = t.split(" ");
+      // stopwords (minimal)
+      const stop = new Set([
+        "이", "그", "저", "것", "수", "등", "및", "또", "좀", "정말", "너무",
+        "그리고", "하지만", "그래서", "또는", "있어요", "있음", "있다",
+        "the","a","an","and","or","but","is","are","was","were","to","of","in","on","for","with"
+      ]);
+      const toks = [];
+      for (const w of raw){
+        if (!w) continue;
+        if (w.length < 2) continue;
+        if (stop.has(w)) continue;
+        toks.push(w);
+      }
+      return toks;
+    }
+
+    function l2norm(vec){
+      let s=0;
+      for (let i=0;i<vec.length;i++) s += vec[i]*vec[i];
+      return Math.sqrt(s) || 1;
+    }
+    function dot(a,b){
+      let s=0;
+      for (let i=0;i<a.length;i++) s += a[i]*b[i];
+      return s;
+    }
+    function cosine(a,b){
+      return dot(a,b) / (l2norm(a)*l2norm(b));
+    }
+
+    // Build TF-IDF vectors for docs (sparse -> dense on vocab topM)
+    function buildTfidf(docs, maxVocab=1400){
+      // docs: [{id, text, ...}]
+      const df = new Map();
+      const tfList = [];
+      for (const d of docs){
+        const toks = tokenize(d.text);
+        const tf = new Map();
+        for (const w of toks){
+          tf.set(w, (tf.get(w)||0)+1);
+        }
+        tfList.push(tf);
+        // df
+        const seen = new Set(tf.keys());
+        for (const w of seen){
+          df.set(w, (df.get(w)||0)+1);
         }
       }
-      const arr = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1]);
-      return arr.slice(0,k);
+
+      // pick top vocab by df (or tf sum); df helps stability
+      const vocab = Array.from(df.entries())
+        .sort((a,b)=> b[1]-a[1])
+        .slice(0, maxVocab)
+        .map(([w])=>w);
+
+      const idx = new Map(vocab.map((w,i)=>[w,i]));
+      const N = docs.length;
+      const idf = new Float32Array(vocab.length);
+      for (let i=0;i<vocab.length;i++){
+        const w = vocab[i];
+        const dfi = df.get(w) || 1;
+        idf[i] = Math.log((N + 1) / (dfi + 1)) + 1;
+      }
+
+      const X = new Array(N);
+      for (let n=0;n<N;n++){
+        const tf = tfList[n];
+        const v = new Float32Array(vocab.length);
+        let maxTf = 0;
+        for (const c of tf.values()) if (c > maxTf) maxTf = c;
+
+        // tf-idf
+        for (const [w,c] of tf.entries()){
+          const j = idx.get(w);
+          if (j === undefined) continue;
+          const tfw = c / (maxTf || 1);     // normalized tf
+          v[j] = tfw * idf[j];
+        }
+
+        // l2 normalize
+        const norm = l2norm(v);
+        for (let i=0;i<v.length;i++) v[i] = v[i]/norm;
+
+        X[n] = v;
+      }
+
+      return { X, vocab, idf };
     }
 
-    function buildProductMLRows(){
-      const winSel = document.getElementById("mlWindow");
-      const minSel = document.getElementById("mlMinReviews");
-      const winDays = Number(winSel?.value || 90);
-      const minReviews = Number(minSel?.value || 3);
+    function randInt(n){ return Math.floor(Math.random()*n); }
 
-      const now = kstNow();
-      const cutoff = winDays > 0 ? new Date(now.getTime() - winDays*24*60*60*1000) : null;
+    function kmeans(X, k, iters=18, seed=7){
+      // X: Array<Float32Array> (l2-normalized)
+      const n = X.length;
+      if (n === 0) return { labels: [], centroids: [] };
+      k = Math.max(2, Math.min(k, n));
 
-      // 탭 필터(Official/Naver)는 ML에도 동일 적용
-      let base = REVIEWS.slice();
-      if (uiState.sourceTab === "official") base = base.filter(r => r.source === "Official");
-      if (uiState.sourceTab === "naver") base = base.filter(r => r.source === "Naver");
+      // init: pick k distinct points
+      const picked = new Set();
+      const centroids = [];
+      while (centroids.length < k){
+        const i = randInt(n);
+        if (picked.has(i)) continue;
+        picked.add(i);
+        centroids.push(new Float32Array(X[i]));
+      }
 
-      // 기간 컷(누적 분석은 Daily chip의 날짜 선택과 분리)
-      if (cutoff){
-        base = base.filter(r => {
-          const d = parseDate10(r.created_at);
-          return d ? (d >= cutoff) : false;
+      const labels = new Int32Array(n);
+
+      for (let it=0; it<iters; it++){
+        // assign
+        for (let i=0;i<n;i++){
+          let best = 0;
+          let bestSim = -1e9;
+          for (let c=0;c<k;c++){
+            const sim = cosine(X[i], centroids[c]); // since normalized
+            if (sim > bestSim){
+              bestSim = sim;
+              best = c;
+            }
+          }
+          labels[i] = best;
+        }
+
+        // recompute centroids
+        const sums = Array.from({length:k}, ()=> new Float32Array(X[0].length));
+        const counts = new Int32Array(k);
+
+        for (let i=0;i<n;i++){
+          const c = labels[i];
+          counts[c] += 1;
+          const xi = X[i];
+          const s = sums[c];
+          for (let j=0;j<xi.length;j++){
+            s[j] += xi[j];
+          }
+        }
+
+        for (let c=0;c<k;c++){
+          if (counts[c] === 0){
+            // re-init empty cluster
+            const i = randInt(n);
+            centroids[c] = new Float32Array(X[i]);
+            continue;
+          }
+          const v = sums[c];
+          for (let j=0;j<v.length;j++) v[j] = v[j] / counts[c];
+          // normalize
+          const norm = l2norm(v);
+          for (let j=0;j<v.length;j++) v[j] = v[j] / norm;
+          centroids[c] = v;
+        }
+      }
+
+      return { labels: Array.from(labels), centroids };
+    }
+
+    function pickRepresentative(docIdxs, X, centroid){
+      // pick doc with highest cosine sim to centroid
+      let best = docIdxs[0];
+      let bestSim = -1e9;
+      for (const i of docIdxs){
+        const sim = cosine(X[i], centroid);
+        if (sim > bestSim){
+          bestSim = sim;
+          best = i;
+        }
+      }
+      return { idx: best, sim: bestSim };
+    }
+
+    function buildClusterTerms(docIdxs, docs, topN=6){
+      // build a tiny "theme hint" from token frequency (NOT keyword UI; just hint)
+      const freq = new Map();
+      for (const i of docIdxs){
+        const toks = tokenize(docs[i].text);
+        for (const w of toks){
+          freq.set(w, (freq.get(w)||0)+1);
+        }
+      }
+      return Array.from(freq.entries())
+        .sort((a,b)=> b[1]-a[1])
+        .slice(0, topN)
+        .map(([w,c])=>({w,c}));
+    }
+
+    function buildMLDocs(){
+      // base rows follow sourceTab ONLY (not daily chip)
+      let rows = REVIEWS.slice();
+
+      if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
+      if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
+
+      // pol
+      rows = (uiState.mlPol === "neg") ? rows.filter(isNeg) : rows.filter(isPos);
+
+      // product
+      const p = (document.getElementById("mlProductSelect")?.value || "").trim();
+      if (p) rows = rows.filter(r => String(r.product_code||"") === p);
+
+      // time window: last 3 months
+      if (uiState.mlOnly3M){
+        const endMs = dateToMs(kstDateStr(0));
+        const startMs = endMs - (92*24*3600*1000);
+        rows = rows.filter(r => {
+          const ms = dateToMs(String(r.created_at||"").slice(0,10));
+          return ms >= startMs && ms <= endMs;
         });
       }
 
-      // product별 그룹
-      const byProd = new Map();
-      for (const r of base){
-        const code = String(r.product_code || "-").trim() || "-";
-        if (code === "-") continue;
+      // text search
+      const q = (document.getElementById("mlSearchInput")?.value || "").trim().toLowerCase();
+      if (q){
+        rows = rows.filter(r =>
+          String(r.text||"").toLowerCase().includes(q) ||
+          String(r.product_name||"").toLowerCase().includes(q)
+        );
+      }
 
-        if (!byProd.has(code)){
-          byProd.set(code, {
-            product_code: code,
-            product_name: r.product_name || code,
-            product_url: r.product_url || "",
-            local_product_image: r.local_product_image || "",
-            all: [],
-            neg: [], // ★1~2
-            pos: [], // ★4~5
-            cnt: 0,
-            negCnt: 0,
-            posCnt: 0,
-            lowRate: 0,
+      // mode: sentence vs review
+      const mode = document.getElementById("mlSentenceMode")?.value || "sent";
+      const docs = [];
+
+      if (mode === "review"){
+        for (const r of rows){
+          const t = String(r.text||"").trim();
+          if (!t) continue;
+          if (t.length < 12) continue;
+          docs.push({
+            id: `${r.id}`,
+            product_code: r.product_code || "-",
+            product_name: r.product_name || r.product_code || "-",
+            source: r.source || "-",
+            rating: Number(r.rating||0),
+            created_at: String(r.created_at||""),
+            text: t
           });
         }
-        const g = byProd.get(code);
-        g.cnt += 1;
-        const rating = Number(r.rating||0);
-        const text = String(r.text||"").trim();
-        if (text) g.all.push(text);
-
-        // ✅ NEG: 저평점 기반 (★1~2)
-        if (rating > 0 && rating <= 2){
-          g.negCnt += 1;
-          if (text) g.neg.push(text);
-        }
-        // POS: ★4~5
-        if (rating >= 4){
-          g.posCnt += 1;
-          if (text) g.pos.push(text);
+      } else {
+        for (const r of rows){
+          const sents = splitToSentencesKo(r.text||"");
+          let idx=0;
+          for (const s of sents){
+            const t = String(s||"").trim();
+            if (!t) continue;
+            if (t.length < 12) continue;
+            docs.push({
+              id: `${r.id}#${idx++}`,
+              product_code: r.product_code || "-",
+              product_name: r.product_name || r.product_code || "-",
+              source: r.source || "-",
+              rating: Number(r.rating||0),
+              created_at: String(r.created_at||""),
+              text: t
+            });
+          }
         }
       }
 
-      let rows = Array.from(byProd.values())
-        .filter(g => g.cnt >= minReviews)
-        .map(g => {
-          g.lowRate = Math.round((g.negCnt / Math.max(1,g.cnt))*100);
-          g.negTop = topKWords(g.neg, 7);
-          g.posTop = topKWords(g.pos, 7);
-          return g;
-        });
-
-      // 정렬: (1) lowRate desc (2) total reviews desc
-      rows.sort((a,b)=> (b.lowRate - a.lowRate) || (b.cnt - a.cnt));
-
-      return { rows, winDays, minReviews };
-    }
-
-    function mlCardHTML(g){
-      const img = g.local_product_image
-        ? `<img src="${esc(g.local_product_image)}" alt="">`
-        : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
-
-      const negChips = (g.negTop && g.negTop.length)
-        ? g.negTop.map(([w,c]) => `<span class="badge neg" onclick="setSearchAndRender('${esc(w)}')">#${esc(w)} <span class="opacity-70">${esc(c)}</span></span>`).join("")
-        : `<span class="text-xs font-bold text-slate-400">NEG 키워드 없음 (★1~2 텍스트 부족)</span>`;
-
-      const posChips = (g.posTop && g.posTop.length)
-        ? g.posTop.map(([w,c]) => `<span class="badge pos" onclick="setSearchAndRender('${esc(w)}')">#${esc(w)} <span class="opacity-70">${esc(c)}</span></span>`).join("")
-        : `<span class="text-xs font-bold text-slate-400">POS 키워드 없음 (★4~5 텍스트 부족)</span>`;
-
-      const url = g.product_url
-        ? `<a href="${esc(g.product_url)}" target="_blank" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>`
-        : `<span class="text-xs font-bold text-slate-400">상품 URL 없음</span>`;
-
-      return `
-        <div class="ml-card">
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="img-box">${img}</div>
-              <div class="min-w-0">
-                <div class="font-black text-slate-900 line-clamp-2">${esc(g.product_name)}</div>
-                <div class="text-xs font-bold text-slate-500 mt-1">code: ${esc(g.product_code)} · reviews: ${esc(g.cnt)}</div>
-                <div class="mt-1">${url}</div>
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="text-xs font-black text-slate-700">LOW(★1~2)</div>
-              <div class="text-2xl font-black text-red-700">${esc(g.lowRate)}%</div>
-              <div class="text-[11px] font-bold text-slate-500 mt-1">neg ${esc(g.negCnt)} · pos ${esc(g.posCnt)}</div>
-            </div>
-          </div>
-
-          <div class="mt-4">
-            <div class="text-xs font-black text-slate-500">NEG keywords (★1~2)</div>
-            <div class="mt-2 flex flex-wrap gap-2">${negChips}</div>
-          </div>
-
-          <div class="mt-4">
-            <div class="text-xs font-black text-slate-500">POS keywords (★4~5)</div>
-            <div class="mt-2 flex flex-wrap gap-2">${posChips}</div>
-          </div>
-
-          <div class="mt-4 flex items-center gap-2 flex-wrap">
-            <button class="chip" onclick="focusProduct('${esc(g.product_code)}')">
-              <i class="fa-solid fa-filter mr-2"></i>이 제품으로 Daily Feed 보기
-            </button>
-          </div>
-        </div>
-      `;
-    }
-
-    function focusProduct(code){
-      const sel = document.getElementById("productSelect");
-      if (sel){
-        sel.value = code;
+      // sort doc order (for display inside clusters)
+      const sort = document.getElementById("mlSortSelect")?.value || "latest";
+      if (sort === "latest"){
+        docs.sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+      } else if (sort === "rating"){
+        docs.sort((a,b)=> (a.rating - b.rating) || (new Date(b.created_at||0) - new Date(a.created_at||0)));
+      } else if (sort === "long"){
+        docs.sort((a,b)=> (String(b.text||"").length - String(a.text||"").length));
       }
-      // Daily chip on + yesterday 유지
-      renderAll();
-      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
+
+      const limit = parseInt(document.getElementById("mlLimitSelect")?.value || "60", 10);
+      return docs.slice(0, Math.max(10, limit)); // at least some data
     }
 
     function renderProductML(){
-      const grid = document.getElementById("mlProductGrid");
-      const no = document.getElementById("mlNoData");
-      if (!grid || !no) return;
+      const container = document.getElementById("mlClusters");
+      const empty = document.getElementById("mlEmpty");
+      const stats = document.getElementById("mlStats");
+      if (!container || !empty || !stats) return;
 
-      const { rows } = buildProductMLRows();
+      runWithOverlay("Building Product ML clusters...", () => {
+        const docs = buildMLDocs();
+        if (docs.length < 5){
+          container.innerHTML = "";
+          empty.classList.remove("hidden");
+          stats.textContent = `문서 수 부족: ${docs.length} (필터를 완화하거나 표시 수를 늘려줘)`;
+          return;
+        }
+        empty.classList.add("hidden");
 
-      if (!rows.length){
-        grid.innerHTML = "";
-        no.classList.remove("hidden");
-        return;
-      }
+        const k = parseInt(document.getElementById("mlKSelect")?.value || "6", 10);
+        const mode = document.getElementById("mlSentenceMode")?.value || "sent";
 
-      no.classList.add("hidden");
-      // 너무 길어지면 상위 20개만
-      const top = rows.slice(0, 20);
-      grid.innerHTML = top.map(mlCardHTML).join("");
+        const cacheKey = [
+          uiState.sourceTab, uiState.mlPol, uiState.mlOnly3M ? "3m" : "all",
+          (document.getElementById("mlProductSelect")?.value || ""),
+          mode, k, (document.getElementById("mlLimitSelect")?.value || "60"),
+          (document.getElementById("mlSearchInput")?.value || "").trim().toLowerCase()
+        ].join("|");
+
+        // cache: avoid recompute on small UI changes
+        if (uiState.mlCacheKey === cacheKey && uiState.mlCache){
+          container.innerHTML = uiState.mlCache.html;
+          stats.textContent = uiState.mlCache.stats;
+          return;
+        }
+
+        const { X } = buildTfidf(docs, 1400);
+        const km = kmeans(X, k, 18, 7);
+
+        // group indices by cluster
+        const groups = new Map();
+        for (let i=0;i<km.labels.length;i++){
+          const c = km.labels[i];
+          if (!groups.has(c)) groups.set(c, []);
+          groups.get(c).push(i);
+        }
+
+        // build cluster objects
+        const clusters = Array.from(groups.entries()).map(([c, idxs]) => {
+          const rep = pickRepresentative(idxs, X, km.centroids[c]);
+          const terms = buildClusterTerms(idxs, docs, 6);
+          return {
+            c,
+            size: idxs.length,
+            idxs,
+            repIdx: rep.idx,
+            repSim: rep.sim,
+            terms
+          };
+        });
+
+        // sort clusters by size desc
+        clusters.sort((a,b)=> b.size - a.size);
+
+        const polBadge = (uiState.mlPol === "neg")
+          ? `<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> NEG (★1~2)</span>`
+          : `<span class="badge pos"><i class="fa-solid fa-face-smile"></i> POS (★4~5)</span>`;
+
+        const p = (document.getElementById("mlProductSelect")?.value || "").trim();
+        const timeLabel = uiState.mlOnly3M ? "최근 3개월" : "전체기간";
+        const statsText = `문서 ${docs.length}개 · K=${k} · 모드=${mode === "sent" ? "문장" : "리뷰(통째)"} · ${timeLabel} · ${polBadge.replace(/<[^>]+>/g,"")}${p ? ` · 제품=${p}` : ""}`;
+        stats.innerHTML = `${statsText}`;
+
+        function clusterHTML(cl){
+          const rep = docs[cl.repIdx];
+          const termChips = cl.terms.map(t =>
+            `<span class="badge" title="theme hint">${esc(t.w)} <span class="opacity-60 mono">${esc(t.c)}</span></span>`
+          ).join("");
+
+          // show up to 10 sentences, expandable
+          const shown = cl.idxs.slice(0, 10).map(i => {
+            const d = docs[i];
+            const rb = (uiState.mlPol === "neg") ? `badge neg` : `badge pos`;
+            return `
+              <div class="mt-3 p-3 rounded-2xl bg-white/45 border border-white/80">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-xs font-black text-slate-700 line-clamp-1">
+                    ${esc(d.product_name)} <span class="text-slate-400">(${esc(d.product_code)})</span>
+                  </div>
+                  <div class="text-[11px] font-black text-slate-500">${esc(d.source)} · ${esc(String(d.created_at||"").slice(0,10))}</div>
+                </div>
+                <div class="mt-2 flex items-center gap-2 flex-wrap">
+                  <span class="${rb}"><i class="fa-solid fa-star"></i> ${esc(d.rating)}</span>
+                </div>
+                <div class="mt-2 text-sm font-extrabold text-slate-800 whitespace-pre-wrap break-words">
+                  ${esc(d.text)}
+                </div>
+              </div>
+            `;
+          }).join("");
+
+          const rest = cl.idxs.length - 10;
+          const moreBtn = rest > 0 ? `
+            <button class="chip mt-4" onclick="toggleClusterMore('${esc('c'+cl.c)}')">+ ${rest}개 더 보기</button>
+          ` : ``;
+
+          // hidden full list
+          const allList = cl.idxs.map(i => {
+            const d = docs[i];
+            const rb = (uiState.mlPol === "neg") ? `badge neg` : `badge pos`;
+            return `
+              <div class="mt-3 p-3 rounded-2xl bg-white/45 border border-white/80">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-xs font-black text-slate-700 line-clamp-1">
+                    ${esc(d.product_name)} <span class="text-slate-400">(${esc(d.product_code)})</span>
+                  </div>
+                  <div class="text-[11px] font-black text-slate-500">${esc(d.source)} · ${esc(String(d.created_at||"").slice(0,10))}</div>
+                </div>
+                <div class="mt-2 flex items-center gap-2 flex-wrap">
+                  <span class="${rb}"><i class="fa-solid fa-star"></i> ${esc(d.rating)}</span>
+                </div>
+                <div class="mt-2 text-sm font-extrabold text-slate-800 whitespace-pre-wrap break-words">
+                  ${esc(d.text)}
+                </div>
+              </div>
+            `;
+          }).join("");
+
+          return `
+            <div class="cluster-card" id="cluster-${esc('c'+cl.c)}">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <div class="cluster-title">
+                    Cluster ${esc(cl.c+1)} <span class="text-slate-400 font-black">(${esc(cl.size)}개)</span>
+                  </div>
+                  <div class="text-[11px] font-bold text-slate-500 mt-1">
+                    대표문장(sim=${esc(cl.repSim.toFixed(3))}) · centroid 근접
+                  </div>
+                </div>
+                <div class="flex gap-2 flex-wrap justify-end">
+                  ${polBadge}
+                  <span class="badge"><i class="fa-solid fa-diagram-project"></i> KMeans</span>
+                </div>
+              </div>
+
+              <div class="mt-3 p-4 rounded-3xl bg-white/55 border border-white/80">
+                <div class="text-xs font-black text-slate-500 mb-2">REPRESENTATIVE</div>
+                <div class="text-sm font-extrabold text-slate-800 whitespace-pre-wrap break-words">
+                  ${esc(rep.text)}
+                </div>
+                <div class="mt-3 text-[11px] font-bold text-slate-500">
+                  ${esc(rep.product_name)} (${esc(rep.product_code)}) · ★${esc(rep.rating)} · ${esc(rep.source)} · ${esc(String(rep.created_at||"").slice(0,10))}
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <div class="text-xs font-black text-slate-500 mb-2">THEME HINT (optional)</div>
+                <div class="flex flex-wrap gap-2">${termChips || `<span class="text-xs font-bold text-slate-400">-</span>`}</div>
+              </div>
+
+              <div class="mt-4">
+                <div class="text-xs font-black text-slate-500 mb-2">SAMPLES (up to 10)</div>
+                ${shown}
+                ${moreBtn}
+                <div class="hidden" id="cluster-more-${esc('c'+cl.c)}">
+                  <div class="text-xs font-black text-slate-500 mt-5 mb-2">ALL IN CLUSTER</div>
+                  ${allList}
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        const html = clusters.map(clusterHTML).join("");
+        container.innerHTML = html;
+
+        uiState.mlCacheKey = cacheKey;
+        uiState.mlCache = { html, stats: stats.innerHTML };
+      });
     }
 
+    function toggleClusterMore(id){
+      const el = document.getElementById(`cluster-more-${id}`);
+      if (!el) return;
+      el.classList.toggle("hidden");
+    }
+
+    // ==========================================================
+    // Render all
+    // ==========================================================
     function renderAll(){
       renderHeader();
       renderProductSelect();
       renderSizeSelect();
+      renderMLProductSelect();
 
       const filtered = getFilteredReviews();
       const metrics = calcMetrics(filtered);
@@ -1069,10 +1431,7 @@
       renderMLSignals(filtered);
       renderSummary();
       renderRanking(metrics);
-
-      // ✅ Product ML is cumulative (independent of daily date)
-      renderProductML();
-
+      renderProductML();         // ✅ cumulative ML
       renderDailyFeed(filtered);
     }
 
@@ -1091,7 +1450,7 @@
           if (META?.period_start) dayInput.min = META.period_start;
           if (META?.period_end) dayInput.max = META.period_end;
 
-          // ✅ default = yesterday(KST)
+          // default = yesterday(KST)
           if (!dayInput.value){
             dayInput.value = kstDateStr(-1);
           }
