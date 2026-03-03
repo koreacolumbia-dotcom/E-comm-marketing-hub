@@ -1107,6 +1107,47 @@
     return await res.json();
   }
 
+  function normalizeBundle(j){
+  if(!j) return { kpi: [], prod: [] };
+
+  // ✅ already new schema?
+  if(Array.isArray(j.kpi) || Array.isArray(j.prod)){
+    return {
+      kpi: Array.isArray(j.kpi) ? j.kpi : [],
+      prod: Array.isArray(j.prod) ? j.prod : [],
+    };
+  }
+
+  // ✅ python schema: campaigns/products -> kpi/prod로 변환
+  const kpi = (j.campaigns || []).map(r => ({
+    date: r.date,
+    year: r.year,
+    mmdd: r.mmdd,
+    channel: r.channel,
+    campaign: r.campaign,
+    term: r.term,
+    sessions: Number(r.sessions || 0),
+    users: Number(r.users || 0),
+    purchases: Number(r.purchases || 0),
+    revenue: Number(r.revenue || 0),
+    items_purchased: Number(r.items_purchased || 0),
+  }));
+
+  const prod = (j.products || []).map(p => ({
+    date: p.date,
+    channel: p.channel,
+    campaign: p.campaign,
+    term: p.term,
+    item_id: p.item_id,
+    item_name: p.item_name,
+    // 프론트가 쓰는 필드명으로 매핑
+    prod_items: Number(p.items || 0),
+    prod_revenue: Number(p.revenue || 0),
+  }));
+
+  return { kpi, prod };
+}
+  
   function listDatesBetween(startStr, endStr){
     if(!AVAILABLE || !AVAILABLE.length) return [];
     return AVAILABLE.filter(d => d >= startStr && d <= endStr);
