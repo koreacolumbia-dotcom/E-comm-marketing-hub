@@ -6,70 +6,104 @@ OWNED Campaign → Product Explorer (GA4 BigQuery Export)
 - EDM/LMS/KAKAO 세션 성과 + 구매 상품을 campaign/term 레벨로 집계
 - 일자별 JSON 번들 생성 (GitHub Pages용 정적 사이트 data)
 
-✅ Fixes (v6)
+✅ Fixes (FINAL)
 1) --recent-days 지원 (GitHub Actions incremental 모드 호환)
 2) --project / --dataset CLI 지원 (env 없을 때도 동작)
 3) --overwrite 지원: 해당 기간의 daily json + available_dates를 재작성
-4) ✅ LMS/KAKAO/EDM revenue=0 issue fix
-   - purchase join에서 date 조건 제거 (session_key로만 결합)
-   - session_date = MIN(event_date)로 세션 기준일 고정
-   - revenue fallback: ecommerce.purchase_revenue가 0/NULL이면 items.item_revenue 합으로 보강
-5) OWNED 채널 판별 강화: medium/source 뿐 아니라 campaign/term 키워드도 보조 신호로 사용
-
-Output
-- {site_dir}/data/owned/owned_YYYY-MM-DD.json
-- {site_dir}/data/owned/available_dates.json
-- {site_dir}/.nojekyll  (Pages용)
-
-Env (optional)
-- BQ_PROJECT, BQ_DATASET
-- GOOGLE_SA_JSON_B64
+4) ✅ LMS/KAKAO/EDM channel labeling 안정화
+5) ✅ KPI Revenue/Items가 Products 테이블 합계와 100% 일치하도록 수정
+   - revenue = SUM(items.item_revenue)
+   - items_purchased = SUM(items.quantity)
+6) ✅ purchases는 transaction_id distinct 우선(중복 purchase event 방지), 없으면 event count fallback
+7) ✅ recent-days의 end는 KST 전일(yesterday) 기준
 """
 
-import os
-import json
-import base64
+from __future__ import annotations
+
 import argparse
-from datetime import datetime, date, timedelta, timezone
+import json
+import os
+import re
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from google.cloud import bigquery
 
-KST = timezone(timedelta(hours=9))
+
+# -----------------------------
+# Time helpers (KST)
+# -----------------------------
+KST = timedelta(hours=9)
 
 
 def kst_today() -> date:
-    return datetime.now(tz=KST).date()
-
-
-def suffix(d: date) -> str:
-    return d.strftime("%Y%m%d")
+    return (datetime.utcnow() + KST).date()
 
 
 def ymd(d: date) -> str:
     return d.strftime("%Y-%m-%d")
 
 
-def parse_date(s: str) -> date:
+def ymd_suffix(d: date) -> str:
+    return d.strftime("%Y%m%d")
+
+
+def parse_ymd(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
-def maybe_write_sa_from_b64() -> None:
-    b64 = (os.getenv("GOOGLE_SA_JSON_B64") or "").strip()
-    if not b64:
-        return
-    p = Path("/tmp/ga_sa.json")
-    p.write_bytes(base64.b64decode(b64))
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(p)
+# -----------------------------
+# Channel inference
+# -----------------------------
+def infer_channel(utm_campaign: Optional[str], utm_term: Optional[str], utm_medium: Optional[str]) -> str:
+    """
+    EDM/LMS/KAKAO 라벨링:
+    - 기본은 campaign/term/medium에서 keyword로 판단
+    - 우선순위: medium -> campaign -> term
+    """
+    c = (utm_campaign or "").lower()
+    t = (utm_term or "").lower()
+    m = (utm_medium or "").lower()
+
+    # medium-based
+    if "kakao" in m or "kko" in m:
+        return "KAKAO"
+    if m == "lms" or m.startswith("lms") or "lms" in m:
+        return "LMS"
+    if "edm" in m or "email" in m:
+        return "EDM"
+
+    # campaign/term based
+    if "kakao" in c or "kko" in c or "kakao" in t or "kko" in t:
+        return "KAKAO"
+    if c.startswith("lms") or "lms" in c or t.startswith("lms") or "lms" in t:
+        return "LMS"
+    if c.startswith("edm") or "edm" in c or t.startswith("edm") or "edm" in t or "email" in c or "email" in t:
+        return "EDM"
+
+    return "OTHER"
 
 
-def env(name: str, default: str = "") -> str:
-    return (os.getenv(name, default) or default or "").strip()
+# -----------------------------
+# MMDD parsing (for UI group)
+# -----------------------------
+MMDD_RE = re.compile(r"(?<!\d)(\d{4})(?!\d)")
 
 
-def build_sql(project: str, dataset: str, start_suffix: str, end_suffix: str) -> str:
+def extract_mmdd(s: str) -> Optional[str]:
+    if not s:
+        return None
+    m = MMDD_RE.search(s)
+    return m.group(1) if m else None
+
+
+# -----------------------------
+# SQL builder
+# -----------------------------
+def build_query(project: str, dataset: str, start_suffix: str, end_suffix: str) -> str:
     table = f"`{project}.{dataset}.events_*`"
     return f"""
 DECLARE start_suffix STRING DEFAULT '{start_suffix}';
@@ -103,6 +137,7 @@ WITH base AS (
 
     event_name,
     IFNULL(ecommerce.purchase_revenue, 0) AS purchase_revenue,
+    CAST(ecommerce.transaction_id AS STRING) AS transaction_id,
     items
   FROM {table}
   WHERE _TABLE_SUFFIX BETWEEN start_suffix AND end_suffix
@@ -123,6 +158,7 @@ base2 AS (
 
     event_name,
     purchase_revenue,
+    transaction_id,
     items
   FROM base
   WHERE ga_session_id IS NOT NULL
@@ -172,55 +208,69 @@ owned_labeled AS (
     CASE
       WHEN (
         lc_medium = 'lms' OR lc_medium LIKE 'lms%' OR lc_medium LIKE '%lms%'
-        OR lc_campaign LIKE '%lms%' OR lc_term LIKE '%lms%'
+        OR lc_campaign LIKE 'lms%' OR lc_term LIKE 'lms%'
+        OR lc_campaign LIKE '%_lms%' OR lc_term LIKE '%_lms%'
       ) THEN 'LMS'
-
       WHEN (
-        lc_medium IN ('edm','email') OR lc_medium LIKE 'edm%' OR lc_medium LIKE '%edm%'
-        OR lc_medium LIKE 'email%' OR lc_medium LIKE '%email%'
-        OR lc_campaign LIKE '%edm%' OR lc_campaign LIKE '%email%'
-        OR lc_campaign LIKE 'edm_%' OR lc_campaign LIKE 'email_%'
-        OR lc_term LIKE '%edm%' OR lc_term LIKE '%email%'
+        lc_campaign LIKE 'edm%' OR lc_term LIKE 'edm%'
+        OR lc_campaign LIKE '%_edm%' OR lc_term LIKE '%_edm%'
+        OR lc_medium LIKE '%edm%' OR lc_medium LIKE '%email%'
       ) THEN 'EDM'
-
       WHEN (
-        lc_source LIKE '%kakao%' OR lc_medium LIKE '%kakao%'
-        OR lc_campaign LIKE '%kakao%' OR lc_term LIKE '%kakao%'
+        lc_campaign LIKE 'kakao%' OR lc_term LIKE 'kakao%'
+        OR lc_campaign LIKE '%_kakao%' OR lc_term LIKE '%_kakao%'
+        OR lc_campaign LIKE 'kko%' OR lc_term LIKE 'kko%'
+        OR lc_medium LIKE '%kakao%' OR lc_medium LIKE '%kko%'
       ) THEN 'KAKAO'
-
       ELSE 'OTHER'
     END AS channel,
 
-    NULLIF(utm_campaign,'') AS campaign,
-    NULLIF(utm_term,'')     AS term
+    -- send_id: EDM/LMS는 campaign 우선, KAKAO는 term 우선
+    CASE
+      WHEN (
+        lc_campaign LIKE 'kakao%' OR lc_term LIKE 'kakao%'
+        OR lc_campaign LIKE '%_kakao%' OR lc_term LIKE '%_kakao%'
+        OR lc_campaign LIKE 'kko%' OR lc_term LIKE 'kko%'
+        OR lc_medium LIKE '%kakao%' OR lc_medium LIKE '%kko%'
+      )
+      THEN COALESCE(NULLIF(utm_term,''), NULLIF(utm_campaign,''), '(not_set)')
+      ELSE COALESCE(NULLIF(utm_campaign,''), NULLIF(utm_term,''), '(not_set)')
+    END AS campaign,
+
+    COALESCE(NULLIF(utm_term,''), '-') AS term
   FROM sessions_owned
-  WHERE (
-    lc_medium IN ('lms','edm','email')
-    OR lc_medium LIKE 'lms%' OR lc_medium LIKE '%lms%'
-    OR lc_medium LIKE 'edm%' OR lc_medium LIKE '%edm%'
-    OR lc_medium LIKE 'email%' OR lc_medium LIKE '%email%'
-    OR lc_source LIKE '%kakao%' OR lc_medium LIKE '%kakao%'
-    OR lc_campaign LIKE '%edm%' OR lc_campaign LIKE '%email%' OR lc_campaign LIKE '%lms%' OR lc_campaign LIKE '%kakao%'
-    OR lc_term LIKE '%edm%' OR lc_term LIKE '%email%' OR lc_term LIKE '%lms%' OR lc_term LIKE '%kakao%'
-  )
+  WHERE 1=1
+    AND (
+      (lc_campaign LIKE 'edm%' OR lc_campaign LIKE 'lms%' OR lc_campaign LIKE 'kakao%' OR lc_campaign LIKE 'kko%')
+      OR (lc_term LIKE 'edm%' OR lc_term LIKE 'lms%' OR lc_term LIKE 'kakao%' OR lc_term LIKE 'kko%')
+      OR (lc_medium LIKE '%edm%' OR lc_medium LIKE '%lms%' OR lc_medium LIKE '%kakao%' OR lc_medium LIKE '%kko%' OR lc_medium LIKE '%email%')
+    )
 ),
 session_kpi AS (
   SELECT
-    date, channel, campaign, term,
+    date,
+    channel,
+    campaign,
+    term,
     COUNT(DISTINCT session_key) AS sessions,
     COUNT(DISTINCT user_pseudo_id) AS users
   FROM owned_labeled
-  WHERE COALESCE(campaign, term) IS NOT NULL
   GROUP BY 1,2,3,4
 ),
 purchase_events AS (
   SELECT
     session_key,
+    -- event-level revenue (ecommerce.purchase_revenue) and item-level revenue (SUM(items.item_revenue))
     SUM(purchase_revenue) AS revenue_evt,
     SUM((
       SELECT IFNULL(SUM(IFNULL(it.item_revenue,0)),0) FROM UNNEST(items) it
     )) AS revenue_items,
-    COUNTIF(event_name='purchase') AS purchase_events,
+
+    -- ✅ purchases: prefer distinct transaction_id when available (prevents double-count)
+    COUNT(DISTINCT NULLIF(transaction_id, '')) AS txn_cnt,
+    COUNTIF(event_name='purchase') AS purchase_events_raw,
+
+    -- item quantity (Products table sums this)
     SUM((
       SELECT IFNULL(SUM(IFNULL(it.quantity,0)),0) FROM UNNEST(items) it
     )) AS items_qty
@@ -234,11 +284,9 @@ purchase_kpi AS (
     s.channel,
     s.campaign,
     s.term,
-    SUM(IFNULL(p.purchase_events,0)) AS purchases,
-    SUM(CASE
-          WHEN IFNULL(p.revenue_evt,0) > 0 THEN p.revenue_evt
-          ELSE IFNULL(p.revenue_items,0)
-        END) AS revenue,
+    SUM(IF(p.txn_cnt > 0, p.txn_cnt, IFNULL(p.purchase_events_raw,0))) AS purchases,
+    -- ✅ KPI revenue must match Products (SUM(items.item_revenue))
+    SUM(IFNULL(p.revenue_items,0)) AS revenue,
     SUM(IFNULL(p.items_qty,0)) AS items_purchased
   FROM owned_labeled s
   LEFT JOIN purchase_events p
@@ -253,16 +301,16 @@ prod_rows AS (
     s.term,
     CAST(it.item_id AS STRING) AS item_id,
     ANY_VALUE(it.item_name) AS item_name,
-    SUM(IFNULL(it.quantity,0)) AS prod_items,
-    SUM(IFNULL(it.item_revenue,0)) AS prod_revenue
+    SUM(IFNULL(it.quantity,0)) AS items,
+    SUM(IFNULL(it.item_revenue,0)) AS revenue
   FROM owned_labeled s
   JOIN base2 b
     ON b.session_key = s.session_key
-   AND b.event_name = 'purchase'
+   AND b.event_name='purchase'
   CROSS JOIN UNNEST(b.items) it
   GROUP BY 1,2,3,4,5
 ),
-kpi_final AS (
+final_campaign AS (
   SELECT
     k.date,
     k.channel,
@@ -270,194 +318,218 @@ kpi_final AS (
     k.term,
     k.sessions,
     k.users,
-    IFNULL(p.purchases, 0) AS purchases,
-    IFNULL(p.revenue, 0)   AS revenue,
-    IFNULL(p.items_purchased, 0) AS items_purchased
+    IFNULL(p.purchases,0) AS purchases,
+    IFNULL(p.revenue,0) AS revenue,
+    IFNULL(p.items_purchased,0) AS items_purchased
   FROM session_kpi k
-  LEFT JOIN purchase_kpi p USING (date, channel, campaign, term)
+  LEFT JOIN purchase_kpi p
+    ON p.date=k.date AND p.channel=k.channel AND p.campaign=k.campaign AND p.term=k.term
 )
 SELECT
-  'kpi' AS row_type,
-  date,
+  'CAMPAIGN' AS row_type,
+  CAST(date AS STRING) AS date,
   channel,
   campaign,
   term,
   sessions,
   users,
   purchases,
-  revenue AS kpi_revenue,
+  revenue,
   items_purchased,
   NULL AS item_id,
   NULL AS item_name,
-  NULL AS prod_items,
-  NULL AS prod_revenue
-FROM kpi_final
+  NULL AS items,
+  NULL AS item_revenue
+FROM final_campaign
+
 UNION ALL
+
 SELECT
-  'prod' AS row_type,
-  date,
+  'PRODUCT' AS row_type,
+  CAST(date AS STRING) AS date,
   channel,
   campaign,
   term,
   NULL AS sessions,
   NULL AS users,
   NULL AS purchases,
-  NULL AS kpi_revenue,
+  NULL AS revenue,
   NULL AS items_purchased,
   item_id,
   item_name,
-  prod_items,
-  prod_revenue
+  items,
+  revenue AS item_revenue
 FROM prod_rows
 ;
 """
 
 
-def write_available_dates(data_dir: Path, dates: List[str]) -> None:
-    data_dir.mkdir(parents=True, exist_ok=True)
-    (data_dir / "available_dates.json").write_text(
-        json.dumps({"available_dates": sorted(dates)}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+# -----------------------------
+# IO helpers
+# -----------------------------
+def ensure_dir(p: Path) -> None:
+    p.mkdir(parents=True, exist_ok=True)
 
 
-def delete_daily_files(data_dir: Path, dates: List[str]) -> None:
-    for d in dates:
-        p = data_dir / f"owned_{d}.json"
-        if p.exists():
-            try:
-                p.unlink()
-            except Exception:
-                pass
+def write_json(p: Path, obj: Any) -> None:
+    ensure_dir(p.parent)
+    p.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def main():
+def list_owned_dates(owned_dir: Path) -> List[str]:
+    # owned_YYYY-MM-DD.json
+    dates = []
+    for f in owned_dir.glob("owned_*.json"):
+        m = re.match(r"owned_(\d{4}-\d{2}-\d{2})\.json$", f.name)
+        if m:
+            dates.append(m.group(1))
+    return sorted(set(dates))
+
+
+# -----------------------------
+# BigQuery runner
+# -----------------------------
+@dataclass
+class BQConfig:
+    project: str
+    dataset: str
+
+
+def run_bq_query(client: bigquery.Client, query: str) -> pd.DataFrame:
+    job = client.query(query)
+    return job.result().to_dataframe(create_bqstorage_client=False)
+
+
+# -----------------------------
+# Build bundles
+# -----------------------------
+def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
+    # split campaign/product rows
+    camp = df[df["row_type"] == "CAMPAIGN"].copy()
+    prod = df[df["row_type"] == "PRODUCT"].copy()
+
+    # normalize numeric cols
+    for col in ["sessions", "users", "purchases", "revenue", "items_purchased"]:
+        if col in camp.columns:
+            camp[col] = camp[col].fillna(0).astype(float)
+
+    for col in ["items", "item_revenue"]:
+        if col in prod.columns:
+            prod[col] = prod[col].fillna(0).astype(float)
+
+    # add group mmdd + year
+    def _mmdd_from_campaign_term(c: str, t: str) -> Optional[str]:
+        return extract_mmdd(c) or extract_mmdd(t)
+
+    camp["year"] = camp["date"].str.slice(0, 4)
+    camp["mmdd"] = camp.apply(lambda r: _mmdd_from_campaign_term(str(r["campaign"]), str(r["term"])), axis=1)
+
+    # JSON payload
+    campaigns: List[Dict[str, Any]] = []
+    for _, r in camp.iterrows():
+        campaigns.append(
+            dict(
+                date=r["date"],
+                year=r["year"],
+                mmdd=r["mmdd"],
+                channel=r["channel"],
+                campaign=r["campaign"],
+                term=r["term"],
+                sessions=int(r["sessions"]),
+                users=int(r["users"]),
+                purchases=int(r["purchases"]),
+                revenue=float(r["revenue"]),
+                items_purchased=int(r["items_purchased"]),
+            )
+        )
+
+    products: List[Dict[str, Any]] = []
+    for _, r in prod.iterrows():
+        products.append(
+            dict(
+                date=r["date"],
+                channel=r["channel"],
+                campaign=r["campaign"],
+                term=r["term"],
+                item_id=r["item_id"],
+                item_name=r["item_name"],
+                items=int(r["items"]),
+                revenue=float(r["item_revenue"]),
+            )
+        )
+
+    return {"date": day, "campaigns": campaigns, "products": products}
+
+
+def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwrite: bool = False) -> None:
+    client = bigquery.Client(project=bq.project)
+    owned_dir = site_dir / "data" / "owned"
+    ensure_dir(owned_dir)
+
+    # Build one big query over suffix range
+    q = build_query(bq.project, bq.dataset, ymd_suffix(start_d), ymd_suffix(end_d))
+    df = run_bq_query(client, q)
+
+    # Per-day bundles
+    df_day_groups = df.groupby("date", dropna=True)
+    wanted_days = []
+    for day, g in df_day_groups:
+        if not isinstance(day, str):
+            day = str(day)
+        wanted_days.append(day)
+        bundle = build_day_bundle(g, day)
+        out = owned_dir / f"owned_{day}.json"
+        if overwrite or (not out.exists()):
+            write_json(out, bundle)
+
+    # available_dates.json (include all present on disk after writing)
+    dates = list_owned_dates(owned_dir)
+    write_json(owned_dir / "available_dates.json", dates)
+
+
+def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--site-dir", required=True, help="output site dir (e.g. reports/owned_portal)")
-    ap.add_argument("--start", default="", help="YYYY-MM-DD (default: yesterday KST)")
-    ap.add_argument("--end", default="", help="YYYY-MM-DD (default: yesterday KST)")
-    ap.add_argument("--recent-days", type=int, default=None, help="build recent N days (ending today KST)")
-    ap.add_argument("--write-empty-days", action="store_true", help="write empty daily json as well")
-    ap.add_argument("--overwrite", action="store_true", help="overwrite daily files + available_dates for the range")
-    ap.add_argument("--project", default="", help="BQ project id (or env BQ_PROJECT)")
-    ap.add_argument("--dataset", default="", help="BQ dataset id (or env BQ_DATASET)")
-    args = ap.parse_args()
+    ap.add_argument("--project", default=os.getenv("BQ_PROJECT", ""), help="BigQuery project id")
+    ap.add_argument("--dataset", default=os.getenv("BQ_DATASET", ""), help="BigQuery dataset (GA4 export dataset)")
+    ap.add_argument("--start", default="", help="Start date YYYY-MM-DD")
+    ap.add_argument("--end", default="", help="End date YYYY-MM-DD")
+    ap.add_argument("--recent-days", type=int, default=0, help="Incremental window (days). End is yesterday(KST)")
+    ap.add_argument("--site-dir", default="site", help="Output site directory (writes data/owned)")
+    ap.add_argument("--overwrite", action="store_true", help="Overwrite existing daily JSONs in the range")
+    return ap.parse_args()
 
-    maybe_write_sa_from_b64()
 
-    project = (args.project or env("BQ_PROJECT")).strip()
-    dataset = (args.dataset or env("BQ_DATASET")).strip()
-    if not project or not dataset:
-        raise SystemExit("[ERROR] Please set --project/--dataset or env BQ_PROJECT/BQ_DATASET")
+def main() -> None:
+    args = parse_args()
 
-    # resolve date range
+    if not args.project or not args.dataset:
+        raise SystemExit("[ERROR] --project/--dataset (or env BQ_PROJECT/BQ_DATASET) required")
+
+    site_dir = Path(args.site_dir).resolve()
+    ensure_dir(site_dir / "data" / "owned")
+
+    # determine range
     if args.recent_days and args.recent_days > 0:
-        # ✅ GA4 BigQuery Export is typically complete up to *yesterday* (KST)
+        # ✅ BigQuery export is typically complete up to *yesterday* (KST)
         end_d = kst_today() - timedelta(days=1)
         start_d = end_d - timedelta(days=args.recent_days - 1)
     else:
-        start_d = parse_date(args.start) if args.start else (kst_today() - timedelta(days=1))
-        end_d = parse_date(args.end) if args.end else (kst_today() - timedelta(days=1))
+        if not args.start or not args.end:
+            raise SystemExit("[ERROR] Provide --start/--end OR --recent-days")
+        start_d = parse_ymd(args.start)
+        end_d = parse_ymd(args.end)
 
     if end_d < start_d:
-        start_d, end_d = end_d, start_d
+        raise SystemExit("[ERROR] end < start")
 
-    site_dir = Path(args.site_dir)
-    data_dir = site_dir / "data" / "owned"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    (site_dir / ".nojekyll").write_text("", encoding="utf-8")
+    bq = BQConfig(project=args.project, dataset=args.dataset)
 
-    # days to write list
-    days_to_write: List[date] = []
-    cur = start_d
-    while cur <= end_d:
-        days_to_write.append(cur)
-        cur += timedelta(days=1)
-    date_strs = [ymd(d) for d in days_to_write]
+    print(f"[INFO] Build OWNED bundles: {ymd(start_d)} ~ {ymd(end_d)} | site_dir={site_dir}")
+    build_range(bq, start_d, end_d, site_dir, overwrite=args.overwrite)
 
-    if args.overwrite:
-        delete_daily_files(data_dir, date_strs)
-
-    sql = build_sql(project, dataset, suffix(start_d), suffix(end_d))
-    client = bigquery.Client(project=project)
-    df = client.query(sql).result().to_dataframe(create_bqstorage_client=True)
-
-    # existing available dates (merge unless overwrite)
-    available_set = set()
-    existing_path = data_dir / "available_dates.json"
-    if (not args.overwrite) and existing_path.exists():
-        try:
-            existing = json.loads(existing_path.read_text(encoding="utf-8"))
-            for dd in (existing.get("available_dates") or []):
-                if isinstance(dd, str) and dd:
-                    available_set.add(dd)
-        except Exception:
-            pass
-
-    if df.empty:
-        if args.write_empty_days:
-            for d in date_strs:
-                out = {"date": d, "kpi": [], "prod": []}
-                (data_dir / f"owned_{d}.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
-                available_set.add(d)
-        write_available_dates(data_dir, sorted(available_set))
-        print("[WARN] Query returned no rows.")
-        return
-
-    df["date"] = df["date"].astype(str)
-    kpi_df = df[df["row_type"] == "kpi"].copy()
-    prod_df = df[df["row_type"] == "prod"].copy()
-
-    for col in ["sessions", "users", "purchases", "kpi_revenue", "items_purchased"]:
-        if col in kpi_df.columns:
-            kpi_df[col] = pd.to_numeric(kpi_df[col], errors="coerce").fillna(0)
-
-    for col in ["prod_items", "prod_revenue"]:
-        if col in prod_df.columns:
-            prod_df[col] = pd.to_numeric(prod_df[col], errors="coerce").fillna(0)
-
-    for d in date_strs:
-        k_rows = kpi_df[kpi_df["date"] == d][
-            ["date", "channel", "campaign", "term", "sessions", "users", "purchases", "kpi_revenue", "items_purchased"]
-        ].to_dict(orient="records")
-
-        p_rows = prod_df[prod_df["date"] == d][
-            ["date", "channel", "campaign", "term", "item_id", "item_name", "prod_items", "prod_revenue"]
-        ].to_dict(orient="records")
-
-        if (not k_rows) and (not p_rows) and (not args.write_empty_days):
-            continue
-
-        kpi_rows = [{
-            "date": r.get("date"),
-            "channel": r.get("channel"),
-            "campaign": r.get("campaign"),
-            "term": r.get("term"),
-            "sessions": int(r.get("sessions", 0)),
-            "users": int(r.get("users", 0)),
-            "purchases": int(r.get("purchases", 0)),
-            "revenue": float(r.get("kpi_revenue", 0.0)),
-            "items_purchased": int(r.get("items_purchased", 0)),
-        } for r in k_rows]
-
-        prod_rows = [{
-            "date": r.get("date"),
-            "channel": r.get("channel"),
-            "campaign": r.get("campaign"),
-            "term": r.get("term"),
-            "item_id": r.get("item_id"),
-            "item_name": r.get("item_name"),
-            "prod_items": int(r.get("prod_items", 0)),
-            "prod_revenue": float(r.get("prod_revenue", 0.0)),
-        } for r in p_rows]
-
-        out = {"date": d, "kpi": kpi_rows, "prod": prod_rows}
-        (data_dir / f"owned_{d}.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
-        available_set.add(d)
-
-    write_available_dates(data_dir, sorted(available_set))
-    print(f"[OK] Wrote owned bundles: {date_strs[0]} ~ {date_strs[-1]}  (overwrite={args.overwrite})")
-    print(f"[OK] Site dir: {site_dir}")
+    owned_dir = site_dir / "data" / "owned"
+    print(f"[OK] wrote: {owned_dir}")
+    print(f"[OK] available_dates count: {len(list_owned_dates(owned_dir))}")
 
 
 if __name__ == "__main__":
