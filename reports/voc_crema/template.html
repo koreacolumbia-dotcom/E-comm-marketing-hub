@@ -128,7 +128,6 @@
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
 
-    /* old-school bubble mindmap look */
     .bubble{
       position:absolute;
       transform: translate(-50%,-50%);
@@ -145,6 +144,18 @@
     }
     .bubble.neg{ background: rgba(239,68,68,0.10); color:#b91c1c; border-color: rgba(239,68,68,0.18); }
     .bubble.pos{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
+
+    /* Product ML cards */
+    .ml-card{
+      border-radius: 26px;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.80);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 16px 42px rgba(0,45,114,0.04);
+      padding: 18px 18px;
+    }
+    .ml-grid{ display:grid; grid-template-columns:1fr; gap:14px; }
+    @media (min-width: 1024px){ .ml-grid{ grid-template-columns:1fr 1fr; } }
 
     body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
@@ -214,7 +225,7 @@
           </header>
         </div>
 
-        <!-- 0 ML Mindmap + Yesterday Focus -->
+        <!-- 0 ML Signals + Yesterday Focus -->
         <section class="mb-10">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
@@ -324,6 +335,53 @@
           </div>
         </section>
 
+        <!-- 4 Product ML (Cumulative) -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">4. Product ML (Cumulative)</div>
+                <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석 (NEG=저평점 기반)</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">
+                  NEG 기준: ★1~2 (저평점) · POS 기준: ★4~5
+                </div>
+              </div>
+
+              <div class="flex gap-2 flex-wrap items-center">
+                <select id="mlWindow" class="input-glass" onchange="renderAll()">
+                  <option value="90" selected>최근 3개월</option>
+                  <option value="180">최근 6개월</option>
+                  <option value="365">최근 12개월</option>
+                  <option value="0">전체</option>
+                </select>
+                <select id="mlMinReviews" class="input-glass" onchange="renderAll()">
+                  <option value="3" selected>최소 리뷰수: 3</option>
+                  <option value="5">최소 리뷰수: 5</option>
+                  <option value="10">최소 리뷰수: 10</option>
+                  <option value="1">최소 리뷰수: 1</option>
+                </select>
+                <button class="chip" onclick="scrollToMLTop()">ML 섹션 보기</button>
+              </div>
+            </div>
+
+            <div class="summary-card mb-4">
+              <div class="small-label text-slate-700 mb-2">HOW TO READ</div>
+              <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
+                - NEG: ★1~2 리뷰 텍스트에서 자주 나오는 키워드<br/>
+                - POS: ★4~5 리뷰 텍스트에서 자주 나오는 키워드<br/>
+                - 키워드 클릭 → 아래 Daily Feed 검색으로 필터
+              </div>
+            </div>
+
+            <div id="mlProductGrid" class="ml-grid"></div>
+
+            <div id="mlNoData" class="hidden review-card text-center">
+              <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
+              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver)을 조정해보세요.</div>
+            </div>
+          </div>
+        </section>
+
         <!-- 5 Daily feed -->
         <section class="mb-10">
           <div class="glass-card p-8">
@@ -376,7 +434,6 @@
       rankMode: "size",
       rankExpanded: false,
       chips: { daily: true, low: false },
-      pendingScrollId: null
     };
 
     function esc(s){
@@ -425,12 +482,21 @@
     })();
 
     function pad2(n){ return String(n).padStart(2,"0"); }
-    function kstDateStr(offsetDays=0){
+    function kstNow(){
       const now = new Date();
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-      const kst = new Date(utc + (9 * 60 * 60000));
+      return new Date(utc + (9 * 60 * 60000));
+    }
+    function kstDateStr(offsetDays=0){
+      const kst = kstNow();
       kst.setDate(kst.getDate() + offsetDays);
       return `${kst.getFullYear()}-${pad2(kst.getMonth()+1)}-${pad2(kst.getDate())}`;
+    }
+    function parseDate10(s){
+      if (!s) return null;
+      const d10 = String(s).slice(0,10);
+      const d = new Date(d10 + "T00:00:00");
+      return isNaN(d.getTime()) ? null : d;
     }
 
     function switchSourceTab(tab){
@@ -471,7 +537,14 @@
     function setSearchAndRender(q){
       const el = document.getElementById("qInput");
       if (el) el.value = q || "";
+      // Daily chip on + yesterday by default is OK; just rerender
       renderAll();
+      // (옵션) Daily Feed로 스크롤
+      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
+    }
+
+    function scrollToMLTop(){
+      document.getElementById("mlProductGrid")?.scrollIntoView({behavior:"smooth", block:"start"});
     }
 
     function getFilteredReviews(){
@@ -545,11 +618,7 @@
       const rankLow  = rows.slice().sort((a,b)=> (b.lowRate - a.lowRate) || (b.reviews - a.reviews));
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || (b.reviews - a.reviews));
 
-      return {
-        total,
-        sizeMentionRate: Math.round((sizeMention/total)*100),
-        rankSize, rankLow, rankBoth,
-      };
+      return { total, sizeMentionRate: Math.round((sizeMention/total)*100), rankSize, rankLow, rankBoth };
     }
 
     function renderHeader(){
@@ -641,9 +710,7 @@
         : ``;
 
       return `
-        <div class="review-card hover:shadow-lg transition"
-             id="review-${esc(r.id)}">
-
+        <div class="review-card hover:shadow-lg transition" id="review-${esc(r.id)}">
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <div class="img-box">${prodImg}</div>
@@ -753,12 +820,12 @@
         if (!nodes.length){
           canvas.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-sm font-black text-slate-500">키워드 시그널이 없습니다.</div>`;
         } else {
-          canvas.innerHTML = nodes.map((n, i) => {
+          canvas.innerHTML = nodes.map((n) => {
             const pol = (n.pol||"neutral");
             const cls = pol==="neg" ? "bubble neg" : (pol==="pos" ? "bubble pos" : "bubble");
             const left = (8 + Math.random()*84);
             const top  = (12 + Math.random()*70);
-            const scale = Math.min(1.6, 0.85 + (Number(n.w||1) / Math.max(10, nodes[0].w||10)));
+            const scale = Math.min(1.6, 0.85 + (Number(n.w||1) / Math.max(10, nodes[0]?.w||10)));
             return `
               <div class="${cls}"
                    data-kw="${esc(n.id)}"
@@ -787,6 +854,210 @@
       }
     }
 
+    // -----------------------------
+    // Product ML (Cumulative): NEG=low rating
+    // -----------------------------
+    const STOPWORDS = new Set([
+      "그리고","그냥","진짜","너무","정말","완전","약간","조금","그래서","하지만","근데","저는","제가","저도","그런데",
+      "합니다","했어요","했는데","되요","돼요","입니다","있어요","없어요","같아요","같습니다","이거","이것","저것","그거",
+      "제품","구매","배송","포장","사진","후기","리뷰","사용","구입","주문","사이즈","size","컬럼비아","콜롬비아",
+      "the","and","to","of","is","are","was","were","it","this","that","with","for","on","in"
+    ]);
+
+    function normalizeText(s){
+      const t = String(s||"")
+        .replace(/[\r\n\t]+/g, " ")
+        .replace(/[0-9]/g, " ")
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .toLowerCase();
+      return t;
+    }
+
+    function extractTokens(text){
+      const t = normalizeText(text);
+      const raw = t.split(/\s+/).filter(Boolean);
+
+      const out = [];
+      for (const w of raw){
+        if (w.length < 2) continue;
+        if (STOPWORDS.has(w)) continue;
+        // 너무 긴 토큰/이상치 컷
+        if (w.length > 22) continue;
+        out.push(w);
+      }
+      return out;
+    }
+
+    function topKWords(texts, k=6){
+      const freq = new Map();
+      for (const tx of texts){
+        for (const w of extractTokens(tx)){
+          freq.set(w, (freq.get(w)||0) + 1);
+        }
+      }
+      const arr = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1]);
+      return arr.slice(0,k);
+    }
+
+    function buildProductMLRows(){
+      const winSel = document.getElementById("mlWindow");
+      const minSel = document.getElementById("mlMinReviews");
+      const winDays = Number(winSel?.value || 90);
+      const minReviews = Number(minSel?.value || 3);
+
+      const now = kstNow();
+      const cutoff = winDays > 0 ? new Date(now.getTime() - winDays*24*60*60*1000) : null;
+
+      // 탭 필터(Official/Naver)는 ML에도 동일 적용
+      let base = REVIEWS.slice();
+      if (uiState.sourceTab === "official") base = base.filter(r => r.source === "Official");
+      if (uiState.sourceTab === "naver") base = base.filter(r => r.source === "Naver");
+
+      // 기간 컷(누적 분석은 Daily chip의 날짜 선택과 분리)
+      if (cutoff){
+        base = base.filter(r => {
+          const d = parseDate10(r.created_at);
+          return d ? (d >= cutoff) : false;
+        });
+      }
+
+      // product별 그룹
+      const byProd = new Map();
+      for (const r of base){
+        const code = String(r.product_code || "-").trim() || "-";
+        if (code === "-") continue;
+
+        if (!byProd.has(code)){
+          byProd.set(code, {
+            product_code: code,
+            product_name: r.product_name || code,
+            product_url: r.product_url || "",
+            local_product_image: r.local_product_image || "",
+            all: [],
+            neg: [], // ★1~2
+            pos: [], // ★4~5
+            cnt: 0,
+            negCnt: 0,
+            posCnt: 0,
+            lowRate: 0,
+          });
+        }
+        const g = byProd.get(code);
+        g.cnt += 1;
+        const rating = Number(r.rating||0);
+        const text = String(r.text||"").trim();
+        if (text) g.all.push(text);
+
+        // ✅ NEG: 저평점 기반 (★1~2)
+        if (rating > 0 && rating <= 2){
+          g.negCnt += 1;
+          if (text) g.neg.push(text);
+        }
+        // POS: ★4~5
+        if (rating >= 4){
+          g.posCnt += 1;
+          if (text) g.pos.push(text);
+        }
+      }
+
+      let rows = Array.from(byProd.values())
+        .filter(g => g.cnt >= minReviews)
+        .map(g => {
+          g.lowRate = Math.round((g.negCnt / Math.max(1,g.cnt))*100);
+          g.negTop = topKWords(g.neg, 7);
+          g.posTop = topKWords(g.pos, 7);
+          return g;
+        });
+
+      // 정렬: (1) lowRate desc (2) total reviews desc
+      rows.sort((a,b)=> (b.lowRate - a.lowRate) || (b.cnt - a.cnt));
+
+      return { rows, winDays, minReviews };
+    }
+
+    function mlCardHTML(g){
+      const img = g.local_product_image
+        ? `<img src="${esc(g.local_product_image)}" alt="">`
+        : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
+
+      const negChips = (g.negTop && g.negTop.length)
+        ? g.negTop.map(([w,c]) => `<span class="badge neg" onclick="setSearchAndRender('${esc(w)}')">#${esc(w)} <span class="opacity-70">${esc(c)}</span></span>`).join("")
+        : `<span class="text-xs font-bold text-slate-400">NEG 키워드 없음 (★1~2 텍스트 부족)</span>`;
+
+      const posChips = (g.posTop && g.posTop.length)
+        ? g.posTop.map(([w,c]) => `<span class="badge pos" onclick="setSearchAndRender('${esc(w)}')">#${esc(w)} <span class="opacity-70">${esc(c)}</span></span>`).join("")
+        : `<span class="text-xs font-bold text-slate-400">POS 키워드 없음 (★4~5 텍스트 부족)</span>`;
+
+      const url = g.product_url
+        ? `<a href="${esc(g.product_url)}" target="_blank" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>`
+        : `<span class="text-xs font-bold text-slate-400">상품 URL 없음</span>`;
+
+      return `
+        <div class="ml-card">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="img-box">${img}</div>
+              <div class="min-w-0">
+                <div class="font-black text-slate-900 line-clamp-2">${esc(g.product_name)}</div>
+                <div class="text-xs font-bold text-slate-500 mt-1">code: ${esc(g.product_code)} · reviews: ${esc(g.cnt)}</div>
+                <div class="mt-1">${url}</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs font-black text-slate-700">LOW(★1~2)</div>
+              <div class="text-2xl font-black text-red-700">${esc(g.lowRate)}%</div>
+              <div class="text-[11px] font-bold text-slate-500 mt-1">neg ${esc(g.negCnt)} · pos ${esc(g.posCnt)}</div>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <div class="text-xs font-black text-slate-500">NEG keywords (★1~2)</div>
+            <div class="mt-2 flex flex-wrap gap-2">${negChips}</div>
+          </div>
+
+          <div class="mt-4">
+            <div class="text-xs font-black text-slate-500">POS keywords (★4~5)</div>
+            <div class="mt-2 flex flex-wrap gap-2">${posChips}</div>
+          </div>
+
+          <div class="mt-4 flex items-center gap-2 flex-wrap">
+            <button class="chip" onclick="focusProduct('${esc(g.product_code)}')">
+              <i class="fa-solid fa-filter mr-2"></i>이 제품으로 Daily Feed 보기
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function focusProduct(code){
+      const sel = document.getElementById("productSelect");
+      if (sel){
+        sel.value = code;
+      }
+      // Daily chip on + yesterday 유지
+      renderAll();
+      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
+    }
+
+    function renderProductML(){
+      const grid = document.getElementById("mlProductGrid");
+      const no = document.getElementById("mlNoData");
+      if (!grid || !no) return;
+
+      const { rows } = buildProductMLRows();
+
+      if (!rows.length){
+        grid.innerHTML = "";
+        no.classList.remove("hidden");
+        return;
+      }
+
+      no.classList.add("hidden");
+      // 너무 길어지면 상위 20개만
+      const top = rows.slice(0, 20);
+      grid.innerHTML = top.map(mlCardHTML).join("");
+    }
+
     function renderAll(){
       renderHeader();
       renderProductSelect();
@@ -798,6 +1069,10 @@
       renderMLSignals(filtered);
       renderSummary();
       renderRanking(metrics);
+
+      // ✅ Product ML is cumulative (independent of daily date)
+      renderProductML();
+
       renderDailyFeed(filtered);
     }
 
@@ -813,7 +1088,6 @@
 
         const dayInput = document.getElementById("daySelect");
         if (dayInput){
-          // min/max
           if (META?.period_start) dayInput.min = META.period_start;
           if (META?.period_end) dayInput.max = META.period_end;
 
