@@ -484,7 +484,7 @@ def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwr
 
     # available_dates.json (include all present on disk after writing)
     dates = list_owned_dates(owned_dir)
-    write_json(owned_dir / "available_dates.json", dates)
+    write_json(owned_dir / "available_dates.json", {"available_dates": dates})
 
 
 def parse_args() -> argparse.Namespace:
