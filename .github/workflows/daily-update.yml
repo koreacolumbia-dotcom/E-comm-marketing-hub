@@ -474,11 +474,6 @@ jobs:
             mkdir -p reports/voc_crema/assets reports/voc_crema/data
             rsync -a site/assets/ reports/voc_crema/assets/ || true
             rsync -a site/data/ reports/voc_crema/data/ || true
-
-            echo "[CHECK] reports/voc_crema/assets:"
-            find reports/voc_crema/assets -maxdepth 2 -type f | head -n 40 || true
-            echo "[CHECK] reports/voc_crema/data:"
-            ls -lah reports/voc_crema/data | head -n 60 || true
           else
             echo "[WARN] site/index.html not found after build"
             ls -lah site || true
@@ -501,7 +496,6 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-
           rm -rf reports/voc_blog || true
           mkdir -p reports/voc_blog
 
@@ -530,7 +524,58 @@ jobs:
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
           ls -la reports/index.html reports/meta.json || true
 
-      # ✅ FIXED: OWNED meta.json step (오염 텍스트 제거 + 안전 파이썬)
+      # =========================================================
+      # ✅ OWNED Campaign Portal
+      # =========================================================
+      - name: Build OWNED campaign portal (products by send_id)
+        if: ${{ steps.modes.outputs.run_owned == 'true' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          BQ_PROJECT: columbia-ga4
+          BQ_DATASET: analytics_358593394
+          OWNED_BACKFILL: ${{ steps.modes.outputs.owned_backfill }}
+          OWNED_RECENT_DAYS: ${{ steps.modes.outputs.owned_recent_days }}
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[WARN] GOOGLE_SA_JSON_B64 empty -> skip owned portal"
+            exit 0
+          fi
+
+          echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
+
+          mkdir -p reports/owned_portal
+
+          if [ "${OWNED_BACKFILL}" = "true" ]; then
+            echo "[INFO] OWNED backfill: 2025-01-01 ~ ${YMD} (overwrite)"
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/owned_portal \
+              --overwrite \
+              || true
+          else
+            echo "[INFO] OWNED incremental: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --recent-days "${OWNED_RECENT_DAYS}" \
+              --site-dir reports/owned_portal \
+              || true
+          fi
+
+          echo "[INFO] Owned outputs:"
+          ls -la reports/owned_portal || true
+          ls -la reports/owned_portal/data/owned | head -n 120 || true
+
+      # ✅ OWNED meta.json 생성 (heredoc 제거로 YAML 안정)
       - name: Write OWNED meta.json (fix init 404)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
         continue-on-error: true
@@ -543,15 +588,9 @@ jobs:
           mkdir -p reports/owned_portal/data
 
           CNT="0"
-          if [ -f "reports/owned_portal/data/owned/available_dates.json" ]; then
-            CNT="$(python - <<'PY'
-import json
-p="reports/owned_portal/data/owned/available_dates.json"
-with open(p, "r", encoding="utf-8") as f:
-    arr = json.load(f)
-print(len(arr))
-PY
-)"
+          P="reports/owned_portal/data/owned/available_dates.json"
+          if [ -f "$P" ]; then
+            CNT="$(python -c "import json; p='$P'; print(len(json.load(open(p,'r',encoding='utf-8'))))" 2>/dev/null || echo 0)"
           fi
 
           printf '{"built_kst":"%s","yesterday":"%s","available_dates_count":%s}\n' "$KST" "$YMD" "$CNT" > reports/owned_portal/data/meta.json
