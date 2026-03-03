@@ -352,7 +352,8 @@ def main():
 
     # resolve date range
     if args.recent_days and args.recent_days > 0:
-        end_d = kst_today()
+        # ✅ GA4 BigQuery Export is typically complete up to *yesterday* (KST)
+        end_d = kst_today() - timedelta(days=1)
         start_d = end_d - timedelta(days=args.recent_days - 1)
     else:
         start_d = parse_date(args.start) if args.start else (kst_today() - timedelta(days=1))
