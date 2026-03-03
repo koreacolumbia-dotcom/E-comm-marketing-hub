@@ -1240,14 +1240,18 @@
     await loadRange(s, e);
   }
 
-  async function loadAvailableDates(){
-    try{
-      const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
-      AVAILABLE = (j.available_dates||[]).slice().sort();
-    }catch(e){
-      AVAILABLE = null;
-    }
+async function loadAvailableDates(){
+  try{
+    const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
+
+    // 🔥 배열/객체 모두 지원
+    const arr = Array.isArray(j) ? j : (j.available_dates || []);
+
+    AVAILABLE = arr.slice().sort();
+  }catch(e){
+    AVAILABLE = null;
   }
+}
 
   function setToLastNDays(n){
     const today = new Date();
