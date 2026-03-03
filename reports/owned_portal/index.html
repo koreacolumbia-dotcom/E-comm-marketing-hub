@@ -1190,7 +1190,7 @@
     const url = `data/owned/owned_${dStr}.json?t=${Date.now()}`;
 
     try{
-      RAW = await fetchJson(url);
+      RAW = normalizeBundle(await fetchJson(url));
     }catch(e){
       RAW = null;
       KPI = [];
