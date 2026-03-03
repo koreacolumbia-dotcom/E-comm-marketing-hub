@@ -4,10 +4,16 @@
 """
 [BUILD VOC DASHBOARD FROM JSON | v6.1 MAX PATCH | ACCUMULATIVE + ML/DL TREND]
 - Input: aggregated reviews.json ({"reviews":[...]}), created_at ISO recommended
-- Output:
+- Output (default):
   - site/data/reviews.json  (filtered to last N days by default)
   - site/data/meta.json     (period/keywords/evidence/clusters/mindmap + HEALTHCHECK + ML/DL)
   - site/index.html         (template priority: --html-template > site/template.html > DEFAULT)
+
+✅ PATCH in this version:
+- Fix IndentationError around period_text block (caused pipeline failure)
+- Add optional mirror output to `--out-dir` (e.g. reports/voc_crema) for HUB path
+  - writes: {out_dir}/index.html and {out_dir}/data/{meta.json,reviews.json}
+  - uses atomic swap to avoid deleting existing dashboard on failure
 
 Adds on top of v6.0:
 1) Robust created_at parsing (supports trailing 'Z')
@@ -24,6 +30,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone, date
@@ -64,20 +71,20 @@ MINDMAP_SENT_PER_SIDE = 2
 MINDMAP_MAX_PRODUCTS = 24
 
 CLUSTERS = {
-    "size": ["ì¬ì´ì¦", "ì ì¬ì´ì¦", "ì", "í¬", "íì´í¸", "íë ", "ë¼", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "í"],
+    "size": ["ì¬ì´ì¦", "ì ì¬ì´ì¦", "ì", "í¬", "íì´í¸", "íë ", "ë¼", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "í"],
     "quality": ["íì§", "ë¶ë", "íì", "ì°¢", "êµ¬ë©", "ì¤ë°¥", "ì¤ì¼", "ë³ì", "ëì", "ë§ê°", "ë´êµ¬", "íë¦¬í°"],
-    "shipping": ["ë°°ì¡", "íë°°", "ì¶ê³ ", "ëì°©", "ì§ì°", "ë¦", "ë¹ ë¥´", "í¬ì¥", "íì"],
-    "cs": ["ë¬¸ì", "ìë", "ê³ ê°", "cs", "êµí", "ë°í", "íë¶", "ì²ë¦¬", "as"],
-    "price": ["ê°ê²©", "ë¹ì¸", "ì¸", "ê°ì±ë¹", "í ì¸", "ì¿ í°", "ëë¹"],
+    "shipping": ["ë°°ì¡", "íë°°", "ì¶ê³ ", "ëì°©", "ì§ì°", "ë¦", "ë¹ ë¥´", "í¬ì¥", "íì"],
+    "cs": ["ë¬¸ì", "ìë", "ê³ ê°", "cs", "êµí", "ë°í", "íë¶", "ì²ë¦¬", "as"],
+    "price": ["ê°ê²©", "ë¹ì¸", "ì¸", "ê°ì±ë¹", "í ì¸", "ì¿ í°", "ëë¹"],
     "design": ["ëìì¸", "ì", "ì»¬ë¬", "ìì", "ë©", "ì¤íì¼", "íê°"],
     "function": ["ìë©", "ë£", "í¬ì¼", "ê³µê°", "ê°ë³", "ë¬´ê²", "ë°ë»", "ë³´ì¨", "ë°©ì", "ê¸°ë¥", "í¸í", "ì°©ì©ê°", "ê·¸ë¦½", "ì£¼ë¨¸ë"],
 }
 
 CATEGORY_RULES = [
     ("bag", re.compile(r"(backpack|rucksack|bag|pouch|shoulder|packable|duffel|tote|íì|ë°±í©|ê°ë°©|íì°ì¹|ìë)", re.I)),
-    ("shoe", re.compile(r"(shoe|boot|chukka|sneaker|wide|waterproof|ì ë°|ë¶ì¸ |ìì»¤)", re.I)),
+    ("shoe", re.compile(r"(shoe|boot|chukka|sneaker|wide|waterproof|ì ë°|ë¶ì¸ |ìì»¤)", re.I)),
     ("top", re.compile(r"(fleece|jacket|hood|tee|turtle|shirt|ìì|ìì¼|íë¦¬ì¤|íë|í°|í°í)", re.I)),
-    ("bottom", re.compile(r"(pant|short|skirt|íì|ë°ì§|í¬ì¸ |ì¼ì¸ )", re.I)),
+    ("bottom", re.compile(r"(pant|short|skirt|íì|ë°ì§|í¬ì¸ |ì¼ì¸ )", re.I)),
     ("glove", re.compile(r"(glove|ì¥ê°)", re.I)),
 ]
 DEFAULT_CATEGORY = "other"
@@ -117,23 +124,23 @@ def normalize_source(x: Any) -> str:
         return "Naver"
     if "official" in low:
         return "Official"
-    return s  # ê¸°í ìì¤ëªì ê·¸ëë¡ ì ì§
+    return s
 
 
 BASE_STOPWORDS = set(
     """
-    ê·¸ë¦¬ê³  ê·¸ë¬ë ê·¸ëì íì§ë§ ëí
-    ëë¬´ ì ë§ ìì  ì§ì§ ë§¤ì° ê·¸ë¥ ì¡°ê¸ ì½ê°
-    ì ë ì ê° ì°ë¦¬ë ëí¬ ì´ê±° ê·¸ê±° ì ê±°
+    ê·¸ë¦¬ê³  ê·¸ë¬ë ê·¸ëì íì§ë§ ëí
+    ëë¬´ ì ë§ ìì  ì§ì§ ë§¤ì° ê·¸ë¥ ì¡°ê¸ ì½ê°
+    ì ë ì ê° ì°ë¦¬ë ëí¬ ì´ê±° ê·¸ê±° ì ê±°
     ììµëë¤ ìëë¤ ê°ìì ê°ë¤ì íë íë¤ ëì´ì ëìì´ì ëë¤ì
     êµ¬ë§¤ êµ¬ì ì£¼ë¬¸ êµ¬ë§¤í´ êµ¬ìí´ ìì´ì ììµëë¤ ì£¼ë¬¸í
-    ì í ìí ë¬¼ê±´
-    ì¬ì©ì¤ ì¬ì© ì¬ì©í¨ ì°©ì© ìì´ ì ì´ ì¨ë´¤
+    ì í ìí ë¬¼ê±´
+    ì¬ì©ì¤ ì¬ì© ì¬ì©í¨ ì°©ì© ìì´ ì ì´ ì¨ë´¤
     ë°°ì¡ íë°° í¬ì¥
     ë¬¸ì
-    ì¢ìì ì¢ë¤ ì¢ë¤ì ë§ì¡± ì¶ì² ì¬êµ¬ë§¤ ê°ì±ë¹ ìµê³  êµ¿
+    ì¢ìì ì¢ë¤ ì¢ë¤ì ë§ì¡± ì¶ì² ì¬êµ¬ë§¤ ê°ì±ë¹ ìµê³  êµ¿
     ìë»ì ì´ë»ì
-    ì ì¬ì´ì¦ íì¹ì í ì¹ì
+    ì ì¬ì´ì¦ íì¹ì í ì¹ì
     ì»¬ë¬ ìì ëìì¸
     ìì´ì ìì´ìì ìì´ì ìë¤ì ììì´ì
     ì¢ìµëë¤ ì¢ìì´ì
@@ -142,7 +149,7 @@ BASE_STOPWORDS = set(
     íì¸ íì¸í´ì
     ìê° ìê°í´ì
     ëë ëëì´ìì
-    ì ë ì ëë¡
+    ì ë ì ëë¡
     ë¶ë¶ ë¶ë¶ì´
     ì¬ë ë¶ë¤
     ê¸°ì¡´ ê°ì ëì¼ ë¹ì· ë¹ì·í ìë
@@ -215,27 +222,27 @@ def tokenize_ko(s: str, stopwords: Optional[set] = None) -> List[str]:
     return out
 
 
-SIZE_KEYWORDS = ["ì¬ì´ì¦", "ì ì¬ì´ì¦", "ììì", "ìë¤", "ì»¤ì", "í¬ë¤", "í", "íì´í¸", "ì¬ì ", "ë¼", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "íë ", "ì¤ë²", "ì", "ë¤ì´", "íì¹ì", "ë°ì¹ì"]
-REQ_WEAK = ["ê°ì ", "ìì¬", "íì¼ë©´", "ë³´ì", "ìì ", "íì", "ìì²­"]
+SIZE_KEYWORDS = ["ì¬ì´ì¦", "ì ì¬ì´ì¦", "ììì", "ìë¤", "ì»¤ì", "í¬ë¤", "í", "íì´í¸", "ì¬ì ", "ë¼", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "íë ", "ì¤ë²", "ì", "ë¤ì´", "íì¹ì", "ë°ì¹ì"]
+REQ_WEAK = ["ê°ì ", "ìì¬", "íì¼ë©´", "ë³´ì", "ìì ", "íì", "ìì²­"]
 REQ_STRONG = ["êµí", "ë°í", "íë¶", "as", "ì²ë¦¬", "ì¬ë°°ì¡", "ì¬ë°ì¡"]
-COMPLAINT_HINTS = ["ë¶ë", "íì", "ì°¢", "êµ¬ë©", "ëì", "ë³ì", "ì¤ì¼", "ì¤ë°¥", "íì§", "ìë§", "ë³ë¡", "ìµì", "ì¤ë§", "ë¬¸ì ", "ë¶í¸", "íì", "ì§ì°", "ë¦", "ìì", "ìì´"]
+COMPLAINT_HINTS = ["ë¶ë", "íì", "ì°¢", "êµ¬ë©", "ëì", "ë³ì", "ì¤ì¼", "ì¤ë°¥", "íì§", "ìë§", "ë³ë¡", "ìµì", "ì¤ë§", "ë¬¸ì ", "ë¶í¸", "íì", "ì§ì°", "ë¦", "ìì", "ìì´"]
 
 POS_SEEDS = [
     "ê°ë³", "í¸í", "í¸ì", "ì°©ì©ê°", "ìë©", "í¬ì¼", "ê³µê°", "ì£¼ë¨¸ë", "ë£",
-    "ë°ë»", "ë³´ì¨", "ë°©ì", "í¼í¼", "ê²¬ê³ ", "ë§ì¡±", "ìì", "ë©", "ê¹ë", "ë§ê°",
-    "ìë§", "ë±", "ì¿ ì", "ì¶ì²"
+    "ë°ë»", "ë³´ì¨", "ë°©ì", "í¼í¼", "ê²¬ê³ ", "ë§ì¡±", "ìì", "ë©", "ê¹ë", "ë§ê°",
+    "ìë§", "ë±", "ì¿ ì", "ì¶ì²"
 ]
 NEG_SEEDS = [
     "ë¶ë", "íì", "ì°¢", "êµ¬ë©", "ëì", "ë³ì", "ì¤ì¼", "ì¤ë°¥", "ìµì", "ë³ë¡", "ì¤ë§",
-    "ë¶í¸", "ë¬¸ì ", "ìì½", "ë¬´ê²",
-    "ì", "í¬", "íì´í¸", "íë ",
+    "ë¶í¸", "ë¬¸ì ", "ìì½", "ë¬´ê²",
+    "ì", "í¬", "íì´í¸", "íë ",
     "ì§ì°", "ë¦", "íì", "ìë", "íë¶", "êµí", "ë°í", "as"
 ]
 
-HARD_DEFECT = ["ë¶ë", "íì", "ì°¢", "êµ¬ë©", "íì", "ëì", "ë³ì", "ì¤ì¼", "ì ì°©", "í°ì§"]
-DEFECT_ACTION = ["êµí", "ë°í", "íë¶", "as", "ì²ë¦¬", "ë¶í¸", "ë¬¸ì ", "ì¤ë§", "ë¬¸ì", "ìë", "ì ì"]
+HARD_DEFECT = ["ë¶ë", "íì", "ì°¢", "êµ¬ë©", "íì", "ëì", "ë³ì", "ì¤ì¼", "ì ì°©", "í°ì§"]
+DEFECT_ACTION = ["êµí", "ë°í", "íë¶", "as", "ì²ë¦¬", "ë¶í¸", "ë¬¸ì ", "ì¤ë§", "ë¬¸ì", "ìë", "ì ì"]
 
-NEGATION = ["ì", "ì", "ì", "ëª»", "ìë", "ë³ë¡ì", "ì íì"]
+NEGATION = ["ì", "ì", "ì", "ëª»", "ìë", "ë³ë¡ì", "ì íì"]
 
 
 def has_any_kw(text: str, kws: List[str]) -> bool:
@@ -249,7 +256,7 @@ def has_any_kw(text: str, kws: List[str]) -> bool:
 def classify_size_direction(text: str) -> str:
     t = (text or "").replace(" ", "")
     small_kw = ["ìì", "ìë¤", "íì´í¸", "ë¼", "ì¡°ì¸ë¤", "ì§§ë¤", "ì¢ë¤", "ë°ë³¼ì¢", "ì´ê¹¨ì¢", "ê°ì´ì¢", "ë¤ì´", "íì¹ìì", "ë°ì¹ìì"]
-    big_kw = ["ì»¤", "í¬ë¤", "ëë", "ì¤ë²", "ê¸¸ë¤", "ëë¤", "íë ", "ë¶í´", "ì", "íì¹ìí°", "ë°ì¹ìí°"]
+    big_kw = ["ì»¤", "í¬ë¤", "ëë", "ì¤ë²", "ê¸¸ë¤", "ëë¤", "íë ", "ë¶í´", "ì", "íì¹ìí°", "ë°ì¹ìí°"]
     for kw in small_kw:
         if kw in t:
             return "too_small"
@@ -512,14 +519,7 @@ def top_terms(rows: List[Dict[str, Any]], topk: int, auto_sw: Dict[str, Any], wh
     return sorted(freq.items(), key=lambda x: x[1], reverse=True)[:topk]
 
 
-
-
 def build_kw_graph(rows: List[Dict[str, Any]], auto_sw: Dict[str, Any], max_nodes: int = 28) -> Dict[str, Any]:
-    """
-    Build lightweight "keyword mindmap" graph for UI.
-    - nodes: keyword with weight + polarity
-    - links: co-occurrence within the same review (window)
-    """
     if not rows:
         return {"window": "empty", "nodes": [], "links": []}
 
@@ -530,7 +530,7 @@ def build_kw_graph(rows: List[Dict[str, Any]], auto_sw: Dict[str, Any], max_node
         ispos = is_positive(r)
         isneg = is_complaint(r)
         sw = build_stopwords_for_row(r, auto_sw)
-        toks = list(dict.fromkeys(tokenize_ko(str(r.get("text") or ""), stopwords=sw)))  # unique keep order
+        toks = list(dict.fromkeys(tokenize_ko(str(r.get("text") or ""), stopwords=sw)))
         toks = [t for t in toks if len(t) >= 2][:20]
         if not toks:
             continue
@@ -543,7 +543,6 @@ def build_kw_graph(rows: List[Dict[str, Any]], auto_sw: Dict[str, Any], max_node
             if isneg:
                 st["neg"] += 1
 
-        # co-occurrence edges (undirected)
         for i in range(len(toks)):
             for j in range(i + 1, len(toks)):
                 a, b = toks[i], toks[j]
@@ -553,7 +552,6 @@ def build_kw_graph(rows: List[Dict[str, Any]], auto_sw: Dict[str, Any], max_node
                     a, b = b, a
                 co[(a, b)] = co.get((a, b), 0) + 1
 
-    # pick nodes by total frequency
     cand = sorted(kw_stats.items(), key=lambda x: x[1]["total"], reverse=True)
     cand = cand[: max_nodes * 3]
 
@@ -562,7 +560,6 @@ def build_kw_graph(rows: List[Dict[str, Any]], auto_sw: Dict[str, Any], max_node
     for k, st in cand:
         if len(nodes) >= max_nodes:
             break
-        # drop near-neutral tokens with tiny evidence
         if st["total"] < 3:
             continue
         pos = st["pos"]
@@ -583,6 +580,7 @@ def build_kw_graph(rows: List[Dict[str, Any]], auto_sw: Dict[str, Any], max_node
             break
 
     return {"window": "target", "nodes": nodes, "links": links}
+
 
 def assign_cluster(text: str) -> List[str]:
     tnorm = normalize_text(text).replace(" ", "")
@@ -770,14 +768,13 @@ def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
     obj = json.loads(path.read_text(encoding="utf-8"))
     reviews = obj.get("reviews")
     if not isinstance(reviews, list):
-        raise ValueError('ìë ¥ JSONì {"reviews": [...]} ííì¬ì¼ í©ëë¤.')
+        raise ValueError('ìë ¥ JSONì {"reviews": [...]} ííì¬ì¼ í©ëë¤.')
 
     out: List[Dict[str, Any]] = []
     for r in reviews:
         if not isinstance(r, dict):
             continue
 
-        # normalize minimal schema
         r["id"] = r.get("id") if r.get("id") is not None else ""
         r["product_code"] = str(r.get("product_code") or "").strip() or "-"
         r["product_name"] = str(r.get("product_name") or "").strip() or r["product_code"]
@@ -786,7 +783,6 @@ def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
         r["text"] = str(r.get("text") or "").strip()
         r["source"] = normalize_source(r.get("source"))
 
-        # optional fields (safe)
         r["product_url"] = str(r.get("product_url") or "").strip()
         r["option_size"] = str(r.get("option_size") or "").strip()
         r["option_color"] = str(r.get("option_color") or "").strip()
@@ -1008,7 +1004,40 @@ def dl_embeddings_cluster(rows: List[Dict[str, Any]], model_name: str = "sentenc
     return {"enabled": True, "method": "embeddings_kmeans", "model": model_name, "n_clusters": n_clusters, "clusters": clusters, "cluster_daily_volume": daily}
 
 
-def main(input_path: str, html_template: Optional[str], target_days: int, debug: bool):
+def _write_dashboard_to_dir(base_dir: pathlib.Path, html: str, meta: Dict[str, Any], out_reviews: List[Dict[str, Any]]) -> None:
+    base_dir = pathlib.Path(base_dir).expanduser().resolve()
+    data_dir = base_dir / "data"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    (data_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    (data_dir / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
+    (base_dir / "index.html").write_text(html, encoding="utf-8")
+
+
+def _atomic_build_out_dir(out_dir: pathlib.Path, html: str, meta: Dict[str, Any], out_reviews: List[Dict[str, Any]]) -> None:
+    out_dir = pathlib.Path(out_dir).expanduser().resolve()
+    parent = out_dir.parent
+    tmp = parent / f".tmp_{out_dir.name}"
+
+    # clean tmp
+    if tmp.exists():
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # build into tmp
+    _write_dashboard_to_dir(tmp, html=html, meta=meta, out_reviews=out_reviews)
+
+    # verify required files exist
+    if not (tmp / "index.html").exists() or not (tmp / "data" / "meta.json").exists() or not (tmp / "data" / "reviews.json").exists():
+        raise RuntimeError("TMP build missing required files")
+
+    # swap
+    if out_dir.exists():
+        shutil.rmtree(out_dir, ignore_errors=True)
+    tmp.rename(out_dir)
+
+
+def main(input_path: str, html_template: Optional[str], target_days: int, debug: bool, out_dir: Optional[str]):
     inp = pathlib.Path(input_path).expanduser().resolve()
     if not inp.exists():
         raise FileNotFoundError(f"input not found: {inp}")
@@ -1095,10 +1124,11 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     ml_topics = ml_topics_tfidf_nmf(rows1y, n_topics=8, top_words=8, min_df=3) if rows1y else {"enabled": False, "reason": "no_1y_rows"}
     dl_topics = dl_embeddings_cluster(rows1y, n_clusters=10) if rows1y else {"enabled": False, "reason": "no_1y_rows"}
 
-    
     kw_graph = build_kw_graph(rowsN, auto_sw, max_nodes=28) if rowsN else {"window":"empty","nodes":[],"links":[]}
 
-period_text = f"ìµê·¼ {target_days}ì¼ ({startN.isoformat()} ~ {endN.isoformat()})"
+    # ✅ FIX: this MUST be inside main() block
+    period_text = f"ìµê·¼ {target_days}ì¼ ({startN.isoformat()} ~ {endN.isoformat()})"
+
     empty_reason = None
     if not rowsN:
         empty_reason = "No reviews in target window. Check upstream collection, created_at format/timezone, or TARGET_DAYS."
@@ -1117,7 +1147,7 @@ period_text = f"ìµê·¼ {target_days}ì¼ ({startN.isoformat()} ~ {endN.i
         "clusters": cluster_counts,
         "size_phrases": size_phrases,
         "kw_graph_3m": kw_graph,
-        "fit_words": ["ì ì¬ì´ì¦", "íì¹ì í¬ê²", "íì¹ì ìê²", "íì´í¸", "ëë", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "ìë©", "ê°ë²¼ì"],
+        "fit_words": ["ì ì¬ì´ì¦", "íì¹ì í¬ê²", "íì¹ì ìê²", "íì´í¸", "ëë", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "ìë©", "ê°ë²¼ì"],
         "product_mindmap_3m": product_mindmap_3m,
         "window_created_at_parse_fail": parse_fail_rows,
         "trend_daily": trend_window,
@@ -1125,6 +1155,7 @@ period_text = f"ìµê·¼ {target_days}ì¼ ({startN.isoformat()} ~ {endN.i
         "ml_topics_3m": ml_topics,
         "dl_topics_3m": dl_topics,
         "empty_reason": empty_reason,
+        "healthcheck": healthcheck(all_rows),
     }
 
     if debug:
@@ -1165,15 +1196,26 @@ period_text = f"ìµê·¼ {target_days}ì¼ ({startN.isoformat()} ~ {endN.i
 
     html = load_html_template(html_template)
 
-    (SITE_DATA_DIR / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
-    (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
+    # 1) ✅ original outputs (site/) 유지
+    _write_dashboard_to_dir(SITE_DIR, html=html, meta=meta, out_reviews=out_reviews)
 
-    print("[OK] Build done (v6.1 MAX PATCH + ML/DL)")
+    # 2) ✅ optional HUB output (reports/voc_crema 등)
+    if out_dir:
+        out_path = pathlib.Path(out_dir).expanduser()
+        if out_path.resolve() != SITE_DIR.resolve():
+            try:
+                _atomic_build_out_dir(out_path, html=html, meta=meta, out_reviews=out_reviews)
+            except Exception as e:
+                # 빌드 실패 시 기존 reports/voc_crema 유지 목적
+                print(f"[ERROR] out-dir build failed (keep existing): {e}")
+
+    print("[OK] Build done (v6.1 MAX PATCH + ML/DL) + OUT-DIR MIRROR")
     print(f"- Input: {inp}")
-    print(f"- Output meta: {SITE_DATA_DIR / 'meta.json'}")
-    print(f"- Output reviews: {SITE_DATA_DIR / 'reviews.json'}")
-    print(f"- Output html: {SITE_DIR / 'index.html'}")
+    print(f"- Output site meta: {SITE_DATA_DIR / 'meta.json'}")
+    print(f"- Output site reviews: {SITE_DATA_DIR / 'reviews.json'}")
+    print(f"- Output site html: {SITE_DIR / 'index.html'}")
+    if out_dir:
+        print(f"- Output out-dir: {pathlib.Path(out_dir).expanduser().resolve()}")
     print(f"- Period: {period_text}")
     print(f"- Window rows: {len(rowsN)} / Input rows: {len(all_rows)}")
     if empty_reason:
@@ -1186,6 +1228,10 @@ if __name__ == "__main__":
     ap.add_argument("--html-template", default="", help="optional html template path (highest priority)")
     ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="window days (including today), default from env TARGET_DAYS")
     ap.add_argument("--debug", action="store_true", help="write extra diagnostics into meta.json")
+
+    # ✅ NEW (path mirror only)
+    ap.add_argument("--out-dir", default="", help="optional output dir (e.g. reports/voc_crema). If set, mirrors index.html + data/*.json into this dir.")
+
     args = ap.parse_args()
 
     main(
@@ -1193,4 +1239,5 @@ if __name__ == "__main__":
         html_template=(args.html_template.strip() or None),
         target_days=int(args.target_days or DEFAULT_TARGET_DAYS),
         debug=bool(args.debug),
+        out_dir=(args.out_dir.strip() or None),
     )
