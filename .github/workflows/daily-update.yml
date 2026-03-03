@@ -13,49 +13,66 @@ on:
         required: true
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
 
       voc_only:
         description: "Run Crema VOC only?"
         required: true
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
 
       blog_only:
         description: "Run Blog VOC only?"
         required: true
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
 
       debug:
         description: "Enable debug logs? (prints more logs, keeps extra debug json)"
         required: true
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
 
       owned_only:
         description: "Run OWNED portal only?"
         required: true
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
 
       owned_backfill:
         description: "Backfill OWNED portal from 2025-01-01 to yesterday? (warning: can be heavy)"
         required: true
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
 
       owned_recent_days:
         description: "OWNED incremental refresh window (days). Used when owned_backfill=false"
         required: true
         default: "7"
         type: choice
-        options: ["1", "3", "7", "14", "30"]
+        options:
+          - "1"
+          - "3"
+          - "7"
+          - "14"
+          - "30"
 
   schedule:
     # ✅ KST 06:30 = UTC 21:30 (전날)
@@ -172,14 +189,14 @@ jobs:
             RUN_OWNED=false
           fi
 
-          echo "run_daily=$RUN_DAILY"       >> "$GITHUB_OUTPUT"
-          echo "run_price=$RUN_PRICE"       >> "$GITHUB_OUTPUT"
-          echo "run_hero=$RUN_HERO"         >> "$GITHUB_OUTPUT"
-          echo "run_extsig=$RUN_EXTSIG"     >> "$GITHUB_OUTPUT"
-          echo "run_crema=$RUN_CREMA"       >> "$GITHUB_OUTPUT"
-          echo "run_blog=$RUN_BLOG"         >> "$GITHUB_OUTPUT"
-          echo "run_summary=$RUN_SUMMARY"   >> "$GITHUB_OUTPUT"
-          echo "run_owned=$RUN_OWNED"       >> "$GITHUB_OUTPUT"
+          echo "run_daily=$RUN_DAILY"     >> "$GITHUB_OUTPUT"
+          echo "run_price=$RUN_PRICE"     >> "$GITHUB_OUTPUT"
+          echo "run_hero=$RUN_HERO"       >> "$GITHUB_OUTPUT"
+          echo "run_extsig=$RUN_EXTSIG"   >> "$GITHUB_OUTPUT"
+          echo "run_crema=$RUN_CREMA"     >> "$GITHUB_OUTPUT"
+          echo "run_blog=$RUN_BLOG"       >> "$GITHUB_OUTPUT"
+          echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
+          echo "run_owned=$RUN_OWNED"     >> "$GITHUB_OUTPUT"
 
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" = "workflow_dispatch" ]; then
@@ -439,11 +456,6 @@ jobs:
             python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" || true
           fi
 
-          # ======================================================
-          # ✅ NEW: Force VOC index.html to your fixed template
-          # - Put your final HTML at: templates/voc_index.html
-          # - This prevents builder from overwriting your UI edits
-          # ======================================================
           echo "[INFO] (3.5) Force VOC template (if exists): templates/voc_index.html -> site/index.html"
           if [ -f "templates/voc_index.html" ]; then
             cp -f templates/voc_index.html site/index.html
@@ -459,7 +471,6 @@ jobs:
           if [ -f "site/index.html" ]; then
             rsync -a --delete site/ reports/voc_crema/ || true
 
-            # ✅ 보강: assets/data를 한 번 더 강제 복사 + 체크 (404 방지)
             mkdir -p reports/voc_crema/assets reports/voc_crema/data
             rsync -a site/assets/ reports/voc_crema/assets/ || true
             rsync -a site/data/ reports/voc_crema/data/ || true
@@ -515,13 +526,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           python -u build_summary.py || true
-
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
-
           ls -la reports/index.html reports/meta.json || true
 
+      # ✅ FIXED: OWNED meta.json step (오염 텍스트 제거 + 안전 파이썬)
       - name: Write OWNED meta.json (fix init 404)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
         continue-on-error: true
@@ -558,16 +567,13 @@ PY
         run: |
           set -euo pipefail
 
-          # 1) Data -> site/data/owned (Pages 경로)
           mkdir -p site/data/owned
           rsync -a --delete reports/owned_portal/data/owned/ site/data/owned/
 
-          # 1.5) meta도 같이 복사(선택이지만 디버깅/일관성에 도움)
           if [ -f "reports/owned_portal/data/meta.json" ]; then
             cp -f reports/owned_portal/data/meta.json site/data/owned/meta.json || true
           fi
 
-          # 2) OWNED index pages 접근용
           mkdir -p site/owned
           if [ -f "reports/owned_portal/index.html" ]; then
             cp -f reports/owned_portal/index.html site/owned/index.html
