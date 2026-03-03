@@ -227,12 +227,13 @@
         <button id="chipWeek" class="chip" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
 
+        
+
         <label class="ml-2 flex items-center gap-2 text-xs font-extrabold text-slate-600 select-none">
           <input id="toggleGroupJump" type="checkbox" class="accent-slate-900" />
           MMDD 클릭 시 날짜로 이동
         </label>
-
-        <div class="ml-2 small-label">Date</div>
+<div class="ml-2 small-label">Date</div>
         <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
         <div id="weekHint" class="hidden text-xs font-extrabold text-slate-500">(Mon ~ Sun)</div>
 
@@ -654,12 +655,11 @@
   let SELECTED = null;    // {type:'single', ...} or {type:'group', ...}
   let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
 
-
-
   // ✅ Group click behavior
   // - OFF (default): MMDD 그룹은 현재 로드된 RAW 안에서만 드릴다운 (안전)
   // - ON: MMDD 그룹 클릭 시 available_dates 기준으로 "실제 존재하는 날짜"로 이동 후 드릴다운
   let GROUP_JUMP_MODE = false;
+
 
   const YTD_CACHE = new Map();
 
@@ -1240,7 +1240,7 @@
     await loadRange(s, e);
   }
 
-  async async function loadAvailableDates(){
+  async function loadAvailableDates(){
     try{
       const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
       AVAILABLE = (j.available_dates||[]).slice().sort();
@@ -1400,15 +1400,6 @@
       return;
     }
 
-    // DAILY / WEEK
-    datePicker.value = target;
-    if(VIEW === 'WEEK'){
-      await loadWeekByDate(target);
-    }else{
-      await loadDaily(target);
-    }
-  }
-
 
   function resolveMmddToAvailableDate(year, mmdd){
     const mm = String(mmdd).slice(0,2);
@@ -1416,7 +1407,6 @@
     const suffix = `-${mm}-${dd}`;
 
     if(!AVAILABLE || !AVAILABLE.length){
-      // fallback: best-effort clamp
       return clampToAvailable(dateStrFromYearMmdd(year, mmdd));
     }
 
@@ -1429,7 +1419,6 @@
     const prefer = matches.filter(d => d.startsWith(y + "-"));
     if(prefer.length) return prefer[prefer.length-1];
 
-    // if year doesn't exist, choose latest available
     return matches[matches.length-1];
   }
 
@@ -1443,7 +1432,6 @@
       return;
     }
 
-    // DAILY / WEEK
     datePicker.value = target;
     if(VIEW === 'WEEK'){
       await loadWeekByDate(target);
@@ -1453,12 +1441,21 @@
   }
 
 
+    // DAILY / WEEK
+    datePicker.value = target;
+    if(VIEW === 'WEEK'){
+      await loadWeekByDate(target);
+    }else{
+      await loadDaily(target);
+    }
+  }
+
   async function selectGroup(channel, year, mmdd){
-    // ✅ 선택 옵션: MMDD 클릭 시 실제 존재하는 날짜로 이동 후 드릴다운
+    /* ✅ 핵심: 클릭한 MMDD 기준으로 “리포트 날짜(또는 RANGE 시작일)”을 먼저 이동 */
     if(GROUP_JUMP_MODE){
       await jumpToResolvedGroupDate(year, mmdd);
     }
-
+/* 그 다음, 새 RAW 기준으로 group 선택/하이라이트/드릴다운 */
     SELECTED = {type:'group', channel, year, mmdd};
     filterKPI();
     updateChannelTotals();
@@ -1470,15 +1467,6 @@
   }
 
   // View toggles
-
-  // ✅ Toggle: group click -> jump to real date
-  const toggleGroupJump = document.getElementById('toggleGroupJump');
-  if(toggleGroupJump){
-    toggleGroupJump.addEventListener('change', (e)=>{
-      GROUP_JUMP_MODE = !!e.target.checked;
-    });
-  }
-
   chipDaily.addEventListener('click', ()=>{
     VIEW='DAILY';
     setViewActive();
