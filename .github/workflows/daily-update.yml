@@ -346,9 +346,6 @@ jobs:
           python -u external_signal_combined.py || true
           ls -la reports/external_signal.html || true
 
-      # ----------------------------
-      # 4) Crema VOC
-      # ----------------------------
       - name: Run Crema VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         continue-on-error: true
@@ -356,7 +353,7 @@ jobs:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
           OUTPUT_TZ: Asia/Seoul
           PROJECT_ROOT: ${{ github.workspace }}
-          TARGET_DAYS: "7"
+          TARGET_DAYS: "90"
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         shell: bash
@@ -406,6 +403,7 @@ jobs:
             exit 0
           fi
 
+          # (2) backfill flag 생성 로직(원하면 유지)
           if [ ! -f "${FLAG}" ]; then
             HEALTH="reports/crema_raw/health/latest_health.json"
             SIZE_OK="false"
@@ -432,32 +430,16 @@ jobs:
             fi
           fi
 
-          echo "[INFO] (3) Build dashboard -> TEMP then ATOMIC swap"
-          TMP_DIR="reports/.tmp_voc_crema"
-          rm -rf "${TMP_DIR}" || true
-          mkdir -p "${TMP_DIR}"
+          # ✅ 핵심: 여기서 reports/voc_crema를 지우지 말 것 (404 방지)
+          mkdir -p reports/voc_crema
 
-          if [ "${DEBUG}" = "true" ]; then
-            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --out-dir "${TMP_DIR}" --assets-src "site/assets" --debug || true
-          else
-            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --out-dir "${TMP_DIR}" --assets-src "site/assets" || true
-          fi
-
-          if [ ! -f "${TMP_DIR}/index.html" ] || [ ! -f "${TMP_DIR}/data/meta.json" ] || [ ! -f "${TMP_DIR}/data/reviews.json" ]; then
-            echo "[ERROR] TMP build missing required files. Keep existing reports/voc_crema unchanged."
-            ls -lah "${TMP_DIR}" || true
-            ls -lah "${TMP_DIR}/data" || true
-            exit 0
-          fi
-
-          echo "[INFO] (4) Atomic publish reports/voc_crema"
-          if [ -d "reports/voc_crema" ]; then
-            rm -rf "reports/.bak_voc_crema" || true
-            mv "reports/voc_crema" "reports/.bak_voc_crema" || true
-          fi
-
-          mv "${TMP_DIR}" "reports/voc_crema" || true
-          rm -rf "reports/.bak_voc_crema" || true
+          echo "[INFO] (3) Build dashboard (site/ + reports/voc_crema mirror with atomic swap)"
+          python -u build_voc_dashboard.py \
+            --input "${INPUT_JSON}" \
+            --target-days "${TARGET_DAYS}" \
+            $( [ "${DEBUG}" = "true" ] && echo "--debug" ) \
+            --out-dir "reports/voc_crema" \
+            || true
 
           echo "[INFO] voc_crema outputs:"
           ls -lah reports/voc_crema | head -n 200 || true
