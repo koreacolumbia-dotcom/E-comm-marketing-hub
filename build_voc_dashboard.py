@@ -4,16 +4,10 @@
 """
 [BUILD VOC DASHBOARD FROM JSON | v6.1 MAX PATCH | ACCUMULATIVE + ML/DL TREND]
 - Input: aggregated reviews.json ({"reviews":[...]}), created_at ISO recommended
-- Output (default):
+- Output:
   - site/data/reviews.json  (filtered to last N days by default)
   - site/data/meta.json     (period/keywords/evidence/clusters/mindmap + HEALTHCHECK + ML/DL)
   - site/index.html         (template priority: --html-template > site/template.html > DEFAULT)
-
-✅ PATCH in this version:
-- Fix IndentationError around period_text block (caused pipeline failure)
-- Add optional mirror output to `--out-dir` (e.g. reports/voc_crema) for HUB path
-  - writes: {out_dir}/index.html and {out_dir}/data/{meta.json,reviews.json}
-  - uses atomic swap to avoid deleting existing dashboard on failure
 
 Adds on top of v6.0:
 1) Robust created_at parsing (supports trailing 'Z')
@@ -21,6 +15,16 @@ Adds on top of v6.0:
 3) Fast ML topics (TF-IDF + NMF) in meta (ml_topics_1y) if sklearn installed
 4) Optional DL semantic clustering in meta (dl_topics_1y) if sentence-transformers installed
 5) Debug mode flag (--debug) to keep extra diagnostics in meta
+
+✅ PATH PATCH (requested)
+- Keep legacy outputs to site/*
+- ALSO mirror outputs into --out-dir (e.g. reports/voc_crema):
+    - <out-dir>/index.html
+    - <out-dir>/data/meta.json
+    - <out-dir>/data/reviews.json
+- Optional: --asset-prefix -> inject <base href=".../"> into <head> for iframe relative path safety
+- Optional: --src-dir mode (compat): read meta.json + reviews.json from a dir and render/copy into out-dir
+  (This lets you keep your YML style if you ever want: --src-dir site/data --out-dir reports/voc_crema)
 """
 
 from __future__ import annotations
@@ -30,7 +34,6 @@ import json
 import os
 import pathlib
 import re
-import shutil
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone, date
@@ -71,21 +74,21 @@ MINDMAP_SENT_PER_SIDE = 2
 MINDMAP_MAX_PRODUCTS = 24
 
 CLUSTERS = {
-    "size": ["ì¬ì´ì¦", "ì ì¬ì´ì¦", "ì", "í¬", "íì´í¸", "íë ", "ë¼", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "í"],
-    "quality": ["íì§", "ë¶ë", "íì", "ì°¢", "êµ¬ë©", "ì¤ë°¥", "ì¤ì¼", "ë³ì", "ëì", "ë§ê°", "ë´êµ¬", "íë¦¬í°"],
-    "shipping": ["ë°°ì¡", "íë°°", "ì¶ê³ ", "ëì°©", "ì§ì°", "ë¦", "ë¹ ë¥´", "í¬ì¥", "íì"],
-    "cs": ["ë¬¸ì", "ìë", "ê³ ê°", "cs", "êµí", "ë°í", "íë¶", "ì²ë¦¬", "as"],
-    "price": ["ê°ê²©", "ë¹ì¸", "ì¸", "ê°ì±ë¹", "í ì¸", "ì¿ í°", "ëë¹"],
-    "design": ["ëìì¸", "ì", "ì»¬ë¬", "ìì", "ë©", "ì¤íì¼", "íê°"],
-    "function": ["ìë©", "ë£", "í¬ì¼", "ê³µê°", "ê°ë³", "ë¬´ê²", "ë°ë»", "ë³´ì¨", "ë°©ì", "ê¸°ë¥", "í¸í", "ì°©ì©ê°", "ê·¸ë¦½", "ì£¼ë¨¸ë"],
+    "size": ["사이즈", "정사이즈", "작", "크", "타이트", "헐렁", "끼", "기장", "소매", "어깨", "가슴", "발볼", "핏"],
+    "quality": ["품질", "불량", "하자", "찢", "구멍", "실밥", "오염", "변색", "냄새", "마감", "내구", "퀄리티"],
+    "shipping": ["배송", "택배", "출고", "도착", "지연", "늦", "빠르", "포장", "파손"],
+    "cs": ["문의", "응대", "고객", "cs", "교환", "반품", "환불", "처리", "as"],
+    "price": ["가격", "비싸", "싸", "가성비", "할인", "쿠폰", "대비"],
+    "design": ["디자인", "색", "컬러", "예쁘", "멋", "스타일", "핏감"],
+    "function": ["수납", "넣", "포켓", "공간", "가볍", "무게", "따뜻", "보온", "방수", "기능", "편하", "착용감", "그립", "주머니"],
 }
 
 CATEGORY_RULES = [
-    ("bag", re.compile(r"(backpack|rucksack|bag|pouch|shoulder|packable|duffel|tote|íì|ë°±í©|ê°ë°©|íì°ì¹|ìë)", re.I)),
-    ("shoe", re.compile(r"(shoe|boot|chukka|sneaker|wide|waterproof|ì ë°|ë¶ì¸ |ìì»¤)", re.I)),
-    ("top", re.compile(r"(fleece|jacket|hood|tee|turtle|shirt|ìì|ìì¼|íë¦¬ì¤|íë|í°|í°í)", re.I)),
-    ("bottom", re.compile(r"(pant|short|skirt|íì|ë°ì§|í¬ì¸ |ì¼ì¸ )", re.I)),
-    ("glove", re.compile(r"(glove|ì¥ê°)", re.I)),
+    ("bag", re.compile(r"(backpack|rucksack|bag|pouch|shoulder|packable|duffel|tote|힙색|백팩|가방|파우치|숄더)", re.I)),
+    ("shoe", re.compile(r"(shoe|boot|chukka|sneaker|wide|waterproof|신발|부츠|워커)", re.I)),
+    ("top", re.compile(r"(fleece|jacket|hood|tee|turtle|shirt|상의|자켓|플리스|후드|티|터틀)", re.I)),
+    ("bottom", re.compile(r"(pant|short|skirt|하의|바지|팬츠|쇼츠)", re.I)),
+    ("glove", re.compile(r"(glove|장갑)", re.I)),
 ]
 DEFAULT_CATEGORY = "other"
 
@@ -129,41 +132,41 @@ def normalize_source(x: Any) -> str:
 
 BASE_STOPWORDS = set(
     """
-    ê·¸ë¦¬ê³  ê·¸ë¬ë ê·¸ëì íì§ë§ ëí
-    ëë¬´ ì ë§ ìì  ì§ì§ ë§¤ì° ê·¸ë¥ ì¡°ê¸ ì½ê°
-    ì ë ì ê° ì°ë¦¬ë ëí¬ ì´ê±° ê·¸ê±° ì ê±°
-    ììµëë¤ ìëë¤ ê°ìì ê°ë¤ì íë íë¤ ëì´ì ëìì´ì ëë¤ì
-    êµ¬ë§¤ êµ¬ì ì£¼ë¬¸ êµ¬ë§¤í´ êµ¬ìí´ ìì´ì ììµëë¤ ì£¼ë¬¸í
-    ì í ìí ë¬¼ê±´
-    ì¬ì©ì¤ ì¬ì© ì¬ì©í¨ ì°©ì© ìì´ ì ì´ ì¨ë´¤
-    ë°°ì¡ íë°° í¬ì¥
-    ë¬¸ì
-    ì¢ìì ì¢ë¤ ì¢ë¤ì ë§ì¡± ì¶ì² ì¬êµ¬ë§¤ ê°ì±ë¹ ìµê³  êµ¿
-    ìë»ì ì´ë»ì
-    ì ì¬ì´ì¦ íì¹ì í ì¹ì
-    ì»¬ë¬ ìì ëìì¸
-    ìì´ì ìì´ìì ìì´ì ìë¤ì ììì´ì
-    ì¢ìµëë¤ ì¢ìì´ì
-    ì¶ê° ì¶ê°ë¡
-    ê°ë¥ ê°ë¥í´ì
-    íì¸ íì¸í´ì
-    ìê° ìê°í´ì
-    ëë ëëì´ìì
-    ì ë ì ëë¡
-    ë¶ë¶ ë¶ë¶ì´
-    ì¬ë ë¶ë¤
-    ê¸°ì¡´ ê°ì ëì¼ ë¹ì· ë¹ì·í ìë
-    ì´ë² ì´ë²ì ì´ë²ì
-    ë³´ê¸° ë§ì´ ìíì´ì ìíë¤ì
+    그리고 그러나 그래서 하지만 또한
+    너무 정말 완전 진짜 매우 그냥 조금 약간
+    저는 제가 우리는 너희 이거 그거 저거
+    있습니다 입니다 같아요 같네요 하는 하다 됐어요 되었어요 되네요
+    구매 구입 주문 구매해 구입해 샀어요 샀습니다 주문했
+    제품 상품 물건
+    사용중 사용 사용함 착용 입어 신어 써봄
+    배송 택배 포장
+    문의
+    좋아요 좋다 좋네요 만족 추천 재구매 가성비 최고 굿
+    예뻐요 이뻐요
+    정사이즈 한치수 한 치수
+    컬러 색상 디자인
+    있어서 있어서요 있어요 있네요 있었어요
+    좋습니다 좋았어요
+    추가 추가로
+    가능 가능해요
+    확인 확인해요
+    생각 생각해요
+    느낌 느낌이에요
+    정도 정도로
+    부분 부분이
+    사람 분들
+    기존 같은 동일 비슷 비슷한 원래
+    이번 이번엔 이번에
+    보기 많이 잘했어요 잘했네요
     """.split()
 )
 
-JOSA = ["ì", "ë", "ì´", "ê°", "ì", "ë¥¼", "ì", "ìì", "ìê²", "ì¼ë¡", "ë¡", "ì", "ê³¼", "ë", "ë§", "ê¹ì§", "ë¶í°", "ë³´ë¤", "ì²ë¼", "ê°ì´", "ì´ë", "ë"]
-ENDING = ["ìëë¤", "ìµëë¤", "íì´ì", "íë¤ì", "í´ì", "íë¤ì", "í©ëë¤", "ê°ìì", "ê°ë¤ì", "ìì´ì", "ìë¤ì", "ììµëë¤"]
+JOSA = ["은", "는", "이", "가", "을", "를", "에", "에서", "에게", "으로", "로", "와", "과", "도", "만", "까지", "부터", "보다", "처럼", "같이", "이나", "나"]
+ENDING = ["입니다", "습니다", "했어요", "했네요", "해요", "하네요", "합니다", "같아요", "같네요", "있어요", "있네요", "있습니다"]
 
 RE_URL = re.compile(r"https?://\S+|www\.\S+", re.I)
-RE_HASHTAG = re.compile(r"#[A-Za-z0-9ê°-í£_]+")
-RE_EMOJI_ETC = re.compile(r"[^\w\sê°-í£]", re.UNICODE)
+RE_HASHTAG = re.compile(r"#[A-Za-z0-9가-힣_]+")
+RE_EMOJI_ETC = re.compile(r"[^\w\s가-힣]", re.UNICODE)
 
 
 def normalize_text(s: str) -> str:
@@ -204,7 +207,7 @@ def tokenize_ko(s: str, stopwords: Optional[set] = None) -> List[str]:
     if not s:
         return []
     sw = stopwords or BASE_STOPWORDS
-    toks = re.findall(r"[ê°-í£A-Za-z0-9]+", s)
+    toks = re.findall(r"[가-힣A-Za-z0-9]+", s)
     out: List[str] = []
     for t in toks:
         if len(t) < 2:
@@ -216,33 +219,33 @@ def tokenize_ko(s: str, stopwords: Optional[set] = None) -> List[str]:
             continue
         if t in sw:
             continue
-        if t in ("ì", "ì¢", "í", "ë", "ê°", "í", "í´", "í¨"):
+        if t in ("있", "좋", "하", "되", "같", "했", "해", "함"):
             continue
         out.append(t)
     return out
 
 
-SIZE_KEYWORDS = ["ì¬ì´ì¦", "ì ì¬ì´ì¦", "ììì", "ìë¤", "ì»¤ì", "í¬ë¤", "í", "íì´í¸", "ì¬ì ", "ë¼", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "íë ", "ì¤ë²", "ì", "ë¤ì´", "íì¹ì", "ë°ì¹ì"]
-REQ_WEAK = ["ê°ì ", "ìì¬", "íì¼ë©´", "ë³´ì", "ìì ", "íì", "ìì²­"]
-REQ_STRONG = ["êµí", "ë°í", "íë¶", "as", "ì²ë¦¬", "ì¬ë°°ì¡", "ì¬ë°ì¡"]
-COMPLAINT_HINTS = ["ë¶ë", "íì", "ì°¢", "êµ¬ë©", "ëì", "ë³ì", "ì¤ì¼", "ì¤ë°¥", "íì§", "ìë§", "ë³ë¡", "ìµì", "ì¤ë§", "ë¬¸ì ", "ë¶í¸", "íì", "ì§ì°", "ë¦", "ìì", "ìì´"]
+SIZE_KEYWORDS = ["사이즈", "정사이즈", "작아요", "작다", "커요", "크다", "핏", "타이트", "여유", "끼", "기장", "소매", "어깨", "가슴", "발볼", "헐렁", "오버", "업", "다운", "한치수", "반치수"]
+REQ_WEAK = ["개선", "아쉬", "했으면", "보완", "수정", "필요", "요청"]
+REQ_STRONG = ["교환", "반품", "환불", "as", "처리", "재배송", "재발송"]
+COMPLAINT_HINTS = ["불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "품질", "엉망", "별로", "최악", "실망", "문제", "불편", "파손", "지연", "늦", "안와", "안옴"]
 
 POS_SEEDS = [
-    "ê°ë³", "í¸í", "í¸ì", "ì°©ì©ê°", "ìë©", "í¬ì¼", "ê³µê°", "ì£¼ë¨¸ë", "ë£",
-    "ë°ë»", "ë³´ì¨", "ë°©ì", "í¼í¼", "ê²¬ê³ ", "ë§ì¡±", "ìì", "ë©", "ê¹ë", "ë§ê°",
-    "ìë§", "ë±", "ì¿ ì", "ì¶ì²"
+    "가볍", "편하", "편안", "착용감", "수납", "포켓", "공간", "주머니", "넣",
+    "따뜻", "보온", "방수", "튼튼", "견고", "만족", "예쁘", "멋", "깔끔", "마감",
+    "잘맞", "딱", "쿠션", "추천"
 ]
 NEG_SEEDS = [
-    "ë¶ë", "íì", "ì°¢", "êµ¬ë©", "ëì", "ë³ì", "ì¤ì¼", "ì¤ë°¥", "ìµì", "ë³ë¡", "ì¤ë§",
-    "ë¶í¸", "ë¬¸ì ", "ìì½", "ë¬´ê²",
-    "ì", "í¬", "íì´í¸", "íë ",
-    "ì§ì°", "ë¦", "íì", "ìë", "íë¶", "êµí", "ë°í", "as"
+    "불량", "하자", "찢", "구멍", "냄새", "변색", "오염", "실밥", "최악", "별로", "실망",
+    "불편", "문제", "아쉽", "무겁",
+    "작", "크", "타이트", "헐렁",
+    "지연", "늦", "파손", "응대", "환불", "교환", "반품", "as"
 ]
 
-HARD_DEFECT = ["ë¶ë", "íì", "ì°¢", "êµ¬ë©", "íì", "ëì", "ë³ì", "ì¤ì¼", "ì ì°©", "í°ì§"]
-DEFECT_ACTION = ["êµí", "ë°í", "íë¶", "as", "ì²ë¦¬", "ë¶í¸", "ë¬¸ì ", "ì¤ë§", "ë¬¸ì", "ìë", "ì ì"]
+HARD_DEFECT = ["불량", "하자", "찢", "구멍", "파손", "누수", "변색", "오염", "접착", "터짐"]
+DEFECT_ACTION = ["교환", "반품", "환불", "as", "처리", "불편", "문제", "실망", "문의", "응대"]
 
-NEGATION = ["ì", "ì", "ì", "ëª»", "ìë", "ë³ë¡ì", "ì íì"]
+NEGATION = ["안", "않", "없", "못", "아니", "별로안", "전혀안"]
 
 
 def has_any_kw(text: str, kws: List[str]) -> bool:
@@ -255,8 +258,8 @@ def has_any_kw(text: str, kws: List[str]) -> bool:
 
 def classify_size_direction(text: str) -> str:
     t = (text or "").replace(" ", "")
-    small_kw = ["ìì", "ìë¤", "íì´í¸", "ë¼", "ì¡°ì¸ë¤", "ì§§ë¤", "ì¢ë¤", "ë°ë³¼ì¢", "ì´ê¹¨ì¢", "ê°ì´ì¢", "ë¤ì´", "íì¹ìì", "ë°ì¹ìì"]
-    big_kw = ["ì»¤", "í¬ë¤", "ëë", "ì¤ë²", "ê¸¸ë¤", "ëë¤", "íë ", "ë¶í´", "ì", "íì¹ìí°", "ë°ì¹ìí°"]
+    small_kw = ["작아", "작다", "타이트", "끼", "조인다", "짧다", "좁다", "발볼좁", "어깨좁", "가슴좁", "다운", "한치수작", "반치수작"]
+    big_kw = ["커", "크다", "넉넉", "오버", "길다", "넓다", "헐렁", "부해", "업", "한치수큰", "반치수큰"]
     for kw in small_kw:
         if kw in t:
             return "too_small"
@@ -278,7 +281,7 @@ def ensure_tags_and_direction(row: Dict[str, Any]) -> Dict[str, Any]:
         tags.append("low")
 
     fit_q = str(row.get("fit_q") or "")
-    if ("size" not in tags) and (has_any_kw(text, SIZE_KEYWORDS) or fit_q in ("ì¡°ê¸ ììì", "ììì", "ì¡°ê¸ ì»¤ì", "ì»¤ì")):
+    if ("size" not in tags) and (has_any_kw(text, SIZE_KEYWORDS) or fit_q in ("조금 작아요", "작아요", "조금 커요", "커요")):
         tags.append("size")
 
     if ("req" not in tags) and (has_any_kw(text, REQ_WEAK) or has_any_kw(text, REQ_STRONG)):
@@ -328,7 +331,7 @@ def is_complaint(row: Dict[str, Any]) -> bool:
     if rating >= 4:
         if has_any_kw(text, HARD_DEFECT) and has_any_kw(text, DEFECT_ACTION):
             return True
-        severe = any(x in t for x in ["íë¶", "ë°í", "êµí", "as", "ë¶ë", "íì", "íì", "ì§ì°", "ë¦", "ìëë³ë¡", "ì²ë¦¬ì"])
+        severe = any(x in t for x in ["환불", "반품", "교환", "as", "불량", "하자", "파손", "지연", "늦", "응대별로", "처리안"])
         if severe and has_any_kw(text, COMPLAINT_HINTS):
             return True
         return False
@@ -619,7 +622,7 @@ def build_keyword_evidence(
         for k in keywords:
             if k in toks:
                 snip = re.sub(r"\s+", " ", str(r.get("text") or "").strip())
-                snip = snip[:140] + ("â¦" if len(snip) > 140 else "")
+                snip = snip[:140] + ("…" if len(snip) > 140 else "")
                 out[k].append(
                     Evidence(
                         id=r.get("id"),
@@ -637,7 +640,7 @@ def build_keyword_evidence(
     return out2
 
 
-SENT_SPLIT = re.compile(r"(?<=[\.\?\!]|[ã]|[ï¼ï¼]|[!?\n])\s+|[\n\r]+")
+SENT_SPLIT = re.compile(r"(?<=[\.\?\!]|[。]|[？！]|[!?\n])\s+|[\n\r]+")
 
 
 def split_sentences(text: str) -> List[str]:
@@ -650,14 +653,14 @@ def split_sentences(text: str) -> List[str]:
         if len(p) < 15:
             continue
         if len(p) > 160:
-            p = p[:160].rstrip() + "â¦"
+            p = p[:160].rstrip() + "…"
         out.append(p)
     return out
 
 
 TRIVIAL_PHRASES = [
-    "ìíì´ì", "ë³´ê¸°", "ë§ì´", "ì¬ì©ì¤", "êµ¬ìí´ì", "êµ¬ë§¤í´ì", "ìëë°", "ì£¼ë¬¸íëë°", "ë°ìëë°",
-    "ì¢ìì", "ë§ì¡±", "ì¶ì²", "ì¬êµ¬ë§¤"
+    "잘했어요", "보기", "많이", "사용중", "구입해서", "구매해서", "사는", "주문했는데", "받았는데",
+    "좋아요", "만족", "추천", "재구매"
 ]
 
 
@@ -677,7 +680,7 @@ def score_sentence(sent: str, mode: str) -> int:
 
     if re.search(r"\d", sent):
         score += 1
-    if any(x in sent for x in ["ì£¼ë¨¸ë", "ìë©", "ë°ë³¼", "ì´ê¹¨", "ê¸°ì¥", "ìë§¤", "ë³´ì¨", "ë°©ì", "ì°©ì©ê°", "ì", "ë¤ì´"]):
+    if any(x in sent for x in ["주머니", "수납", "발볼", "어깨", "기장", "소매", "보온", "방수", "착용감", "업", "다운"]):
         score += 1
     if len(sent) >= 40:
         score += 1
@@ -768,7 +771,7 @@ def read_reviews_json(path: pathlib.Path) -> List[Dict[str, Any]]:
     obj = json.loads(path.read_text(encoding="utf-8"))
     reviews = obj.get("reviews")
     if not isinstance(reviews, list):
-        raise ValueError('ìë ¥ JSONì {"reviews": [...]} ííì¬ì¼ í©ëë¤.')
+        raise ValueError('입력 JSON은 {"reviews": [...]} 형태여야 합니다.')
 
     out: List[Dict[str, Any]] = []
     for r in reviews:
@@ -892,6 +895,27 @@ def load_html_template(cli_template: Optional[str]) -> str:
     return DEFAULT_HTML_TEMPLATE
 
 
+def inject_base_href(html: str, asset_prefix: Optional[str]) -> str:
+    """
+    PATH PATCH: iframe 상대경로 깨짐 완화.
+    - asset_prefix가 있으면 <head> 직후에 <base href=".../"> 삽입
+    """
+    if not asset_prefix:
+        return html
+    href = asset_prefix.strip()
+    if not href:
+        return html
+    if not href.endswith("/"):
+        href += "/"
+    if "<base " in html.lower():
+        return html
+    m = re.search(r"<head[^>]*>", html, flags=re.I)
+    if not m:
+        return html
+    ins = f'{m.group(0)}\n  <base href="{href}">'
+    return html[:m.start()] + ins + html[m.end():]
+
+
 def build_daily_timeseries(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     tmp = []
     for r in rows:
@@ -945,8 +969,8 @@ def ml_topics_tfidf_nmf(rows: List[Dict[str, Any]], n_topics: int = 8, top_words
 
     doc_topic = W.argmax(axis=1)
     per_day = defaultdict(lambda: defaultdict(int))
-    for d, t in zip(days, doc_topic):
-        per_day[d][int(t)] += 1
+    for d, t_ in zip(days, doc_topic):
+        per_day[d][int(t_)] += 1
 
     daily_topics = []
     for d in sorted(per_day.keys()):
@@ -964,13 +988,13 @@ def dl_embeddings_cluster(rows: List[Dict[str, Any]], model_name: str = "sentenc
     texts: List[str] = []
     days: List[str] = []
     for r in rows:
-        t = str(r.get("text") or "").strip()
-        if len(t) < 8:
+        t_ = str(r.get("text") or "").strip()
+        if len(t_) < 8:
             continue
         dt = parse_created_at_iso(str(r.get("created_at") or ""))
         if not dt:
             continue
-        texts.append(t[:600])
+        texts.append(t_[:600])
         days.append(dt.date().isoformat())
 
     if len(texts) < max(60, n_clusters * 6):
@@ -989,7 +1013,7 @@ def dl_embeddings_cluster(rows: List[Dict[str, Any]], model_name: str = "sentenc
     clusters = []
     for c in sorted(by_c.keys()):
         samples = sorted(by_c[c], key=lambda x: x[0], reverse=True)[:3]
-        clusters.append({"cluster_id": c, "samples": [{"day": d, "text": t} for d, t in samples]})
+        clusters.append({"cluster_id": c, "samples": [{"day": d, "text": t__} for d, t__ in samples]})
 
     per_day = defaultdict(lambda: defaultdict(int))
     for d, c in zip(days, labels):
@@ -1004,40 +1028,53 @@ def dl_embeddings_cluster(rows: List[Dict[str, Any]], model_name: str = "sentenc
     return {"enabled": True, "method": "embeddings_kmeans", "model": model_name, "n_clusters": n_clusters, "clusters": clusters, "cluster_daily_volume": daily}
 
 
-def _write_dashboard_to_dir(base_dir: pathlib.Path, html: str, meta: Dict[str, Any], out_reviews: List[Dict[str, Any]]) -> None:
-    base_dir = pathlib.Path(base_dir).expanduser().resolve()
-    data_dir = base_dir / "data"
-    base_dir.mkdir(parents=True, exist_ok=True)
-    data_dir.mkdir(parents=True, exist_ok=True)
+def mirror_outputs_to_out_dir(out_dir: Optional[str], html: str, meta: Dict[str, Any], out_reviews: List[Dict[str, Any]]):
+    """
+    PATH PATCH: reports/voc_crema 같이 별도 out-dir로 산출물 미러링
+    """
+    if not out_dir:
+        return
+    od = pathlib.Path(out_dir).expanduser()
+    od.mkdir(parents=True, exist_ok=True)
+    (od / "data").mkdir(parents=True, exist_ok=True)
 
-    (data_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    (data_dir / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
-    (base_dir / "index.html").write_text(html, encoding="utf-8")
-
-
-def _atomic_build_out_dir(out_dir: pathlib.Path, html: str, meta: Dict[str, Any], out_reviews: List[Dict[str, Any]]) -> None:
-    out_dir = pathlib.Path(out_dir).expanduser().resolve()
-    parent = out_dir.parent
-    tmp = parent / f".tmp_{out_dir.name}"
-
-    # clean tmp
-    if tmp.exists():
-        shutil.rmtree(tmp, ignore_errors=True)
-
-    # build into tmp
-    _write_dashboard_to_dir(tmp, html=html, meta=meta, out_reviews=out_reviews)
-
-    # verify required files exist
-    if not (tmp / "index.html").exists() or not (tmp / "data" / "meta.json").exists() or not (tmp / "data" / "reviews.json").exists():
-        raise RuntimeError("TMP build missing required files")
-
-    # swap
-    if out_dir.exists():
-        shutil.rmtree(out_dir, ignore_errors=True)
-    tmp.rename(out_dir)
+    (od / "index.html").write_text(html, encoding="utf-8")
+    (od / "data" / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    (od / "data" / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def main(input_path: str, html_template: Optional[str], target_days: int, debug: bool, out_dir: Optional[str]):
+def build_from_src_dir(src_dir: str, html_template: Optional[str], out_dir: str, asset_prefix: Optional[str]):
+    """
+    Compat mode:
+    - Read {src_dir}/meta.json and {src_dir}/reviews.json
+    - Render index.html using template, then write to out-dir + out-dir/data copies
+    """
+    src = pathlib.Path(src_dir).expanduser().resolve()
+    if not src.exists():
+        raise FileNotFoundError(f"src-dir not found: {src}")
+
+    meta_p = src / "meta.json"
+    reviews_p = src / "reviews.json"
+    if not meta_p.exists() or not reviews_p.exists():
+        raise FileNotFoundError(f"src-dir must contain meta.json and reviews.json: {src}")
+
+    meta = json.loads(meta_p.read_text(encoding="utf-8"))
+    reviews_obj = json.loads(reviews_p.read_text(encoding="utf-8"))
+    out_reviews = reviews_obj.get("reviews") if isinstance(reviews_obj, dict) else None
+    if not isinstance(out_reviews, list):
+        out_reviews = []
+
+    html = load_html_template(html_template)
+    html = inject_base_href(html, asset_prefix)
+
+    mirror_outputs_to_out_dir(out_dir=out_dir, html=html, meta=meta, out_reviews=out_reviews)
+
+    print("[OK] Build done (src-dir -> out-dir mirror)")
+    print(f"- Source: {src}")
+    print(f"- Out: {pathlib.Path(out_dir).resolve()}")
+
+
+def main(input_path: str, html_template: Optional[str], target_days: int, debug: bool, out_dir: Optional[str], asset_prefix: Optional[str]):
     inp = pathlib.Path(input_path).expanduser().resolve()
     if not inp.exists():
         raise FileNotFoundError(f"input not found: {inp}")
@@ -1126,9 +1163,8 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
 
     kw_graph = build_kw_graph(rowsN, auto_sw, max_nodes=28) if rowsN else {"window":"empty","nodes":[],"links":[]}
 
-    # ✅ FIX: this MUST be inside main() block
-    period_text = f"ìµê·¼ {target_days}ì¼ ({startN.isoformat()} ~ {endN.isoformat()})"
-
+    # ✅ FIX: 이 블록은 반드시 main() 내부 들여쓰기여야 함 (IndentationError 방지)
+    period_text = f"최근 {target_days}일 ({startN.isoformat()} ~ {endN.isoformat()})"
     empty_reason = None
     if not rowsN:
         empty_reason = "No reviews in target window. Check upstream collection, created_at format/timezone, or TARGET_DAYS."
@@ -1147,7 +1183,7 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
         "clusters": cluster_counts,
         "size_phrases": size_phrases,
         "kw_graph_3m": kw_graph,
-        "fit_words": ["ì ì¬ì´ì¦", "íì¹ì í¬ê²", "íì¹ì ìê²", "íì´í¸", "ëë", "ê¸°ì¥", "ìë§¤", "ì´ê¹¨", "ê°ì´", "ë°ë³¼", "ìë©", "ê°ë²¼ì"],
+        "fit_words": ["정사이즈", "한치수 크게", "한치수 작게", "타이트", "넉넉", "기장", "소매", "어깨", "가슴", "발볼", "수납", "가벼움"],
         "product_mindmap_3m": product_mindmap_3m,
         "window_created_at_parse_fail": parse_fail_rows,
         "trend_daily": trend_window,
@@ -1155,7 +1191,7 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
         "ml_topics_3m": ml_topics,
         "dl_topics_3m": dl_topics,
         "empty_reason": empty_reason,
-        "healthcheck": healthcheck(all_rows),
+        "health": healthcheck(all_rows),
     }
 
     if debug:
@@ -1195,27 +1231,22 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
             })
 
     html = load_html_template(html_template)
+    html = inject_base_href(html, asset_prefix)
 
-    # 1) ✅ original outputs (site/) 유지
-    _write_dashboard_to_dir(SITE_DIR, html=html, meta=meta, out_reviews=out_reviews)
+    (SITE_DATA_DIR / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
+    (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
 
-    # 2) ✅ optional HUB output (reports/voc_crema 등)
-    if out_dir:
-        out_path = pathlib.Path(out_dir).expanduser()
-        if out_path.resolve() != SITE_DIR.resolve():
-            try:
-                _atomic_build_out_dir(out_path, html=html, meta=meta, out_reviews=out_reviews)
-            except Exception as e:
-                # 빌드 실패 시 기존 reports/voc_crema 유지 목적
-                print(f"[ERROR] out-dir build failed (keep existing): {e}")
+    # ✅ PATH PATCH: reports/voc_crema 같은 out-dir로도 미러링
+    mirror_outputs_to_out_dir(out_dir=out_dir, html=html, meta=meta, out_reviews=out_reviews)
 
-    print("[OK] Build done (v6.1 MAX PATCH + ML/DL) + OUT-DIR MIRROR")
+    print("[OK] Build done (v6.1 MAX PATCH + ML/DL)")
     print(f"- Input: {inp}")
-    print(f"- Output site meta: {SITE_DATA_DIR / 'meta.json'}")
-    print(f"- Output site reviews: {SITE_DATA_DIR / 'reviews.json'}")
-    print(f"- Output site html: {SITE_DIR / 'index.html'}")
+    print(f"- Output meta: {SITE_DATA_DIR / 'meta.json'}")
+    print(f"- Output reviews: {SITE_DATA_DIR / 'reviews.json'}")
+    print(f"- Output html: {SITE_DIR / 'index.html'}")
     if out_dir:
-        print(f"- Output out-dir: {pathlib.Path(out_dir).expanduser().resolve()}")
+        print(f"- Mirrored to out-dir: {pathlib.Path(out_dir).expanduser().resolve()}")
     print(f"- Period: {period_text}")
     print(f"- Window rows: {len(rowsN)} / Input rows: {len(all_rows)}")
     if empty_reason:
@@ -1224,20 +1255,38 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", required=True, help="path to reviews.json (aggregated JSON: {reviews:[...]})")
+
+    # legacy mode
+    ap.add_argument("--input", default="", help="path to reviews.json (aggregated JSON: {reviews:[...]})")
     ap.add_argument("--html-template", default="", help="optional html template path (highest priority)")
     ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="window days (including today), default from env TARGET_DAYS")
     ap.add_argument("--debug", action="store_true", help="write extra diagnostics into meta.json")
 
-    # ✅ NEW (path mirror only)
-    ap.add_argument("--out-dir", default="", help="optional output dir (e.g. reports/voc_crema). If set, mirrors index.html + data/*.json into this dir.")
+    # path patch mode
+    ap.add_argument("--out-dir", default="", help="mirror outputs to this directory (e.g. reports/voc_crema)")
+    ap.add_argument("--asset-prefix", default="", help="inject <base href> into HTML for safe relative assets in iframe")
+    ap.add_argument("--src-dir", default="", help="compat mode: read meta.json+reviews.json from dir and render/copy into --out-dir")
 
     args = ap.parse_args()
 
-    main(
-        input_path=args.input,
-        html_template=(args.html_template.strip() or None),
-        target_days=int(args.target_days or DEFAULT_TARGET_DAYS),
-        debug=bool(args.debug),
-        out_dir=(args.out_dir.strip() or None),
-    )
+    asset_prefix = (args.asset_prefix.strip() or None)
+    out_dir = (args.out_dir.strip() or None)
+    html_template = (args.html_template.strip() or None)
+
+    # compat mode: src-dir -> out-dir
+    if args.src_dir.strip():
+        if not out_dir:
+            raise SystemExit("[ERROR] --src-dir requires --out-dir")
+        build_from_src_dir(src_dir=args.src_dir.strip(), html_template=html_template, out_dir=out_dir, asset_prefix=asset_prefix)
+    else:
+        # legacy mode: input required
+        if not args.input.strip():
+            raise SystemExit("[ERROR] --input is required unless you use --src-dir")
+        main(
+            input_path=args.input.strip(),
+            html_template=html_template,
+            target_days=int(args.target_days or DEFAULT_TARGET_DAYS),
+            debug=bool(args.debug),
+            out_dir=out_dir,
+            asset_prefix=asset_prefix,
+        )
