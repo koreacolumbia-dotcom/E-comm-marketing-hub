@@ -538,12 +538,13 @@ jobs:
             CNT="$(python - <<'PY'
 import json
 p="reports/owned_portal/data/owned/available_dates.json"
-print(len(json.load(open(p,"r",encoding="utf-8"))))
+with open(p, "r", encoding="utf-8") as f:
+    arr = json.load(f)
+print(len(arr))
 PY
 )"
           fi
 
-          # ✅ heredoc 대신 printf로 안전하게 기록
           printf '{"built_kst":"%s","yesterday":"%s","available_dates_count":%s}\n' "$KST" "$YMD" "$CNT" > reports/owned_portal/data/meta.json
 
           echo "[CHECK] reports/owned_portal/data/meta.json:"
