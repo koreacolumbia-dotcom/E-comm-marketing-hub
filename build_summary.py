@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH + KPI TOP STRIP + CREMA CARD)
+build_summary.py  (UI PATCH + KPI TOP STRIP + CREMA CARD)
 ✅ PATCH (KPI auto-refresh, no extra GA4/BQ cost):
 - If reports/daily_kpi.json / reports/weekly_kpi.json is missing or stale,
   auto-build them from latest cached DailyDigest bundle JSONs:
@@ -15,8 +15,13 @@ build_summary_ADV_FINAL_UPGRADED.py  (UI PATCH + KPI TOP STRIP + CREMA CARD)
 2) ✅ OWNED YTD YoY 비교 추가
    - EDM+LMS+KAKAO 3채널 합산 YTD YoY
    - 채널별(EDM/LMS/KAKAO) YTD YoY
-   - 데이터 소스: 첨부한 OWNED 번들 JSON (owned_YYYY-MM-DD.json)
+   - 데이터 소스: OWNED 번들 JSON (owned_YYYY-MM-DD.json)
    - 추가 GA4/BQ 비용 없음 (캐시 파일 합산만)
+
+✅ FIX (Requested):
+- Daily/Weekly KPI Sign-up Users가 '-'로 뜨는 케이스 대응:
+  캐시 번들 스키마가 다양해서, key 후보 + list-row 스캔 + deep scan으로 최대한 추출.
+  (그래도 '-'면, 원본 번들에 회원가입 지표 자체가 없는 케이스일 가능성이 큼)
 """
 
 from __future__ import annotations
@@ -322,12 +327,83 @@ def _deep_get_candidates(obj: Any, candidates: List[str]) -> Optional[Any]:
     return walk(obj)
 
 
+def _extract_named_metric(bundle: Dict[str, Any], names: List[str]) -> Optional[Any]:
+    """Robust metric extractor for cached bundle JSON schemas."""
+    lowered = {n.lower(): n for n in names}
+
+    # 1) dict containers at top-level
+    for key in ("kpis", "kpi", "metrics", "totals", "summary"):
+        v = bundle.get(key)
+        if isinstance(v, dict):
+            lk = {str(k).lower(): k for k in v.keys()}
+            for n in lowered.keys():
+                if n in lk:
+                    return v.get(lk[n])
+
+    # 2) dict containers under common parents
+    for parent in ("data", "summary", "result", "payload"):
+        pv = bundle.get(parent)
+        if isinstance(pv, dict):
+            for key in ("kpis", "kpi", "metrics", "totals"):
+                v = pv.get(key)
+                if isinstance(v, dict):
+                    lk = {str(k).lower(): k for k in v.keys()}
+                    for n in lowered.keys():
+                        if n in lk:
+                            return v.get(lk[n])
+
+    # 3) list containers: rows with name/metric/key + value fields
+    def scan_rows(rows: Any) -> Optional[Any]:
+        if not isinstance(rows, list):
+            return None
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            nm = str(r.get("name") or r.get("metric") or r.get("key") or r.get("dimension") or "").strip().lower()
+            if nm and nm in lowered:
+                for vk in ("value", "val", "total", "count", "metric_value"):
+                    if vk in r and r[vk] is not None:
+                        return r[vk]
+                for k in r.keys():
+                    if str(k).strip().lower() == nm:
+                        return r.get(k)
+        return None
+
+    for key in ("kpis", "kpi", "rows"):
+        got = scan_rows(bundle.get(key))
+        if got is not None:
+            return got
+
+    for parent in ("data", "summary", "result", "payload"):
+        pv = bundle.get(parent)
+        if isinstance(pv, dict):
+            for key in ("kpis", "kpi", "rows"):
+                got = scan_rows(pv.get(key))
+                if got is not None:
+                    return got
+
+    # 4) deep search fallback
+    return _deep_get_candidates(bundle, names)
+
+
 def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Any]:
-    sessions = _deep_get_candidates(bundle, ["sessions", "session", "ga_sessions"])
-    orders = _deep_get_candidates(bundle, ["orders", "transactions", "purchases", "order_count", "purchase_count"])
-    revenue = _deep_get_candidates(bundle, ["revenue", "purchase_revenue", "total_revenue", "sales"])
-    signups = _deep_get_candidates(bundle, ["signups", "sign_up_users", "signup_users", "registrations", "new_users_signup"])
-    cvr = _deep_get_candidates(bundle, ["cvr", "conversion_rate", "purchase_cvr", "txn_rate"])
+    sessions = _extract_named_metric(bundle, ["sessions", "session", "ga_sessions", "total_sessions"])
+    orders = _extract_named_metric(bundle, ["orders", "transactions", "purchases", "order_count", "purchase_count", "txn"])
+    revenue = _extract_named_metric(bundle, ["revenue", "purchase_revenue", "total_revenue", "sales", "purchaseRevenue"])
+
+    signups = _extract_named_metric(bundle, [
+        "signups", "sign_up_users", "signup_users", "sign-up users",
+        "sign_up", "signup", "sign_up_count", "signup_count",
+        "signup_complete", "sign_up_complete", "sign_up_completed",
+        "registrations", "registration", "register", "registered_users",
+        "new_users_signup", "new_user_signup", "new_user_sign_up",
+        "user_signup", "users_signup", "users_signed_up",
+    ])
+
+    cvr = _extract_named_metric(bundle, [
+        "cvr", "conversion_rate", "purchase_cvr", "txn_rate",
+        "purchase_rate", "conversionRate"
+    ])
 
     out = {
         "sessions": _safe_int(sessions),
@@ -588,6 +664,50 @@ def build_weekly_kpis(reports_dir: Path) -> Dict[str, Any]:
 # -----------------------
 OWNED_CHANNELS = ("EDM", "LMS", "KAKAO")
 
+def _norm_owned_channel(x: Any) -> str:
+    s = str(x or "").strip().upper().replace(" ", "")
+    if s.startswith("EDM"):
+        return "EDM"
+    if s.startswith("LMS"):
+        return "LMS"
+    if s.startswith("KAKAO") or s in ("KAKAO_CH", "KAKAOCHANNEL", "KAKAOTALK", "KAKAOPLUSFRIEND", "KAKAOPF"):
+        return "KAKAO"
+    return s
+
+
+def _pick_kpi_list(obj: Dict[str, Any]) -> List[Dict[str, Any]]:
+    cands: List[List[Dict[str, Any]]] = []
+
+    def add_list(v: Any) -> None:
+        if isinstance(v, list):
+            rows = [r for r in v if isinstance(r, dict)]
+            if rows:
+                cands.append(rows)
+
+    for k in ("kpi", "kpis", "rows"):
+        add_list(obj.get(k))
+
+    for parent in ("data", "summary", "result", "payload"):
+        pv = obj.get(parent)
+        if isinstance(pv, dict):
+            for k in ("kpi", "kpis", "rows"):
+                add_list(pv.get(k))
+
+    if not cands:
+        return []
+    cands.sort(key=lambda x: len(x), reverse=True)
+    return cands[0]
+
+
+def _get_num(r: Dict[str, Any], keys: List[str]) -> float:
+    for k in keys:
+        if k in r and r[k] is not None:
+            try:
+                return float(r[k])
+            except Exception:
+                continue
+    return 0.0
+
 
 def _find_owned_data_dir(reports_dir: Path) -> Optional[Path]:
     """
@@ -634,10 +754,7 @@ def _owned_file_for_date(owned_dir: Path, ymd_str: str) -> Path:
 
 
 def _sum_owned_day(owned_dir: Path, ymd_str: str) -> Dict[str, float]:
-    """
-    Sum KPI rows for the day across EDM/LMS/KAKAO.
-    Returns dict with sessions/users/purchases/revenue.
-    """
+    """Sum KPI rows for the day across EDM/LMS/KAKAO (robust schema)."""
     p = _owned_file_for_date(owned_dir, ymd_str)
     if not p.exists():
         return {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0}
@@ -647,23 +764,23 @@ def _sum_owned_day(owned_dir: Path, ymd_str: str) -> Dict[str, float]:
     except Exception:
         return {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0}
 
-    kpi_rows = obj.get("kpi") or []
+    rows = _pick_kpi_list(obj)
     s = u = pch = rev = 0.0
-    for r in kpi_rows:
-        ch = str(r.get("channel") or "").strip().upper()
+
+    for r in rows:
+        ch = _norm_owned_channel(r.get("channel") or r.get("Channel") or r.get("media") or r.get("source"))
         if ch not in OWNED_CHANNELS:
             continue
-        s += float(r.get("sessions") or 0)
-        u += float(r.get("users") or 0)
-        pch += float(r.get("purchases") or 0)
-        rev += float(r.get("revenue") or 0)
+        s += _get_num(r, ["sessions", "session", "ga_sessions"])
+        u += _get_num(r, ["users", "user", "active_users"])
+        pch += _get_num(r, ["purchases", "purchase", "orders", "transactions", "txn"])
+        rev += _get_num(r, ["revenue", "purchase_revenue", "total_revenue", "sales"])
+
     return {"sessions": s, "users": u, "purchases": pch, "revenue": rev}
 
 
 def _sum_owned_day_by_channel(owned_dir: Path, ymd_str: str) -> Dict[str, Dict[str, float]]:
-    """
-    Per-channel sum for the day.
-    """
+    """Per-channel sum for the day (robust schema)."""
     p = _owned_file_for_date(owned_dir, ymd_str)
     out = {ch: {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0} for ch in OWNED_CHANNELS}
     if not p.exists():
@@ -674,15 +791,15 @@ def _sum_owned_day_by_channel(owned_dir: Path, ymd_str: str) -> Dict[str, Dict[s
     except Exception:
         return out
 
-    kpi_rows = obj.get("kpi") or []
-    for r in kpi_rows:
-        ch = str(r.get("channel") or "").strip().upper()
+    rows = _pick_kpi_list(obj)
+    for r in rows:
+        ch = _norm_owned_channel(r.get("channel") or r.get("Channel") or r.get("media") or r.get("source"))
         if ch not in out:
             continue
-        out[ch]["sessions"] += float(r.get("sessions") or 0)
-        out[ch]["users"] += float(r.get("users") or 0)
-        out[ch]["purchases"] += float(r.get("purchases") or 0)
-        out[ch]["revenue"] += float(r.get("revenue") or 0)
+        out[ch]["sessions"] += _get_num(r, ["sessions", "session", "ga_sessions"])
+        out[ch]["users"] += _get_num(r, ["users", "user", "active_users"])
+        out[ch]["purchases"] += _get_num(r, ["purchases", "purchase", "orders", "transactions", "txn"])
+        out[ch]["revenue"] += _get_num(r, ["revenue", "purchase_revenue", "total_revenue", "sales"])
 
     return out
 
@@ -1630,6 +1747,31 @@ def main() -> None:
 
     # ✅ OWNED YTD YoY (prefer yesterday range; no GA4/BQ)
     owned_ytd = build_owned_ytd_yoy(reports_dir)
+
+    # --- Debug (safe): schema visibility in Actions logs ---
+    try:
+        if owned_ytd.get("enabled"):
+            od = owned_ytd.get("owned_dir")
+            if od:
+                print(f"[DBG] OWNED dir: {od}")
+                import glob as _glob
+                _fs = sorted(_glob.glob(str(Path(od) / 'owned_*.json')))
+                print(f"[DBG] OWNED files: {len(_fs)}")
+                if _fs:
+                    sp = _fs[-1]
+                    sj = json.loads(Path(sp).read_text(encoding='utf-8'))
+                    print(f"[DBG] OWNED sample: {sp}")
+                    print(f"[DBG] OWNED top keys: {list(sj.keys())[:40]}")
+                    rows = _pick_kpi_list(sj)
+                    print(f"[DBG] OWNED kpi rows: {len(rows)}")
+                    if rows:
+                        print(f"[DBG] OWNED row0 keys: {list(rows[0].keys())[:40]}")
+                        chs = []
+                        for rr in rows[:30]:
+                            chs.append(_norm_owned_channel(rr.get('channel') or rr.get('Channel') or rr.get('media') or rr.get('source')))
+                        print(f"[DBG] OWNED sample channels: {sorted(set(chs))}")
+    except Exception as _e:
+        print(f"[DBG] OWNED debug skipped: {_e}")
 
     naver = build_naver_metrics(repo_root)
 
