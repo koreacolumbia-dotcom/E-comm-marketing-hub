@@ -382,15 +382,15 @@ jobs:
           TARGET_DAYS: "7"
         run: |
           set -euo pipefail
-# Try to locate script even if filename differs (e.g., external_signal_combined (3).py)
-SCRIPT="$(ls -1 external_signal_combined*.py 2>/dev/null | head -n 1 || true)"
-if [ -z "$SCRIPT" ]; then
-  echo "[WARN] external_signal_combined*.py not found in repo root. Listing *.py (top 50):"
-  ls -1 *.py 2>/dev/null | head -n 50 || true
-  exit 0
-fi
-echo "[INFO] Run: $SCRIPT"
-python -u "$SCRIPT" || true
+          # Try to locate script even if filename differs (e.g., external_signal_combined (3).py)
+          SCRIPT="$(ls -1 external_signal_combined*.py 2>/dev/null | head -n 1 || true)"
+          if [ -z "$SCRIPT" ]; then
+          echo "[WARN] external_signal_combined*.py not found in repo root. Listing *.py (top 50):"
+          ls -1 *.py 2>/dev/null | head -n 50 || true
+          exit 0
+          fi
+          echo "[INFO] Run: $SCRIPT"
+          python -u "$SCRIPT" || true
           ls -la reports/external_signal.html || true
 
       # ----------------------------
