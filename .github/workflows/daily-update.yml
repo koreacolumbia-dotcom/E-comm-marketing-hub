@@ -35,15 +35,6 @@ on:
           - "false"
           - "true"
 
-      extsig_only:
-        description: "Run External Signal (DCInside) only?"
-        required: true
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
-
       debug:
         description: "Enable debug logs? (prints more logs, keeps extra debug json)"
         required: true
@@ -82,6 +73,25 @@ on:
           - "7"
           - "14"
           - "30"
+
+      extsig_only:
+        description: "Run External Signal (VOC) only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+      summary_only:
+        description: "Run Summary Dashboard only? (reports/index.html)"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
 
   schedule:
     # ✅ KST 06:30 = UTC 21:30 (전날)
@@ -126,20 +136,22 @@ jobs:
           DAILY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}"
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
           BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
-          EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
+          EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
+          SUMMARY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.summary_only == 'true' }}"
 
           if [ "$EVENT" = "workflow_dispatch" ]; then
             cnt=0
             [ "$DAILY_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$VOC_ONLY"   = "true" ] && cnt=$((cnt+1))
             [ "$BLOG_ONLY"  = "true" ] && cnt=$((cnt+1))
-            [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
+            [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of daily_only/voc_only/blog_only/extsig_only/owned_only/owned_backfill can be true."
+              echo "[ERROR] Only one of daily_only/voc_only/blog_only/owned_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -164,6 +176,29 @@ jobs:
             RUN_BLOG=false
             RUN_SUMMARY=false
             RUN_OWNED=true
+          fi
+
+          
+          if [ "$EXTSIG_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=true
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+          fi
+
+          if [ "$SUMMARY_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=true
+            RUN_OWNED=false
           fi
 
           # If other "only" => that only
@@ -196,17 +231,6 @@ jobs:
             RUN_EXTSIG=false
             RUN_CREMA=false
             RUN_BLOG=true
-            RUN_SUMMARY=false
-            RUN_OWNED=false
-          fi
-
-          if [ "$EXTSIG_ONLY" = "true" ]; then
-            RUN_DAILY=false
-            RUN_PRICE=false
-            RUN_HERO=false
-            RUN_EXTSIG=true
-            RUN_CREMA=false
-            RUN_BLOG=false
             RUN_SUMMARY=false
             RUN_OWNED=false
           fi
@@ -382,15 +406,13 @@ jobs:
           TARGET_DAYS: "7"
         run: |
           set -euo pipefail
-          # Try to locate script even if filename differs (e.g., external_signal_combined (3).py)
-          SCRIPT="$(ls -1 external_signal_combined*.py 2>/dev/null | head -n 1 || true)"
-          if [ -z "$SCRIPT" ]; then
-          echo "[WARN] external_signal_combined*.py not found in repo root. Listing *.py (top 50):"
-          ls -1 *.py 2>/dev/null | head -n 50 || true
-          exit 0
+          FILE="$(ls -1 **/external_signal_combined*.py 2>/dev/null | head -n 1 || true)"
+          if [ -z "$FILE" ]; then
+            echo "[WARN] external_signal_combined*.py not found. Skipping."
+            exit 0
           fi
-          echo "[INFO] Run: $SCRIPT"
-          python -u "$SCRIPT" || true
+          echo "[INFO] Running: $FILE"
+          python -u "$FILE" || true
           ls -la reports/external_signal.html || true
 
       # ----------------------------
@@ -650,7 +672,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -u build_summary.py || true
+          FILE="$(ls -1 **/build_summary*.py 2>/dev/null | head -n 1 || true)"
+          if [ -z "$FILE" ]; then
+            echo "[WARN] build_summary*.py not found. Skipping."
+            exit 0
+          fi
+          echo "[INFO] Running: $FILE"
+          python -u "$FILE" || true
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
           ls -la reports/index.html reports/meta.json || true
 
