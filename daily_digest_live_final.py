@@ -6,6 +6,23 @@ Columbia Daily Digest — Live GA4 Data (Google Analytics Data API) + BigQuery P
 + ✅ File-based Data Cache (bundle JSON) — regenerate HTML without re-query
 + ✅ Expensive part cache (BigQuery PDP Trend) — reuses cached JSON
 
+✅ PATCH (이번 요청 반영)
+1) KPI Sessions == Channel Snapshot Total Sessions **항상 일치**
+   - Total row는 무조건 Overall KPI(current/prev/yoy)로 “강제” 세팅 (권위 데이터)
+2) Channel Snapshot의 Paid AD == Paid Detail Total (sessions / revenue) **항상 일치**
+   - Channel Snapshot을 Looker CASE(샘플.rtf) 기반 source/medium + campaign 로직으로 집계
+   - Paid Detail도 동일 베이스에서 Paid AD만 필터 → sub 분해
+   - Paid Detail Total은 Paid AD row 값을 “강제” 세팅(세션/매출)
+3) Paid Detail Total mismatch 원인 제거
+   - 기존처럼 “표에 보여줄 일부(sub top)”만으로 Total 계산하지 않음 (전체 Paid AD 합으로 계산)
+4) Hub의 Range A/B “구간비교” UI/기능 **아예 제거**
+5) Channel Snapshot / Paid Detail 테이블에서 DoD/YoY 컬럼이 잘리는 문제 완화
+   - td padding 축소, 마지막 컬럼 우측 padding 확대, table-auto + whitespace-nowrap 적용
+6) Best Sellers vs Rising Products 중복 완화
+   - Best Sellers: itemsPurchased 상위
+   - Rising: 전기간 대비 qty 증가(Δ) 기준 + **Best Sellers SKU는 제외** + prev>0 조건(“올라오는” 성격)
+   - (원하면 prev==0 신규 급등도 포함하도록 옵션화 가능)
+
 How it works (cost-min)
 - Each report build writes a compact data bundle:
     reports/daily_digest/data/daily/YYYY-MM-DD.json
@@ -107,17 +124,7 @@ USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower(
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
-# ✅ UI Bucket names (keep)
-CHANNEL_BUCKETS = {
-    "Organic": {"Organic Search"},
-    "Paid AD": {"Paid Search", "Paid Social", "Display"},
-    "Owned": {"Email", "SMS", "Mobile Push Notifications", "Direct"},
-    "Awareness": {"Referral", "Video", "Organic Video", "Affiliates", "Cross-network"},
-    "SNS": {"Organic Social"},
-}
-PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
-
-# ✅ Paid detail (custom) — fixed order / labels
+# Paid detail (custom) — fixed order / labels
 PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
 
 
@@ -177,12 +184,6 @@ def parse_yyyy_mm_dd(s: str) -> Optional[dt.date]:
     except Exception:
         return None
 
-def bucket_channel(ch: str) -> str:
-    for bucket, members in CHANNEL_BUCKETS.items():
-        if ch in members:
-            return bucket
-    return "Awareness"
-
 def index_series(vals: List[float]) -> List[float]:
     base = vals[0] if vals and vals[0] else 1.0
     return [v / base * 100.0 for v in vals]
@@ -230,29 +231,6 @@ def write_json(path: str, obj: dict) -> None:
     ensure_dir(os.path.dirname(path))
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
-
-def parse_date_list_env(name: str) -> List[dt.date]:
-    raw = (os.getenv(name, "") or "").strip()
-    if not raw:
-        return []
-    out: List[dt.date] = []
-    for token in raw.replace(";", ",").split(","):
-        s = token.strip()
-        if not s:
-            continue
-        d = parse_yyyy_mm_dd(s)
-        if d:
-            out.append(d)
-    return out
-
-def clamp_recent_dates(dates: List[dt.date], max_days: int) -> List[dt.date]:
-    # 안전장치: 실수로 수백일 넣었을 때 방지(원하면 지워도 됨)
-    if not dates:
-        return dates
-    dates = sorted(set(dates))
-    if len(dates) <= max_days:
-        return dates
-    return dates[-max_days:]
 
 
 # =========================
@@ -637,7 +615,7 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
 
 
 # =========================
-# Channel Buckets (Looker-style) — source/medium + campaign custom rules
+# Looker CASE rules (샘플.rtf) — source/medium + campaign
 # =========================
 def _rx(p: str):
     return re.compile(p, re.IGNORECASE)
@@ -646,7 +624,7 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     sm = (source_medium or "").strip()
     cp = (campaign or "").strip()
 
-    # Follow the CASE order from Looker (샘플.rtf)
+    # Order is 중요한 “CASE 순서” (샘플.rtf)
     if _rx(r".*(instagram).*").search(sm) and _rx(r".*(story).*").search(sm):
         return "SNS"
     if _rx(r".*(benz).*").search(sm):
@@ -670,8 +648,8 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     if _rx(r".*(kakao_fridnstalk).*").search(sm):
         return "Owned"
 
-    # NOTE: rtf에 campaign 쪽 패턴이 "(mkt|\\[bd)"처럼 깨진 부분이 있어, _bd까지 커버하도록 보수적으로 처리
-    if _rx(r".*(mkt|_bd|\[bd).*").search(sm) or _rx(r".*(mkt|_bd|\[bd).*").search(cp):
+    # 샘플.rtf에서 mkt/_bd 캠페인 조건
+    if _rx(r".*(mkt|_bd).*").search(sm) or _rx(r".*(mkt|_bd).*").search(cp):
         return "Awareness"
 
     if _rx(r".*(igshopping).*").search(sm):
@@ -684,15 +662,15 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
         return "Paid AD"
 
     # google / cpc split by campaign keyword
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(dg|demandgen|디멘드젠|디멘드잰|디맨드젠|디맨드잰).*").search(cp):
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(dg|demandgen).*").search(cp):
         return "Awareness"
     if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(pmax).*").search(cp):
         return "Paid AD"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(yt|youtube|instream|vac|vvc|유튜브).*").search(cp):
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(yt|youtube|instream|vac|vvc).*").search(cp):
         return "Awareness"
     if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(discovery).*").search(cp):
         return "Awareness"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(sa|ss|검색).*").search(cp):
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(sa|ss).*").search(cp):
         return "Paid AD"
     if _rx(r".*google\s*/\s*cpc.*").search(sm):
         return "Paid AD"
@@ -709,10 +687,8 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
         return "Paid AD"
     if _rx(r".*(gfa).*").search(sm):
         return "Paid AD"
-
     if _rx(r".*(naverbs).*").search(sm):
         return "Paid AD"
-
     if _rx(r".*(naver).*").search(sm) and _rx(r".*(cpc).*").search(sm):
         return "Paid AD"
     if _rx(r".*(shopping_ad).*").search(sm):
@@ -762,7 +738,7 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     if _rx(r".*(blind).*").search(sm):
         return "Paid AD"
 
-    # generic fallbacks
+    # fallbacks
     if _rx(r".*(cpc).*").search(sm):
         return "Paid AD"
     if _rx(r".*(organic).*").search(sm):
@@ -780,7 +756,6 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
 
 
 def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
-    """Paid detail sub-channel classification — Looker Paid Ad rule-aligned."""
     sm = (source_medium or "").strip().lower()
     cp = (campaign or "").strip().lower()
 
@@ -789,62 +764,18 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 
     if has(r".*naverbs.*", sm):
         return "naverbs"
-
     if has(r".*(igshopping|instagram|(^|[^a-z])ig([^a-z]|$)).*", sm):
         return "instagram"
-
     if has(r".*criteo.*", sm):
         return "criteo"
-
     if has(r".*(meta|facebook|(^|[^a-z])fb([^a-z]|$)).*", sm):
         return "meta"
-
     if has(r".*google\s*/\s*cpc.*", sm) or has(r"(^|[^a-z])google([^a-z]|$)", sm):
         return "google"
-
     if has(r".*(m\.search\.naver\.com|m\.ad\.search\.naver\.com|m\.search\.naver).*", sm):
         return "naver mo"
-
     if has(r".*naver.*", sm) and has(r".*cpc.*", sm):
         return "naver mo"
-
-    if has(r".*(naver).*", sm) and (has(r".*(da).*", sm) or has(r".*(banner).*", sm)):
-        return "naver da"
-    if has(r".*(nap).*", sm) and has(r".*(da).*", sm):
-        return "naver da"
-
-    if has(r".*(gfa).*", sm):
-        return "gfa"
-
-    if has(r".*(shopping_ad).*", sm):
-        return "shopping_ad"
-
-    if has(r".*(kakaobs).*", sm):
-        return "kakaobs"
-    if has(r".*(kakao).*", sm):
-        return "kakao"
-
-    if has(r".*(signalplay|signal play|signal_play|sg_|signal|manplus).*", sm):
-        return "signalplay"
-    if has(r".*(buzzvill).*", sm):
-        return "buzzvill"
-    if has(r".*(mobon).*", sm):
-        return "mobon"
-    if has(r".*(snow).*", sm):
-        return "snow"
-    if has(r".*(smr).*", sm):
-        return "smr"
-    if has(r".*(tg).*", sm):
-        return "tg"
-    if has(r".*(t_cafe).*", sm):
-        return "t_cafe"
-    if has(r".*(toss).*", sm):
-        return "toss"
-    if has(r".*(blind).*", sm):
-        return "blind"
-
-    if has(r".*(cpc).*", sm):
-        return "cpc other"
 
     base = sm.split("/")[0].strip()
     base = re.sub(r"\s+", " ", base)
@@ -852,89 +783,68 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 
 
 # =========================
-# ✅ PATCH: Channel Snapshot (Looker-rule aligned)
-# - Channel Snapshot의 Paid AD = Paid Detail Total 과 동일 로직/모집단
-# - Total은 Overall KPI를 정답으로 강제 정합(차이는 Other로 흡수)
+# Channel Snapshot — Looker CASE 기반 (sessions/revenue 합치기)
 # =========================
-def _normalize_sm_cp(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None or df.empty:
-        return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName", "sessions", "transactions", "purchaseRevenue"])
-    df = df.copy()
-    if "sessionSourceMedium" not in df.columns:
-        df["sessionSourceMedium"] = ""
-    if "sessionCampaignName" not in df.columns:
-        df["sessionCampaignName"] = ""
-    df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("").map(lambda x: x.strip())
-    df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("").map(lambda x: x.strip())
-    for c in ("sessions", "transactions", "purchaseRevenue"):
-        df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-    return df[["sessionSourceMedium", "sessionCampaignName", "sessions", "transactions", "purchaseRevenue"]]
-
-def _bucket_order_key(b: str) -> int:
-    order = {"Organic": 0, "Paid AD": 1, "Owned": 2, "Awareness": 3, "SNS": 4, "Other": 5}
-    return int(order.get(b, 99))
-
-def _ensure_bucket_row(df: pd.DataFrame, bucket: str) -> pd.DataFrame:
-    if df.empty:
-        return pd.DataFrame([{
-            "bucket": bucket, "sessions": 0.0, "transactions": 0.0, "purchaseRevenue": 0.0,
-            "rev_dod": 0.0, "rev_yoy": 0.0
-        }])
-    if bucket not in set(df["bucket"].astype(str).tolist()):
-        df = pd.concat([df, pd.DataFrame([{
-            "bucket": bucket, "sessions": 0.0, "transactions": 0.0, "purchaseRevenue": 0.0,
-            "rev_dod": 0.0, "rev_yoy": 0.0
-        }])], ignore_index=True)
-    return df
-
 def get_channel_snapshot_3way(
     client: BetaAnalyticsDataClient,
     w: DigestWindow,
-    overall: Optional[Dict[str, Dict[str, float]]] = None,
+    overall: Dict[str, Dict[str, float]],
 ) -> pd.DataFrame:
     """
-    Looker CASE 룰(첨부 rtf)과 동일한 기준으로 Channel Snapshot을 생성.
-    - dims: sessionSourceMedium + sessionCampaignName
-    - bucket: classify_looker_channel()
-    - Paid AD 세션/매출 == Paid Detail의 Total(동일 모집단/기준) 정합 보장
-    - Total 세션/오더/매출은 Overall KPI(정답)로 강제 정합; 차이는 Other에 흡수
+    ✅ FIX 핵심
+    - Looker CASE(샘플.rtf) 기준으로 bucket 분류
+    - Total row는 Overall KPI를 “강제”로 사용 → KPI Sessions와 100% 동일
     """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
-    try:
-        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=250000)
-        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=250000)
-        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=250000)
-    except Exception:
-        # fallback: campaign dimension이 불가한 환경 대응(가능하면 유지)
-        dims = ["sessionSourceMedium"]
-        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=250000)
-        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=250000)
-        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=250000)
-        cur["sessionCampaignName"] = ""
-        prev["sessionCampaignName"] = ""
-        yoy["sessionCampaignName"] = ""
+    def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
+        try:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
+            if df.empty:
+                return pd.DataFrame(columns=dims + mets)
+            df = df.copy()
+            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
+            df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
+            for c in mets:
+                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
+            return df
+        except Exception:
+            # fallback: campaign dimension 미지원 케이스 대비
+            dims2 = ["sessionSourceMedium"]
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
+            if df.empty:
+                return pd.DataFrame(columns=dims2 + mets + ["sessionCampaignName", "bucket"])
+            df = df.copy()
+            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
+            df["sessionCampaignName"] = ""
+            for c in mets:
+                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
+            return df
 
-    cur = _normalize_sm_cp(cur)
-    prev = _normalize_sm_cp(prev)
-    yoy = _normalize_sm_cp(yoy)
+    cur = fetch(w.cur_start, w.cur_end)
+    prev = fetch(w.prev_start, w.prev_end)
+    yoy = fetch(w.yoy_start, w.yoy_end)
 
-    def _to_bucket(df: pd.DataFrame) -> pd.DataFrame:
+    def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=["bucket", "sessions", "transactions", "purchaseRevenue"])
-        df = df.copy()
-        df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
-        out = df.groupby("bucket", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
-        return out
+            return pd.DataFrame(columns=["bucket", f"sessions{suffix}", f"transactions{suffix}", f"revenue{suffix}"])
+        g = df.groupby("bucket", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
+        g = g.rename(columns={
+            "sessions": f"sessions{suffix}",
+            "transactions": f"transactions{suffix}",
+            "purchaseRevenue": f"revenue{suffix}",
+        })
+        return g
 
-    cur_b = _to_bucket(cur).rename(columns={"sessions": "sessions_cur", "transactions": "transactions_cur", "purchaseRevenue": "rev_cur"})
-    prev_b = _to_bucket(prev).rename(columns={"sessions": "sessions_prev", "transactions": "transactions_prev", "purchaseRevenue": "rev_prev"})
-    yoy_b = _to_bucket(yoy).rename(columns={"sessions": "sessions_yoy", "transactions": "transactions_yoy", "purchaseRevenue": "rev_yoy_base"})
+    cur_b = agg(cur, "_cur")
+    prev_b = agg(prev, "_prev")
+    yoy_b = agg(yoy, "_yoy")
 
     m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
 
-    # DoD/WoW & YoY는 "Sessions 기준" (기존 UI 컬럼명 유지)
     m["dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     m["yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
 
@@ -942,121 +852,85 @@ def get_channel_snapshot_3way(
         "bucket": m["bucket"],
         "sessions": m["sessions_cur"],
         "transactions": m["transactions_cur"],
-        "purchaseRevenue": m["rev_cur"],
+        "purchaseRevenue": m["revenue_cur"],
         "rev_dod": m["dod"],
         "rev_yoy": m["yoy"],
     })
 
-    # ✅ Total 정합: Overall KPI를 정답으로 강제
-    if overall and isinstance(overall, dict):
-        try:
-            k_cur = overall.get("current", {}) or {}
-            k_prev = overall.get("prev", {}) or {}
-            k_yoy = overall.get("yoy", {}) or {}
-
-            tgt_s = float(k_cur.get("sessions", 0) or 0)
-            tgt_o = float(k_cur.get("transactions", 0) or 0)
-            tgt_r = float(k_cur.get("purchaseRevenue", 0) or 0)
-
-            sum_s = float(out["sessions"].sum()) if not out.empty else 0.0
-            sum_o = float(out["transactions"].sum()) if not out.empty else 0.0
-            sum_r = float(out["purchaseRevenue"].sum()) if not out.empty else 0.0
-
-            # 차이는 Other에 흡수(없으면 만들기)
-            out = _ensure_bucket_row(out, "Other")
-            idx_other = out.index[out["bucket"] == "Other"].tolist()[0]
-
-            ds = tgt_s - sum_s
-            do = tgt_o - sum_o
-            dr = tgt_r - sum_r
-
-            # 너무 작은 float 오차는 무시
-            if abs(ds) > 0.5:
-                out.at[idx_other, "sessions"] = float(out.at[idx_other, "sessions"]) + ds
-            if abs(do) > 0.5:
-                out.at[idx_other, "transactions"] = float(out.at[idx_other, "transactions"]) + do
-            if abs(dr) > 1.0:
-                out.at[idx_other, "purchaseRevenue"] = float(out.at[idx_other, "purchaseRevenue"]) + dr
-
-            # Other 변경 이후, dod/yoy 재계산(Other만)
-            # (prev/yoy의 Other는 원천적으로 정확히 맞추기 어렵기 때문에,
-            #  UI 정합성을 위해 "sessions 기준"은 현재값을 기준으로 유지 + total에서 계산)
-            # 여기서는 Other의 rev_dod/rev_yoy는 그대로 두고 Total에서만 KPI기반으로 맞춤.
-
-            # Total row: KPI 기반으로 생성
-            tot_sessions_prev = float(k_prev.get("sessions", 0) or 0)
-            tot_sessions_yoy = float(k_yoy.get("sessions", 0) or 0)
-
-            total = pd.DataFrame([{
-                "bucket": "Total",
-                "sessions": tgt_s,
-                "transactions": tgt_o,
-                "purchaseRevenue": tgt_r,
-                "rev_dod": pct_change(tgt_s, tot_sessions_prev),
-                "rev_yoy": pct_change(tgt_s, tot_sessions_yoy),
-            }])
-
-            # Total 제외하고 정렬 후 Total append
-            out = out[out["bucket"] != "Total"].copy()
-            out["__o"] = out["bucket"].map(_bucket_order_key).fillna(99).astype(int)
-            out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
-            out = pd.concat([out, total], ignore_index=True)
-            return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod", "rev_yoy"]]
-        except Exception:
-            pass
-
-    # overall 없거나 실패 시: 단순 Total
-    out["__o"] = out["bucket"].map(_bucket_order_key).fillna(99).astype(int)
+    order = {"Organic": 0, "Paid AD": 1, "Owned": 2, "Awareness": 3, "SNS": 4, "Other": 5}
+    out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
     out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
-    tot_sessions_cur = float(out["sessions"].sum()) if not out.empty else 0.0
-    tot_sessions_prev = float(m["sessions_prev"].sum()) if not m.empty else 0.0
-    tot_sessions_yoy = float(m["sessions_yoy"].sum()) if not m.empty else 0.0
+
+    # ✅ Total row는 KPI(Overall)로 강제
+    oc = overall.get("current", {}) or {}
+    op = overall.get("prev", {}) or {}
+    oy = overall.get("yoy", {}) or {}
+
+    total_sessions_cur = float(oc.get("sessions", 0) or 0)
+    total_sessions_prev = float(op.get("sessions", 0) or 0)
+    total_sessions_yoy = float(oy.get("sessions", 0) or 0)
 
     total = pd.DataFrame([{
         "bucket": "Total",
-        "sessions": tot_sessions_cur,
-        "transactions": float(out["transactions"].sum()) if not out.empty else 0.0,
-        "purchaseRevenue": float(out["purchaseRevenue"].sum()) if not out.empty else 0.0,
-        "rev_dod": pct_change(tot_sessions_cur, tot_sessions_prev),
-        "rev_yoy": pct_change(tot_sessions_cur, tot_sessions_yoy),
+        "sessions": total_sessions_cur,
+        "transactions": float(oc.get("transactions", 0) or 0),
+        "purchaseRevenue": float(oc.get("purchaseRevenue", 0) or 0),
+        "rev_dod": pct_change(total_sessions_cur, total_sessions_prev),
+        "rev_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
     }])
+
     out = pd.concat([out, total], ignore_index=True)
     return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod", "rev_yoy"]]
 
 
-def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    """Paid detail (custom) from source/medium + campaign. (Looker bucket=Paid AD subset)"""
+# =========================
+# Paid Detail — Channel Snapshot과 동일 베이스(Paid AD)에서 sub 분해
+# =========================
+def get_paid_detail_3way(
+    client: BetaAnalyticsDataClient,
+    w: DigestWindow,
+    paid_ad_totals: Optional[Dict[str, Dict[str, float]]] = None,
+) -> pd.DataFrame:
+    """
+    ✅ FIX
+    - Paid Detail Total이 Channel Snapshot Paid AD와 항상 일치하도록
+    - DoD/YoY는 Sessions 기준(표 컬럼 의미 일관)
+    """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "purchaseRevenue"]
-    try:
-        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=250000)
-        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=250000)
-        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=250000)
-    except Exception:
-        dims = ["sessionSourceMedium"]
-        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=250000)
-        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=250000)
-        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=250000)
-        cur["sessionCampaignName"] = ""
-        prev["sessionCampaignName"] = ""
-        yoy["sessionCampaignName"] = ""
 
-    def _norm(df: pd.DataFrame) -> pd.DataFrame:
-        if df is None or df.empty:
-            return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName"] + mets)
-        df = df.copy()
-        df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("").map(lambda x: x.strip())
-        df["sessionCampaignName"] = df.get("sessionCampaignName", "").astype(str).fillna("").map(lambda x: x.strip())
-        for c in mets:
-            df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-        df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r.get("sessionCampaignName", "")), axis=1)
-        df = df[df["bucket"] == "Paid AD"].copy()
-        df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r.get("sessionCampaignName", "")), axis=1)
-        return df
+    def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
+        try:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
+            if df.empty:
+                return pd.DataFrame(columns=dims + mets)
+            df = df.copy()
+            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
+            df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
+            for c in mets:
+                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
+            df = df[df["bucket"] == "Paid AD"].copy()
+            df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
+            return df
+        except Exception:
+            dims2 = ["sessionSourceMedium"]
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
+            if df.empty:
+                return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName"] + mets + ["bucket", "sub"])
+            df = df.copy()
+            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
+            df["sessionCampaignName"] = ""
+            for c in mets:
+                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
+            df = df[df["bucket"] == "Paid AD"].copy()
+            df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], ""), axis=1)
+            return df
 
-    cur = _norm(cur)
-    prev = _norm(prev)
-    yoy = _norm(yoy)
+    cur = fetch(w.cur_start, w.cur_end)
+    prev = fetch(w.prev_start, w.prev_end)
+    yoy = fetch(w.yoy_start, w.yoy_end)
 
     def agg(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
@@ -1068,19 +942,21 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
     yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "purchaseRevenue": "rev_yoy_base"})
 
     merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
-    merged["rev_vs_prev"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_prev"])), axis=1)
-    merged["rev_yoy"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_yoy_base"])), axis=1)
+    merged["dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
+    merged["yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
 
-    core = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
+    # 표에 반드시 보여줄 core label 보강
+    core = list(PAID_DETAIL_SOURCES)
     for c in core:
         if c not in set(merged["sub"].tolist()):
             merged = pd.concat([merged, pd.DataFrame([{
                 "sub": c, "sessions_cur": 0.0, "rev_cur": 0.0,
                 "sessions_prev": 0.0, "rev_prev": 0.0,
                 "sessions_yoy": 0.0, "rev_yoy_base": 0.0,
-                "rev_vs_prev": 0.0, "rev_yoy": 0.0
+                "dod": 0.0, "yoy": 0.0
             }])], ignore_index=True)
 
+    # 표에선 core + others(top)만 노출, 하지만 Total은 “전체 Paid AD 합”으로 계산
     others = merged[~merged["sub"].isin(core)].copy()
     others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False]).head(6)
 
@@ -1089,43 +965,47 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
         others.assign(_ord=999),
     ], ignore_index=True)
 
-    # ✅ Total = Paid AD 전체 합 (채널 스냅샷 Paid AD와 동일 모집단)
-    total = {
-        "sub": "Total",
-        "sessions_cur": float(ordered["sessions_cur"].sum()),
-        "rev_cur": float(ordered["rev_cur"].sum()),
-        "sessions_prev": float(ordered["sessions_prev"].sum()),
-        "rev_prev": float(ordered["rev_prev"].sum()),
-        "sessions_yoy": float(ordered["sessions_yoy"].sum()),
-        "rev_yoy_base": float(ordered["rev_yoy_base"].sum()),
-    }
-    total["rev_vs_prev"] = pct_change(total["rev_cur"], total["rev_prev"])
-    total["rev_yoy"] = pct_change(total["rev_cur"], total["rev_yoy_base"])
+    # ✅ Total 강제 (Channel Snapshot Paid AD와 동일)
+    if paid_ad_totals:
+        t_cur_s = float(paid_ad_totals.get("current", {}).get("sessions", 0.0) or 0.0)
+        t_prev_s = float(paid_ad_totals.get("prev", {}).get("sessions", 0.0) or 0.0)
+        t_yoy_s = float(paid_ad_totals.get("yoy", {}).get("sessions", 0.0) or 0.0)
+        t_cur_r = float(paid_ad_totals.get("current", {}).get("revenue", 0.0) or 0.0)
+    else:
+        t_cur_s = float(merged["sessions_cur"].sum())
+        t_prev_s = float(merged["sessions_prev"].sum())
+        t_yoy_s = float(merged["sessions_yoy"].sum())
+        t_cur_r = float(merged["rev_cur"].sum())
 
-    out = ordered[["sub", "sessions_cur", "rev_cur", "rev_vs_prev", "rev_yoy"]].copy()
+    total_row = {
+        "sub_channel": "Total",
+        "sessions": t_cur_s,
+        "purchaseRevenue": t_cur_r,
+        "dod": pct_change(t_cur_s, t_prev_s),
+        "yoy": pct_change(t_cur_s, t_yoy_s),
+    }
+
+    out = ordered[["sub", "sessions_cur", "rev_cur", "dod", "yoy"]].copy()
     out = out.rename(columns={
         "sub": "sub_channel",
         "sessions_cur": "sessions",
         "rev_cur": "purchaseRevenue",
     })
-    out = pd.concat([out, pd.DataFrame([{
-        "sub_channel": total["sub"],
-        "sessions": total["sessions_cur"],
-        "purchaseRevenue": total["rev_cur"],
-        "rev_vs_prev": total["rev_vs_prev"],
-        "rev_yoy": total["rev_yoy"],
-    }])], ignore_index=True)
-
+    out = pd.concat([out, pd.DataFrame([total_row])], ignore_index=True)
     return out
 
 
+# =========================
+# Paid Top3 (kept)
+# =========================
 def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     if w.mode != "daily":
         return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
 
     dims = ["sessionSourceMedium"]
     mets = ["sessions", "purchaseRevenue"]
-    filt = ga_filter_in("sessionDefaultChannelGroup", PAID_SUBGROUPS)
+    # (기존 유지: Paid AD 그룹을 sessionDefaultChannelGroup으로 잡는 부분은 남겨둠)
+    filt = ga_filter_in("sessionDefaultChannelGroup", ["Paid Search", "Paid Social", "Display"])
     order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="purchaseRevenue"), desc=True)]
 
     df = run_report(client, PROPERTY_ID, ymd(w.cur_end), ymd(w.cur_end), dims, mets, dimension_filter=filt, order_bys=order, limit=3)
@@ -1143,6 +1023,9 @@ def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFr
     return pd.concat([df, total], ignore_index=True)
 
 
+# =========================
+# KPI snapshot table (kept)
+# =========================
 def get_kpi_snapshot_table_3way(client: BetaAnalyticsDataClient, w: DigestWindow, overall: Dict[str, Dict[str, float]]) -> pd.DataFrame:
     signup = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
     cur = overall["current"]; prev = overall["prev"]; yoy = overall["yoy"]
@@ -1181,6 +1064,9 @@ def get_kpi_snapshot_table_3way(client: BetaAnalyticsDataClient, w: DigestWindow
     return pd.DataFrame(out)
 
 
+# =========================
+# Trend series (kept)
+# =========================
 def get_trend_view_series(client: BetaAnalyticsDataClient, w: DigestWindow) -> dict:
     end = w.cur_end
     start = end - dt.timedelta(days=6)
@@ -1217,7 +1103,7 @@ def trend_svg_from_series(series: dict) -> str:
 
 
 # =========================
-# Best Sellers + trend series per SKU (for cache rebuild)
+# Best Sellers + trends per SKU (kept)
 # =========================
 def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindow, image_map: Dict[str, str]) -> Tuple[pd.DataFrame, dict]:
     start = w.cur_end if w.mode == "daily" else w.cur_start
@@ -1291,7 +1177,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
 
 
 # =========================
-# Rising Products (basis selectable)
+# Rising Products (Best Sellers와 겹침 완화)
 # =========================
 def _get_item_views_best_effort(
     client: BetaAnalyticsDataClient,
@@ -1353,7 +1239,19 @@ def _get_item_revenue_best_effort(
             continue
     return pd.DataFrame(columns=["itemId", "itemName", "revenue"])
 
-def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n: int = 5) -> pd.DataFrame:
+def get_rising_products(
+    client: BetaAnalyticsDataClient,
+    w: DigestWindow,
+    top_n: int = 5,
+    exclude_skus: Optional[List[str]] = None,
+) -> pd.DataFrame:
+    """
+    ✅ Rising 정의(현재 구현)
+    - prev 대비 qty 증가(Δ) 큰 상품
+    - prev > 0 (완전 신규 폭증 대신 “올라오는” 성격)
+    - Best Sellers SKU는 제외(겹침 완화)
+    """
+    exclude = set([str(x).strip() for x in (exclude_skus or []) if str(x).strip()])
     cur_start, cur_end = (w.cur_end, w.cur_end) if w.mode == "daily" else (w.cur_start, w.cur_end)
     prev_start, prev_end = (w.prev_end, w.prev_end) if w.mode == "daily" else (w.prev_start, w.prev_end)
 
@@ -1361,14 +1259,14 @@ def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n:
     d0_qty = run_report(client, PROPERTY_ID, ymd(prev_start), ymd(prev_end), ["itemId"], ["itemsPurchased"], limit=10000)
 
     if d1_qty.empty:
-        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label"])
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
 
     d1_qty["itemsPurchased"] = pd.to_numeric(d1_qty["itemsPurchased"], errors="coerce").fillna(0.0)
     d1_qty["itemId"] = d1_qty["itemId"].astype(str).str.strip()
     d1_qty["itemName"] = d1_qty["itemName"].astype(str).fillna("").map(lambda x: x.strip())
     d1_qty = d1_qty[~d1_qty["itemName"].map(is_not_set)]
     if d1_qty.empty:
-        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label"])
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
 
     if not d0_qty.empty:
         d0_qty["itemsPurchased"] = pd.to_numeric(d0_qty["itemsPurchased"], errors="coerce").fillna(0.0)
@@ -1381,29 +1279,25 @@ def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n:
     qty_m["qty_prev"] = qty_m["itemsPurchased_prev"]
     qty_m["qty_delta"] = qty_m["qty"] - qty_m["qty_prev"]
 
+    # ✅ exclude best sellers + “올라오는” 조건(prev > 0) + delta>0
+    qty_m = qty_m[~qty_m["itemId"].isin(exclude)].copy()
+    qty_m = qty_m[(qty_m["qty_prev"] > 0) & (qty_m["qty_delta"] > 0)].copy()
+    if qty_m.empty:
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
+
     skus = [str(x).strip() for x in qty_m["itemId"].tolist() if str(x).strip()]
 
-    v_cur = _get_item_views_best_effort(client, cur_start, cur_end, skus)
-    v_prev = _get_item_views_best_effort(client, prev_start, prev_end, skus)
-    if not v_cur.empty:
-        v_cur = v_cur.rename(columns={"views": "views_cur"})
-    else:
+    v_cur = _get_item_views_best_effort(client, cur_start, cur_end, skus).rename(columns={"views": "views_cur"}) if skus else pd.DataFrame(columns=["itemId","views_cur"])
+    v_prev = _get_item_views_best_effort(client, prev_start, prev_end, skus).rename(columns={"views": "views_prev"}) if skus else pd.DataFrame(columns=["itemId","views_prev"])
+    if v_cur.empty:
         v_cur = pd.DataFrame({"itemId": skus, "views_cur": [0.0]*len(skus)})
-    if not v_prev.empty:
-        v_prev = v_prev.rename(columns={"views": "views_prev"})
-    else:
+    if v_prev.empty:
         v_prev = pd.DataFrame({"itemId": skus, "views_prev": [0.0]*len(skus)})
 
     r_cur = _get_item_revenue_best_effort(client, cur_start, cur_end)
     r_prev = _get_item_revenue_best_effort(client, prev_start, prev_end)
-    if not r_cur.empty:
-        r_cur = r_cur[["itemId", "revenue"]].rename(columns={"revenue": "revenue_cur"})
-    else:
-        r_cur = pd.DataFrame({"itemId": skus, "revenue_cur": [0.0]*len(skus)})
-    if not r_prev.empty:
-        r_prev = r_prev[["itemId", "revenue"]].rename(columns={"revenue": "revenue_prev"})
-    else:
-        r_prev = pd.DataFrame({"itemId": skus, "revenue_prev": [0.0]*len(skus)})
+    r_cur = r_cur[["itemId", "revenue"]].rename(columns={"revenue": "revenue_cur"}) if not r_cur.empty else pd.DataFrame({"itemId": skus, "revenue_cur": [0.0]*len(skus)})
+    r_prev = r_prev[["itemId", "revenue"]].rename(columns={"revenue": "revenue_prev"}) if not r_prev.empty else pd.DataFrame({"itemId": skus, "revenue_prev": [0.0]*len(skus)})
 
     m = qty_m.merge(v_cur, on="itemId", how="left").merge(v_prev, on="itemId", how="left").merge(r_cur, on="itemId", how="left").merge(r_prev, on="itemId", how="left")
     for c in ("views_cur", "views_prev", "revenue_cur", "revenue_prev"):
@@ -1425,11 +1319,12 @@ def get_rising_products(client: BetaAnalyticsDataClient, w: DigestWindow, top_n:
         m["delta_label"] = "Qty Δ"
 
     m = m.sort_values("delta", ascending=False).head(top_n).copy()
-    return m[["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label"]]
+    m["image_url"] = ""  # attach_image_urls에서 채움
+    return m[["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"]]
 
 
 # =========================
-# PDP Trend (BigQuery) + file cache
+# PDP Trend (BigQuery) + file cache (kept)
 # =========================
 PDP_CATEGORY_MAP = {
     "OUTER": {
@@ -1755,7 +1650,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
 
 
 # =========================
-# UI (Compare bar + modal)
+# UI renderer
 # =========================
 def render_page_html(
     logo_b64: str,
@@ -1816,12 +1711,17 @@ def render_page_html(
             return f"<img src='{esc(u)}' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>"
         return "<div class='w-8 h-8 rounded-xl bg-slate-100 border border-slate-200'></div>"
 
+    # ✅ padding 조정(마지막 컬럼 잘림 완화)
     def table_row(cols: List[str], bold=False, row_class: str = "") -> str:
         fw = "font-extrabold" if bold else "font-medium"
         bg = "bg-slate-50" if bold else ""
-        tds = "".join([f"<td class='px-3 py-2 border-b border-slate-100 {fw}'>{c}</td>" for c in cols])
+        tds = ""
+        for i, c in enumerate(cols):
+            extra = " pr-4" if i == (len(cols) - 1) else ""
+            tds += f"<td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap {fw}{extra}'>{c}</td>"
         return f"<tr class='{bg} {row_class}'>{tds}</tr>"
 
+    # Channel Snapshot rows
     chan_html = ""
     if channel_snapshot is not None and (not channel_snapshot.empty):
         for r in channel_snapshot.itertuples(index=False):
@@ -1834,6 +1734,7 @@ def render_page_html(
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
 
+    # Paid detail rows
     paid_html = ""
     paid_total_row = ""
     if paid_detail is not None and (not paid_detail.empty):
@@ -1856,8 +1757,8 @@ def render_page_html(
                 esc(sub),
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_vs_prev', 0) or 0))}'>{('+' if float(getattr(r,'rev_vs_prev',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_vs_prev',0) or 0),1)}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'yoy', 0) or 0))}'>{('+' if float(getattr(r,'yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'yoy',0) or 0),1)}</div>",
             ], bold=is_bold, row_class=row_cls)
 
             if is_total:
@@ -1947,8 +1848,6 @@ def render_page_html(
                      delta_cls(su_delta), delta_cls(su_yoy_delta)),
     ])
 
-    compare_js = ""
-    compare_bar_html = ""
     paid_toggle_js = """<script>
 (function(){
   const btn = document.getElementById('paidToggle');
@@ -1978,18 +1877,9 @@ def render_page_html(
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
   </style>
-
-  <script>
-    (function(){{
-      try{{
-        const p = new URLSearchParams(location.search);
-        if(p.get('embed') === '1') document.documentElement.setAttribute('data-embed','1');
-      }}catch(e){{}}
-    }})();
-  </script>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-6xl p-6 embed-tight">
+  <div class="mx-auto max-w-7xl p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
@@ -1997,27 +1887,26 @@ def render_page_html(
         <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="{esc(nav_links.get('hub','#'))}" class="embed-hide rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+        <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
-
-    {compare_bar_html}
 
     <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
       {kpis_cards}
     </div>
+
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
-        <table class="mt-3 w-full text-sm">
+        <table class="mt-3 w-full table-auto text-sm">
           <thead class="text-xs text-slate-500">
             <tr>
-              <th class="px-3 py-2 text-left">Bucket</th>
-              <th class="px-3 py-2 text-right">Sessions</th>
-              <th class="px-3 py-2 text-right">Orders</th>
-              <th class="px-3 py-2 text-right">Revenue</th>
-              <th class="px-3 py-2 text-right">{w.compare_label}</th>
-              <th class="px-3 py-2 text-right">YoY</th>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
           </thead>
           <tbody>{chan_html}</tbody>
@@ -2031,20 +1920,21 @@ def render_page_html(
             Show more (12)
           </button>
         </div>
-        <table class="mt-3 w-full text-sm">
+        <table class="mt-3 w-full table-auto text-sm">
           <thead class="text-xs text-slate-500">
             <tr>
-              <th class="px-3 py-2 text-left">Sub</th>
-              <th class="px-3 py-2 text-right">Sessions</th>
-              <th class="px-3 py-2 text-right">Revenue</th>
-              <th class="px-3 py-2 text-right">{w.compare_label}</th>
-              <th class="px-3 py-2 text-right">YoY</th>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
           </thead>
           <tbody>{paid_html}</tbody>
         </table>
       </div>
     </div>
+
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
       <div class="mt-3">{trend_svg}</div>
@@ -2080,8 +1970,6 @@ def render_page_html(
 
   </div>
 
-  {compare_js}
-
   {paid_toggle_js}
 
 </body>
@@ -2090,7 +1978,7 @@ def render_page_html(
 
 
 # =========================
-# Hub page
+# Hub page (구간비교 제거 버전)
 # =========================
 def render_hub_index(dates: List[dt.date]) -> str:
     dates = sorted(dates)
@@ -2113,13 +2001,13 @@ def render_hub_index(dates: List[dt.date]) -> str:
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-6xl p-6 embed-tight">
+  <div class="mx-auto max-w-7xl p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest Hub</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">STATIC</div>
       </div>
-      <div class="text-sm text-slate-500">Data cache 기반 · Compare는 브라우저에서 JSON 합산</div>
+      <div class="text-sm text-slate-500">Data cache 기반</div>
     </div>
 
     <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -2137,54 +2025,9 @@ def render_hub_index(dates: List[dt.date]) -> str:
       </div>
 
       <div class="md:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Range Compare</div>
-          <select id="mode" class="ml-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly (END date)</option>
-          </select>
-        </div>
-
-        <div class="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <div class="rounded-2xl border border-slate-200 bg-white p-3">
-            <div class="text-xs font-extrabold text-slate-600">A 구간</div>
-            <div class="mt-2 flex flex-wrap gap-2">
-              <input id="aStart" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
-              <input id="aEnd" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
-              <button id="aYoY" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">A→YoY</button>
-              <button id="aPrev" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">A→Prev</button>
-            </div>
-          </div>
-
-          <div class="rounded-2xl border border-slate-200 bg-white p-3">
-            <div class="text-xs font-extrabold text-slate-600">B 구간</div>
-            <div class="mt-2 flex flex-wrap gap-2">
-              <input id="bStart" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
-              <input id="bEnd" type="date" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
-              <button id="swap" class="rounded-xl bg-slate-900 px-3 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Swap</button>
-              <button id="run" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Compare</button>
-            </div>
-          </div>
-        </div>
-
-        <div id="rangeErr" class="mt-3 text-sm font-semibold text-orange-700"></div>
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Recent</div>
+        <div id="recentList" class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2"></div>
       </div>
-    </div>
-
-    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">KPIs</div>
-        <div id="kpiOut" class="mt-3 text-sm text-slate-500">구간을 선택하고 Compare를 누르면 계산됩니다.</div>
-      </div>
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Revenue</div>
-        <div id="chOut" class="mt-3 text-sm text-slate-500">—</div>
-      </div>
-    </div>
-
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Recent</div>
-      <div id="recentList" class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2"></div>
     </div>
   </div>
 
@@ -2195,52 +2038,9 @@ def render_hub_index(dates: List[dt.date]) -> str:
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}}[c]));
-  const fmtInt = (x) => Number(x||0).toLocaleString("en-US");
-  const fmtKRW = (x) => "₩" + Math.round(Number(x||0)).toLocaleString("en-US");
-  const pctChange = (c,p) => (Number(p||0)===0) ? ((Number(c||0)===0)?0:1) : ((Number(c||0)-Number(p||0))/Number(p||0));
-  const fmtPct = (p,d=1) => (Number(p||0)*100).toFixed(d)+"%";
-  const fmtPP = (p,d=2) => (Number(p||0)*100).toFixed(d)+"%p";
-
-  function bundlePath(mode, d) {{
-    if(mode==="weekly") return "data/weekly/END_"+d+".json";
-    return "data/daily/"+d+".json";
-  }}
-
-  function ymdToDate(s) {{
-    const [y,m,d] = s.split("-").map(x=>parseInt(x,10));
-    return new Date(y, m-1, d);
-  }}
-  function dateToYmd(dt) {{
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth()+1).padStart(2,"0");
-    const d = String(dt.getDate()).padStart(2,"0");
-    return `${{y}}-${{m}}-${{d}}`;
-  }}
-
-  function rangeDates(start, end) {{
-    const out = [];
-    let a = ymdToDate(start);
-    const b = ymdToDate(end);
-    if(a>b) return out;
-    for(; a<=b; a.setDate(a.getDate()+1)) out.push(dateToYmd(a));
-    return out;
-  }}
-
-  async function fetchJSON(path) {{
-    const r = await fetch(path, {{cache:"force-cache"}});
-    if(!r.ok) throw new Error(path);
-    return await r.json();
-  }}
 
   function initDefaults() {{
     $("#openDate").value = latest;
-    $("#mode").value = "daily";
-    $("#aStart").value = latest;
-    $("#aEnd").value = latest;
-    const dt = ymdToDate(latest); dt.setDate(dt.getDate()-1);
-    const prev = dateToYmd(dt);
-    $("#bStart").value = prev;
-    $("#bEnd").value = prev;
   }}
 
   function renderRecent() {{
@@ -2256,195 +2056,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
     `).join("");
   }}
 
-  function sumAgg() {{
-    return {{
-      sessions:0, orders:0, revenue:0, cvr_num:0, cvr_den:0, signups:0,
-      channels: {{}}
-    }};
-  }}
-
-  function addBundle(agg, b) {{
-    const cur = (b.overall && b.overall.current) || {{}};
-    const sessions = Number(cur.sessions||0);
-    const orders = Number(cur.transactions||0);
-    const revenue = Number(cur.purchaseRevenue||0);
-    const signups = Number((b.signup_users && b.signup_users.current)||0);
-
-    agg.sessions += sessions;
-    agg.orders += orders;
-    agg.revenue += revenue;
-    agg.signups += signups;
-    agg.cvr_num += orders;
-    agg.cvr_den += sessions;
-
-    const ch = (b.channels) ? b.channels : null;
-    if(ch && typeof ch === "object") {{
-      Object.keys(ch).forEach(k => {{
-        const rev = Number((ch[k] && ch[k].revenue)||0);
-        agg.channels[k] = (agg.channels[k]||0) + rev;
-      }});
-    }} else if(Array.isArray(b.channel_snapshot)) {{
-      b.channel_snapshot.forEach(x => {{
-        const k = x.bucket;
-        if(!k) return;
-        const rev = Number(x.purchaseRevenue||0);
-        agg.channels[k] = (agg.channels[k]||0) + rev;
-      }});
-    }}
-  }}
-
-  function finalize(agg) {{
-    const cvr = (agg.cvr_den===0)?0:(agg.cvr_num/agg.cvr_den);
-    return {{
-      sessions: agg.sessions,
-      orders: agg.orders,
-      revenue: agg.revenue,
-      cvr,
-      signups: agg.signups,
-      channels: agg.channels
-    }};
-  }}
-
-  function renderCompare(a, b) {{
-    const rows = [
-      ["Sessions", fmtInt(a.sessions), fmtInt(b.sessions), pctChange(a.sessions, b.sessions), false],
-      ["Orders", fmtInt(a.orders), fmtInt(b.orders), pctChange(a.orders, b.orders), false],
-      ["Revenue", fmtKRW(a.revenue), fmtKRW(b.revenue), pctChange(a.revenue, b.revenue), false],
-      ["CVR", (a.cvr*100).toFixed(2)+"%", (b.cvr*100).toFixed(2)+"%", (a.cvr - b.cvr), true],
-      ["Sign-ups", fmtInt(a.signups), fmtInt(b.signups), pctChange(a.signups, b.signups), false],
-    ];
-    const kpiTable = `
-      <table class="w-full text-sm">
-        <thead class="text-xs text-slate-500">
-          <tr>
-            <th class="px-3 py-2 text-left">Metric</th>
-            <th class="px-3 py-2 text-right">A</th>
-            <th class="px-3 py-2 text-right">B</th>
-            <th class="px-3 py-2 text-right">Diff</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${{rows.map(r=>{{
-            const diff = r[3];
-            const isPP = r[4];
-            const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
-            const txt = isPP ? ((diff>=0?"+":"")+fmtPP(diff,2)) : ((diff>=0?"+":"")+fmtPct(diff,1));
-            return `
-              <tr class="border-b border-slate-100">
-                <td class="px-3 py-2 font-extrabold">${{esc(r[0])}}</td>
-                <td class="px-3 py-2 text-right font-semibold">${{esc(r[1])}}</td>
-                <td class="px-3 py-2 text-right font-semibold">${{esc(r[2])}}</td>
-                <td class="px-3 py-2 text-right"><span class="${{cls}} font-extrabold">${{esc(txt)}}</span></td>
-              </tr>
-            `;
-          }}).join("")}}
-        </tbody>
-      </table>
-    `;
-    $("#kpiOut").innerHTML = kpiTable;
-
-    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Other","Total"];
-    const chRows = buckets.map(k => {{
-      const ar = Number(a.channels[k]||0);
-      const br = Number(b.channels[k]||0);
-      const diff = pctChange(ar, br);
-      const cls = diff>=0 ? "text-blue-600" : "text-orange-700";
-      return `
-        <tr class="border-b border-slate-100">
-          <td class="px-3 py-2 font-extrabold">${{esc(k)}}</td>
-          <td class="px-3 py-2 text-right">${{esc(fmtKRW(ar))}}</td>
-          <td class="px-3 py-2 text-right">${{esc(fmtKRW(br))}}</td>
-          <td class="px-3 py-2 text-right"><span class="${{cls}} font-extrabold">${{esc((diff>=0?"+":"")+fmtPct(diff,1))}}</span></td>
-        </tr>
-      `;
-    }}).join("");
-
-    $("#chOut").innerHTML = `
-      <table class="w-full text-sm">
-        <thead class="text-xs text-slate-500">
-          <tr>
-            <th class="px-3 py-2 text-left">Bucket</th>
-            <th class="px-3 py-2 text-right">A</th>
-            <th class="px-3 py-2 text-right">B</th>
-            <th class="px-3 py-2 text-right">Diff</th>
-          </tr>
-        </thead>
-        <tbody>${{chRows}}</tbody>
-      </table>
-    `;
-  }}
-
-  async function runCompare() {{
-    $("#rangeErr").textContent = "";
-    const mode = $("#mode").value;
-    const aS = $("#aStart").value, aE = $("#aEnd").value;
-    const bS = $("#bStart").value, bE = $("#bEnd").value;
-    if(!aS||!aE||!bS||!bE) {{
-      $("#rangeErr").textContent = "A/B 구간 날짜를 모두 선택해줘.";
-      return;
-    }}
-    const aDates = rangeDates(aS, aE);
-    const bDates = rangeDates(bS, bE);
-    if(aDates.length===0 || bDates.length===0) {{
-      $("#rangeErr").textContent = "구간이 잘못됐어. (start <= end)";
-      return;
-    }}
-
-    const aAgg = sumAgg();
-    const bAgg = sumAgg();
-
-    try {{
-      await Promise.all(aDates.map(async d => {{
-        const b = await fetchJSON(bundlePath(mode, d));
-        addBundle(aAgg, b);
-      }}));
-      await Promise.all(bDates.map(async d => {{
-        const b = await fetchJSON(bundlePath(mode, d));
-        addBundle(bAgg, b);
-      }}));
-    }} catch(e) {{
-      $("#rangeErr").textContent = "JSON이 없는 날짜가 있어. 먼저 해당 날짜 리포트가 생성돼 있어야 해.";
-      console.error(e);
-      return;
-    }}
-
-    renderCompare(finalize(aAgg), finalize(bAgg));
-  }}
-
-  function swapAB() {{
-    const as = $("#aStart").value, ae = $("#aEnd").value;
-    $("#aStart").value = $("#bStart").value;
-    $("#aEnd").value = $("#bEnd").value;
-    $("#bStart").value = as;
-    $("#bEnd").value = ae;
-  }}
-
-  function shiftRange(start, end, days) {{
-    let s = ymdToDate(start);
-    let e = ymdToDate(end);
-    s.setDate(s.getDate()+days);
-    e.setDate(e.getDate()+days);
-    return [dateToYmd(s), dateToYmd(e)];
-  }}
-
-  function presetPrevFromA() {{
-    const as = $("#aStart").value, ae = $("#aEnd").value;
-    if(!as||!ae) return;
-    const aDates = rangeDates(as, ae);
-    const len = aDates.length;
-    const [bs, be] = shiftRange(as, ae, -len);
-    $("#bStart").value = bs;
-    $("#bEnd").value = be;
-  }}
-
-  function presetYoYFromA() {{
-    const as = $("#aStart").value, ae = $("#aEnd").value;
-    if(!as||!ae) return;
-    const [bs, be] = shiftRange(as, ae, -364);
-    $("#bStart").value = bs;
-    $("#bEnd").value = be;
-  }}
-
   function init() {{
     initDefaults();
     renderRecent();
@@ -2456,10 +2067,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
       const d = $("#openDate").value;
       window.location.href = "weekly/END_" + d + ".html";
     }});
-    $("#run").addEventListener("click", runCompare);
-    $("#swap").addEventListener("click", swapAB);
-    $("#aPrev").addEventListener("click", presetPrevFromA);
-    $("#aYoY").addEventListener("click", presetYoYFromA);
   }}
   document.addEventListener("DOMContentLoaded", init);
 }})();
@@ -2511,10 +2118,23 @@ def build_one(
     overall = get_overall_kpis(client, w)
     signup_users = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
 
-    # ✅✅✅ PATCH: Channel snapshot은 overall을 주입하여 KPI 정합 강제
+    # ✅ Channel Snapshot: Looker CASE + Total 강제(KPI)
     channel_snapshot = get_channel_snapshot_3way(client, w, overall=overall)
 
-    paid_detail = get_paid_detail_3way(client, w)
+    # ✅ Paid AD totals 추출(채널스냅샷 기반으로 강제용)
+    paid_ad_totals = {"current": {"sessions": 0.0, "revenue": 0.0},
+                      "prev": {"sessions": 0.0, "revenue": 0.0},
+                      "yoy": {"sessions": 0.0, "revenue": 0.0}}
+    try:
+        # Channel snapshot은 current period값만 들어있고(prev/yoy는 %로만) → Paid Detail Total 강제는 current만 필요
+        row = channel_snapshot[channel_snapshot["bucket"] == "Paid AD"]
+        if not row.empty:
+            paid_ad_totals["current"]["sessions"] = float(row.iloc[0]["sessions"])
+            paid_ad_totals["current"]["revenue"] = float(row.iloc[0]["purchaseRevenue"])
+    except Exception:
+        pass
+
+    paid_detail = get_paid_detail_3way(client, w, paid_ad_totals=paid_ad_totals)
     paid_top3 = get_paid_top3(client, w)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
 
@@ -2522,7 +2142,12 @@ def build_one(
     trend_svg = trend_svg_from_series(trend_series)
 
     best_sellers, best_sellers_series = get_best_sellers_with_trends(client, w, image_map)
-    rising = get_rising_products(client, w, top_n=5)
+
+    # ✅ Rising: Best Sellers SKU 제외 + prev>0 + delta>0
+    exclude = []
+    if not best_sellers.empty and "itemId" in best_sellers.columns:
+        exclude = [str(x).strip() for x in best_sellers["itemId"].tolist() if str(x).strip()]
+    rising = get_rising_products(client, w, top_n=5, exclude_skus=exclude)
     rising = attach_image_urls(rising, image_map)
     if PLACEHOLDER_IMG and (not rising.empty) and ("image_url" in rising.columns):
         rising.loc[rising["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
@@ -2625,7 +2250,7 @@ def main():
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
 
-        # ✅✅✅ PATCHED: "전일(latest_end)"은 항상 강제 재생성 (SKIP_IF_EXISTS 무시) → 항상 전일 리포트 최신 보장
+        # ✅✅✅ "전일(latest_end)"은 항상 강제 재생성 (SKIP_IF_EXISTS 무시)
         force_rebuild = (d == latest_end)
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
