@@ -107,6 +107,7 @@ USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower(
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
+# ✅ UI Bucket names (keep)
 CHANNEL_BUCKETS = {
     "Organic": {"Organic Search"},
     "Paid AD": {"Paid Search", "Paid Social", "Display"},
@@ -117,8 +118,6 @@ CHANNEL_BUCKETS = {
 PAID_SUBGROUPS = ["Paid Search", "Paid Social", "Display"]
 
 # ✅ Paid detail (custom) — fixed order / labels
-# - 기존 Paid Search/Paid Social/Display/Total 대신 아래 라벨로 노출
-# - source 기준(= sessionSource)으로 집계
 PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
 
 
@@ -468,7 +467,6 @@ def spark_svg(
 # Excel image map
 # =========================
 def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
-    # ✅ FIX: 기존 코드에 잘못 들어간 summary_payload 관련 구문 제거 (SyntaxError 원인)
     if not xlsx_path:
         print("[WARN] Image Excel path is empty.")
         return {}
@@ -653,6 +651,7 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
         return "SNS"
     if _rx(r".*(benz).*").search(sm):
         return "Organic"
+
     if _rx(r".*(nap).*").search(sm) and _rx(r".*(da).*").search(sm):
         return "Paid AD"
     if _rx(r".*(toss).*").search(sm):
@@ -671,7 +670,8 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     if _rx(r".*(kakao_fridnstalk).*").search(sm):
         return "Owned"
 
-    if _rx(r".*(mkt|_bd).*").search(sm) or _rx(r".*(mkt|_bd).*").search(cp):
+    # NOTE: rtf에 campaign 쪽 패턴이 "(mkt|\\[bd)"처럼 깨진 부분이 있어, _bd까지 커버하도록 보수적으로 처리
+    if _rx(r".*(mkt|_bd|\[bd).*").search(sm) or _rx(r".*(mkt|_bd|\[bd).*").search(cp):
         return "Awareness"
 
     if _rx(r".*(igshopping).*").search(sm):
@@ -684,15 +684,15 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
         return "Paid AD"
 
     # google / cpc split by campaign keyword
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(dg|demandgen).*").search(cp):
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(dg|demandgen|디멘드젠|디멘드잰|디맨드젠|디맨드잰).*").search(cp):
         return "Awareness"
     if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(pmax).*").search(cp):
         return "Paid AD"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(yt|youtube|instream|vac|vvc).*").search(cp):
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(yt|youtube|instream|vac|vvc|유튜브).*").search(cp):
         return "Awareness"
     if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(discovery).*").search(cp):
         return "Awareness"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(sa|ss).*").search(cp):
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(sa|ss|검색).*").search(cp):
         return "Paid AD"
     if _rx(r".*google\s*/\s*cpc.*").search(sm):
         return "Paid AD"
@@ -709,8 +709,10 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
         return "Paid AD"
     if _rx(r".*(gfa).*").search(sm):
         return "Paid AD"
+
     if _rx(r".*(naverbs).*").search(sm):
         return "Paid AD"
+
     if _rx(r".*(naver).*").search(sm) and _rx(r".*(cpc).*").search(sm):
         return "Paid AD"
     if _rx(r".*(shopping_ad).*").search(sm):
@@ -778,7 +780,7 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
 
 
 def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
-    """Paid detail sub-channel classification — **Looker Paid Ad rule-aligned**."""
+    """Paid detail sub-channel classification — Looker Paid Ad rule-aligned."""
     sm = (source_medium or "").strip().lower()
     cp = (campaign or "").strip().lower()
 
@@ -849,42 +851,90 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
     return base or "other"
 
 
-def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
+# =========================
+# ✅ PATCH: Channel Snapshot (Looker-rule aligned)
+# - Channel Snapshot의 Paid AD = Paid Detail Total 과 동일 로직/모집단
+# - Total은 Overall KPI를 정답으로 강제 정합(차이는 Other로 흡수)
+# =========================
+def _normalize_sm_cp(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName", "sessions", "transactions", "purchaseRevenue"])
+    df = df.copy()
+    if "sessionSourceMedium" not in df.columns:
+        df["sessionSourceMedium"] = ""
+    if "sessionCampaignName" not in df.columns:
+        df["sessionCampaignName"] = ""
+    df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("").map(lambda x: x.strip())
+    df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("").map(lambda x: x.strip())
+    for c in ("sessions", "transactions", "purchaseRevenue"):
+        df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
+    return df[["sessionSourceMedium", "sessionCampaignName", "sessions", "transactions", "purchaseRevenue"]]
+
+def _bucket_order_key(b: str) -> int:
+    order = {"Organic": 0, "Paid AD": 1, "Owned": 2, "Awareness": 3, "SNS": 4, "Other": 5}
+    return int(order.get(b, 99))
+
+def _ensure_bucket_row(df: pd.DataFrame, bucket: str) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame([{
+            "bucket": bucket, "sessions": 0.0, "transactions": 0.0, "purchaseRevenue": 0.0,
+            "rev_dod": 0.0, "rev_yoy": 0.0
+        }])
+    if bucket not in set(df["bucket"].astype(str).tolist()):
+        df = pd.concat([df, pd.DataFrame([{
+            "bucket": bucket, "sessions": 0.0, "transactions": 0.0, "purchaseRevenue": 0.0,
+            "rev_dod": 0.0, "rev_yoy": 0.0
+        }])], ignore_index=True)
+    return df
+
+def get_channel_snapshot_3way(
+    client: BetaAnalyticsDataClient,
+    w: DigestWindow,
+    overall: Optional[Dict[str, Dict[str, float]]] = None,
+) -> pd.DataFrame:
     """
-    ✅ FIX: Channel Snapshot 세션 합이 Overall KPI 세션과 항상 일치하도록
-    - sessionDefaultChannelGroup(세션 분해에 안전) 기반으로 가져온 뒤 Bucket으로 매핑
-    - DoD/YoY는 Sessions 기준으로 계산
+    Looker CASE 룰(첨부 rtf)과 동일한 기준으로 Channel Snapshot을 생성.
+    - dims: sessionSourceMedium + sessionCampaignName
+    - bucket: classify_looker_channel()
+    - Paid AD 세션/매출 == Paid Detail의 Total(동일 모집단/기준) 정합 보장
+    - Total 세션/오더/매출은 Overall KPI(정답)로 강제 정합; 차이는 Other에 흡수
     """
-    dims = ["sessionDefaultChannelGroup"]
+    dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
-    cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
-    prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
-    yoy  = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
+    try:
+        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=250000)
+        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=250000)
+        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=250000)
+    except Exception:
+        # fallback: campaign dimension이 불가한 환경 대응(가능하면 유지)
+        dims = ["sessionSourceMedium"]
+        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=250000)
+        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=250000)
+        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=250000)
+        cur["sessionCampaignName"] = ""
+        prev["sessionCampaignName"] = ""
+        yoy["sessionCampaignName"] = ""
 
-    if cur.empty:
-        cur = pd.DataFrame(columns=dims + mets)
-    if prev.empty:
-        prev = pd.DataFrame(columns=dims + mets)
-    if yoy.empty:
-        yoy = pd.DataFrame(columns=dims + mets)
+    cur = _normalize_sm_cp(cur)
+    prev = _normalize_sm_cp(prev)
+    yoy = _normalize_sm_cp(yoy)
 
-    def _prep(df: pd.DataFrame) -> pd.DataFrame:
+    def _to_bucket(df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return pd.DataFrame(columns=["bucket", "sessions", "transactions", "purchaseRevenue"])
         df = df.copy()
-        df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("").map(lambda x: x.strip())
-        for c in mets:
-            df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-
-        df["bucket"] = df["sessionDefaultChannelGroup"].map(bucket_channel)
-        out = df.groupby("bucket", as_index=False)[["sessions","transactions","purchaseRevenue"]].sum()
+        df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
+        out = df.groupby("bucket", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
         return out
 
-    cur_b  = _prep(cur).rename(columns={"sessions":"sessions_cur", "transactions":"transactions_cur", "purchaseRevenue":"rev_cur"})
-    prev_b = _prep(prev).rename(columns={"sessions":"sessions_prev","transactions":"transactions_prev","purchaseRevenue":"rev_prev"})
-    yoy_b  = _prep(yoy).rename(columns={"sessions":"sessions_yoy", "transactions":"transactions_yoy", "purchaseRevenue":"rev_yoy_base"})
+    cur_b = _to_bucket(cur).rename(columns={"sessions": "sessions_cur", "transactions": "transactions_cur", "purchaseRevenue": "rev_cur"})
+    prev_b = _to_bucket(prev).rename(columns={"sessions": "sessions_prev", "transactions": "transactions_prev", "purchaseRevenue": "rev_prev"})
+    yoy_b = _to_bucket(yoy).rename(columns={"sessions": "sessions_yoy", "transactions": "transactions_yoy", "purchaseRevenue": "rev_yoy_base"})
 
     m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
 
+    # DoD/WoW & YoY는 "Sessions 기준" (기존 UI 컬럼명 유지)
     m["dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     m["yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
 
@@ -895,49 +945,98 @@ def get_channel_snapshot_3way(client: BetaAnalyticsDataClient, w: DigestWindow) 
         "purchaseRevenue": m["rev_cur"],
         "rev_dod": m["dod"],
         "rev_yoy": m["yoy"],
-        "rev_vs_prev": m["dod"],
     })
 
-    order = {"Organic":0, "Paid AD":1, "Owned":2, "Awareness":3, "SNS":4, "Other":5}
-    out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
-    out = out.sort_values(["__o","bucket"]).drop(columns="__o")
+    # ✅ Total 정합: Overall KPI를 정답으로 강제
+    if overall and isinstance(overall, dict):
+        try:
+            k_cur = overall.get("current", {}) or {}
+            k_prev = overall.get("prev", {}) or {}
+            k_yoy = overall.get("yoy", {}) or {}
 
-    tot_sessions_cur = float(m["sessions_cur"].sum())
-    tot_sessions_prev = float(m["sessions_prev"].sum())
-    tot_sessions_yoy = float(m["sessions_yoy"].sum())
+            tgt_s = float(k_cur.get("sessions", 0) or 0)
+            tgt_o = float(k_cur.get("transactions", 0) or 0)
+            tgt_r = float(k_cur.get("purchaseRevenue", 0) or 0)
+
+            sum_s = float(out["sessions"].sum()) if not out.empty else 0.0
+            sum_o = float(out["transactions"].sum()) if not out.empty else 0.0
+            sum_r = float(out["purchaseRevenue"].sum()) if not out.empty else 0.0
+
+            # 차이는 Other에 흡수(없으면 만들기)
+            out = _ensure_bucket_row(out, "Other")
+            idx_other = out.index[out["bucket"] == "Other"].tolist()[0]
+
+            ds = tgt_s - sum_s
+            do = tgt_o - sum_o
+            dr = tgt_r - sum_r
+
+            # 너무 작은 float 오차는 무시
+            if abs(ds) > 0.5:
+                out.at[idx_other, "sessions"] = float(out.at[idx_other, "sessions"]) + ds
+            if abs(do) > 0.5:
+                out.at[idx_other, "transactions"] = float(out.at[idx_other, "transactions"]) + do
+            if abs(dr) > 1.0:
+                out.at[idx_other, "purchaseRevenue"] = float(out.at[idx_other, "purchaseRevenue"]) + dr
+
+            # Other 변경 이후, dod/yoy 재계산(Other만)
+            # (prev/yoy의 Other는 원천적으로 정확히 맞추기 어렵기 때문에,
+            #  UI 정합성을 위해 "sessions 기준"은 현재값을 기준으로 유지 + total에서 계산)
+            # 여기서는 Other의 rev_dod/rev_yoy는 그대로 두고 Total에서만 KPI기반으로 맞춤.
+
+            # Total row: KPI 기반으로 생성
+            tot_sessions_prev = float(k_prev.get("sessions", 0) or 0)
+            tot_sessions_yoy = float(k_yoy.get("sessions", 0) or 0)
+
+            total = pd.DataFrame([{
+                "bucket": "Total",
+                "sessions": tgt_s,
+                "transactions": tgt_o,
+                "purchaseRevenue": tgt_r,
+                "rev_dod": pct_change(tgt_s, tot_sessions_prev),
+                "rev_yoy": pct_change(tgt_s, tot_sessions_yoy),
+            }])
+
+            # Total 제외하고 정렬 후 Total append
+            out = out[out["bucket"] != "Total"].copy()
+            out["__o"] = out["bucket"].map(_bucket_order_key).fillna(99).astype(int)
+            out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
+            out = pd.concat([out, total], ignore_index=True)
+            return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod", "rev_yoy"]]
+        except Exception:
+            pass
+
+    # overall 없거나 실패 시: 단순 Total
+    out["__o"] = out["bucket"].map(_bucket_order_key).fillna(99).astype(int)
+    out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
+    tot_sessions_cur = float(out["sessions"].sum()) if not out.empty else 0.0
+    tot_sessions_prev = float(m["sessions_prev"].sum()) if not m.empty else 0.0
+    tot_sessions_yoy = float(m["sessions_yoy"].sum()) if not m.empty else 0.0
 
     total = pd.DataFrame([{
-        "bucket":"Total",
+        "bucket": "Total",
         "sessions": tot_sessions_cur,
-        "transactions": float(m["transactions_cur"].sum()),
-        "purchaseRevenue": float(m["rev_cur"].sum()),
+        "transactions": float(out["transactions"].sum()) if not out.empty else 0.0,
+        "purchaseRevenue": float(out["purchaseRevenue"].sum()) if not out.empty else 0.0,
         "rev_dod": pct_change(tot_sessions_cur, tot_sessions_prev),
         "rev_yoy": pct_change(tot_sessions_cur, tot_sessions_yoy),
-        "rev_vs_prev": pct_change(tot_sessions_cur, tot_sessions_prev),
     }])
-
     out = pd.concat([out, total], ignore_index=True)
-    return out[["bucket","sessions","transactions","purchaseRevenue","rev_dod","rev_yoy"]]
+    return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod", "rev_yoy"]]
 
-# -------------------------
-# (이 아래는 네가 올린 원본 그대로)
-# Paid detail / paid top3 / KPI snapshot / trend / best sellers / rising / BQ PDP / search
-# bundle cache / HTML renderers / hub / build_one / main
-# -------------------------
 
 def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
-    """Paid detail (custom) from source/medium + campaign."""
+    """Paid detail (custom) from source/medium + campaign. (Looker bucket=Paid AD subset)"""
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "purchaseRevenue"]
     try:
-        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
-        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
-        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
+        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=250000)
+        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=250000)
+        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=250000)
     except Exception:
         dims = ["sessionSourceMedium"]
-        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=100000)
-        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=100000)
-        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=100000)
+        cur = run_report(client, PROPERTY_ID, ymd(w.cur_start), ymd(w.cur_end), dims, mets, limit=250000)
+        prev = run_report(client, PROPERTY_ID, ymd(w.prev_start), ymd(w.prev_end), dims, mets, limit=250000)
+        yoy = run_report(client, PROPERTY_ID, ymd(w.yoy_start), ymd(w.yoy_end), dims, mets, limit=250000)
         cur["sessionCampaignName"] = ""
         prev["sessionCampaignName"] = ""
         yoy["sessionCampaignName"] = ""
@@ -946,8 +1045,8 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
         if df is None or df.empty:
             return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName"] + mets)
         df = df.copy()
-        df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str)
-        df["sessionCampaignName"] = df.get("sessionCampaignName", "").astype(str)
+        df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("").map(lambda x: x.strip())
+        df["sessionCampaignName"] = df.get("sessionCampaignName", "").astype(str).fillna("").map(lambda x: x.strip())
         for c in mets:
             df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
         df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r.get("sessionCampaignName", "")), axis=1)
@@ -990,6 +1089,7 @@ def get_paid_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd
         others.assign(_ord=999),
     ], ignore_index=True)
 
+    # ✅ Total = Paid AD 전체 합 (채널 스냅샷 Paid AD와 동일 모집단)
     total = {
         "sub": "Total",
         "sessions_cur": float(ordered["sessions_cur"].sum()),
@@ -1436,7 +1536,6 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
                     'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
                 })
 
-        # ✅ Hub rebuild을 위해 series도 같이 리턴
         pdp_series = {
             "x": xlabels,
             "rows": [
@@ -1444,7 +1543,7 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
                     "itemCategory": r["itemCategory"],
                     "views_d1": r["views_d1"],
                     "views_avg7d": r["views_avg7d"],
-                    "ys": []  # (여기서는 spark_svg만 필요. rebuild시에는 없으면 0으로 처리됨)
+                    "ys": []
                 } for r in rows
             ]
         }
@@ -2244,7 +2343,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
     `;
     $("#kpiOut").innerHTML = kpiTable;
 
-    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Total"];
+    const buckets = ["Organic","Paid AD","Owned","Awareness","SNS","Other","Total"];
     const chRows = buckets.map(k => {{
       const ar = Number(a.channels[k]||0);
       const br = Number(b.channels[k]||0);
@@ -2411,7 +2510,10 @@ def build_one(
 
     overall = get_overall_kpis(client, w)
     signup_users = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
-    channel_snapshot = get_channel_snapshot_3way(client, w)
+
+    # ✅✅✅ PATCH: Channel snapshot은 overall을 주입하여 KPI 정합 강제
+    channel_snapshot = get_channel_snapshot_3way(client, w, overall=overall)
+
     paid_detail = get_paid_detail_3way(client, w)
     paid_top3 = get_paid_top3(client, w)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
