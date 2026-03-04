@@ -119,6 +119,7 @@
     .img-box{
       width:72px; height:72px; border-radius:18px; overflow:hidden; background: rgba(255,255,255,0.70);
       border:1px solid rgba(255,255,255,0.85);
+      flex: 0 0 auto;
     }
     .img-box img{ width:100%; height:100%; object-fit:cover; display:block; }
 
@@ -130,26 +131,13 @@
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
 
-    /* bubble mindmap look (kept for visual, but content is now "major products pos/neg 3 sentences") */
-    .bubble{
-      position:absolute; transform: translate(-50%,-50%);
-      border-radius:9999px; padding: 10px 14px;
-      font-weight: 900; font-size: 12px;
-      border: 1px solid rgba(255,255,255,0.90);
-      background: rgba(255,255,255,0.72);
-      box-shadow: 0 14px 30px rgba(0,45,114,0.08);
-      cursor:pointer; user-select:none; white-space: nowrap;
-    }
-    .bubble.neg{ background: rgba(239,68,68,0.10); color:#b91c1c; border-color: rgba(239,68,68,0.18); }
-    .bubble.pos{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
-
-    .mono{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    }
-
     .hover-lift:hover{ transform: translateY(-2px); }
     .clickable-card{ cursor:pointer; }
     .clickable-card:active{ transform: translateY(0px); }
+
+    /* Prevent any image overlap / duplication visually */
+    img{ max-width: 100%; height: auto; display:block; }
+    .no-dup-img .img-box{ display:none; } /* used when we intentionally hide product image inside review list */
 
     body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
@@ -219,21 +207,21 @@
           </header>
         </div>
 
-        <!-- 0: Yesterday + KEYWORD MINDMAP(=Major products pos/neg 3 sentences each) -->
+        <!-- 0: Yesterday + Major products -->
         <section class="mb-10" id="sec-mlsignals">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
-                <div class="small-label text-blue-600 mb-2">0. YESTERDAY + KEYWORD</div>
-                <div class="text-2xl font-black text-slate-900">어제 리뷰 바로 이동 + 주요 상품 긍/부정 문장 3개</div>
+                <div class="small-label text-blue-600 mb-2">0. YESTERDAY</div>
+                <div class="text-2xl font-black text-slate-900">어제 리뷰 바로 이동 + 주요 상품 긍/부정 문장</div>
                 <div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) · 범위: 최근 3개월</div>
               </div>
               <div class="flex gap-2 flex-wrap items-center">
-                <button class="chip" onclick="jumpToYesterdayFeed()">
+                <button class="chip" type="button" onclick="jumpToYesterdayFeed()">
                   <i class="fa-solid fa-bolt mr-2"></i>어제 올라온 리뷰로 이동
                 </button>
-                <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
-                <button class="chip" id="chip-low" onclick="toggleChip('low')">Low</button>
+                <button class="chip active" id="chip-daily" type="button" onclick="toggleChip('daily')">Daily</button>
+                <button class="chip" id="chip-low" type="button" onclick="toggleChip('low')">Low</button>
               </div>
             </div>
 
@@ -244,58 +232,19 @@
                 <div class="text-xs font-bold text-slate-500 mt-2">어제 업로드된 리뷰 수 (현재 탭/필터 기준)</div>
                 <div class="text-xs font-bold text-slate-500 mt-3" id="yLowHint">-</div>
                 <div class="mt-4 flex gap-2 flex-wrap">
-                  <button class="chip active" onclick="jumpToYesterdayFeed()">
+                  <button class="chip active" type="button" onclick="jumpToYesterdayFeed()">
                     <i class="fa-solid fa-arrow-down mr-2"></i>바로 이동
                   </button>
-                  <button class="chip" onclick="applyYesterdayOnlyLow()">
+                  <button class="chip" type="button" onclick="applyYesterdayOnlyLow()">
                     <i class="fa-solid fa-triangle-exclamation mr-2"></i>어제 Low만 보기
                   </button>
                 </div>
               </div>
 
               <div class="summary-card lg:col-span-2">
-                <div class="small-label text-blue-600 mb-2">KEYWORD MINDMAP</div>
-                <div class="text-xs font-bold text-slate-500">주요 상품(Top)별 POS/NEG 문장 3개씩 (카드 클릭 → 해당 상품으로 필터)</div>
-                <div id="majorProductsMindmap" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
-              </div>
-            </div>
-
-            <!-- TOPICS removed per request -->
-          </div>
-        </section>
-
-        <!-- 1 Summary -->
-        <section class="mb-10" id="sec-summary">
-          <div class="glass-card p-8">
-            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-              <div>
-                <div class="small-label text-blue-600 mb-2">1. Summary</div>
-                <div class="text-2xl font-black text-slate-900">키워드 하이라이트</div>
-              </div>
-              <div class="text-xs font-black text-slate-500">
-                * 클릭 → 해당 키워드로 검색
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div class="summary-card">
-                <div class="small-label text-slate-700 mb-2">Keywords Top 5</div>
-
-                <div class="text-xs font-black text-slate-500 mt-1">NEG</div>
-                <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
-
-                <div class="text-xs font-black text-slate-500 mt-4">POS</div>
-                <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
-              </div>
-
-              <div class="summary-card">
-                <div class="small-label text-blue-600 mb-2">Workflow</div>
-                <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
-                  1) <span class="font-black">어제 리뷰</span>부터 확인<br/>
-                  2) Low/개선요청 태그로 리스크 리뷰 먼저 보기<br/>
-                  3) 제품 선택 → 저평점/리뷰 길이로 원인 텍스트 빠르게 파악<br/>
-                  4) <span class="font-black">제품별 누적 리뷰(3개월)</span>로 누적 이슈/칭찬을 제품 단위로 확인
-                </div>
+                <div class="small-label text-blue-600 mb-2">MAJOR PRODUCTS</div>
+                <div class="text-xs font-bold text-slate-500">주요 상품(Top)별 POS/NEG 문장 (카드 클릭 → 제품 누적 섹션으로 이동)</div>
+                <div id="majorProductsBox" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3"></div>
               </div>
             </div>
           </div>
@@ -307,10 +256,10 @@
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
-                <div class="text-sm font-bold text-slate-500 mt-2">최근 7일 누적 기준 · 평점 낮은 상품 / 평점 높은 상품 + 대표 NEG/POS 문장 1개씩</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">최근 7일 누적 기준 · 평점 낮은/높은 상품 + 대표 NEG/POS 문장 1개</div>
               </div>
               <div class="text-xs font-black text-slate-500">
-                * 행 클릭 → 해당 상품으로 필터 + 아래로 이동
+                * 행 클릭 → 아래 "제품별 누적 리뷰"로 이동
               </div>
             </div>
 
@@ -324,8 +273,8 @@
                         <th class="text-left">제품</th>
                         <th class="text-left">리뷰</th>
                         <th class="text-left">평균★</th>
-                        <th class="text-left">NEG 문장(1)</th>
-                        <th class="text-left">POS 문장(1)</th>
+                        <th class="text-left">NEG(1)</th>
+                        <th class="text-left">POS(1)</th>
                       </tr>
                     </thead>
                     <tbody id="rankLow7dBody"></tbody>
@@ -342,8 +291,8 @@
                         <th class="text-left">제품</th>
                         <th class="text-left">리뷰</th>
                         <th class="text-left">평균★</th>
-                        <th class="text-left">NEG 문장(1)</th>
-                        <th class="text-left">POS 문장(1)</th>
+                        <th class="text-left">NEG(1)</th>
+                        <th class="text-left">POS(1)</th>
                       </tr>
                     </thead>
                     <tbody id="rankHigh7dBody"></tbody>
@@ -353,33 +302,36 @@
             </div>
 
             <div class="text-[11px] font-bold text-slate-500 mt-4 leading-relaxed">
-              * NEG 문장: ★1~2 리뷰에서 1개(없으면 '-'), POS 문장: ★4~5 리뷰에서 1개(없으면 '-')<br/>
-              * 문장 분리: <span class="font-black">저평점(★1~2)은 리뷰 통째로</span> 사용 (문장 쪼개기 금지), 고평점은 문장 단위 1개 추출
+              * NEG: ★1~2 리뷰는 <span class="font-black">리뷰 통째</span> 1개 (문장쪼개기 없음) · POS: ★4~5에서 문장 1개(없으면 '-')<br/>
+              * "리뷰쓸때 올린 이미지"는 섹션 전체에서 표시하지 않음 (제품썸네일/리뷰썸네일도 제외)
             </div>
           </div>
         </section>
 
-        <!-- 3 제품별 누적 리뷰 (3 months, product unit) -->
+        <!-- 3 Product cumulative (3 months) -->
         <section class="mb-10" id="sec-product-cum">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">3. 제품별 누적 리뷰</div>
-                <div class="text-2xl font-black text-slate-900">제품 단위 · 최근 3개월 누적 리뷰</div>
+                <div class="text-2xl font-black text-slate-900">제품 단위 · 최근 3개월 누적 (NEG / POS 분리)</div>
                 <div class="text-sm font-bold text-slate-500 mt-2">
-                  제품별로 누적 리뷰를 모아서 보여줌 · NEG는 리뷰 통째 · POS는 문장(1~3) 요약
+                  각 제품마다 NEG 2개 + POS 2개만 추출해서 보여줌 · 리뷰 업로드 이미지는 표시하지 않음
                 </div>
               </div>
 
               <div class="flex gap-2 flex-wrap">
-                <button class="chip active" id="cum-pol-all" onclick="switchCumPol('all')">ALL</button>
-                <button class="chip" id="cum-pol-neg" onclick="switchCumPol('neg')">NEG (★1~2)</button>
-                <button class="chip" id="cum-pol-pos" onclick="switchCumPol('pos')">POS (★4~5)</button>
-                <button class="chip active" id="cum-chip-3m" onclick="toggleCum3M()">최근 3개월</button>
+                <button class="chip active" id="cum-chip-3m" type="button" onclick="toggleCum3M()">최근 3개월</button>
+                <button class="chip" type="button" onclick="clearCumFilters()">
+                  <i class="fa-solid fa-eraser mr-2"></i>필터 초기화
+                </button>
+                <button class="chip" type="button" onclick="jumpToSection('sec-daily-feed', 16)">
+                  <i class="fa-solid fa-arrow-down mr-2"></i>4. Daily Feed로
+                </button>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-6 gap-3 mb-6">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-6">
               <select id="cumProductSelect" class="input-glass" onchange="renderProductCumulative()">
                 <option value="">제품 선택 (전체)</option>
               </select>
@@ -388,33 +340,20 @@
                 <option value="latest" selected>정렬: 최신순</option>
                 <option value="rating_low">정렬: 평점 낮은 순</option>
                 <option value="rating_high">정렬: 평점 높은 순</option>
-                <option value="long">정렬: 리뷰 길이 긴 순</option>
-              </select>
-
-              <select id="cumLimitSelect" class="input-glass" onchange="renderProductCumulative()">
-                <option value="60">표시 60</option>
-                <option value="120" selected>표시 120</option>
-                <option value="200">표시 200</option>
-                <option value="400">표시 400</option>
               </select>
 
               <input id="cumSearchInput" class="input-glass" placeholder="텍스트 검색" oninput="renderProductCumulative()" />
 
-              <button class="chip" onclick="clearCumFilters()">
-                <i class="fa-solid fa-eraser mr-2"></i>필터 초기화
-              </button>
-
-              <button class="chip" onclick="jumpToSection('sec-daily-feed', 12)">
-                <i class="fa-solid fa-arrow-down mr-2"></i>Daily Feed로
-              </button>
+              <select id="cumLimitSelect" class="input-glass" onchange="renderProductCumulative()">
+                <option value="20" selected>제품 20개</option>
+                <option value="50">제품 50개</option>
+                <option value="100">제품 100개</option>
+              </select>
             </div>
 
             <div class="summary-card mb-4">
               <div class="small-label text-slate-700 mb-2">STATS</div>
               <div class="text-xs font-bold text-slate-500 leading-relaxed" id="cumStats">-</div>
-              <div class="text-[11px] font-bold text-slate-500 mt-2">
-                * 제품 사진은 reviews.json 내 local_product_image 우선 사용 (없으면 NO IMAGE 표기)
-              </div>
             </div>
 
             <div id="cumContent" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
@@ -435,11 +374,8 @@
                 <div class="text-sm font-bold text-slate-500 mt-2">기본 날짜: 어제(KST) · 최근 7일 범위 내 선택</div>
               </div>
               <div class="flex gap-2 flex-wrap">
-                <button class="chip" onclick="jumpToYesterdayFeed()">
+                <button class="chip" type="button" onclick="jumpToYesterdayFeed()">
                   <i class="fa-solid fa-bolt mr-2"></i>어제 리뷰로
-                </button>
-                <button class="chip" onclick="scrollToFirstYesterdayReviewCard()">
-                  <i class="fa-solid fa-location-crosshairs mr-2"></i>어제 첫 카드로
                 </button>
               </div>
             </div>
@@ -471,7 +407,7 @@
 
         <footer class="text-xs font-bold text-slate-500 pb-8">
           * 데이터 소스: data/reviews.json / data/meta.json<br/>
-          * 기본 동작: 어제(KST) 기준 Daily Feed 표시 · 리뷰 카드 클릭 시 실제 리뷰 페이지로 이동
+          * 리뷰 카드 클릭 시 실제 리뷰 페이지로 이동 (review_url / url / detail_url 우선)
         </footer>
 
       </div>
@@ -485,9 +421,6 @@
     const uiState = {
       sourceTab: "combined",
       chips: { daily: true, low: false },
-
-      // product cumulative
-      cumPol: "all",      // all|neg|pos
       cumOnly3M: true,
     };
 
@@ -559,20 +492,27 @@
       window.scrollTo({ top, behavior: "smooth" });
     }
 
+    // ✅ Fix scroll: wait for layout + force after render
     function jumpToYesterdayFeed(){
       const day = kstDateStr(-1);
       const dayInput = document.getElementById("daySelect");
       if (dayInput){
         dayInput.value = day;
       }
+
       uiState.chips.daily = true;
       document.getElementById("chip-daily")?.classList.add("active");
 
-      // keep low chip as-is
       renderAll();
 
-      jumpToSection("sec-daily-feed", 16);
-      setTimeout(()=>scrollToFirstYesterdayReviewCard(), 450);
+      // ensure DOM updated before scrolling
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          jumpToSection("sec-daily-feed", 16);
+          // optional: scroll to first card of yesterday
+          setTimeout(()=>scrollToFirstYesterdayReviewCard(), 350);
+        });
+      });
     }
 
     function scrollToFirstYesterdayReviewCard(){
@@ -597,7 +537,12 @@
       document.getElementById("chip-low")?.classList.add("active");
 
       renderAll();
-      jumpToSection("sec-daily-feed", 16);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          jumpToSection("sec-daily-feed", 16);
+        });
+      });
     }
 
     function switchSourceTab(tab){
@@ -613,24 +558,6 @@
       const el = document.getElementById(`chip-${name}`);
       if (el) el.classList.toggle("active", uiState.chips[name]);
       renderAll();
-    }
-
-    function setSearchAndRender(q){
-      const el = document.getElementById("qInput");
-      if (el) el.value = q || "";
-      renderAll();
-    }
-
-    function setProductFilterAndJump(code){
-      const ps = document.getElementById("productSelect");
-      if (ps){
-        ps.value = code || "";
-      }
-      // daily chip ON but don't force day
-      uiState.chips.daily = false; // show broader by default unless user sets date
-      document.getElementById("chip-daily")?.classList.remove("active");
-      renderAll();
-      jumpToSection("sec-product-cum", 14);
     }
 
     function getSourceFilteredRows(rows){
@@ -686,68 +613,8 @@
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
-    function renderSummary(){
-      const neg = META?.neg_top5 || [];
-      const pos = META?.pos_top5 || [];
-
-      const elNeg = document.getElementById("topNeg");
-      if (elNeg){
-        elNeg.innerHTML = neg.map(([k,c]) => `
-          <span class="badge neg" onclick="setSearchAndRender('${esc(k)}')">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>
-        `).join("");
-      }
-
-      const elPos = document.getElementById("topPos");
-      if (elPos){
-        elPos.innerHTML = pos.map(([k,c]) => `
-          <span class="badge pos" onclick="setSearchAndRender('${esc(k)}')">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>
-        `).join("");
-      }
-    }
-
-    function renderProductSelect(){
-      const sel = document.getElementById("productSelect");
-      if (!sel) return;
-
-      const current = sel.value;
-      const map = new Map();
-      for (const r of REVIEWS){
-        const code = r.product_code || "";
-        if (!code) continue;
-        if (!map.has(code)) map.set(code, r.product_name || code);
-      }
-
-      const options = [`<option value="">제품 선택 (전체)</option>`].concat(
-        Array.from(map.entries())
-          .sort((a,b)=> String(a[1]).localeCompare(String(b[1])))
-          .map(([code,name]) => `<option value="${esc(code)}">${esc(name)} (${esc(code)})</option>`)
-      ).join("");
-
-      sel.innerHTML = options;
-      sel.value = current;
-    }
-
-    function renderSizeSelect(){
-      const sel = document.getElementById("sizeSelect");
-      if (!sel) return;
-
-      const current = sel.value;
-      const set = new Set();
-      for (const r of REVIEWS){
-        const sz = (r.option_size || "").trim();
-        if (sz) set.add(sz);
-      }
-
-      const opts = Array.from(set).sort((a,b)=> String(a).localeCompare(String(b)));
-      sel.innerHTML = [`<option value="">옵션 사이즈 (전체)</option>`]
-        .concat(opts.map(sz => `<option value="${esc(sz)}">${esc(sz)}</option>`))
-        .join("");
-
-      sel.value = current;
-    }
-
     // -------------------------
-    // Sentence split utils
+    // Sentence split utilities
     // -------------------------
     function splitToSentencesKo(text){
       const s = String(text||"").trim();
@@ -761,20 +628,41 @@
       if (!parts.length) return s ? [s] : [];
       return parts;
     }
-
     function isNeg(r){ return Number(r.rating||0) <= 2; }
     function isPos(r){ return Number(r.rating||0) >= 4; }
 
     // -------------------------
-    // 0) Major products mindmap (POS/NEG 3 sentences each)
+    // 0) Yesterday signals + Major products
     // -------------------------
-    function renderMajorProductsMindmap(){
-      const box = document.getElementById("majorProductsMindmap");
+    function renderYesterdaySignals(){
+      const yday = kstDateStr(-1);
+      const base = getFilteredReviews();
+      const yRows = base.filter(r => String(r.created_at||"").slice(0,10) === yday);
+      const yCnt = yRows.length;
+
+      document.getElementById("yCount").textContent = yCnt;
+
+      const lowCnt = yRows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low")).length;
+      const hint = document.getElementById("yLowHint");
+      if (hint){
+        hint.textContent = (yCnt ? `Low/리스크 추정: ${lowCnt}건` : "어제 데이터가 없습니다.");
+      }
+    }
+
+    function setCumProduct(code){
+      const sel = document.getElementById("cumProductSelect");
+      if (sel){
+        sel.value = code || "";
+      }
+      renderProductCumulative();
+      jumpToSection("sec-product-cum", 14);
+    }
+
+    function renderMajorProducts(){
+      const box = document.getElementById("majorProductsBox");
       if (!box) return;
 
-      // base = source-tab filtered + last 3 months
       let rows = getSourceFilteredRows(REVIEWS);
-
       const endMs = dateToMs(kstDateStr(0));
       const startMs = endMs - (92*24*3600*1000);
       rows = rows.filter(r => {
@@ -782,7 +670,6 @@
         return ms >= startMs && ms <= endMs;
       });
 
-      // aggregate by product review count
       const byProd = new Map();
       for (const r of rows){
         const code = r.product_code || "";
@@ -792,7 +679,6 @@
             product_code: code,
             product_name: r.product_name || code,
             local_product_image: r.local_product_image || "",
-            product_url: r.product_url || "",
             reviews: []
           });
         }
@@ -801,7 +687,7 @@
 
       const products = Array.from(byProd.values())
         .sort((a,b)=> b.reviews.length - a.reviews.length)
-        .slice(0, 6); // "주요 상품들" -> top 6
+        .slice(0, 6);
 
       if (!products.length){
         box.innerHTML = `<div class="text-sm font-black text-slate-500">주요 상품 데이터가 없습니다.</div>`;
@@ -809,31 +695,19 @@
       }
 
       box.innerHTML = products.map(p => {
-        const negPool = p.reviews.filter(isNeg);
-        const posPool = p.reviews.filter(isPos);
+        const negPool = p.reviews.filter(isNeg).sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+        const posPool = p.reviews.filter(isPos).sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
 
-        // NEG: keep whole review (not split)
-        const negTexts = negPool
-          .sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0))
-          .map(r => String(r.text||"").trim())
-          .filter(t => t.length >= 8)
-          .slice(0, 3);
-
-        // POS: sentence split, pick top 3 distinct sentences
-        const posSents = [];
-        const seen = new Set();
-        for (const r of posPool.sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0))){
-          const sents = splitToSentencesKo(r.text||"");
-          for (const s of sents){
-            const t = String(s||"").trim();
-            if (t.length < 10) continue;
-            if (seen.has(t)) continue;
-            seen.add(t);
-            posSents.push(t);
-            if (posSents.length >= 3) break;
+        const negText = (negPool[0]?.text || "").trim() || "-";
+        const posSent = (() => {
+          for (const r of posPool){
+            for (const s of splitToSentencesKo(r.text||"")){
+              const t = String(s||"").trim();
+              if (t.length >= 10) return t;
+            }
           }
-          if (posSents.length >= 3) break;
-        }
+          return "-";
+        })();
 
         const img = p.local_product_image
           ? `<img src="${esc(p.local_product_image)}" alt="">`
@@ -846,31 +720,20 @@
                 <div class="img-box">${img}</div>
                 <div class="min-w-0">
                   <div class="font-black text-slate-900 line-clamp-1">${esc(p.product_name)}</div>
-                  <div class="text-xs font-bold text-slate-500 mt-1">code: ${esc(p.product_code)} · 3M reviews: ${esc(p.reviews.length)}</div>
+                  <div class="text-xs font-bold text-slate-500 mt-1">code: ${esc(p.product_code)} · 3M: ${esc(p.reviews.length)}</div>
                 </div>
               </div>
-              <div class="text-right">
-                <div class="badge"><i class="fa-solid fa-magnifying-glass"></i> 누적 보기</div>
-              </div>
+              <div class="badge"><i class="fa-solid fa-layer-group"></i> 누적</div>
             </div>
 
             <div class="mt-3 grid grid-cols-1 gap-3">
               <div class="p-3 rounded-2xl bg-white/45 border border-white/80">
-                <div class="text-xs font-black text-slate-500 mb-2">NEG (★1~2) · 3 sentences</div>
-                ${
-                  negTexts.length
-                    ? negTexts.map(t => `<div class="text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words mt-2">${esc(t)}</div>`).join("")
-                    : `<div class="text-sm font-extrabold text-slate-400">-</div>`
-                }
+                <div class="text-xs font-black text-slate-500 mb-2">NEG (★1~2)</div>
+                <div class="text-sm font-extrabold text-slate-800 whitespace-pre-wrap break-words">${esc(negText)}</div>
               </div>
-
               <div class="p-3 rounded-2xl bg-white/45 border border-white/80">
-                <div class="text-xs font-black text-slate-500 mb-2">POS (★4~5) · 3 sentences</div>
-                ${
-                  posSents.length
-                    ? posSents.map(t => `<div class="text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words mt-2">${esc(t)}</div>`).join("")
-                    : `<div class="text-sm font-extrabold text-slate-400">-</div>`
-                }
+                <div class="text-xs font-black text-slate-500 mb-2">POS (★4~5)</div>
+                <div class="text-sm font-extrabold text-slate-800 whitespace-pre-wrap break-words">${esc(posSent)}</div>
               </div>
             </div>
           </div>
@@ -878,59 +741,21 @@
       }).join("");
     }
 
-    function setCumProduct(code){
-      const sel = document.getElementById("cumProductSelect");
-      if (sel){
-        sel.value = code || "";
-      }
-      renderProductCumulative();
-      jumpToSection("sec-product-cum", 14);
-    }
-
-    // -------------------------
-    // 0) Yesterday count
-    // -------------------------
-    function renderYesterdaySignals(){
-      // Based on current filters for count
-      const yday = kstDateStr(-1);
-      const base = getFilteredReviews(); // current filter set
-      const yRows = base.filter(r => String(r.created_at||"").slice(0,10) === yday);
-      const yCnt = yRows.length;
-
-      const yCountEl = document.getElementById("yCount");
-      if (yCountEl) yCountEl.textContent = yCnt;
-
-      const lowCnt = yRows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low")).length;
-      const hint = document.getElementById("yLowHint");
-      if (hint){
-        hint.textContent = (yCnt ? `Low/리스크 추정: ${lowCnt}건` : "어제 데이터가 없습니다.");
-      }
-    }
-
     // -------------------------
     // 2) Ranking 7D
     // -------------------------
     function pickOneNegText(reviewRows){
-      // NEG: keep whole review (do NOT split)
-      const r = reviewRows
-        .filter(isNeg)
-        .sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0))[0];
+      const r = reviewRows.filter(isNeg).sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0))[0];
       const t = String(r?.text || "").trim();
       return t ? t : "-";
     }
-
     function pickOnePosSentence(reviewRows){
-      // POS: sentence split, pick first decent sentence
       const pos = reviewRows.filter(isPos).sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
-      const seen = new Set();
       for (const r of pos){
         const sents = splitToSentencesKo(r.text||"");
         for (const s of sents){
           const t = String(s||"").trim();
-          if (t.length < 10) continue;
-          if (seen.has(t)) continue;
-          seen.add(t);
-          return t;
+          if (t.length >= 10) return t;
         }
       }
       return "-";
@@ -950,7 +775,6 @@
         return ms >= startMs && ms <= endMs;
       });
 
-      // group by product
       const byProd = new Map();
       for (const r of rows){
         const code = r.product_code || "";
@@ -960,7 +784,6 @@
             product_code: code,
             product_name: r.product_name || code,
             local_product_image: r.local_product_image || "",
-            product_url: r.product_url || "",
             reviews: []
           });
         }
@@ -975,9 +798,7 @@
         return { ...p, n, avg: Math.round(avg*100)/100, neg1, pos1 };
       });
 
-      // optional: require at least 2 reviews for stability (but keep if not enough)
       const stable = agg.filter(x => x.n >= 1);
-
       const low = stable.slice().sort((a,b)=> (a.avg - b.avg) || (b.n - a.n)).slice(0, 10);
       const high = stable.slice().sort((a,b)=> (b.avg - a.avg) || (b.n - a.n)).slice(0, 10);
 
@@ -999,12 +820,8 @@
             </td>
             <td class="muted">${esc(p.n)}</td>
             <td><span class="badge">${esc(p.avg)}</span></td>
-            <td class="muted">
-              <div class="line-clamp-2">${esc(p.neg1)}</div>
-            </td>
-            <td class="muted">
-              <div class="line-clamp-2">${esc(p.pos1)}</div>
-            </td>
+            <td class="muted"><div class="line-clamp-2">${esc(p.neg1)}</div></td>
+            <td class="muted"><div class="line-clamp-2">${esc(p.pos1)}</div></td>
           </tr>
         `;
       }
@@ -1014,15 +831,8 @@
     }
 
     // -------------------------
-    // 3) Product cumulative (3 months, product unit)
+    // 3) Product cumulative (NEG 2 + POS 2)
     // -------------------------
-    function switchCumPol(pol){
-      uiState.cumPol = pol;
-      document.getElementById("cum-pol-all")?.classList.toggle("active", pol==="all");
-      document.getElementById("cum-pol-neg")?.classList.toggle("active", pol==="neg");
-      document.getElementById("cum-pol-pos")?.classList.toggle("active", pol==="pos");
-      renderProductCumulative();
-    }
     function toggleCum3M(){
       uiState.cumOnly3M = !uiState.cumOnly3M;
       document.getElementById("cum-chip-3m")?.classList.toggle("active", uiState.cumOnly3M);
@@ -1036,14 +846,31 @@
       if (sel) sel.value = "";
       if (q) q.value = "";
       if (sort) sort.value = "latest";
-      if (lim) lim.value = "120";
-      uiState.cumPol = "all";
+      if (lim) lim.value = "20";
       uiState.cumOnly3M = true;
-      document.getElementById("cum-pol-all")?.classList.add("active");
-      document.getElementById("cum-pol-neg")?.classList.remove("active");
-      document.getElementById("cum-pol-pos")?.classList.remove("active");
       document.getElementById("cum-chip-3m")?.classList.add("active");
       renderProductCumulative();
+    }
+
+    function renderProductSelect(){
+      const sel = document.getElementById("productSelect");
+      if (!sel) return;
+
+      const current = sel.value;
+      const map = new Map();
+      for (const r of REVIEWS){
+        const code = r.product_code || "";
+        if (!code) continue;
+        if (!map.has(code)) map.set(code, r.product_name || code);
+      }
+
+      sel.innerHTML = [`<option value="">제품 선택 (전체)</option>`].concat(
+        Array.from(map.entries())
+          .sort((a,b)=> String(a[1]).localeCompare(String(b[1])))
+          .map(([code,name]) => `<option value="${esc(code)}">${esc(name)} (${esc(code)})</option>`)
+      ).join("");
+
+      sel.value = current;
     }
 
     function renderCumProductSelect(){
@@ -1068,10 +895,28 @@
       sel.value = current;
     }
 
+    function renderSizeSelect(){
+      const sel = document.getElementById("sizeSelect");
+      if (!sel) return;
+
+      const current = sel.value;
+      const set = new Set();
+      for (const r of REVIEWS){
+        const sz = (r.option_size || "").trim();
+        if (sz) set.add(sz);
+      }
+
+      const opts = Array.from(set).sort((a,b)=> String(a).localeCompare(String(b)));
+      sel.innerHTML = [`<option value="">옵션 사이즈 (전체)</option>`]
+        .concat(opts.map(sz => `<option value="${esc(sz)}">${esc(sz)}</option>`))
+        .join("");
+
+      sel.value = current;
+    }
+
     function getCumBaseRows(){
       let rows = getSourceFilteredRows(REVIEWS);
 
-      // 3 months window
       if (uiState.cumOnly3M){
         const endMs = dateToMs(kstDateStr(0));
         const startMs = endMs - (92*24*3600*1000);
@@ -1081,15 +926,9 @@
         });
       }
 
-      // polarity filter
-      if (uiState.cumPol === "neg") rows = rows.filter(isNeg);
-      if (uiState.cumPol === "pos") rows = rows.filter(isPos);
-
-      // product filter
       const p = (document.getElementById("cumProductSelect")?.value || "").trim();
       if (p) rows = rows.filter(r => String(r.product_code||"") === p);
 
-      // search
       const q = (document.getElementById("cumSearchInput")?.value || "").trim().toLowerCase();
       if (q){
         rows = rows.filter(r =>
@@ -1101,124 +940,55 @@
       return rows;
     }
 
-    function productGroupCardsHTML(groups, overallRows, limit){
-      // If no product selected: show "대표 리뷰(최대 10) - 제품명 중복 제거" first
-      const selected = (document.getElementById("cumProductSelect")?.value || "").trim();
-      let featuredHTML = "";
-
-      if (!selected){
-        const seenProd = new Set();
-        const featured = [];
-
-        // sort latest overall
-        const sorted = overallRows.slice().sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
-
-        for (const r of sorted){
-          const pn = String(r.product_name || r.product_code || "").trim();
-          if (!pn) continue;
-          if (seenProd.has(pn)) continue;     // ✅ 제품명 중복 제거
-          seenProd.add(pn);
-          featured.push(r);
-          if (featured.length >= 10) break;
-        }
-
-        if (featured.length){
-          featuredHTML = `
-            <div class="summary-card lg:col-span-2">
-              <div class="small-label text-slate-700 mb-2">SAMPLES (up to 10)</div>
-              <div class="text-xs font-bold text-slate-500 mb-3">제품명 중복 제거 · 최신순 · 카드 클릭 시 리뷰 페이지로 이동</div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                ${featured.map(r => reviewCardHTML(r, { compact: true })).join("")}
-              </div>
-            </div>
-          `;
-        }
-      }
-
-      const groupHTML = groups.slice(0, limit).map(g => {
-        const img = g.local_product_image
-          ? `<img src="${esc(g.local_product_image)}" alt="">`
-          : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
-
-        // show up to 12 reviews per product
-        const perProd = 12;
-        const reviews = g.reviews.slice(0, perProd);
-
-        // NEG: keep whole review; POS: show sentence list (up to 3) below
-        const bodyHTML = reviews.map(r => {
-          let extra = "";
-          if (isPos(r)){
-            const sents = splitToSentencesKo(r.text||"").filter(x => String(x||"").trim().length >= 10).slice(0,3);
-            if (sents.length){
-              extra = `
-                <div class="mt-2 p-3 rounded-2xl bg-white/45 border border-white/80">
-                  <div class="text-[11px] font-black text-slate-500 mb-2">POS sentences (up to 3)</div>
-                  ${sents.map(s => `<div class="text-sm font-extrabold text-slate-800 whitespace-pre-wrap break-words mt-2">${esc(s)}</div>`).join("")}
-                </div>
-              `;
-            }
-          }
-          // NEG: no sentence split, the main text is already whole review in card content
-          return `
-            <div class="mt-3">
-              ${reviewCardHTML(r, { noClamp: true })}
-              ${extra}
-            </div>
-          `;
-        }).join("");
-
-        const more = Math.max(0, g.totalCount - reviews.length);
-        const moreBtn = more > 0 ? `
-          <button class="chip mt-4" onclick="expandCumProduct('${esc(g.product_code)}')">+ ${esc(more)}개 더 보기</button>
-        ` : ``;
-
-        return `
-          <div class="review-card">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3 min-w-0">
-                <div class="img-box">${img}</div>
-                <div class="min-w-0">
-                  <div class="font-black text-slate-900 line-clamp-1">${esc(g.product_name)}</div>
-                  <div class="text-xs font-bold text-slate-500 mt-1">code: ${esc(g.product_code)} · 3M count: ${esc(g.totalCount)}</div>
-                  ${g.product_url ? `<a href="${esc(g.product_url)}" target="_blank" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>` : ``}
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="badge"><i class="fa-solid fa-layer-group"></i> 누적</div>
-              </div>
-            </div>
-
-            <div class="mt-4">
-              ${bodyHTML || `<div class="text-sm font-black text-slate-400">-</div>`}
-              ${moreBtn}
-              <div class="hidden" id="cum-more-${esc(g.product_code)}"></div>
-            </div>
-          </div>
-        `;
-      }).join("");
-
-      return featuredHTML + groupHTML;
+    function getReviewLink(r){
+      return String(r.review_url || r.url || r.detail_url || r.link || "").trim();
     }
 
-    function expandCumProduct(code){
-      const box = document.getElementById(`cum-more-${code}`);
-      if (!box) return;
+    // ✅ 리뷰 이미지 제거: local_review_thumb / text_image_path 등은 절대 렌더링 안함
+    function reviewCardNoImagesHTML(r, opts={}){
+      const t = asArr(r.tags);
+      const tags = [];
 
-      // already expanded
-      if (!box.classList.contains("hidden") && box.innerHTML.trim()){
-        box.classList.toggle("hidden");
-        return;
-      }
+      if (t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> #긍정</span>`);
+      if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> #size_issue</span>`);
+      if ((Number(r.rating||0) <= 2) || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> #low_rating</span>`);
+      if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> #개선요청</span>`);
 
-      // load full list from current base rows (so it respects filters)
-      const rows = getCumBaseRows().filter(r => String(r.product_code||"") === String(code||""));
-      const sorted = rows.slice().sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+      const clamp = opts.noClamp ? "" : "line-clamp-3";
+      const link = getReviewLink(r);
 
-      box.innerHTML = `
-        <div class="text-xs font-black text-slate-500 mt-5 mb-2">ALL (filtered)</div>
-        ${sorted.map(r => `<div class="mt-3">${reviewCardHTML(r, { noClamp: true })}</div>`).join("")}
+      const openTag = link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer" class="block">` : `<div>`;
+      const closeTag = link ? `</a>` : `</div>`;
+
+      return `
+        ${openTag}
+        <div class="review-card hover:shadow-lg transition hover-lift clickable-card ${opts.compact ? "p-4" : ""} no-dup-img"
+             title="${link ? "클릭하면 리뷰 페이지로 이동" : ""}">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="font-black text-slate-900 line-clamp-1">${esc(r.product_name || r.product_code)}</div>
+              <div class="text-xs font-bold text-slate-500 mt-1">
+                code: ${esc(r.product_code)} · source: ${esc(r.source || "-")} · id: ${esc(r.id)}
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs font-black text-slate-700">★ ${esc(r.rating)}</div>
+              <div class="text-[11px] font-bold text-slate-500 mt-1">${esc(fmtDT(r.created_at))}</div>
+              ${link ? `<div class="text-[11px] font-black text-blue-600 mt-1"><i class="fa-solid fa-up-right-from-square mr-1"></i>리뷰 링크</div>` : ``}
+            </div>
+          </div>
+
+          <div class="mt-3 flex flex-wrap gap-2">
+            ${(r.option_size ? `<span class="badge">옵션: ${esc(r.option_size)}</span>` : ``)}
+            ${tags.join("")}
+          </div>
+
+          <div class="mt-3 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words ${clamp}">
+            ${esc(r.text || "")}
+          </div>
+        </div>
+        ${closeTag}
       `;
-      box.classList.remove("hidden");
     }
 
     function renderProductCumulative(){
@@ -1238,9 +1008,8 @@
         }
         empty.classList.add("hidden");
 
-        // sorting for product groups
         const sort = document.getElementById("cumSortSelect")?.value || "latest";
-        const limit = parseInt(document.getElementById("cumLimitSelect")?.value || "120", 10);
+        const limitProd = parseInt(document.getElementById("cumLimitSelect")?.value || "20", 10);
 
         // group by product
         const byProd = new Map();
@@ -1256,26 +1025,20 @@
               reviews: [],
               totalCount: 0,
               avg: 0,
-              minRating: 99,
-              maxRating: 0,
               latestAt: ""
             });
           }
-          const g = byProd.get(code);
-          g.reviews.push(r);
+          byProd.get(code).reviews.push(r);
         }
 
         let groups = Array.from(byProd.values()).map(g => {
           g.totalCount = g.reviews.length;
           const sum = g.reviews.reduce((s,x)=> s + Number(x.rating||0), 0);
           g.avg = sum / Math.max(1, g.totalCount);
-          g.minRating = g.reviews.reduce((m,x)=> Math.min(m, Number(x.rating||0)), 99);
-          g.maxRating = g.reviews.reduce((m,x)=> Math.max(m, Number(x.rating||0)), 0);
           g.latestAt = g.reviews.reduce((m,x)=> {
             const a = String(x.created_at||"");
             return (!m || new Date(a) > new Date(m)) ? a : m;
           }, "");
-          // per-product internal review order (latest first)
           g.reviews.sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
           return g;
         });
@@ -1286,28 +1049,93 @@
           groups.sort((a,b)=> (a.avg - b.avg) || (b.totalCount - a.totalCount));
         } else if (sort === "rating_high"){
           groups.sort((a,b)=> (b.avg - a.avg) || (b.totalCount - a.totalCount));
-        } else if (sort === "long"){
-          // sort by max text length in group
-          groups.sort((a,b)=> {
-            const la = Math.max(...a.reviews.map(r => String(r.text||"").length));
-            const lb = Math.max(...b.reviews.map(r => String(r.text||"").length));
-            return (lb - la) || (b.totalCount - a.totalCount);
-          });
         }
 
         const timeLabel = uiState.cumOnly3M ? "최근 3개월" : "전체기간";
-        const polLabel = uiState.cumPol.toUpperCase();
         const prodSel = (document.getElementById("cumProductSelect")?.value || "").trim();
-        stats.textContent = `rows=${rows.length} · products=${groups.length} · ${timeLabel} · pol=${polLabel}${prodSel ? ` · product=${prodSel}` : ""}`;
+        stats.textContent = `rows=${rows.length} · products=${groups.length} · ${timeLabel}${prodSel ? ` · product=${prodSel}` : ""}`;
 
-        container.innerHTML = productGroupCardsHTML(groups, rows, Math.min(groups.length, 50));
+        const shownGroups = groups.slice(0, Math.min(groups.length, limitProd));
+
+        // ✅ build product cards: top = product thumbnail only once (prevent overlap/dup)
+        container.innerHTML = shownGroups.map(g => {
+          const neg = g.reviews.filter(isNeg).slice(0,2); // NEG 2
+          const pos = g.reviews.filter(isPos).slice(0,2); // POS 2
+
+          // fallback if not enough: take next best from overall to fill (but keep section labeling)
+          const negFilled = neg.length ? neg : [];
+          const posFilled = pos.length ? pos : [];
+
+          const img = g.local_product_image
+            ? `<img src="${esc(g.local_product_image)}" alt="">`
+            : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
+
+          const header = `
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="img-box">${img}</div>
+                <div class="min-w-0">
+                  <div class="font-black text-slate-900 line-clamp-1">${esc(g.product_name)}</div>
+                  <div class="text-xs font-bold text-slate-500 mt-1">code: ${esc(g.product_code)} · 3M count: ${esc(g.totalCount)} · avg★ ${esc((Math.round(g.avg*100)/100).toFixed(2))}</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="badge"><i class="fa-solid fa-layer-group"></i> 누적</span>
+              </div>
+            </div>
+          `;
+
+          const negBox = `
+            <div class="mt-4 p-4 rounded-3xl bg-white/55 border border-white/80">
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-black text-slate-500">NEG (★1~2) · 2개</div>
+                <span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> LOW</span>
+              </div>
+              <div class="mt-3 grid grid-cols-1 gap-3">
+                ${
+                  negFilled.length
+                    ? negFilled.map(r => reviewCardNoImagesHTML(r, { compact: true, noClamp: true })).join("")
+                    : `<div class="text-sm font-black text-slate-400">-</div>`
+                }
+              </div>
+            </div>
+          `;
+
+          const posBox = `
+            <div class="mt-4 p-4 rounded-3xl bg-white/55 border border-white/80">
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-black text-slate-500">POS (★4~5) · 2개</div>
+                <span class="badge pos"><i class="fa-solid fa-face-smile"></i> GOOD</span>
+              </div>
+              <div class="mt-3 grid grid-cols-1 gap-3">
+                ${
+                  posFilled.length
+                    ? posFilled.map(r => reviewCardNoImagesHTML(r, { compact: true, noClamp: true })).join("")
+                    : `<div class="text-sm font-black text-slate-400">-</div>`
+                }
+              </div>
+            </div>
+          `;
+
+          return `
+            <div class="review-card">
+              ${header}
+              ${negBox}
+              ${posBox}
+            </div>
+          `;
+        }).join("");
       });
     }
 
     // -------------------------
-    // Daily feed (review card click => actual review page)
+    // Daily feed rendering (NO review-upload images)
     // -------------------------
-    function reviewCardHTML(r, opts={}){
+    function getReviewLink(r){
+      return String(r.review_url || r.url || r.detail_url || r.link || "").trim();
+    }
+
+    function reviewCardDailyHTML(r){
       const t = asArr(r.tags);
       const tags = [];
 
@@ -1316,33 +1144,22 @@
       if ((Number(r.rating||0) <= 2) || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> #low_rating</span>`);
       if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> #개선요청</span>`);
 
-      // ✅ Daily Feed: remove 100+ TEXT IMAGE / IMAGE label + image entirely
-      // (We still keep product image, and optional review thumbnail if present)
       const prodImg = r.local_product_image
         ? `<img src="${esc(r.local_product_image)}" alt="">`
         : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
 
-      const reviewThumb = r.local_review_thumb
-        ? `<img src="${esc(r.local_review_thumb)}" class="w-full max-h-56 object-contain rounded-lg bg-slate-50" />`
-        : ``;
+      const link = getReviewLink(r);
 
-      const clamp = opts.noClamp ? "" : "line-clamp-3";
-      const compact = opts.compact ? true : false;
-
-      const link = String(r.review_url || r.url || r.detail_url || r.product_url || "").trim();
       const openTag = link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer" class="block">` : `<div>`;
       const closeTag = link ? `</a>` : `</div>`;
 
-      const cardId = `review-${esc(r.id)}`;
       const day = String(r.created_at||"").slice(0,10);
 
       return `
         ${openTag}
-        <div class="review-card hover:shadow-lg transition hover-lift clickable-card ${compact ? "p-4" : ""}"
-             id="${cardId}"
+        <div class="review-card hover:shadow-lg transition hover-lift clickable-card"
              data-review-day="${esc(day)}"
              title="${link ? "클릭하면 리뷰 페이지로 이동" : ""}">
-
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <div class="img-box">${prodImg}</div>
@@ -1365,11 +1182,9 @@
             ${tags.join("")}
           </div>
 
-          <div class="mt-3 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words ${clamp}">
+          <div class="mt-3 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words line-clamp-3">
             ${esc(r.text || "")}
           </div>
-
-          ${reviewThumb ? `<div class="mt-3">${reviewThumb}</div>` : ``}
         </div>
         ${closeTag}
       `;
@@ -1388,7 +1203,7 @@
       }
 
       no.classList.add("hidden");
-      container.innerHTML = rows.map(r => reviewCardHTML(r)).join("");
+      container.innerHTML = rows.map(reviewCardDailyHTML).join("");
     }
 
     // -------------------------
@@ -1397,25 +1212,15 @@
     function renderAll(){
       renderHeader();
       renderProductSelect();
-      renderSizeSelect();
       renderCumProductSelect();
+      renderSizeSelect();
 
       const filtered = getFilteredReviews();
 
-      // 0
       renderYesterdaySignals();
-      renderMajorProductsMindmap();
-
-      // 1
-      renderSummary();
-
-      // 2
+      renderMajorProducts();
       renderRanking7D();
-
-      // 3
       renderProductCumulative();
-
-      // 4
       renderDailyFeed(filtered);
     }
 
@@ -1434,7 +1239,6 @@
           if (META?.period_start) dayInput.min = META.period_start;
           if (META?.period_end) dayInput.max = META.period_end;
 
-          // default = yesterday(KST)
           if (!dayInput.value){
             dayInput.value = kstDateStr(-1);
           }
