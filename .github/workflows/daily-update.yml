@@ -509,20 +509,6 @@ jobs:
 
           ls -la reports/voc_blog/index.html || true
 
-      # ----------------------------
-      # 5) Summary
-      # ----------------------------
-      - name: Build Summary (reports/index.html + meta.json)
-        if: ${{ steps.modes.outputs.run_summary == 'true' }}
-        continue-on-error: true
-        env:
-          UPDATED_KST: ${{ steps.set_time.outputs.kst }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -u build_summary.py || true
-          echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
-          ls -la reports/index.html reports/meta.json || true
 
       # =========================================================
       # ✅ OWNED Campaign Portal
@@ -622,6 +608,21 @@ jobs:
           ls -lah site/data/owned | head -n 60 || true
           echo "[CHECK] site/owned:"
           ls -lah site/owned | head -n 60 || true
+
+      # ----------------------------
+      # 5) Summary   (✅ MOVED HERE: after OWNED publish)
+      # ----------------------------
+      - name: Build Summary (reports/index.html + meta.json)
+        if: ${{ steps.modes.outputs.run_summary == 'true' }}
+        continue-on-error: true
+        env:
+          UPDATED_KST: ${{ steps.set_time.outputs.kst }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -u build_summary.py || true
+          echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
+          ls -la reports/index.html reports/meta.json || true
 
       # ----------------------------
       # 7) Commit & push results
