@@ -96,7 +96,7 @@
       background: transparent;
       overflow: hidden;         /* 핵심 */
       display:block;
-      height: 1200px;           /* 초기값(로드 후 JS가 자동 조정) */
+      height: 3200px;           /* 초기값(로드 후 JS가 자동 조정) */
     }
 
     .loading-backdrop{
@@ -158,7 +158,7 @@
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
-        <div class="muted font-semibold mt-1">기본: 최신 리포트 자동 탐색(기본 어제 KST) · 비교 ON이면 A/B 각각 리포트 표시 · 구간비교는 A/B END 리포트 로드</div>
+        <div class="muted font-semibold mt-1">기본: 최신 리포트 자동 탐색(기본 어제 KST) · 비교 ON이면 A/B 각각 리포트 표시</div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap justify-end">
@@ -187,20 +187,6 @@
         <button id="btnPresetYoY" class="btn" type="button">YoY</button>
         <div class="w-[160px]"><input id="bDate" type="date" /></div>
         <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
-      </div>
-
-      <!-- ✅ Row 2 -->
-      <div class="toolbar-row flex items-center gap-2 mb-4 whitespace-nowrap">
-        <div class="small-label">Range A</div>
-        <div class="w-[160px]"><input id="aStart" type="date" /></div>
-        <div class="w-[160px]"><input id="aEnd" type="date" /></div>
-
-        <div class="ml-2 small-label">Range B</div>
-        <div class="w-[160px]"><input id="bStart" type="date" /></div>
-        <div class="w-[160px]"><input id="bEnd" type="date" /></div>
-
-        <button id="btnRangeGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>구간비교</button>
-        <button id="btnRangeClear" class="btn" type="button">Range 해제</button>
       </div>
 
       <div id="viewerGrid" class="grid grid-cols-1 gap-4">
@@ -265,12 +251,6 @@
   const btnPresetYoY = document.getElementById('btnPresetYoY');
   const btnCompareGo = document.getElementById('btnCompareGo');
 
-  const aStart = document.getElementById('aStart');
-  const aEnd = document.getElementById('aEnd');
-  const bStart = document.getElementById('bStart');
-  const bEnd = document.getElementById('bEnd');
-  const btnRangeGo = document.getElementById('btnRangeGo');
-  const btnRangeClear = document.getElementById('btnRangeClear');
 
   const viewerA = document.getElementById('viewerA');
   const viewerB = document.getElementById('viewerB');
@@ -304,8 +284,8 @@
       : `${BASE}data/weekly/END_${dateStr}.json`;
   }
 
-  const ACTION_BTNS = [btnReload, btnCompareGo, btnRangeGo];
-  const MODE_BTNS = [modeDaily, modeWeekly, btnCompareToggle, btnPresetPrev, btnPresetYoY, btnPrev, btnNext, btnYesterday, btnToday, btnRangeClear];
+  const ACTION_BTNS = [btnReload, btnCompareGo];
+  const MODE_BTNS = [modeDaily, modeWeekly, btnCompareToggle, btnPresetPrev, btnPresetYoY, btnPrev, btnNext, btnYesterday, btnToday];
 
   function setBusy(on, msg){
     if(on){
@@ -395,8 +375,8 @@
         style.id = 'hub_scrub_css';
         style.type = 'text/css';
         style.textContent = `
-          html, body { overflow:hidden !important; }
-          body { margin:0 !important; }
+          html, body { overflow: visible !important; height: auto !important; }
+          body { margin:0 !important; min-height: auto !important; }
         `;
         doc.head.appendChild(style);
       }
@@ -511,31 +491,6 @@
     await loadB(targetB);
   }
 
-  async function doRangeCompare(){
-    const ae = (aEnd.value||'').trim();
-    const be = (bEnd.value||'').trim();
-    if(!ae || !be) return;
-
-    setCompare(true);
-    setBusy(true, '구간비교 로딩…');
-
-    aDate.value = ae;
-    bDate.value = be;
-
-    await applyA();
-
-    let targetB = be;
-    if(!(await existsReport(targetB))){
-      targetB = ae;
-      bDate.value = targetB;
-    }
-    await loadB(targetB);
-  }
-
-  function clearRange(){
-    aStart.value = ''; aEnd.value = '';
-    bStart.value = ''; bEnd.value = '';
-  }
 
   async function setMode(next){
     MODE = next;
@@ -549,12 +504,6 @@
     aDate.value = latest;
     bDate.value = fmtYMD(addDays(parseYMD(latest), -stepDays()));
 
-    const ae = latest;
-    const as = fmtYMD(addDays(parseYMD(latest), -20));
-    const be = fmtYMD(addDays(parseYMD(latest), -21));
-    const bs = fmtYMD(addDays(parseYMD(latest), -41));
-    aStart.value = as; aEnd.value = ae;
-    bStart.value = bs; bEnd.value = be;
 
     await applyA();
     if(COMPARE) await doCompare();
@@ -592,8 +541,7 @@
 
   btnCompareGo.addEventListener('click', doCompare);
 
-  btnRangeGo.addEventListener('click', doRangeCompare);
-  btnRangeClear.addEventListener('click', ()=>{ clearRange(); });
+;
 
   btnYesterday.addEventListener('click', async ()=>{
     const baseY = fmtYMD(addDays(kstNowDate(), -1));
@@ -624,13 +572,6 @@
     aDate.value = latest;
     bDate.value = fmtYMD(addDays(parseYMD(latest), -1));
 
-    const ae = latest;
-    const as = fmtYMD(addDays(parseYMD(latest), -20));
-    const be = fmtYMD(addDays(parseYMD(latest), -21));
-    const bs = fmtYMD(addDays(parseYMD(latest), -41));
-
-    aStart.value = as; aEnd.value = ae;
-    bStart.value = bs; bEnd.value = be;
 
     await setMode('daily');
   })();
