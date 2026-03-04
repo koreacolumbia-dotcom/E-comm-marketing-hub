@@ -9,18 +9,9 @@
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }
   </style>
-
-  <script>
-    (function(){
-      try{
-        const p = new URLSearchParams(location.search);
-        if(p.get('embed') === '1') document.documentElement.setAttribute('data-embed','1');
-      }catch(e){}
-    })();
-  </script>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-6xl p-6 embed-tight">
+  <div class="mx-auto max-w-7xl p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
@@ -28,11 +19,9 @@
         <div class="text-sm text-slate-500">2025-03-04 ~ 2025-03-04 · DoD vs 2025-03-03 ~ 2025-03-03 · YoY 2024-03-05 ~ 2024-03-05</div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="../index.html" class="embed-hide rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+        <a href="../index.html" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
-
-    
 
     <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
       
@@ -67,21 +56,22 @@
         </div>
         
     </div>
+
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
-        <table class="mt-3 w-full text-sm">
+        <table class="mt-3 w-full table-auto text-sm">
           <thead class="text-xs text-slate-500">
             <tr>
-              <th class="px-3 py-2 text-left">Bucket</th>
-              <th class="px-3 py-2 text-right">Sessions</th>
-              <th class="px-3 py-2 text-right">Orders</th>
-              <th class="px-3 py-2 text-right">Revenue</th>
-              <th class="px-3 py-2 text-right">DoD</th>
-              <th class="px-3 py-2 text-right">YoY</th>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">DoD</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
           </thead>
-          <tbody><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>Organic</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>2,174</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>24</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩3,588,064</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+4.8%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+9.5%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>Paid AD</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>2,955</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>31</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩3,421,812</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-13.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-33.1%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>Owned</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>385</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>13</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩1,361,736</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+4.3%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-37.6%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>Awareness</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>3,046</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>2</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩326,873</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-14.4%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+358.7%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>SNS</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>314</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>1</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩146,020</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-25.4%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+383.1%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>Other</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>121</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-15.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-29.2%</div></td></tr><tr class='bg-slate-50 '><td class='px-3 py-2 border-b border-slate-100 font-extrabold'>Total</td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>8,995</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>71</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>₩8,844,505</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right text-orange-700'>-10.2%</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right text-blue-600'>+15.5%</div></td></tr></tbody>
+          <tbody><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Organic</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2,174</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>24</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩3,588,064</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+4.8%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+9.5%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Paid AD</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2,955</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>31</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩3,421,812</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-13.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-38.6%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Owned</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>385</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>13</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩1,361,736</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+4.3%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-37.6%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Awareness</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>3,046</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩326,873</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-14.4%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+1040.8%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>SNS</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>314</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩146,020</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-25.4%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+383.1%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Other</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>17</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-15.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-29.2%</div></td></tr><tr class='bg-slate-50 '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'>Total</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>8,995</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>71</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>₩8,844,505</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right text-orange-700'>-10.2%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold pr-4'><div class='text-right text-blue-600'>+15.5%</div></td></tr></tbody>
         </table>
       </div>
 
@@ -92,20 +82,21 @@
             Show more (12)
           </button>
         </div>
-        <table class="mt-3 w-full text-sm">
+        <table class="mt-3 w-full table-auto text-sm">
           <thead class="text-xs text-slate-500">
             <tr>
-              <th class="px-3 py-2 text-left">Sub</th>
-              <th class="px-3 py-2 text-right">Sessions</th>
-              <th class="px-3 py-2 text-right">Revenue</th>
-              <th class="px-3 py-2 text-right">DoD</th>
-              <th class="px-3 py-2 text-right">YoY</th>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">DoD</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
           </thead>
-          <tbody><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>naverbs</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>776</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩1,651,340</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-7.3%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-30.6%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>criteo</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>613</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩466,580</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+14.8%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-23.5%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>meta</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>888</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩717,540</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-10.1%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+18.4%</div></td></tr><tr class='bg-slate-50 '><td class='px-3 py-2 border-b border-slate-100 font-extrabold'>google</td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>662</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>₩586,352</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right text-orange-700'>-70.4%</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right text-blue-600'>+14.8%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>naver mo</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>15</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-orange-700'>-100.0%</div></td></tr><tr class=' '><td class='px-3 py-2 border-b border-slate-100 font-medium'>instagram</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-3 py-2 border-b border-slate-100 font-medium'>m.danawa.com</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>1</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-3 py-2 border-b border-slate-100 font-medium'>kakao</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-3 py-2 border-b border-slate-100 font-medium'>prod.danawa.com</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-3 py-2 border-b border-slate-100 font-medium'>todayfortune.co.kr</td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right'>₩0</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-3 py-2 border-b border-slate-100 font-medium'><div class='text-right text-blue-600'>+0.0%</div></td></tr><tr class='bg-slate-50 '><td class='px-3 py-2 border-b border-slate-100 font-extrabold'>Total</td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>2,955</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right'>₩3,421,812</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right text-orange-700'>-31.1%</div></td><td class='px-3 py-2 border-b border-slate-100 font-extrabold'><div class='text-right text-orange-700'>-22.2%</div></td></tr></tbody>
+          <tbody><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naverbs</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>776</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩1,651,340</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-26.7%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+7.5%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>criteo</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>613</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩466,580</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-18.5%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-60.3%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>meta</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>888</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩717,540</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-10.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-36.6%</div></td></tr><tr class='bg-slate-50 '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'>google</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>662</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>₩586,352</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right text-blue-600'>+12.8%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold pr-4'><div class='text-right text-orange-700'>-33.1%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naver mo</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>15</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+50.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-87.7%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>instagram</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-100.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>m.danawa.com</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+100.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+100.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>place.map.kakao.com</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-100.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>prod.danawa.com</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-100.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+0.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>todayfortune.co.kr</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-100.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+0.0%</div></td></tr><tr class='bg-slate-50 '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'>Total</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>2,955</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>₩3,421,812</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right text-blue-600'>+100.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold pr-4'><div class='text-right text-blue-600'>+100.0%</div></td></tr></tbody>
         </table>
       </div>
     </div>
+
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
       <div class="mt-3">
@@ -245,48 +236,30 @@
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products (Top 5)</div>
         <div class="mt-3 space-y-2">
             <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C54WE4714257.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
+              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C54YM3471010.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
               <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">Hikebound™ II Interchange Jacket</div>
-                <div class="text-xs text-slate-500">C54WE4714257 · Qty 3 · Views 125</div>
+                <div class="truncate text-sm font-extrabold text-slate-900">Ms Snow Tower Lake™ Down Jacket</div>
+                <div class="text-xs text-slate-500">C54YM3471010 · Qty 2 · Views 176</div>
               </div>
-              <div class="text-sm font-black text-blue-600">Qty Δ +3</div>
+              <div class="text-sm font-black text-blue-600">Qty Δ +1</div>
             </div>
             
             <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C46YU0352705.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
+              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C54YM3484010.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
               <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">Rim to Forest Pouch</div>
-                <div class="text-xs text-slate-500">C46YU0352705 · Qty 2 · Views 54</div>
+                <div class="truncate text-sm font-extrabold text-slate-900">Ms Gloster Brook™ Down Jacket</div>
+                <div class="text-xs text-slate-500">C54YM3484010 · Qty 2 · Views 57</div>
               </div>
-              <div class="text-sm font-black text-blue-600">Qty Δ +2</div>
+              <div class="text-sm font-black text-blue-600">Qty Δ +1</div>
             </div>
             
             <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C53WR7397352.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
+              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C61YM7591466.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
               <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">OutDry Extreme™ Boundless™ Shell</div>
-                <div class="text-xs text-slate-500">C53WR7397352 · Qty 2 · Views 23</div>
+                <div class="truncate text-sm font-extrabold text-slate-900">365 Mountain™ Shirts Jacket</div>
+                <div class="text-xs text-slate-500">C61YM7591466 · Qty 2 · Views 210</div>
               </div>
-              <div class="text-sm font-black text-blue-600">Qty Δ +2</div>
-            </div>
-            
-            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C46YU9610430.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">River Meadow Pines™ short socks</div>
-                <div class="text-xs text-slate-500">C46YU9610430 · Qty 2 · Views 6</div>
-              </div>
-              <div class="text-sm font-black text-blue-600">Qty Δ +2</div>
-            </div>
-            
-            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
-              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C54WE7559010.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-extrabold text-slate-900">Wallowa™ Reversible Jacket</div>
-                <div class="text-xs text-slate-500">C54WE7559010 · Qty 2 · Views 67</div>
-              </div>
-              <div class="text-sm font-black text-blue-600">Qty Δ +2</div>
+              <div class="text-sm font-black text-blue-600">Qty Δ +1</div>
             </div>
             </div>
       </div>
@@ -298,7 +271,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · 경량패딩/슬림다운</div>
-                <div class="text-xs text-slate-500">D1 1,250 · 7D Avg 1,327</div>
+                <div class="text-xs text-slate-500">D1 1,214 · 7D Avg 1,291</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -307,10 +280,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,27.6 71.7,13.7 107.3,39.5 143.0,44.3 178.7,36.0 214.3,37.7 250.0,38.4 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,27.6 71.7,13.7 107.3,39.5 143.0,44.3 178.7,36.0 214.3,37.7 250.0,38.4"/>
-      <circle cx='36.0' cy='27.6' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='39.5' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='36.0' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='37.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='38.4' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1671</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1410</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1150</text>
+      <polygon points="36.0,48.0 36.0,28.0 71.7,13.7 107.3,39.3 143.0,44.3 178.7,35.8 214.3,37.6 250.0,38.5 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,28.0 71.7,13.7 107.3,39.3 143.0,44.3 178.7,35.8 214.3,37.6 250.0,38.5"/>
+      <circle cx='36.0' cy='28.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='39.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='35.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='37.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='38.5' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1629</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1373</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1117</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>02/26</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/01</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/04</text>
     </svg>
     </div>
@@ -382,7 +355,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FLEECE · 플리스 풀오버</div>
-                <div class="text-xs text-slate-500">D1 67 · 7D Avg 49</div>
+                <div class="text-xs text-slate-500">D1 154 · 7D Avg 184</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -391,10 +364,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,44.3 71.7,34.6 107.3,22.5 143.0,25.3 178.7,18.3 214.3,13.7 250.0,16.5 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,34.6 107.3,22.5 143.0,25.3 178.7,18.3 214.3,13.7 250.0,16.5"/>
-      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='34.6' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='22.5' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='25.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='18.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='16.5' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>73</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>40</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>7</text>
+      <polygon points="36.0,48.0 36.0,18.2 71.7,24.7 107.3,36.8 143.0,37.3 178.7,29.8 214.3,13.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,18.2 71.7,24.7 107.3,36.8 143.0,37.3 178.7,29.8 214.3,13.7 250.0,44.3"/>
+      <circle cx='36.0' cy='18.2' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='24.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='36.8' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='37.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='29.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>215</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>184</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>154</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>02/26</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/01</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/04</text>
     </svg>
     </div>
@@ -466,7 +439,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · 폴로티/집업</div>
-                <div class="text-xs text-slate-500">D1 237 · 7D Avg 307</div>
+                <div class="text-xs text-slate-500">D1 183 · 7D Avg 247</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -475,10 +448,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,17.2 71.7,13.7 107.3,18.6 143.0,28.1 178.7,36.7 214.3,19.6 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,17.2 71.7,13.7 107.3,18.6 143.0,28.1 178.7,36.7 214.3,19.6 250.0,44.3"/>
-      <circle cx='36.0' cy='17.2' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='18.6' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='28.1' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='36.7' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='19.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>350</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>294</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>237</text>
+      <polygon points="36.0,48.0 36.0,13.7 71.7,19.5 107.3,18.4 143.0,28.7 178.7,37.6 214.3,22.6 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,13.7 71.7,19.5 107.3,18.4 143.0,28.7 178.7,37.6 214.3,22.6 250.0,44.3"/>
+      <circle cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='19.5' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='18.4' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='28.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='37.6' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='22.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>293</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>238</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>183</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>02/26</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/01</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/04</text>
     </svg>
     </div>
@@ -487,7 +460,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">PANTS · 긴바지</div>
-                <div class="text-xs text-slate-500">D1 589 · 7D Avg 706</div>
+                <div class="text-xs text-slate-500">D1 584 · 7D Avg 692</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -496,10 +469,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,32.3 71.7,13.7 107.3,23.9 143.0,23.0 178.7,26.2 214.3,15.6 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,32.3 71.7,13.7 107.3,23.9 143.0,23.0 178.7,26.2 214.3,15.6 250.0,44.3"/>
-      <circle cx='36.0' cy='32.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='23.9' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='23.0' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='26.2' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='15.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>780</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>684</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>589</text>
+      <polygon points="36.0,48.0 36.0,33.3 71.7,13.7 107.3,22.7 143.0,20.9 178.7,24.9 214.3,13.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,33.3 71.7,13.7 107.3,22.7 143.0,20.9 178.7,24.9 214.3,13.7 250.0,44.3"/>
+      <circle cx='36.0' cy='33.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='22.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='20.9' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='24.9' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>754</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>669</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>584</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>02/26</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/01</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/04</text>
     </svg>
     </div>
@@ -571,7 +544,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · 스니커즈</div>
-                <div class="text-xs text-slate-500">D1 279 · 7D Avg 267</div>
+                <div class="text-xs text-slate-500">D1 271 · 7D Avg 261</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -580,10 +553,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,44.3 71.7,15.8 107.3,25.2 143.0,18.4 178.7,23.4 214.3,13.7 250.0,18.4 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,15.8 107.3,25.2 143.0,18.4 178.7,23.4 214.3,13.7 250.0,18.4"/>
-      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='15.8' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='25.2' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='18.4' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='23.4' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='18.4' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>292</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>250</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>207</text>
+      <polygon points="36.0,48.0 36.0,44.3 71.7,17.6 107.3,24.9 143.0,21.1 178.7,24.6 214.3,13.7 250.0,20.4 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,17.6 107.3,24.9 143.0,21.1 178.7,24.6 214.3,13.7 250.0,20.4"/>
+      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='17.6' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='24.9' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='21.1' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='24.6' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='20.4' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>290</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>246</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>203</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>02/26</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/01</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/04</text>
     </svg>
     </div>
@@ -603,8 +576,6 @@
     </div>
 
   </div>
-
-  
 
   <script>
 (function(){
