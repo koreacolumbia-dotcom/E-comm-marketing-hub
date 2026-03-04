@@ -662,7 +662,7 @@ jobs:
           ls -lah site/owned | head -n 60 || true
 
       # ----------------------------
-      # 5) Summary   (✅ MOVED HERE: after OWNED publish)
+      # 5) Summary (after OWNED publish)
       # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ steps.modes.outputs.run_summary == 'true' }}
@@ -672,14 +672,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          FILE="$(ls -1 **/build_summary*.py 2>/dev/null | head -n 1 || true)"
-          if [ -z "$FILE" ]; then
-            echo "[WARN] build_summary*.py not found. Skipping."
+
+          if [ ! -f "build_summary.py" ]; then
+            echo "[WARN] build_summary.py not found in repo root. Skipping."
+            ls -la
             exit 0
           fi
-          echo "[INFO] Running: $FILE"
-          python -u "$FILE" || true
+
+          echo "[INFO] Running: build_summary.py"
+          python -u build_summary.py || true
+
+          mkdir -p reports
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
+
+          echo "[INFO] Generated files:"
           ls -la reports/index.html reports/meta.json || true
 
       # ----------------------------
