@@ -1,90 +1,85 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>Columbia M-OS Pro | External Signal (VOC)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>External Signal | DCInside climbing</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand: #002d72; --bg0: #f6f8fb; --bg1: #eef3f9; }
-    body { background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; min-height: 100vh; }
-    .glass-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }
-    .sidebar { background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }
-
-    body.embedded aside { display:none !important; }
-    body.embedded header { display:none !important; }
-    body.embedded .sidebar { display:none !important; }
-    body.embedded main { padding: 24px !important; }
-    body.embedded .sticky { position: static !important; }
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+    html, body { height: 100%; overflow: auto; }
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }
+    .glass {
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(15,23,42,.08);
+      box-shadow: 0 10px 30px rgba(2,6,23,.08);
+      backdrop-filter: blur(10px);
+    }
+    .embedded body { background: transparent !important; }
   </style>
 </head>
-<body class="flex">
-  <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
-    <div class="flex items-center gap-4 mb-16 px-2">
-      <div class="w-12 h-12 bg-[#002d72] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
-        <i class="fa-solid fa-mountain-sun text-xl"></i>
-      </div>
-      <div>
-        <div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div>
-        <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Marketing Portal</div>
-      </div>
-    </div>
-    <nav class="space-y-4">
-      <div class="p-4 rounded-2xl bg-white shadow-sm text-[#002d72] font-black flex items-center gap-4">
-        <i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC 분석</span>
-      </div>
-      <div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4 hover:bg-white/50 transition-all cursor-not-allowed">
-        <i class="fa-solid fa-chart-line"></i> <span>시장 지수</span>
-      </div>
-    </nav>
-  </aside>
 
-  <main class="flex-1 p-8 md:p-16">
-    <header class="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
-      <div>
-        <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">VOC Real-time Analysis</h1>
-  <div class="text-sm text-slate-500 mt-2">__PERIOD_LABEL__</div>
-        <p class="text-slate-500 text-lg font-medium italic">디시인사이드 등산 갤러리 브랜드 언급 데이터</p>
-        <p class="text-slate-400 text-xs mt-2 font-bold">기간: 최근 7일 · 최대 100페이지 스캔</p>
-      </div>
-      <div class="glass-card px-6 py-4 flex items-center gap-4">
-        <div class="flex h-3 w-3 relative">
-          <span class="animate-ping absolute h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
+<body class="p-5 md:p-8">
+  <div class="max-w-6xl mx-auto">
+    <div class="glass rounded-3xl p-5 md:p-7">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL</div>
+          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside · climbing (최근 7일)</h1>
+          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: 2026-03-04 15:25 KST · Posts collected: 30 · Active brands: 3</div>
         </div>
-        <span class="text-sm font-black text-slate-800 tracking-widest uppercase">2026-02-25 16:40</span>
+        <div class="text-xs text-slate-600 font-bold">
+          * 워크플로에서 이 step이 실패해도 넘어가도록 되어 있으면(continue-on-error), 리포트가 갱신 안 될 수 있어요.
+        </div>
       </div>
-    </header>
 
-    <section class="glass-card p-10 mb-12">
-      <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-6 flex items-center gap-2">
-        <i class="fa-solid fa-chart-simple"></i> Mention Summary
-      </h3>
-      <div class="text-xs text-slate-500 font-bold mb-6">
-        Posts = 해당 브랜드가 1회 이상 언급된 글 수 · Title Hits = 제목 언급 글 수 · Comment Mentions = 댓글 언급 문장 수 · Total Mentions = 전체 문장 언급 수
-      </div>
-      
-        <div class="overflow-x-auto rounded-2xl border border-white bg-white/35">
+      <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="glass rounded-3xl p-5">
+          
+        <div class="text-slate-700 font-extrabold mb-2">브랜드 언급 요약 (최근 7일)</div>
+        <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="text-left text-[11px] uppercase tracking-widest text-slate-400 border-b border-slate-100">
-                <th class="py-3 pr-4">Brand</th>
-                <th class="py-3 pr-4">Posts</th>
-                <th class="py-3 pr-4">Title Hits</th>
-                <th class="py-3 pr-4">Comment Mentions</th>
-                <th class="py-3 pr-4">Total Mentions</th>
+              <tr class="text-slate-500 border-b border-slate-200">
+                <th class="py-2 text-left">Brand</th>
+                <th class="py-2 text-right">Posts</th>
+                <th class="py-2 text-right">Title hits</th>
+                <th class="py-2 text-right">Comment mentions</th>
+                <th class="py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
               
-            <tr class="border-b border-slate-100">
-              <td class="py-3 pr-4 font-black text-slate-800">캠프라인</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">1</td>
-              <td class="py-3 pr-4 text-slate-600 font-bold">0</td>
-              <td class="py-3 pr-4 text-blue-700 font-black">2</td>
+            <tr class="border-b border-slate-200">
+              <td class="py-2 pr-4 font-bold">컬럼비아</td>
+              <td class="py-2 pr-4 text-right tabular-nums">1</td>
+              <td class="py-2 pr-4 text-right tabular-nums">0</td>
+              <td class="py-2 pr-4 text-right tabular-nums">0</td>
+              <td class="py-2 text-right tabular-nums font-extrabold">1</td>
+            </tr>
+            
+            <tr class="border-b border-slate-200">
+              <td class="py-2 pr-4 font-bold">네파</td>
+              <td class="py-2 pr-4 text-right tabular-nums">2</td>
+              <td class="py-2 pr-4 text-right tabular-nums">1</td>
+              <td class="py-2 pr-4 text-right tabular-nums">0</td>
+              <td class="py-2 text-right tabular-nums font-extrabold">3</td>
+            </tr>
+            
+            <tr class="border-b border-slate-200">
+              <td class="py-2 pr-4 font-bold">파타고니아</td>
+              <td class="py-2 pr-4 text-right tabular-nums">1</td>
+              <td class="py-2 pr-4 text-right tabular-nums">1</td>
+              <td class="py-2 pr-4 text-right tabular-nums">0</td>
+              <td class="py-2 text-right tabular-nums font-extrabold">1</td>
             </tr>
             
             </tbody>
@@ -92,83 +87,119 @@
         </div>
         
         
-    </section>
+        </div>
+        <div class="glass rounded-3xl p-5">
+          
+        <div class="text-slate-700 font-extrabold mb-2">최근 7일 누적</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div class="p-3 rounded-xl bg-white border border-slate-200">
+            <div class="text-xs text-slate-500 font-bold">Posts</div>
+            <div class="text-xl font-extrabold tabular-nums">30</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white border border-slate-200">
+            <div class="text-xs text-slate-500 font-bold">Mentions</div>
+            <div class="text-xl font-extrabold tabular-nums">2</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white border border-slate-200 col-span-2">
+            <div class="text-xs text-slate-500 font-bold">Coverage</div>
+            <div class="text-sm text-slate-700 font-bold">1 days · Gallery: climbing</div>
+            
+          </div>
+        </div>
 
-    <section>
-      <div class="flex flex-wrap gap-2 mb-8">
-        
-            <button onclick="switchTab('캠프라인')" id="tab-캠프라인" class="tab-btn px-6 py-3 rounded-2xl font-black transition-all text-sm bg-[#002d72] text-white shadow-lg">
-                캠프라인 <span class="ml-1 opacity-60 text-xs">2</span>
-            </button>
-      </div>
-
-      <div class="min-h-[500px]">
-        
-            <div id="content-캠프라인" class="tab-content grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style="display: grid;">
-                
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black">TITLE</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 첫등산화는 그냥 캠프라인 산티아고2가 제일 무난한가요 ? "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 첫등산화는 그냥 캠프라인 산티아고2가 제일 무난한가...</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=319086&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
+        <div class="mt-4">
+          <div class="text-slate-700 font-extrabold mb-2">일자별 멘션 추이 (최근 7일)</div>
+          <div class="p-3 rounded-2xl bg-white border border-slate-200">
+            
+            <div class="flex items-center gap-3 py-1">
+              <div class="w-24 text-xs text-slate-600 tabular-nums">2026-03-04</div>
+              <div class="flex-1">
+                <div class="h-2 rounded-full bg-slate-200 overflow-hidden">
+                  <div class="h-2 bg-blue-600" style="width:100%"></div>
                 </div>
-                <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform">
-                    <div class="flex items-center justify-between mb-3">
-                      <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">SOURCE <span class="ml-2 px-2 py-1 rounded-full bg-slate-50 text-slate-600 text-[10px] font-black">CONTENT</span></div>
-                    </div>
-
-                    <p class="text-slate-700 font-medium leading-relaxed mb-5 italic">" 첫등산화는 그냥 캠프라인 산티아고2가 제일 무난한가요 "</p>
-
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">글제목: 첫등산화는 그냥 캠프라인 산티아고2가 제일 무난한가...</span>
-                        <a href="https://gall.dcinside.com/board/view/?id=climbing&no=319086&page=1" target="_blank" class="px-4 py-2 bg-[#002d72] text-white text-[10px] font-black rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-                            원문 링크 열기 <i class="fa-solid fa-arrow-up-right"></i>
-                        </a>
-                    </div>
-                </div>
+              </div>
+              <div class="w-20 text-right text-xs tabular-nums text-slate-700 font-bold">2</div>
+              <div class="w-16 text-right text-xs tabular-nums text-slate-500">30p</div>
             </div>
+            
+            <div class="mt-2 text-[11px] text-slate-500">* Mentions는 제목 1회 + 댓글 문장 단위 언급을 합산한 근사치입니다.</div>
+          </div>
+        </div>
+        
+        </div>
       </div>
-    </section>
-  </main>
+
+      
+        <section class="mt-6">
+          <div class="flex items-baseline justify-between">
+            <h3 class="text-lg font-extrabold text-slate-800">컬럼비아</h3>
+            <div class="text-xs text-slate-500 font-bold tabular-nums">1 mentions</div>
+          </div>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            
+              <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
+                <div class="text-xs text-slate-500 font-bold mb-1">content</div>
+                <a class="text-sm font-extrabold text-blue-700 hover:underline" href="https://gall.dcinside.com/board/view/?id=climbing&no=320728&page=1" target="_blank" rel="noopener noreferrer">추천글들 봤는데 등산화 이걸로 가면 되나요?</a>
+                <div class="mt-2 text-sm text-slate-700 leading-relaxed">컬럼비아 뉴튼릿지</div>
+              </div>
+            
+          </div>
+        </section>
+        
+
+        <section class="mt-6">
+          <div class="flex items-baseline justify-between">
+            <h3 class="text-lg font-extrabold text-slate-800">파타고니아</h3>
+            <div class="text-xs text-slate-500 font-bold tabular-nums">1 mentions</div>
+          </div>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            
+              <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
+                <div class="text-xs text-slate-500 font-bold mb-1">title</div>
+                <a class="text-sm font-extrabold text-blue-700 hover:underline" href="https://gall.dcinside.com/board/view/?id=climbing&no=320760&page=1" target="_blank" rel="noopener noreferrer">파타고니아 토렌쉘</a>
+                <div class="mt-2 text-sm text-slate-700 leading-relaxed">파타고니아 토렌쉘</div>
+              </div>
+            
+          </div>
+        </section>
+        
+
+        <section class="mt-6">
+          <div class="flex items-baseline justify-between">
+            <h3 class="text-lg font-extrabold text-slate-800">네파</h3>
+            <div class="text-xs text-slate-500 font-bold tabular-nums">3 mentions</div>
+          </div>
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            
+              <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
+                <div class="text-xs text-slate-500 font-bold mb-1">content</div>
+                <a class="text-sm font-extrabold text-blue-700 hover:underline" href="https://gall.dcinside.com/board/view/?id=climbing&no=320728&page=1" target="_blank" rel="noopener noreferrer">추천글들 봤는데 등산화 이걸로 가면 되나요?</a>
+                <div class="mt-2 text-sm text-slate-700 leading-relaxed">네파 간네토</div>
+              </div>
+            
+              <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
+                <div class="text-xs text-slate-500 font-bold mb-1">content</div>
+                <a class="text-sm font-extrabold text-blue-700 hover:underline" href="https://gall.dcinside.com/board/view/?id=climbing&no=320728&page=1" target="_blank" rel="noopener noreferrer">추천글들 봤는데 등산화 이걸로 가면 되나요?</a>
+                <div class="mt-2 text-sm text-slate-700 leading-relaxed">네파 간네토 ㄱㄱ  ,</div>
+              </div>
+            
+              <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
+                <div class="text-xs text-slate-500 font-bold mb-1">title</div>
+                <a class="text-sm font-extrabold text-blue-700 hover:underline" href="https://gall.dcinside.com/board/view/?id=climbing&no=320723&page=1" target="_blank" rel="noopener noreferrer">네파 칸네토 7만5천원짜리 이거 사면됨?</a>
+                <div class="mt-2 text-sm text-slate-700 leading-relaxed">네파 칸네토 7만5천원짜리 이거 사면됨?</div>
+              </div>
+            
+          </div>
+        </section>
+        
+    </div>
+  </div>
 
   <script>
-    function switchTab(brand) {
-      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-      const target = document.getElementById('content-' + brand);
-      if (target) target.style.display = 'grid';
-
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('bg-[#002d72]', 'text-white', 'shadow-lg');
-        btn.classList.add('bg-white/50', 'text-slate-500');
-      });
-      const activeBtn = document.getElementById('tab-' + brand);
-      if (activeBtn) {
-        activeBtn.classList.add('bg-[#002d72]', 'text-white', 'shadow-lg');
-        activeBtn.classList.remove('bg-white/50', 'text-slate-500');
-      }
-    }
-
-    function toggleSummaryRest() {
-      const wrap = document.getElementById('summaryRestWrap');
-      const btn = document.getElementById('summaryToggleBtn');
-      if (!wrap || !btn) return;
-
-      const opened = wrap.style.display !== 'none';
-      if (opened) {
-        wrap.style.display = 'none';
-        btn.innerHTML = '나머지 펼치기 <i class="fa-solid fa-chevron-down ml-2"></i>';
-      } else {
-        wrap.style.display = 'block';
-        btn.innerHTML = '접기 <i class="fa-solid fa-chevron-up ml-2"></i>';
-      }
+    function toggleMore() {
+      var el = document.getElementById('moreBox');
+      if (!el) return;
+      el.classList.toggle('hidden');
     }
   </script>
 
