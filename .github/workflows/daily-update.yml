@@ -122,7 +122,7 @@ jobs:
           git pull --rebase origin main
 
       # ---------------------------------------------------------
-      # ✅ Mode resolver (핵심)
+      # ✅ Mode resolver
       # ---------------------------------------------------------
       - name: Resolve run modes
         id: modes
@@ -165,7 +165,7 @@ jobs:
           RUN_SUMMARY=true
           RUN_OWNED=true
 
-          # If owned_backfill or owned_only => run owned only
+          # owned_backfill / owned_only => owned only
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
             RUN_DAILY=false
             RUN_PRICE=false
@@ -199,7 +199,6 @@ jobs:
             RUN_OWNED=false
           fi
 
-          # If other "only" => that only
           if [ "$DAILY_ONLY" = "true" ]; then
             RUN_DAILY=true
             RUN_PRICE=false
@@ -261,20 +260,21 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
+
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           fi
 
-          # BigQuery/Pandas
+          # BigQuery / Pandas
           pip install db-dtypes pyarrow google-cloud-bigquery pandas python-dateutil
 
-          # Crema VOC ML/NLP (builder가 쓰는 경우)
+          # Crema VOC / NLP
           pip install scikit-learn sentence-transformers
 
-          # PIL/requests 누락 방지
+          # image / http
           pip install pillow requests
 
-          # HTML→PNG 렌더링용
+          # HTML → PNG
           pip install playwright
           playwright install --with-deps chromium
 
@@ -282,7 +282,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p reports site/data site/assets site/assets/products site/assets/reviews site/assets/text_images
+          mkdir -p \
+            reports \
+            site/data \
+            site/assets \
+            site/assets/products \
+            site/assets/reviews \
+            site/assets/text_images
 
       - name: Set KST time (for badge/meta + yesterday)
         id: set_time
@@ -304,7 +310,6 @@ jobs:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
-
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
@@ -316,6 +321,7 @@ jobs:
             echo "[WARN] GA4_PROPERTY_ID is empty. skip."
             exit 0
           fi
+
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
             echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip."
             exit 0
@@ -351,6 +357,7 @@ jobs:
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
+
           HTML="reports/daily_digest/daily/${YMD}.html"
           PNG="reports/daily_digest/daily/${YMD}.png"
 
@@ -422,45 +429,6 @@ jobs:
           ls -la reports/external_signal.html || true
 
       # ----------------------------
-      # 4) Crema VOC rebuild reset (ONE-TIME)
-      # ----------------------------
-      - name: Reset Crema cumulative files (one-time rebuild)
-        if: ${{ steps.modes.outputs.run_crema == 'true' }}
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "[INFO] Reset old cumulative crema files..."
-
-          rm -f reports/crema_raw/master_reviews.jsonl || true
-          rm -f reports/crema_raw/master_index.json || true
-          rm -f reports/crema_raw/reviews.json || true
-          rm -f site/data/reviews.json || true
-          rm -f reports/crema_raw/backfill_done.flag || true
-          rm -f reports/crema_raw/backfill_progress.json || true
-
-          rm -rf reports/crema_raw/daily || true
-          rm -rf reports/crema_raw/health || true
-          rm -rf site/assets/products || true
-          rm -rf site/assets/reviews || true
-          rm -rf site/assets/text_images || true
-          rm -rf reports/voc_crema || true
-
-          mkdir -p reports/crema_raw/daily
-          mkdir -p reports/crema_raw/health
-          mkdir -p site/data
-          mkdir -p site/assets/products
-          mkdir -p site/assets/reviews
-          mkdir -p site/assets/text_images
-
-          echo "[INFO] Reset complete."
-          echo "[CHECK] reports/crema_raw"
-          ls -lah reports/crema_raw || true
-          echo "[CHECK] site/assets"
-          ls -lah site/assets || true
-
-      # ----------------------------
       # 4) Crema VOC
       # ----------------------------
       - name: Run Crema VOC (collect -> build -> archive)
@@ -497,10 +465,11 @@ jobs:
           echo "[INFO] Yesterday (YMD): ${YMD}"
 
           if [ ! -f "${FLAG}" ]; then
-            echo "[INFO] (1) FIRST RUN backfill: 2025-01-01 ~ ${YMD}"
+            START_3M="$(TZ=Asia/Seoul date -d '90 days ago' '+%Y-%m-%d')"
+            echo "[INFO] (1) FIRST RUN backfill: ${START_3M} ~ ${YMD} (recent ~3 months)"
             python -u crema_voc.py \
               --mode backfill \
-              --start "2025-01-01" \
+              --start "${START_3M}" \
               --end "${YMD}" \
               --chunk-days 31 \
               --keep-site-output \
@@ -676,7 +645,6 @@ jobs:
           ls -la reports/owned_portal || true
           ls -la reports/owned_portal/data/owned | head -n 120 || true
 
-      # ✅ OWNED meta.json 생성
       - name: Write OWNED meta.json (fix init 404)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
         continue-on-error: true
@@ -699,7 +667,6 @@ jobs:
           echo "[CHECK] reports/owned_portal/data/meta.json:"
           cat reports/owned_portal/data/meta.json || true
 
-      # ✅ Publish OWNED outputs into GitHub Pages folder (site/)
       - name: Publish OWNED portal to site/
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
         continue-on-error: true
@@ -811,13 +778,10 @@ jobs:
           DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
           HUB_URL: ${{ vars.HUB_URL }}
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
-
           MODE_DAILY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}
           MODE_VOC_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
           MODE_BLOG_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
-
           REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
-
           DAILY_DIGEST_PNG_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.png
           DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
         shell: bash
