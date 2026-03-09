@@ -50,7 +50,7 @@ except Exception:
 
 
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
-DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "90") or "90")  # last N days including today (default: ~3 months)
+DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "90") or "90")  # last N days ending yesterday (KST)
 
 AUTO_STOP_MIN_DF = 0.30
 AUTO_STOP_MIN_PRODUCTS = 0.25
@@ -1881,7 +1881,7 @@ def normalize_template_paths(html: str) -> str:
 
 
 def normalize_review_asset_paths(rows: list[dict], report_depth: int = 2) -> list[dict]:
-    \"\"\"Fix asset paths when the report is served under /reports/voc_crema/.
+    """Fix asset paths when the report is served under /reports/voc_crema/.
 
     Your collector (crema_voc / crema_voc.py) usually writes local asset paths like:
       - assets/products/...
@@ -1892,7 +1892,7 @@ def normalize_review_asset_paths(rows: list[dict], report_depth: int = 2) -> lis
       /reports/voc_crema/index.html
 
     so relative paths must be prefixed with ../../ to correctly reach /assets/*.
-    \"\"\"
+    """
     if not rows:
         return rows
     prefix = "../" * report_depth  # reports/voc_crema => ../../
@@ -2040,28 +2040,44 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     all_rows = read_reviews_json(inp)
     now = now_kst()
 
+    # ✅ dashboard window must always end at yesterday (KST)
+    # so the dashboard header/date does not freeze on an old review date.
     target_days = max(1, int(target_days))
-    startN = (now - timedelta(days=target_days - 1)).date()
-    endN = now.date()
+    today_kst = now.date()
+    endN = today_kst - timedelta(days=1)
+    startN = endN - timedelta(days=target_days - 1)
 
-    start1y = startN
+    # ✅ keep a separate long lookback for trend/topic/product mindmap features
     end1y = endN
+    start1y = end1y - timedelta(days=364)
 
     rowsN: List[Dict[str, Any]] = []
     rows1y: List[Dict[str, Any]] = []
     parse_fail_rows = 0
+
+    latest_input_dt: Optional[datetime] = None
+    latest_window_dt: Optional[datetime] = None
 
     for r in all_rows:
         dt = parse_created_at_iso(str(r.get("created_at") or ""))
         if dt is None:
             parse_fail_rows += 1
             continue
+
+        if latest_input_dt is None or dt > latest_input_dt:
+            latest_input_dt = dt
+
         if in_date_range_kst(dt, startN, endN):
             rowsN.append(r)
+            if latest_window_dt is None or dt > latest_window_dt:
+                latest_window_dt = dt
+
         if in_date_range_kst(dt, start1y, end1y):
             rows1y.append(r)
 
-    dfN = pd.DataFrame(rowsN).copy() if rowsN else pd.DataFrame(columns=["id","product_code","product_name","rating","created_at","text","source","tags","option_size","option_color","size_direction"])
+    dfN = pd.DataFrame(rowsN).copy() if rowsN else pd.DataFrame(
+        columns=["id", "product_code", "product_name", "rating", "created_at", "text", "source", "tags", "option_size", "option_color", "size_direction"]
+    )
     if "rating" in dfN.columns:
         dfN["rating"] = pd.to_numeric(dfN.get("rating"), errors="coerce").fillna(0).astype(int)
 
@@ -2099,7 +2115,16 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     size_phrases_terms = top_terms(size_rows, topk=10, auto_sw=auto_sw, which="neg") if size_rows else []
     size_phrases = [k for k, _ in size_phrases_terms]
 
-    product_mindmap_3m = build_product_mindmap_3m_sentence(rows_1y=rows1y, rows_7d=rowsN, per_side=2, max_products=24) if rows1y else []
+    product_mindmap_3m = (
+        build_product_mindmap_3m_sentence(
+            rows_1y=rows1y,
+            rows_7d=rowsN,
+            per_side=MINDMAP_SENT_PER_SIDE,
+            max_products=MINDMAP_MAX_PRODUCTS,
+        )
+        if rows1y
+        else []
+    )
 
     trend_window = []
     if rowsN:
@@ -2110,7 +2135,7 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
                 continue
             d = dt.date().isoformat()
             tmp.append((d, 1, 1 if is_complaint(r) else 0))
-        dfT = pd.DataFrame(tmp, columns=["day","cnt","neg"])
+        dfT = pd.DataFrame(tmp, columns=["day", "cnt", "neg"])
         g = dfT.groupby("day", as_index=False).sum()
         g["neg_rate"] = (g["neg"] / g["cnt"]).fillna(0.0)
         trend_window = g.sort_values("day").to_dict(orient="records")
@@ -2118,22 +2143,28 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     trend_3m = build_daily_timeseries(rows1y) if rows1y else []
     ml_topics = ml_topics_tfidf_nmf(rows1y, n_topics=8, top_words=8, min_df=3) if rows1y else {"enabled": False, "reason": "no_1y_rows"}
     dl_topics = dl_embeddings_cluster(rows1y, n_clusters=10) if rows1y else {"enabled": False, "reason": "no_1y_rows"}
+    kw_graph = build_kw_graph(rowsN, auto_sw, max_nodes=28) if rowsN else {"window": "empty", "nodes": [], "links": []}
 
-    
-    kw_graph = build_kw_graph(rowsN, auto_sw, max_nodes=28) if rowsN else {"window":"empty","nodes":[],"links":[]}
+    period_text = f"최근 {target_days}일 ({startN.isoformat()} ~ {endN.isoformat()})"
 
-period_text = f"최근 {target_days}일 ({startN.isoformat()} ~ {endN.isoformat()})"
     empty_reason = None
     if not rowsN:
         empty_reason = "No reviews in target window. Check upstream collection, created_at format/timezone, or TARGET_DAYS."
 
     meta: Dict[str, Any] = {
-        "version": "v6.2-3m-ml",
+        "version": "v6.2-3m-ml-hotfix1",
         "updated_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "build_date": today_kst.isoformat(),
+        "build_date_kst": today_kst.isoformat(),
+        "dashboard_default_day": endN.isoformat(),
         "period_text": period_text,
         "period_start": startN.isoformat(),
         "period_end": endN.isoformat(),
+        "target_days": int(target_days),
         "total_reviews": int(len(dfN)),
+        "input_total_reviews": int(len(all_rows)),
+        "latest_input_created_at": latest_input_dt.isoformat() if latest_input_dt else None,
+        "latest_window_created_at": latest_window_dt.isoformat() if latest_window_dt else None,
         "pos_top5": pos_top5,
         "neg_top5": neg_top5,
         "keyword_evidence": {"pos": pos_evidence, "neg": neg_evidence},
@@ -2158,6 +2189,11 @@ period_text = f"최근 {target_days}일 ({startN.isoformat()} ~ {endN.isoformat(
             "window_rows": len(rowsN),
             "rows_1y": len(rows1y),
             "output_tz": OUTPUT_TZ,
+            "build_now_kst_iso": now.isoformat(),
+            "window_start": startN.isoformat(),
+            "window_end": endN.isoformat(),
+            "latest_input_created_at": latest_input_dt.isoformat() if latest_input_dt else None,
+            "latest_window_created_at": latest_window_dt.isoformat() if latest_window_dt else None,
         }
 
     out_reviews: List[Dict[str, Any]] = []
@@ -2197,13 +2233,17 @@ period_text = f"최근 {target_days}일 ({startN.isoformat()} ~ {endN.isoformat(
     (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": out_reviews}, ensure_ascii=False, indent=2), encoding="utf-8")
     (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
 
-    print("[OK] Build done (v6.1 MAX PATCH + ML/DL)")
+    print("[OK] Build done (v6.2 hotfix: yesterday window + fresh build timestamp)")
     print(f"- Input: {inp}")
     print(f"- Output meta: {SITE_DATA_DIR / 'meta.json'}")
     print(f"- Output reviews: {SITE_DATA_DIR / 'reviews.json'}")
     print(f"- Output html: {SITE_DIR / 'index.html'}")
+    print(f"- Build date (KST): {today_kst.isoformat()}")
+    print(f"- Dashboard default day: {endN.isoformat()}")
     print(f"- Period: {period_text}")
     print(f"- Window rows: {len(rowsN)} / Input rows: {len(all_rows)}")
+    print(f"- Latest input created_at: {latest_input_dt.isoformat() if latest_input_dt else 'None'}")
+    print(f"- Latest window created_at: {latest_window_dt.isoformat() if latest_window_dt else 'None'}")
     if empty_reason:
         print(f"[WARN] {empty_reason}")
 
@@ -2212,7 +2252,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="path to reviews.json (aggregated JSON: {reviews:[...]})")
     ap.add_argument("--html-template", default="", help="optional html template path (highest priority)")
-    ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="window days (including today), default from env TARGET_DAYS")
+    ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="window days ending yesterday (KST), default from env TARGET_DAYS")
     ap.add_argument("--debug", action="store_true", help="write extra diagnostics into meta.json")
     args = ap.parse_args()
 
