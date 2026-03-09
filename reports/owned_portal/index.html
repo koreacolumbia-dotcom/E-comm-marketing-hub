@@ -971,17 +971,49 @@
       return;
     }
 
-    const rows = (RAW.kpi||[])
-      .filter(r => r.channel===SELECTED.channel && String(r.date||'').slice(0,4)===SELECTED.year && String(mmddOfRow(r)||'')===SELECTED.mmdd)
-      .slice()
-      .sort((a,b)=> (Number(b.sessions||0) - Number(a.sessions||0)));
+    const sourceRows = (RAW.kpi||[])
+      .filter(r => r.channel===SELECTED.channel && String(r.date||'').slice(0,4)===SELECTED.year && String(mmddOfRow(r)||'')===SELECTED.mmdd);
 
     termSection.classList.remove('hidden');
 
-    if(!rows.length){
+    if(!sourceRows.length){
       termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">해당 날짜 그룹에 TERM 데이터가 없어.</td></tr>`;
       return;
     }
+
+    const grouped = new Map();
+    for(const r of sourceRows){
+      const campaign = String(r.campaign || '');
+      const term = String(r.term || '');
+      const key = `${campaign}||${term}`;
+
+      if(!grouped.has(key)){
+        grouped.set(key, {
+          channel: r.channel,
+          campaign,
+          term,
+          sessions: 0,
+          users: 0,
+          purchases: 0,
+          revenue: 0,
+          items_purchased: 0,
+        });
+      }
+
+      const cur = grouped.get(key);
+      cur.sessions += Number(r.sessions || 0);
+      cur.users += Number(r.users || 0);
+      cur.purchases += Number(r.purchases || 0);
+      cur.revenue += Number(r.revenue || 0);
+      cur.items_purchased += Number(r.items_purchased || 0);
+    }
+
+    const rows = Array.from(grouped.values())
+      .sort((a,b)=> {
+        const bySessions = Number(b.sessions||0) - Number(a.sessions||0);
+        if(bySessions !== 0) return bySessions;
+        return Number(b.revenue||0) - Number(a.revenue||0);
+      });
 
     termTb.innerHTML = rows.map(r=>`
       <tr class="cursor-pointer" data-channel="${r.channel}" data-campaign="${encodeURIComponent(r.campaign||'')}" data-term="${encodeURIComponent(r.term||'')}">
