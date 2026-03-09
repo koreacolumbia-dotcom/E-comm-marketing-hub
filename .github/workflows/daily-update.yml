@@ -422,6 +422,45 @@ jobs:
           ls -la reports/external_signal.html || true
 
       # ----------------------------
+      # 4) Crema VOC rebuild reset (ONE-TIME)
+      # ----------------------------
+      - name: Reset Crema cumulative files (one-time rebuild)
+        if: ${{ steps.modes.outputs.run_crema == 'true' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "[INFO] Reset old cumulative crema files..."
+
+          rm -f reports/crema_raw/master_reviews.jsonl || true
+          rm -f reports/crema_raw/master_index.json || true
+          rm -f reports/crema_raw/reviews.json || true
+          rm -f site/data/reviews.json || true
+          rm -f reports/crema_raw/backfill_done.flag || true
+          rm -f reports/crema_raw/backfill_progress.json || true
+
+          rm -rf reports/crema_raw/daily || true
+          rm -rf reports/crema_raw/health || true
+          rm -rf site/assets/products || true
+          rm -rf site/assets/reviews || true
+          rm -rf site/assets/text_images || true
+          rm -rf reports/voc_crema || true
+
+          mkdir -p reports/crema_raw/daily
+          mkdir -p reports/crema_raw/health
+          mkdir -p site/data
+          mkdir -p site/assets/products
+          mkdir -p site/assets/reviews
+          mkdir -p site/assets/text_images
+
+          echo "[INFO] Reset complete."
+          echo "[CHECK] reports/crema_raw"
+          ls -lah reports/crema_raw || true
+          echo "[CHECK] site/assets"
+          ls -lah site/assets || true
+
+      # ----------------------------
       # 4) Crema VOC
       # ----------------------------
       - name: Run Crema VOC (collect -> build -> archive)
