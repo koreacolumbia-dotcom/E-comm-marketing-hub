@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-[CREMA VOC COLLECTOR + ACCUMULATOR | v7.1 - BACKFILL RESUME + TIME BUDGET]
+[CREMA VOC COLLECTOR + ACCUMULATOR | v7.2 - IMAGE FALLBACK PATCH]
 - ✅ Crema 리뷰 수집(실제 API 호출)
 - ✅ 1회 백필 + 이후 전일 누적(incremental)
 - ✅ 자산 로컬화(상품이미지/리뷰썸네일/텍스트캡처) + Referer 대응
@@ -10,7 +10,13 @@
 - ✅ 빌더 입력: reports/crema_raw/reviews.json (cumulative)
 - ✅ 사이트 입력: site/data/reviews.json (cumulative)
 
-✅ NEW (핵심 패치)
+✅ NEW (이미지 깨짐 방지 패치)
+- product_image_source_url / product_image_url 가 비어도 placeholder 생성
+- 다운로드 실패(403/404 등) 시 placeholder로 대체
+- config/products.csv 에 product_image_url 또는 product_image 컬럼이 있으면 fallback 사용
+- local_product_image 가 빈값으로 남지 않도록 보장
+
+✅ 기존 핵심 패치 유지
 - GitHub Actions 6h job timeout 회피:
   - backfill 모드에서 "시간 예산"을 두고, chunk 단위로 안전 중단
   - 다음 시작일(next_start)을 progress 파일에 저장해 "내일 이어서" 계속
@@ -31,6 +37,7 @@
 
 입력:
 - config/products.csv (product_code 필수, product_name/product_url optional)
+  * optional: product_image_url 또는 product_image 컬럼 지원
 
 출력:
 - reports/crema_raw/master_reviews.jsonl
@@ -54,7 +61,6 @@ import time
 import hashlib
 import pathlib
 import argparse
-import sys
 from datetime import datetime, timedelta, date
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -135,7 +141,16 @@ CUMULATIVE_JSON = CREMA_RAW_DIR / "reviews.json"
 # ✅ 백필 이어받기 체크포인트
 PROGRESS_JSON = CREMA_RAW_DIR / "backfill_progress.json"
 
-for p in [SITE_DIR, SITE_DATA_DIR, ASSET_PRODUCTS, ASSET_REVIEWS, ASSET_TEXT, CREMA_RAW_DIR, CREMA_RAW_DAILY_DIR, CREMA_RAW_HEALTH_DIR]:
+for p in [
+    SITE_DIR,
+    SITE_DATA_DIR,
+    ASSET_PRODUCTS,
+    ASSET_REVIEWS,
+    ASSET_TEXT,
+    CREMA_RAW_DIR,
+    CREMA_RAW_DAILY_DIR,
+    CREMA_RAW_HEALTH_DIR,
+]:
     p.mkdir(parents=True, exist_ok=True)
 
 # ----------------------------
@@ -196,7 +211,11 @@ def load_progress() -> Dict[str, Any]:
 def save_progress(next_start: str, end: str) -> None:
     PROGRESS_JSON.write_text(
         json.dumps(
-            {"next_start": next_start, "end": end, "updated_at": now_kst().isoformat()},
+            {
+                "next_start": next_start,
+                "end": end,
+                "updated_at": now_kst().isoformat(),
+            },
             ensure_ascii=False,
             indent=2,
         ),
@@ -229,7 +248,11 @@ class Http:
     ) -> Dict[str, Any]:
         headers = headers or {}
         headers.setdefault("Accept", "application/json, text/plain, */*")
-        headers.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        headers.setdefault(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        )
         headers.setdefault("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8")
 
         last_err = None
@@ -260,7 +283,11 @@ class Http:
             return False
 
         headers = headers or {}
-        headers.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        headers.setdefault(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        )
         headers.setdefault("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
         headers.setdefault("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8")
 
@@ -313,7 +340,14 @@ def fetch_product_reviews_in_range(
     hard_max_pages: int = 200,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
-    stats = {"product_code": product_code, "pages": 0, "kept": 0, "seen": 0, "early_stop": False, "errors": 0}
+    stats = {
+        "product_code": product_code,
+        "pages": 0,
+        "kept": 0,
+        "seen": 0,
+        "early_stop": False,
+        "errors": 0,
+    }
 
     page = 1
     for _ in range(hard_max_pages):
@@ -364,7 +398,7 @@ def fetch_product_reviews_in_range(
     return out, stats
 
 # ----------------------------
-# Tokenize / tags (원래 스타일 유지)
+# Tokenize / tags
 # ----------------------------
 STOPWORDS = set("""
 그리고 그러나 그래서 하지만 또한
@@ -381,7 +415,11 @@ STOPWORDS = set("""
 컬러 색상 디자인
 """.split())
 
-SIZE_KEYWORDS = ["사이즈","정사이즈","작아요","작다","커요","크다","핏","타이트","여유","끼","기장","소매","어깨","가슴","발볼","헐렁","오버","업","다운","한치수","반치수"]
+SIZE_KEYWORDS = [
+    "사이즈", "정사이즈", "작아요", "작다", "커요", "크다",
+    "핏", "타이트", "여유", "끼", "기장", "소매", "어깨",
+    "가슴", "발볼", "헐렁", "오버", "업", "다운", "한치수", "반치수"
+]
 
 def tokenize_ko(text: str) -> List[str]:
     toks = re.findall(r"[가-힣A-Za-z0-9]+", (text or "").lower())
@@ -396,8 +434,14 @@ def has_any_kw(text: str, kws: List[str]) -> bool:
 
 def classify_size_direction(text: str) -> str:
     t = (text or "").replace(" ", "")
-    small_kw = ["작아","작다","타이트","끼","조인다","짧다","좁다","발볼좁","어깨좁","가슴좁","다운","한치수작","반치수작"]
-    big_kw = ["커","크다","넉넉","오버","길다","넓다","헐렁","부해","업","한치수큰","반치수큰"]
+    small_kw = [
+        "작아", "작다", "타이트", "끼", "조인다", "짧다", "좁다",
+        "발볼좁", "어깨좁", "가슴좁", "다운", "한치수작", "반치수작"
+    ]
+    big_kw = [
+        "커", "크다", "넉넉", "오버", "길다", "넓다",
+        "헐렁", "부해", "업", "한치수큰", "반치수큰"
+    ]
     for kw in small_kw:
         if kw in t:
             return "too_small"
@@ -407,7 +451,7 @@ def classify_size_direction(text: str) -> str:
     return "other"
 
 # ----------------------------
-# Text capture image (원래 유지)
+# Text / placeholder image helpers
 # ----------------------------
 def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
     text = (text or "").strip()
@@ -446,7 +490,28 @@ def wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, m
         lines.append(cur)
     return lines
 
-def create_text_capture_image(review_id: str, product_name: str, score: int, created_at: str, text: str) -> str:
+def _load_font(size: int):
+    candidates = [
+        "NanumGothic.ttf",
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        "arial.ttf",
+    ]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+def create_text_capture_image(
+    review_id: str,
+    product_name: str,
+    score: int,
+    created_at: str,
+    text: str,
+) -> str:
     W = 980
     PAD = 44
     HEADER_H = 120
@@ -459,14 +524,9 @@ def create_text_capture_image(review_id: str, product_name: str, score: int, cre
     out_name = safe_filename(sha1(str(review_id)) + ".png")
     out_path = ASSET_TEXT / out_name
 
-    try:
-        font_title = ImageFont.truetype("NanumGothic.ttf", 30)
-        font_meta = ImageFont.truetype("NanumGothic.ttf", 22)
-        font_body = ImageFont.truetype("NanumGothic.ttf", 24)
-    except Exception:
-        font_title = ImageFont.load_default()
-        font_meta = ImageFont.load_default()
-        font_body = ImageFont.load_default()
+    font_title = _load_font(30)
+    font_meta = _load_font(22)
+    font_body = _load_font(24)
 
     tmp = Image.new("RGB", (W, 800), BG)
     dtmp = ImageDraw.Draw(tmp)
@@ -502,6 +562,80 @@ def create_text_capture_image(review_id: str, product_name: str, score: int, cre
     img.save(out_path)
     return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
 
+def create_product_placeholder_image(product_code: str, product_name: str) -> str:
+    """
+    상품 이미지가 아예 없거나 다운로드 실패했을 때
+    GitHub Pages 404를 막기 위한 플레이스홀더 생성
+    """
+    key = f"{product_code}::{product_name}"
+    out_name = safe_filename(sha1("placeholder::" + key) + ".png")
+    out_path = ASSET_PRODUCTS / out_name
+
+    if out_path.exists() and out_path.stat().st_size > 0:
+        return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
+
+    W, H = 720, 720
+    BG = (245, 248, 251)
+    CARD = (255, 255, 255)
+    BORDER = (226, 232, 240)
+    TXT = (15, 23, 42)
+    MUTED = (100, 116, 139)
+    BRAND = (0, 45, 114)
+
+    img = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(img)
+
+    pad = 40
+    x0, y0, x1, y1 = pad, pad, W - pad, H - pad
+    try:
+        draw.rounded_rectangle([x0, y0, x1, y1], radius=36, fill=CARD, outline=BORDER, width=2)
+    except Exception:
+        draw.rectangle([x0, y0, x1, y1], fill=CARD, outline=BORDER, width=2)
+
+    title_font = _load_font(36)
+    meta_font = _load_font(22)
+    code_font = _load_font(26)
+
+    # 간단한 아이콘 박스
+    try:
+        draw.rounded_rectangle([250, 135, 470, 355], radius=32, fill=(239, 243, 249), outline=(220, 230, 240), width=2)
+    except Exception:
+        draw.rectangle([250, 135, 470, 355], fill=(239, 243, 249), outline=(220, 230, 240), width=2)
+
+    draw.rectangle([305, 185, 415, 295], outline=BRAND, width=6)
+    draw.line((305, 185, 415, 295), fill=BRAND, width=5)
+    draw.line((415, 185, 305, 295), fill=BRAND, width=5)
+
+    pn = (product_name or "상품 이미지 없음").strip()
+    if not pn:
+        pn = "상품 이미지 없음"
+
+    code_text = (product_code or "-").strip() or "-"
+
+    max_width = W - 140
+    lines = wrap_text(draw, pn, title_font, max_width)
+    lines = lines[:3]
+
+    y = 410
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=title_font)
+        tw = bbox[2] - bbox[0]
+        draw.text(((W - tw) / 2, y), line, font=title_font, fill=TXT)
+        y += 46
+
+    bbox = draw.textbbox((0, 0), code_text, font=code_font)
+    tw = bbox[2] - bbox[0]
+    draw.text(((W - tw) / 2, y + 12), code_text, font=code_font, fill=BRAND)
+
+    sub = "NO PRODUCT IMAGE"
+    bbox = draw.textbbox((0, 0), sub, font=meta_font)
+    tw = bbox[2] - bbox[0]
+    draw.text(((W - tw) / 2, y + 64), sub, font=meta_font, fill=MUTED)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+    return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
+
 # ----------------------------
 # Flatten + assets
 # ----------------------------
@@ -520,7 +654,12 @@ def download_to_assets(url: str, kind_dir: pathlib.Path, referer: str = "") -> s
         return ""
     return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
 
-def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> Dict[str, Any]:
+def flatten_review(
+    r: Dict[str, Any],
+    csv_name: str = "",
+    csv_url: str = "",
+    csv_image_url: str = "",
+) -> Dict[str, Any]:
     msg = (r.get("filtered_message") or "").strip()
     score = int(r.get("score") or 0)
 
@@ -529,8 +668,14 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
 
     po = r.get("product_options") or []
     ro = r.get("review_options") or []
-    po_map = {str(x.get("name") or "").strip(): str(x.get("value") or "").strip() for x in po if isinstance(x, dict)}
-    ro_map = {str(x.get("name") or "").strip(): str(x.get("value") or "").strip() for x in ro if isinstance(x, dict)}
+    po_map = {
+        str(x.get("name") or "").strip(): str(x.get("value") or "").strip()
+        for x in po if isinstance(x, dict)
+    }
+    ro_map = {
+        str(x.get("name") or "").strip(): str(x.get("value") or "").strip()
+        for x in ro if isinstance(x, dict)
+    }
 
     opt_size = (po_map.get("사이즈") or ro_map.get("평소사이즈") or "").strip()
     opt_color = (po_map.get("컬러") or "").strip()
@@ -539,7 +684,7 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
     tags: List[str] = []
     if score <= 2:
         tags.append("low")
-    if has_any_kw(msg, SIZE_KEYWORDS) or fit_q in ("조금 작아요","작아요","조금 커요","커요"):
+    if has_any_kw(msg, SIZE_KEYWORDS) or fit_q in ("조금 작아요", "작아요", "조금 커요", "커요"):
         tags.append("size")
 
     size_dir = classify_size_direction(msg) if "size" in tags else "other"
@@ -573,6 +718,7 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
         "review_image_url": full_url,
         "product_image_source_url": r.get("product_image_source_url") or "",
         "product_image_url": r.get("product_image_url") or "",
+        "csv_product_image_url": csv_image_url or "",
     }
 
 # ----------------------------
@@ -581,14 +727,31 @@ def flatten_review(r: Dict[str, Any], csv_name: str = "", csv_url: str = "") -> 
 def load_products_csv(path: pathlib.Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"products.csv not found: {path}")
+
     df = pd.read_csv(path)
+
     if "product_code" not in df.columns:
         raise ValueError("products.csv must include product_code column")
+
     if "product_name" not in df.columns:
         df["product_name"] = ""
+
     if "product_url" not in df.columns:
         df["product_url"] = ""
+
+    # optional image columns
+    if "product_image_url" not in df.columns:
+        df["product_image_url"] = ""
+
+    if "product_image" not in df.columns:
+        df["product_image"] = ""
+
     df["product_code"] = df["product_code"].astype(str).str.strip()
+    df["product_name"] = df["product_name"].fillna("").astype(str)
+    df["product_url"] = df["product_url"].fillna("").astype(str)
+    df["product_image_url"] = df["product_image_url"].fillna("").astype(str)
+    df["product_image"] = df["product_image"].fillna("").astype(str)
+
     return df
 
 # ----------------------------
@@ -606,7 +769,7 @@ def save_master_index(idx: Dict[str, Any]) -> None:
     MASTER_INDEX.write_text(json.dumps(idx, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def make_key(row: Dict[str, Any]) -> str:
-    return f"{row.get('source','Official')}::{str(row.get('id'))}"
+    return f"{row.get('source', 'Official')}::{str(row.get('id'))}"
 
 def append_master_jsonl(new_rows: List[Dict[str, Any]], idx: Dict[str, Any]) -> Tuple[int, int]:
     keys = idx.setdefault("keys", {})
@@ -646,13 +809,28 @@ def read_master_jsonl() -> List[Dict[str, Any]]:
 # ----------------------------
 # Main collect
 # ----------------------------
-def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_output: bool, resume: bool = False) -> int:
+def run_collect(
+    mode: str,
+    start: str,
+    end: str,
+    chunk_days: int,
+    keep_site_output: bool,
+    resume: bool = False,
+) -> int:
     products = load_products_csv(CONFIG_DIR / "products.csv")
     codes = products["product_code"].dropna().astype(str).unique().tolist()
-    meta_by_code = {
-        row["product_code"]: {"name": row.get("product_name", ""), "url": row.get("product_url", "")}
-        for _, row in products.iterrows()
-    }
+
+    meta_by_code = {}
+    for _, row in products.iterrows():
+        product_image_csv = str(row.get("product_image_url", "") or "").strip()
+        if not product_image_csv:
+            product_image_csv = str(row.get("product_image", "") or "").strip()
+
+        meta_by_code[str(row["product_code"])] = {
+            "name": row.get("product_name", ""),
+            "url": row.get("product_url", ""),
+            "image_url": product_image_csv,
+        }
 
     # ✅ backfill은 start를 2025-01-01로 강제(혹시 CLI로 이상값 들어와도 방지)
     if mode == "backfill":
@@ -685,7 +863,6 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
         if PROGRESS_JSON.exists():
             print(f"[INFO] Progress file present: {PROGRESS_JSON}", flush=True)
 
-    # 누적 인덱스 로드
     idx = load_master_index()
 
     def chunk_ranges(sd: date, ed: date, step: int) -> List[Tuple[date, date]]:
@@ -704,19 +881,15 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
     total_skipped = 0
     total_failed_chunks = 0
 
-    # backfill/daily 공통: chunk 단위 수행
     for (sd, ed) in ranges:
-        # ✅ budget check at chunk boundary (안전 중단)
         if mode == "backfill":
             elapsed = time.time() - t0
-            # chunk를 시작하기 전에 멈추면 "부분 chunk" 없이 안정적으로 이어받기 가능
             if elapsed > max_seconds:
                 budget_hit = True
                 budget_hit_next_start = sd.isoformat()
                 print(f"[WARN] Backfill time budget reached ({elapsed:.0f}s). Stop now.")
                 print(f"[WARN] Next start checkpoint: {budget_hit_next_start}")
                 save_progress(next_start=budget_hit_next_start, end=end)
-                # YML이 flag를 만들지 못하게 failed_chunks를 1로 유지
                 total_failed_chunks += 1
                 break
 
@@ -739,8 +912,17 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
 
                 csv_name = meta_by_code.get(code, {}).get("name", "")
                 csv_url = meta_by_code.get(code, {}).get("url", "")
+                csv_image_url = meta_by_code.get(code, {}).get("image_url", "")
+
                 for rr in raw_reviews:
-                    chunk_rows_flat.append(flatten_review(rr, csv_name=csv_name, csv_url=csv_url))
+                    chunk_rows_flat.append(
+                        flatten_review(
+                            rr,
+                            csv_name=csv_name,
+                            csv_url=csv_url,
+                            csv_image_url=csv_image_url,
+                        )
+                    )
 
         except Exception as e:
             total_failed_chunks += 1
@@ -749,26 +931,50 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
 
         df = pd.DataFrame(chunk_rows_flat)
         if df.empty:
-            health_chunks.append({"chunk": chunk_tag, "ok": True, "note": "no_rows", "products": len(codes)})
+            health_chunks.append({
+                "chunk": chunk_tag,
+                "ok": True,
+                "note": "no_rows",
+                "products": len(codes),
+            })
             continue
 
         df = df.drop_duplicates(subset=["id"], keep="first").copy()
 
+        # product_code별 이미지 캐시
         local_product_images: Dict[str, str] = {}
 
         for _, row in tqdm(df.iterrows(), total=len(df), desc=f"Assets({chunk_tag})"):
-            pcode = str(row.get("product_code") or "")
-            product_page = str(row.get("product_url") or "")
+            pcode = str(row.get("product_code") or "").strip()
+            pname = str(row.get("product_name") or "").strip()
+            product_page = str(row.get("product_url") or "").strip()
 
-            prod_url = str(row.get("product_image_source_url") or row.get("product_image_url") or "")
+            row_prod_source = str(row.get("product_image_source_url") or "").strip()
+            row_prod_direct = str(row.get("product_image_url") or "").strip()
+            row_prod_csv = str(row.get("csv_product_image_url") or "").strip()
+
+            prod_url = row_prod_source or row_prod_direct or row_prod_csv
+
             if pcode and pcode in local_product_images:
                 prod_local = local_product_images[pcode]
             else:
-                prod_local = download_to_assets(prod_url, ASSET_PRODUCTS, referer=product_page)
+                prod_local = ""
+
+                # 1) 우선 다운로드 시도
+                if prod_url:
+                    prod_local = download_to_assets(prod_url, ASSET_PRODUCTS, referer=product_page)
+
+                # 2) 실패하거나 URL 자체가 없으면 placeholder 생성
+                if not prod_local:
+                    prod_local = create_product_placeholder_image(
+                        product_code=pcode,
+                        product_name=pname,
+                    )
+
                 if pcode:
                     local_product_images[pcode] = prod_local
 
-            thumb_url = str(row.get("review_thumb_url") or "")
+            thumb_url = str(row.get("review_thumb_url") or "").strip()
             thumb_local = download_to_assets(thumb_url, ASSET_REVIEWS, referer=product_page) if thumb_url else ""
 
             cap = ""
@@ -776,7 +982,7 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
             if len(text) >= 100:
                 cap = create_text_capture_image(
                     review_id=str(row.get("id")),
-                    product_name=str(row.get("product_name") or ""),
+                    product_name=pname,
                     score=int(row.get("rating") or 0),
                     created_at=str(row.get("created_at") or ""),
                     text=text,
@@ -802,22 +1008,32 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
         })
 
         snap_path = CREMA_RAW_DAILY_DIR / f"{ed.isoformat()}.json"
-        snap_path.write_text(json.dumps({"reviews": new_rows}, ensure_ascii=False, indent=2), encoding="utf-8")
+        snap_path.write_text(
+            json.dumps({"reviews": new_rows}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
-    # 누적 인덱스 저장
     save_master_index(idx)
 
-    # 누적 읽어서 cumulative json 생성
     master_rows = read_master_jsonl()
-    CUMULATIVE_JSON.write_text(json.dumps({"reviews": master_rows}, ensure_ascii=False, indent=2), encoding="utf-8")
+    CUMULATIVE_JSON.write_text(
+        json.dumps({"reviews": master_rows}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     if keep_site_output:
-        (SITE_DATA_DIR / "reviews.json").write_text(json.dumps({"reviews": master_rows}, ensure_ascii=False, indent=2), encoding="utf-8")
+        (SITE_DATA_DIR / "reviews.json").write_text(
+            json.dumps({"reviews": master_rows}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
-    # ✅ backfill 완료 판정:
-    # - budget_hit 없이 끝까지 돌았고, failed_chunks==0 이면 "완전 완료"
-    backfill_completed = (mode == "backfill" and (not budget_hit) and total_failed_chunks == 0 and (len(ranges) > 0))
+    backfill_completed = (
+        mode == "backfill"
+        and (not budget_hit)
+        and total_failed_chunks == 0
+        and (len(ranges) > 0)
+    )
 
-    # 완료면 progress 지우기
     if backfill_completed:
         clear_progress()
 
@@ -830,7 +1046,6 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
         "total_added": total_added,
         "total_skipped_dup": total_skipped,
         "total_master_rows": len(master_rows),
-        # ✅ 핵심: 완전 완료 전에는 0이 되지 않게 해서 YML flag 생성 방지
         "failed_chunks": total_failed_chunks,
         "incomplete": bool(mode == "backfill" and not backfill_completed),
         "budget_hit": budget_hit,
@@ -838,7 +1053,11 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
         "progress_file": str(PROGRESS_JSON) if PROGRESS_JSON.exists() else "",
         "chunks": health_chunks,
     }
-    (CREMA_RAW_HEALTH_DIR / "latest_health.json").write_text(json.dumps(latest_health, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    (CREMA_RAW_HEALTH_DIR / "latest_health.json").write_text(
+        json.dumps(latest_health, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     print("[OK] Crema collection + accumulation done.")
     print(f"- Builder input: {CUMULATIVE_JSON}")
@@ -857,11 +1076,27 @@ def run_collect(mode: str, start: str, end: str, chunk_days: int, keep_site_outp
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["backfill", "daily"], required=True)
-    ap.add_argument("--start", default="", help="YYYY-MM-DD (KST). Default: today-90d (~3 months) for first run")
-    ap.add_argument("--end", default="", help="YYYY-MM-DD (KST). default=today-1")
+    ap.add_argument(
+        "--start",
+        default="",
+        help="YYYY-MM-DD (KST). Default: today-90d (~3 months) for first run",
+    )
+    ap.add_argument(
+        "--end",
+        default="",
+        help="YYYY-MM-DD (KST). default=today-1",
+    )
     ap.add_argument("--chunk-days", type=int, default=14)
-    ap.add_argument("--resume", action="store_true", help="backfill only: resume from reports/crema_raw/backfill_progress.json")
-    ap.add_argument("--keep-site-output", action="store_true", help="also write site/data/reviews.json")
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help="backfill only: resume from reports/crema_raw/backfill_progress.json",
+    )
+    ap.add_argument(
+        "--keep-site-output",
+        action="store_true",
+        help="also write site/data/reviews.json",
+    )
     args = ap.parse_args()
 
     # ✅ Backfill 기본: 최근 약 3개월만 먼저 수집 (GitHub Actions 6h 제한 회피)
