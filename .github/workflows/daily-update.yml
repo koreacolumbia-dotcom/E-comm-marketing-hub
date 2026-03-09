@@ -92,7 +92,6 @@ on:
           - "false"
           - "true"
 
-
   schedule:
     # ✅ KST 06:30 = UTC 21:30 (전날)
     - cron: "30 21 * * *"
@@ -144,8 +143,8 @@ jobs:
           if [ "$EVENT" = "workflow_dispatch" ]; then
             cnt=0
             [ "$DAILY_ONLY" = "true" ] && cnt=$((cnt+1))
-            [ "$VOC_ONLY"   = "true" ] && cnt=$((cnt+1))
-            [ "$BLOG_ONLY"  = "true" ] && cnt=$((cnt+1))
+            [ "$VOC_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$BLOG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
@@ -178,7 +177,6 @@ jobs:
             RUN_OWNED=true
           fi
 
-          
           if [ "$EXTSIG_ONLY" = "true" ]; then
             RUN_DAILY=false
             RUN_PRICE=false
@@ -235,14 +233,14 @@ jobs:
             RUN_OWNED=false
           fi
 
-          echo "run_daily=$RUN_DAILY"     >> "$GITHUB_OUTPUT"
-          echo "run_price=$RUN_PRICE"     >> "$GITHUB_OUTPUT"
-          echo "run_hero=$RUN_HERO"       >> "$GITHUB_OUTPUT"
-          echo "run_extsig=$RUN_EXTSIG"   >> "$GITHUB_OUTPUT"
-          echo "run_crema=$RUN_CREMA"     >> "$GITHUB_OUTPUT"
-          echo "run_blog=$RUN_BLOG"       >> "$GITHUB_OUTPUT"
+          echo "run_daily=$RUN_DAILY" >> "$GITHUB_OUTPUT"
+          echo "run_price=$RUN_PRICE" >> "$GITHUB_OUTPUT"
+          echo "run_hero=$RUN_HERO" >> "$GITHUB_OUTPUT"
+          echo "run_extsig=$RUN_EXTSIG" >> "$GITHUB_OUTPUT"
+          echo "run_crema=$RUN_CREMA" >> "$GITHUB_OUTPUT"
+          echo "run_blog=$RUN_BLOG" >> "$GITHUB_OUTPUT"
           echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
-          echo "run_owned=$RUN_OWNED"     >> "$GITHUB_OUTPUT"
+          echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
 
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" = "workflow_dispatch" ]; then
@@ -273,6 +271,9 @@ jobs:
           # Crema VOC ML/NLP (builder가 쓰는 경우)
           pip install scikit-learn sentence-transformers
 
+          # PIL/requests 누락 방지
+          pip install pillow requests
+
           # HTML→PNG 렌더링용
           pip install playwright
           playwright install --with-deps chromium
@@ -281,7 +282,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p reports site/data
+          mkdir -p reports site/data site/assets site/assets/products site/assets/reviews site/assets/text_images
 
       - name: Set KST time (for badge/meta + yesterday)
         id: set_time
@@ -404,7 +405,6 @@ jobs:
         env:
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
           TARGET_DAYS: "7"
-
         run: |
           set -euo pipefail
 
@@ -443,17 +443,25 @@ jobs:
             exit 0
           fi
 
-          mkdir -p site/data reports/crema_raw reports/crema_raw/daily reports/crema_raw/health
+          mkdir -p \
+            site/data \
+            site/assets \
+            site/assets/products \
+            site/assets/reviews \
+            site/assets/text_images \
+            reports/crema_raw \
+            reports/crema_raw/daily \
+            reports/crema_raw/health
 
           FLAG="reports/crema_raw/backfill_done.flag"
           echo "[INFO] Crema flag: ${FLAG}"
           echo "[INFO] Yesterday (YMD): ${YMD}"
 
           if [ ! -f "${FLAG}" ]; then
-            echo "[INFO] (1) FIRST RUN backfill: 2025-12-01 ~ ${YMD}"
+            echo "[INFO] (1) FIRST RUN backfill: 2025-01-01 ~ ${YMD}"
             python -u crema_voc.py \
               --mode backfill \
-              --start "2025-12-01" \
+              --start "2025-01-01" \
               --end "${YMD}" \
               --chunk-days 31 \
               --keep-site-output \
@@ -478,6 +486,7 @@ jobs:
             echo "[ERROR] No input JSON found after crema_voc.py"
             ls -lah reports/crema_raw || true
             ls -lah site/data || true
+            ls -lah site/assets || true
             exit 0
           fi
 
@@ -525,13 +534,22 @@ jobs:
           echo "[INFO] (4) Archive site -> reports/voc_crema"
           rm -rf reports/voc_crema || true
           mkdir -p reports/voc_crema
+          mkdir -p reports/voc_crema/assets reports/voc_crema/data
 
           if [ -f "site/index.html" ]; then
             rsync -a --delete site/ reports/voc_crema/ || true
 
-            mkdir -p reports/voc_crema/assets reports/voc_crema/data
-            rsync -a site/assets/ reports/voc_crema/assets/ || true
-            rsync -a site/data/ reports/voc_crema/data/ || true
+            if [ -d "site/assets" ]; then
+              rsync -a site/assets/ reports/voc_crema/assets/ || true
+            else
+              echo "[WARN] site/assets not found"
+            fi
+
+            if [ -d "site/data" ]; then
+              rsync -a site/data/ reports/voc_crema/data/ || true
+            else
+              echo "[WARN] site/data not found"
+            fi
           else
             echo "[WARN] site/index.html not found after build"
             ls -lah site || true
@@ -540,6 +558,7 @@ jobs:
 
           echo "[INFO] voc_crema outputs:"
           ls -lah reports/voc_crema | head -n 200 || true
+          ls -lah reports/voc_crema/assets | head -n 200 || true
           ls -lah reports/voc_crema/data | head -n 200 || true
 
       # ----------------------------
@@ -566,7 +585,6 @@ jobs:
             || true
 
           ls -la reports/voc_blog/index.html || true
-
 
       # =========================================================
       # ✅ OWNED Campaign Portal
@@ -619,7 +637,7 @@ jobs:
           ls -la reports/owned_portal || true
           ls -la reports/owned_portal/data/owned | head -n 120 || true
 
-      # ✅ OWNED meta.json 생성 (heredoc 제거로 YAML 안정)
+      # ✅ OWNED meta.json 생성
       - name: Write OWNED meta.json (fix init 404)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
         continue-on-error: true
@@ -756,8 +774,8 @@ jobs:
           KST_STAMP: ${{ steps.set_time.outputs.kst }}
 
           MODE_DAILY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}
-          MODE_VOC_ONLY:   ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
-          MODE_BLOG_ONLY:  ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
+          MODE_VOC_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
+          MODE_BLOG_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
 
           REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
 
