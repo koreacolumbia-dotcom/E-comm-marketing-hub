@@ -668,7 +668,7 @@
             <div class="flex items-center gap-3">
               <div class="img-box">
                 ${r.local_product_image
-                  ? `<img src="${esc(r.local_product_image)}" alt="">`
+                  ? `<img src="${esc(r.local_product_image)}" alt="" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=&quot;w-full h-full flex items-center justify-center text-[10px] text-slate-400&quot;>NO IMAGE</div>';">`
                   : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`
                 }
               </div>
@@ -698,15 +698,15 @@
       if (r.text_image_path) tags.push(`<span class="badge"><i class="fa-solid fa-image"></i> #100자+이미지</span>`);
 
       const prodImg = r.local_product_image
-        ? `<img src="${esc(r.local_product_image)}" alt="">`
+        ? `<img src="${esc(r.local_product_image)}" alt="" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=&quot;w-full h-full flex items-center justify-center text-[10px] text-slate-400&quot;>NO IMAGE</div>';">`
         : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
 
       const reviewThumb = r.local_review_thumb
-        ? `<img src="${esc(r.local_review_thumb)}" class="w-full max-h-56 object-contain rounded-lg bg-slate-50" />`
+        ? `<img src="${esc(r.local_review_thumb)}" class="w-full max-h-56 object-contain rounded-lg bg-slate-50" onerror="this.onerror=null; this.remove();" />`
         : ``;
 
       const textImg = r.text_image_path
-        ? `<img src="${esc(r.text_image_path)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" />`
+        ? `<img src="${esc(r.text_image_path)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" onerror="this.onerror=null; this.remove();" />`
         : ``;
 
       return `
@@ -977,7 +977,7 @@
 
     function mlCardHTML(g){
       const img = g.local_product_image
-        ? `<img src="${esc(g.local_product_image)}" alt="">`
+        ? `<img src="${esc(g.local_product_image)}" alt="" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=&quot;w-full h-full flex items-center justify-center text-[10px] text-slate-400&quot;>NO IMAGE</div>';">`
         : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
 
       const negChips = (g.negTop && g.negTop.length)
