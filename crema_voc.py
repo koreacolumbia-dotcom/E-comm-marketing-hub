@@ -141,6 +141,16 @@ CUMULATIVE_JSON = CREMA_RAW_DIR / "reviews.json"
 # ✅ 백필 이어받기 체크포인트
 PROGRESS_JSON = CREMA_RAW_DIR / "backfill_progress.json"
 
+# ✅ GitHub Pages public path
+# Example public URL:
+#   https://koreacolumbia-dotcom.github.io/E-comm-marketing-hub/site/assets/products/xxx.jpg
+PUBLIC_SITE_PREFIX = os.getenv("PUBLIC_SITE_PREFIX", "/E-comm-marketing-hub/site").rstrip("/")
+
+def to_public_site_path(path_in_site: pathlib.Path) -> str:
+    """Convert an absolute path under SITE_DIR to a browser-accessible public URL path."""
+    rel = path_in_site.relative_to(SITE_DIR).as_posix()
+    return f"{PUBLIC_SITE_PREFIX}/{rel}"
+
 for p in [
     SITE_DIR,
     SITE_DATA_DIR,
