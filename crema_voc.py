@@ -570,7 +570,7 @@ def create_text_capture_image(
         y += line_h
 
     img.save(out_path)
-    return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
+    return to_public_site_path(out_path)
 
 def create_product_placeholder_image(product_code: str, product_name: str) -> str:
     """
@@ -582,7 +582,7 @@ def create_product_placeholder_image(product_code: str, product_name: str) -> st
     out_path = ASSET_PRODUCTS / out_name
 
     if out_path.exists() and out_path.stat().st_size > 0:
-        return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
+        return to_public_site_path(out_path)
 
     W, H = 720, 720
     BG = (245, 248, 251)
@@ -644,7 +644,7 @@ def create_product_placeholder_image(product_code: str, product_name: str) -> st
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path)
-    return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
+    return to_public_site_path(out_path)
 
 # ----------------------------
 # Flatten + assets
@@ -662,7 +662,7 @@ def download_to_assets(url: str, kind_dir: pathlib.Path, referer: str = "") -> s
     ok = http.download(url, out_path, headers=headers if headers else None)
     if not ok:
         return ""
-    return str(out_path.relative_to(SITE_DIR)).replace("\\", "/")
+    return to_public_site_path(out_path)
 
 def flatten_review(
     r: Dict[str, Any],
