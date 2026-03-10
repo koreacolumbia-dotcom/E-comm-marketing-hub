@@ -966,16 +966,28 @@ def get_paid_detail_3way(
     ], ignore_index=True)
 
     # ✅ Total 강제 (Channel Snapshot Paid AD와 동일)
+    # current는 Channel Snapshot Paid AD 값을 우선 사용하고,
+    # prev / yoy raw 값이 없으면 merged 합계로 fallback 해서 100% 고정 버그 방지
+    merged_cur_s = float(merged["sessions_cur"].sum()) if not merged.empty else 0.0
+    merged_prev_s = float(merged["sessions_prev"].sum()) if not merged.empty else 0.0
+    merged_yoy_s = float(merged["sessions_yoy"].sum()) if not merged.empty else 0.0
+    merged_cur_r = float(merged["rev_cur"].sum()) if not merged.empty else 0.0
+
     if paid_ad_totals:
-        t_cur_s = float(paid_ad_totals.get("current", {}).get("sessions", 0.0) or 0.0)
-        t_prev_s = float(paid_ad_totals.get("prev", {}).get("sessions", 0.0) or 0.0)
-        t_yoy_s = float(paid_ad_totals.get("yoy", {}).get("sessions", 0.0) or 0.0)
-        t_cur_r = float(paid_ad_totals.get("current", {}).get("revenue", 0.0) or 0.0)
+        cur_sessions_val = paid_ad_totals.get("current", {}).get("sessions", merged_cur_s)
+        cur_revenue_val = paid_ad_totals.get("current", {}).get("revenue", merged_cur_r)
+        prev_sessions_val = paid_ad_totals.get("prev", {}).get("sessions", None)
+        yoy_sessions_val = paid_ad_totals.get("yoy", {}).get("sessions", None)
+
+        t_cur_s = merged_cur_s if cur_sessions_val is None else float(cur_sessions_val or 0.0)
+        t_cur_r = merged_cur_r if cur_revenue_val is None else float(cur_revenue_val or 0.0)
+        t_prev_s = merged_prev_s if prev_sessions_val in (None, 0, 0.0) else float(prev_sessions_val)
+        t_yoy_s = merged_yoy_s if yoy_sessions_val in (None, 0, 0.0) else float(yoy_sessions_val)
     else:
-        t_cur_s = float(merged["sessions_cur"].sum())
-        t_prev_s = float(merged["sessions_prev"].sum())
-        t_yoy_s = float(merged["sessions_yoy"].sum())
-        t_cur_r = float(merged["rev_cur"].sum())
+        t_cur_s = merged_cur_s
+        t_prev_s = merged_prev_s
+        t_yoy_s = merged_yoy_s
+        t_cur_r = merged_cur_r
 
     total_row = {
         "sub_channel": "Total",
@@ -1117,14 +1129,14 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
         order_bys=order, limit=50
     )
     if cand.empty:
-        return pd.DataFrame(columns=["itemId","itemName","qty","trend_svg","image_url"]), {"x": [], "items": []}
+        return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
 
     cand["itemsPurchased"] = pd.to_numeric(cand["itemsPurchased"], errors="coerce").fillna(0.0)
     cand["itemId"] = cand["itemId"].astype(str).str.strip()
     cand["itemName"] = cand["itemName"].astype(str).fillna("").map(lambda x: x.strip())
     cand = cand[~cand["itemName"].map(is_not_set)]
     if cand.empty:
-        return pd.DataFrame(columns=["itemId","itemName","qty","trend_svg","image_url"]), {"x": [], "items": []}
+        return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
 
     cand["image_url"] = cand["itemId"].map(lambda s: image_map.get(str(s).strip(), ""))
     with_img = cand[cand["image_url"].astype(str).str.strip() != ""].copy().sort_values("itemsPurchased", ascending=False)
@@ -1132,6 +1144,16 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
     top = pd.concat([with_img.head(5), no_img.head(max(0, 5 - len(with_img.head(5))))], ignore_index=True).head(5).copy()
     top["qty"] = top["itemsPurchased"]
     skus = [str(s).strip() for s in top["itemId"].tolist() if str(s).strip()]
+
+    # ✅ Best Sellers 카드에 Views 수치 노출
+    views_df = _get_item_views_best_effort(client, start, end, skus)
+    if views_df.empty:
+        top["views"] = 0.0
+    else:
+        views_df["itemId"] = views_df["itemId"].astype(str).str.strip()
+        views_df["views"] = pd.to_numeric(views_df["views"], errors="coerce").fillna(0.0)
+        top = top.merge(views_df[["itemId", "views"]], on="itemId", how="left")
+        top["views"] = pd.to_numeric(top["views"], errors="coerce").fillna(0.0)
 
     axis_dates = [w.cur_end - dt.timedelta(days=6 - i) for i in range(7)]
     xlabels = [d.strftime("%m/%d") for d in axis_dates]
@@ -1154,7 +1176,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
             top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
         for sku in skus:
             series_cache["items"].append({"itemId": sku, "ys": [0.0]*7})
-        return top[["itemId","itemName","qty","trend_svg","image_url"]], series_cache
+        return top[["itemId","itemName","qty","views","trend_svg","image_url"]], series_cache
 
     ts["date"] = ts["date"].apply(parse_yyyymmdd)
     ts["itemsPurchased"] = pd.to_numeric(ts["itemsPurchased"], errors="coerce").fillna(0.0)
@@ -1173,7 +1195,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
     if PLACEHOLDER_IMG:
         top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
 
-    return top[["itemId","itemName","qty","trend_svg","image_url"]], series_cache
+    return top[["itemId","itemName","qty","views","trend_svg","image_url"]], series_cache
 
 
 # =========================
@@ -1777,7 +1799,7 @@ def render_page_html(
               {product_img(getattr(r, "image_url", ""))}
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))}</div>
+                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
               </div>
               <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
             </div>
@@ -2122,9 +2144,11 @@ def build_one(
     channel_snapshot = get_channel_snapshot_3way(client, w, overall=overall)
 
     # ✅ Paid AD totals 추출(채널스냅샷 기반으로 강제용)
-    paid_ad_totals = {"current": {"sessions": 0.0, "revenue": 0.0},
-                      "prev": {"sessions": 0.0, "revenue": 0.0},
-                      "yoy": {"sessions": 0.0, "revenue": 0.0}}
+    paid_ad_totals = {
+        "current": {"sessions": None, "revenue": None},
+        "prev": {"sessions": None, "revenue": None},
+        "yoy": {"sessions": None, "revenue": None},
+    }
     try:
         # Channel snapshot은 current period값만 들어있고(prev/yoy는 %로만) → Paid Detail Total 강제는 current만 필요
         row = channel_snapshot[channel_snapshot["bucket"] == "Paid AD"]
