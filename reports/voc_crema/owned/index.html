@@ -198,10 +198,68 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+  
+
+    .mobile-only{ display:none; }
+    .desktop-only{ display:block; }
+    .mobile-card-list{ display:none; }
+    .mobile-section-title{ font-size:11px; font-weight:900; letter-spacing:.16em; text-transform:uppercase; color:#94a3b8; margin-bottom:10px; }
+    .mobile-card{
+      border: 1px solid rgba(148,163,184,0.20);
+      background: rgba(255,255,255,0.92);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.05);
+    }
+    .mobile-kv{ display:grid; grid-template-columns: 88px 1fr; gap:8px; align-items:start; }
+    .mobile-kv .k{ font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:#94a3b8; }
+    .mobile-kv .v{ font-size:13px; font-weight:800; color:#0f172a; word-break:break-word; }
+    .mobile-card .headline{ font-size:14px; font-weight:900; line-height:1.4; color:#0f172a; }
+    .mobile-card .subline{ font-size:12px; font-weight:800; color:#64748b; }
+    .mobile-pills{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .mobile-pill{ display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px; background:rgba(0,45,114,0.06); color:#002d72; font-size:12px; font-weight:900; }
+    .fab-open{
+      position:fixed; right:14px; bottom:76px; z-index:60; display:none;
+      border-radius:999px; padding:12px 14px; background:#002d72; color:#fff; font-size:12px; font-weight:900;
+      box-shadow:0 18px 36px rgba(0,45,114,0.22);
+    }
+    .mobile-bottom-nav{
+      position:fixed; left:10px; right:10px; bottom:10px; z-index:55; display:none;
+      background:rgba(255,255,255,0.96); backdrop-filter: blur(16px);
+      border:1px solid rgba(148,163,184,0.18); border-radius:18px; box-shadow:0 18px 44px rgba(0,0,0,0.12);
+      padding:8px; grid-template-columns:repeat(4,1fr); gap:8px;
+    }
+    .mobile-bottom-nav a{
+      text-align:center; padding:10px 8px; border-radius:14px; background:rgba(248,250,252,0.95); font-size:11px; font-weight:900; color:#0f172a;
+    }
+    .embed-mobile body, body.embed-mobile{ overscroll-behavior-y:contain; }
+    @media (max-width: 768px){
+      body{ padding:14px !important; }
+      .glass{ padding:14px !important; border-radius:22px; }
+      .kpi-card, .mini-card{ border-radius:16px; padding:12px 13px; }
+      .kpi-value{ font-size:18px; }
+      .mini-value{ font-size:15px; }
+      .small-label{ letter-spacing:.16em; }
+      .desktop-table-wrap{ display:none !important; }
+      .mobile-card-list{ display:grid; gap:10px; }
+      .fab-open{ display:inline-flex; align-items:center; }
+      .mobile-bottom-nav{ display:grid; }
+      .mobile-only{ display:block; }
+      .desktop-only{ display:none; }
+      .chip, .btn, .toggle{ min-height:42px; padding:10px 12px; }
+      .pill{ width:100%; justify-content:flex-start; white-space:normal; border-radius:16px; padding:10px 12px; }
+      input[type="date"], input[type="text"], select{ min-height:44px; font-size:13px; }
+      .max-w-7xl{ max-width:100% !important; }
+      .text-4xl{ font-size:1.8rem !important; line-height:1.15 !important; }
+      .overflow-x-auto{ -webkit-overflow-scrolling:touch; }
+      #termSection, #productSection{ scroll-margin-top:12px; }
+      body{ padding-bottom:104px !important; }
+    }
+
   </style>
 </head>
 
-<body class="p-6 md:p-10">
+<body class="p-6 md:p-10" id="top">
   <div class="max-w-7xl mx-auto">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
@@ -210,6 +268,7 @@
       </div>
       <div class="flex items-center gap-3 flex-wrap justify-end">
         <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
+        <a id="btnOpenStandalone" class="fab-open" href="#" target="_top" rel="noopener">전체화면</a>
       </div>
     </div>
 
@@ -219,7 +278,7 @@
       <button id="noticeClose" class="x" type="button">닫기</button>
     </div>
 
-    <div class="glass p-6">
+    <div class="glass p-6" id="filtersSection">
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
@@ -407,7 +466,7 @@
           <div class="muted font-semibold text-sm">선택한 날짜(MMDD) 그룹의 개별 TERM 목록</div>
         </div>
 
-        <div class="overflow-x-auto overflow-y-visible rounded-[18px]">
+        <div class="overflow-x-auto overflow-y-visible rounded-[18px] desktop-table-wrap">
           <table>
             <thead>
               <tr>
@@ -426,12 +485,15 @@
           </table>
         </div>
 
+        <div id="termCards" class="mobile-card-list"></div>
+
         <div class="muted font-semibold text-xs mt-2">
           TIP: 행 클릭 → 해당 (channel+campaign+term) 단위로 KPI/상품이 드릴다운돼.
         </div>
       </div>
 
       <!-- Products -->
+      <div id="productSection">
       <div class="flex items-center gap-2 mb-2">
         <div class="small-label">Products</div>
         <div id="selMeta" class="pill">
@@ -441,7 +503,7 @@
         </div>
       </div>
 
-      <div class="overflow-x-auto overflow-y-visible rounded-[18px]">
+      <div class="overflow-x-auto overflow-y-visible rounded-[18px] desktop-table-wrap">
         <table>
           <thead>
             <tr>
@@ -457,11 +519,22 @@
         </table>
       </div>
 
+      <div id="productCards" class="mobile-card-list"></div>
+
       <div class="muted font-semibold text-xs mt-3">
         데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · WEEK/RANGE는 클라이언트 합산
       </div>
+      </div>
     </div>
   </div>
+
+
+  <nav class="mobile-bottom-nav" aria-label="모바일 빠른 이동">
+    <a href="#top">TOP</a>
+    <a href="#filtersSection">필터</a>
+    <a href="#termSection">TERM</a>
+    <a href="#productSection">상품</a>
+  </nav>
 
 <script>
 (function(){
@@ -547,6 +620,9 @@
   const termTb = document.getElementById('termTb');
 
   const tb = document.getElementById('tb');
+  const termCards = document.getElementById('termCards');
+  const productCards = document.getElementById('productCards');
+  const btnOpenStandalone = document.getElementById('btnOpenStandalone');
 
   const kSessions = document.getElementById('kSessions');
   const kUsers = document.getElementById('kUsers');
@@ -791,7 +867,7 @@
     wrapOtherChannels.innerHTML = '';
 
     if(!KPI.length){
-      const empty = `<div class="muted font-semibold text-sm">결과가 없어. (필터가 너무 좁거나, 해당 기간에 데이터가 없을 수 있어)</div>`;
+      const empty = `<div class="muted font-semibold text-sm">결과가 없슴다..</div>`;
       wrapEDMDate.innerHTML = empty;
       wrapLMSDate.innerHTML = empty;
       wrapKakaoDate.innerHTML = empty;
@@ -962,12 +1038,91 @@
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
   }
 
+
+
+  function isMobileLike(){
+    return window.matchMedia('(max-width: 768px)').matches;
+  }
+  function isEmbedded(){
+    try{ return window.self !== window.top; }catch(e){ return true; }
+  }
+  function applyMobileEmbedMode(){
+    const active = isMobileLike() && isEmbedded();
+    document.body.classList.toggle('embed-mobile', active);
+    if(btnOpenStandalone){
+      btnOpenStandalone.style.display = active ? 'inline-flex' : 'none';
+      btnOpenStandalone.href = window.location.href;
+    }
+  }
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+  function renderEmptyCards(el, msg){
+    if(!el) return;
+    el.innerHTML = `<div class="mobile-card"><div class="subline">${esc(msg)}</div></div>`;
+  }
+  function renderTermCards(rows){
+    if(!termCards) return;
+    if(!rows || !rows.length){
+      renderEmptyCards(termCards, '날짜 그룹을 선택하면 TERM 목록이 표시돼.');
+      return;
+    }
+    termCards.innerHTML = rows.map(r => `
+      <button class="mobile-card text-left" type="button"
+        data-channel="${esc(r.channel)}"
+        data-campaign="${encodeURIComponent(r.campaign||'')}"
+        data-term="${encodeURIComponent(r.term||'')}">
+        <div class="headline">${esc(r.term || '-')}</div>
+        <div class="subline mt-1">${esc(r.campaign || '-')}</div>
+        <div class="mobile-pills">
+          <span class="mobile-pill">Sessions ${fmt(r.sessions||0)}</span>
+          <span class="mobile-pill">Users ${fmt(r.users||0)}</span>
+          <span class="mobile-pill">Purchases ${fmt(r.purchases||0)}</span>
+        </div>
+        <div class="mobile-kv mt-3"><div class="k">Revenue</div><div class="v">${fmtMoney(r.revenue||0)}</div></div>
+        <div class="mobile-kv mt-2"><div class="k">Items</div><div class="v">${fmt(r.items_purchased||0)}</div></div>
+      </button>
+    `).join('');
+    Array.from(termCards.querySelectorAll('button[data-channel]')).forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        selectSingle(
+          btn.getAttribute('data-channel'),
+          decodeURIComponent(btn.getAttribute('data-campaign')||''),
+          decodeURIComponent(btn.getAttribute('data-term')||'')
+        );
+      });
+    });
+  }
+  function renderProductCards(rows){
+    if(!productCards) return;
+    if(!rows || !rows.length){
+      renderEmptyCards(productCards, '구매 상품 데이터가 없어.');
+      return;
+    }
+    productCards.innerHTML = rows.map(r => `
+      <div class="mobile-card">
+        <div class="headline">${esc(r.item_name || '-')}</div>
+        <div class="mobile-kv mt-3"><div class="k">Item ID</div><div class="v mono">${esc(r.item_id || '-')}</div></div>
+        <div class="mobile-pills">
+          <span class="mobile-pill">Items ${fmt(r.prod_items||0)}</span>
+          <span class="mobile-pill">Revenue ${fmtMoney(r.prod_revenue||0)}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
   function renderTerms(){
     if(!termSection || !termTb) return;
 
     if(!SELECTED || SELECTED.type!=='group' || !RAW){
       termSection.classList.add('hidden');
       termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
+      renderEmptyCards(termCards, '날짜 그룹을 선택하면 TERM 목록이 표시돼.');
       return;
     }
 
@@ -977,7 +1132,8 @@
     termSection.classList.remove('hidden');
 
     if(!sourceRows.length){
-      termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">해당 날짜 그룹에 TERM 데이터가 없어.</td></tr>`;
+      termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">해당 날짜 그룹에 TERM 데이터가 없슴다..</td></tr>`;
+      renderEmptyCards(termCards, '해당 날짜 그룹에 TERM 데이터가 없슴다..');
       return;
     }
 
@@ -1027,6 +1183,8 @@
       </tr>
     `).join('');
 
+    renderTermCards(rows);
+
     Array.from(termTb.querySelectorAll('tr[data-channel]')).forEach(tr=>{
       tr.addEventListener('click', ()=>{
         selectSingle(
@@ -1047,6 +1205,7 @@
 
     if(!rows.length){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
+      renderEmptyCards(productCards, '구매 상품 데이터가 없어.');
       return;
     }
 
@@ -1063,6 +1222,7 @@
     }
 
     const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+    renderProductCards(out);
     tb.innerHTML = out.map(r=>`
       <tr>
         <td>${(r.item_name||'-')}</td>
@@ -1082,6 +1242,7 @@
 
     if(!prod.length){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
+      renderEmptyCards(productCards, '구매 상품 데이터가 없어.');
       return;
     }
 
@@ -1098,6 +1259,7 @@
     }
 
     const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
+    renderProductCards(out);
     tb.innerHTML = out.map(r=>`
       <tr>
         <td>${(r.item_name||'-')}</td>
@@ -1111,6 +1273,7 @@
   function renderProducts(){
     if(!SELECTED || !RAW){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.</td></tr>`;
+      renderEmptyCards(productCards, 'TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.');
       return;
     }
     if(SELECTED.type==='single'){
@@ -1672,6 +1835,9 @@
   toggleGroupJump.addEventListener('change', ()=>{
     GROUP_JUMP_MODE = !!toggleGroupJump.checked;
   });
+
+  applyMobileEmbedMode();
+  window.addEventListener('resize', applyMobileEmbedMode);
 
   (async function init(){
     // defaults
