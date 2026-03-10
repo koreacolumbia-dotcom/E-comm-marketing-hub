@@ -1427,7 +1427,7 @@ def render_index_html(
 
     def open_btn(href: str) -> str:
         return f"""
-          <a href="{href}" target="_self"
+          <a href="{href}" target="_self" rel="noopener"
              class="mt-6 w-full inline-flex items-center justify-center rounded-2xl px-4 py-3
                     bg-[color:var(--brand)] text-white font-black text-sm
                     shadow-sm hover:opacity-95 active:opacity-90 transition">
@@ -1630,24 +1630,56 @@ def render_index_html(
     .risk-unk{{ background: rgba(100,116,139,.12); color: rgba(51,65,85,1); }}
     .risk-unk .risk-dot{{ background: rgb(100,116,139); box-shadow: 0 0 0 5px rgba(100,116,139,.12); }}
     .subtle{{ margin-top:14px; padding:12px 14px; border-radius:18px; background: rgba(255,255,255,.55); border: 1px solid rgba(15,23,42,0.05); }}
+    .embed-mobile body{{ background: transparent; }}
+    @media (max-width: 768px){{
+      .embed-mobile .glass-card{{ border-radius: 22px; box-shadow: 0 10px 30px rgba(15,23,42,0.07); }}
+      .embed-mobile #summaryTop{{ padding: 14px 10px 88px; }}
+      .embed-mobile .text-3xl.sm\:text-4xl{{ font-size: 1.6rem; line-height: 1.15; }}
+      .embed-mobile .subtle{{ padding: 10px 12px; border-radius: 16px; }}
+      .embed-mobile .badge, .embed-mobile .badge-soft, .embed-mobile .risk-pill{{ font-size: 10px; padding: 5px 8px; }}
+      .embed-mobile .grid.lg\:grid-cols-4{{ gap: 14px; }}
+      .embed-mobile .grid.grid-cols-2.sm\:grid-cols-3.lg\:grid-cols-5{{ grid-template-columns: repeat(2, minmax(0,1fr)); }}
+      .embed-mobile .grid.grid-cols-2.sm\:grid-cols-4{{ grid-template-columns: repeat(2, minmax(0,1fr)); }}
+      .embed-mobile .grid.grid-cols-1.lg\:grid-cols-3{{ grid-template-columns: repeat(1, minmax(0,1fr)); }}
+      .embed-mobile .p-6{{ padding: 16px; }}
+      .embed-mobile .p-5{{ padding: 16px; }}
+      .embed-mobile .mt-5{{ margin-top: 14px; }}
+      .embed-mobile .mt-6{{ margin-top: 16px; }}
+      .embed-mobile .text-lg{{ font-size: 1rem; line-height: 1.35rem; }}
+      .embed-mobile .text-xl{{ font-size: 1.05rem; line-height: 1.45rem; }}
+      .embed-mobile .text-base{{ font-size: .95rem; }}
+      .embed-mobile a[href]{{ word-break: break-word; }}
+    }
+
   </style>
 </head>
 <body>
-  <div class="px-2 sm:px-6 py-6">
+  <div id="mobileEmbedFab" class="hidden fixed right-4 bottom-20 z-[70]">
+    <button id="btnOpenStandalone" type="button" class="rounded-full bg-[color:var(--brand)] text-white shadow-lg px-4 py-3 text-xs font-black tracking-wide">전체화면</button>
+  </div>
+  <div id="mobileQuickNav" class="hidden fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 backdrop-blur px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)]">
+    <div class="grid grid-cols-4 gap-2 max-w-md mx-auto">
+      <button type="button" data-target="summaryTop" class="quick-nav-btn rounded-2xl px-2 py-2 text-[11px] font-black text-slate-700 bg-slate-100">TOP</button>
+      <button type="button" data-target="dailyKpi" class="quick-nav-btn rounded-2xl px-2 py-2 text-[11px] font-black text-slate-700 bg-slate-100">DAILY</button>
+      <button type="button" data-target="ownedYtd" class="quick-nav-btn rounded-2xl px-2 py-2 text-[11px] font-black text-slate-700 bg-slate-100">OWNED</button>
+      <button type="button" data-target="reportCards" class="quick-nav-btn rounded-2xl px-2 py-2 text-[11px] font-black text-slate-700 bg-slate-100">REPORTS</button>
+    </div>
+  </div>
+  <div id="summaryTop" class="px-2 sm:px-6 py-6">
     <div class="mb-6">
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
       <div class="mt-2 text-xs text-slate-500">기준일 기본값: 어제(KST) · generated: {now_kst_label()}</div>
     </div>
 
     <!-- ✅ KPI strips -->
-    {daily_strip}
-    {weekly_strip}
+    <section id="dailyKpi">{daily_strip}</section>
+    <section id="weeklyKpi">{weekly_strip}</section>
 
     <!-- ✅ OWNED YTD YoY -->
-    {owned_block}
+    <section id="ownedYtd">{owned_block}</section>
 
     <!-- ✅ 4 cards -->
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <section id="reportCards"><div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
       <!-- NAVER -->
       <div class="glass-card rounded-3xl p-6 flex flex-col">
         <div class="flex items-center justify-between">
@@ -1734,8 +1766,42 @@ def render_index_html(
           {open_btn("./voc_crema/index.html")}
         </div>
       </div>
-    </div>
+    </div></section>
   </div>
+  <script>
+    (function(){
+      const isEmbedded = window.self !== window.top || new URLSearchParams(window.location.search).get('embed') === '1';
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      if(!(isEmbedded && isMobile)) return;
+
+      document.documentElement.classList.add('embed-mobile');
+      document.body.classList.add('embed-mobile');
+
+      const nav = document.getElementById('mobileQuickNav');
+      const fab = document.getElementById('mobileEmbedFab');
+      if(nav) nav.classList.remove('hidden');
+      if(fab) fab.classList.remove('hidden');
+
+      const openBtn = document.getElementById('btnOpenStandalone');
+      if(openBtn){
+        openBtn.addEventListener('click', function(){
+          const u = new URL(window.location.href);
+          u.searchParams.delete('embed');
+          window.open(u.toString(), '_blank', 'noopener');
+        });
+      }
+
+      document.querySelectorAll('.quick-nav-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const id = btn.getAttribute('data-target');
+          const el = document.getElementById(id);
+          if(el){
+            el.scrollIntoView({behavior:'smooth', block:'start'});
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
 """
