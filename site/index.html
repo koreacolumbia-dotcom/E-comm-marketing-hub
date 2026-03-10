@@ -159,6 +159,24 @@
 
     body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
+  
+    .sentence-card{ border:1px solid rgba(148,163,184,.18); background:rgba(255,255,255,.88); border-radius:22px; padding:16px 18px; box-shadow:0 14px 32px rgba(15,23,42,.06); }
+    .sentence-list{ display:grid; grid-template-columns:1fr; gap:12px; }
+    .sentence-item{ border:1px solid rgba(226,232,240,.95); border-radius:18px; background:linear-gradient(180deg, rgba(248,250,252,.95), rgba(255,255,255,.96)); padding:14px; }
+    .sentence-item.neg{ border-color:rgba(248,113,113,.22); background:linear-gradient(180deg, rgba(254,242,242,.95), rgba(255,255,255,.98)); }
+    .sentence-item.pos{ border-color:rgba(74,222,128,.22); background:linear-gradient(180deg, rgba(240,253,244,.95), rgba(255,255,255,.98)); }
+    .sentence-text{ font-size:14px; line-height:1.65; font-weight:800; color:#0f172a; }
+    .section-anchor{ scroll-margin-top:110px; }
+    .review-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .btn-link{ display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:10px 14px; font-size:12px; font-weight:900; border:1px solid rgba(148,163,184,.22); background:rgba(255,255,255,.95); color:#0f172a; }
+    .btn-link:hover{ transform:translateY(-1px); box-shadow:0 12px 28px rgba(0,45,114,.10); }
+    .toolbar-sticky{ position:sticky; top:18px; z-index:20; }
+    .feed-toolbar{ border:1px solid rgba(255,255,255,.82); background:rgba(255,255,255,.78); backdrop-filter:blur(18px); border-radius:24px; padding:14px; box-shadow:0 18px 40px rgba(15,23,42,.07); }
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(15,23,42,.48); display:none; align-items:center; justify-content:center; padding:20px; z-index:80; }
+    .modal-backdrop.show{ display:flex; }
+    .modal-panel{ width:min(920px, 100%); max-height:90vh; overflow:auto; border-radius:28px; background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.98)); border:1px solid rgba(255,255,255,.9); box-shadow:0 28px 80px rgba(15,23,42,.24); padding:26px; }
+    .line-clamp-2{-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;}
+
   </style>
 </head>
 
@@ -249,9 +267,18 @@
               </div>
 
               <div class="summary-card lg:col-span-2">
-                <div class="small-label text-blue-600 mb-2">KEYWORD MINDMAP</div>
-                <div class="text-xs font-bold text-slate-500">버블 클릭 → 검색 필터</div>
-                <div id="mindmapCanvas" class="relative mt-4 rounded-3xl border border-white/80 bg-white/45 overflow-hidden" style="height: 260px;"></div>
+                <div class="small-label text-blue-600 mb-2">YESTERDAY REVIEW HIGHLIGHTS</div>
+                <div class="text-xs font-bold text-slate-500">어제 리뷰에서 핵심 긍정/부정 문장만 먼저 확인</div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                  <div class="sentence-card">
+                    <div class="small-label text-red-500 mb-3">주요 부정 문장</div>
+                    <div id="yNegSentences" class="sentence-list"></div>
+                  </div>
+                  <div class="sentence-card">
+                    <div class="small-label text-emerald-600 mb-3">주요 긍정 문장</div>
+                    <div id="yPosSentences" class="sentence-list"></div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -278,21 +305,25 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div class="summary-card">
-                <div class="small-label text-slate-700 mb-2">Keywords Top 5</div>
-
-                <div class="text-xs font-black text-slate-500 mt-1">NEG</div>
-                <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
-
-                <div class="text-xs font-black text-slate-500 mt-4">POS</div>
-                <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
+                <div class="small-label text-slate-700 mb-2">Yesterday Insight Snapshot</div>
+                <div class="grid grid-cols-1 gap-4">
+                  <div>
+                    <div class="text-xs font-black text-red-500 mt-1">NEGATIVE</div>
+                    <div id="topNeg" class="mt-2 sentence-list"></div>
+                  </div>
+                  <div>
+                    <div class="text-xs font-black text-emerald-600 mt-1">POSITIVE</div>
+                    <div id="topPos" class="mt-2 sentence-list"></div>
+                  </div>
+                </div>
               </div>
 
               <div class="summary-card">
                 <div class="small-label text-blue-600 mb-2">Workflow</div>
                 <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
-                  1) <span class="font-black">어제 리뷰</span>부터 확인<br/>
-                  2) Low/개선요청 태그로 리스크 리뷰 먼저 보기<br/>
-                  3) 제품 선택 → 저평점/리뷰 길이로 원인 텍스트 빠르게 파악
+                  1) <span class="font-black">어제 리뷰 핵심 문장</span>부터 확인<br/>
+                  2) 개선 우선순위 제품 랭킹으로 리스크 제품 체크<br/>
+                  3) Product ML에서 제품별 긍정/부정 문장 확인 후 Daily Feed 원문 검토
                 </div>
               </div>
             </div>
@@ -341,7 +372,7 @@
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">4. Product ML (Cumulative)</div>
-                <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석 (NEG=저평점 기반)</div>
+                <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석 (문장 기준 요약)</div>
                 <div class="text-sm font-bold text-slate-500 mt-2">
                   NEG 기준: ★1~2 (저평점) · POS 기준: ★4~5
                 </div>
@@ -367,9 +398,9 @@
             <div class="summary-card mb-4">
               <div class="small-label text-slate-700 mb-2">HOW TO READ</div>
               <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
-                - NEG: ★1~2 리뷰 텍스트에서 자주 나오는 키워드<br/>
-                - POS: ★4~5 리뷰 텍스트에서 자주 나오는 키워드<br/>
-                - 키워드 클릭 → 아래 Daily Feed 검색으로 필터
+                - NEG: ★1~2 리뷰에서 대표 문장 2개 추출<br/>
+                - POS: ★4~5 리뷰에서 대표 문장 2개 추출<br/>
+                - 원문보기 → Daily Feed 수준으로 전체 텍스트 확인
               </div>
             </div>
 
@@ -383,7 +414,7 @@
         </section>
 
         <!-- 5 Daily feed -->
-        <section class="mb-10">
+        <section class="mb-10 section-anchor" id="daily-feed-section">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -393,7 +424,7 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-6">
+            <div class="toolbar-sticky mb-6"><div class="feed-toolbar grid grid-cols-1 lg:grid-cols-5 gap-3">
               <input id="daySelect" type="date" class="input-glass" onchange="renderAll()" />
               <select id="productSelect" class="input-glass" onchange="renderAll()">
                 <option value="">제품 선택 (전체)</option>
@@ -408,7 +439,7 @@
                 <option value="low">저평점순</option>
               </select>
               <input id="qInput" class="input-glass" placeholder="텍스트 검색(옵션)" oninput="renderAll()" />
-            </div>
+            </div></div>
 
             <div id="dailyFeed" class="review-grid"></div>
 
@@ -417,6 +448,26 @@
             </div>
           </div>
         </section>
+
+        
+    <div id="reviewModal" class="modal-backdrop" onclick="closeReviewModal(event)">
+      <div class="modal-panel" onclick="event.stopPropagation()">
+        <div class="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <div class="small-label text-blue-600 mb-2">REVIEW DETAIL</div>
+            <div id="modalTitle" class="text-2xl font-black text-slate-900">-</div>
+            <div id="modalMeta" class="text-xs font-bold text-slate-500 mt-2">-</div>
+          </div>
+          <button class="chip" type="button" onclick="closeReviewModal()">닫기</button>
+        </div>
+        <div id="modalBadges" class="flex flex-wrap gap-2"></div>
+        <div id="modalBody" class="mt-5 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words"></div>
+        <div id="modalImages" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5"></div>
+        <div class="review-actions mt-6">
+          <a id="modalProductLink" href="#" target="_blank" class="btn-link hidden"><i class="fa-solid fa-arrow-up-right-from-square"></i>상품 페이지</a>
+        </div>
+      </div>
+    </div>
 
         <footer class="text-xs font-bold text-slate-500 pb-8">
           * 데이터 소스: data/reviews.json / data/meta.json<br/>
@@ -498,6 +549,73 @@
       const d = new Date(d10 + "T00:00:00");
       return isNaN(d.getTime()) ? null : d;
     }
+    function splitSentences(text){
+      return String(text||"")
+        .replace(/\s+/g, " ")
+        .split(/(?<=[.!?。！？]|다\.|요\.|니다\.)\s+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .filter(s => s.length >= 12 && s.length <= 140);
+    }
+
+    function sentenceScore(sentence){
+      const s = String(sentence||"").trim();
+      if (!s) return 0;
+      let score = 0;
+      const len = s.length;
+      if (len >= 18 && len <= 90) score += 3;
+      if (/사이즈|핏|길이|허리|통|색상|원단|재질|두께|배송|마감|주머니|지퍼|착용|편함|따뜻|가볍|예쁘|만족|아쉽|불편|크다|작다/.test(s)) score += 4;
+      if (/너무|정말|생각보다|조금|많이|잘|딱|약간/.test(s)) score += 2;
+      if (/ㅋㅋ|ㅎㅎ|ㅠㅠ|ㅜㅜ/.test(s)) score -= 1;
+      return score;
+    }
+
+    function collectHighlightSentences(rows, polarity, limit=2){
+      const picks = [];
+      for (const r of rows){
+        const rating = Number(r.rating || 0);
+        const tags = asArr(r.tags);
+        const isNeg = (rating > 0 && rating <= 2) || tags.includes("low") || tags.includes("req");
+        const isPos = rating >= 4 || tags.includes("pos");
+        if ((polarity === "neg" && !isNeg) || (polarity === "pos" && !isPos)) continue;
+        for (const sentence of splitSentences(r.text || "")){
+          picks.push({
+            sentence,
+            score: sentenceScore(sentence),
+            review: r,
+          });
+        }
+      }
+      picks.sort((a,b)=> (b.score - a.score) || (new Date(b.review?.created_at||0) - new Date(a.review?.created_at||0)));
+      const out = [];
+      const seen = new Set();
+      for (const p of picks){
+        const key = p.sentence.replace(/\s+/g, " ").trim();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(p);
+        if (out.length >= limit) break;
+      }
+      return out;
+    }
+
+    function sentenceItemHTML(item, polarity){
+      if (!item){
+        return `<div class="sentence-item ${polarity}"><div class="text-xs font-bold text-slate-400">해당 문장이 없습니다.</div></div>`;
+      }
+      const r = item.review || {};
+      return `
+        <div class="sentence-item ${polarity}">
+          <div class="sentence-text">${esc(item.sentence)}</div>
+          <div class="mt-2 text-[11px] font-bold text-slate-500">${esc(r.product_name || r.product_code || '-') } · ★${esc(r.rating || '-')}</div>
+          <div class="review-actions">
+            <button class="btn-link" type="button" onclick="openReviewModalById('${esc(r.id)}')"><i class="fa-regular fa-file-lines"></i>원문보기</button>
+            <button class="btn-link" type="button" onclick="focusProduct('${esc(r.product_code || '')}')"><i class="fa-solid fa-filter"></i>이 제품 보기</button>
+          </div>
+        </div>
+      `;
+    }
+
 
     function switchSourceTab(tab){
       uiState.sourceTab = tab;
@@ -540,7 +658,7 @@
       // Daily chip on + yesterday by default is OK; just rerender
       renderAll();
       // (옵션) Daily Feed로 스크롤
-      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
+      document.getElementById("daily-feed-section")?.scrollIntoView({behavior:"smooth", block:"start"});
     }
 
     function scrollToMLTop(){
@@ -634,22 +752,26 @@
     }
 
     function renderSummary(){
-      const neg = META?.neg_top5 || [];
-      const pos = META?.pos_top5 || [];
+      const yesterday = (document.getElementById("daySelect")?.value || kstDateStr(-1)).trim();
+      const scoped = REVIEWS.filter(r => {
+        if (uiState.sourceTab === "official" && r.source !== "Official") return false;
+        if (uiState.sourceTab === "naver" && r.source !== "Naver") return false;
+        return String(r.created_at || "").slice(0,10) === yesterday;
+      });
+
+      const negHighlights = collectHighlightSentences(scoped, "neg", 2);
+      const posHighlights = collectHighlightSentences(scoped, "pos", 2);
+
+      const yNeg = document.getElementById("yNegSentences");
+      const yPos = document.getElementById("yPosSentences");
+      if (yNeg) yNeg.innerHTML = (negHighlights.length ? negHighlights : [null, null]).slice(0,2).map(x => sentenceItemHTML(x, "neg")).join("");
+      if (yPos) yPos.innerHTML = (posHighlights.length ? posHighlights : [null, null]).slice(0,2).map(x => sentenceItemHTML(x, "pos")).join("");
 
       const elNeg = document.getElementById("topNeg");
-      if (elNeg){
-        elNeg.innerHTML = neg.map(([k,c]) => `
-          <span class="badge neg" onclick="setSearchAndRender('${esc(k)}')">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>
-        `).join("");
-      }
+      if (elNeg) elNeg.innerHTML = (negHighlights.length ? negHighlights : [null, null]).slice(0,2).map(x => sentenceItemHTML(x, "neg")).join("");
 
       const elPos = document.getElementById("topPos");
-      if (elPos){
-        elPos.innerHTML = pos.map(([k,c]) => `
-          <span class="badge pos" onclick="setSearchAndRender('${esc(k)}')">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>
-        `).join("");
-      }
+      if (elPos) elPos.innerHTML = (posHighlights.length ? posHighlights : [null, null]).slice(0,2).map(x => sentenceItemHTML(x, "pos")).join("");
     }
 
     function renderRanking(metrics){
@@ -695,7 +817,7 @@
       if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> #size_issue</span>`);
       if ((Number(r.rating||0) <= 2) || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> #low_rating</span>`);
       if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> #개선요청</span>`);
-      if (r.text_image_path) tags.push(`<span class="badge"><i class="fa-solid fa-image"></i> #100자+이미지</span>`);
+      if (r.text_image_path) tags.push(`<span class="badge"><i class="fa-solid fa-image"></i> 이미지 첨부</span>`);
 
       const prodImg = r.local_product_image
         ? `<img src="${esc(r.local_product_image)}" alt="">`
@@ -737,7 +859,12 @@
           </div>
 
           ${reviewThumb ? `<div class="mt-3">${reviewThumb}</div>` : ``}
-          ${textImg ? `<div class="mt-4"><div class="small-label text-blue-600 mb-2">100+ TEXT IMAGE</div>${textImg}</div>` : ``}
+          ${textImg ? `<div class="mt-4">${textImg}</div>` : ``}
+
+          <div class="review-actions">
+            <button class="btn-link" type="button" onclick="openReviewModalById('${esc(r.id)}')"><i class="fa-regular fa-file-lines"></i>원문보기</button>
+            ${(r.product_url ? `<a href="${esc(r.product_url)}" target="_blank" class="btn-link"><i class="fa-solid fa-arrow-up-right-from-square"></i>상품 페이지</a>` : ``)}
+          </div>
         </div>
       `;
     }
@@ -936,6 +1063,7 @@
             all: [],
             neg: [], // ★1~2
             pos: [], // ★4~5
+            allReviewsForHighlights: [],
             cnt: 0,
             negCnt: 0,
             posCnt: 0,
@@ -944,6 +1072,7 @@
         }
         const g = byProd.get(code);
         g.cnt += 1;
+        g.allReviewsForHighlights.push(r);
         const rating = Number(r.rating||0);
         const text = String(r.text||"").trim();
         if (text) g.all.push(text);
@@ -964,8 +1093,8 @@
         .filter(g => g.cnt >= minReviews)
         .map(g => {
           g.lowRate = Math.round((g.negCnt / Math.max(1,g.cnt))*100);
-          g.negTop = topKWords(g.neg, 7);
-          g.posTop = topKWords(g.pos, 7);
+          g.negHighlights = collectHighlightSentences(g.allReviewsForHighlights.filter(x => Number(x.rating||0) <= 2 || asArr(x.tags).includes("low") || asArr(x.tags).includes("req")), "neg", 2);
+          g.posHighlights = collectHighlightSentences(g.allReviewsForHighlights.filter(x => Number(x.rating||0) >= 4 || asArr(x.tags).includes("pos")), "pos", 2);
           return g;
         });
 
@@ -980,17 +1109,17 @@
         ? `<img src="${esc(g.local_product_image)}" alt="">`
         : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
 
-      const negChips = (g.negTop && g.negTop.length)
-        ? g.negTop.map(([w,c]) => `<span class="badge neg" onclick="setSearchAndRender('${esc(w)}')">#${esc(w)} <span class="opacity-70">${esc(c)}</span></span>`).join("")
-        : `<span class="text-xs font-bold text-slate-400">NEG 키워드 없음 (★1~2 텍스트 부족)</span>`;
-
-      const posChips = (g.posTop && g.posTop.length)
-        ? g.posTop.map(([w,c]) => `<span class="badge pos" onclick="setSearchAndRender('${esc(w)}')">#${esc(w)} <span class="opacity-70">${esc(c)}</span></span>`).join("")
-        : `<span class="text-xs font-bold text-slate-400">POS 키워드 없음 (★4~5 텍스트 부족)</span>`;
-
       const url = g.product_url
         ? `<a href="${esc(g.product_url)}" target="_blank" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>`
         : `<span class="text-xs font-bold text-slate-400">상품 URL 없음</span>`;
+
+      const negSentences = (g.negHighlights && g.negHighlights.length)
+        ? g.negHighlights.map(item => sentenceItemHTML(item, "neg")).join("")
+        : `<div class="sentence-item neg"><div class="text-xs font-bold text-slate-400">NEG 문장 없음 (★1~2 텍스트 부족)</div></div>`;
+
+      const posSentences = (g.posHighlights && g.posHighlights.length)
+        ? g.posHighlights.map(item => sentenceItemHTML(item, "pos")).join("")
+        : `<div class="sentence-item pos"><div class="text-xs font-bold text-slate-400">POS 문장 없음 (★4~5 텍스트 부족)</div></div>`;
 
       return `
         <div class="ml-card">
@@ -1011,13 +1140,13 @@
           </div>
 
           <div class="mt-4">
-            <div class="text-xs font-black text-slate-500">NEG keywords (★1~2)</div>
-            <div class="mt-2 flex flex-wrap gap-2">${negChips}</div>
+            <div class="text-xs font-black text-slate-500 mb-2">NEG sentences (★1~2)</div>
+            <div class="sentence-list">${negSentences}</div>
           </div>
 
           <div class="mt-4">
-            <div class="text-xs font-black text-slate-500">POS keywords (★4~5)</div>
-            <div class="mt-2 flex flex-wrap gap-2">${posChips}</div>
+            <div class="text-xs font-black text-slate-500 mb-2">POS sentences (★4~5)</div>
+            <div class="sentence-list">${posSentences}</div>
           </div>
 
           <div class="mt-4 flex items-center gap-2 flex-wrap">
@@ -1036,7 +1165,51 @@
       }
       // Daily chip on + yesterday 유지
       renderAll();
-      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
+      document.getElementById("daily-feed-section")?.scrollIntoView({behavior:"smooth", block:"start"});
+    }
+
+    function openReviewModalById(id){
+      const review = REVIEWS.find(r => String(r.id) === String(id));
+      if (!review) return;
+      const modal = document.getElementById("reviewModal");
+      const title = document.getElementById("modalTitle");
+      const meta = document.getElementById("modalMeta");
+      const badges = document.getElementById("modalBadges");
+      const body = document.getElementById("modalBody");
+      const images = document.getElementById("modalImages");
+      const productLink = document.getElementById("modalProductLink");
+      if (!modal || !title || !meta || !badges || !body || !images || !productLink) return;
+
+      title.textContent = review.product_name || review.product_code || "리뷰";
+      meta.textContent = `★ ${review.rating || '-'} · ${fmtDT(review.created_at)} · ${review.source || '-'}`;
+      const t = asArr(review.tags);
+      const list = [];
+      if (review.option_size) list.push(`<span class="badge">옵션: ${esc(review.option_size)}</span>`);
+      if (t.includes("pos")) list.push(`<span class="badge pos">#긍정</span>`);
+      if (t.includes("size")) list.push(`<span class="badge size">#size_issue</span>`);
+      if ((Number(review.rating||0) <= 2) || t.includes("low")) list.push(`<span class="badge neg">#low_rating</span>`);
+      if (t.includes("req")) list.push(`<span class="badge neg">#개선요청</span>`);
+      badges.innerHTML = list.join("");
+      body.textContent = review.text || "";
+      const imgs = [];
+      if (review.local_review_thumb) imgs.push(`<img src="${esc(review.local_review_thumb)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" />`);
+      if (review.text_image_path) imgs.push(`<img src="${esc(review.text_image_path)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" />`);
+      images.innerHTML = imgs.join("");
+      if (review.product_url){
+        productLink.href = review.product_url;
+        productLink.classList.remove("hidden");
+      } else {
+        productLink.classList.add("hidden");
+      }
+      modal.classList.add("show");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeReviewModal(event){
+      if (event && event.target && event.target !== event.currentTarget) return;
+      const modal = document.getElementById("reviewModal");
+      if (modal) modal.classList.remove("show");
+      document.body.style.overflow = "";
     }
 
     function renderProductML(){
@@ -1101,6 +1274,7 @@
       });
     }
 
+    window.addEventListener("keydown", (e)=>{ if (e.key === "Escape") closeReviewModal(); });
     boot();
   </script>
 </body>
