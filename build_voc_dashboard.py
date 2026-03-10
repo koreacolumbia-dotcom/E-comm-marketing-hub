@@ -1019,6 +1019,123 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
+
+    .mobile-dock{ display:none; }
+    .mobile-fab{ display:none; }
+
+    @media (max-width: 767px){
+      .glass-card{ border-radius: 24px; padding: 18px !important; }
+      .summary-card, .review-card, .ml-card{ border-radius: 20px; padding: 14px 14px; }
+      .tbl{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+      .img-box{ width:56px; height:56px; border-radius:14px; }
+      .mindmap-wrap{ height: 220px; }
+      .mindmap-wrap.tall{ height: 260px; }
+    }
+
+    body.mobile-embed{
+      background: linear-gradient(180deg, #f7f9fc, #eef3f8);
+    }
+    body.mobile-embed .topbar,
+    body.mobile-embed .layout-header{
+      display:none !important;
+    }
+    body.mobile-embed main{
+      padding: 12px 12px 90px !important;
+    }
+    body.mobile-embed .mx-auto.w-full.max-w-\[1280px\],
+    body.mobile-embed .max-w-\[1320px\].mx-auto{
+      max-width:100% !important;
+    }
+    body.mobile-embed .glass-card{
+      border-radius: 22px;
+      padding: 16px !important;
+      box-shadow: 0 12px 28px rgba(0,45,114,0.05);
+    }
+    body.mobile-embed .summary-card,
+    body.mobile-embed .review-card,
+    body.mobile-embed .ml-card{
+      border-radius: 18px;
+      padding: 14px;
+    }
+    body.mobile-embed .review-grid,
+    body.mobile-embed .ml-grid{
+      grid-template-columns: 1fr !important;
+      gap: 12px;
+    }
+    body.mobile-embed .tbl{
+      display:block;
+      overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    body.mobile-embed .tbl th,
+    body.mobile-embed .tbl td{
+      white-space: nowrap;
+      padding: 12px 10px;
+      font-size: 12px;
+    }
+    body.mobile-embed .img-box{
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      flex: 0 0 auto;
+    }
+    body.mobile-embed .mindmap-wrap{ height: 210px; }
+    body.mobile-embed .mindmap-wrap.tall{ height: 250px; }
+    body.mobile-embed .chip,
+    body.mobile-embed .tab-btn{
+      padding: 10px 12px;
+      font-size: 11px;
+    }
+    body.mobile-embed .input-glass{
+      padding: 11px 12px;
+      font-size: 14px;
+    }
+    body.mobile-embed .small-label{
+      letter-spacing: .18em;
+    }
+    body.mobile-embed .mobile-dock{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 8px;
+      position: fixed;
+      left: 10px;
+      right: 10px;
+      bottom: max(10px, env(safe-area-inset-bottom));
+      z-index: 60;
+      padding: 8px;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 18px;
+      box-shadow: 0 16px 40px rgba(0,45,114,0.12);
+    }
+    body.mobile-embed .mobile-dock button{
+      border: 0;
+      background: rgba(0,45,114,0.06);
+      color: #0f172a;
+      font-size: 11px;
+      font-weight: 900;
+      padding: 10px 6px;
+      border-radius: 14px;
+      white-space: nowrap;
+    }
+    body.mobile-embed .mobile-fab{
+      display:flex;
+      position: fixed;
+      right: 12px;
+      bottom: 82px;
+      z-index: 61;
+      align-items:center;
+      gap:8px;
+      border: 0;
+      border-radius: 9999px;
+      padding: 10px 14px;
+      background: rgba(0,45,114,0.96);
+      color: white;
+      font-size: 12px;
+      font-weight: 900;
+      box-shadow: 0 16px 34px rgba(0,45,114,0.22);
+    }
   </style>
 </head>
 
@@ -1029,6 +1146,19 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div id="overlayText" class="text-sm font-black text-slate-700">Loading...</div>
     </div>
   </div>
+
+
+  <button id="mobileOpenBtn" class="mobile-fab" type="button" onclick="openStandalone()">
+    <i class="fa-solid fa-up-right-from-square"></i>
+    전체화면
+  </button>
+
+  <nav class="mobile-dock" aria-label="모바일 빠른 이동">
+    <button type="button" onclick="scrollToSection('ml-signals')">하이라이트</button>
+    <button type="button" onclick="scrollToSection('ranking-section')">랭킹</button>
+    <button type="button" onclick="scrollToSection('product-ml-section')">Product ML</button>
+    <button type="button" onclick="scrollToSection('daily-feed-section')">Daily Feed</button>
+  </nav>
 
   <header class="topbar sticky top-0 z-50">
     <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
@@ -1086,7 +1216,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         </div>
 
         <!-- 0 ML Mindmap + Yesterday Focus -->
-        <section class="mb-10">
+        <section class="mb-10" id="ml-signals">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -1160,7 +1290,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         </section>
 
         <!-- 2 Ranking -->
-        <section class="mb-10">
+        <section class="mb-10" id="ranking-section">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -1196,7 +1326,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         </section>
 
         <!-- 4 Product Mindmap (RESTORED) -->
-        <section class="mb-10" id="productMindmapSection">
+        <section class="mb-10" id="product-ml-section">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -1213,7 +1343,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         </section>
 
         <!-- 5 Daily feed -->
-        <section class="mb-10">
+        <section class="mb-10" id="daily-feed-section">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -1305,12 +1435,30 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       }
     }
 
-    (function(){
+    function isIframe(){
+      try { return window.self !== window.top; } catch(e) { return true; }
+    }
+    function isMobileWidth(){
+      return window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
+    }
+    function applyViewportMode(){
       const params = new URLSearchParams(location.search);
-      if (params.get("embed") === "1"){
-        document.body.classList.add("embedded");
-      }
-    })();
+      const embedded = params.get("embed") === "1" || isIframe();
+      document.body.classList.toggle("embedded", embedded);
+      document.body.classList.toggle("mobile-embed", embedded && isMobileWidth());
+      const fab = document.getElementById('mobileOpenBtn');
+      if (fab) fab.style.display = (embedded && isMobileWidth()) ? 'flex' : 'none';
+    }
+    function scrollToSection(id){
+      document.getElementById(id)?.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+    function openStandalone(){
+      const u = new URL(window.location.href);
+      u.searchParams.delete('embed');
+      window.open(u.toString(), '_blank', 'noopener,noreferrer');
+    }
+    applyViewportMode();
+    window.addEventListener('resize', applyViewportMode);
 
     function pad2(n){ return String(n).padStart(2,"0"); }
     function kstDateStr(offsetDays=0){
