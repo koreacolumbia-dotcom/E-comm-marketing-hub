@@ -157,8 +157,8 @@
     .ml-grid{ display:grid; grid-template-columns:1fr; gap:14px; }
     @media (min-width: 1024px){ .ml-grid{ grid-template-columns:1fr 1fr; } }
 
-    body.embedded .topbar, body.embedded .layout-header { display:none !important; }
-    body.embedded main{ padding: 24px !important; }
+    body.embedded .topbar, body.embedded .layout-header, body.in-frame .topbar, body.in-frame .layout-header { display:none !important; }
+    body.embedded main, body.in-frame main{ padding: 18px !important; }
   
     .sentence-card{ border:1px solid rgba(148,163,184,.18); background:rgba(255,255,255,.88); border-radius:22px; padding:16px 18px; box-shadow:0 14px 32px rgba(15,23,42,.06); }
     .sentence-list{ display:grid; grid-template-columns:1fr; gap:12px; }
@@ -176,6 +176,81 @@
     .modal-backdrop.show{ display:flex; }
     .modal-panel{ width:min(920px, 100%); max-height:90vh; overflow:auto; border-radius:28px; background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.98)); border:1px solid rgba(255,255,255,.9); box-shadow:0 28px 80px rgba(15,23,42,.24); padding:26px; }
     .line-clamp-2{-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;}
+
+
+    .mobile-quicknav{
+      position:fixed; left:12px; right:12px; bottom:12px; z-index:90;
+      display:none; grid-template-columns:repeat(4,1fr); gap:8px;
+      padding:10px; border-radius:22px;
+      background:rgba(255,255,255,.92); border:1px solid rgba(255,255,255,.95);
+      box-shadow:0 18px 50px rgba(15,23,42,.18); backdrop-filter:blur(18px);
+    }
+    .mobile-quicknav button{
+      min-height:44px; border-radius:16px; font-size:11px; font-weight:900;
+      color:#0f172a; background:rgba(248,250,252,.96); border:1px solid rgba(226,232,240,.95);
+    }
+    .mobile-embed-banner{
+      display:none; align-items:center; justify-content:space-between; gap:10px;
+      margin:0 0 14px; padding:12px 14px; border-radius:20px;
+      background:linear-gradient(180deg, rgba(239,246,255,.98), rgba(255,255,255,.98));
+      border:1px solid rgba(191,219,254,.8); box-shadow:0 12px 28px rgba(59,130,246,.10);
+    }
+    .mobile-embed-banner .title{ font-size:12px; font-weight:900; color:#0f172a; }
+    .mobile-embed-banner .sub{ font-size:11px; font-weight:800; color:#64748b; }
+    .mobile-embed-banner .open-btn{
+      white-space:nowrap; min-height:42px; border-radius:14px; padding:10px 14px;
+      font-size:12px; font-weight:900; background:#002d72; color:#fff;
+      border:1px solid #002d72;
+    }
+    .touch-scroll{
+      overflow:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    }
+    .touch-scroll::-webkit-scrollbar{ display:none; }
+
+    @media (max-width: 767px){
+      html, body{ height:auto; }
+      body{ min-height:100dvh; }
+      .topbar{ position:static !important; }
+      main{ padding:14px !important; }
+      .glass-card, .summary-card, .review-card, .ml-card, .sentence-card, .modal-panel{
+        border-radius:20px !important;
+      }
+      .glass-card{ padding:18px !important; }
+      .summary-card, .review-card, .ml-card, .sentence-card{ padding:14px !important; }
+      .input-glass, .chip, .tab-btn, .btn-link{
+        min-height:44px;
+      }
+      .small-label{ letter-spacing:.18em; }
+      .toolbar-sticky{ position:static; top:auto; }
+      .feed-toolbar{
+        position:static; padding:12px; border-radius:18px;
+      }
+      .tbl th, .tbl td{
+        padding:10px 10px; font-size:12px;
+      }
+      .tbl th{ letter-spacing:.12em; }
+      .img-box{ width:60px; height:60px; border-radius:14px; }
+      .sentence-text{ font-size:13px; line-height:1.58; }
+      .modal-panel{ padding:18px; max-height:88dvh; }
+      .review-actions{ margin-top:10px; }
+      .mobile-quicknav{ display:grid; }
+      body{ padding-bottom:92px; }
+      body.embedded main{ padding:10px !important; }
+      body.embedded .mobile-embed-banner,
+      body.in-frame .mobile-embed-banner{ display:flex; }
+      body.embedded .topbar, body.in-frame .topbar{ display:none !important; }
+    }
+
+    @media (max-width: 1024px){
+      body.embedded main, body.in-frame main{ padding:12px !important; }
+      body.embedded .glass-card, body.in-frame .glass-card{ border-radius:22px; }
+      body.embedded .toolbar-sticky, body.in-frame .toolbar-sticky{ position:static; }
+      body.embedded .summary-card, body.in-frame .summary-card,
+      body.embedded .review-card, body.in-frame .review-card,
+      body.in-frame .review-card, body.in-frame .ml-card{
+        box-shadow:0 10px 24px rgba(15,23,42,.05);
+      }
+    }
 
   </style>
 </head>
@@ -218,6 +293,13 @@
 
   <main class="p-6 md:p-10 w-full">
     <div class="mx-auto w-full max-w-[1280px]">
+      <div class="mobile-embed-banner">
+        <div>
+          <div class="title">모바일에서는 전체화면이 더 편해요</div>
+          <div class="sub">아이프레임 안에서는 스크롤과 터치 영역이 좁아질 수 있어요.</div>
+        </div>
+        <button class="open-btn" type="button" onclick="openFullscreenView()">전체화면</button>
+      </div>
       <div class="max-w-[1320px] mx-auto">
 
         <div class="layout-header">
@@ -244,7 +326,7 @@
         </div>
 
         <!-- 0 ML Signals + Yesterday Focus -->
-        <section class="mb-10">
+        <section class="mb-10 section-anchor" id="highlights-section">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -331,7 +413,7 @@
         </section>
 
         <!-- 2 Ranking -->
-        <section class="mb-10">
+        <section class="mb-10 section-anchor" id="ranking-section">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -349,7 +431,7 @@
               <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
             </div>
 
-            <div class="overflow-auto">
+            <div class="overflow-auto touch-scroll">
               <table class="tbl min-w-[980px]">
                 <thead>
                   <tr>
@@ -367,7 +449,7 @@
         </section>
 
         <!-- 4 Product ML (Cumulative) -->
-        <section class="mb-10">
+        <section class="mb-10 section-anchor" id="ml-section">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -450,6 +532,14 @@
         </section>
 
         
+
+    <div class="mobile-quicknav" aria-label="빠른 이동">
+      <button type="button" onclick="scrollToSection('highlights-section')">하이라이트</button>
+      <button type="button" onclick="scrollToSection('ranking-section')">랭킹</button>
+      <button type="button" onclick="scrollToSection('ml-section')">Product ML</button>
+      <button type="button" onclick="scrollToSection('daily-feed-section')">Daily Feed</button>
+    </div>
+
     <div id="reviewModal" class="modal-backdrop" onclick="closeReviewModal(event)">
       <div class="modal-panel" onclick="event.stopPropagation()">
         <div class="flex items-start justify-between gap-4 mb-5">
@@ -527,9 +617,31 @@
 
     (function(){
       const params = new URLSearchParams(location.search);
-      if (params.get("embed") === "1"){
-        document.body.classList.add("embedded");
-      }
+      const isEmbedParam = params.get("embed") === "1";
+      const isInFrame = (() => {
+        try { return window.self !== window.top; } catch(e){ return true; }
+      })();
+      if (isEmbedParam) document.body.classList.add("embedded");
+      if (isInFrame) document.body.classList.add("in-frame");
+
+      window.openFullscreenView = function(){
+        try{
+          const url = new URL(window.location.href);
+          url.searchParams.delete("embed");
+          if (window.top && window.top !== window.self){
+            window.top.location.href = url.toString();
+            return;
+          }
+          window.location.href = url.toString();
+        }catch(e){
+          const fallback = String(window.location.href).replace(/[?&]embed=1/g,'').replace('?&','?').replace(/\?$/,'');
+          window.open(fallback, "_blank");
+        }
+      };
+
+      window.scrollToSection = function(id){
+        document.getElementById(id)?.scrollIntoView({behavior:"smooth", block:"start"});
+      };
     })();
 
     function pad2(n){ return String(n).padStart(2,"0"); }
