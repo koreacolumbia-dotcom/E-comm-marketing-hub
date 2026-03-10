@@ -13,33 +13,49 @@
     .glass-card{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }
     .badge{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(0,45,114,.08); color: var(--brand); }
     .badge-soft{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(15,23,42,.06); color: rgba(15,23,42,.70); }
-    .risk-pill{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-weight:900; font-size:11px; }
-    .risk-dot{ width:8px; height:8px; border-radius:999px; }
-    .risk-high{ background: rgba(239,68,68,.10); color: rgba(239,68,68,1); }
-    .risk-high .risk-dot{ background: rgb(239,68,68); box-shadow: 0 0 0 5px rgba(239,68,68,.12); }
-    .risk-mid{ background: rgba(245,158,11,.12); color: rgba(180,83,9,1); }
-    .risk-mid .risk-dot{ background: rgb(245,158,11); box-shadow: 0 0 0 5px rgba(245,158,11,.12); }
-    .risk-low{ background: rgba(34,197,94,.12); color: rgba(22,163,74,1); }
-    .risk-low .risk-dot{ background: rgb(34,197,94); box-shadow: 0 0 0 5px rgba(34,197,94,.12); }
-    .risk-unk{ background: rgba(100,116,139,.12); color: rgba(51,65,85,1); }
-    .risk-unk .risk-dot{ background: rgb(100,116,139); box-shadow: 0 0 0 5px rgba(100,116,139,.12); }
     .subtle{ margin-top:14px; padding:12px 14px; border-radius:18px; background: rgba(255,255,255,.55); border: 1px solid rgba(15,23,42,0.05); }
+    .embed-mobile body{ background: transparent; }
+    @media (max-width: 768px){
+      .embed-mobile .glass-card{ border-radius: 22px; box-shadow: 0 10px 30px rgba(15,23,42,0.07); }
+      .embed-mobile #summaryTop{ padding: 14px 10px 88px; }
+      .embed-mobile .text-3xl.sm\:text-4xl{ font-size: 1.6rem; line-height: 1.15; }
+      .embed-mobile .subtle{ padding: 10px 12px; border-radius: 16px; }
+      .embed-mobile .badge, .embed-mobile .badge-soft{ font-size: 10px; padding: 5px 8px; }
+      .embed-mobile .grid.grid-cols-2.sm\:grid-cols-3.lg\:grid-cols-5{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .embed-mobile .grid.grid-cols-2.sm\:grid-cols-4{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .embed-mobile .grid.grid-cols-1.lg\:grid-cols-3{ grid-template-columns: repeat(1, minmax(0,1fr)); }
+      .embed-mobile .p-5{ padding: 16px; }
+      .embed-mobile .text-lg{ font-size: 1rem; line-height: 1.35rem; }
+      .embed-mobile .text-xl{ font-size: 1.05rem; line-height: 1.45rem; }
+      .embed-mobile .text-base{ font-size: .95rem; }
+      .embed-mobile a[href]{ word-break: break-word; }
+    }
   </style>
 </head>
 <body>
-  <div class="px-2 sm:px-6 py-6">
+  <div id="mobileEmbedFab" class="hidden fixed right-4 bottom-20 z-[70]">
+    <button id="btnOpenStandalone" type="button" class="rounded-full bg-[color:var(--brand)] text-white shadow-lg px-4 py-3 text-xs font-black tracking-wide">전체화면</button>
+  </div>
+  <div id="mobileQuickNav" class="hidden fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 backdrop-blur px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)]">
+    <div class="grid grid-cols-4 gap-2 max-w-md mx-auto">
+      <button type="button" data-target="summaryTop" class="quick-nav-btn rounded-2xl px-2 py-2 text-[11px] font-black text-slate-700 bg-slate-100">TOP</button>
+      <button type="button" data-target="dailyKpi" class="quick-nav-btn rounded-2xl px-2 py-2 text-[11px] font-black text-slate-700 bg-slate-100">DAILY</button>
+      <button type="button" data-target="weeklyKpi" class="quick-nav-btn rounded-2xl px-2 py-2 text-[11px] font-black text-slate-700 bg-slate-100">WEEKLY</button>
+      <button type="button" data-target="ownedYtd" class="quick-nav-btn rounded-2xl px-2 py-2 text-[11px] font-black text-slate-700 bg-slate-100">OWNED</button>
+    </div>
+  </div>
+  <div id="summaryTop" class="px-2 sm:px-6 py-6">
     <div class="mb-6">
       <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
-      <div class="mt-2 text-xs text-slate-500">기준일 기본값: 어제(KST) · generated: 2026.03.10 (Tue) 08:14 KST</div>
+      <div class="mt-2 text-xs text-slate-500">기준일 기본값: 어제(KST) · generated: 2026.03.10 (Tue) 18:32 KST</div>
     </div>
 
-    <!-- ✅ KPI strips -->
-    
+    <section id="dailyKpi">
     <div class="glass-card rounded-3xl p-5 mb-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div class="text-base font-black text-slate-900">Daily KPI Summary</div>
         <div class="text-xs text-slate-500">
-          기준: <b class="text-slate-700">2026-03-09</b> · updated: 2026.03.10 (Tue) 08:14 KST
+          기준: <b class="text-slate-700">2026-03-09</b> · updated: 2026.03.10 (Tue) 18:32 KST
         </div>
       </div>
 
@@ -48,7 +64,7 @@
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Sessions</div>
           <div class="mt-1 text-xl font-black text-slate-900">9,789</div>
-          <div class="mt-1 text-[11px] text-slate-500">DoD <b class="text-slate-900">-3.5%</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">WoW <b class="text-slate-900">-2.8%</b></div>
           <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">+9.9%</b></div>
         </div>
         
@@ -56,7 +72,7 @@
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Orders</div>
           <div class="mt-1 text-xl font-black text-slate-900">57</div>
-          <div class="mt-1 text-[11px] text-slate-500">DoD <b class="text-slate-900">-19.7%</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">WoW <b class="text-slate-900">+1.8%</b></div>
           <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">-20.8%</b></div>
         </div>
         
@@ -64,7 +80,7 @@
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Revenue</div>
           <div class="mt-1 text-xl font-black text-slate-900">₩8,024,078</div>
-          <div class="mt-1 text-[11px] text-slate-500">DoD <b class="text-slate-900">-9.5%</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">WoW <b class="text-slate-900">+13.5%</b></div>
           <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">-50.8%</b></div>
         </div>
         
@@ -72,7 +88,7 @@
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">CVR</div>
           <div class="mt-1 text-xl font-black text-slate-900">0.58%</div>
-          <div class="mt-1 text-[11px] text-slate-500">DoD <b class="text-slate-900">-0.12%p</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">WoW <b class="text-slate-900">+0.03%p</b></div>
           <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">-0.23%p</b></div>
         </div>
         
@@ -80,14 +96,14 @@
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Sign-up Users</div>
           <div class="mt-1 text-xl font-black text-slate-900">60</div>
-          <div class="mt-1 text-[11px] text-slate-500">DoD <b class="text-slate-900">-3.2%</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">WoW <b class="text-slate-900">-36.2%</b></div>
           <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">-39.4%</b></div>
         </div>
         
       </div>
     </div>
-    
-    
+    </section>
+    <section id="weeklyKpi">
     <div class="glass-card rounded-3xl p-5 mb-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div class="text-base font-black text-slate-900">Weekly KPI Summary (7D)</div>
@@ -139,10 +155,8 @@
         
       </div>
     </div>
-    
-
-    <!-- ✅ OWNED YTD YoY -->
-    
+    </section>
+    <section id="ownedYtd">
         <div class="glass-card rounded-3xl p-5 mb-6">
           <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
             <div class="flex items-center gap-3">
@@ -150,33 +164,25 @@
               <span class="badge-soft">YTD</span>
             </div>
             <div class="text-xs text-slate-500">
-              기간: <b class="text-slate-700">2026-01-01 ~ 2026-03-09</b> · YoY 비교: 2025-01-01 ~ 2025-03-09 · updated: 2026.03.10 (Tue) 08:14 KST
+              기간: <b class="text-slate-700">2026-01-01 ~ 2026-03-09</b> · YoY 비교: 2025-01-01 ~ 2025-03-09 · updated: 2026.03.10 (Tue) 18:32 KST
             </div>
           </div>
 
           <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Send Count</div>
+          <div class="mt-1 text-xl font-black text-slate-900">7,146</div>
+          <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">+24.0%</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">LY <b class="text-slate-900">5,761</b></div>
+        </div>
+        
+            
+        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Sessions</div>
           <div class="mt-1 text-xl font-black text-slate-900">69,445</div>
           <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">-20.7%</b></div>
-          <div class="mt-1 text-[11px] text-slate-500">—</div>
-        </div>
-        
-            
-        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Users</div>
-          <div class="mt-1 text-xl font-black text-slate-900">64,416</div>
-          <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">-18.2%</b></div>
-          <div class="mt-1 text-[11px] text-slate-500">—</div>
-        </div>
-        
-            
-        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Purchases</div>
-          <div class="mt-1 text-xl font-black text-slate-900">1,951</div>
-          <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">-10.0%</b></div>
-          <div class="mt-1 text-[11px] text-slate-500">—</div>
+          <div class="mt-1 text-[11px] text-slate-500">LY <b class="text-slate-900">87,571</b></div>
         </div>
         
             
@@ -184,7 +190,15 @@
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Revenue</div>
           <div class="mt-1 text-xl font-black text-slate-900">₩186,433,180</div>
           <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">-16.4%</b></div>
-          <div class="mt-1 text-[11px] text-slate-500">CVR <b class="text-slate-900">2.81%</b> · YoY +0.33%p</div>
+          <div class="mt-1 text-[11px] text-slate-500">LY <b class="text-slate-900">₩223,037,729</b></div>
+        </div>
+        
+            
+        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">CVR</div>
+          <div class="mt-1 text-xl font-black text-slate-900">2.81%</div>
+          <div class="mt-1 text-[11px] text-slate-500">YoY <b class="text-slate-900">+0.33%p</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">LY <b class="text-slate-900">2.47%</b></div>
         </div>
         
           </div>
@@ -198,24 +212,24 @@
               </div>
               <div class="mt-2 grid grid-cols-2 gap-3">
                 <div>
+                  <div class="text-xs text-slate-500">Send Count</div>
+                  <div class="text-lg font-black text-slate-900">1,653</div>
+                  <div class="text-[11px] text-slate-500">LY 342 · YoY <b class="text-slate-900">+383.3%</b></div>
+                </div>
+                <div>
                   <div class="text-xs text-slate-500">Sessions</div>
                   <div class="text-lg font-black text-slate-900">6,205</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">+141.7%</b></div>
+                  <div class="text-[11px] text-slate-500">LY 2,567 · YoY <b class="text-slate-900">+141.7%</b></div>
                 </div>
                 <div>
                   <div class="text-xs text-slate-500">Revenue</div>
                   <div class="text-lg font-black text-slate-900">₩10,423,817</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">+149.8%</b></div>
-                </div>
-                <div>
-                  <div class="text-xs text-slate-500">Purchases</div>
-                  <div class="text-lg font-black text-slate-900">97</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">+234.5%</b></div>
+                  <div class="text-[11px] text-slate-500">LY ₩4,173,530 · YoY <b class="text-slate-900">+149.8%</b></div>
                 </div>
                 <div>
                   <div class="text-xs text-slate-500">CVR</div>
                   <div class="text-lg font-black text-slate-900">1.56%</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">+0.43%p</b></div>
+                  <div class="text-[11px] text-slate-500">LY 1.13% · YoY <b class="text-slate-900">+0.43%p</b></div>
                 </div>
               </div>
             </div>
@@ -227,24 +241,24 @@
               </div>
               <div class="mt-2 grid grid-cols-2 gap-3">
                 <div>
+                  <div class="text-xs text-slate-500">Send Count</div>
+                  <div class="text-lg font-black text-slate-900">1,765</div>
+                  <div class="text-[11px] text-slate-500">LY 1,886 · YoY <b class="text-slate-900">-6.4%</b></div>
+                </div>
+                <div>
                   <div class="text-xs text-slate-500">Sessions</div>
                   <div class="text-lg font-black text-slate-900">18,448</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">-54.9%</b></div>
+                  <div class="text-[11px] text-slate-500">LY 40,932 · YoY <b class="text-slate-900">-54.9%</b></div>
                 </div>
                 <div>
                   <div class="text-xs text-slate-500">Revenue</div>
                   <div class="text-lg font-black text-slate-900">₩30,520,087</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">-35.8%</b></div>
-                </div>
-                <div>
-                  <div class="text-xs text-slate-500">Purchases</div>
-                  <div class="text-lg font-black text-slate-900">317</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">-31.7%</b></div>
+                  <div class="text-[11px] text-slate-500">LY ₩47,539,849 · YoY <b class="text-slate-900">-35.8%</b></div>
                 </div>
                 <div>
                   <div class="text-xs text-slate-500">CVR</div>
                   <div class="text-lg font-black text-slate-900">1.72%</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">+0.58%p</b></div>
+                  <div class="text-[11px] text-slate-500">LY 1.13% · YoY <b class="text-slate-900">+0.58%p</b></div>
                 </div>
               </div>
             </div>
@@ -256,24 +270,24 @@
               </div>
               <div class="mt-2 grid grid-cols-2 gap-3">
                 <div>
+                  <div class="text-xs text-slate-500">Send Count</div>
+                  <div class="text-lg font-black text-slate-900">3,728</div>
+                  <div class="text-[11px] text-slate-500">LY 3,533 · YoY <b class="text-slate-900">+5.5%</b></div>
+                </div>
+                <div>
                   <div class="text-xs text-slate-500">Sessions</div>
                   <div class="text-lg font-black text-slate-900">44,792</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">+1.6%</b></div>
+                  <div class="text-[11px] text-slate-500">LY 44,072 · YoY <b class="text-slate-900">+1.6%</b></div>
                 </div>
                 <div>
                   <div class="text-xs text-slate-500">Revenue</div>
                   <div class="text-lg font-black text-slate-900">₩145,489,276</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">-15.1%</b></div>
-                </div>
-                <div>
-                  <div class="text-xs text-slate-500">Purchases</div>
-                  <div class="text-lg font-black text-slate-900">1,537</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">-8.2%</b></div>
+                  <div class="text-[11px] text-slate-500">LY ₩171,324,350 · YoY <b class="text-slate-900">-15.1%</b></div>
                 </div>
                 <div>
                   <div class="text-xs text-slate-500">CVR</div>
                   <div class="text-lg font-black text-slate-900">3.43%</div>
-                  <div class="text-[11px] text-slate-500">YoY <b class="text-slate-900">-0.37%p</b></div>
+                  <div class="text-[11px] text-slate-500">LY 3.80% · YoY <b class="text-slate-900">-0.37%p</b></div>
                 </div>
               </div>
             </div>
@@ -281,188 +295,44 @@
           </div>
 
           <div class="mt-3 text-[11px] text-slate-500">
-            source: /home/runner/work/E-comm-marketing-hub/E-comm-marketing-hub/reports/owned_portal/data/owned
+            source: /home/runner/work/E-comm-marketing-hub/E-comm-marketing-hub/site/data/owned
           </div>
         </div>
-        
-
-    <!-- ✅ 4 cards -->
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      <!-- NAVER -->
-      <div class="glass-card rounded-3xl p-6 flex flex-col">
-        <div class="flex items-center justify-between">
-          <div class="text-lg font-black">네이버 최저가</div>
-          <div class="flex items-center gap-2">
-            <span class="risk-pill risk-high"><span class="risk-dot"></span>RISK HIGH</span>
-          </div>
-        </div>
-
-        <div class="mt-5 space-y-3">
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">TOTAL</div>
-            <div class="text-lg font-black text-slate-900">1,199</div>
-          </div>
-        
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">DIFF > 0</div>
-            <div class="text-lg font-black text-slate-900">623  ·  52%</div>
-          </div>
-        
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">AVG GAP</div>
-            <div class="text-lg font-black text-slate-900">11,043원</div>
-          </div>
-        
-        </div>
-
-        <div class="mt-4 text-xs text-slate-500">updated: 2026.03.10 (Tue) 08:14 KST</div>
-
-        <div class="mt-auto">
-          
-          <a href="./naver_lowest_price.html" target="_self"
-             class="mt-6 w-full inline-flex items-center justify-center rounded-2xl px-4 py-3
-                    bg-[color:var(--brand)] text-white font-black text-sm
-                    shadow-sm hover:opacity-95 active:opacity-90 transition">
-            Open report
-          </a>
-        
-        </div>
-      </div>
-
-      <!-- HERO -->
-      <div class="glass-card rounded-3xl p-6 flex flex-col">
-        <div class="flex items-center justify-between">
-          <div class="text-lg font-black">경쟁사 Hero 배너</div>
-          <span class="badge">Snapshot</span>
-        </div>
-
-        <div class="mt-5 space-y-3">
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">BRANDS</div>
-            <div class="text-lg font-black text-slate-900">12</div>
-          </div>
-        
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">BANNERS</div>
-            <div class="text-lg font-black text-slate-900">24</div>
-          </div>
-        
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">MISSING IMG</div>
-            <div class="text-lg font-black text-slate-900">0</div>
-          </div>
-        
-        </div>
-
-        <div class="subtle">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">주요 기획전 키워드</div>
-          <div class="mt-2 text-sm font-extrabold text-slate-900">다운(53) · 기타(49) · 베스트(36) · ss(36) · 아우터(33) · 신발(33)</div>
-        </div>
-
-        <div class="mt-4 text-xs text-slate-500">updated: 2026.03.10 (Tue) 08:14 KST</div>
-
-        <div class="mt-auto">
-          
-          <a href="./hero_main.html" target="_self"
-             class="mt-6 w-full inline-flex items-center justify-center rounded-2xl px-4 py-3
-                    bg-[color:var(--brand)] text-white font-black text-sm
-                    shadow-sm hover:opacity-95 active:opacity-90 transition">
-            Open report
-          </a>
-        
-        </div>
-      </div>
-
-      <!-- VOC -->
-      <div class="glass-card rounded-3xl p-6 flex flex-col">
-        <div class="flex items-center justify-between">
-          <div class="text-lg font-black">커뮤니티 VOC</div>
-          <span class="badge-soft">최근 7일</span>
-        </div>
-
-        <div class="mt-5 space-y-3">
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">POSTS</div>
-            <div class="text-lg font-black text-slate-900">1,181</div>
-          </div>
-        
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">MENTIONS</div>
-            <div class="text-lg font-black text-slate-900">78</div>
-          </div>
-        
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">—</div>
-            <div class="text-lg font-black text-slate-900">—</div>
-          </div>
-        
-        </div>
-
-        <div class="mt-4 text-xs text-slate-500">updated: 2026-03-10 08:02 KST</div>
-
-        <div class="mt-auto">
-          
-          <a href="./external_signal.html" target="_self"
-             class="mt-6 w-full inline-flex items-center justify-center rounded-2xl px-4 py-3
-                    bg-[color:var(--brand)] text-white font-black text-sm
-                    shadow-sm hover:opacity-95 active:opacity-90 transition">
-            Open report
-          </a>
-        
-        </div>
-      </div>
-
-      <!-- CREMA -->
-      <div class="glass-card rounded-3xl p-6 flex flex-col">
-        <div class="flex items-center justify-between">
-          <div class="text-lg font-black">Crema VOC</div>
-          <span class="badge-soft">Reviews</span>
-        </div>
-
-        <div class="mt-5 space-y-3">
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">TOTAL REVIEWS</div>
-            <div class="text-lg font-black text-slate-900">-</div>
-          </div>
-        
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">DATE RANGE</div>
-            <div class="text-lg font-black text-slate-900">-</div>
-          </div>
-        
-          
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">TOP5</div>
-            <div class="text-lg font-black text-slate-900">-</div>
-          </div>
-        
-        </div>
-
-        <div class="mt-4 text-xs text-slate-500">updated: 2026.03.10 (Tue) 08:14 KST</div>
-
-        <div class="mt-auto">
-          
-          <a href="./voc_crema/index.html" target="_self"
-             class="mt-6 w-full inline-flex items-center justify-center rounded-2xl px-4 py-3
-                    bg-[color:var(--brand)] text-white font-black text-sm
-                    shadow-sm hover:opacity-95 active:opacity-90 transition">
-            Open report
-          </a>
-        
-        </div>
-      </div>
-    </div>
+        </section>
   </div>
+  <script>
+    (function(){
+      const isEmbedded = window.self !== window.top || new URLSearchParams(window.location.search).get('embed') === '1';
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      if(!(isEmbedded && isMobile)) return;
+
+      document.documentElement.classList.add('embed-mobile');
+      document.body.classList.add('embed-mobile');
+
+      const nav = document.getElementById('mobileQuickNav');
+      const fab = document.getElementById('mobileEmbedFab');
+      if(nav) nav.classList.remove('hidden');
+      if(fab) fab.classList.remove('hidden');
+
+      const openBtn = document.getElementById('btnOpenStandalone');
+      if(openBtn){
+        openBtn.addEventListener('click', function(){
+          const u = new URL(window.location.href);
+          u.searchParams.delete('embed');
+          window.open(u.toString(), '_blank', 'noopener');
+        });
+      }
+
+      document.querySelectorAll('.quick-nav-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const id = btn.getAttribute('data-target');
+          const el = document.getElementById(id);
+          if(el){
+            el.scrollIntoView({behavior:'smooth', block:'start'});
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
