@@ -553,6 +553,81 @@ def _aggregate_owned_rows_by_channel(rows: List[Dict[str, Any]]) -> Dict[str, Di
     return out
 
 
+def _normalize_owned_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    send_count = _safe_float(summary.get("send_count")) or 0.0
+    sessions = _safe_float(summary.get("sessions")) or 0.0
+    users = _safe_float(summary.get("users")) or 0.0
+    purchases = _safe_float(summary.get("purchases")) or 0.0
+    revenue = _safe_float(summary.get("revenue")) or 0.0
+    cvr = _safe_float(summary.get("cvr"))
+    if cvr is None:
+        cvr = (purchases / sessions) if sessions > 0 else None
+    elif cvr > 1.0:
+        cvr = cvr / 100.0
+    return {
+        "send_count": send_count,
+        "sessions": sessions,
+        "users": users,
+        "purchases": purchases,
+        "revenue": revenue,
+        "cvr": cvr,
+    }
+
+
+def _build_owned_result_from_ytd_yoy(obj: Dict[str, Any], owned_dir: Path) -> Optional[Dict[str, Any]]:
+    ytd = obj.get("ytd_yoy")
+    if not isinstance(ytd, dict) or not ytd.get("enabled"):
+        return None
+
+    cur_summary = _normalize_owned_summary(((ytd.get("current") or {}).get("summary") or {}))
+    prev_summary = _normalize_owned_summary(((ytd.get("previous") or {}).get("summary") or {}))
+    cur_rows = (ytd.get("current") or {}).get("campaigns") or []
+    prev_rows = (ytd.get("previous") or {}).get("campaigns") or []
+
+    total_yoy = {
+        "send_count": _ratio(cur_summary.get("send_count"), prev_summary.get("send_count")),
+        "sessions": _ratio(cur_summary.get("sessions"), prev_summary.get("sessions")),
+        "users": _ratio(cur_summary.get("users"), prev_summary.get("users")),
+        "purchases": _ratio(cur_summary.get("purchases"), prev_summary.get("purchases")),
+        "revenue": _ratio(cur_summary.get("revenue"), prev_summary.get("revenue")),
+        "cvr_pp": _pp(cur_summary.get("cvr"), prev_summary.get("cvr")),
+    }
+
+    cur_ch_sum = _aggregate_owned_rows_by_channel(cur_rows)
+    prev_ch_sum = _aggregate_owned_rows_by_channel(prev_rows)
+    by_channel = {}
+    for ch in OWNED_CHANNELS:
+        curv = cur_ch_sum.get(ch) or {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0}
+        prevv = prev_ch_sum.get(ch) or {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0}
+        cur_c = (curv["purchases"] / curv["sessions"]) if curv["sessions"] > 0 else None
+        prev_c = (prevv["purchases"] / prevv["sessions"]) if prevv["sessions"] > 0 else None
+        by_channel[ch] = {
+            "cur": {**curv, "cvr": cur_c},
+            "prev": {**prevv, "cvr": prev_c},
+            "yoy": {
+                "send_count": _ratio(curv["send_count"], prevv["send_count"]),
+                "sessions": _ratio(curv["sessions"], prevv["sessions"]),
+                "users": _ratio(curv["users"], prevv["users"]),
+                "purchases": _ratio(curv["purchases"], prevv["purchases"]),
+                "revenue": _ratio(curv["revenue"], prevv["revenue"]),
+                "cvr_pp": _pp(cur_c, prev_c),
+            },
+        }
+
+    return {
+        "enabled": True,
+        "owned_dir": str(owned_dir),
+        "period": ytd.get("period"),
+        "prev_period": ytd.get("prev_period"),
+        "total": cur_summary,
+        "total_prev": prev_summary,
+        "total_yoy": total_yoy,
+        "by_channel": by_channel,
+        "updated": now_kst_label(),
+        "source": "ytd_yoy",
+    }
+
+
 def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
     owned_dir = _find_owned_data_dir(reports_dir)
     target_end = kst_yesterday()
@@ -570,6 +645,10 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
         obj = json.loads(latest_bundle.read_text(encoding="utf-8"))
     except Exception:
         return result
+
+    ytd_based = _build_owned_result_from_ytd_yoy(obj, owned_dir)
+    if ytd_based:
+        return ytd_based
 
     all_rows = obj.get("campaigns") or []
     cutoff_mmdd = target_end.strftime("%m-%d")
@@ -634,6 +713,7 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
         "prev_period": f"{target_end.year - 1}-01-01 ~ {target_end.year - 1}-{target_end.strftime('%m-%d')}",
         "total": total, "total_prev": total_prev, "total_yoy": total_yoy,
         "by_channel": by_channel, "updated": now_kst_label(),
+        "source": str(latest_bundle),
     })
     return result
 
