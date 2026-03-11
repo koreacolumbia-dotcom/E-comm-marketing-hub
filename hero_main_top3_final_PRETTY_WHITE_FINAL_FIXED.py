@@ -208,6 +208,12 @@ if "HTML_USE_ABSOLUTE_FILE_URL" in os.environ:
 else:
     HTML_USE_ABSOLUTE_FILE_URL = (os.environ.get("GITHUB_ACTIONS", "").lower() not in {"true", "1", "yes"})
 
+DEFAULT_MAX_ITEMS = max(1, int(os.environ.get("MAX_BANNERS_PER_BRAND", "999")))
+RECENT_CHANGE_DAYS = max(1, int(os.environ.get("RECENT_CHANGE_DAYS", "7")))
+SECTION_SCAN_Y_MAX = max(1800, int(os.environ.get("SECTION_SCAN_Y_MAX", "6000")))
+DEEP_SCAN_NODE_LIMIT = max(400, int(os.environ.get("DEEP_SCAN_NODE_LIMIT", "2200")))
+
+
 
 # =====================================================
 # EXCLUDE (style codes)
@@ -220,33 +226,54 @@ EXCLUDE_STYLE_CODES = {
 # =====================================================
 # Brands (15)
 # =====================================================
+
 BRANDS = [
-    ("tnf", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", 3),
-    ("patagonia", "Patagonia", "https://www.patagonia.co.kr/", "patagonia_static_hero", 1),
-    ("arcteryx", "Arc'teryx", "https://www.arcteryx.co.kr/", "hero_slider", 3),
-    ("salomon", "Salomon", "https://salomon.co.kr/", "hero_slider", 3),
-    ("snowpeak", "Snow Peak", "https://www.snowpeakstore.co.kr/", "hero_slider", 3),
+    ("tnf", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", DEFAULT_MAX_ITEMS),
+    ("patagonia", "Patagonia", "https://www.patagonia.co.kr/", "patagonia_static_hero", DEFAULT_MAX_ITEMS),
+    ("arcteryx", "Arc'teryx", "https://www.arcteryx.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
+    ("salomon", "Salomon", "https://salomon.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
+    ("snowpeak", "Snow Peak", "https://www.snowpeakstore.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
 
-    ("blackyak", "Black Yak", "https://www.byn.kr/blackyak", "blackyak_swiper", 3),
-    ("discovery", "Discovery Expedition", "https://www.discovery-expedition.com/", "discovery_swiper", 3),
-    ("nepa", "NEPA", "https://www.nplus.co.kr/main/main.asp", "nepa_static", 3),
+    ("blackyak", "Black Yak", "https://www.byn.kr/blackyak", "blackyak_swiper", DEFAULT_MAX_ITEMS),
+    ("discovery", "Discovery Expedition", "https://www.discovery-expedition.com/", "discovery_swiper", DEFAULT_MAX_ITEMS),
+    ("nepa", "NEPA", "https://www.nplus.co.kr/main/main.asp", "nepa_static", DEFAULT_MAX_ITEMS),
 
-    ("natgeo", "National Geographic", "https://www.natgeokorea.com/", "hero_slider", 3),
+    ("natgeo", "National Geographic", "https://www.natgeokorea.com/", "hero_sections", DEFAULT_MAX_ITEMS),
 
-    ("kolonsport", "Kolon Sport", "https://www.kolonsport.com/", "hero_slider", 3),
-    ("kolonmall", "Kolon Mall", "https://www.kolonmall.com/", "hero_slider", 3),
+    ("kolonsport", "Kolon Sport", "https://www.kolonsport.com/", "hero_sections", DEFAULT_MAX_ITEMS),
+    ("kolonmall", "Kolon Mall", "https://www.kolonmall.com/", "hero_sections", DEFAULT_MAX_ITEMS),
 
-    ("k2", "K-Village", "https://www.k-village.co.kr/", "hero_slider", 3),
-    ("montbell", "Montbell", "https://www.montbell.co.kr/", "hero_slider", 3),
-    ("eider", "Eider", "https://www.eider.co.kr/", "hero_slider", 3),
+    ("k2", "K2", "https://www.k-village.co.kr/K2", "hero_sections", DEFAULT_MAX_ITEMS),
+    ("montbell", "Montbell", "https://www.montbell.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
+    ("eider", "Eider", "https://www.eider.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
 
-    ("millet", "Millet", "https://www.millet.co.kr/", "hero_slider", 3),
+    ("millet", "Millet", "https://www.millet.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
 ]
 
 # ✅ URL이 간혹 안되는 브랜드 대비(필요 시 너가 계속 추가/수정)
+
 ALT_URLS: Dict[str, List[str]] = {
-    # 예시) "natgeo": ["https://www.natgeokorea.com/", "https://www.natgeokorea.com/fashion/"],
-    # 예시) "k2": ["https://www.k-village.co.kr/", "https://www.k2.co.kr/"],
+    "tnf": [
+        "https://www.thenorthfacekorea.co.kr/",
+        "https://www.thenorthfacekorea.co.kr/main",
+        "https://www.thenorthfacekorea.co.kr/main/",
+    ],
+    "arcteryx": [
+        "https://www.arcteryx.co.kr/",
+        "https://www.arcteryx.co.kr/main",
+        "https://www.arcteryx.co.kr/main/",
+    ],
+    "k2": [
+        "https://www.k-village.co.kr/K2",
+        "https://www.k-village.co.kr/k2",
+        "https://www.k-village.co.kr/K2/",
+        "https://www.k-village.co.kr/k2/",
+        "https://www.k-village.co.kr/k2/is",
+    ],
+    "natgeo": [
+        "https://www.natgeokorea.com/",
+        "https://www.natgeokorea.com/main",
+    ],
 }
 
 
@@ -1359,8 +1386,154 @@ def patagonia_static_hero(context, page, base_url: str, brand_key: str, brand_na
 # =====================================================
 # generic_top_banners
 # =====================================================
+
+
+def deep_section_banners(context, page, base_url: str, brand_key: str, brand_name: str, date_s: str,
+                         max_items: int, y_max: int = SECTION_SCAN_Y_MAX) -> List[Banner]:
+    """
+    섹션/서브배너용 broad extractor.
+    - 상단 hero 뿐 아니라 메인 내 section/banner/card를 넓게 스캔
+    - Arc'teryx 서브배너, K2 기획전 카드, TNF 누락 보완용
+    """
+    out: List[Banner] = []
+    close_common_popups(page)
+
+    try:
+        for y in (0, 600, 1400, 2400, min(y_max, 3600)):
+            page.evaluate(f"window.scrollTo(0, {y});")
+            page.wait_for_timeout(220)
+        page.evaluate("window.scrollTo(0, 0);")
+        page.wait_for_timeout(250)
+    except Exception:
+        pass
+
+    js = r"""
+    (yMax, nodeLimit) => {
+      const norm = (s) => (s||'').replace(/\s+/g,' ').trim();
+      const pickSrc = (root) => {
+        const source = root.querySelector('source[srcset]');
+        if (source) {
+          const ss = source.getAttribute('srcset') || '';
+          const first = ss.split(',')[0].trim().split(' ')[0];
+          if (first) return first;
+        }
+        const img = root.querySelector('img');
+        if (img) {
+          return img.getAttribute('src')
+              || img.getAttribute('data-src')
+              || img.getAttribute('data-lazy')
+              || img.getAttribute('data-original')
+              || img.getAttribute('data-image')
+              || (img.getAttribute('srcset') ? (img.getAttribute('srcset').split(',')[0].trim().split(' ')[0]) : '')
+              || '';
+        }
+        const bg = root.querySelector('[style*="background-image"]') || root;
+        const style = (bg.getAttribute && bg.getAttribute('style')) || '';
+        const m = style.match(/url\(([^)]+)\)/i);
+        if (m && m[1]) return m[1].replace(/["']/g,'');
+        return '';
+      };
+
+      const nodes = Array.from(document.querySelectorAll('section, article, li, a, div, figure'));
+      const out = [];
+      for (const n of nodes.slice(0, nodeLimit)) {
+        const r = n.getBoundingClientRect();
+        if (!r || r.width < 220 || r.height < 90) continue;
+        if (r.y < -120 || r.y > yMax) continue;
+
+        const img = pickSrc(n);
+        if (!img) continue;
+
+        const a = n.matches('a[href]') ? n : n.querySelector('a[href]');
+        const href = a ? (a.getAttribute('href') || '') : '';
+        const alt = n.querySelector('img[alt]')?.getAttribute('alt') || '';
+        const txt = norm(
+          n.querySelector('h1,h2,h3,strong,p,.title,.tit,.txt,.copy,.desc,.name,.subject')?.innerText
+          || (a ? a.innerText : '')
+          || n.innerText
+          || ''
+        ).slice(0, 160);
+
+        let section = '';
+        const sec = n.closest('section, article, [id], [class]');
+        if (sec) {
+          section = norm((sec.getAttribute('id') || '') + ' ' + (sec.getAttribute('class') || '')).slice(0, 120);
+        }
+
+        out.push({
+          y: r.y,
+          area: r.width * r.height,
+          href,
+          img,
+          alt,
+          txt,
+          section,
+        });
+      }
+      out.sort((a,b) => a.y - b.y || b.area - a.area);
+      return out;
+    }
+    """
+
+    try:
+        raw = page.evaluate(js, y_max, DEEP_SCAN_NODE_LIMIT)
+    except Exception:
+        raw = []
+
+    seen = set()
+    rank = 1
+    for it in raw or []:
+        if rank > max_items:
+            break
+        href = abs_url(base_url, (it.get('href') or '').strip())
+        img_url = abs_url(base_url, (it.get('img') or '').strip())
+        if not img_url:
+            continue
+        fp = (normalize_href(href), normalize_img_url(img_url))
+        if fp in seen:
+            continue
+        seen.add(fp)
+
+        section = norm_ws(it.get('section') or '')
+        txt = norm_ws(it.get('txt') or '')
+        alt = norm_ws(it.get('alt') or '')
+        title = choose_title(txt, alt)
+        if section and section.lower() not in title.lower() and len(section) <= 40:
+            title = clean_campaign_title(f"{title} | {section}")
+
+        img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
+        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+        b.href_clean = normalize_href(href)
+        b.img_status = 'ok' if img_local else st
+        if img_local and img_local in IMG_META:
+            w, h, sz = IMG_META[img_local]
+            b.img_w, b.img_h, b.img_bytes = w, h, sz
+        out.append(b)
+        rank += 1
+
+    return out
+
+
+def hero_sections(context, page, base_url: str, brand_key: str, brand_name: str, date_s: str, max_items: int):
+    """
+    섹션별/서브배너까지 최대한 넓게 수집.
+    - hero_slider + deep section scan 병합
+    - 브랜드별 기획전/중간 배너/서브배너 보강
+    """
+    merged: List[Banner] = []
+    try:
+        merged.extend(hero_slider(context, page, base_url, brand_key, brand_name, date_s, max_items))
+    except Exception:
+        pass
+    try:
+        merged.extend(deep_section_banners(context, page, base_url, brand_key, brand_name, date_s, max_items, y_max=SECTION_SCAN_Y_MAX))
+    except Exception:
+        pass
+    merged = dedupe_brand_rows(merged)
+    return merged[:max_items]
+
 def generic_top_banners(context, page_or_frame, base_url: str, brand_key: str, brand_name: str, date_s: str,
-                        max_items: int, y_max: int = 1400):
+                        max_items: int, y_max: int = SECTION_SCAN_Y_MAX):
     out: List[Banner] = []
     try:
         vw = page_or_frame.viewport_size["width"] if getattr(page_or_frame, "viewport_size", None) else 1440
@@ -1379,8 +1552,8 @@ def generic_top_banners(context, page_or_frame, base_url: str, brand_key: str, b
         pass
 
     try:
-        candidates = page_or_frame.locator("a, section, div")
-        cnt = min(candidates.count(), 520)
+        candidates = page_or_frame.locator("a, section, article, li, div")
+        cnt = min(candidates.count(), DEEP_SCAN_NODE_LIMIT)
     except Exception:
         return out
 
@@ -1398,7 +1571,7 @@ def generic_top_banners(context, page_or_frame, base_url: str, brand_key: str, b
                 continue
             if bb["y"] < -120 or bb["y"] > y_max:
                 continue
-            if bb["width"] < vw * 0.55 or bb["height"] < 180:
+            if bb["width"] < max(vw * 0.28, 220) or bb["height"] < 90:
                 continue
 
             img_url = get_any_img_url(el, base_url)
@@ -1926,6 +2099,146 @@ def build_changes(prev_csv: str, curr_csv: str) -> Dict[str, Any]:
         "changed": changed[:200],
     }
 
+
+def _snapshot_date_from_path(path: str) -> Optional[datetime]:
+    try:
+        m = re.search(r"hero_main_banners_(\d{4}-\d{2}-\d{2})\.csv$", os.path.basename(path or ""))
+        if not m:
+            return None
+        return datetime.strptime(m.group(1), "%Y-%m-%d")
+    except Exception:
+        return None
+
+
+def _recent_snapshot_files(date_s: str, days: int = 7) -> List[str]:
+    try:
+        end_dt = datetime.strptime(date_s, "%Y-%m-%d")
+    except Exception:
+        return []
+    start_dt = end_dt - timedelta(days=max(days - 1, 0))
+    out = []
+    if not os.path.isdir(SNAP_DIR):
+        return out
+    for fn in sorted(os.listdir(SNAP_DIR)):
+        if not fn.startswith("hero_main_banners_") or not fn.endswith(".csv"):
+            continue
+        dt = _snapshot_date_from_path(fn)
+        if not dt:
+            continue
+        if start_dt <= dt <= end_dt:
+            out.append(os.path.join(SNAP_DIR, fn))
+    return sorted(out)
+
+
+def build_recent_changes(curr_csv: str, date_s: str, days: int = RECENT_CHANGE_DAYS) -> Dict[str, Any]:
+    """
+    최근 N일 내 snapshot 변화 이력 요약.
+    - 브랜드 중복은 하나로 묶음
+    - 연속 스냅샷 pair 를 훑어서 최근 7일 내 변경 이력 집계
+    """
+    files = _recent_snapshot_files(date_s, days=days)
+    if curr_csv and os.path.exists(curr_csv) and curr_csv not in files:
+        files.append(curr_csv)
+        files = sorted(set(files))
+
+    by_brand: Dict[str, Dict[str, Any]] = {}
+    total_added = total_removed = total_changed = total_events = 0
+    pairs = []
+
+    for prev_csv, next_csv in zip(files, files[1:]):
+        diff = build_changes(prev_csv, next_csv)
+        sm = diff.get("summary") or {}
+        total_added += int(sm.get("added", 0) or 0)
+        total_removed += int(sm.get("removed", 0) or 0)
+        total_changed += int(sm.get("changed", 0) or 0)
+        total_events += int(sm.get("added", 0) or 0) + int(sm.get("removed", 0) or 0) + int(sm.get("changed", 0) or 0)
+        pairs.append({
+            "prev_csv": os.path.basename(prev_csv),
+            "curr_csv": os.path.basename(next_csv),
+            "summary": sm,
+        })
+
+        for r in diff.get("added", []) or []:
+            bk = r.get("brand_key", "")
+            if not bk:
+                continue
+            info = by_brand.setdefault(bk, {
+                "brand_key": bk,
+                "brand_name": r.get("brand_name", bk),
+                "added": 0,
+                "removed": 0,
+                "changed": 0,
+                "events": 0,
+                "last_title": "",
+                "last_rank": "",
+                "last_seen_csv": os.path.basename(next_csv),
+            })
+            info["added"] += 1
+            info["events"] += 1
+            info["last_title"] = r.get("title", "") or info.get("last_title", "")
+            info["last_rank"] = r.get("rank", "") or info.get("last_rank", "")
+            info["last_seen_csv"] = os.path.basename(next_csv)
+
+        for r in diff.get("removed", []) or []:
+            bk = r.get("brand_key", "")
+            if not bk:
+                continue
+            info = by_brand.setdefault(bk, {
+                "brand_key": bk,
+                "brand_name": r.get("brand_name", bk),
+                "added": 0,
+                "removed": 0,
+                "changed": 0,
+                "events": 0,
+                "last_title": "",
+                "last_rank": "",
+                "last_seen_csv": os.path.basename(next_csv),
+            })
+            info["removed"] += 1
+            info["events"] += 1
+            if not info.get("last_title"):
+                info["last_title"] = r.get("title", "")
+            if not info.get("last_rank"):
+                info["last_rank"] = r.get("rank", "")
+            info["last_seen_csv"] = os.path.basename(next_csv)
+
+        for x in diff.get("changed", []) or []:
+            curr = x.get("curr") or {}
+            bk = curr.get("brand_key", "")
+            if not bk:
+                continue
+            info = by_brand.setdefault(bk, {
+                "brand_key": bk,
+                "brand_name": curr.get("brand_name", bk),
+                "added": 0,
+                "removed": 0,
+                "changed": 0,
+                "events": 0,
+                "last_title": "",
+                "last_rank": "",
+                "last_seen_csv": os.path.basename(next_csv),
+            })
+            info["changed"] += 1
+            info["events"] += 1
+            info["last_title"] = curr.get("title", "") or info.get("last_title", "")
+            info["last_rank"] = curr.get("rank", "") or info.get("last_rank", "")
+            info["last_seen_csv"] = os.path.basename(next_csv)
+
+    brands = sorted(by_brand.values(), key=lambda x: (-int(x.get("events", 0) or 0), x.get("brand_name", "")))
+    return {
+        "window_days": int(days),
+        "curr_csv": os.path.basename(curr_csv) if curr_csv else "",
+        "summary": {
+            "brands_touched": len(brands),
+            "events": total_events,
+            "added": total_added,
+            "removed": total_removed,
+            "changed": total_changed,
+        },
+        "brands": brands[:100],
+        "pairs": pairs[: max(len(pairs), 1)],
+    }
+
 def write_json(path: str, obj: Any):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -1952,38 +2265,35 @@ def write_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] 
         <div class="glass-card px-6 py-4 flex items-center gap-4">
           <div class="flex h-3 w-3 relative"><span class="animate-ping absolute h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-600"></span></div>
           <div class="text-sm font-black text-slate-800 tracking-tight">
-            오늘 변경: <span class="text-emerald-700">{int(ch_summary.get('changed',0))}</span> · 추가 <span class="text-slate-700">{int(ch_summary.get('added',0))}</span> · 삭제 <span class="text-slate-700">{int(ch_summary.get('removed',0))}</span>
+            최근 {int((changes or {}).get('window_days', RECENT_CHANGE_DAYS))}일 변경 브랜드: <span class="text-emerald-700">{int(ch_summary.get('brands_touched',0))}</span> · 이벤트 <span class="text-slate-700">{int(ch_summary.get('events',0))}</span> · 추가 <span class="text-slate-700">{int(ch_summary.get('added',0))}</span> · 삭제 <span class="text-slate-700">{int(ch_summary.get('removed',0))}</span>
           </div>
         </div>
         """
 
-        # changed list(상위 12개만)
-        changed_items = (changes.get("changed") or [])[:12]
-        if changed_items:
-            lis = ""
-            for x in changed_items:
-                curr = x.get("curr") or {}
-                bk = curr.get("brand_key","")
-                bn = next((name for k,name, *_ in BRANDS if k == bk), bk)
-                rk = curr.get("rank","")
-                ttl = (curr.get("title","") or "").replace('"',"'")
-                diffs = x.get("diffs") or {}
-                diff_keys = ", ".join(list(diffs.keys())[:5])
-                lis += f"""
-                <div class="p-4 rounded-2xl bg-white/50 border border-white/70">
-                  <div class="text-xs font-black text-slate-800">{bn} · RANK {rk}</div>
-                  <div class="text-sm font-bold text-slate-900 line-clamp-1 mt-1">"{ttl}"</div>
-                  <div class="text-[11px] text-slate-500 mt-1">변경 항목: {diff_keys}</div>
-                </div>
-                """
-            ch_list_html = f"""
-            <section class="mb-10">
-              <div class="glass-card p-6">
-                <div class="text-sm font-black text-slate-900 mb-3">오늘 변경된 배너 (Top {len(changed_items)})</div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">{lis}</div>
-              </div>
-            </section>
-            """
+# 최근 7일 변화 브랜드 리스트(브랜드 중복 1개로 묶음)
+changed_items = (changes.get("brands") or [])[:18]
+if changed_items:
+    lis = ""
+    for x in changed_items:
+        bk = x.get("brand_key", "")
+        bn = next((name for k, name, *_ in BRANDS if k == bk), x.get("brand_name", bk))
+        rk = x.get("last_rank", "")
+        ttl = (x.get("last_title", "") or "-").replace('"', "'")
+        lis += f"""
+        <div class="p-4 rounded-2xl bg-white/50 border border-white/70">
+          <div class="text-xs font-black text-slate-800">{bn}</div>
+          <div class="text-sm font-bold text-slate-900 line-clamp-1 mt-1">"{ttl}"</div>
+          <div class="text-[11px] text-slate-500 mt-1">최근 {int((changes or {}).get('window_days', RECENT_CHANGE_DAYS))}일 · events {int(x.get('events',0))} · changed {int(x.get('changed',0))} · added {int(x.get('added',0))} · removed {int(x.get('removed',0))} · last rank {rk or '-'}</div>
+        </div>
+        """
+    ch_list_html = f"""
+    <section class="mb-10">
+      <div class="glass-card p-6">
+        <div class="text-sm font-black text-slate-900 mb-3">최근 {int((changes or {}).get('window_days', RECENT_CHANGE_DAYS))}일 내 변경된 배너 브랜드 (Top {len(changed_items)})</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">{lis}</div>
+      </div>
+    </section>
+    """
 
     tab_menu_html = ""
     content_area_html = ""
@@ -2270,6 +2580,8 @@ def crawl_brand(context, page, bk, bn, url, mode, date_s, mx, errlog_path: str, 
                 rows = discovery_swiper(context, page, resolved_url or url, bk, bn, date_s, mx)
             elif mode == "hero_slider":
                 rows = hero_slider(context, page, resolved_url or url, bk, bn, date_s, mx)
+            elif mode == "hero_sections":
+                rows = hero_sections(context, page, resolved_url or url, bk, bn, date_s, mx)
             else:
                 rows = generic_top_banners(context, page, resolved_url or url, bk, bn, date_s, mx)
         except Exception as e:
@@ -2278,6 +2590,15 @@ def crawl_brand(context, page, bk, bn, url, mode, date_s, mx, errlog_path: str, 
                 ef.write(traceback.format_exc() + "\n")
             brand_stats[bk]["extract_fail"] += 1
             rows = []
+
+
+    # TNF / Arc'teryx / K2 / 기타 섹션형 브랜드는 deep scan 결과도 병합해서 누락 방지
+    if bk in {"tnf", "arcteryx", "k2", "salomon", "snowpeak", "natgeo", "kolonsport", "kolonmall", "montbell", "eider", "millet"}:
+        try:
+            extra_rows = deep_section_banners(context, page, resolved_url or url, bk, bn, date_s, mx, y_max=SECTION_SCAN_Y_MAX)
+            rows = dedupe_brand_rows(rows + extra_rows)
+        except Exception:
+            pass
 
     # resolved_url 기록
     for r in rows:
@@ -2442,16 +2763,21 @@ def main():
             write_csv(today_snap, rows)
             write_csv(report_csv, rows)
 
-            prev_csv = _latest_prev_snapshot(date_s)
-            changes = {}
-            if prev_csv and os.path.exists(prev_csv):
-                changes = build_changes(prev_csv, today_snap)
-                ch_path = os.path.join(OUT_DIR, f"hero_changes_{date_s}.json")
-                write_json(ch_path, changes)
-            else:
-                changes = {"summary": {"added": 0, "removed": 0, "changed": 0}, "prev_csv": "", "curr_csv": os.path.basename(today_snap)}
 
-            write_html(report_html, rows, changes=changes)
+            prev_csv = _latest_prev_snapshot(date_s)
+            daily_changes = {}
+            if prev_csv and os.path.exists(prev_csv):
+                daily_changes = build_changes(prev_csv, today_snap)
+                ch_path = os.path.join(OUT_DIR, f"hero_changes_{date_s}.json")
+                write_json(ch_path, daily_changes)
+            else:
+                daily_changes = {"summary": {"added": 0, "removed": 0, "changed": 0}, "prev_csv": "", "curr_csv": os.path.basename(today_snap)}
+
+            recent_changes = build_recent_changes(today_snap, date_s, days=RECENT_CHANGE_DAYS)
+            recent_path = os.path.join(OUT_DIR, f"hero_changes_recent_{RECENT_CHANGE_DAYS}d_{date_s}.json")
+            write_json(recent_path, recent_changes)
+
+            write_html(report_html, rows, changes=recent_changes)
 
             # summary.json for Hub
             out_dir = os.path.dirname(report_html) or "."
@@ -2472,7 +2798,8 @@ def main():
                 "img_download_fail": img_download_fail,
                 "img_blocked": img_blocked,
                 "img_cached": img_cached,
-                "changes": (changes.get("summary") if changes else {}),
+                "changes_daily": (daily_changes.get("summary") if daily_changes else {}),
+                "changes_recent": (recent_changes.get("summary") if recent_changes else {}),
                 "brand_stats": brand_stats,
                 "config": {
                     "HTML_USE_ABSOLUTE_FILE_URL": bool(HTML_USE_ABSOLUTE_FILE_URL),
