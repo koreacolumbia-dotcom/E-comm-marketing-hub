@@ -280,32 +280,40 @@
           <div class="small-label">Channel totals</div>
           <div class="muted font-semibold text-sm" id="periodText">-</div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <div class="mini-card">
             <div class="mini-title">All</div>
             <div class="mini-value"><span id="totAllSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totAllRevenue">-</span></div>
+            <div class="mini-sub">Send count: <span id="totAllSendCount">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totAllLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">EDM</div>
             <div class="mini-value"><span id="totEdmSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totEdmRevenue">-</span></div>
+            <div class="mini-sub">Send count: <span id="totEdmSendCount">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totEdmLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">LMS</div>
             <div class="mini-value"><span id="totLmsSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totLmsRevenue">-</span></div>
+            <div class="mini-sub">Send count: <span id="totLmsSendCount">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totLmsLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">KAKAO</div>
             <div class="mini-value"><span id="totKakaoSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totKakaoRevenue">-</span></div>
+            <div class="mini-sub">Send count: <span id="totKakaoSendCount">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totKakaoLeverage">-</span></div>
           </div>
         </div>
       </div>
 
       <!-- YTD (✅ 디폴트: 항상 표시 / 올해누적 기준으로 계산) -->
-      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -317,6 +325,16 @@
           <div id="ytdTyRevenueSub" class="kpi-sub">-</div>
         </div>
         <div class="kpi-card">
+          <div class="kpi-title">YTD · TY Send count</div>
+          <div id="ytdTySendCount" class="kpi-value">-</div>
+          <div id="ytdTySendCountSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · TY Avg leverage</div>
+          <div id="ytdTyLeverage" class="kpi-value">-</div>
+          <div id="ytdTyLeverageSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
           <div class="kpi-title">YTD · LY Sessions</div>
           <div id="ytdLySessions" class="kpi-value">-</div>
           <div id="ytdLySessionsSub" class="kpi-sub">-</div>
@@ -326,10 +344,20 @@
           <div id="ytdLyRevenue" class="kpi-value">-</div>
           <div id="ytdLyRevenueSub" class="kpi-sub">-</div>
         </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · LY Send count</div>
+          <div id="ytdLySendCount" class="kpi-value">-</div>
+          <div id="ytdLySendCountSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · LY Avg leverage</div>
+          <div id="ytdLyLeverage" class="kpi-value">-</div>
+          <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
+        </div>
       </div>
 
       <!-- KPI (selection) -->
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
         <div class="kpi-card">
           <div class="kpi-title">Sessions</div>
           <div id="kSessions" class="kpi-value">-</div>
@@ -354,6 +382,29 @@
           <div class="kpi-title">Items</div>
           <div id="kItems" class="kpi-value">-</div>
           <div class="kpi-sub" id="kItemsSub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Send count</div>
+          <div id="kSendCount" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kSendCountSub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Avg leverage</div>
+          <div id="kLeverage" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kLeverageSub">-</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="kpi-card">
+          <div class="kpi-title">Message title</div>
+          <div id="msgTitle" class="kpi-value text-base leading-snug">-</div>
+          <div class="kpi-sub">엑셀/레포 연동 전까지는 데이터가 없으면 안내 문구로 표시</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Message content</div>
+          <div id="msgBody" class="kpi-value text-base leading-snug">-</div>
+          <div class="kpi-sub">향후 message_body / content 필드가 들어오면 자동 반영</div>
         </div>
       </div>
 
@@ -418,10 +469,12 @@
                 <th style="min-width:120px">Purchases</th>
                 <th style="min-width:140px">Revenue</th>
                 <th style="min-width:120px">Items</th>
+                <th style="min-width:120px">Send count</th>
+                <th style="min-width:140px">Avg leverage</th>
               </tr>
             </thead>
             <tbody id="termTb">
-              <tr><td colspan="7" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>
+              <tr><td colspan="9" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>
             </tbody>
           </table>
         </div>
@@ -514,21 +567,37 @@
   const ytdCards = document.getElementById('ytdCards');
   const ytdTySessions = document.getElementById('ytdTySessions');
   const ytdTyRevenue  = document.getElementById('ytdTyRevenue');
+  const ytdTySendCount = document.getElementById('ytdTySendCount');
+  const ytdTyLeverage = document.getElementById('ytdTyLeverage');
   const ytdLySessions = document.getElementById('ytdLySessions');
   const ytdLyRevenue  = document.getElementById('ytdLyRevenue');
+  const ytdLySendCount = document.getElementById('ytdLySendCount');
+  const ytdLyLeverage  = document.getElementById('ytdLyLeverage');
   const ytdTySessionsSub = document.getElementById('ytdTySessionsSub');
   const ytdTyRevenueSub  = document.getElementById('ytdTyRevenueSub');
+  const ytdTySendCountSub = document.getElementById('ytdTySendCountSub');
+  const ytdTyLeverageSub  = document.getElementById('ytdTyLeverageSub');
   const ytdLySessionsSub = document.getElementById('ytdLySessionsSub');
   const ytdLyRevenueSub  = document.getElementById('ytdLyRevenueSub');
+  const ytdLySendCountSub = document.getElementById('ytdLySendCountSub');
+  const ytdLyLeverageSub  = document.getElementById('ytdLyLeverageSub');
 
   const totAllSessions = document.getElementById('totAllSessions');
   const totAllRevenue = document.getElementById('totAllRevenue');
+  const totAllSendCount = document.getElementById('totAllSendCount');
+  const totAllLeverage = document.getElementById('totAllLeverage');
   const totEdmSessions = document.getElementById('totEdmSessions');
   const totEdmRevenue = document.getElementById('totEdmRevenue');
+  const totEdmSendCount = document.getElementById('totEdmSendCount');
+  const totEdmLeverage = document.getElementById('totEdmLeverage');
   const totLmsSessions = document.getElementById('totLmsSessions');
   const totLmsRevenue = document.getElementById('totLmsRevenue');
+  const totLmsSendCount = document.getElementById('totLmsSendCount');
+  const totLmsLeverage = document.getElementById('totLmsLeverage');
   const totKakaoSessions = document.getElementById('totKakaoSessions');
   const totKakaoRevenue = document.getElementById('totKakaoRevenue');
+  const totKakaoSendCount = document.getElementById('totKakaoSendCount');
+  const totKakaoLeverage = document.getElementById('totKakaoLeverage');
 
   const wrapEDMDate = document.getElementById('wrapEDMDate');
   const wrapLMSDate = document.getElementById('wrapLMSDate');
@@ -558,6 +627,12 @@
   const kCvrSub = document.getElementById('kCvrSub');
   const kAovSub = document.getElementById('kAovSub');
   const kItemsSub = document.getElementById('kItemsSub');
+  const kSendCount = document.getElementById('kSendCount');
+  const kSendCountSub = document.getElementById('kSendCountSub');
+  const kLeverage = document.getElementById('kLeverage');
+  const kLeverageSub = document.getElementById('kLeverageSub');
+  const msgTitle = document.getElementById('msgTitle');
+  const msgBody = document.getElementById('msgBody');
 
   const selChannel = document.getElementById('selChannel');
   const selCampaign  = document.getElementById('selCampaign');
@@ -576,6 +651,50 @@
     const x = Number(n);
     if(!isFinite(x)) return '-';
     return x.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+
+  function fmtRatio(n){
+    if(n === null || n === undefined) return '-';
+    const x = Number(n);
+    if(!isFinite(x)) return '-';
+    return x.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+
+  function getSendKey(r){
+    return `${r.date || ''}||${r.channel || ''}||${r.campaign || ''}||${r.term || ''}`;
+  }
+
+  function countDistinctSends(rows){
+    return new Set((rows || []).map(getSendKey)).size;
+  }
+
+  function calcAvgLeverage(rows){
+    const sendCount = countDistinctSends(rows);
+    if(!sendCount) return 0;
+    const sessions = (rows || []).reduce((acc, r)=> acc + Number(r.sessions || 0), 0);
+    return sessions / sendCount;
+  }
+
+  function summarizeOwnedRows(rows){
+    const agg = aggregateRow(rows || []);
+    const sendCount = countDistinctSends(rows || []);
+    const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
+    return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
+  }
+
+  function getMessageMeta(rows){
+    const arr = rows || [];
+    const withMeta = arr.find(r => (r.message_title || r.title || r.message_body || r.content));
+    if(!withMeta){
+      return {
+        title: '추후 엑셀/레포 연동 시 노출',
+        body: '현재 JSON에는 message title/content 필드가 없어 placeholder로 표시 중',
+      };
+    }
+    return {
+      title: withMeta.message_title || withMeta.title || '-',
+      body: withMeta.message_body || withMeta.content || '-',
+    };
   }
 
   function ymd(d){
@@ -760,25 +879,36 @@
   function updateChannelTotals(){
     periodText.textContent = `· ${periodLabel()}`;
     if(!RAW || !RAW.kpi){
-      totAllSessions.textContent='-'; totAllRevenue.textContent='-';
-      totEdmSessions.textContent='-'; totEdmRevenue.textContent='-';
-      totLmsSessions.textContent='-'; totLmsRevenue.textContent='-';
-      totKakaoSessions.textContent='-'; totKakaoRevenue.textContent='-';
+      [totAllSessions, totAllRevenue, totAllSendCount, totAllLeverage,
+       totEdmSessions, totEdmRevenue, totEdmSendCount, totEdmLeverage,
+       totLmsSessions, totLmsRevenue, totLmsSendCount, totLmsLeverage,
+       totKakaoSessions, totKakaoRevenue, totKakaoSendCount, totKakaoLeverage].forEach(el=>{ if(el) el.textContent='-'; });
       return;
     }
-    const all = aggregateRow(RAW.kpi);
-    const edm = aggregateRow(RAW.kpi.filter(r=>r.channel==='EDM'));
-    const lms = aggregateRow(RAW.kpi.filter(r=>r.channel==='LMS'));
-    const kakao = aggregateRow(RAW.kpi.filter(r=>r.channel==='KAKAO'));
+    const all = summarizeOwnedRows(RAW.kpi);
+    const edm = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='EDM'));
+    const lms = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='LMS'));
+    const kakao = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='KAKAO'));
 
     totAllSessions.textContent = fmt(all.sessions);
     totAllRevenue.textContent = fmtMoney(all.revenue);
+    totAllSendCount.textContent = fmt(all.send_count);
+    totAllLeverage.textContent = fmtRatio(all.avg_leverage);
+
     totEdmSessions.textContent = fmt(edm.sessions);
     totEdmRevenue.textContent = fmtMoney(edm.revenue);
+    totEdmSendCount.textContent = fmt(edm.send_count);
+    totEdmLeverage.textContent = fmtRatio(edm.avg_leverage);
+
     totLmsSessions.textContent = fmt(lms.sessions);
     totLmsRevenue.textContent = fmtMoney(lms.revenue);
+    totLmsSendCount.textContent = fmt(lms.send_count);
+    totLmsLeverage.textContent = fmtRatio(lms.avg_leverage);
+
     totKakaoSessions.textContent = fmt(kakao.sessions);
     totKakaoRevenue.textContent = fmtMoney(kakao.revenue);
+    totKakaoSendCount.textContent = fmt(kakao.send_count);
+    totKakaoLeverage.textContent = fmtRatio(kakao.avg_leverage);
   }
 
   function renderCampaignButtons(){
@@ -926,7 +1056,10 @@
   function aggregateKPIForSelected(){
     if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
+      kSendCount.textContent='-'; kLeverage.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
+      kSendCountSub.textContent='-'; kLeverageSub.textContent='-';
+      msgTitle.textContent='-'; msgBody.textContent='-';
       selChannel.textContent='-'; selCampaign.textContent='-'; selTerm.textContent='-';
       return;
     }
@@ -945,11 +1078,17 @@
     }
 
     const a = aggregateRow(rows);
+    const sendCount = countDistinctSends(rows);
+    const leverage = sendCount ? (a.sessions / sendCount) : 0;
+    const meta = getMessageMeta(rows);
+
     kSessions.textContent = fmt(a.sessions);
     kUsers.textContent = fmt(a.users);
     kPurchases.textContent = fmt(a.purchases);
     kRevenue.textContent = fmtMoney(a.revenue);
     kItems.textContent = fmt(a.items_purchased);
+    kSendCount.textContent = fmt(sendCount);
+    kLeverage.textContent = fmtRatio(leverage);
 
     const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
     const aov = a.purchases ? (a.revenue/a.purchases) : 0;
@@ -960,6 +1099,10 @@
     kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
+    kSendCountSub.textContent = `Distinct sends in selected scope`;
+    kLeverageSub.textContent = `Sessions / send count`;
+    msgTitle.textContent = meta.title || '-';
+    msgBody.textContent = meta.body || '-';
   }
 
   function renderTerms(){
@@ -967,7 +1110,7 @@
 
     if(!SELECTED || SELECTED.type!=='group' || !RAW){
       termSection.classList.add('hidden');
-      termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
+      termTb.innerHTML = `<tr><td colspan="9" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
       return;
     }
 
@@ -977,7 +1120,7 @@
     termSection.classList.remove('hidden');
 
     if(!sourceRows.length){
-      termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">해당 날짜 그룹에 TERM 데이터가 없어.</td></tr>`;
+      termTb.innerHTML = `<tr><td colspan="9" class="muted font-semibold">해당 날짜 그룹에 TERM 데이터가 없어.</td></tr>`;
       return;
     }
 
@@ -997,6 +1140,9 @@
           purchases: 0,
           revenue: 0,
           items_purchased: 0,
+          send_keys: new Set(),
+          message_title: '',
+          message_body: '',
         });
       }
 
@@ -1006,6 +1152,9 @@
       cur.purchases += Number(r.purchases || 0);
       cur.revenue += Number(r.revenue || 0);
       cur.items_purchased += Number(r.items_purchased || 0);
+      cur.send_keys.add(getSendKey(r));
+      if(!cur.message_title && (r.message_title || r.title)) cur.message_title = r.message_title || r.title || '';
+      if(!cur.message_body && (r.message_body || r.content)) cur.message_body = r.message_body || r.content || '';
     }
 
     const rows = Array.from(grouped.values())
@@ -1015,7 +1164,10 @@
         return Number(b.revenue||0) - Number(a.revenue||0);
       });
 
-    termTb.innerHTML = rows.map(r=>`
+    termTb.innerHTML = rows.map(r=>{
+      const sendCount = r.send_keys ? r.send_keys.size : 0;
+      const leverage = sendCount ? (Number(r.sessions||0) / sendCount) : 0;
+      return `
       <tr class="cursor-pointer" data-channel="${r.channel}" data-campaign="${encodeURIComponent(r.campaign||'')}" data-term="${encodeURIComponent(r.term||'')}">
         <td class="mono">${(r.campaign||'-')}</td>
         <td class="mono">${(r.term||'-')}</td>
@@ -1024,8 +1176,10 @@
         <td>${fmt(r.purchases||0)}</td>
         <td>${fmtMoney(r.revenue||0)}</td>
         <td>${fmt(r.items_purchased||0)}</td>
-      </tr>
-    `).join('');
+        <td>${fmt(sendCount)}</td>
+        <td>${fmtRatio(leverage)}</td>
+      </tr>`;
+    }).join('');
 
     Array.from(termTb.querySelectorAll('tr[data-channel]')).forEach(tr=>{
       tr.addEventListener('click', ()=>{
@@ -1161,6 +1315,8 @@
       purchases: Number(r.purchases || 0),
       revenue: Number(r.revenue || 0),
       items_purchased: Number(r.items_purchased || 0),
+      message_title: r.message_title || r.title || '',
+      message_body: r.message_body || r.content || '',
     }));
 
     const prod = (j.products || []).map(p => ({
@@ -1381,15 +1537,25 @@
       const LY = v.prev;
       ytdTySessions.textContent = fmt(TY.sessions);
       ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
+      ytdTySendCount.textContent = fmt(TY.send_count);
+      ytdTyLeverage.textContent = fmtRatio(TY.avg_leverage);
       ytdLySessions.textContent = fmt(LY.sessions);
       ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
+      ytdLySendCount.textContent = fmt(LY.send_count);
+      ytdLyLeverage.textContent = fmtRatio(LY.avg_leverage);
 
       const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
       const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
+      const dSend = LY.send_count ? ((TY.send_count - LY.send_count)/LY.send_count*100) : (TY.send_count ? 100 : 0);
+      const dLev  = LY.avg_leverage ? ((TY.avg_leverage - LY.avg_leverage)/LY.avg_leverage*100) : (TY.avg_leverage ? 100 : 0);
       ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
       ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+      ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+      ytdTyLeverageSub.textContent = `vs LY: ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
       ytdLySessionsSub.textContent = `LY (same period)`;
       ytdLyRevenueSub.textContent  = `LY (same period)`;
+      ytdLySendCountSub.textContent = `LY (same period)`;
+      ytdLyLeverageSub.textContent = `LY (same period)`;
       return;
     }
 
@@ -1426,22 +1592,32 @@
     const thisRows = (CHANNEL==='ALL') ? (thisAgg.kpi||[]) : (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
     const prevRows = (CHANNEL==='ALL') ? (prevAgg.kpi||[]) : (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
 
-    const thisSum = aggregateRow(thisRows);
-    const prevSum = aggregateRow(prevRows);
+    const thisSum = summarizeOwnedRows(thisRows);
+    const prevSum = summarizeOwnedRows(prevRows);
 
     YTD_CACHE.set(key, {this:thisSum, prev:prevSum});
 
     ytdTySessions.textContent = fmt(thisSum.sessions);
     ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
+    ytdTySendCount.textContent = fmt(thisSum.send_count);
+    ytdTyLeverage.textContent = fmtRatio(thisSum.avg_leverage);
     ytdLySessions.textContent = fmt(prevSum.sessions);
     ytdLyRevenue.textContent  = fmtMoney(prevSum.revenue);
+    ytdLySendCount.textContent = fmt(prevSum.send_count);
+    ytdLyLeverage.textContent = fmtRatio(prevSum.avg_leverage);
 
     const dSess = prevSum.sessions ? ((thisSum.sessions - prevSum.sessions)/prevSum.sessions*100) : (thisSum.sessions ? 100 : 0);
     const dRev  = prevSum.revenue  ? ((thisSum.revenue  - prevSum.revenue )/prevSum.revenue *100) : (thisSum.revenue  ? 100 : 0);
+    const dSend = prevSum.send_count ? ((thisSum.send_count - prevSum.send_count)/prevSum.send_count*100) : (thisSum.send_count ? 100 : 0);
+    const dLev  = prevSum.avg_leverage ? ((thisSum.avg_leverage - prevSum.avg_leverage)/prevSum.avg_leverage*100) : (thisSum.avg_leverage ? 100 : 0);
     ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
     ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+    ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+    ytdTyLeverageSub.textContent = `vs LY: ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
     ytdLySessionsSub.textContent = `LY (same period)`;
     ytdLyRevenueSub.textContent  = `LY (same period)`;
+    ytdLySendCountSub.textContent = `LY (same period)`;
+    ytdLyLeverageSub.textContent = `LY (same period)`;
   }
 
   function bindToggle(btn, wrap){
