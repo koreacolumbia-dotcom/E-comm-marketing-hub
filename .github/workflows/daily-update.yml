@@ -93,7 +93,6 @@ on:
           - "true"
 
   schedule:
-    # ✅ KST 06:30 = UTC 21:30 (전날)
     - cron: "30 21 * * *"
 
 concurrency:
@@ -121,9 +120,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main
 
-      # ---------------------------------------------------------
-      # ✅ Mode resolver
-      # ---------------------------------------------------------
       - name: Resolve run modes
         id: modes
         shell: bash
@@ -155,7 +151,6 @@ jobs:
             fi
           fi
 
-          # Default (schedule OR manual-all-false): run everything
           RUN_DAILY=true
           RUN_PRICE=true
           RUN_HERO=true
@@ -165,7 +160,6 @@ jobs:
           RUN_SUMMARY=true
           RUN_OWNED=true
 
-          # owned_backfill / owned_only => owned only
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
             RUN_DAILY=false
             RUN_PRICE=false
@@ -265,16 +259,9 @@ jobs:
             pip install -r requirements.txt
           fi
 
-          # BigQuery / Pandas
           pip install db-dtypes pyarrow google-cloud-bigquery pandas python-dateutil
-
-          # Crema VOC / NLP
           pip install scikit-learn sentence-transformers
-
-          # image / http
           pip install pillow requests
-
-          # HTML → PNG
           pip install playwright
           playwright install --with-deps chromium
 
@@ -299,9 +286,6 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-      # =========================================================
-      # Daily Digest Report (어제 날짜 1일치 생성)
-      # =========================================================
       - name: Build Daily Digest (yesterday only)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
@@ -346,9 +330,6 @@ jobs:
           ls -la reports/daily_digest/daily | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
 
-      # =========================================================
-      # Render yesterday daily HTML -> PNG (for email)
-      # =========================================================
       - name: Render yesterday Daily Digest PNG
         if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
@@ -370,9 +351,6 @@ jobs:
           python -u scripts/render_daily_png.py "$HTML" "$PNG" || true
           ls -la "$PNG" || true
 
-      # ----------------------------
-      # 1) Naver Lowest Price
-      # ----------------------------
       - name: Run Naver Lowest Price crawler
         if: ${{ steps.modes.outputs.run_price == 'true' }}
         continue-on-error: true
@@ -390,9 +368,6 @@ jobs:
             || true
           ls -la reports/naver_lowest_price.html || true
 
-      # ----------------------------
-      # 2) Hero banner
-      # ----------------------------
       - name: Run Hero banner crawler
         if: ${{ steps.modes.outputs.run_hero == 'true' }}
         continue-on-error: true
@@ -402,9 +377,6 @@ jobs:
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py || true
           ls -la reports/hero_main.html || true
 
-      # ----------------------------
-      # 3) External Signal (VOC)
-      # ----------------------------
       - name: Run External Signal (VOC)
         if: ${{ steps.modes.outputs.run_extsig == 'true' }}
         continue-on-error: true
@@ -428,9 +400,6 @@ jobs:
 
           ls -la reports/external_signal.html || true
 
-      # ----------------------------
-      # 4) Crema VOC
-      # ----------------------------
       - name: Run Crema VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         continue-on-error: true
@@ -587,9 +556,6 @@ jobs:
           ls -lah reports/voc_crema/assets | head -n 200 || true
           ls -lah reports/voc_crema/data | head -n 200 || true
 
-      # ----------------------------
-      # 4.5) Naver Blog VOC
-      # ----------------------------
       - name: Run Naver Blog VOC (Columbia mentions)
         if: ${{ steps.modes.outputs.run_blog == 'true' }}
         continue-on-error: true
@@ -612,9 +578,6 @@ jobs:
 
           ls -la reports/voc_blog/index.html || true
 
-      # =========================================================
-      # ✅ OWNED Campaign Portal
-      # =========================================================
       - name: Build OWNED campaign portal (products by send_id)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
         continue-on-error: true
@@ -709,9 +672,6 @@ jobs:
           echo "[CHECK] site/owned:"
           ls -lah site/owned | head -n 60 || true
 
-      # ----------------------------
-      # 5) Summary (after OWNED publish)
-      # ----------------------------
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ steps.modes.outputs.run_summary == 'true' }}
         continue-on-error: true
@@ -736,9 +696,6 @@ jobs:
           echo "[INFO] Generated files:"
           ls -la reports/index.html reports/meta.json || true
 
-      # ----------------------------
-      # 7) Commit & push results
-      # ----------------------------
       - name: Commit & push results
         if: ${{ always() }}
         continue-on-error: true
@@ -782,9 +739,6 @@ jobs:
           echo "[ERROR] failed to push after retries"
           exit 1
 
-      # ----------------------------
-      # Success Email
-      # ----------------------------
       - name: Send daily email (yesterday daily report PNG)
         if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
