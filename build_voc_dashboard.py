@@ -886,8 +886,6 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <!-- ✅ D3 for non-overlapping circle-pack mindmaps -->
-  <script src="https://d3js.org/d3.v7.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
@@ -1005,137 +1003,29 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     .line-clamp-2{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
     .line-clamp-3{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
 
+    .sentence-list{ display:grid; grid-template-columns:1fr; gap:10px; }
+    .sentence-item{ padding:12px 14px; border-radius:18px; font-size:13px; font-weight:800; line-height:1.6; border:1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.62); color:#0f172a; }
+    .sentence-item.neg{ background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.16); }
+    .sentence-item.pos{ background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.16); }
+
     .review-grid{ display:grid; grid-template-columns: 1fr; gap: 14px; }
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
 
-    /* Mindmap canvas helpers */
-    .mindmap-wrap{ position:relative; height: 260px; }
-    .mindmap-wrap.tall{ height: 320px; }
-    .mindmap-empty{
-      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-      font-size:14px; font-weight:900; color:#64748b;
+    /* Product ML cards */
+    .ml-card{
+      border-radius: 26px;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.80);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 16px 42px rgba(0,45,114,0.04);
+      padding: 18px 18px;
     }
+    .ml-grid{ display:grid; grid-template-columns:1fr; gap:14px; }
+    @media (min-width: 1024px){ .ml-grid{ grid-template-columns:1fr 1fr; } }
 
     body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
-
-    .mobile-dock{ display:none; }
-    .mobile-fab{ display:none; }
-
-    @media (max-width: 767px){
-      .glass-card{ border-radius: 24px; padding: 18px !important; }
-      .summary-card, .review-card, .ml-card{ border-radius: 20px; padding: 14px 14px; }
-      .tbl{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
-      .img-box{ width:56px; height:56px; border-radius:14px; }
-      .mindmap-wrap{ height: 220px; }
-      .mindmap-wrap.tall{ height: 260px; }
-    }
-
-    body.mobile-embed{
-      background: linear-gradient(180deg, #f7f9fc, #eef3f8);
-    }
-    body.mobile-embed .topbar,
-    body.mobile-embed .layout-header{
-      display:none !important;
-    }
-    body.mobile-embed main{
-      padding: 12px 12px 90px !important;
-    }
-    body.mobile-embed .mx-auto.w-full.max-w-\[1280px\],
-    body.mobile-embed .max-w-\[1320px\].mx-auto{
-      max-width:100% !important;
-    }
-    body.mobile-embed .glass-card{
-      border-radius: 22px;
-      padding: 16px !important;
-      box-shadow: 0 12px 28px rgba(0,45,114,0.05);
-    }
-    body.mobile-embed .summary-card,
-    body.mobile-embed .review-card,
-    body.mobile-embed .ml-card{
-      border-radius: 18px;
-      padding: 14px;
-    }
-    body.mobile-embed .review-grid,
-    body.mobile-embed .ml-grid{
-      grid-template-columns: 1fr !important;
-      gap: 12px;
-    }
-    body.mobile-embed .tbl{
-      display:block;
-      overflow-x:auto;
-      -webkit-overflow-scrolling:touch;
-    }
-    body.mobile-embed .tbl th,
-    body.mobile-embed .tbl td{
-      white-space: nowrap;
-      padding: 12px 10px;
-      font-size: 12px;
-    }
-    body.mobile-embed .img-box{
-      width: 54px;
-      height: 54px;
-      border-radius: 14px;
-      flex: 0 0 auto;
-    }
-    body.mobile-embed .mindmap-wrap{ height: 210px; }
-    body.mobile-embed .mindmap-wrap.tall{ height: 250px; }
-    body.mobile-embed .chip,
-    body.mobile-embed .tab-btn{
-      padding: 10px 12px;
-      font-size: 11px;
-    }
-    body.mobile-embed .input-glass{
-      padding: 11px 12px;
-      font-size: 14px;
-    }
-    body.mobile-embed .small-label{
-      letter-spacing: .18em;
-    }
-    body.mobile-embed .mobile-dock{
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 8px;
-      position: fixed;
-      left: 10px;
-      right: 10px;
-      bottom: max(10px, env(safe-area-inset-bottom));
-      z-index: 60;
-      padding: 8px;
-      background: rgba(255,255,255,0.88);
-      backdrop-filter: blur(14px);
-      border: 1px solid rgba(255,255,255,0.9);
-      border-radius: 18px;
-      box-shadow: 0 16px 40px rgba(0,45,114,0.12);
-    }
-    body.mobile-embed .mobile-dock button{
-      border: 0;
-      background: rgba(0,45,114,0.06);
-      color: #0f172a;
-      font-size: 11px;
-      font-weight: 900;
-      padding: 10px 6px;
-      border-radius: 14px;
-      white-space: nowrap;
-    }
-    body.mobile-embed .mobile-fab{
-      display:flex;
-      position: fixed;
-      right: 12px;
-      bottom: 82px;
-      z-index: 61;
-      align-items:center;
-      gap:8px;
-      border: 0;
-      border-radius: 9999px;
-      padding: 10px 14px;
-      background: rgba(0,45,114,0.96);
-      color: white;
-      font-size: 12px;
-      font-weight: 900;
-      box-shadow: 0 16px 34px rgba(0,45,114,0.22);
-    }
   </style>
 </head>
 
@@ -1146,19 +1036,6 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div id="overlayText" class="text-sm font-black text-slate-700">Loading...</div>
     </div>
   </div>
-
-
-  <button id="mobileOpenBtn" class="mobile-fab" type="button" onclick="openStandalone()">
-    <i class="fa-solid fa-up-right-from-square"></i>
-    전체화면
-  </button>
-
-  <nav class="mobile-dock" aria-label="모바일 빠른 이동">
-    <button type="button" onclick="scrollToSection('ml-signals')">하이라이트</button>
-    <button type="button" onclick="scrollToSection('ranking-section')">랭킹</button>
-    <button type="button" onclick="scrollToSection('product-ml-section')">Product ML</button>
-    <button type="button" onclick="scrollToSection('daily-feed-section')">Daily Feed</button>
-  </nav>
 
   <header class="topbar sticky top-0 z-50">
     <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
@@ -1183,7 +1060,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
 
       <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
-        * 데이터: data/meta.json, data/reviews.json &nbsp;·&nbsp; * 빌드: crema_voc
+        * 데이터: data/meta.json, data/reviews.json &nbsp;·&nbsp; * 빌드: crema_voc v6
       </div>
     </div>
   </header>
@@ -1215,14 +1092,14 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
           </header>
         </div>
 
-        <!-- 0 ML Mindmap + Yesterday Focus -->
-        <section class="mb-10" id="ml-signals">
+        <!-- 0 ML Signals -->
+        <section class="mb-10">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">0. ML Signals</div>
-                <div class="text-2xl font-black text-slate-900">어제 리뷰 체크 + 키워드 마인드맵</div>
-                <div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) · 범위: 최근 3개월</div>
+                <div class="text-2xl font-black text-slate-900">어제 리뷰 핵심 문장</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) · 긍정/부정 문장 각 2개</div>
               </div>
               <div class="flex gap-2 flex-wrap">
                 <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
@@ -1239,115 +1116,29 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
               </div>
 
               <div class="summary-card lg:col-span-2">
-                <div class="small-label text-blue-600 mb-2">KEYWORD MINDMAP</div>
-                <div class="text-xs font-bold text-slate-500">원형 마인드맵(겹침 방지) · 클릭 → 검색 필터</div>
-                <div id="mindmapCanvas" class="mindmap-wrap relative mt-4 rounded-3xl border border-white/80 bg-white/45 overflow-hidden"></div>
-              </div>
-            </div>
-
-            <div class="summary-card mt-4">
-              <div class="small-label text-slate-700 mb-2">TOPICS</div>
-              <div id="topicRow" class="flex flex-wrap gap-2"></div>
-              <div class="text-xs font-bold text-slate-500 mt-3">최근 3개월 토픽(클릭하면 해당 키워드로 필터)</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 1 Summary -->
-        <section class="mb-10">
-          <div class="glass-card p-8">
-            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-              <div>
-                <div class="small-label text-blue-600 mb-2">1. Summary</div>
-                <div class="text-2xl font-black text-slate-900">키워드 하이라이트</div>
-              </div>
-              <div class="text-xs font-black text-slate-500">
-                * 클릭 → 해당 키워드로 검색
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div class="summary-card">
-                <div class="small-label text-slate-700 mb-2">Keywords Top 5</div>
-
-                <div class="text-xs font-black text-slate-500 mt-1">NEG</div>
-                <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
-
-                <div class="text-xs font-black text-slate-500 mt-4">POS</div>
-                <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
-              </div>
-
-              <div class="summary-card">
-                <div class="small-label text-blue-600 mb-2">Workflow</div>
-                <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
-                  1) <span class="font-black">어제 리뷰</span>부터 확인<br/>
-                  2) Low/개선요청 태그로 리스크 리뷰 먼저 보기<br/>
-                  3) 제품 선택 → 저평점/리뷰 길이로 원인 텍스트 빠르게 파악
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div class="small-label text-red-600 mb-3">NEGATIVE</div>
+                    <div id="yNegSentences" class="sentence-list"></div>
+                  </div>
+                  <div>
+                    <div class="small-label text-emerald-600 mb-3">POSITIVE</div>
+                    <div id="yPosSentences" class="sentence-list"></div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- 2 Ranking -->
-        <section class="mb-10" id="ranking-section">
+
+
+        <!-- 1 Daily feed -->
+        <section class="mb-10">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
-                <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
-                <div class="text-xs font-bold text-slate-500 mt-1">Top5 기본 노출(접기/펼치기)</div>
-              </div>
-              <div class="flex gap-2 flex-wrap">
-                <button class="chip active" id="rank-size" onclick="switchRankMode('size')">2-1) 사이즈 이슈율</button>
-                <button class="chip" id="rank-low" onclick="switchRankMode('low')">2-2) 저평점 비중</button>
-                <button class="chip" id="rank-both" onclick="switchRankMode('both')">2-3) 교집합</button>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-end mb-3">
-              <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
-            </div>
-
-            <div class="overflow-auto">
-              <table class="tbl min-w-[980px]">
-                <thead>
-                  <tr>
-                    <th class="text-left">제품명</th>
-                    <th class="text-left">리뷰 수</th>
-                    <th class="text-left">사이즈 이슈율</th>
-                    <th class="text-left">저평점 비중</th>
-                    <th class="text-left">주요 키워드</th>
-                  </tr>
-                </thead>
-                <tbody id="rankingBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- 4 Product Mindmap (RESTORED) -->
-        <section class="mb-10" id="product-ml-section">
-          <div class="glass-card p-8">
-            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-              <div>
-                <div class="small-label text-blue-600 mb-2">4. Product Mindmap</div>
-                <div class="text-2xl font-black text-slate-900">제품별 핵심 문장(ML) · 원형 마인드맵</div>
-                <div class="text-xs font-bold text-slate-500 mt-2">클릭 → 제품 필터 자동 적용</div>
-              </div>
-            </div>
-            <div class="summary-card">
-              <div id="productMindmapCanvas" class="mindmap-wrap tall relative rounded-3xl border border-white/80 bg-white/45 overflow-hidden"></div>
-              <div class="text-xs font-bold text-slate-500 mt-3">원형 크기: 최근 1년 리뷰 수 · 외곽: 제품</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- 5 Daily feed -->
-        <section class="mb-10" id="daily-feed-section">
-          <div class="glass-card p-8">
-            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-              <div>
-                <div class="small-label text-blue-600 mb-2">Daily Feed</div>
+                <div class="small-label text-blue-600 mb-2">1. Daily Feed</div>
                 <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
                 <div class="text-sm font-bold text-slate-500 mt-2">기본 날짜: 어제(KST) · 최근 7일 범위 내 선택</div>
               </div>
@@ -1378,6 +1169,54 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
           </div>
         </section>
 
+        <!-- 2. Product ML (Cumulative) -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">2. Product ML (Cumulative)</div>
+                <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">
+                  NEG 기준: ★1~2 (저평점) · POS 기준: ★4~5
+                </div>
+              </div>
+
+              <div class="flex gap-2 flex-wrap items-center">
+                <select id="mlWindow" class="input-glass" onchange="renderAll()">
+                  <option value="90" selected>최근 3개월</option>
+                  <option value="180">최근 6개월</option>
+                  <option value="365">최근 12개월</option>
+                  <option value="0">전체</option>
+                </select>
+                <select id="mlMinReviews" class="input-glass" onchange="renderAll()">
+                  <option value="3" selected>최소 리뷰수: 3</option>
+                  <option value="5">최소 리뷰수: 5</option>
+                  <option value="10">최소 리뷰수: 10</option>
+                  <option value="1">최소 리뷰수: 1</option>
+                </select>
+                <button class="chip" onclick="scrollToMLTop()">ML 섹션 보기</button>
+              </div>
+            </div>
+
+            <div class="summary-card mb-4">
+              <div class="small-label text-slate-700 mb-2">HOW TO READ</div>
+              <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
+                - NEGATIVE: ★1~2 리뷰 원문 2개 노출<br/>
+                - POSITIVE: ★4~5 리뷰 원문 2개 노출<br/>
+                - 버튼 클릭 → 아래 Daily Feed 검색으로 필터
+              </div>
+            </div>
+
+            <div id="mlProductGrid" class="ml-grid"></div>
+
+            <div id="mlNoData" class="hidden review-card text-center">
+              <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
+              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver)을 조정해보세요.</div>
+            </div>
+          </div>
+        </section>
+
+
         <footer class="text-xs font-bold text-slate-500 pb-8">
           * 데이터 소스: data/reviews.json / data/meta.json<br/>
           * 기본 동작: 어제(KST) 기준 Daily Feed 표시
@@ -1391,10 +1230,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     let REVIEWS = [];
     const uiState = {
       sourceTab: "combined",
-      rankMode: "size",
-      rankExpanded: false,
       chips: { daily: true, low: false },
-      pendingScrollId: null
     };
 
     function esc(s){
@@ -1435,38 +1271,29 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       }
     }
 
-    function isIframe(){
-      try { return window.self !== window.top; } catch(e) { return true; }
-    }
-    function isMobileWidth(){
-      return window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
-    }
-    function applyViewportMode(){
+    (function(){
       const params = new URLSearchParams(location.search);
-      const embedded = params.get("embed") === "1" || isIframe();
-      document.body.classList.toggle("embedded", embedded);
-      document.body.classList.toggle("mobile-embed", embedded && isMobileWidth());
-      const fab = document.getElementById('mobileOpenBtn');
-      if (fab) fab.style.display = (embedded && isMobileWidth()) ? 'flex' : 'none';
-    }
-    function scrollToSection(id){
-      document.getElementById(id)?.scrollIntoView({behavior:'smooth', block:'start'});
-    }
-    function openStandalone(){
-      const u = new URL(window.location.href);
-      u.searchParams.delete('embed');
-      window.open(u.toString(), '_blank', 'noopener,noreferrer');
-    }
-    applyViewportMode();
-    window.addEventListener('resize', applyViewportMode);
+      if (params.get("embed") === "1"){
+        document.body.classList.add("embedded");
+      }
+    })();
 
     function pad2(n){ return String(n).padStart(2,"0"); }
-    function kstDateStr(offsetDays=0){
+    function kstNow(){
       const now = new Date();
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-      const kst = new Date(utc + (9 * 60 * 60000));
+      return new Date(utc + (9 * 60 * 60000));
+    }
+    function kstDateStr(offsetDays=0){
+      const kst = kstNow();
       kst.setDate(kst.getDate() + offsetDays);
       return `${kst.getFullYear()}-${pad2(kst.getMonth()+1)}-${pad2(kst.getDate())}`;
+    }
+    function parseDate10(s){
+      if (!s) return null;
+      const d10 = String(s).slice(0,10);
+      const d = new Date(d10 + "T00:00:00");
+      return isNaN(d.getTime()) ? null : d;
     }
 
     function switchSourceTab(tab){
@@ -1476,24 +1303,6 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       });
       renderAll();
     }
-
-    function switchRankMode(mode){
-      runWithOverlay("Switching ranking...", () => {
-        uiState.rankMode = mode;
-        document.getElementById("rank-size")?.classList.toggle("active", mode==="size");
-        document.getElementById("rank-low")?.classList.toggle("active", mode==="low");
-        document.getElementById("rank-both")?.classList.toggle("active", mode==="both");
-        renderAll();
-      });
-    }
-
-    function toggleRankingExpand(){
-      uiState.rankExpanded = !uiState.rankExpanded;
-      const btn = document.getElementById("rankToggleBtn");
-      if (btn){
-        btn.textContent = uiState.rankExpanded ? "접기" : "Top5만 보기";
-        btn.classList.toggle("active", uiState.rankExpanded);
-      }
       renderAll();
     }
 
@@ -1507,14 +1316,14 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     function setSearchAndRender(q){
       const el = document.getElementById("qInput");
       if (el) el.value = q || "";
+      // Daily chip on + yesterday by default is OK; just rerender
       renderAll();
+      // (옵션) Daily Feed로 스크롤
+      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
     }
-    function setProductAndRender(code){
-      const el = document.getElementById("productSelect");
-      if (el) el.value = code || "";
-      renderAll();
-      // scroll down to daily feed controls
-      document.getElementById("daySelect")?.scrollIntoView({behavior:"smooth", block:"center"});
+
+    function scrollToMLTop(){
+      document.getElementById("mlProductGrid")?.scrollIntoView({behavior:"smooth", block:"start"});
     }
 
     function getFilteredReviews(){
@@ -1588,11 +1397,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       const rankLow  = rows.slice().sort((a,b)=> (b.lowRate - a.lowRate) || (b.reviews - a.reviews));
       const rankBoth = rows.slice().sort((a,b)=> ((b.sizeRate+b.lowRate) - (a.sizeRate+a.lowRate)) || (b.reviews - a.reviews));
 
-      return {
-        total,
-        sizeMentionRate: Math.round((sizeMention/total)*100),
-        rankSize, rankLow, rankBoth,
-      };
+      return { total, sizeMentionRate: Math.round((sizeMention/total)*100), rankSize, rankLow, rankBoth };
     }
 
     function renderHeader(){
@@ -1607,86 +1412,30 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
-    function renderSummary(){
-      const neg = META?.neg_top5 || [];
-      const pos = META?.pos_top5 || [];
-
-      const elNeg = document.getElementById("topNeg");
-      if (elNeg){
-        elNeg.innerHTML = neg.map(([k,c]) => `
-          <span class="badge neg" onclick="setSearchAndRender('${esc(k)}')">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>
-        `).join("");
-      }
-
-      const elPos = document.getElementById("topPos");
-      if (elPos){
-        elPos.innerHTML = pos.map(([k,c]) => `
-          <span class="badge pos" onclick="setSearchAndRender('${esc(k)}')">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>
-        `).join("");
-      }
-    }
-
-    function renderRanking(metrics){
-      let rows = [];
-      if (uiState.rankMode === "size") rows = metrics.rankSize;
-      else if (uiState.rankMode === "low") rows = metrics.rankLow;
-      else rows = metrics.rankBoth;
-
-      const maxRows = uiState.rankExpanded ? Math.min(rows.length, 50) : Math.min(rows.length, 5);
-      const tbody = document.getElementById("rankingBody");
-      if (!tbody) return;
-
-      tbody.innerHTML = rows.slice(0, maxRows).map(r => `
-        <tr>
-          <td>
-            <div class="flex items-center gap-3">
-              <div class="img-box">
-                ${r.local_product_image
-                  ? `<img src="${esc(r.local_product_image)}" alt="">`
-                  : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`
-                }
-              </div>
-              <div class="min-w-0">
-                <div class="font-black text-slate-900 line-clamp-1">${esc(r.product_name)}</div>
-                <div class="muted">code: ${esc(r.product_code)}</div>
-                ${r.product_url ? `<a href="${esc(r.product_url)}" target="_blank" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>` : ``}
-              </div>
-            </div>
-          </td>
-          <td class="muted">${esc(r.reviews)}</td>
-          <td><span class="badge size">${esc(r.sizeRate)}%</span></td>
-          <td><span class="badge neg">${esc(r.lowRate)}%</span></td>
-          <td class="muted">${esc(r.kwds || "-")}</td>
-        </tr>
-      `).join("");
-    }
-
     function reviewCardHTML(r){
       const t = asArr(r.tags);
       const tags = [];
 
-      if (t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> #긍정</span>`);
-      if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> #size_issue</span>`);
-      if ((Number(r.rating||0) <= 2) || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> #low_rating</span>`);
-      if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> #개선요청</span>`);
-      if (r.text_image_path) tags.push(`<span class="badge"><i class="fa-solid fa-image"></i> #100자+이미지</span>`);
+      if (Number(r.rating||0) >= 4 || t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> 1 POS</span>`);
+      if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> 2 SIZE</span>`);
+      if ((Number(r.rating||0) <= 2) || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> 3 NEG</span>`);
+      if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> 4 REQUEST</span>`);
 
       const prodImg = r.local_product_image
         ? `<img src="${esc(r.local_product_image)}" alt="">`
         : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
 
       const reviewThumb = r.local_review_thumb
-        ? `<img src="${esc(r.local_review_thumb)}" class="w-full max-h-56 object-contain rounded-lg bg-slate-50" />`
+        ? `<img src="${esc(r.local_review_thumb)}" class="w-20 h-20 object-contain rounded-lg bg-slate-50 border border-white/80" />`
         : ``;
 
-      const textImg = r.text_image_path
-        ? `<img src="${esc(r.text_image_path)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" />`
-        : ``;
+      const reviewUrl = String(r.review_original_url || r.product_url || "").trim();
+      const reviewLink = reviewUrl
+        ? `<a href="${esc(reviewUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline">리뷰 원문보기</a>`
+        : `<span class="text-xs font-black text-slate-400">리뷰 원문 링크 없음</span>`;
 
       return `
-        <div class="review-card hover:shadow-lg transition"
-             id="review-${esc(r.id)}">
-
+        <div class="review-card hover:shadow-lg transition" id="review-${esc(r.id)}">
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <div class="img-box">${prodImg}</div>
@@ -1697,7 +1446,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
                 </div>
               </div>
             </div>
-            <div class="text-right">
+            <div class="text-right shrink-0">
               <div class="text-xs font-black text-slate-700">★ ${esc(r.rating)}</div>
               <div class="text-[11px] font-bold text-slate-500 mt-1">${esc(fmtDT(r.created_at))}</div>
             </div>
@@ -1708,12 +1457,13 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
             ${tags.join("")}
           </div>
 
-          <div class="mt-3 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words line-clamp-3">
-            ${esc(r.text || "")}
+          <div class="mt-4 flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words">${esc(r.text || "")}</div>
+              <div class="mt-3">${reviewLink}</div>
+            </div>
+            ${reviewThumb ? `<div class="shrink-0">${reviewThumb}</div>` : ``}
           </div>
-
-          ${reviewThumb ? `<div class="mt-3">${reviewThumb}</div>` : ``}
-          ${textImg ? `<div class="mt-4"><div class="small-label text-blue-600 mb-2">100+ TEXT IMAGE</div>${textImg}</div>` : ``}
         </div>
       `;
     }
@@ -1775,100 +1525,47 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       sel.value = current;
     }
 
-    // ----------------------------
-    // ✅ D3 circle-pack mindmap
-    // ----------------------------
-    function renderCirclePack(container, items, opt){
-      opt = opt || {};
-      const onClick = opt.onClick || (()=>{});
-      const width = opt.width || container.clientWidth || 800;
-      const height = opt.height || container.clientHeight || 260;
-      const minR = opt.minR || 12;
-      const maxItems = opt.maxItems || 45;
-      const labelKey = opt.labelKey || "label";
-      const valueKey = opt.valueKey || "value";
-      const classKey = opt.classKey || "cls";
-      const idKey = opt.idKey || "id";
-
-      const rows = (items||[]).slice().filter(x=>x && x[labelKey]).slice(0, maxItems);
-      if (!rows.length){
-        container.innerHTML = `<div class="mindmap-empty">데이터가 없습니다.</div>`;
-        return;
+    function pickTopSentences(rows, mode){
+      const out = [];
+      const seen = new Set();
+      for (const r of rows){
+        const rating = Number(r.rating || 0);
+        const txt = String(r.text || "").trim().replace(/\s+/g, " ");
+        if (!txt) continue;
+        if (mode === "neg" && !(rating > 0 && rating <= 2)) continue;
+        if (mode === "pos" && !(rating >= 4)) continue;
+        const key = txt.slice(0, 120);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ text: txt, product: r.product_name || r.product_code || "-", code: r.product_code || "", url: r.review_original_url || r.product_url || "" });
+        if (out.length >= 2) break;
       }
-
-      // If D3 missing, fallback to simple list
-      if (!(window.d3 && d3.pack)){
-        container.innerHTML = rows.map(r=>`<span class="badge">${esc(r[labelKey])}</span>`).join(" ");
-        return;
-      }
-
-      container.innerHTML = "";
-      const svg = d3.select(container).append("svg")
-        .attr("width", width)
-        .attr("height", height)
-        .attr("viewBox", [0,0,width,height])
-        .style("background","transparent");
-
-      const root = d3.hierarchy({children: rows}).sum(d => Math.max(1, Number(d[valueKey]||1)));
-      const pack = d3.pack().size([width, height]).padding(6);
-      const nodes = pack(root).leaves();
-
-      const g = svg.append("g");
-
-      const node = g.selectAll("g")
-        .data(nodes)
-        .join("g")
-        .attr("transform", d=>`translate(${d.x},${d.y})`)
-        .style("cursor","pointer")
-        .on("click", (ev, d)=> onClick(d.data));
-
-      node.append("circle")
-        .attr("r", d=>Math.max(minR, d.r))
-        .attr("fill", d=>{
-          const cls = (d.data[classKey]||"neutral");
-          if (cls==="neg") return "rgba(239,68,68,0.12)";
-          if (cls==="pos") return "rgba(16,185,129,0.12)";
-          return "rgba(255,255,255,0.70)";
-        })
-        .attr("stroke", d=>{
-          const cls = (d.data[classKey]||"neutral");
-          if (cls==="neg") return "rgba(239,68,68,0.22)";
-          if (cls==="pos") return "rgba(16,185,129,0.22)";
-          return "rgba(148,163,184,0.26)";
-        })
-        .attr("stroke-width", 1.2);
-
-      node.append("text")
-        .attr("text-anchor","middle")
-        .attr("dominant-baseline","central")
-        .style("font-weight","900")
-        .style("fill","#0f172a")
-        .style("pointer-events","none")
-        .style("font-size", d=>{
-          const r = d.r;
-          return Math.max(10, Math.min(16, r/3.2)) + "px";
-        })
-        .text(d => String(d.data[labelKey]).slice(0, 10));
-
-      node.append("title")
-        .text(d=>{
-          const label = d.data[labelKey];
-          const v = d.data[valueKey];
-          return `${label} (${v})`;
-        });
+      return out;
     }
 
-    function getKwGraph(){
-      // ✅ meta 키 자동 fallback (builder 버전 차이 대응)
-      return (META?.kw_graph_3m) || (META?.kw_graph) || (META?.keyword_graph_3m) || (META?.keyword_graph) || {nodes:[], links:[]};
-    }
-    function getProductMindmap(){
-      return (META?.product_mindmap_3m) || (META?.product_mindmap) || [];
+    function sentenceListHTML(items, cls, emptyText){
+      if (!items.length){
+        return `<div class="sentence-item ${cls} text-slate-400">${esc(emptyText)}</div>`;
+      }
+      return items.map(item => {
+        const link = item.url
+          ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline mt-2 inline-block">리뷰 원문보기</a>`
+          : ``;
+        return `
+          <div class="sentence-item ${cls}">
+            <div class="text-sm font-black text-slate-900 whitespace-pre-wrap break-words">${esc(item.text)}</div>
+            <div class="text-[11px] font-bold text-slate-500 mt-2">${esc(item.product)}${item.code ? ` · ${esc(item.code)}` : ``}</div>
+            ${link}
+          </div>
+        `;
+      }).join("");
     }
 
     function renderMLSignals(allFiltered){
       const yday = kstDateStr(-1);
-      const yRows = allFiltered.filter(r => String(r.created_at||"").slice(0,10) === yday);
+      const yRows = allFiltered
+        .filter(r => String(r.created_at||"").slice(0,10) === yday)
+        .sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
       const yCnt = yRows.length;
 
       const yCountEl = document.getElementById("yCount");
@@ -1880,74 +1577,223 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         hint.textContent = (yCnt ? `Low/리스크 추정: ${lowCnt}건` : "어제 데이터가 없습니다.");
       }
 
-      const canvas = document.getElementById("mindmapCanvas");
-      if (canvas){
-        const graph = getKwGraph();
-        const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
-        const items = nodes
-          .slice()
-          .sort((a,b)=> Number(b.w||0)-Number(a.w||0))
-          .map(n=>({
-            id: n.id || n.label,
-            label: n.label || n.id,
-            value: Number(n.w||1),
-            cls: (n.pol || "neutral")
-          }));
+      const negEl = document.getElementById("yNegSentences");
+      const posEl = document.getElementById("yPosSentences");
+      if (negEl) negEl.innerHTML = sentenceListHTML(pickTopSentences(yRows, "neg"), "neg", "어제 부정 문장이 없습니다.");
+      if (posEl) posEl.innerHTML = sentenceListHTML(pickTopSentences(yRows, "pos"), "pos", "어제 긍정 문장이 없습니다.");
+    }
 
-        renderCirclePack(canvas, items, {
-          maxItems: 48,
-          onClick: (d)=> setSearchAndRender(d.id || d.label),
+    // -----------------------------
+    // Product ML (Cumulative): NEG=low rating
+    // -----------------------------
+    const STOPWORDS = new Set([
+      "그리고","그냥","진짜","너무","정말","완전","약간","조금","그래서","하지만","근데","저는","제가","저도","그런데",
+      "합니다","했어요","했는데","되요","돼요","입니다","있어요","없어요","같아요","같습니다","이거","이것","저것","그거",
+      "제품","구매","배송","포장","사진","후기","리뷰","사용","구입","주문","사이즈","size","컬럼비아","콜롬비아",
+      "the","and","to","of","is","are","was","were","it","this","that","with","for","on","in"
+    ]);
+
+    function normalizeText(s){
+      const t = String(s||"")
+        .replace(/[\r\n\t]+/g, " ")
+        .replace(/[0-9]/g, " ")
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .toLowerCase();
+      return t;
+    }
+
+    function extractTokens(text){
+      const t = normalizeText(text);
+      const raw = t.split(/\s+/).filter(Boolean);
+
+      const out = [];
+      for (const w of raw){
+        if (w.length < 2) continue;
+        if (STOPWORDS.has(w)) continue;
+        // 너무 긴 토큰/이상치 컷
+        if (w.length > 22) continue;
+        out.push(w);
+      }
+      return out;
+    }
+
+    function topSentences(texts, k=2){
+      const out = [];
+      const seen = new Set();
+      for (const tx of texts){
+        const s = String(tx || "").trim().replace(/\s+/g, " ");
+        if (!s) continue;
+        const key = s.slice(0, 120);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(s);
+        if (out.length >= k) break;
+      }
+      return out;
+    }
+
+    function buildProductMLRows(){
+      const winSel = document.getElementById("mlWindow");
+      const minSel = document.getElementById("mlMinReviews");
+      const winDays = Number(winSel?.value || 90);
+      const minReviews = Number(minSel?.value || 3);
+
+      const now = kstNow();
+      const cutoff = winDays > 0 ? new Date(now.getTime() - winDays*24*60*60*1000) : null;
+
+      // 탭 필터(Official/Naver)는 ML에도 동일 적용
+      let base = REVIEWS.slice();
+      if (uiState.sourceTab === "official") base = base.filter(r => r.source === "Official");
+      if (uiState.sourceTab === "naver") base = base.filter(r => r.source === "Naver");
+
+      // 기간 컷(누적 분석은 Daily chip의 날짜 선택과 분리)
+      if (cutoff){
+        base = base.filter(r => {
+          const d = parseDate10(r.created_at);
+          return d ? (d >= cutoff) : false;
         });
       }
 
-      const tr = document.getElementById("topicRow");
-      if (tr){
-        const topics = (META?.ml_topics_3m) || (META?.topics_3m) || [];
-        if (!Array.isArray(topics) || !topics.length){
-          tr.innerHTML = `<span class="text-xs font-bold text-slate-400">토픽 데이터 없음</span>`;
-        } else {
-          tr.innerHTML = topics.slice(0,8).map((t, idx) => {
-            const words = Array.isArray(t?.words) ? t.words : [];
-            const key = words[0] || "";
-            const title = words.slice(0,4).join(", ");
-            return `<span class="badge" title="${esc(title)}" onclick="setSearchAndRender('${esc(key)}')"><i class="fa-solid fa-circle-nodes"></i> Topic ${idx+1}: ${esc(key||"-")}</span>`;
-          }).join("");
-        }
-      }
+      // product별 그룹
+      const byProd = new Map();
+      for (const r of base){
+        const code = String(r.product_code || "-").trim() || "-";
+        if (code === "-") continue;
 
-      // ✅ Product mindmap restore
-      const pCanvas = document.getElementById("productMindmapCanvas");
-      const pSection = document.getElementById("productMindmapSection");
-      if (pCanvas && pSection){
-        const pm = getProductMindmap();
-        if (!Array.isArray(pm) || !pm.length){
-          // hide if none
-          pSection.style.display = "none";
-        } else {
-          pSection.style.display = "";
-          const items = pm
-            .slice()
-            .sort((a,b)=> Number(b.reviews_1y||0) - Number(a.reviews_1y||0))
-            .slice(0, 45)
-            .map(x=>{
-              const neg = Array.isArray(x.neg_sentences) ? x.neg_sentences.length : 0;
-              const pos = Array.isArray(x.pos_sentences) ? x.pos_sentences.length : 0;
-              const cls = (neg>pos) ? "neg" : (pos>neg ? "pos" : "neutral");
-              return {
-                id: x.product_code || x.product_name,
-                label: x.product_name || x.product_code || "-",
-                value: Number(x.reviews_1y||1),
-                cls
-              };
-            });
-
-          renderCirclePack(pCanvas, items, {
-            height: 320,
-            maxItems: 45,
-            onClick: (d)=> setProductAndRender(d.id),
+        if (!byProd.has(code)){
+          byProd.set(code, {
+            product_code: code,
+            product_name: r.product_name || code,
+            product_url: r.product_url || "",
+            local_product_image: r.local_product_image || "",
+            all: [],
+            neg: [], // ★1~2
+            pos: [], // ★4~5
+            cnt: 0,
+            negCnt: 0,
+            posCnt: 0,
+            lowRate: 0,
           });
         }
+        const g = byProd.get(code);
+        g.cnt += 1;
+        const rating = Number(r.rating||0);
+        const text = String(r.text||"").trim();
+        if (text) g.all.push(text);
+
+        // ✅ NEG: 저평점 기반 (★1~2)
+        if (rating > 0 && rating <= 2){
+          g.negCnt += 1;
+          if (text) g.neg.push(text);
+        }
+        // POS: ★4~5
+        if (rating >= 4){
+          g.posCnt += 1;
+          if (text) g.pos.push(text);
+        }
       }
+
+      let rows = Array.from(byProd.values())
+        .filter(g => g.cnt >= minReviews)
+        .map(g => {
+          g.lowRate = Math.round((g.negCnt / Math.max(1,g.cnt))*100);
+          g.negSentences = topSentences(g.neg, 2);
+          g.posSentences = topSentences(g.pos, 2);
+          return g;
+        });
+
+      // 정렬: (1) lowRate desc (2) total reviews desc
+      rows.sort((a,b)=> (b.lowRate - a.lowRate) || (b.cnt - a.cnt));
+
+      return { rows, winDays, minReviews };
+    }
+
+    function mlSentenceHTML(items, tone, emptyText){
+      if (!items || !items.length){
+        return `<div class="sentence-item ${tone} text-slate-400">${esc(emptyText)}</div>`;
+      }
+      return items.map((txt, idx) => `
+        <div class="sentence-item ${tone}">
+          <div class="text-[11px] font-black ${tone === "neg" ? "text-red-700" : "text-emerald-700"} mb-1">${tone === "neg" ? "NEGATIVE" : "POSITIVE"} ${idx + 1}</div>
+          <div class="whitespace-pre-wrap break-words">${esc(txt)}</div>
+        </div>
+      `).join("");
+    }
+
+    function mlCardHTML(g){
+      const img = g.local_product_image
+        ? `<img src="${esc(g.local_product_image)}" alt="">`
+        : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
+
+      const url = g.product_url
+        ? `<a href="${esc(g.product_url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>`
+        : `<span class="text-xs font-bold text-slate-400">상품 URL 없음</span>`;
+
+      return `
+        <div class="ml-card">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="img-box">${img}</div>
+              <div class="min-w-0">
+                <div class="font-black text-slate-900 line-clamp-2">${esc(g.product_name)}</div>
+                <div class="text-xs font-bold text-slate-500 mt-1">code: ${esc(g.product_code)} · reviews: ${esc(g.cnt)}</div>
+                <div class="mt-1">${url}</div>
+              </div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-xs font-black text-slate-700">LOW(★1~2)</div>
+              <div class="text-2xl font-black text-red-700">${esc(g.lowRate)}%</div>
+              <div class="text-[11px] font-bold text-slate-500 mt-1">neg ${esc(g.negCnt)} · pos ${esc(g.posCnt)}</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            <div>
+              <div class="text-xs font-black text-slate-500 mb-2">NEGATIVE 문장 2개 (★1~2)</div>
+              <div class="sentence-list">${mlSentenceHTML(g.negSentences, "neg", "NEGATIVE 문장이 없습니다.")}</div>
+            </div>
+            <div>
+              <div class="text-xs font-black text-slate-500 mb-2">POSITIVE 문장 2개 (★4~5)</div>
+              <div class="sentence-list">${mlSentenceHTML(g.posSentences, "pos", "POSITIVE 문장이 없습니다.")}</div>
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center gap-2 flex-wrap">
+            <button class="chip" onclick="focusProduct('${esc(g.product_code)}')">
+              <i class="fa-solid fa-filter mr-2"></i>이 제품으로 Daily Feed 보기
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function focusProduct(code){
+      const sel = document.getElementById("productSelect");
+      if (sel){
+        sel.value = code;
+      }
+      // Daily chip on + yesterday 유지
+      renderAll();
+      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
+    }
+
+    function renderProductML(){
+      const grid = document.getElementById("mlProductGrid");
+      const no = document.getElementById("mlNoData");
+      if (!grid || !no) return;
+
+      const { rows } = buildProductMLRows();
+
+      if (!rows.length){
+        grid.innerHTML = "";
+        no.classList.remove("hidden");
+        return;
+      }
+
+      no.classList.add("hidden");
+      // 너무 길어지면 상위 20개만
+      const top = rows.slice(0, 20);
+      grid.innerHTML = top.map(mlCardHTML).join("");
     }
 
     function renderAll(){
@@ -1956,12 +1802,12 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       renderSizeSelect();
 
       const filtered = getFilteredReviews();
-      const metrics = calcMetrics(filtered);
 
       renderMLSignals(filtered);
-      renderSummary();
-      renderRanking(metrics);
       renderDailyFeed(filtered);
+
+      // ✅ Product ML is cumulative (independent of daily date)
+      renderProductML();
     }
 
     async function boot(){
@@ -1978,6 +1824,8 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         if (dayInput){
           if (META?.period_start) dayInput.min = META.period_start;
           if (META?.period_end) dayInput.max = META.period_end;
+
+          // ✅ default = yesterday(KST)
           if (!dayInput.value){
             dayInput.value = kstDateStr(-1);
           }
@@ -1990,8 +1838,9 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     boot();
   </script>
 </body>
-</html>
-"""
+</html>"""
+
+
 
 
 def load_html_template(cli_template: Optional[str]) -> str:
