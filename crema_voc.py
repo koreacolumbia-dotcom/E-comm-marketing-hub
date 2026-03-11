@@ -431,6 +431,11 @@ SIZE_KEYWORDS = [
     "가슴", "발볼", "헐렁", "오버", "업", "다운", "한치수", "반치수"
 ]
 
+REQUEST_KEYWORDS = [
+    "아쉬워", "아쉽", "개선", "보완", "불편", "불편해", "불편함",
+    "별로", "실망", "교환", "반품", "환불", "문의", "수정", "개선요청"
+]
+
 def tokenize_ko(text: str) -> List[str]:
     toks = re.findall(r"[가-힣A-Za-z0-9]+", (text or "").lower())
     return [t for t in toks if len(t) >= 2 and t not in STOPWORDS]
@@ -694,8 +699,12 @@ def flatten_review(
     tags: List[str] = []
     if score <= 2:
         tags.append("low")
+    if score >= 4:
+        tags.append("pos")
     if has_any_kw(msg, SIZE_KEYWORDS) or fit_q in ("조금 작아요", "작아요", "조금 커요", "커요"):
         tags.append("size")
+    if has_any_kw(msg, REQUEST_KEYWORDS):
+        tags.append("req")
 
     size_dir = classify_size_direction(msg) if "size" in tags else "other"
 
@@ -713,6 +722,7 @@ def flatten_review(
         "product_code": r.get("product_code") or "",
         "product_name": product_name,
         "product_url": product_url,
+        "review_original_url": product_url,
         "rating": score,
         "created_at": r.get("created_at"),
         "text": msg,
