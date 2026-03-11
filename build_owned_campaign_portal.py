@@ -478,6 +478,7 @@ def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwr
             day = str(day)
         wanted_days.append(day)
         bundle = build_day_bundle(g, day)
+        bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
         out = owned_dir / f"owned_{day}.json"
         if overwrite or (not out.exists()):
             write_json(out, bundle)
@@ -485,6 +486,78 @@ def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwr
     # available_dates.json (include all present on disk after writing)
     dates = list_owned_dates(owned_dir)
     write_json(owned_dir / "available_dates.json", {"available_dates": dates})
+
+
+
+
+# -----------------------------
+# Previous-year merge helper
+# -----------------------------
+def _unique_dict_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen = set()
+    out: List[Dict[str, Any]] = []
+    for row in rows or []:
+        try:
+            key = json.dumps(row, ensure_ascii=False, sort_keys=True, default=str)
+        except Exception:
+            key = str(row)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+    return out
+
+
+def _filter_exact_year_rows(rows: List[Dict[str, Any]], year_str: str) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for row in rows or []:
+        row_year = str((row or {}).get("year") or "").strip()
+        row_date = str((row or {}).get("date") or "").strip()
+        if row_year == year_str or row_date.startswith(f"{year_str}-"):
+            out.append(row)
+    return out
+
+
+def merge_previous_year_bundle_rows(owned_dir: Path, bundle: Dict[str, Any], day: str) -> Dict[str, Any]:
+    """
+    Current-day OWNED bundle에 전년도 동일 MM-DD bundle의 rows를 합쳐 넣는다.
+
+    Why:
+    - build_summary.py의 OWNED YTD YoY는 latest owned_YYYY-MM-DD.json 하나만 읽는다.
+    - 따라서 latest bundle 안에 당해년도 rows + 전년도 same-MM-DD rows가 같이 있어야
+      LY / YoY 계산이 정상 동작한다.
+
+    Example:
+    - writing owned_2026-03-09.json
+    - also load owned_2025-03-09.json if exists
+    - merge only 2025 rows from that file into current bundle
+    """
+    try:
+        cur_d = parse_ymd(day)
+    except Exception:
+        return bundle
+
+    prev_day = f"{cur_d.year - 1}-{cur_d.strftime('%m-%d')}"
+    prev_path = owned_dir / f"owned_{prev_day}.json"
+    if not prev_path.exists():
+        return bundle
+
+    try:
+        prev_obj = json.loads(prev_path.read_text(encoding="utf-8"))
+    except Exception:
+        return bundle
+
+    prev_year = str(cur_d.year - 1)
+    cur_campaigns = list(bundle.get("campaigns") or [])
+    cur_products = list(bundle.get("products") or [])
+
+    prev_campaigns = _filter_exact_year_rows(list(prev_obj.get("campaigns") or []), prev_year)
+    prev_products = _filter_exact_year_rows(list(prev_obj.get("products") or []), prev_year)
+
+    bundle["campaigns"] = _unique_dict_rows(cur_campaigns + prev_campaigns)
+    bundle["products"] = _unique_dict_rows(cur_products + prev_products)
+    bundle["previous_year_merged_from"] = str(prev_path)
+    return bundle
 
 
 def parse_args() -> argparse.Namespace:
