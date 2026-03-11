@@ -198,68 +198,10 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
-  
-
-    .mobile-only{ display:none; }
-    .desktop-only{ display:block; }
-    .mobile-card-list{ display:none; }
-    .mobile-section-title{ font-size:11px; font-weight:900; letter-spacing:.16em; text-transform:uppercase; color:#94a3b8; margin-bottom:10px; }
-    .mobile-card{
-      border: 1px solid rgba(148,163,184,0.20);
-      background: rgba(255,255,255,0.92);
-      border-radius: 18px;
-      padding: 14px;
-      box-shadow: 0 10px 28px rgba(0,0,0,0.05);
-    }
-    .mobile-kv{ display:grid; grid-template-columns: 88px 1fr; gap:8px; align-items:start; }
-    .mobile-kv .k{ font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:#94a3b8; }
-    .mobile-kv .v{ font-size:13px; font-weight:800; color:#0f172a; word-break:break-word; }
-    .mobile-card .headline{ font-size:14px; font-weight:900; line-height:1.4; color:#0f172a; }
-    .mobile-card .subline{ font-size:12px; font-weight:800; color:#64748b; }
-    .mobile-pills{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
-    .mobile-pill{ display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px; background:rgba(0,45,114,0.06); color:#002d72; font-size:12px; font-weight:900; }
-    .fab-open{
-      position:fixed; right:14px; bottom:76px; z-index:60; display:none;
-      border-radius:999px; padding:12px 14px; background:#002d72; color:#fff; font-size:12px; font-weight:900;
-      box-shadow:0 18px 36px rgba(0,45,114,0.22);
-    }
-    .mobile-bottom-nav{
-      position:fixed; left:10px; right:10px; bottom:10px; z-index:55; display:none;
-      background:rgba(255,255,255,0.96); backdrop-filter: blur(16px);
-      border:1px solid rgba(148,163,184,0.18); border-radius:18px; box-shadow:0 18px 44px rgba(0,0,0,0.12);
-      padding:8px; grid-template-columns:repeat(4,1fr); gap:8px;
-    }
-    .mobile-bottom-nav a{
-      text-align:center; padding:10px 8px; border-radius:14px; background:rgba(248,250,252,0.95); font-size:11px; font-weight:900; color:#0f172a;
-    }
-    .embed-mobile body, body.embed-mobile{ overscroll-behavior-y:contain; }
-    @media (max-width: 768px){
-      body{ padding:14px !important; }
-      .glass{ padding:14px !important; border-radius:22px; }
-      .kpi-card, .mini-card{ border-radius:16px; padding:12px 13px; }
-      .kpi-value{ font-size:18px; }
-      .mini-value{ font-size:15px; }
-      .small-label{ letter-spacing:.16em; }
-      .desktop-table-wrap{ display:none !important; }
-      .mobile-card-list{ display:grid; gap:10px; }
-      .fab-open{ display:inline-flex; align-items:center; }
-      .mobile-bottom-nav{ display:grid; }
-      .mobile-only{ display:block; }
-      .desktop-only{ display:none; }
-      .chip, .btn, .toggle{ min-height:42px; padding:10px 12px; }
-      .pill{ width:100%; justify-content:flex-start; white-space:normal; border-radius:16px; padding:10px 12px; }
-      input[type="date"], input[type="text"], select{ min-height:44px; font-size:13px; }
-      .max-w-7xl{ max-width:100% !important; }
-      .text-4xl{ font-size:1.8rem !important; line-height:1.15 !important; }
-      .overflow-x-auto{ -webkit-overflow-scrolling:touch; }
-      #termSection, #productSection{ scroll-margin-top:12px; }
-      body{ padding-bottom:104px !important; }
-    }
-
   </style>
 </head>
 
-<body class="p-6 md:p-10" id="top">
+<body class="p-6 md:p-10">
   <div class="max-w-7xl mx-auto">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
@@ -268,7 +210,6 @@
       </div>
       <div class="flex items-center gap-3 flex-wrap justify-end">
         <button id="btnReload" class="btn btn-primary" type="button">새로고침</button>
-        <a id="btnOpenStandalone" class="fab-open" href="#" target="_top" rel="noopener">전체화면</a>
       </div>
     </div>
 
@@ -278,7 +219,7 @@
       <button id="noticeClose" class="x" type="button">닫기</button>
     </div>
 
-    <div class="glass p-6" id="filtersSection">
+    <div class="glass p-6">
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
@@ -339,32 +280,40 @@
           <div class="small-label">Channel totals</div>
           <div class="muted font-semibold text-sm" id="periodText">-</div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <div class="mini-card">
             <div class="mini-title">All</div>
             <div class="mini-value"><span id="totAllSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totAllRevenue">-</span></div>
+            <div class="mini-sub">Send count: <span id="totAllSendCount">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totAllLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">EDM</div>
             <div class="mini-value"><span id="totEdmSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totEdmRevenue">-</span></div>
+            <div class="mini-sub">Send count: <span id="totEdmSendCount">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totEdmLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">LMS</div>
             <div class="mini-value"><span id="totLmsSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totLmsRevenue">-</span></div>
+            <div class="mini-sub">Send count: <span id="totLmsSendCount">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totLmsLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">KAKAO</div>
             <div class="mini-value"><span id="totKakaoSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totKakaoRevenue">-</span></div>
+            <div class="mini-sub">Send count: <span id="totKakaoSendCount">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totKakaoLeverage">-</span></div>
           </div>
         </div>
       </div>
 
       <!-- YTD (✅ 디폴트: 항상 표시 / 올해누적 기준으로 계산) -->
-      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -376,6 +325,16 @@
           <div id="ytdTyRevenueSub" class="kpi-sub">-</div>
         </div>
         <div class="kpi-card">
+          <div class="kpi-title">YTD · TY Send count</div>
+          <div id="ytdTySendCount" class="kpi-value">-</div>
+          <div id="ytdTySendCountSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · TY Avg leverage</div>
+          <div id="ytdTyLeverage" class="kpi-value">-</div>
+          <div id="ytdTyLeverageSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
           <div class="kpi-title">YTD · LY Sessions</div>
           <div id="ytdLySessions" class="kpi-value">-</div>
           <div id="ytdLySessionsSub" class="kpi-sub">-</div>
@@ -385,10 +344,20 @@
           <div id="ytdLyRevenue" class="kpi-value">-</div>
           <div id="ytdLyRevenueSub" class="kpi-sub">-</div>
         </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · LY Send count</div>
+          <div id="ytdLySendCount" class="kpi-value">-</div>
+          <div id="ytdLySendCountSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">YTD · LY Avg leverage</div>
+          <div id="ytdLyLeverage" class="kpi-value">-</div>
+          <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
+        </div>
       </div>
 
       <!-- KPI (selection) -->
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-5 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
         <div class="kpi-card">
           <div class="kpi-title">Sessions</div>
           <div id="kSessions" class="kpi-value">-</div>
@@ -413,6 +382,29 @@
           <div class="kpi-title">Items</div>
           <div id="kItems" class="kpi-value">-</div>
           <div class="kpi-sub" id="kItemsSub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Send count</div>
+          <div id="kSendCount" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kSendCountSub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Avg leverage</div>
+          <div id="kLeverage" class="kpi-value">-</div>
+          <div class="kpi-sub" id="kLeverageSub">-</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="kpi-card">
+          <div class="kpi-title">Message title</div>
+          <div id="msgTitle" class="kpi-value text-base leading-snug">-</div>
+          <div class="kpi-sub">엑셀/레포 연동 전까지는 데이터가 없으면 안내 문구로 표시</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Message content</div>
+          <div id="msgBody" class="kpi-value text-base leading-snug">-</div>
+          <div class="kpi-sub">향후 message_body / content 필드가 들어오면 자동 반영</div>
         </div>
       </div>
 
@@ -466,7 +458,7 @@
           <div class="muted font-semibold text-sm">선택한 날짜(MMDD) 그룹의 개별 TERM 목록</div>
         </div>
 
-        <div class="overflow-x-auto overflow-y-visible rounded-[18px] desktop-table-wrap">
+        <div class="overflow-x-auto overflow-y-visible rounded-[18px]">
           <table>
             <thead>
               <tr>
@@ -477,15 +469,15 @@
                 <th style="min-width:120px">Purchases</th>
                 <th style="min-width:140px">Revenue</th>
                 <th style="min-width:120px">Items</th>
+                <th style="min-width:120px">Send count</th>
+                <th style="min-width:140px">Avg leverage</th>
               </tr>
             </thead>
             <tbody id="termTb">
-              <tr><td colspan="7" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>
+              <tr><td colspan="9" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>
             </tbody>
           </table>
         </div>
-
-        <div id="termCards" class="mobile-card-list"></div>
 
         <div class="muted font-semibold text-xs mt-2">
           TIP: 행 클릭 → 해당 (channel+campaign+term) 단위로 KPI/상품이 드릴다운돼.
@@ -493,7 +485,6 @@
       </div>
 
       <!-- Products -->
-      <div id="productSection">
       <div class="flex items-center gap-2 mb-2">
         <div class="small-label">Products</div>
         <div id="selMeta" class="pill">
@@ -503,7 +494,7 @@
         </div>
       </div>
 
-      <div class="overflow-x-auto overflow-y-visible rounded-[18px] desktop-table-wrap">
+      <div class="overflow-x-auto overflow-y-visible rounded-[18px]">
         <table>
           <thead>
             <tr>
@@ -519,22 +510,11 @@
         </table>
       </div>
 
-      <div id="productCards" class="mobile-card-list"></div>
-
       <div class="muted font-semibold text-xs mt-3">
         데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · WEEK/RANGE는 클라이언트 합산
       </div>
-      </div>
     </div>
   </div>
-
-
-  <nav class="mobile-bottom-nav" aria-label="모바일 빠른 이동">
-    <a href="#top">TOP</a>
-    <a href="#filtersSection">필터</a>
-    <a href="#termSection">TERM</a>
-    <a href="#productSection">상품</a>
-  </nav>
 
 <script>
 (function(){
@@ -587,21 +567,37 @@
   const ytdCards = document.getElementById('ytdCards');
   const ytdTySessions = document.getElementById('ytdTySessions');
   const ytdTyRevenue  = document.getElementById('ytdTyRevenue');
+  const ytdTySendCount = document.getElementById('ytdTySendCount');
+  const ytdTyLeverage = document.getElementById('ytdTyLeverage');
   const ytdLySessions = document.getElementById('ytdLySessions');
   const ytdLyRevenue  = document.getElementById('ytdLyRevenue');
+  const ytdLySendCount = document.getElementById('ytdLySendCount');
+  const ytdLyLeverage  = document.getElementById('ytdLyLeverage');
   const ytdTySessionsSub = document.getElementById('ytdTySessionsSub');
   const ytdTyRevenueSub  = document.getElementById('ytdTyRevenueSub');
+  const ytdTySendCountSub = document.getElementById('ytdTySendCountSub');
+  const ytdTyLeverageSub  = document.getElementById('ytdTyLeverageSub');
   const ytdLySessionsSub = document.getElementById('ytdLySessionsSub');
   const ytdLyRevenueSub  = document.getElementById('ytdLyRevenueSub');
+  const ytdLySendCountSub = document.getElementById('ytdLySendCountSub');
+  const ytdLyLeverageSub  = document.getElementById('ytdLyLeverageSub');
 
   const totAllSessions = document.getElementById('totAllSessions');
   const totAllRevenue = document.getElementById('totAllRevenue');
+  const totAllSendCount = document.getElementById('totAllSendCount');
+  const totAllLeverage = document.getElementById('totAllLeverage');
   const totEdmSessions = document.getElementById('totEdmSessions');
   const totEdmRevenue = document.getElementById('totEdmRevenue');
+  const totEdmSendCount = document.getElementById('totEdmSendCount');
+  const totEdmLeverage = document.getElementById('totEdmLeverage');
   const totLmsSessions = document.getElementById('totLmsSessions');
   const totLmsRevenue = document.getElementById('totLmsRevenue');
+  const totLmsSendCount = document.getElementById('totLmsSendCount');
+  const totLmsLeverage = document.getElementById('totLmsLeverage');
   const totKakaoSessions = document.getElementById('totKakaoSessions');
   const totKakaoRevenue = document.getElementById('totKakaoRevenue');
+  const totKakaoSendCount = document.getElementById('totKakaoSendCount');
+  const totKakaoLeverage = document.getElementById('totKakaoLeverage');
 
   const wrapEDMDate = document.getElementById('wrapEDMDate');
   const wrapLMSDate = document.getElementById('wrapLMSDate');
@@ -620,9 +616,6 @@
   const termTb = document.getElementById('termTb');
 
   const tb = document.getElementById('tb');
-  const termCards = document.getElementById('termCards');
-  const productCards = document.getElementById('productCards');
-  const btnOpenStandalone = document.getElementById('btnOpenStandalone');
 
   const kSessions = document.getElementById('kSessions');
   const kUsers = document.getElementById('kUsers');
@@ -634,6 +627,12 @@
   const kCvrSub = document.getElementById('kCvrSub');
   const kAovSub = document.getElementById('kAovSub');
   const kItemsSub = document.getElementById('kItemsSub');
+  const kSendCount = document.getElementById('kSendCount');
+  const kSendCountSub = document.getElementById('kSendCountSub');
+  const kLeverage = document.getElementById('kLeverage');
+  const kLeverageSub = document.getElementById('kLeverageSub');
+  const msgTitle = document.getElementById('msgTitle');
+  const msgBody = document.getElementById('msgBody');
 
   const selChannel = document.getElementById('selChannel');
   const selCampaign  = document.getElementById('selCampaign');
@@ -652,6 +651,50 @@
     const x = Number(n);
     if(!isFinite(x)) return '-';
     return x.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+
+  function fmtRatio(n){
+    if(n === null || n === undefined) return '-';
+    const x = Number(n);
+    if(!isFinite(x)) return '-';
+    return x.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+
+  function getSendKey(r){
+    return `${r.date || ''}||${r.channel || ''}||${r.campaign || ''}||${r.term || ''}`;
+  }
+
+  function countDistinctSends(rows){
+    return new Set((rows || []).map(getSendKey)).size;
+  }
+
+  function calcAvgLeverage(rows){
+    const sendCount = countDistinctSends(rows);
+    if(!sendCount) return 0;
+    const sessions = (rows || []).reduce((acc, r)=> acc + Number(r.sessions || 0), 0);
+    return sessions / sendCount;
+  }
+
+  function summarizeOwnedRows(rows){
+    const agg = aggregateRow(rows || []);
+    const sendCount = countDistinctSends(rows || []);
+    const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
+    return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
+  }
+
+  function getMessageMeta(rows){
+    const arr = rows || [];
+    const withMeta = arr.find(r => (r.message_title || r.title || r.message_body || r.content));
+    if(!withMeta){
+      return {
+        title: '추후 엑셀/레포 연동 시 노출',
+        body: '현재 JSON에는 message title/content 필드가 없어 placeholder로 표시 중',
+      };
+    }
+    return {
+      title: withMeta.message_title || withMeta.title || '-',
+      body: withMeta.message_body || withMeta.content || '-',
+    };
   }
 
   function ymd(d){
@@ -836,25 +879,36 @@
   function updateChannelTotals(){
     periodText.textContent = `· ${periodLabel()}`;
     if(!RAW || !RAW.kpi){
-      totAllSessions.textContent='-'; totAllRevenue.textContent='-';
-      totEdmSessions.textContent='-'; totEdmRevenue.textContent='-';
-      totLmsSessions.textContent='-'; totLmsRevenue.textContent='-';
-      totKakaoSessions.textContent='-'; totKakaoRevenue.textContent='-';
+      [totAllSessions, totAllRevenue, totAllSendCount, totAllLeverage,
+       totEdmSessions, totEdmRevenue, totEdmSendCount, totEdmLeverage,
+       totLmsSessions, totLmsRevenue, totLmsSendCount, totLmsLeverage,
+       totKakaoSessions, totKakaoRevenue, totKakaoSendCount, totKakaoLeverage].forEach(el=>{ if(el) el.textContent='-'; });
       return;
     }
-    const all = aggregateRow(RAW.kpi);
-    const edm = aggregateRow(RAW.kpi.filter(r=>r.channel==='EDM'));
-    const lms = aggregateRow(RAW.kpi.filter(r=>r.channel==='LMS'));
-    const kakao = aggregateRow(RAW.kpi.filter(r=>r.channel==='KAKAO'));
+    const all = summarizeOwnedRows(RAW.kpi);
+    const edm = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='EDM'));
+    const lms = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='LMS'));
+    const kakao = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='KAKAO'));
 
     totAllSessions.textContent = fmt(all.sessions);
     totAllRevenue.textContent = fmtMoney(all.revenue);
+    totAllSendCount.textContent = fmt(all.send_count);
+    totAllLeverage.textContent = fmtRatio(all.avg_leverage);
+
     totEdmSessions.textContent = fmt(edm.sessions);
     totEdmRevenue.textContent = fmtMoney(edm.revenue);
+    totEdmSendCount.textContent = fmt(edm.send_count);
+    totEdmLeverage.textContent = fmtRatio(edm.avg_leverage);
+
     totLmsSessions.textContent = fmt(lms.sessions);
     totLmsRevenue.textContent = fmtMoney(lms.revenue);
+    totLmsSendCount.textContent = fmt(lms.send_count);
+    totLmsLeverage.textContent = fmtRatio(lms.avg_leverage);
+
     totKakaoSessions.textContent = fmt(kakao.sessions);
     totKakaoRevenue.textContent = fmtMoney(kakao.revenue);
+    totKakaoSendCount.textContent = fmt(kakao.send_count);
+    totKakaoLeverage.textContent = fmtRatio(kakao.avg_leverage);
   }
 
   function renderCampaignButtons(){
@@ -867,7 +921,7 @@
     wrapOtherChannels.innerHTML = '';
 
     if(!KPI.length){
-      const empty = `<div class="muted font-semibold text-sm">결과가 없슴다..</div>`;
+      const empty = `<div class="muted font-semibold text-sm">결과가 없어. (필터가 너무 좁거나, 해당 기간에 데이터가 없을 수 있어)</div>`;
       wrapEDMDate.innerHTML = empty;
       wrapLMSDate.innerHTML = empty;
       wrapKakaoDate.innerHTML = empty;
@@ -1002,7 +1056,10 @@
   function aggregateKPIForSelected(){
     if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
+      kSendCount.textContent='-'; kLeverage.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
+      kSendCountSub.textContent='-'; kLeverageSub.textContent='-';
+      msgTitle.textContent='-'; msgBody.textContent='-';
       selChannel.textContent='-'; selCampaign.textContent='-'; selTerm.textContent='-';
       return;
     }
@@ -1021,11 +1078,17 @@
     }
 
     const a = aggregateRow(rows);
+    const sendCount = countDistinctSends(rows);
+    const leverage = sendCount ? (a.sessions / sendCount) : 0;
+    const meta = getMessageMeta(rows);
+
     kSessions.textContent = fmt(a.sessions);
     kUsers.textContent = fmt(a.users);
     kPurchases.textContent = fmt(a.purchases);
     kRevenue.textContent = fmtMoney(a.revenue);
     kItems.textContent = fmt(a.items_purchased);
+    kSendCount.textContent = fmt(sendCount);
+    kLeverage.textContent = fmtRatio(leverage);
 
     const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
     const aov = a.purchases ? (a.revenue/a.purchases) : 0;
@@ -1036,84 +1099,10 @@
     kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
-  }
-
-
-
-  function isMobileLike(){
-    return window.matchMedia('(max-width: 768px)').matches;
-  }
-  function isEmbedded(){
-    try{ return window.self !== window.top; }catch(e){ return true; }
-  }
-  function applyMobileEmbedMode(){
-    const active = isMobileLike() && isEmbedded();
-    document.body.classList.toggle('embed-mobile', active);
-    if(btnOpenStandalone){
-      btnOpenStandalone.style.display = active ? 'inline-flex' : 'none';
-      btnOpenStandalone.href = window.location.href;
-    }
-  }
-  function esc(s){
-    return String(s == null ? '' : s)
-      .replace(/&/g,'&amp;')
-      .replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;')
-      .replace(/'/g,'&#39;');
-  }
-  function renderEmptyCards(el, msg){
-    if(!el) return;
-    el.innerHTML = `<div class="mobile-card"><div class="subline">${esc(msg)}</div></div>`;
-  }
-  function renderTermCards(rows){
-    if(!termCards) return;
-    if(!rows || !rows.length){
-      renderEmptyCards(termCards, '날짜 그룹을 선택하면 TERM 목록이 표시돼.');
-      return;
-    }
-    termCards.innerHTML = rows.map(r => `
-      <button class="mobile-card text-left" type="button"
-        data-channel="${esc(r.channel)}"
-        data-campaign="${encodeURIComponent(r.campaign||'')}"
-        data-term="${encodeURIComponent(r.term||'')}">
-        <div class="headline">${esc(r.term || '-')}</div>
-        <div class="subline mt-1">${esc(r.campaign || '-')}</div>
-        <div class="mobile-pills">
-          <span class="mobile-pill">Sessions ${fmt(r.sessions||0)}</span>
-          <span class="mobile-pill">Users ${fmt(r.users||0)}</span>
-          <span class="mobile-pill">Purchases ${fmt(r.purchases||0)}</span>
-        </div>
-        <div class="mobile-kv mt-3"><div class="k">Revenue</div><div class="v">${fmtMoney(r.revenue||0)}</div></div>
-        <div class="mobile-kv mt-2"><div class="k">Items</div><div class="v">${fmt(r.items_purchased||0)}</div></div>
-      </button>
-    `).join('');
-    Array.from(termCards.querySelectorAll('button[data-channel]')).forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        selectSingle(
-          btn.getAttribute('data-channel'),
-          decodeURIComponent(btn.getAttribute('data-campaign')||''),
-          decodeURIComponent(btn.getAttribute('data-term')||'')
-        );
-      });
-    });
-  }
-  function renderProductCards(rows){
-    if(!productCards) return;
-    if(!rows || !rows.length){
-      renderEmptyCards(productCards, '구매 상품 데이터가 없어.');
-      return;
-    }
-    productCards.innerHTML = rows.map(r => `
-      <div class="mobile-card">
-        <div class="headline">${esc(r.item_name || '-')}</div>
-        <div class="mobile-kv mt-3"><div class="k">Item ID</div><div class="v mono">${esc(r.item_id || '-')}</div></div>
-        <div class="mobile-pills">
-          <span class="mobile-pill">Items ${fmt(r.prod_items||0)}</span>
-          <span class="mobile-pill">Revenue ${fmtMoney(r.prod_revenue||0)}</span>
-        </div>
-      </div>
-    `).join('');
+    kSendCountSub.textContent = `Distinct sends in selected scope`;
+    kLeverageSub.textContent = `Sessions / send count`;
+    msgTitle.textContent = meta.title || '-';
+    msgBody.textContent = meta.body || '-';
   }
 
   function renderTerms(){
@@ -1121,8 +1110,7 @@
 
     if(!SELECTED || SELECTED.type!=='group' || !RAW){
       termSection.classList.add('hidden');
-      termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
-      renderEmptyCards(termCards, '날짜 그룹을 선택하면 TERM 목록이 표시돼.');
+      termTb.innerHTML = `<tr><td colspan="9" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
       return;
     }
 
@@ -1132,8 +1120,7 @@
     termSection.classList.remove('hidden');
 
     if(!sourceRows.length){
-      termTb.innerHTML = `<tr><td colspan="7" class="muted font-semibold">해당 날짜 그룹에 TERM 데이터가 없슴다..</td></tr>`;
-      renderEmptyCards(termCards, '해당 날짜 그룹에 TERM 데이터가 없슴다..');
+      termTb.innerHTML = `<tr><td colspan="9" class="muted font-semibold">해당 날짜 그룹에 TERM 데이터가 없어.</td></tr>`;
       return;
     }
 
@@ -1153,6 +1140,9 @@
           purchases: 0,
           revenue: 0,
           items_purchased: 0,
+          send_keys: new Set(),
+          message_title: '',
+          message_body: '',
         });
       }
 
@@ -1162,6 +1152,9 @@
       cur.purchases += Number(r.purchases || 0);
       cur.revenue += Number(r.revenue || 0);
       cur.items_purchased += Number(r.items_purchased || 0);
+      cur.send_keys.add(getSendKey(r));
+      if(!cur.message_title && (r.message_title || r.title)) cur.message_title = r.message_title || r.title || '';
+      if(!cur.message_body && (r.message_body || r.content)) cur.message_body = r.message_body || r.content || '';
     }
 
     const rows = Array.from(grouped.values())
@@ -1171,7 +1164,10 @@
         return Number(b.revenue||0) - Number(a.revenue||0);
       });
 
-    termTb.innerHTML = rows.map(r=>`
+    termTb.innerHTML = rows.map(r=>{
+      const sendCount = r.send_keys ? r.send_keys.size : 0;
+      const leverage = sendCount ? (Number(r.sessions||0) / sendCount) : 0;
+      return `
       <tr class="cursor-pointer" data-channel="${r.channel}" data-campaign="${encodeURIComponent(r.campaign||'')}" data-term="${encodeURIComponent(r.term||'')}">
         <td class="mono">${(r.campaign||'-')}</td>
         <td class="mono">${(r.term||'-')}</td>
@@ -1180,10 +1176,10 @@
         <td>${fmt(r.purchases||0)}</td>
         <td>${fmtMoney(r.revenue||0)}</td>
         <td>${fmt(r.items_purchased||0)}</td>
-      </tr>
-    `).join('');
-
-    renderTermCards(rows);
+        <td>${fmt(sendCount)}</td>
+        <td>${fmtRatio(leverage)}</td>
+      </tr>`;
+    }).join('');
 
     Array.from(termTb.querySelectorAll('tr[data-channel]')).forEach(tr=>{
       tr.addEventListener('click', ()=>{
@@ -1205,7 +1201,6 @@
 
     if(!rows.length){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
-      renderEmptyCards(productCards, '구매 상품 데이터가 없어.');
       return;
     }
 
@@ -1222,7 +1217,6 @@
     }
 
     const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
-    renderProductCards(out);
     tb.innerHTML = out.map(r=>`
       <tr>
         <td>${(r.item_name||'-')}</td>
@@ -1242,7 +1236,6 @@
 
     if(!prod.length){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
-      renderEmptyCards(productCards, '구매 상품 데이터가 없어.');
       return;
     }
 
@@ -1259,7 +1252,6 @@
     }
 
     const out = Array.from(m.values()).sort((a,b)=> (b.prod_revenue||0)-(a.prod_revenue||0));
-    renderProductCards(out);
     tb.innerHTML = out.map(r=>`
       <tr>
         <td>${(r.item_name||'-')}</td>
@@ -1273,7 +1265,6 @@
   function renderProducts(){
     if(!SELECTED || !RAW){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.</td></tr>`;
-      renderEmptyCards(productCards, 'TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.');
       return;
     }
     if(SELECTED.type==='single'){
@@ -1324,6 +1315,8 @@
       purchases: Number(r.purchases || 0),
       revenue: Number(r.revenue || 0),
       items_purchased: Number(r.items_purchased || 0),
+      message_title: r.message_title || r.title || '',
+      message_body: r.message_body || r.content || '',
     }));
 
     const prod = (j.products || []).map(p => ({
@@ -1544,15 +1537,25 @@
       const LY = v.prev;
       ytdTySessions.textContent = fmt(TY.sessions);
       ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
+      ytdTySendCount.textContent = fmt(TY.send_count);
+      ytdTyLeverage.textContent = fmtRatio(TY.avg_leverage);
       ytdLySessions.textContent = fmt(LY.sessions);
       ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
+      ytdLySendCount.textContent = fmt(LY.send_count);
+      ytdLyLeverage.textContent = fmtRatio(LY.avg_leverage);
 
       const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
       const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
+      const dSend = LY.send_count ? ((TY.send_count - LY.send_count)/LY.send_count*100) : (TY.send_count ? 100 : 0);
+      const dLev  = LY.avg_leverage ? ((TY.avg_leverage - LY.avg_leverage)/LY.avg_leverage*100) : (TY.avg_leverage ? 100 : 0);
       ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
       ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+      ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+      ytdTyLeverageSub.textContent = `vs LY: ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
       ytdLySessionsSub.textContent = `LY (same period)`;
       ytdLyRevenueSub.textContent  = `LY (same period)`;
+      ytdLySendCountSub.textContent = `LY (same period)`;
+      ytdLyLeverageSub.textContent = `LY (same period)`;
       return;
     }
 
@@ -1589,22 +1592,32 @@
     const thisRows = (CHANNEL==='ALL') ? (thisAgg.kpi||[]) : (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
     const prevRows = (CHANNEL==='ALL') ? (prevAgg.kpi||[]) : (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
 
-    const thisSum = aggregateRow(thisRows);
-    const prevSum = aggregateRow(prevRows);
+    const thisSum = summarizeOwnedRows(thisRows);
+    const prevSum = summarizeOwnedRows(prevRows);
 
     YTD_CACHE.set(key, {this:thisSum, prev:prevSum});
 
     ytdTySessions.textContent = fmt(thisSum.sessions);
     ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
+    ytdTySendCount.textContent = fmt(thisSum.send_count);
+    ytdTyLeverage.textContent = fmtRatio(thisSum.avg_leverage);
     ytdLySessions.textContent = fmt(prevSum.sessions);
     ytdLyRevenue.textContent  = fmtMoney(prevSum.revenue);
+    ytdLySendCount.textContent = fmt(prevSum.send_count);
+    ytdLyLeverage.textContent = fmtRatio(prevSum.avg_leverage);
 
     const dSess = prevSum.sessions ? ((thisSum.sessions - prevSum.sessions)/prevSum.sessions*100) : (thisSum.sessions ? 100 : 0);
     const dRev  = prevSum.revenue  ? ((thisSum.revenue  - prevSum.revenue )/prevSum.revenue *100) : (thisSum.revenue  ? 100 : 0);
+    const dSend = prevSum.send_count ? ((thisSum.send_count - prevSum.send_count)/prevSum.send_count*100) : (thisSum.send_count ? 100 : 0);
+    const dLev  = prevSum.avg_leverage ? ((thisSum.avg_leverage - prevSum.avg_leverage)/prevSum.avg_leverage*100) : (thisSum.avg_leverage ? 100 : 0);
     ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
     ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+    ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+    ytdTyLeverageSub.textContent = `vs LY: ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
     ytdLySessionsSub.textContent = `LY (same period)`;
     ytdLyRevenueSub.textContent  = `LY (same period)`;
+    ytdLySendCountSub.textContent = `LY (same period)`;
+    ytdLyLeverageSub.textContent = `LY (same period)`;
   }
 
   function bindToggle(btn, wrap){
@@ -1835,9 +1848,6 @@
   toggleGroupJump.addEventListener('change', ()=>{
     GROUP_JUMP_MODE = !!toggleGroupJump.checked;
   });
-
-  applyMobileEmbedMode();
-  window.addEventListener('resize', applyMobileEmbedMode);
 
   (async function init(){
     // defaults

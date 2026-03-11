@@ -124,14 +124,26 @@
     .line-clamp-2{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
     .line-clamp-3{ overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
 
-    .sentence-list{ display:grid; grid-template-columns:1fr; gap:10px; }
-    .sentence-item{ padding:12px 14px; border-radius:18px; font-size:13px; font-weight:800; line-height:1.6; border:1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.62); color:#0f172a; }
-    .sentence-item.neg{ background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.16); }
-    .sentence-item.pos{ background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.16); }
-
     .review-grid{ display:grid; grid-template-columns: 1fr; gap: 14px; }
     @media (min-width: 768px){ .review-grid{ grid-template-columns: 1fr 1fr; } }
     @media (min-width: 1280px){ .review-grid{ grid-template-columns: 1fr 1fr 1fr; } }
+
+    .bubble{
+      position:absolute;
+      transform: translate(-50%,-50%);
+      border-radius:9999px;
+      padding: 10px 14px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.90);
+      background: rgba(255,255,255,0.72);
+      box-shadow: 0 14px 30px rgba(0,45,114,0.08);
+      cursor:pointer;
+      user-select:none;
+      white-space: nowrap;
+    }
+    .bubble.neg{ background: rgba(239,68,68,0.10); color:#b91c1c; border-color: rgba(239,68,68,0.18); }
+    .bubble.pos{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
 
     /* Product ML cards */
     .ml-card{
@@ -213,14 +225,14 @@
           </header>
         </div>
 
-        <!-- 0 ML Signals -->
+        <!-- 0 ML Signals + Yesterday Focus -->
         <section class="mb-10">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">0. ML Signals</div>
-                <div class="text-2xl font-black text-slate-900">어제 리뷰 핵심 문장</div>
-                <div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) · 긍정/부정 문장 각 2개</div>
+                <div class="text-2xl font-black text-slate-900">어제 리뷰 체크 + 키워드 마인드맵</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) · 범위: 최근 3개월</div>
               </div>
               <div class="flex gap-2 flex-wrap">
                 <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
@@ -237,29 +249,145 @@
               </div>
 
               <div class="summary-card lg:col-span-2">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <div class="small-label text-red-600 mb-3">NEGATIVE</div>
-                    <div id="yNegSentences" class="sentence-list"></div>
-                  </div>
-                  <div>
-                    <div class="small-label text-emerald-600 mb-3">POSITIVE</div>
-                    <div id="yPosSentences" class="sentence-list"></div>
-                  </div>
+                <div class="small-label text-blue-600 mb-2">KEYWORD MINDMAP</div>
+                <div class="text-xs font-bold text-slate-500">버블 클릭 → 검색 필터</div>
+                <div id="mindmapCanvas" class="relative mt-4 rounded-3xl border border-white/80 bg-white/45 overflow-hidden" style="height: 260px;"></div>
+              </div>
+            </div>
+
+            <div class="summary-card mt-4">
+              <div class="small-label text-slate-700 mb-2">TOPICS</div>
+              <div id="topicRow" class="flex flex-wrap gap-2"></div>
+              <div class="text-xs font-bold text-slate-500 mt-3">최근 3개월 토픽(클릭하면 해당 키워드로 필터)</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 1 Summary -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">1. Summary</div>
+                <div class="text-2xl font-black text-slate-900">키워드 하이라이트</div>
+              </div>
+              <div class="text-xs font-black text-slate-500">
+                * 클릭 → 해당 키워드로 검색
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div class="summary-card">
+                <div class="small-label text-slate-700 mb-2">Keywords Top 5</div>
+
+                <div class="text-xs font-black text-slate-500 mt-1">NEG</div>
+                <div id="topNeg" class="mt-2 flex flex-wrap gap-2"></div>
+
+                <div class="text-xs font-black text-slate-500 mt-4">POS</div>
+                <div id="topPos" class="mt-2 flex flex-wrap gap-2"></div>
+              </div>
+
+              <div class="summary-card">
+                <div class="small-label text-blue-600 mb-2">Workflow</div>
+                <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
+                  1) <span class="font-black">어제 리뷰</span>부터 확인<br/>
+                  2) Low/개선요청 태그로 리스크 리뷰 먼저 보기<br/>
+                  3) 제품 선택 → 저평점/리뷰 길이로 원인 텍스트 빠르게 파악
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-
-
-        <!-- 1 Daily feed -->
+        <!-- 2 Ranking -->
         <section class="mb-10">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
-                <div class="small-label text-blue-600 mb-2">1. Daily Feed</div>
+                <div class="small-label text-blue-600 mb-2">2. 개선 우선순위 제품 랭킹</div>
+                <div class="text-xs font-bold text-slate-500 mt-1">Top5 기본 노출(접기/펼치기)</div>
+              </div>
+              <div class="flex gap-2 flex-wrap">
+                <button class="chip active" id="rank-size" onclick="switchRankMode('size')">2-1) 사이즈 이슈율</button>
+                <button class="chip" id="rank-low" onclick="switchRankMode('low')">2-2) 저평점 비중</button>
+                <button class="chip" id="rank-both" onclick="switchRankMode('both')">2-3) 교집합</button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end mb-3">
+              <button class="chip" id="rankToggleBtn" onclick="toggleRankingExpand()">Top5만 보기</button>
+            </div>
+
+            <div class="overflow-auto">
+              <table class="tbl min-w-[980px]">
+                <thead>
+                  <tr>
+                    <th class="text-left">제품명</th>
+                    <th class="text-left">리뷰 수</th>
+                    <th class="text-left">사이즈 이슈율</th>
+                    <th class="text-left">저평점 비중</th>
+                    <th class="text-left">주요 키워드</th>
+                  </tr>
+                </thead>
+                <tbody id="rankingBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4 Product ML (Cumulative) -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">4. Product ML (Cumulative)</div>
+                <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석 (NEG=저평점 기반)</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">
+                  NEG 기준: ★1~2 (저평점) · POS 기준: ★4~5
+                </div>
+              </div>
+
+              <div class="flex gap-2 flex-wrap items-center">
+                <select id="mlWindow" class="input-glass" onchange="renderAll()">
+                  <option value="90" selected>최근 3개월</option>
+                  <option value="180">최근 6개월</option>
+                  <option value="365">최근 12개월</option>
+                  <option value="0">전체</option>
+                </select>
+                <select id="mlMinReviews" class="input-glass" onchange="renderAll()">
+                  <option value="3" selected>최소 리뷰수: 3</option>
+                  <option value="5">최소 리뷰수: 5</option>
+                  <option value="10">최소 리뷰수: 10</option>
+                  <option value="1">최소 리뷰수: 1</option>
+                </select>
+                <button class="chip" onclick="scrollToMLTop()">ML 섹션 보기</button>
+              </div>
+            </div>
+
+            <div class="summary-card mb-4">
+              <div class="small-label text-slate-700 mb-2">HOW TO READ</div>
+              <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
+                - NEG: ★1~2 리뷰 텍스트에서 자주 나오는 키워드<br/>
+                - POS: ★4~5 리뷰 텍스트에서 자주 나오는 키워드<br/>
+                - 키워드 클릭 → 아래 Daily Feed 검색으로 필터
+              </div>
+            </div>
+
+            <div id="mlProductGrid" class="ml-grid"></div>
+
+            <div id="mlNoData" class="hidden review-card text-center">
+              <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
+              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver)을 조정해보세요.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5 Daily feed -->
+        <section class="mb-10">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">Daily Feed</div>
                 <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
                 <div class="text-sm font-bold text-slate-500 mt-2">기본 날짜: 어제(KST) · 최근 7일 범위 내 선택</div>
               </div>
@@ -290,54 +418,6 @@
           </div>
         </section>
 
-        <!-- 2. Product ML (Cumulative) -->
-        <section class="mb-10">
-          <div class="glass-card p-8">
-            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-              <div>
-                <div class="small-label text-blue-600 mb-2">2. Product ML (Cumulative)</div>
-                <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석</div>
-                <div class="text-sm font-bold text-slate-500 mt-2">
-                  NEG 기준: ★1~2 (저평점) · POS 기준: ★4~5
-                </div>
-              </div>
-
-              <div class="flex gap-2 flex-wrap items-center">
-                <select id="mlWindow" class="input-glass" onchange="renderAll()">
-                  <option value="90" selected>최근 3개월</option>
-                  <option value="180">최근 6개월</option>
-                  <option value="365">최근 12개월</option>
-                  <option value="0">전체</option>
-                </select>
-                <select id="mlMinReviews" class="input-glass" onchange="renderAll()">
-                  <option value="3" selected>최소 리뷰수: 3</option>
-                  <option value="5">최소 리뷰수: 5</option>
-                  <option value="10">최소 리뷰수: 10</option>
-                  <option value="1">최소 리뷰수: 1</option>
-                </select>
-                <button class="chip" onclick="scrollToMLTop()">ML 섹션 보기</button>
-              </div>
-            </div>
-
-            <div class="summary-card mb-4">
-              <div class="small-label text-slate-700 mb-2">HOW TO READ</div>
-              <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
-                - NEGATIVE: ★1~2 리뷰 원문 2개 노출<br/>
-                - POSITIVE: ★4~5 리뷰 원문 2개 노출<br/>
-                - 버튼 클릭 → 아래 Daily Feed 검색으로 필터
-              </div>
-            </div>
-
-            <div id="mlProductGrid" class="ml-grid"></div>
-
-            <div id="mlNoData" class="hidden review-card text-center">
-              <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
-              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver)을 조정해보세요.</div>
-            </div>
-          </div>
-        </section>
-
-
         <footer class="text-xs font-bold text-slate-500 pb-8">
           * 데이터 소스: data/reviews.json / data/meta.json<br/>
           * 기본 동작: 어제(KST) 기준 Daily Feed 표시
@@ -351,6 +431,8 @@
     let REVIEWS = [];
     const uiState = {
       sourceTab: "combined",
+      rankMode: "size",
+      rankExpanded: false,
       chips: { daily: true, low: false },
     };
 
@@ -424,6 +506,24 @@
       });
       renderAll();
     }
+
+    function switchRankMode(mode){
+      runWithOverlay("Switching ranking...", () => {
+        uiState.rankMode = mode;
+        document.getElementById("rank-size")?.classList.toggle("active", mode==="size");
+        document.getElementById("rank-low")?.classList.toggle("active", mode==="low");
+        document.getElementById("rank-both")?.classList.toggle("active", mode==="both");
+        renderAll();
+      });
+    }
+
+    function toggleRankingExpand(){
+      uiState.rankExpanded = !uiState.rankExpanded;
+      const btn = document.getElementById("rankToggleBtn");
+      if (btn){
+        btn.textContent = uiState.rankExpanded ? "접기" : "Top5만 보기";
+        btn.classList.toggle("active", uiState.rankExpanded);
+      }
       renderAll();
     }
 
@@ -533,27 +633,81 @@
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
+    function renderSummary(){
+      const neg = META?.neg_top5 || [];
+      const pos = META?.pos_top5 || [];
+
+      const elNeg = document.getElementById("topNeg");
+      if (elNeg){
+        elNeg.innerHTML = neg.map(([k,c]) => `
+          <span class="badge neg" onclick="setSearchAndRender('${esc(k)}')">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>
+        `).join("");
+      }
+
+      const elPos = document.getElementById("topPos");
+      if (elPos){
+        elPos.innerHTML = pos.map(([k,c]) => `
+          <span class="badge pos" onclick="setSearchAndRender('${esc(k)}')">#${esc(k)} <span class="opacity-70">${esc(c)}</span></span>
+        `).join("");
+      }
+    }
+
+    function renderRanking(metrics){
+      let rows = [];
+      if (uiState.rankMode === "size") rows = metrics.rankSize;
+      else if (uiState.rankMode === "low") rows = metrics.rankLow;
+      else rows = metrics.rankBoth;
+
+      const maxRows = uiState.rankExpanded ? Math.min(rows.length, 50) : Math.min(rows.length, 5);
+      const tbody = document.getElementById("rankingBody");
+      if (!tbody) return;
+
+      tbody.innerHTML = rows.slice(0, maxRows).map(r => `
+        <tr>
+          <td>
+            <div class="flex items-center gap-3">
+              <div class="img-box">
+                ${r.local_product_image
+                  ? `<img src="${esc(r.local_product_image)}" alt="">`
+                  : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`
+                }
+              </div>
+              <div class="min-w-0">
+                <div class="font-black text-slate-900 line-clamp-1">${esc(r.product_name)}</div>
+                <div class="muted">code: ${esc(r.product_code)}</div>
+                ${r.product_url ? `<a href="${esc(r.product_url)}" target="_blank" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>` : ``}
+              </div>
+            </div>
+          </td>
+          <td class="muted">${esc(r.reviews)}</td>
+          <td><span class="badge size">${esc(r.sizeRate)}%</span></td>
+          <td><span class="badge neg">${esc(r.lowRate)}%</span></td>
+          <td class="muted">${esc(r.kwds || "-")}</td>
+        </tr>
+      `).join("");
+    }
+
     function reviewCardHTML(r){
       const t = asArr(r.tags);
       const tags = [];
 
-      if (Number(r.rating||0) >= 4 || t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> 1 POS</span>`);
-      if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> 2 SIZE</span>`);
-      if ((Number(r.rating||0) <= 2) || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> 3 NEG</span>`);
-      if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> 4 REQUEST</span>`);
+      if (t.includes("pos")) tags.push(`<span class="badge pos"><i class="fa-solid fa-face-smile"></i> #긍정</span>`);
+      if (t.includes("size")) tags.push(`<span class="badge size"><i class="fa-solid fa-ruler"></i> #size_issue</span>`);
+      if ((Number(r.rating||0) <= 2) || t.includes("low")) tags.push(`<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> #low_rating</span>`);
+      if (t.includes("req")) tags.push(`<span class="badge neg"><i class="fa-solid fa-wrench"></i> #개선요청</span>`);
+      if (r.text_image_path) tags.push(`<span class="badge"><i class="fa-solid fa-image"></i> #100자+이미지</span>`);
 
       const prodImg = r.local_product_image
         ? `<img src="${esc(r.local_product_image)}" alt="">`
         : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
 
       const reviewThumb = r.local_review_thumb
-        ? `<img src="${esc(r.local_review_thumb)}" class="w-20 h-20 object-contain rounded-lg bg-slate-50 border border-white/80" />`
+        ? `<img src="${esc(r.local_review_thumb)}" class="w-full max-h-56 object-contain rounded-lg bg-slate-50" />`
         : ``;
 
-      const reviewUrl = String(r.review_original_url || r.product_url || "").trim();
-      const reviewLink = reviewUrl
-        ? `<a href="${esc(reviewUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline">리뷰 원문보기</a>`
-        : `<span class="text-xs font-black text-slate-400">리뷰 원문 링크 없음</span>`;
+      const textImg = r.text_image_path
+        ? `<img src="${esc(r.text_image_path)}" class="w-full max-h-72 object-contain rounded-2xl bg-slate-50 border border-white/80" />`
+        : ``;
 
       return `
         <div class="review-card hover:shadow-lg transition" id="review-${esc(r.id)}">
@@ -567,7 +721,7 @@
                 </div>
               </div>
             </div>
-            <div class="text-right shrink-0">
+            <div class="text-right">
               <div class="text-xs font-black text-slate-700">★ ${esc(r.rating)}</div>
               <div class="text-[11px] font-bold text-slate-500 mt-1">${esc(fmtDT(r.created_at))}</div>
             </div>
@@ -578,13 +732,12 @@
             ${tags.join("")}
           </div>
 
-          <div class="mt-4 flex items-start justify-between gap-4">
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words">${esc(r.text || "")}</div>
-              <div class="mt-3">${reviewLink}</div>
-            </div>
-            ${reviewThumb ? `<div class="shrink-0">${reviewThumb}</div>` : ``}
+          <div class="mt-3 text-sm font-extrabold text-slate-800 leading-relaxed whitespace-pre-wrap break-words line-clamp-3">
+            ${esc(r.text || "")}
           </div>
+
+          ${reviewThumb ? `<div class="mt-3">${reviewThumb}</div>` : ``}
+          ${textImg ? `<div class="mt-4"><div class="small-label text-blue-600 mb-2">100+ TEXT IMAGE</div>${textImg}</div>` : ``}
         </div>
       `;
     }
@@ -646,47 +799,9 @@
       sel.value = current;
     }
 
-    function pickTopSentences(rows, mode){
-      const out = [];
-      const seen = new Set();
-      for (const r of rows){
-        const rating = Number(r.rating || 0);
-        const txt = String(r.text || "").trim().replace(/\s+/g, " ");
-        if (!txt) continue;
-        if (mode === "neg" && !(rating > 0 && rating <= 2)) continue;
-        if (mode === "pos" && !(rating >= 4)) continue;
-        const key = txt.slice(0, 120);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push({ text: txt, product: r.product_name || r.product_code || "-", code: r.product_code || "", url: r.review_original_url || r.product_url || "" });
-        if (out.length >= 2) break;
-      }
-      return out;
-    }
-
-    function sentenceListHTML(items, cls, emptyText){
-      if (!items.length){
-        return `<div class="sentence-item ${cls} text-slate-400">${esc(emptyText)}</div>`;
-      }
-      return items.map(item => {
-        const link = item.url
-          ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline mt-2 inline-block">리뷰 원문보기</a>`
-          : ``;
-        return `
-          <div class="sentence-item ${cls}">
-            <div class="text-sm font-black text-slate-900 whitespace-pre-wrap break-words">${esc(item.text)}</div>
-            <div class="text-[11px] font-bold text-slate-500 mt-2">${esc(item.product)}${item.code ? ` · ${esc(item.code)}` : ``}</div>
-            ${link}
-          </div>
-        `;
-      }).join("");
-    }
-
     function renderMLSignals(allFiltered){
       const yday = kstDateStr(-1);
-      const yRows = allFiltered
-        .filter(r => String(r.created_at||"").slice(0,10) === yday)
-        .sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+      const yRows = allFiltered.filter(r => String(r.created_at||"").slice(0,10) === yday);
       const yCnt = yRows.length;
 
       const yCountEl = document.getElementById("yCount");
@@ -698,10 +813,45 @@
         hint.textContent = (yCnt ? `Low/리스크 추정: ${lowCnt}건` : "어제 데이터가 없습니다.");
       }
 
-      const negEl = document.getElementById("yNegSentences");
-      const posEl = document.getElementById("yPosSentences");
-      if (negEl) negEl.innerHTML = sentenceListHTML(pickTopSentences(yRows, "neg"), "neg", "어제 부정 문장이 없습니다.");
-      if (posEl) posEl.innerHTML = sentenceListHTML(pickTopSentences(yRows, "pos"), "pos", "어제 긍정 문장이 없습니다.");
+      const canvas = document.getElementById("mindmapCanvas");
+      if (canvas){
+        const graph = META?.kw_graph_3m || {nodes:[], links:[]};
+        const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+        if (!nodes.length){
+          canvas.innerHTML = `<div class="absolute inset-0 flex items-center justify-center text-sm font-black text-slate-500">키워드 시그널이 없습니다.</div>`;
+        } else {
+          canvas.innerHTML = nodes.map((n) => {
+            const pol = (n.pol||"neutral");
+            const cls = pol==="neg" ? "bubble neg" : (pol==="pos" ? "bubble pos" : "bubble");
+            const left = (8 + Math.random()*84);
+            const top  = (12 + Math.random()*70);
+            const scale = Math.min(1.6, 0.85 + (Number(n.w||1) / Math.max(10, nodes[0]?.w||10)));
+            return `
+              <div class="${cls}"
+                   data-kw="${esc(n.id)}"
+                   style="left:${left}%; top:${top}%; transform: translate(-50%,-50%) scale(${scale});"
+                   onclick="setSearchAndRender('${esc(n.id)}')">
+                ${esc(n.label)} <span class="opacity-60">(${esc(n.w)})</span>
+              </div>
+            `;
+          }).join("");
+        }
+      }
+
+      const tr = document.getElementById("topicRow");
+      if (tr){
+        const topics = META?.ml_topics_3m || [];
+        if (!Array.isArray(topics) || !topics.length){
+          tr.innerHTML = `<span class="text-xs font-bold text-slate-400">토픽 데이터 없음</span>`;
+        } else {
+          tr.innerHTML = topics.slice(0,8).map((t, idx) => {
+            const words = Array.isArray(t?.words) ? t.words : [];
+            const key = words[0] || "";
+            const title = words.slice(0,4).join(", ");
+            return `<span class="badge" title="${esc(title)}" onclick="setSearchAndRender('${esc(key)}')"><i class="fa-solid fa-circle-nodes"></i> Topic ${idx+1}: ${esc(key||"-")}</span>`;
+          }).join("");
+        }
+      }
     }
 
     // -----------------------------
@@ -738,19 +888,15 @@
       return out;
     }
 
-    function topSentences(texts, k=2){
-      const out = [];
-      const seen = new Set();
+    function topKWords(texts, k=6){
+      const freq = new Map();
       for (const tx of texts){
-        const s = String(tx || "").trim().replace(/\s+/g, " ");
-        if (!s) continue;
-        const key = s.slice(0, 120);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(s);
-        if (out.length >= k) break;
+        for (const w of extractTokens(tx)){
+          freq.set(w, (freq.get(w)||0) + 1);
+        }
       }
-      return out;
+      const arr = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1]);
+      return arr.slice(0,k);
     }
 
     function buildProductMLRows(){
@@ -818,8 +964,8 @@
         .filter(g => g.cnt >= minReviews)
         .map(g => {
           g.lowRate = Math.round((g.negCnt / Math.max(1,g.cnt))*100);
-          g.negSentences = topSentences(g.neg, 2);
-          g.posSentences = topSentences(g.pos, 2);
+          g.negTop = topKWords(g.neg, 7);
+          g.posTop = topKWords(g.pos, 7);
           return g;
         });
 
@@ -829,25 +975,21 @@
       return { rows, winDays, minReviews };
     }
 
-    function mlSentenceHTML(items, tone, emptyText){
-      if (!items || !items.length){
-        return `<div class="sentence-item ${tone} text-slate-400">${esc(emptyText)}</div>`;
-      }
-      return items.map((txt, idx) => `
-        <div class="sentence-item ${tone}">
-          <div class="text-[11px] font-black ${tone === "neg" ? "text-red-700" : "text-emerald-700"} mb-1">${tone === "neg" ? "NEGATIVE" : "POSITIVE"} ${idx + 1}</div>
-          <div class="whitespace-pre-wrap break-words">${esc(txt)}</div>
-        </div>
-      `).join("");
-    }
-
     function mlCardHTML(g){
       const img = g.local_product_image
         ? `<img src="${esc(g.local_product_image)}" alt="">`
         : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>`;
 
+      const negChips = (g.negTop && g.negTop.length)
+        ? g.negTop.map(([w,c]) => `<span class="badge neg" onclick="setSearchAndRender('${esc(w)}')">#${esc(w)} <span class="opacity-70">${esc(c)}</span></span>`).join("")
+        : `<span class="text-xs font-bold text-slate-400">NEG 키워드 없음 (★1~2 텍스트 부족)</span>`;
+
+      const posChips = (g.posTop && g.posTop.length)
+        ? g.posTop.map(([w,c]) => `<span class="badge pos" onclick="setSearchAndRender('${esc(w)}')">#${esc(w)} <span class="opacity-70">${esc(c)}</span></span>`).join("")
+        : `<span class="text-xs font-bold text-slate-400">POS 키워드 없음 (★4~5 텍스트 부족)</span>`;
+
       const url = g.product_url
-        ? `<a href="${esc(g.product_url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>`
+        ? `<a href="${esc(g.product_url)}" target="_blank" class="text-xs font-black text-blue-600 hover:underline">상품 페이지</a>`
         : `<span class="text-xs font-bold text-slate-400">상품 URL 없음</span>`;
 
       return `
@@ -861,22 +1003,21 @@
                 <div class="mt-1">${url}</div>
               </div>
             </div>
-            <div class="text-right shrink-0">
+            <div class="text-right">
               <div class="text-xs font-black text-slate-700">LOW(★1~2)</div>
               <div class="text-2xl font-black text-red-700">${esc(g.lowRate)}%</div>
               <div class="text-[11px] font-bold text-slate-500 mt-1">neg ${esc(g.negCnt)} · pos ${esc(g.posCnt)}</div>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-            <div>
-              <div class="text-xs font-black text-slate-500 mb-2">NEGATIVE 문장 2개 (★1~2)</div>
-              <div class="sentence-list">${mlSentenceHTML(g.negSentences, "neg", "NEGATIVE 문장이 없습니다.")}</div>
-            </div>
-            <div>
-              <div class="text-xs font-black text-slate-500 mb-2">POSITIVE 문장 2개 (★4~5)</div>
-              <div class="sentence-list">${mlSentenceHTML(g.posSentences, "pos", "POSITIVE 문장이 없습니다.")}</div>
-            </div>
+          <div class="mt-4">
+            <div class="text-xs font-black text-slate-500">NEG keywords (★1~2)</div>
+            <div class="mt-2 flex flex-wrap gap-2">${negChips}</div>
+          </div>
+
+          <div class="mt-4">
+            <div class="text-xs font-black text-slate-500">POS keywords (★4~5)</div>
+            <div class="mt-2 flex flex-wrap gap-2">${posChips}</div>
           </div>
 
           <div class="mt-4 flex items-center gap-2 flex-wrap">
@@ -923,12 +1064,16 @@
       renderSizeSelect();
 
       const filtered = getFilteredReviews();
+      const metrics = calcMetrics(filtered);
 
       renderMLSignals(filtered);
-      renderDailyFeed(filtered);
+      renderSummary();
+      renderRanking(metrics);
 
       // ✅ Product ML is cumulative (independent of daily date)
       renderProductML();
+
+      renderDailyFeed(filtered);
     }
 
     async function boot(){
