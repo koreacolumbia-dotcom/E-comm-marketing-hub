@@ -441,6 +441,7 @@ jobs:
           TARGET_DAYS: "7"
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+          FORCE_CREMA_3M: ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -461,12 +462,17 @@ jobs:
             reports/crema_raw/health
 
           FLAG="reports/crema_raw/backfill_done.flag"
+          START_3M="$(TZ=Asia/Seoul date -d '90 days ago' '+%Y-%m-%d')"
+
           echo "[INFO] Crema flag: ${FLAG}"
           echo "[INFO] Yesterday (YMD): ${YMD}"
+          echo "[INFO] FORCE_CREMA_3M=${FORCE_CREMA_3M}"
 
-          if [ ! -f "${FLAG}" ]; then
-            START_3M="$(TZ=Asia/Seoul date -d '90 days ago' '+%Y-%m-%d')"
-            echo "[INFO] (1) FIRST RUN backfill: ${START_3M} ~ ${YMD} (recent ~3 months)"
+          if [ "${FORCE_CREMA_3M}" = "true" ]; then
+            echo "[INFO] Manual voc_only detected -> crawl recent 3 months: ${START_3M} ~ ${YMD}"
+
+            rm -f "${FLAG}" || true
+
             python -u crema_voc.py \
               --mode backfill \
               --start "${START_3M}" \
@@ -474,15 +480,27 @@ jobs:
               --chunk-days 31 \
               --keep-site-output \
               || true
+
           else
-            echo "[INFO] (1) Incremental (yesterday only): ${YMD} ~ ${YMD}"
-            python -u crema_voc.py \
-              --mode daily \
-              --start "${YMD}" \
-              --end "${YMD}" \
-              --chunk-days 1 \
-              --keep-site-output \
-              || true
+            if [ ! -f "${FLAG}" ]; then
+              echo "[INFO] (1) FIRST RUN backfill: ${START_3M} ~ ${YMD} (recent ~3 months)"
+              python -u crema_voc.py \
+                --mode backfill \
+                --start "${START_3M}" \
+                --end "${YMD}" \
+                --chunk-days 31 \
+                --keep-site-output \
+                || true
+            else
+              echo "[INFO] (1) Incremental (yesterday only): ${YMD} ~ ${YMD}"
+              python -u crema_voc.py \
+                --mode daily \
+                --start "${YMD}" \
+                --end "${YMD}" \
+                --chunk-days 1 \
+                --keep-site-output \
+                || true
+            fi
           fi
 
           INPUT_JSON="reports/crema_raw/reviews.json"
