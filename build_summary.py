@@ -55,7 +55,7 @@ def fmt_krw_symbol(x: Any) -> str:
     try:
         if x is None or (isinstance(x, float) and pd.isna(x)):
             return "-"
-        return f"â©{int(round(float(x))):,}"
+        return f"₩{int(round(float(x))):,}"
     except Exception:
         return "-"
 
@@ -658,7 +658,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     <div class="glass-card rounded-3xl p-5 mb-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div class="text-base font-black text-slate-900">Daily KPI Summary</div>
-        <div class="text-xs text-slate-500">ê¸°ì¤: <b class="text-slate-700">{daily.get("date") or "-"}</b> Â· updated: {daily.get("updated") or ""}</div>
+        <div class="text-xs text-slate-500">기준: <b class="text-slate-700">{daily.get("date") or "-"}</b> · updated: {daily.get("updated") or ""}</div>
       </div>
       <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {kpi_tile("Sessions", fmt_int(daily.get("sessions")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(d_wow.get("sessions"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("sessions"))}</b>')}
@@ -673,7 +673,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     <div class="glass-card rounded-3xl p-5 mb-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div class="text-base font-black text-slate-900">Weekly KPI Summary (7D)</div>
-        <div class="text-xs text-slate-500">ê¸°ê°: <b class="text-slate-700">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b> Â· updated: {weekly.get("updated") or ""}</div>
+        <div class="text-xs text-slate-500">기간: <b class="text-slate-700">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b> · updated: {weekly.get("updated") or ""}</div>
       </div>
       <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {kpi_tile("Sessions", fmt_int(weekly.get("sessions")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("sessions"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("sessions"))}</b>')}
@@ -700,7 +700,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
               <div class="text-base font-black text-slate-900">OWNED YTD YoY (EDM + LMS + KAKAO)</div>
               <span class="badge-soft">YTD</span>
             </div>
-            <div class="text-xs text-slate-500">ê¸°ê°: <b class="text-slate-700">{period}</b> Â· YoY ë¹êµ: {prev_period} Â· updated: {upd}</div>
+            <div class="text-xs text-slate-500">기간: <b class="text-slate-700">{period}</b> · YoY 비교: {prev_period} · updated: {upd}</div>
           </div>
           <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             {kpi_tile("Send Count", fmt_int(tot.get("send_count")), f'YoY <b class="text-slate-900">{fmt_delta_ratio(tot_yoy.get("send_count"))}</b>', f'LY <b class="text-slate-900">{fmt_int(tot_prev.get("send_count"))}</b>')}
@@ -722,10 +722,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
                 <span class="badge-soft">YoY</span>
               </div>
               <div class="mt-2 grid grid-cols-2 gap-3">
-                <div><div class="text-xs text-slate-500">Send Count</div><div class="text-lg font-black text-slate-900">{fmt_int(cur.get("send_count"))}</div><div class="text-[11px] text-slate-500">LY {fmt_int(prev.get("send_count"))} Â· YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
-                <div><div class="text-xs text-slate-500">Sessions</div><div class="text-lg font-black text-slate-900">{fmt_int(cur.get("sessions"))}</div><div class="text-[11px] text-slate-500">LY {fmt_int(prev.get("sessions"))} Â· YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
-                <div><div class="text-xs text-slate-500">Revenue</div><div class="text-lg font-black text-slate-900">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="text-[11px] text-slate-500">LY {fmt_krw_symbol(prev.get("revenue"))} Â· YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
-                <div><div class="text-xs text-slate-500">CVR</div><div class="text-lg font-black text-slate-900">{fmt_cvr(cur.get("cvr"))}</div><div class="text-[11px] text-slate-500">LY {fmt_cvr(prev.get("cvr"))} Â· YoY <b class="text-slate-900">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
+                <div><div class="text-xs text-slate-500">Send Count</div><div class="text-lg font-black text-slate-900">{fmt_int(cur.get("send_count"))}</div><div class="text-[11px] text-slate-500">LY {fmt_int(prev.get("send_count"))} · YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
+                <div><div class="text-xs text-slate-500">Sessions</div><div class="text-lg font-black text-slate-900">{fmt_int(cur.get("sessions"))}</div><div class="text-[11px] text-slate-500">LY {fmt_int(prev.get("sessions"))} · YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
+                <div><div class="text-xs text-slate-500">Revenue</div><div class="text-lg font-black text-slate-900">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="text-[11px] text-slate-500">LY {fmt_krw_symbol(prev.get("revenue"))} · YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
+                <div><div class="text-xs text-slate-500">CVR</div><div class="text-lg font-black text-slate-900">{fmt_cvr(cur.get("cvr"))}</div><div class="text-[11px] text-slate-500">LY {fmt_cvr(prev.get("cvr"))} · YoY <b class="text-slate-900">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
               </div>
             </div>'''
         owned_block += f'''</div><div class="mt-3 text-[11px] text-slate-500">source: {owned_dir}</div></div>'''
@@ -735,7 +735,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CSK E-COMM | ì¤ëì íµì¬ ìì½</title>
+  <title>CSK E-COMM | 오늘의 핵심 요약</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
@@ -748,8 +748,8 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
 <body>
   <div id="summaryTop" class="px-2 sm:px-6 py-6">
     <div class="mb-6">
-      <div class="text-3xl sm:text-4xl font-black tracking-tight">ì¤ëì íµì¬ ìì½</div>
-      <div class="mt-2 text-xs text-slate-500">ê¸°ì¤ì¼ ê¸°ë³¸ê°: ì´ì (KST) Â· generated: {now_kst_label()}</div>
+      <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
+      <div class="mt-2 text-xs text-slate-500">기준일 기본값: 어제(KST) · generated: {now_kst_label()}</div>
     </div>
     <section id="dailyKpi">{daily_strip}</section>
     <section id="weeklyKpi">{weekly_strip}</section>
