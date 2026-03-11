@@ -509,47 +509,47 @@ def _owned_send_group_key(row: Dict[str, Any]) -> Tuple[str, str, str]:
 
 def _aggregate_owned_rows(rows: List[Dict[str, Any]]) -> Dict[str, float]:
     out = {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0}
-    seen_send = set()
 
     for r in rows:
         ch = str(r.get("channel") or "").strip().upper()
         if ch not in OWNED_CHANNELS:
             continue
-        try:
-            out["sessions"] += float(r.get("sessions") or 0)
-            out["users"] += float(r.get("users") or 0)
-            out["purchases"] += float(r.get("purchases") or 0)
-            out["revenue"] += float(r.get("revenue") or 0)
-        except Exception:
-            pass
-        if _owned_valid_send_row(r):
-            key = _owned_send_group_key(r)
-            if key not in seen_send:
-                seen_send.add(key)
-                out["send_count"] += 1.0
+
+        out["sessions"] += float(_safe_float(r.get("sessions")) or 0.0)
+        out["users"] += float(_safe_float(r.get("users")) or 0.0)
+        out["purchases"] += float(_safe_float(r.get("purchases")) or 0.0)
+        out["revenue"] += float(_safe_float(r.get("revenue")) or 0.0)
+
+        # Preferred: trust the campaign row's send_count from owned builder.
+        # Fallback: count as 1 only when the row looks like a valid send row.
+        send_v = _safe_float(r.get("send_count"))
+        if send_v is not None and send_v > 0:
+            out["send_count"] += float(send_v)
+        elif _owned_valid_send_row(r):
+            out["send_count"] += 1.0
+
     return out
 
 
 def _aggregate_owned_rows_by_channel(rows: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
     out = {ch: {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0} for ch in OWNED_CHANNELS}
-    seen_send = {ch: set() for ch in OWNED_CHANNELS}
 
     for r in rows:
         ch = str(r.get("channel") or "").strip().upper()
         if ch not in OWNED_CHANNELS:
             continue
-        try:
-            out[ch]["sessions"] += float(r.get("sessions") or 0)
-            out[ch]["users"] += float(r.get("users") or 0)
-            out[ch]["purchases"] += float(r.get("purchases") or 0)
-            out[ch]["revenue"] += float(r.get("revenue") or 0)
-        except Exception:
-            pass
-        if _owned_valid_send_row(r):
-            key = _owned_send_group_key(r)
-            if key not in seen_send[ch]:
-                seen_send[ch].add(key)
-                out[ch]["send_count"] += 1.0
+
+        out[ch]["sessions"] += float(_safe_float(r.get("sessions")) or 0.0)
+        out[ch]["users"] += float(_safe_float(r.get("users")) or 0.0)
+        out[ch]["purchases"] += float(_safe_float(r.get("purchases")) or 0.0)
+        out[ch]["revenue"] += float(_safe_float(r.get("revenue")) or 0.0)
+
+        send_v = _safe_float(r.get("send_count"))
+        if send_v is not None and send_v > 0:
+            out[ch]["send_count"] += float(send_v)
+        elif _owned_valid_send_row(r):
+            out[ch]["send_count"] += 1.0
+
     return out
 
 
@@ -628,6 +628,61 @@ def _build_owned_result_from_ytd_yoy(obj: Dict[str, Any], owned_dir: Path) -> Op
     }
 
 
+
+def _owned_bundle_paths(owned_dir: Path) -> List[Path]:
+    files = [p for p in owned_dir.glob("owned_*.json") if p.is_file()]
+    files.sort(key=lambda p: p.name)
+    return files
+
+
+def _load_owned_bundle_rows_for_ytd(owned_dir: Path, target_end: date) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    Collect YTD campaign rows from all daily owned bundles on disk.
+
+    Why this is needed:
+    - latest owned_YYYY-MM-DD.json is a *daily* bundle, not a full YTD bundle
+    - relying on only latest bundle.campaigns makes YTD totals incorrect
+    - previous-year rows may also be merged into current-day bundles, so we must de-duplicate
+    """
+    cur_year = str(target_end.year)
+    prev_year = str(target_end.year - 1)
+    cutoff_mmdd = target_end.strftime("%m-%d")
+
+    cur_rows: List[Dict[str, Any]] = []
+    prev_rows: List[Dict[str, Any]] = []
+    seen_cur = set()
+    seen_prev = set()
+
+    for p in _owned_bundle_paths(owned_dir):
+        obj = _load_bundle(p)
+        if not obj:
+            continue
+        for r in (obj.get("campaigns") or []):
+            ch = str(r.get("channel") or "").strip().upper()
+            if ch not in OWNED_CHANNELS:
+                continue
+            row_dt = _parse_row_date(r)
+            if not row_dt:
+                continue
+
+            row_year = str(r.get("year") or "").strip() or str(row_dt.year)
+            key = (
+                str(r.get("date") or "").strip(),
+                ch,
+                str(r.get("campaign") or "").strip(),
+                str(r.get("term") or "").strip(),
+            )
+
+            if row_year == cur_year:
+                if row_dt.year == target_end.year and row_dt <= target_end and key not in seen_cur:
+                    seen_cur.add(key)
+                    cur_rows.append(r)
+            elif row_year == prev_year:
+                if row_dt.year == (target_end.year - 1) and row_dt.strftime("%m-%d") <= cutoff_mmdd and key not in seen_prev:
+                    seen_prev.add(key)
+                    prev_rows.append(r)
+
+    return cur_rows, prev_rows
 def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
     owned_dir = _find_owned_data_dir(reports_dir)
     target_end = kst_yesterday()
@@ -638,13 +693,67 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
     }
     if not owned_dir:
         return result
+
     latest_bundle = _find_latest_owned_bundle(owned_dir)
-    if not latest_bundle:
-        return result
-    try:
-        obj = json.loads(latest_bundle.read_text(encoding="utf-8"))
-    except Exception:
-        return result
+    if latest_bundle:
+        try:
+            obj = json.loads(latest_bundle.read_text(encoding="utf-8"))
+        except Exception:
+            obj = {}
+        ytd_based = _build_owned_result_from_ytd_yoy(obj, owned_dir)
+        if ytd_based:
+            return ytd_based
+
+    # Fallback: compute true YTD by scanning all owned daily bundles on disk.
+    cur_rows, prev_rows = _load_owned_bundle_rows_for_ytd(owned_dir, target_end)
+
+    cur_sum = _aggregate_owned_rows(cur_rows)
+    prev_sum = _aggregate_owned_rows(prev_rows)
+    cur_cvr = (cur_sum["purchases"] / cur_sum["sessions"]) if cur_sum["sessions"] > 0 else None
+    prev_cvr = (prev_sum["purchases"] / prev_sum["sessions"]) if prev_sum["sessions"] > 0 else None
+
+    total_yoy = {
+        "send_count": _ratio(cur_sum["send_count"], prev_sum["send_count"]),
+        "sessions": _ratio(cur_sum["sessions"], prev_sum["sessions"]),
+        "users": _ratio(cur_sum["users"], prev_sum["users"]),
+        "purchases": _ratio(cur_sum["purchases"], prev_sum["purchases"]),
+        "revenue": _ratio(cur_sum["revenue"], prev_sum["revenue"]),
+        "cvr_pp": (cur_cvr - prev_cvr) if (cur_cvr is not None and prev_cvr is not None) else None,
+    }
+
+    total = dict(cur_sum); total["cvr"] = cur_cvr
+    total_prev = dict(prev_sum); total_prev["cvr"] = prev_cvr
+    cur_ch_sum = _aggregate_owned_rows_by_channel(cur_rows)
+    prev_ch_sum = _aggregate_owned_rows_by_channel(prev_rows)
+
+    by_channel = {}
+    for ch in OWNED_CHANNELS:
+        curv = cur_ch_sum[ch]
+        prevv = prev_ch_sum[ch]
+        cur_c = (curv["purchases"] / curv["sessions"]) if curv["sessions"] > 0 else None
+        prev_c = (prevv["purchases"] / prevv["sessions"]) if prevv["sessions"] > 0 else None
+        by_channel[ch] = {
+            "cur": {**curv, "cvr": cur_c},
+            "prev": {**prevv, "cvr": prev_c},
+            "yoy": {
+                "send_count": _ratio(curv["send_count"], prevv["send_count"]),
+                "sessions": _ratio(curv["sessions"], prevv["sessions"]),
+                "users": _ratio(curv["users"], prevv["users"]),
+                "purchases": _ratio(curv["purchases"], prevv["purchases"]),
+                "revenue": _ratio(curv["revenue"], prevv["revenue"]),
+                "cvr_pp": (cur_c - prev_c) if (cur_c is not None and prev_c is not None) else None,
+            },
+        }
+
+    result.update({
+        "enabled": True,
+        "period": f"{target_end.year}-01-01 ~ {ymd(target_end)}",
+        "prev_period": f"{target_end.year - 1}-01-01 ~ {target_end.year - 1}-{target_end.strftime('%m-%d')}",
+        "total": total, "total_prev": total_prev, "total_yoy": total_yoy,
+        "by_channel": by_channel, "updated": now_kst_label(),
+        "source": str(latest_bundle) if latest_bundle else str(owned_dir),
+    })
+    return result
 
     ytd_based = _build_owned_result_from_ytd_yoy(obj, owned_dir)
     if ytd_based:
