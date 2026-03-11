@@ -320,7 +320,9 @@ final_campaign AS (
     k.users,
     IFNULL(p.purchases,0) AS purchases,
     IFNULL(p.revenue,0) AS revenue,
-    IFNULL(p.items_purchased,0) AS items_purchased
+    IFNULL(p.items_purchased,0) AS items_purchased,
+    1 AS send_count,
+    SAFE_DIVIDE(k.sessions, 1) AS avg_leverage
   FROM session_kpi k
   LEFT JOIN purchase_kpi p
     ON p.date=k.date AND p.channel=k.channel AND p.campaign=k.campaign AND p.term=k.term
@@ -336,6 +338,10 @@ SELECT
   purchases,
   revenue,
   items_purchased,
+  send_count,
+  avg_leverage,
+  '' AS message_title,
+  '' AS message_body,
   NULL AS item_id,
   NULL AS item_name,
   NULL AS items,
@@ -409,7 +415,7 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
     prod = df[df["row_type"] == "PRODUCT"].copy()
 
     # normalize numeric cols
-    for col in ["sessions", "users", "purchases", "revenue", "items_purchased"]:
+    for col in ["sessions", "users", "purchases", "revenue", "items_purchased", "send_count", "avg_leverage"]:
         if col in camp.columns:
             camp[col] = camp[col].fillna(0).astype(float)
 
@@ -418,11 +424,11 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
             prod[col] = prod[col].fillna(0).astype(float)
 
     # add group mmdd + year
-    def _mmdd_from_campaign_term(c: str, t: str) -> Optional[str]:
-        return extract_mmdd(c) or extract_mmdd(t)
-
+    # ✅ year/mmdd must be based on actual send date, not campaign/term text.
+    # This prevents UI confusion such as showing 2026 rows grouped under 1229/1202
+    # just because those 4 digits appeared in the campaign name.
     camp["year"] = camp["date"].str.slice(0, 4)
-    camp["mmdd"] = camp.apply(lambda r: _mmdd_from_campaign_term(str(r["campaign"]), str(r["term"])), axis=1)
+    camp["mmdd"] = camp["date"].str.slice(5, 7) + camp["date"].str.slice(8, 10)
 
     # JSON payload
     campaigns: List[Dict[str, Any]] = []
@@ -440,6 +446,10 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
                 purchases=int(r["purchases"]),
                 revenue=float(r["revenue"]),
                 items_purchased=int(r["items_purchased"]),
+                send_count=int(r.get("send_count", 0) or 0),
+                avg_leverage=float(r.get("avg_leverage", 0) or 0),
+                message_title=str(r.get("message_title", "") or ""),
+                message_body=str(r.get("message_body", "") or ""),
             )
         )
 
