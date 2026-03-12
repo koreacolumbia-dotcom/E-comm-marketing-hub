@@ -105,6 +105,8 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Checkout repo
@@ -402,7 +404,6 @@ jobs:
 
       - name: Run Crema VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
-        continue-on-error: true
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
           OUTPUT_TZ: Asia/Seoul
@@ -482,7 +483,7 @@ jobs:
             ls -lah reports/crema_raw || true
             ls -lah site/data || true
             ls -lah site/assets || true
-            exit 0
+            exit 1
           fi
 
           if [ ! -f "${FLAG}" ]; then
@@ -513,17 +514,67 @@ jobs:
 
           echo "[INFO] (3) Build dashboard: build_voc_dashboard.py"
           if [ "${DEBUG}" = "true" ]; then
-            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --debug || true
+            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --debug
           else
-            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" || true
+            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}"
           fi
 
-          echo "[INFO] (3.5) Force VOC template (if exists): templates/voc_index.html -> site/index.html"
-          if [ -f "templates/voc_index.html" ]; then
-            cp -f templates/voc_index.html site/index.html
-            echo "[OK] forced site/index.html"
+          echo "[INFO] (3.2) Validate VOC JSON"
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          
+          candidates = [Path('site/data/reviews.json'), Path('reports/crema_raw/reviews.json')]
+          found = None
+          for p in candidates:
+              if p.exists():
+                  found = p
+                  break
+          
+          if not found:
+              print('[ERROR] reviews.json not found in site/data or reports/crema_raw')
+              sys.exit(1)
+          
+          with found.open('r', encoding='utf-8') as f:
+              data = json.load(f)
+          
+          if isinstance(data, dict):
+              rows = data.get('reviews') or data.get('items') or []
+          else:
+              rows = data
+          
+          if not isinstance(rows, list) or len(rows) == 0:
+              print(f'[ERROR] {found} has no review rows')
+              sys.exit(1)
+          
+          created = [str(r.get('created_at', '')).strip() for r in rows if isinstance(r, dict) and r.get('created_at')]
+          latest = max(created) if created else 'N/A'
+          print(f'[CHECK] review_file={found}')
+          print(f'[CHECK] review_count={len(rows)}')
+          print(f'[CHECK] latest_created_at={latest}')
+          PY
+
+          echo "[INFO] (3.5) Keep builder output; only fallback-copy template when site/index.html is missing"
+          if [ ! -f "site/index.html" ]; then
+            if [ -f "templates/voc_index.html" ]; then
+              cp -f templates/voc_index.html site/index.html
+              echo "[WARN] builder did not create site/index.html, so template fallback copied"
+            else
+              echo "[ERROR] site/index.html missing and templates/voc_index.html not found"
+              exit 1
+            fi
           else
-            echo "[WARN] templates/voc_index.html not found (skip force)."
+            echo "[OK] site/index.html exists after build"
+          fi
+
+          if [ ! -f "site/data/reviews.json" ]; then
+            echo "[WARN] site/data/reviews.json missing -> copying from ${INPUT_JSON}"
+            cp -f "${INPUT_JSON}" site/data/reviews.json
+          fi
+
+          if [ ! -f "site/data/meta.json" ]; then
+            echo "[WARN] site/data/meta.json missing -> write minimal meta"
+            printf '{"build":"%s","source":"crema_voc"}\n' "${YMD}" > site/data/meta.json
           fi
 
           echo "[INFO] (4) Archive site -> reports/voc_crema"
@@ -546,9 +597,9 @@ jobs:
               echo "[WARN] site/data not found"
             fi
           else
-            echo "[WARN] site/index.html not found after build"
+            echo "[ERROR] site/index.html not found after build"
             ls -lah site || true
-            exit 0
+            exit 1
           fi
 
           echo "[INFO] voc_crema outputs:"
