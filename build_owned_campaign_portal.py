@@ -16,9 +16,6 @@ OWNED Campaign → Product Explorer (GA4 BigQuery Export)
    - items_purchased = SUM(items.quantity)
 6) ✅ purchases는 transaction_id distinct 우선(중복 purchase event 방지), 없으면 event count fallback
 7) ✅ recent-days의 end는 KST 전일(yesterday) 기준
-8) ✅ send_count는 발송(send_id) 기준으로 1회만 집계
-9) ✅ previous-year merge는 옵션으로만 동작 (기본 OFF)
-10) ✅ purchase revenue / items fallback 보강
 """
 
 from __future__ import annotations
@@ -154,7 +151,6 @@ base2 AS (
     ga_session_id,
     CONCAT(user_pseudo_id, '-', CAST(ga_session_id AS STRING)) AS session_key,
 
-    -- 우선순위: collected_traffic_source > event_params(utm_*) > event_params(source/medium/..) > traffic_source
     NULLIF(COALESCE(cts_source,   ep_utm_source,   ep_source,   ts_source),   '') AS utm_source,
     NULLIF(COALESCE(cts_medium,   ep_utm_medium,   ep_medium,   ts_medium),   '') AS utm_medium,
     NULLIF(COALESCE(cts_campaign, ep_utm_campaign, ep_campaign, ts_campaign), '') AS utm_campaign,
@@ -169,8 +165,6 @@ base2 AS (
   WHERE ga_session_id IS NOT NULL
 ),
 session_dim AS (
-  -- 세션별 기준일: MIN(event_dt) (세션 시작일)
-  -- UTM: timestamp 오름차순 최초 non-null 값을 채택
   SELECT
     MIN(event_dt) AS session_date,
     user_pseudo_id,
@@ -188,12 +182,10 @@ sessions_owned AS (
     session_date AS date,
     user_pseudo_id,
     session_key,
-
     utm_source,
     utm_medium,
     utm_campaign,
     utm_term,
-
     LOWER(IFNULL(utm_campaign,'')) AS lc_campaign,
     LOWER(IFNULL(utm_term,''))     AS lc_term,
     LOWER(IFNULL(utm_source,''))   AS lc_source,
@@ -209,7 +201,6 @@ owned_labeled AS (
     utm_medium,
     utm_campaign,
     utm_term,
-
     CASE
       WHEN (
         lc_medium = 'lms' OR lc_medium LIKE 'lms%' OR lc_medium LIKE '%lms%'
@@ -229,8 +220,8 @@ owned_labeled AS (
       ) THEN 'KAKAO'
       ELSE 'OTHER'
     END AS channel,
-
-    -- send_id: EDM/LMS는 campaign 우선, KAKAO는 term 우선
+    COALESCE(NULLIF(utm_campaign,''), '(not_set)') AS campaign,
+    COALESCE(NULLIF(utm_term,''), '-') AS term,
     CASE
       WHEN (
         lc_campaign LIKE 'kakao%' OR lc_term LIKE 'kakao%'
@@ -240,10 +231,7 @@ owned_labeled AS (
       )
       THEN COALESCE(NULLIF(utm_term,''), NULLIF(utm_campaign,''), '(not_set)')
       ELSE COALESCE(NULLIF(utm_campaign,''), NULLIF(utm_term,''), '(not_set)')
-    END AS send_id,
-
-    COALESCE(NULLIF(utm_campaign,''), '(not_set)') AS campaign,
-    COALESCE(NULLIF(utm_term,''), '-') AS term
+    END AS send_id
   FROM sessions_owned
   WHERE 1=1
     AND (
@@ -267,21 +255,12 @@ session_kpi AS (
 purchase_events AS (
   SELECT
     session_key,
-    -- event-level revenue (ecommerce.purchase_revenue) and item-level revenue (SUM(items.item_revenue))
     SUM(purchase_revenue) AS revenue_evt,
-    SUM((
-      SELECT IFNULL(SUM(IFNULL(it.item_revenue,0)),0) FROM UNNEST(items) it
-    )) AS revenue_items,
-
-    -- ✅ purchases: prefer distinct transaction_id when available (prevents double-count)
+    SUM((SELECT IFNULL(SUM(IFNULL(it.item_revenue,0)),0) FROM UNNEST(items) it)) AS revenue_items,
     COUNT(DISTINCT NULLIF(transaction_id, '')) AS txn_cnt,
     COUNTIF(event_name='purchase') AS purchase_events_raw,
-
-    -- item quantity (Products table sums this)
-    SUM((
-      SELECT IFNULL(SUM(IFNULL(it.quantity,0)),0) FROM UNNEST(items) it
-    )) AS items_qty,
-    SUM(IFNULL(total_item_quantity,0)) AS total_item_qty_evt
+    SUM((SELECT IFNULL(SUM(IFNULL(it.quantity,0)),0) FROM UNNEST(items) it)) AS items_qty,
+    SUM(IFNULL(total_item_quantity,0)) AS items_qty_evt
   FROM base2
   WHERE event_name='purchase'
   GROUP BY 1
@@ -294,9 +273,8 @@ purchase_kpi AS (
     s.campaign,
     s.term,
     SUM(IF(p.txn_cnt > 0, p.txn_cnt, IFNULL(p.purchase_events_raw,0))) AS purchases,
-    -- item array가 비어있는 export를 대비해 fallback 보강
     SUM(CASE WHEN IFNULL(p.revenue_items,0) > 0 THEN p.revenue_items ELSE IFNULL(p.revenue_evt,0) END) AS revenue,
-    SUM(CASE WHEN IFNULL(p.items_qty,0) > 0 THEN p.items_qty ELSE IFNULL(p.total_item_qty_evt,0) END) AS items_purchased
+    SUM(CASE WHEN IFNULL(p.items_qty,0) > 0 THEN p.items_qty ELSE IFNULL(p.items_qty_evt,0) END) AS items_purchased
   FROM owned_labeled s
   LEFT JOIN purchase_events p
     ON p.session_key = s.session_key
@@ -320,6 +298,32 @@ prod_rows AS (
   CROSS JOIN UNNEST(b.items) it
   GROUP BY 1,2,3,4,5,6
 ),
+send_rollup AS (
+  SELECT
+    date,
+    channel,
+    send_id,
+    SUM(sessions) AS send_sessions,
+    SUM(users) AS send_users,
+    SUM(IFNULL(purchases,0)) AS send_purchases,
+    SUM(IFNULL(revenue,0)) AS send_revenue,
+    SUM(IFNULL(items_purchased,0)) AS send_items
+  FROM (
+    SELECT
+      k.date,
+      k.channel,
+      k.send_id,
+      k.sessions,
+      k.users,
+      IFNULL(p.purchases,0) AS purchases,
+      IFNULL(p.revenue,0) AS revenue,
+      IFNULL(p.items_purchased,0) AS items_purchased
+    FROM session_kpi k
+    LEFT JOIN purchase_kpi p
+      ON p.date=k.date AND p.channel=k.channel AND p.send_id=k.send_id AND p.campaign=k.campaign AND p.term=k.term
+  )
+  GROUP BY 1,2,3
+),
 final_campaign AS (
   SELECT
     k.date,
@@ -336,15 +340,21 @@ final_campaign AS (
       WHEN ROW_NUMBER() OVER (PARTITION BY k.date, k.channel, k.send_id ORDER BY k.campaign, k.term) = 1 THEN 1
       ELSE 0
     END AS send_count,
-    NULL AS avg_leverage
+    CASE
+      WHEN ROW_NUMBER() OVER (PARTITION BY k.date, k.channel, k.send_id ORDER BY k.campaign, k.term) = 1 THEN IFNULL(sr.send_sessions,0)
+      ELSE 0
+    END AS avg_leverage
   FROM session_kpi k
   LEFT JOIN purchase_kpi p
     ON p.date=k.date AND p.channel=k.channel AND p.send_id=k.send_id AND p.campaign=k.campaign AND p.term=k.term
+  LEFT JOIN send_rollup sr
+    ON sr.date=k.date AND sr.channel=k.channel AND sr.send_id=k.send_id
 )
 SELECT
   'CAMPAIGN' AS row_type,
   CAST(date AS STRING) AS date,
   channel,
+  send_id,
   campaign,
   term,
   sessions,
@@ -368,6 +378,7 @@ SELECT
   'PRODUCT' AS row_type,
   CAST(date AS STRING) AS date,
   channel,
+  send_id,
   campaign,
   term,
   NULL AS sessions,
@@ -428,11 +439,9 @@ def run_bq_query(client: bigquery.Client, query: str) -> pd.DataFrame:
 # Build bundles
 # -----------------------------
 def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
-    # split campaign/product rows
     camp = df[df["row_type"] == "CAMPAIGN"].copy()
     prod = df[df["row_type"] == "PRODUCT"].copy()
 
-    # normalize numeric cols
     for col in ["sessions", "users", "purchases", "revenue", "items_purchased", "send_count", "avg_leverage"]:
         if col in camp.columns:
             camp[col] = camp[col].fillna(0).astype(float)
@@ -441,25 +450,22 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
         if col in prod.columns:
             prod[col] = prod[col].fillna(0).astype(float)
 
-    # add group mmdd + year
-    # ✅ year/mmdd must be based on actual send date, not campaign/term text.
-    # This prevents UI confusion such as showing 2026 rows grouped under 1229/1202
-    # just because those 4 digits appeared in the campaign name.
-    camp["year"] = camp["date"].str.slice(0, 4)
-    camp["mmdd"] = camp["date"].str.slice(5, 7) + camp["date"].str.slice(8, 10)
+    camp["year"] = camp["date"].astype(str).str.slice(0, 4)
+    camp["mmdd"] = camp["date"].astype(str).str.slice(5, 7) + camp["date"].astype(str).str.slice(8, 10)
+    prod["year"] = prod["date"].astype(str).str.slice(0, 4)
+    prod["mmdd"] = prod["date"].astype(str).str.slice(5, 7) + prod["date"].astype(str).str.slice(8, 10)
 
-    # JSON payload
     campaigns: List[Dict[str, Any]] = []
     for _, r in camp.iterrows():
         campaigns.append(
             dict(
-                date=r["date"],
-                year=r["year"],
-                mmdd=r["mmdd"],
-                channel=r["channel"],
+                date=str(r["date"]),
+                year=str(r["year"]),
+                mmdd=str(r["mmdd"]),
+                channel=str(r["channel"]),
                 send_id=str(r.get("send_id", "") or ""),
-                campaign=r["campaign"],
-                term=r["term"],
+                campaign=str(r["campaign"]),
+                term=str(r["term"]),
                 sessions=int(r["sessions"]),
                 users=int(r["users"]),
                 purchases=int(r["purchases"]),
@@ -476,11 +482,13 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
     for _, r in prod.iterrows():
         products.append(
             dict(
-                date=r["date"],
-                channel=r["channel"],
+                date=str(r["date"]),
+                year=str(r["year"]),
+                mmdd=str(r["mmdd"]),
+                channel=str(r["channel"]),
                 send_id=str(r.get("send_id", "") or ""),
-                campaign=r["campaign"],
-                term=r["term"],
+                campaign=str(r["campaign"]),
+                term=str(r["term"]),
                 item_id=r["item_id"],
                 item_name=r["item_name"],
                 items=int(r["items"]),
@@ -491,22 +499,25 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
     return {"date": day, "campaigns": campaigns, "products": products}
 
 
-def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwrite: bool = False, merge_prev_year: bool = False) -> None:
+def build_range(
+    bq: BQConfig,
+    start_d: date,
+    end_d: date,
+    site_dir: Path,
+    overwrite: bool = False,
+    merge_prev_year: bool = False,
+) -> None:
     client = bigquery.Client(project=bq.project)
     owned_dir = site_dir / "data" / "owned"
     ensure_dir(owned_dir)
 
-    # Build one big query over suffix range
     q = build_query(bq.project, bq.dataset, ymd_suffix(start_d), ymd_suffix(end_d))
     df = run_bq_query(client, q)
 
-    # Per-day bundles
     df_day_groups = df.groupby("date", dropna=True)
-    wanted_days = []
     for day, g in df_day_groups:
         if not isinstance(day, str):
             day = str(day)
-        wanted_days.append(day)
         bundle = build_day_bundle(g, day)
         if merge_prev_year:
             bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
@@ -514,11 +525,8 @@ def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwr
         if overwrite or (not out.exists()):
             write_json(out, bundle)
 
-    # available_dates.json (include all present on disk after writing)
     dates = list_owned_dates(owned_dir)
     write_json(owned_dir / "available_dates.json", {"available_dates": dates})
-
-
 
 
 # -----------------------------
@@ -600,7 +608,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--recent-days", type=int, default=0, help="Incremental window (days). End is yesterday(KST)")
     ap.add_argument("--site-dir", default="site", help="Output site directory (writes data/owned)")
     ap.add_argument("--overwrite", action="store_true", help="Overwrite existing daily JSONs in the range")
-    ap.add_argument("--merge-prev-year", action="store_true", help="Merge same-MMDD previous-year rows into current bundle (default: off)")
+    ap.add_argument("--merge-prev-year", action="store_true", help="Also merge previous-year same-MM-DD rows into each daily bundle")
     return ap.parse_args()
 
 
@@ -630,7 +638,14 @@ def main() -> None:
     bq = BQConfig(project=args.project, dataset=args.dataset)
 
     print(f"[INFO] Build OWNED bundles: {ymd(start_d)} ~ {ymd(end_d)} | site_dir={site_dir}")
-    build_range(bq, start_d, end_d, site_dir, overwrite=args.overwrite, merge_prev_year=args.merge_prev_year)
+    build_range(
+        bq,
+        start_d,
+        end_d,
+        site_dir,
+        overwrite=args.overwrite,
+        merge_prev_year=args.merge_prev_year,
+    )
 
     owned_dir = site_dir / "data" / "owned"
     print(f"[OK] wrote: {owned_dir}")
