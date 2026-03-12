@@ -35,6 +35,15 @@ on:
           - "false"
           - "true"
 
+      hero_only:
+        description: "Run Hero Main crawler only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
       debug:
         description: "Enable debug logs? (prints more logs, keeps extra debug json)"
         required: true
@@ -133,6 +142,7 @@ jobs:
           DAILY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}"
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
           BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
+          HERO_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.hero_only == 'true' }}"
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
           EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
@@ -143,12 +153,13 @@ jobs:
             [ "$DAILY_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$VOC_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$BLOG_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$HERO_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of daily_only/voc_only/blog_only/owned_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of daily_only/voc_only/blog_only/hero_only/owned_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -224,6 +235,17 @@ jobs:
             RUN_EXTSIG=false
             RUN_CREMA=false
             RUN_BLOG=true
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+          fi
+
+          if [ "$HERO_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=true
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
             RUN_SUMMARY=false
             RUN_OWNED=false
           fi
