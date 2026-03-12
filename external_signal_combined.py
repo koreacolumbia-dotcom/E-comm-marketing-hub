@@ -266,24 +266,32 @@ def _canonicalize_link(link: str) -> str:
     return link.replace("http://", "https://")
 
 
-def _naver_item_keep(item: dict, brand: str, query: str, start_date) -> tuple[bool, str, datetime | None, str, str, str]:
-    dt = _parse_naver_postdate(item.get("postdate", ""))
-    if not dt or dt.date() < start_date:
-        return False, "date", dt, "", "", ""
-
+def _naver_item_keep(item: dict, brand: str, query: str) -> tuple[bool, str, datetime, str, str, str, str, str]:
+    # NOTE:
+    # Naver cafearticle search results are used here as search-result documents.
+    # Do not hard-filter on postdate because that field is not dependable in this pipeline.
     title = _clean_naver_html_text(item.get("title", ""))
     content = _clean_naver_html_text(item.get("description", ""))
     link = _canonicalize_link(item.get("link", ""))
-    combined = f"{title} {content}".strip()
+    cafename = _clean_naver_html_text(item.get("cafename", ""))
+    cafeurl = _canonicalize_link(item.get("cafeurl", ""))
+    combined = f"{title} {content} {cafename}".strip()
+
+    if not combined:
+        return False, "empty", datetime.now(KST), title, content, link, cafename, cafeurl
 
     if not _brand_token_match(combined, brand):
-        return False, "brand_miss", dt, title, content, link
+        return False, "brand_miss", datetime.now(KST), title, content, link, cafename, cafeurl
 
     has_context = any(ctx.lower() in combined.lower() for ctx in NAVER_CONTEXT_TERMS)
-    if query == brand and brand in AMBIGUOUS_BRANDS and not has_context:
-        return False, "ambiguous_no_context", dt, title, content, link
+    # For ambiguous brands, require context. For non-ambiguous brands, keep brand-only mentions.
+    if brand in AMBIGUOUS_BRANDS and not has_context:
+        return False, "ambiguous_no_context", datetime.now(KST), title, content, link, cafename, cafeurl
 
-    return True, "ok", dt, title, content, link
+    # Search API does not give us a stable article datetime in this workflow,
+    # so we stamp with collection time and clearly label the source as Search API.
+    stamped_dt = datetime.now(KST)
+    return True, "ok", stamped_dt, title, content, link, cafename, cafeurl
 
 
 def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
@@ -297,18 +305,18 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
     }
 
-    start_date = (datetime.now(KST) - timedelta(days=days)).date()
     seen = set()
     posts: List[Post] = []
     raw_total = 0
     kept_total = 0
+    reason_totals = {"brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
 
-    print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (최근 {days}일)")
+    print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (검색결과 기준 · 최근성 표시는 수집시각 사용 · query set window={days}d)")
 
     for brand, query in build_naver_queries():
         query_raw = 0
         query_kept = 0
-        stop_old = False
+        query_drop = {"brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
 
         for page_no in range(NAVER_PAGES):
             start = 1 + (page_no * NAVER_DISPLAY)
@@ -338,27 +346,32 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                 break
 
             page_kept = 0
-            first_dt = None
-            last_dt = None
+            page_drop = {"brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
             for item in items:
-                keep, reason, dt, title, content, link = _naver_item_keep(item, brand, query, start_date)
-                if dt is not None:
-                    if first_dt is None:
-                        first_dt = dt
-                    last_dt = dt
+                keep, reason, dt, title, content, link, cafename, cafeurl = _naver_item_keep(item, brand, query)
                 if not keep:
+                    page_drop[reason] = page_drop.get(reason, 0) + 1
+                    query_drop[reason] = query_drop.get(reason, 0) + 1
+                    reason_totals[reason] = reason_totals.get(reason, 0) + 1
                     continue
 
-                key = (brand, link or title, dt.strftime("%Y-%m-%d"))
+                key = (brand, link or title, title, content)
                 if key in seen:
+                    page_drop["dup"] += 1
+                    query_drop["dup"] += 1
+                    reason_totals["dup"] += 1
                     continue
                 seen.add(key)
+
+                stamped_content = content
+                if cafename:
+                    stamped_content = f"[카페:{cafename}] {stamped_content}".strip()
 
                 posts.append(
                     Post(
                         title=title,
                         url=link,
-                        content=content,
+                        content=stamped_content,
                         comments="",
                         created_at=dt,
                         platform="naver_cafe",
@@ -370,21 +383,22 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                 query_kept += 1
                 kept_total += 1
 
-            if last_dt is not None and last_dt.date() < start_date:
-                stop_old = True
-
             print(
-                f"   - query='{query}' page={page_no+1} status={status} raw={raw_count} kept={page_kept} total={len(posts)}"
-                + (f" oldest={last_dt.strftime('%Y-%m-%d')}" if last_dt else "")
+                f"   - query='{query}' page={page_no+1} status={status} raw={raw_count} kept={page_kept} total={len(posts)} "
+                f"drop_brand={page_drop.get('brand_miss',0)} drop_ctx={page_drop.get('ambiguous_no_context',0)} "
+                f"drop_empty={page_drop.get('empty',0)} drop_dup={page_drop.get('dup',0)}"
             )
 
-            if stop_old:
-                break
-
-        print(f"   ↳ query='{query}' 완료 raw={query_raw} kept={query_kept} 누적={len(posts)}")
+        print(
+            f"   ↳ query='{query}' 완료 raw={query_raw} kept={query_kept} 누적={len(posts)} "
+            f"(brand_miss={query_drop.get('brand_miss',0)}, ambiguous_no_context={query_drop.get('ambiguous_no_context',0)}, dup={query_drop.get('dup',0)})"
+        )
 
     if kept_total == 0:
-        msg = f"NAVER Cafe 결과 0건 (raw={raw_total}, kept={kept_total}) · TARGET_DAYS를 30~60으로 늘리거나 쿼리 확장 필요"
+        msg = (
+            f"NAVER Cafe 결과 0건 (raw={raw_total}, kept={kept_total}) · "
+            f"brand_miss={reason_totals.get('brand_miss',0)}, ambiguous_no_context={reason_totals.get('ambiguous_no_context',0)}, dup={reason_totals.get('dup',0)}"
+        )
         return posts, msg
 
     return posts, None
@@ -827,14 +841,14 @@ def export_portal(
 
     naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
     if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
-        naver_subtitle += " · Query mode: brand / brand+등산"
+        naver_subtitle += " · Query mode: brand / brand+카테고리"
 
     naver_panel = _source_panel_html(
         panel_id="panel-naver",
-        title=f"네이버 카페 · 브랜드 언급 (최근 {int(TARGET_DAYS)}일)",
+        title="네이버 카페 · 브랜드 언급 (Search API 결과)",
         subtitle=naver_subtitle,
         summary_html=_summary_table_html(naver_summary_df),
-        weekly_html=_weekly_html(naver_meta, "NAVER Cafe Search API"),
+        weekly_html=_weekly_html(naver_meta, "NAVER Cafe Search API (수집시각 기준)"),
         sections_html=_brand_sections_html(naver_brand_map, "naver_cafe"),
         warning=naver_warning or "",
     )
@@ -873,7 +887,7 @@ def export_portal(
         <div>
           <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL HUB</div>
           <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside + 네이버 카페 브랜드 언급 모니터링</h1>
-          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · Target window: 최근 {int(TARGET_DAYS)}일</div>
+          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · DCInside: 최근 {int(TARGET_DAYS)}일 / NAVER Cafe: Search API 결과</div>
         </div>
         <div class="text-xs text-slate-600 font-bold">브랜드 수: {len(BRAND_LIST)} · 탭별로 소스 분리 확인</div>
       </div>
