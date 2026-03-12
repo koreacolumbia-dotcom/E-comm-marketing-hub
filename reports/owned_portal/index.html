@@ -669,15 +669,29 @@
   }
 
   function getSendKey(r){
+    const channel = String((r && (r.channel || '')) || '').trim();
     const sendId = String((r && (r.send_id || '')) || '').trim();
+    const campaign = String((r && (r.campaign || '')) || '').trim();
+    const term = String((r && (r.term || '')) || '').trim();
+    const mmdd = getRowMmdd(r);
+
+    // 중요: send distinct는 날짜별 row가 아니라 실제 발송 단위로 세야 함.
+    // 따라서 send_id가 있으면 date를 key에 넣지 않는다.
     if(sendId){
-      return `${r.date || ''}||${r.channel || ''}||${sendId}`;
+      return `${channel}||SEND||${sendId}`;
     }
-    const explicitSendCount = Number((r && r.send_count) || 0);
-    if(explicitSendCount > 0){
-      return `${r.date || ''}||${r.channel || ''}||${r.campaign || ''}`;
+
+    // 구 schema fallback: campaign이 있으면 campaign 우선, 없으면 term.
+    // 여기서도 date를 넣으면 WEEK/RANGE에서 같은 발송이 일자별로 중복 카운트된다.
+    if(campaign && campaign !== '-'){
+      return `${channel}||CAMPAIGN||${campaign}`;
     }
-    return `${r.date || ''}||${r.channel || ''}||${r.campaign || ''}||${r.term || ''}`;
+    if(term && term !== '-'){
+      return `${channel}||TERM||${term}`;
+    }
+
+    // 정말 식별자가 없을 때만 마지막 fallback으로 날짜 사용
+    return `${channel}||DATE||${String((r && (r.date || '')) || '').trim()}||${mmdd || ''}`;
   }
 
   function countDistinctSends(rows){
