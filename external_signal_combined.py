@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 
 # ================================================================
 # Summary/meta export (Hub first-screen consumption)
@@ -50,14 +50,19 @@ KST = timezone(timedelta(hours=9))
 GALLERY_ID = "climbing"
 BASE_URL = "https://gall.dcinside.com"
 MAX_PAGES = int(os.getenv("MAX_PAGES", "100"))
-TARGET_DAYS = int(os.getenv("TARGET_DAYS", "7"))
+TARGET_DAYS = int(os.getenv("TARGET_DAYS", "30"))
 DEBUG = os.getenv("DEBUG", "0").strip().lower() in ("1", "true", "yes", "y")
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "").strip()
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "").strip()
 NAVER_DISPLAY = max(10, min(int(os.getenv("NAVER_DISPLAY", "100")), 100))
 NAVER_CONTEXT_TERMS = [
-    "등산", "산행", "아웃도어", "백패킹", "등산화", "바람막이", "플리스", "패딩", "배낭"
+    "등산", "산행", "아웃도어", "백패킹", "트레킹", "하이킹", "캠핑",
+    "등산화", "트레일러닝", "바람막이", "플리스", "패딩", "자켓", "배낭",
+    "고어텍스", "고어 텍스", "등산복", "방수", "보온성", "후기", "착용"
 ]
+NAVER_QUERY_SUFFIXES = ["", " 등산", " 등산화", " 바람막이", " 플리스", " 자켓"]
+NAVER_PAGES = max(1, int(os.getenv("NAVER_PAGES", "4")))
+AMBIGUOUS_BRANDS = {"K2", "디스커버리", "데상트", "나이키", "내셔널지오그래픽"}
 
 BRAND_LIST = [
     "컬럼비아", "노스페이스", "파타고니아", "아크테릭스", "블랙야크",
@@ -67,19 +72,18 @@ BRAND_LIST = [
     "헬리한센", "오스프리", "그레고리", "데상트", "나이키",
 ]
 
-# 짧고 모호한 별칭(예: 파타, 아크, 내지, 코오롱)은 오탐이 잦아서 제외
-SAFE_BRAND_ALIASES: Dict[str, List[str]] = {
-    "노스페이스": ["The North Face", "NORTH FACE", "NORTHFACE"],
-    "아크테릭스": ["Arc'teryx", "ARCTERYX"],
+BRAND_ALIASES: Dict[str, List[str]] = {
+    "노스페이스": ["TNF", "The North Face", "NORTHFACE", "NORTH FACE"],
+    "아크테릭스": ["Arc'teryx", "ARCTERYX", "아크테릭스"],
     "파타고니아": ["Patagonia", "PATAGONIA"],
     "살로몬": ["Salomon", "SALOMON"],
-    "스노우피크": ["Snow Peak", "SNOW PEAK", "SNOWPEAK", "Snowpeak"],
-    "내셔널지오그래픽": ["National Geographic", "NATIONAL GEOGRAPHIC", "NATIONALGEOGRAPHIC", "NatGeo", "NATGEO"],
-    "코오롱스포츠": ["Kolon Sport", "KOLON SPORT", "KOLONSPORT"],
+    "스노우피크": ["Snow Peak", "SNOWPEAK", "Snowpeak"],
+    "내셔널지오그래픽": ["National Geographic", "NATIONALGEOGRAPHIC", "NatGeo"],
+    "코오롱스포츠": ["Kolon Sport", "KOLONSPORT", "Kolonsport"],
     "몬벨": ["몽벨", "Montbell", "MONTBELL"],
     "디스커버리": ["Discovery", "DISCOVERY"],
     "컬럼비아": ["Columbia", "COLUMBIA", "콜롬비아"],
-    "블랙야크": ["Black Yak", "BLACK YAK", "BLACKYAK"],
+    "블랙야크": ["Black Yak", "BLACKYAK"],
     "네파": ["NEPA"],
     "아이더": ["EIDER"],
     "데상트": ["Descente", "DESCENTE"],
@@ -217,7 +221,7 @@ def _clean_naver_html_text(s: str) -> str:
     return s
 
 
-def _parse_naver_postdate(postdate: str) -> Optional[datetime]:
+def _parse_naver_postdate(postdate: str) -> datetime | None:
     postdate = (postdate or "").strip()
     for fmt in ("%Y%m%d", "%Y-%m-%d", "%Y.%m.%d"):
         try:
@@ -229,13 +233,60 @@ def _parse_naver_postdate(postdate: str) -> Optional[datetime]:
 
 def build_naver_queries() -> List[Tuple[str, str]]:
     queries: List[Tuple[str, str]] = []
+    seen = set()
     for brand in BRAND_LIST:
-        queries.append((brand, brand))
-        queries.append((brand, f"{brand} 등산"))
+        suffixes = NAVER_QUERY_SUFFIXES[:]
+        if brand in AMBIGUOUS_BRANDS:
+            suffixes = [s for s in suffixes if s] or [" 등산"]
+        for suffix in suffixes:
+            query = f"{brand}{suffix}".strip()
+            key = (brand, query)
+            if key in seen:
+                continue
+            seen.add(key)
+            queries.append(key)
     return queries
 
 
-def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], Optional[str]]:
+def _brand_token_match(text: str, brand: str) -> bool:
+    text = text or ""
+    if not text:
+        return False
+    if brand == "K2":
+        return bool(re.search(r"(?<![A-Za-z0-9])K2(?![A-Za-z0-9])", text, re.IGNORECASE))
+    tokens = [brand] + BRAND_ALIASES.get(brand, [])
+    pattern = r"(?:" + "|".join(re.escape(t) for t in tokens if t) + r")"
+    return bool(re.search(pattern, text, re.IGNORECASE))
+
+
+def _canonicalize_link(link: str) -> str:
+    link = (link or "").strip()
+    if not link:
+        return ""
+    return link.replace("http://", "https://")
+
+
+def _naver_item_keep(item: dict, brand: str, query: str, start_date) -> tuple[bool, str, datetime | None, str, str, str]:
+    dt = _parse_naver_postdate(item.get("postdate", ""))
+    if not dt or dt.date() < start_date:
+        return False, "date", dt, "", "", ""
+
+    title = _clean_naver_html_text(item.get("title", ""))
+    content = _clean_naver_html_text(item.get("description", ""))
+    link = _canonicalize_link(item.get("link", ""))
+    combined = f"{title} {content}".strip()
+
+    if not _brand_token_match(combined, brand):
+        return False, "brand_miss", dt, title, content, link
+
+    has_context = any(ctx.lower() in combined.lower() for ctx in NAVER_CONTEXT_TERMS)
+    if query == brand and brand in AMBIGUOUS_BRANDS and not has_context:
+        return False, "ambiguous_no_context", dt, title, content, link
+
+    return True, "ok", dt, title, content, link
+
+
+def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
     if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
         msg = "NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 미설정"
         print(f"[WARN] {msg}")
@@ -249,65 +300,92 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], Optional[str]]:
     start_date = (datetime.now(KST) - timedelta(days=days)).date()
     seen = set()
     posts: List[Post] = []
+    raw_total = 0
+    kept_total = 0
 
     print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (최근 {days}일)")
 
     for brand, query in build_naver_queries():
-        params = {
-            "query": query,
-            "display": NAVER_DISPLAY,
-            "start": 1,
-            "sort": "date",
-        }
-        url = "https://openapi.naver.com/v1/search/cafearticle.json"
-        try:
-            resp = SESSION.get(url, headers=headers, params=params, timeout=15)
-            if DEBUG:
-                print(f"[DEBUG] NAVER {query} -> {resp.status_code}")
-            if resp.status_code != 200:
-                continue
-            items = (resp.json() or {}).get("items", [])
-        except Exception as e:
-            if DEBUG:
-                print(f"[DEBUG] NAVER request failed: {query} | {e}")
-            continue
+        query_raw = 0
+        query_kept = 0
+        stop_old = False
 
-        brand_patterns = build_brand_patterns({brand: [brand] + SAFE_BRAND_ALIASES.get(brand, [])})
+        for page_no in range(NAVER_PAGES):
+            start = 1 + (page_no * NAVER_DISPLAY)
+            params = {
+                "query": query,
+                "display": NAVER_DISPLAY,
+                "start": start,
+                "sort": "date",
+            }
+            url = "https://openapi.naver.com/v1/search/cafearticle.json"
+            try:
+                resp = SESSION.get(url, headers=headers, params=params, timeout=20)
+                status = resp.status_code
+                data = resp.json() if resp.status_code == 200 else {}
+                items = (data or {}).get("items", [])
+            except Exception as e:
+                if DEBUG:
+                    print(f"[DEBUG] NAVER request failed: {query} | start={start} | {e}")
+                break
 
-        for item in items:
-            dt = _parse_naver_postdate(item.get("postdate", ""))
-            if not dt or dt.date() < start_date:
-                continue
+            raw_count = len(items)
+            raw_total += raw_count
+            query_raw += raw_count
+            if raw_count == 0:
+                if DEBUG:
+                    print(f"[DEBUG] NAVER query={query} page={page_no+1} raw=0 -> break")
+                break
 
-            title = _clean_naver_html_text(item.get("title", ""))
-            content = _clean_naver_html_text(item.get("description", ""))
-            link = (item.get("link", "") or "").strip()
-            combined = f"{title}\n{content}"
+            page_kept = 0
+            first_dt = None
+            last_dt = None
+            for item in items:
+                keep, reason, dt, title, content, link = _naver_item_keep(item, brand, query, start_date)
+                if dt is not None:
+                    if first_dt is None:
+                        first_dt = dt
+                    last_dt = dt
+                if not keep:
+                    continue
 
-            if not contains_brand(combined, brand, brand_patterns):
-                continue
-            if query == brand and not any(ctx in combined.lower() for ctx in NAVER_CONTEXT_TERMS):
-                continue
+                key = (brand, link or title, dt.strftime("%Y-%m-%d"))
+                if key in seen:
+                    continue
+                seen.add(key)
 
-            key = (brand, link, title, dt.strftime("%Y-%m-%d"))
-            if key in seen:
-                continue
-            seen.add(key)
-
-            posts.append(
-                Post(
-                    title=title,
-                    url=link,
-                    content=content,
-                    comments="",
-                    created_at=dt,
-                    platform="naver_cafe",
-                    source="naver_cafe",
-                    query=query,
+                posts.append(
+                    Post(
+                        title=title,
+                        url=link,
+                        content=content,
+                        comments="",
+                        created_at=dt,
+                        platform="naver_cafe",
+                        source="naver_cafe",
+                        query=query,
+                    )
                 )
+                page_kept += 1
+                query_kept += 1
+                kept_total += 1
+
+            if last_dt is not None and last_dt.date() < start_date:
+                stop_old = True
+
+            print(
+                f"   - query='{query}' page={page_no+1} status={status} raw={raw_count} kept={page_kept} total={len(posts)}"
+                + (f" oldest={last_dt.strftime('%Y-%m-%d')}" if last_dt else "")
             )
 
-        print(f"   - query='{query}' 완료 (누적 수집: {len(posts)})")
+            if stop_old:
+                break
+
+        print(f"   ↳ query='{query}' 완료 raw={query_raw} kept={query_kept} 누적={len(posts)}")
+
+    if kept_total == 0:
+        msg = f"NAVER Cafe 결과 0건 (raw={raw_total}, kept={kept_total}) · TARGET_DAYS를 30~60으로 늘리거나 쿼리 확장 필요"
+        return posts, msg
 
     return posts, None
 
@@ -326,37 +404,12 @@ def split_sentences(text: str) -> List[str]:
     return [p.strip() for p in parts if len(p.strip()) >= 4]
 
 
-def _token_to_pattern(token: str) -> str:
-    token = token.strip()
-    if not token:
-        return ""
-
-    if token.upper() == "K2":
-        return r"(?<![A-Za-z0-9])K2(?![A-Za-z0-9])"
-
-    # 영문/숫자 위주 토큰은 단어 경계를 사용
-    if re.fullmatch(r"[A-Za-z0-9' +&.-]+", token):
-        escaped = re.escape(token)
-        return rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])"
-
-    # 한글/혼합 토큰은 정확 문자열 사용
-    return re.escape(token)
-
-
-def build_brand_patterns(brand_alias_map: Optional[Dict[str, List[str]]] = None) -> Dict[str, re.Pattern]:
-    if brand_alias_map is None:
-        brand_alias_map = {b: [b] + SAFE_BRAND_ALIASES.get(b, []) for b in BRAND_LIST}
-
-    patterns: Dict[str, re.Pattern] = {}
-    for brand, tokens in brand_alias_map.items():
-        cleaned = []
-        for tok in tokens:
-            pat = _token_to_pattern(tok)
-            if pat:
-                cleaned.append(pat)
-        if not cleaned:
-            cleaned.append(re.escape(brand))
-        patterns[brand] = re.compile(r"(?:%s)" % "|".join(cleaned), re.IGNORECASE)
+def build_brand_patterns() -> Dict[str, re.Pattern]:
+    patterns = {}
+    for b in BRAND_LIST:
+        aliases = BRAND_ALIASES.get(b, [])
+        tokens = [re.escape(b)] + [re.escape(a) for a in aliases]
+        patterns[b] = re.compile(r"(" + "|".join(tokens) + r")", re.IGNORECASE)
     return patterns
 
 
@@ -374,96 +427,138 @@ def sentence_has_brand(sentence: str, brand: str, patterns: Dict[str, re.Pattern
 def process_data(posts: List[Post]):
     patterns = build_brand_patterns()
     brand_map: Dict[str, List[dict]] = {b: [] for b in BRAND_LIST}
+    summary = {
+        b: {"posts_count": 0, "title_hits": 0, "comment_mentions": 0, "total_mentions": 0}
+        for b in BRAND_LIST
+    }
 
     for p in posts:
         title = normalize_text(p.title)
         content = normalize_text(p.content)
         comments = normalize_text(p.comments)
 
-        source_blocks = [
-            ("title", [title] if title else []),
-            ("content", split_sentences(content)),
-            ("comment", split_sentences(comments)),
-        ]
+        title_sents = [title] if title else []
+        content_sents = split_sentences(content)
+        comment_sents = split_sentences(comments)
 
-        for brand in BRAND_LIST:
-            for source_kind, sentences in source_blocks:
-                for sentence in sentences:
-                    if source_kind == "title" and len(sentence) <= 1:
-                        continue
-                    if source_kind != "title" and len(sentence) <= 5:
-                        continue
-                    if not sentence_has_brand(sentence, brand, patterns):
-                        continue
+        post_has_brand = {b: False for b in BRAND_LIST}
+        title_has_brand = {b: False for b in BRAND_LIST}
 
-                    brand_map[brand].append(
+        for b in BRAND_LIST:
+            if contains_brand(title, b, patterns):
+                title_has_brand[b] = True
+                summary[b]["title_hits"] += 1
+                post_has_brand[b] = True
+
+            for s in title_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 3:
+                    brand_map[b].append(
                         {
-                            "text": sentence,
+                            "text": s,
                             "url": p.url,
                             "title": title,
-                            "source": source_kind,
+                            "source": "title",
                             "platform": p.platform,
                             "query": p.query,
                             "date": p.created_at.strftime("%Y-%m-%d"),
                         }
                     )
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
 
-    # mention dedupe
-    for brand in BRAND_LIST:
+            for s in content_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                    brand_map[b].append(
+                        {
+                            "text": s,
+                            "url": p.url,
+                            "title": title,
+                            "source": "content",
+                            "platform": p.platform,
+                            "query": p.query,
+                            "date": p.created_at.strftime("%Y-%m-%d"),
+                        }
+                    )
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
+
+            for s in comment_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                    brand_map[b].append(
+                        {
+                            "text": s,
+                            "url": p.url,
+                            "title": title,
+                            "source": "comment",
+                            "platform": p.platform,
+                            "query": p.query,
+                            "date": p.created_at.strftime("%Y-%m-%d"),
+                        }
+                    )
+                    summary[b]["comment_mentions"] += 1
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
+
+            if title_has_brand[b]:
+                for s in comment_sents:
+                    if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                        brand_map[b].append(
+                            {
+                                "text": s,
+                                "url": p.url,
+                                "title": title,
+                                "source": "comment(boosted_by_title)",
+                                "platform": p.platform,
+                                "query": p.query,
+                                "date": p.created_at.strftime("%Y-%m-%d"),
+                            }
+                        )
+
+        for b in BRAND_LIST:
+            if post_has_brand[b]:
+                summary[b]["posts_count"] += 1
+
+    for b in BRAND_LIST:
         seen = set()
         uniq = []
-        for item in brand_map[brand]:
+        for item in brand_map[b]:
             key = (
-                item.get("platform", ""),
                 item.get("url", ""),
+                item.get("text", ""),
                 item.get("source", ""),
-                re.sub(r"\s+", " ", item.get("text", "").strip()),
+                item.get("platform", ""),
             )
             if key in seen:
                 continue
             seen.add(key)
             uniq.append(item)
-        brand_map[brand] = uniq
+        brand_map[b] = uniq
+        summary[b]["total_mentions"] = len(uniq)
+        summary[b]["comment_mentions"] = sum(1 for x in uniq if str(x.get("source", "")).startswith("comment"))
 
-    # summary를 deduped brand_map 기준으로 다시 계산
-    rows = []
-    for brand in BRAND_LIST:
-        items = brand_map[brand]
-        posts_count = len({(it["platform"], it["url"]) for it in items})
-        title_hits = len([it for it in items if it["source"] == "title"])
-        comment_mentions = len([it for it in items if it["source"] == "comment"])
-        total_mentions = len(items)
-        rows.append(
+    summary_df = pd.DataFrame(
+        [
             {
-                "brand": brand,
-                "posts_count": posts_count,
-                "title_hits": title_hits,
-                "comment_mentions": comment_mentions,
-                "total_mentions": total_mentions,
+                "brand": b,
+                "posts_count": summary[b]["posts_count"],
+                "title_hits": summary[b]["title_hits"],
+                "comment_mentions": summary[b]["comment_mentions"],
+                "total_mentions": summary[b]["total_mentions"],
             }
-        )
+            for b in BRAND_LIST
+        ]
+    )
 
-    summary_df = pd.DataFrame(rows)
-    summary_df = summary_df[
-        ~(
-            (summary_df["posts_count"] == 0)
-            & (summary_df["title_hits"] == 0)
-            & (summary_df["comment_mentions"] == 0)
-            & (summary_df["total_mentions"] == 0)
-        )
-    ].copy()
-
+    summary_df = summary_df[~((summary_df["posts_count"] == 0) & (summary_df["title_hits"] == 0))].copy()
     if not summary_df.empty:
         summary_df["__pin_columbia"] = summary_df["brand"].apply(lambda x: 0 if x == "컬럼비아" else 1)
         summary_df = (
             summary_df.sort_values(
-                ["__pin_columbia", "total_mentions", "posts_count", "title_hits"],
-                ascending=[True, False, False, False],
+                ["__pin_columbia", "total_mentions", "posts_count"],
+                ascending=[True, False, False],
             )
             .drop(columns=["__pin_columbia"])
-            .reset_index(drop=True)
         )
-
     return brand_map, summary_df
 
 
@@ -471,46 +566,34 @@ def process_data(posts: List[Post]):
 # 5. HTML 컴포넌트
 # =================================================================
 def summarize_source(raw_posts: List[Post], brand_map: Dict[str, List[dict]], summary_df: pd.DataFrame, source_name: str):
-    platform_key = "dcinside" if source_name.lower().startswith("dc") else "naver_cafe"
-
-    # 일자별 post 집계는 원본 posts 기준
-    post_daily: Dict[str, set] = {}
-    for p in raw_posts:
+    def _post_day_kst(p: Post) -> str:
         dt = p.created_at
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=KST)
-        day = dt.astimezone(KST).strftime("%Y-%m-%d")
-        post_daily.setdefault(day, set()).add(p.url)
+        return dt.astimezone(KST).strftime("%Y-%m-%d")
 
-    # 일자별 mention 집계는 deduped brand_map 기준
-    mention_daily: Dict[str, int] = {}
-    for brand in BRAND_LIST:
-        for item in brand_map.get(brand, []):
-            if item.get("platform") != platform_key:
-                continue
-            day = item.get("date", "")
+    daily: Dict[str, Dict[str, int]] = {}
+    for p in raw_posts:
+        day = _post_day_kst(p)
+        daily.setdefault(day, {"posts": 0, "mentions": 0})
+        daily[day]["posts"] += 1
+
+    for b in BRAND_LIST:
+        for item in brand_map.get(b, []):
+            day = item.get("date") or ""
             if not day:
                 continue
-            mention_daily[day] = mention_daily.get(day, 0) + 1
+            daily.setdefault(day, {"posts": 0, "mentions": 0})
+            daily[day]["mentions"] += 1
 
-    all_days = sorted(set(post_daily.keys()) | set(mention_daily.keys()), reverse=True)
-    daily_rows = []
-    for day in all_days:
-        daily_rows.append(
-            {
-                "date": day,
-                "posts": len(post_daily.get(day, set())),
-                "mentions": mention_daily.get(day, 0),
-            }
-        )
-
+    daily_rows = [
+        {"date": d, "posts": daily[d]["posts"], "mentions": daily[d]["mentions"]}
+        for d in sorted(daily.keys(), reverse=True)
+    ]
     daily_df = pd.DataFrame(daily_rows)
     week_posts = int(daily_df.head(7)["posts"].sum()) if not daily_df.empty else 0
     week_mentions = int(daily_df.head(7)["mentions"].sum()) if not daily_df.empty else 0
-    active_brands = [
-        b for b in BRAND_LIST
-        if any(item.get("platform") == platform_key for item in brand_map.get(b, []))
-    ]
+    active_brands = [b for b in BRAND_LIST if len(brand_map.get(b, [])) > 0]
     total_mentions = int(summary_df["total_mentions"].sum()) if summary_df is not None and not summary_df.empty else 0
 
     return {
@@ -561,13 +644,12 @@ def _summary_table_html(summary_df: pd.DataFrame) -> str:
             <th class="py-2 text-right">Posts</th>
             <th class="py-2 text-right">Title hits</th>
             <th class="py-2 text-right">Comment mentions</th>
-            <th class="py-2 text-right">Total mentions</th>
+            <th class="py-2 text-right">Total</th>
           </tr>
         </thead>
         <tbody>{''.join([row_html(r) for _, r in top_df.iterrows()])}</tbody>
       </table>
     </div>
-    <div class="mt-2 text-[11px] text-slate-500">* Total mentions = dedupe 후 title/content/comment 문장 언급 수</div>
     {rest_block}
     '''
 
@@ -615,7 +697,7 @@ def _weekly_html(meta: dict, source_label: str) -> str:
       <div class="text-slate-700 font-extrabold mb-2">일자별 멘션 추이 (최근 7일)</div>
       <div class="p-3 rounded-2xl bg-white border border-slate-200">
         {''.join(trend_rows)}
-        <div class="mt-2 text-[11px] text-slate-500">* Mentions는 dedupe 후 title/content/comment 문장 단위 브랜드 언급 합산입니다.</div>
+        <div class="mt-2 text-[11px] text-slate-500">* Mentions는 제목/본문/댓글 문장 단위 브랜드 언급 합산입니다.</div>
       </div>
     </div>
     '''
@@ -627,46 +709,28 @@ def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str
         items = [x for x in brand_map.get(brand, []) if x.get("platform") == platform]
         if not items:
             continue
-
-        # 동일 URL 카드 중복 방지: URL당 최대 2개 문장만 노출
-        grouped: Dict[str, List[dict]] = {}
-        for item in items:
-            grouped.setdefault(item.get("url") or f"__no_url__::{len(grouped)}", []).append(item)
-
         cards = []
-        displayed = 0
-        for url, group in grouped.items():
-            if displayed >= 40:
-                break
-            group = sorted(group, key=lambda x: {"title": 0, "content": 1, "comment": 2}.get(x.get("source", ""), 9))
-            chosen = group[:2]
-            title = html.escape((chosen[0].get("title") or chosen[0].get("url") or "")[:120])
-            date = html.escape(chosen[0].get("date") or "")
-            query = html.escape(chosen[0].get("query") or "")
+        for it in items[:40]:
+            title = html.escape((it.get("title") or it.get("url") or "")[:120])
+            text = html.escape((it.get("text") or "").strip())
+            url = html.escape(it.get("url") or "")
+            src = html.escape(it.get("source") or "")
+            date = html.escape(it.get("date") or "")
+            query = html.escape(it.get("query") or "")
             query_badge = f'<span class="px-2 py-1 rounded-full bg-slate-100">query: {query}</span>' if query else ''
-            source_badges = " ".join(
-                f'<span class="px-2 py-1 rounded-full bg-slate-100">{html.escape(it.get("source") or "")}</span>'
-                for it in chosen
-            )
-            lines = "".join(
-                f'<div class="mt-2 text-sm text-slate-700 leading-relaxed">• {html.escape((it.get("text") or "").strip())}</div>'
-                for it in chosen
-            )
             cards.append(
                 f'''
                 <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
                   <div class="flex flex-wrap gap-2 text-[11px] text-slate-500 font-bold mb-1">
-                    {source_badges}
+                    <span class="px-2 py-1 rounded-full bg-slate-100">{src}</span>
                     <span class="px-2 py-1 rounded-full bg-slate-100">{date}</span>
                     {query_badge}
                   </div>
-                  <a class="text-sm font-extrabold text-blue-700 hover:underline" href="{html.escape(url)}" target="_blank" rel="noopener noreferrer">{title}</a>
-                  {lines}
+                  <a class="text-sm font-extrabold text-blue-700 hover:underline" href="{url}" target="_blank" rel="noopener noreferrer">{title}</a>
+                  <div class="mt-2 text-sm text-slate-700 leading-relaxed">{text}</div>
                 </div>
                 '''
             )
-            displayed += 1
-
         sections.append(
             f'''
             <section class="mt-6">
@@ -718,7 +782,7 @@ def export_portal(
     naver_posts: List[Post],
     naver_brand_map: Dict[str, List[dict]],
     naver_summary_df: pd.DataFrame,
-    naver_warning: Optional[str] = None,
+    naver_warning: str | None = None,
     out_path: str = "reports/external_signal.html",
 ):
     updated = _now_kst_str()
@@ -853,7 +917,7 @@ def export_portal(
 '''
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
+    with open(out_path, 'w', encoding='utf-8') as f:
         f.write(full_html)
 
     print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
