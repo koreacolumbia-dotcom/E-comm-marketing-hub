@@ -660,7 +660,23 @@
     return x.toLocaleString('en-US', { maximumFractionDigits: 2 });
   }
 
+  function getRowYear(r){
+    return String((r && (r.year || '')) || '').trim() || String((r && (r.date || '')) || '').slice(0,4);
+  }
+
+  function getRowMmdd(r){
+    return String((r && (r.mmdd || '')) || '').trim() || String((r && (r.date || '')) || '').slice(5,7) + String((r && (r.date || '')) || '').slice(8,10);
+  }
+
   function getSendKey(r){
+    const sendId = String((r && (r.send_id || '')) || '').trim();
+    if(sendId){
+      return `${r.date || ''}||${r.channel || ''}||${sendId}`;
+    }
+    const explicitSendCount = Number((r && r.send_count) || 0);
+    if(explicitSendCount > 0){
+      return `${r.date || ''}||${r.channel || ''}||${r.campaign || ''}`;
+    }
     return `${r.date || ''}||${r.channel || ''}||${r.campaign || ''}||${r.term || ''}`;
   }
 
@@ -742,7 +758,7 @@
     return null;
   }
   function mmddOfRow(r){
-    return mmddFromText(r.campaign) || mmddFromText(r.term);
+    return getRowMmdd(r) || mmddFromText(r.campaign) || mmddFromText(r.term);
   }
 
   function parseGroupKey(gk){
@@ -940,9 +956,9 @@
     for(const r of KPI){
       if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
         const mmdd = mmddOfRow(r);
-        const year = String(r.date||'').slice(0,4);
+        const year = getRowYear(r);
         if(mmdd && /^\d{4}$/.test(year)){
-          const gk = `${year}-${mmdd}`;
+          const gk = `${getRowYear(r)}-${getRowMmdd(r)}`;
           const m = by[r.channel];
           if(!m.has(gk)) m.set(gk, []);
           m.get(gk).push(r);
@@ -1071,7 +1087,7 @@
       selCampaign.textContent = SELECTED.campaign || '-';
       selTerm.textContent = SELECTED.term || '-';
     }else{
-      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && String(x.date||'').slice(0,4)===SELECTED.year && String(mmddOfRow(x)||'')===SELECTED.mmdd);
+      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && getRowYear(x)===SELECTED.year && getRowMmdd(x)===SELECTED.mmdd);
       selChannel.textContent = SELECTED.channel;
       selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd} (group)`;
       selTerm.textContent = `terms:${rows.length}`;
@@ -1115,7 +1131,7 @@
     }
 
     const sourceRows = (RAW.kpi||[])
-      .filter(r => r.channel===SELECTED.channel && String(r.date||'').slice(0,4)===SELECTED.year && String(mmddOfRow(r)||'')===SELECTED.mmdd);
+      .filter(r => r.channel===SELECTED.channel && getRowYear(r)===SELECTED.year && getRowMmdd(r)===SELECTED.mmdd);
 
     termSection.classList.remove('hidden');
 
@@ -1230,8 +1246,8 @@
   function renderProductsForGroup(sel){
     const prod = (RAW.prod||[]).filter(p =>
       p.channel===sel.channel &&
-      String(p.date||'').slice(0,4)===sel.year &&
-      String(mmddOfRow(p)||'')===sel.mmdd
+      getRowYear(p)===sel.year &&
+      getRowMmdd(p)===sel.mmdd
     );
 
     if(!prod.length){
@@ -1305,9 +1321,10 @@
     // python schema: campaigns/products -> kpi/prod
     const kpi = (j.campaigns || []).map(r => ({
       date: r.date,
-      year: r.year,
-      mmdd: r.mmdd,
+      year: r.year || String(r.date || '').slice(0,4),
+      mmdd: r.mmdd || (String(r.date || '').slice(5,7) + String(r.date || '').slice(8,10)),
       channel: r.channel,
+      send_id: r.send_id || '',
       campaign: r.campaign,
       term: r.term,
       sessions: Number(r.sessions || 0),
@@ -1315,13 +1332,18 @@
       purchases: Number(r.purchases || 0),
       revenue: Number(r.revenue || 0),
       items_purchased: Number(r.items_purchased || 0),
+      send_count: Number(r.send_count || 0),
+      avg_leverage: Number(r.avg_leverage || 0),
       message_title: r.message_title || r.title || '',
       message_body: r.message_body || r.content || '',
     }));
 
     const prod = (j.products || []).map(p => ({
       date: p.date,
+      year: p.year || String(p.date || '').slice(0,4),
+      mmdd: p.mmdd || (String(p.date || '').slice(5,7) + String(p.date || '').slice(8,10)),
       channel: p.channel,
+      send_id: p.send_id || '',
       campaign: p.campaign,
       term: p.term,
       item_id: p.item_id,
@@ -1359,12 +1381,12 @@
       const j = normalizeBundle(raw);
 
       for (const r of (j.kpi || [])) {
-        const key = `${r.date}||${r.channel}||${r.campaign || ''}||${r.term || ''}`;
-        sumInto(kpiMap, key, r, ['sessions', 'users', 'purchases', 'revenue', 'items_purchased']);
+        const key = `${r.date}||${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}`;
+        sumInto(kpiMap, key, r, ['sessions', 'users', 'purchases', 'revenue', 'items_purchased', 'send_count']);
       }
 
       for (const p of (j.prod || [])) {
-        const key = `${p.date}||${p.channel}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}`;
+        const key = `${p.date}||${p.channel}||${p.send_id || ''}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}`;
         sumInto(prodMap, key, p, ['prod_items', 'prod_revenue']);
       }
     }
@@ -1579,8 +1601,8 @@
       for(const raw of all){
         const j = normalizeBundle(raw);
         for(const r of (j.kpi||[])){
-          const k = `${r.channel}||${r.campaign||''}||${r.term||''}`;
-          sumInto(kpiMap, k, r, ['sessions','users','purchases','revenue','items_purchased']);
+          const k = `${r.date||''}||${r.channel}||${r.send_id||''}||${r.campaign||''}||${r.term||''}`;
+          sumInto(kpiMap, k, r, ['sessions','users','purchases','revenue','items_purchased','send_count']);
         }
       }
       return {kpi: Array.from(kpiMap.values())};
