@@ -16,6 +16,9 @@ OWNED Campaign → Product Explorer (GA4 BigQuery Export)
    - items_purchased = SUM(items.quantity)
 6) ✅ purchases는 transaction_id distinct 우선(중복 purchase event 방지), 없으면 event count fallback
 7) ✅ recent-days의 end는 KST 전일(yesterday) 기준
+8) ✅ send_count는 발송(send_id) 기준으로 1회만 집계
+9) ✅ previous-year merge는 옵션으로만 동작 (기본 OFF)
+10) ✅ purchase revenue / items fallback 보강
 """
 
 from __future__ import annotations
@@ -137,6 +140,7 @@ WITH base AS (
 
     event_name,
     IFNULL(ecommerce.purchase_revenue, 0) AS purchase_revenue,
+    IFNULL(ecommerce.total_item_quantity, 0) AS total_item_quantity,
     CAST(ecommerce.transaction_id AS STRING) AS transaction_id,
     items
   FROM {table}
@@ -158,6 +162,7 @@ base2 AS (
 
     event_name,
     purchase_revenue,
+    total_item_quantity,
     transaction_id,
     items
   FROM base
@@ -235,8 +240,9 @@ owned_labeled AS (
       )
       THEN COALESCE(NULLIF(utm_term,''), NULLIF(utm_campaign,''), '(not_set)')
       ELSE COALESCE(NULLIF(utm_campaign,''), NULLIF(utm_term,''), '(not_set)')
-    END AS campaign,
+    END AS send_id,
 
+    COALESCE(NULLIF(utm_campaign,''), '(not_set)') AS campaign,
     COALESCE(NULLIF(utm_term,''), '-') AS term
   FROM sessions_owned
   WHERE 1=1
@@ -250,12 +256,13 @@ session_kpi AS (
   SELECT
     date,
     channel,
+    send_id,
     campaign,
     term,
     COUNT(DISTINCT session_key) AS sessions,
     COUNT(DISTINCT user_pseudo_id) AS users
   FROM owned_labeled
-  GROUP BY 1,2,3,4
+  GROUP BY 1,2,3,4,5
 ),
 purchase_events AS (
   SELECT
@@ -273,7 +280,8 @@ purchase_events AS (
     -- item quantity (Products table sums this)
     SUM((
       SELECT IFNULL(SUM(IFNULL(it.quantity,0)),0) FROM UNNEST(items) it
-    )) AS items_qty
+    )) AS items_qty,
+    SUM(IFNULL(total_item_quantity,0)) AS total_item_qty_evt
   FROM base2
   WHERE event_name='purchase'
   GROUP BY 1
@@ -282,21 +290,23 @@ purchase_kpi AS (
   SELECT
     s.date,
     s.channel,
+    s.send_id,
     s.campaign,
     s.term,
     SUM(IF(p.txn_cnt > 0, p.txn_cnt, IFNULL(p.purchase_events_raw,0))) AS purchases,
-    -- ✅ KPI revenue must match Products (SUM(items.item_revenue))
-    SUM(IFNULL(p.revenue_items,0)) AS revenue,
-    SUM(IFNULL(p.items_qty,0)) AS items_purchased
+    -- item array가 비어있는 export를 대비해 fallback 보강
+    SUM(CASE WHEN IFNULL(p.revenue_items,0) > 0 THEN p.revenue_items ELSE IFNULL(p.revenue_evt,0) END) AS revenue,
+    SUM(CASE WHEN IFNULL(p.items_qty,0) > 0 THEN p.items_qty ELSE IFNULL(p.total_item_qty_evt,0) END) AS items_purchased
   FROM owned_labeled s
   LEFT JOIN purchase_events p
     ON p.session_key = s.session_key
-  GROUP BY 1,2,3,4
+  GROUP BY 1,2,3,4,5
 ),
 prod_rows AS (
   SELECT
     s.date,
     s.channel,
+    s.send_id,
     s.campaign,
     s.term,
     CAST(it.item_id AS STRING) AS item_id,
@@ -308,12 +318,13 @@ prod_rows AS (
     ON b.session_key = s.session_key
    AND b.event_name='purchase'
   CROSS JOIN UNNEST(b.items) it
-  GROUP BY 1,2,3,4,5
+  GROUP BY 1,2,3,4,5,6
 ),
 final_campaign AS (
   SELECT
     k.date,
     k.channel,
+    k.send_id,
     k.campaign,
     k.term,
     k.sessions,
@@ -321,11 +332,14 @@ final_campaign AS (
     IFNULL(p.purchases,0) AS purchases,
     IFNULL(p.revenue,0) AS revenue,
     IFNULL(p.items_purchased,0) AS items_purchased,
-    1 AS send_count,
-    SAFE_DIVIDE(k.sessions, 1) AS avg_leverage
+    CASE
+      WHEN ROW_NUMBER() OVER (PARTITION BY k.date, k.channel, k.send_id ORDER BY k.campaign, k.term) = 1 THEN 1
+      ELSE 0
+    END AS send_count,
+    NULL AS avg_leverage
   FROM session_kpi k
   LEFT JOIN purchase_kpi p
-    ON p.date=k.date AND p.channel=k.channel AND p.campaign=k.campaign AND p.term=k.term
+    ON p.date=k.date AND p.channel=k.channel AND p.send_id=k.send_id AND p.campaign=k.campaign AND p.term=k.term
 )
 SELECT
   'CAMPAIGN' AS row_type,
@@ -443,6 +457,7 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
                 year=r["year"],
                 mmdd=r["mmdd"],
                 channel=r["channel"],
+                send_id=str(r.get("send_id", "") or ""),
                 campaign=r["campaign"],
                 term=r["term"],
                 sessions=int(r["sessions"]),
@@ -463,6 +478,7 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
             dict(
                 date=r["date"],
                 channel=r["channel"],
+                send_id=str(r.get("send_id", "") or ""),
                 campaign=r["campaign"],
                 term=r["term"],
                 item_id=r["item_id"],
@@ -475,7 +491,7 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
     return {"date": day, "campaigns": campaigns, "products": products}
 
 
-def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwrite: bool = False) -> None:
+def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwrite: bool = False, merge_prev_year: bool = False) -> None:
     client = bigquery.Client(project=bq.project)
     owned_dir = site_dir / "data" / "owned"
     ensure_dir(owned_dir)
@@ -492,7 +508,8 @@ def build_range(bq: BQConfig, start_d: date, end_d: date, site_dir: Path, overwr
             day = str(day)
         wanted_days.append(day)
         bundle = build_day_bundle(g, day)
-        bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
+        if merge_prev_year:
+            bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
         out = owned_dir / f"owned_{day}.json"
         if overwrite or (not out.exists()):
             write_json(out, bundle)
@@ -583,6 +600,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--recent-days", type=int, default=0, help="Incremental window (days). End is yesterday(KST)")
     ap.add_argument("--site-dir", default="site", help="Output site directory (writes data/owned)")
     ap.add_argument("--overwrite", action="store_true", help="Overwrite existing daily JSONs in the range")
+    ap.add_argument("--merge-prev-year", action="store_true", help="Merge same-MMDD previous-year rows into current bundle (default: off)")
     return ap.parse_args()
 
 
@@ -612,7 +630,7 @@ def main() -> None:
     bq = BQConfig(project=args.project, dataset=args.dataset)
 
     print(f"[INFO] Build OWNED bundles: {ymd(start_d)} ~ {ymd(end_d)} | site_dir={site_dir}")
-    build_range(bq, start_d, end_d, site_dir, overwrite=args.overwrite)
+    build_range(bq, start_d, end_d, site_dir, overwrite=args.overwrite, merge_prev_year=args.merge_prev_year)
 
     owned_dir = site_dir / "data" / "owned"
     print(f"[OK] wrote: {owned_dir}")
