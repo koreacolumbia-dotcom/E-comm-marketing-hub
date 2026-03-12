@@ -2270,30 +2270,31 @@ def write_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] 
         </div>
         """
 
-# 최근 7일 변화 브랜드 리스트(브랜드 중복 1개로 묶음)
-changed_items = (changes.get("brands") or [])[:18]
-if changed_items:
-    lis = ""
-    for x in changed_items:
-        bk = x.get("brand_key", "")
-        bn = next((name for k, name, *_ in BRANDS if k == bk), x.get("brand_name", bk))
-        rk = x.get("last_rank", "")
-        ttl = (x.get("last_title", "") or "-").replace('"', "'")
-        lis += f"""
+    # 최근 7일 변화 브랜드 리스트(브랜드 중복 1개로 묶음)
+    safe_changes = changes if isinstance(changes, dict) else {}
+    changed_items = (safe_changes.get("brands") or [])[:18]
+    if changed_items:
+        lis = ""
+        for x in changed_items:
+            bk = x.get("brand_key", "")
+            bn = next((name for k, name, *_ in BRANDS if k == bk), x.get("brand_name", bk))
+            rk = x.get("last_rank", "")
+            ttl = (x.get("last_title", "") or "-").replace('"', "'")
+            lis += f"""
         <div class="p-4 rounded-2xl bg-white/50 border border-white/70">
           <div class="text-xs font-black text-slate-800">{bn}</div>
           <div class="text-sm font-bold text-slate-900 line-clamp-1 mt-1">"{ttl}"</div>
-          <div class="text-[11px] text-slate-500 mt-1">최근 {int((changes or {}).get('window_days', RECENT_CHANGE_DAYS))}일 · events {int(x.get('events',0))} · changed {int(x.get('changed',0))} · added {int(x.get('added',0))} · removed {int(x.get('removed',0))} · last rank {rk or '-'}</div>
+          <div class="text-[11px] text-slate-500 mt-1">최근 {int((safe_changes or {}).get('window_days', RECENT_CHANGE_DAYS))}일 · events {int(x.get('events',0))} · changed {int(x.get('changed',0))} · added {int(x.get('added',0))} · removed {int(x.get('removed',0))} · last rank {rk or '-'}</div>
         </div>
-        """
-    ch_list_html = f"""
+            """
+        ch_list_html = f"""
     <section class="mb-10">
       <div class="glass-card p-6">
-        <div class="text-sm font-black text-slate-900 mb-3">최근 {int((changes or {}).get('window_days', RECENT_CHANGE_DAYS))}일 내 변경된 배너 브랜드 (Top {len(changed_items)})</div>
+        <div class="text-sm font-black text-slate-900 mb-3">최근 {int((safe_changes or {}).get('window_days', RECENT_CHANGE_DAYS))}일 내 변경된 배너 브랜드 (Top {len(changed_items)})</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">{lis}</div>
       </div>
     </section>
-    """
+        """
 
     tab_menu_html = ""
     content_area_html = ""
