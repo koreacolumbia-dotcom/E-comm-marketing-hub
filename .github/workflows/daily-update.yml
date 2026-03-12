@@ -386,6 +386,8 @@ jobs:
         env:
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
           TARGET_DAYS: "7"
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -398,8 +400,13 @@ jobs:
           fi
 
           echo "[INFO] Running: $FILE"
+
+          echo "[INFO] NAVER_CLIENT_ID exists -> ${NAVER_CLIENT_ID:+yes}"
+          echo "[INFO] NAVER_CLIENT_SECRET exists -> ${NAVER_CLIENT_SECRET:+yes}"
+
           python -u "$FILE" || true
 
+          echo "[INFO] Output files:"
           ls -la reports/external_signal.html || true
 
       - name: Run Crema VOC (collect -> build -> archive)
