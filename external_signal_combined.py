@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 # ================================================================
 # Summary/meta export (Hub first-screen consumption)
@@ -67,18 +67,19 @@ BRAND_LIST = [
     "헬리한센", "오스프리", "그레고리", "데상트", "나이키",
 ]
 
-BRAND_ALIASES: Dict[str, List[str]] = {
-    "노스페이스": ["노페", "TNF", "The North Face", "NORTHFACE", "NORTH FACE"],
-    "아크테릭스": ["아크", "Arc'teryx", "ARCTERYX", "아크테릭"],
-    "파타고니아": ["파타", "Patagonia", "PATAGONIA"],
+# 짧고 모호한 별칭(예: 파타, 아크, 내지, 코오롱)은 오탐이 잦아서 제외
+SAFE_BRAND_ALIASES: Dict[str, List[str]] = {
+    "노스페이스": ["The North Face", "NORTH FACE", "NORTHFACE"],
+    "아크테릭스": ["Arc'teryx", "ARCTERYX"],
+    "파타고니아": ["Patagonia", "PATAGONIA"],
     "살로몬": ["Salomon", "SALOMON"],
-    "스노우피크": ["Snow Peak", "SNOWPEAK", "Snowpeak"],
-    "내셔널지오그래픽": ["National Geographic", "NATIONALGEOGRAPHIC", "NATGEO", "NatGeo", "내지"],
-    "코오롱스포츠": ["Kolon Sport", "KOLONSPORT", "Kolonsport", "코오롱"],
+    "스노우피크": ["Snow Peak", "SNOW PEAK", "SNOWPEAK", "Snowpeak"],
+    "내셔널지오그래픽": ["National Geographic", "NATIONAL GEOGRAPHIC", "NATIONALGEOGRAPHIC", "NatGeo", "NATGEO"],
+    "코오롱스포츠": ["Kolon Sport", "KOLON SPORT", "KOLONSPORT"],
     "몬벨": ["몽벨", "Montbell", "MONTBELL"],
     "디스커버리": ["Discovery", "DISCOVERY"],
     "컬럼비아": ["Columbia", "COLUMBIA", "콜롬비아"],
-    "블랙야크": ["Black Yak", "BLACKYAK", "블야"],
+    "블랙야크": ["Black Yak", "BLACK YAK", "BLACKYAK"],
     "네파": ["NEPA"],
     "아이더": ["EIDER"],
     "데상트": ["Descente", "DESCENTE"],
@@ -216,7 +217,7 @@ def _clean_naver_html_text(s: str) -> str:
     return s
 
 
-def _parse_naver_postdate(postdate: str) -> datetime | None:
+def _parse_naver_postdate(postdate: str) -> Optional[datetime]:
     postdate = (postdate or "").strip()
     for fmt in ("%Y%m%d", "%Y-%m-%d", "%Y.%m.%d"):
         try:
@@ -230,11 +231,11 @@ def build_naver_queries() -> List[Tuple[str, str]]:
     queries: List[Tuple[str, str]] = []
     for brand in BRAND_LIST:
         queries.append((brand, brand))
-        queries.append((brand, f'{brand} 등산'))
+        queries.append((brand, f"{brand} 등산"))
     return queries
 
 
-def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
+def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], Optional[str]]:
     if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
         msg = "NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 미설정"
         print(f"[WARN] {msg}")
@@ -271,9 +272,7 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                 print(f"[DEBUG] NAVER request failed: {query} | {e}")
             continue
 
-        brand_tokens = {brand.lower()}
-        for alias in BRAND_ALIASES.get(brand, []):
-            brand_tokens.add(alias.lower())
+        brand_patterns = build_brand_patterns({brand: [brand] + SAFE_BRAND_ALIASES.get(brand, [])})
 
         for item in items:
             dt = _parse_naver_postdate(item.get("postdate", ""))
@@ -283,15 +282,14 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
             title = _clean_naver_html_text(item.get("title", ""))
             content = _clean_naver_html_text(item.get("description", ""))
             link = (item.get("link", "") or "").strip()
-            combined = f"{title} {content}".lower()
+            combined = f"{title}\n{content}"
 
-            if not any(tok in combined for tok in brand_tokens):
+            if not contains_brand(combined, brand, brand_patterns):
                 continue
-            if not any(ctx in combined for ctx in NAVER_CONTEXT_TERMS) and query == brand:
-                # 브랜드 단독 검색 결과라도 등산/아웃도어 맥락이 없으면 제외
+            if query == brand and not any(ctx in combined.lower() for ctx in NAVER_CONTEXT_TERMS):
                 continue
 
-            key = (link, title, dt.strftime("%Y-%m-%d"))
+            key = (brand, link, title, dt.strftime("%Y-%m-%d"))
             if key in seen:
                 continue
             seen.add(key)
@@ -328,12 +326,37 @@ def split_sentences(text: str) -> List[str]:
     return [p.strip() for p in parts if len(p.strip()) >= 4]
 
 
-def build_brand_patterns() -> Dict[str, re.Pattern]:
-    patterns = {}
-    for b in BRAND_LIST:
-        aliases = BRAND_ALIASES.get(b, [])
-        tokens = [re.escape(b)] + [re.escape(a) for a in aliases]
-        patterns[b] = re.compile(r"(" + "|".join(tokens) + r")", re.IGNORECASE)
+def _token_to_pattern(token: str) -> str:
+    token = token.strip()
+    if not token:
+        return ""
+
+    if token.upper() == "K2":
+        return r"(?<![A-Za-z0-9])K2(?![A-Za-z0-9])"
+
+    # 영문/숫자 위주 토큰은 단어 경계를 사용
+    if re.fullmatch(r"[A-Za-z0-9' +&.-]+", token):
+        escaped = re.escape(token)
+        return rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])"
+
+    # 한글/혼합 토큰은 정확 문자열 사용
+    return re.escape(token)
+
+
+def build_brand_patterns(brand_alias_map: Optional[Dict[str, List[str]]] = None) -> Dict[str, re.Pattern]:
+    if brand_alias_map is None:
+        brand_alias_map = {b: [b] + SAFE_BRAND_ALIASES.get(b, []) for b in BRAND_LIST}
+
+    patterns: Dict[str, re.Pattern] = {}
+    for brand, tokens in brand_alias_map.items():
+        cleaned = []
+        for tok in tokens:
+            pat = _token_to_pattern(tok)
+            if pat:
+                cleaned.append(pat)
+        if not cleaned:
+            cleaned.append(re.escape(brand))
+        patterns[brand] = re.compile(r"(?:%s)" % "|".join(cleaned), re.IGNORECASE)
     return patterns
 
 
@@ -351,136 +374,96 @@ def sentence_has_brand(sentence: str, brand: str, patterns: Dict[str, re.Pattern
 def process_data(posts: List[Post]):
     patterns = build_brand_patterns()
     brand_map: Dict[str, List[dict]] = {b: [] for b in BRAND_LIST}
-    summary = {
-        b: {"posts_count": 0, "title_hits": 0, "comment_mentions": 0, "total_mentions": 0}
-        for b in BRAND_LIST
-    }
 
     for p in posts:
         title = normalize_text(p.title)
         content = normalize_text(p.content)
         comments = normalize_text(p.comments)
 
-        title_sents = [title] if title else []
-        content_sents = split_sentences(content)
-        comment_sents = split_sentences(comments)
+        source_blocks = [
+            ("title", [title] if title else []),
+            ("content", split_sentences(content)),
+            ("comment", split_sentences(comments)),
+        ]
 
-        post_has_brand = {b: False for b in BRAND_LIST}
-        title_has_brand = {b: False for b in BRAND_LIST}
+        for brand in BRAND_LIST:
+            for source_kind, sentences in source_blocks:
+                for sentence in sentences:
+                    if source_kind == "title" and len(sentence) <= 1:
+                        continue
+                    if source_kind != "title" and len(sentence) <= 5:
+                        continue
+                    if not sentence_has_brand(sentence, brand, patterns):
+                        continue
 
-        for b in BRAND_LIST:
-            if contains_brand(title, b, patterns):
-                title_has_brand[b] = True
-                summary[b]["title_hits"] += 1
-                post_has_brand[b] = True
-
-            for s in title_sents:
-                if sentence_has_brand(s, b, patterns) and len(s) > 3:
-                    brand_map[b].append(
+                    brand_map[brand].append(
                         {
-                            "text": s,
+                            "text": sentence,
                             "url": p.url,
                             "title": title,
-                            "source": "title",
+                            "source": source_kind,
                             "platform": p.platform,
                             "query": p.query,
                             "date": p.created_at.strftime("%Y-%m-%d"),
                         }
                     )
-                    summary[b]["total_mentions"] += 1
-                    post_has_brand[b] = True
 
-            for s in content_sents:
-                if sentence_has_brand(s, b, patterns) and len(s) > 5:
-                    brand_map[b].append(
-                        {
-                            "text": s,
-                            "url": p.url,
-                            "title": title,
-                            "source": "content",
-                            "platform": p.platform,
-                            "query": p.query,
-                            "date": p.created_at.strftime("%Y-%m-%d"),
-                        }
-                    )
-                    summary[b]["total_mentions"] += 1
-                    post_has_brand[b] = True
-
-            for s in comment_sents:
-                if sentence_has_brand(s, b, patterns) and len(s) > 5:
-                    brand_map[b].append(
-                        {
-                            "text": s,
-                            "url": p.url,
-                            "title": title,
-                            "source": "comment",
-                            "platform": p.platform,
-                            "query": p.query,
-                            "date": p.created_at.strftime("%Y-%m-%d"),
-                        }
-                    )
-                    summary[b]["comment_mentions"] += 1
-                    summary[b]["total_mentions"] += 1
-                    post_has_brand[b] = True
-
-            if title_has_brand[b]:
-                for s in comment_sents:
-                    if sentence_has_brand(s, b, patterns) and len(s) > 5:
-                        brand_map[b].append(
-                            {
-                                "text": s,
-                                "url": p.url,
-                                "title": title,
-                                "source": "comment(boosted_by_title)",
-                                "platform": p.platform,
-                                "query": p.query,
-                                "date": p.created_at.strftime("%Y-%m-%d"),
-                            }
-                        )
-
-        for b in BRAND_LIST:
-            if post_has_brand[b]:
-                summary[b]["posts_count"] += 1
-
-    for b in BRAND_LIST:
+    # mention dedupe
+    for brand in BRAND_LIST:
         seen = set()
         uniq = []
-        for item in brand_map[b]:
+        for item in brand_map[brand]:
             key = (
-                item.get("url", ""),
-                item.get("text", ""),
-                item.get("source", ""),
                 item.get("platform", ""),
+                item.get("url", ""),
+                item.get("source", ""),
+                re.sub(r"\s+", " ", item.get("text", "").strip()),
             )
             if key in seen:
                 continue
             seen.add(key)
             uniq.append(item)
-        brand_map[b] = uniq
+        brand_map[brand] = uniq
 
-    summary_df = pd.DataFrame(
-        [
+    # summary를 deduped brand_map 기준으로 다시 계산
+    rows = []
+    for brand in BRAND_LIST:
+        items = brand_map[brand]
+        posts_count = len({(it["platform"], it["url"]) for it in items})
+        title_hits = len([it for it in items if it["source"] == "title"])
+        comment_mentions = len([it for it in items if it["source"] == "comment"])
+        total_mentions = len(items)
+        rows.append(
             {
-                "brand": b,
-                "posts_count": summary[b]["posts_count"],
-                "title_hits": summary[b]["title_hits"],
-                "comment_mentions": summary[b]["comment_mentions"],
-                "total_mentions": summary[b]["total_mentions"],
+                "brand": brand,
+                "posts_count": posts_count,
+                "title_hits": title_hits,
+                "comment_mentions": comment_mentions,
+                "total_mentions": total_mentions,
             }
-            for b in BRAND_LIST
-        ]
-    )
+        )
 
-    summary_df = summary_df[~((summary_df["posts_count"] == 0) & (summary_df["title_hits"] == 0))].copy()
+    summary_df = pd.DataFrame(rows)
+    summary_df = summary_df[
+        ~(
+            (summary_df["posts_count"] == 0)
+            & (summary_df["title_hits"] == 0)
+            & (summary_df["comment_mentions"] == 0)
+            & (summary_df["total_mentions"] == 0)
+        )
+    ].copy()
+
     if not summary_df.empty:
         summary_df["__pin_columbia"] = summary_df["brand"].apply(lambda x: 0 if x == "컬럼비아" else 1)
         summary_df = (
             summary_df.sort_values(
-                ["__pin_columbia", "total_mentions", "posts_count"],
-                ascending=[True, False, False],
+                ["__pin_columbia", "total_mentions", "posts_count", "title_hits"],
+                ascending=[True, False, False, False],
             )
             .drop(columns=["__pin_columbia"])
+            .reset_index(drop=True)
         )
+
     return brand_map, summary_df
 
 
@@ -488,46 +471,46 @@ def process_data(posts: List[Post]):
 # 5. HTML 컴포넌트
 # =================================================================
 def summarize_source(raw_posts: List[Post], brand_map: Dict[str, List[dict]], summary_df: pd.DataFrame, source_name: str):
-    patterns = build_brand_patterns()
+    platform_key = "dcinside" if source_name.lower().startswith("dc") else "naver_cafe"
 
-    def _post_day_kst(p: Post) -> str:
+    # 일자별 post 집계는 원본 posts 기준
+    post_daily: Dict[str, set] = {}
+    for p in raw_posts:
         dt = p.created_at
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=KST)
-        return dt.astimezone(KST).strftime("%Y-%m-%d")
+        day = dt.astimezone(KST).strftime("%Y-%m-%d")
+        post_daily.setdefault(day, set()).add(p.url)
 
-    daily: Dict[str, Dict[str, int]] = {}
-    for p in raw_posts:
-        day = _post_day_kst(p)
-        daily.setdefault(day, {"posts": 0, "mentions": 0})
-        daily[day]["posts"] += 1
+    # 일자별 mention 집계는 deduped brand_map 기준
+    mention_daily: Dict[str, int] = {}
+    for brand in BRAND_LIST:
+        for item in brand_map.get(brand, []):
+            if item.get("platform") != platform_key:
+                continue
+            day = item.get("date", "")
+            if not day:
+                continue
+            mention_daily[day] = mention_daily.get(day, 0) + 1
 
-        title = normalize_text(p.title)
-        comments = normalize_text(p.comments)
-        content = normalize_text(p.content)
-        title_sents = [title] if title else []
-        content_sents = split_sentences(content)
-        comment_sents = split_sentences(comments)
+    all_days = sorted(set(post_daily.keys()) | set(mention_daily.keys()), reverse=True)
+    daily_rows = []
+    for day in all_days:
+        daily_rows.append(
+            {
+                "date": day,
+                "posts": len(post_daily.get(day, set())),
+                "mentions": mention_daily.get(day, 0),
+            }
+        )
 
-        for b in BRAND_LIST:
-            for s in title_sents:
-                if sentence_has_brand(s, b, patterns):
-                    daily[day]["mentions"] += 1
-            for s in content_sents:
-                if sentence_has_brand(s, b, patterns):
-                    daily[day]["mentions"] += 1
-            for s in comment_sents:
-                if sentence_has_brand(s, b, patterns):
-                    daily[day]["mentions"] += 1
-
-    daily_rows = [
-        {"date": d, "posts": daily[d]["posts"], "mentions": daily[d]["mentions"]}
-        for d in sorted(daily.keys(), reverse=True)
-    ]
     daily_df = pd.DataFrame(daily_rows)
     week_posts = int(daily_df.head(7)["posts"].sum()) if not daily_df.empty else 0
     week_mentions = int(daily_df.head(7)["mentions"].sum()) if not daily_df.empty else 0
-    active_brands = [b for b in BRAND_LIST if len(brand_map.get(b, [])) > 0]
+    active_brands = [
+        b for b in BRAND_LIST
+        if any(item.get("platform") == platform_key for item in brand_map.get(b, []))
+    ]
     total_mentions = int(summary_df["total_mentions"].sum()) if summary_df is not None and not summary_df.empty else 0
 
     return {
@@ -578,12 +561,13 @@ def _summary_table_html(summary_df: pd.DataFrame) -> str:
             <th class="py-2 text-right">Posts</th>
             <th class="py-2 text-right">Title hits</th>
             <th class="py-2 text-right">Comment mentions</th>
-            <th class="py-2 text-right">Total</th>
+            <th class="py-2 text-right">Total mentions</th>
           </tr>
         </thead>
         <tbody>{''.join([row_html(r) for _, r in top_df.iterrows()])}</tbody>
       </table>
     </div>
+    <div class="mt-2 text-[11px] text-slate-500">* Total mentions = dedupe 후 title/content/comment 문장 언급 수</div>
     {rest_block}
     '''
 
@@ -631,7 +615,7 @@ def _weekly_html(meta: dict, source_label: str) -> str:
       <div class="text-slate-700 font-extrabold mb-2">일자별 멘션 추이 (최근 7일)</div>
       <div class="p-3 rounded-2xl bg-white border border-slate-200">
         {''.join(trend_rows)}
-        <div class="mt-2 text-[11px] text-slate-500">* Mentions는 제목/본문/댓글 문장 단위 브랜드 언급 합산입니다.</div>
+        <div class="mt-2 text-[11px] text-slate-500">* Mentions는 dedupe 후 title/content/comment 문장 단위 브랜드 언급 합산입니다.</div>
       </div>
     </div>
     '''
@@ -643,28 +627,46 @@ def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str
         items = [x for x in brand_map.get(brand, []) if x.get("platform") == platform]
         if not items:
             continue
+
+        # 동일 URL 카드 중복 방지: URL당 최대 2개 문장만 노출
+        grouped: Dict[str, List[dict]] = {}
+        for item in items:
+            grouped.setdefault(item.get("url") or f"__no_url__::{len(grouped)}", []).append(item)
+
         cards = []
-        for it in items[:40]:
-            title = html.escape((it.get("title") or it.get("url") or "")[:120])
-            text = html.escape((it.get("text") or "").strip())
-            url = html.escape(it.get("url") or "")
-            src = html.escape(it.get("source") or "")
-            date = html.escape(it.get("date") or "")
-            query = html.escape(it.get("query") or "")
+        displayed = 0
+        for url, group in grouped.items():
+            if displayed >= 40:
+                break
+            group = sorted(group, key=lambda x: {"title": 0, "content": 1, "comment": 2}.get(x.get("source", ""), 9))
+            chosen = group[:2]
+            title = html.escape((chosen[0].get("title") or chosen[0].get("url") or "")[:120])
+            date = html.escape(chosen[0].get("date") or "")
+            query = html.escape(chosen[0].get("query") or "")
             query_badge = f'<span class="px-2 py-1 rounded-full bg-slate-100">query: {query}</span>' if query else ''
+            source_badges = " ".join(
+                f'<span class="px-2 py-1 rounded-full bg-slate-100">{html.escape(it.get("source") or "")}</span>'
+                for it in chosen
+            )
+            lines = "".join(
+                f'<div class="mt-2 text-sm text-slate-700 leading-relaxed">• {html.escape((it.get("text") or "").strip())}</div>'
+                for it in chosen
+            )
             cards.append(
                 f'''
                 <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
                   <div class="flex flex-wrap gap-2 text-[11px] text-slate-500 font-bold mb-1">
-                    <span class="px-2 py-1 rounded-full bg-slate-100">{src}</span>
+                    {source_badges}
                     <span class="px-2 py-1 rounded-full bg-slate-100">{date}</span>
                     {query_badge}
                   </div>
-                  <a class="text-sm font-extrabold text-blue-700 hover:underline" href="{url}" target="_blank" rel="noopener noreferrer">{title}</a>
-                  <div class="mt-2 text-sm text-slate-700 leading-relaxed">{text}</div>
+                  <a class="text-sm font-extrabold text-blue-700 hover:underline" href="{html.escape(url)}" target="_blank" rel="noopener noreferrer">{title}</a>
+                  {lines}
                 </div>
                 '''
             )
+            displayed += 1
+
         sections.append(
             f'''
             <section class="mt-6">
@@ -716,7 +718,7 @@ def export_portal(
     naver_posts: List[Post],
     naver_brand_map: Dict[str, List[dict]],
     naver_summary_df: pd.DataFrame,
-    naver_warning: str | None = None,
+    naver_warning: Optional[str] = None,
     out_path: str = "reports/external_signal.html",
 ):
     updated = _now_kst_str()
@@ -851,7 +853,7 @@ def export_portal(
 '''
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    with open(out_path, 'w', encoding='utf-8') as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(full_html)
 
     print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
