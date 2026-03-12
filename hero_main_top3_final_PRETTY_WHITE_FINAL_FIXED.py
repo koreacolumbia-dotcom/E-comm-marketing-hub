@@ -228,7 +228,7 @@ EXCLUDE_STYLE_CODES = {
 # =====================================================
 
 BRANDS = [
-    ("tnf", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", DEFAULT_MAX_ITEMS),
+    ("The North Face", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", DEFAULT_MAX_ITEMS),
     ("patagonia", "Patagonia", "https://www.patagonia.co.kr/", "patagonia_static_hero", DEFAULT_MAX_ITEMS),
     ("arcteryx", "Arc'teryx", "https://www.arcteryx.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
     ("salomon", "Salomon", "https://salomon.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
@@ -241,7 +241,6 @@ BRANDS = [
     ("natgeo", "National Geographic", "https://www.natgeokorea.com/", "hero_sections", DEFAULT_MAX_ITEMS),
 
     ("kolonsport", "Kolon Sport", "https://www.kolonsport.com/", "hero_sections", DEFAULT_MAX_ITEMS),
-    ("kolonmall", "Kolon Mall", "https://www.kolonmall.com/", "hero_sections", DEFAULT_MAX_ITEMS),
 
     ("k2", "K2", "https://www.k-village.co.kr/K2", "hero_sections", DEFAULT_MAX_ITEMS),
     ("montbell", "Montbell", "https://www.montbell.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
@@ -253,7 +252,7 @@ BRANDS = [
 # ✅ URL이 간혹 안되는 브랜드 대비(필요 시 너가 계속 추가/수정)
 
 ALT_URLS: Dict[str, List[str]] = {
-    "tnf": [
+    "The North Face": [
         "https://www.thenorthfacekorea.co.kr/",
         "https://www.thenorthfacekorea.co.kr/main",
         "https://www.thenorthfacekorea.co.kr/main/",
