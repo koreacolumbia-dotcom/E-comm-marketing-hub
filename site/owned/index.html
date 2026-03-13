@@ -660,29 +660,54 @@
     return x.toLocaleString('en-US', { maximumFractionDigits: 2 });
   }
 
+  function extractGroupFromText(s, fallbackYear=''){
+    s = String(s || '').trim();
+    if(!s) return null;
+
+    let m = s.match(/(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
+    if(m) return { year: m[1], mmdd: `${m[2]}${m[3]}` };
+
+    m = s.match(/(?<!\d)(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
+    if(m) return { year: `20${m[1]}`, mmdd: `${m[2]}${m[3]}` };
+
+    m = s.match(/(?<!\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
+    if(m) return { year: fallbackYear, mmdd: `${m[1]}${m[2]}` };
+
+    return null;
+  }
+
+  function getRowGroup(r){
+    const fallbackYear = String((r && (r.year || '')) || '').trim() || String((r && (r.date || '')) || '').slice(0,4);
+    const parsed = extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
+      || extractGroupFromText((r && (r.send_id || '')) || '', fallbackYear)
+      || extractGroupFromText((r && (r.term || '')) || '', fallbackYear);
+
+    if(parsed) return parsed;
+
+    return {
+      year: fallbackYear,
+      mmdd: String((r && (r.mmdd || '')) || '').trim() || String((r && (r.date || '')) || '').slice(5,7) + String((r && (r.date || '')) || '').slice(8,10),
+    };
+  }
+
   function getRowYear(r){
-    return String((r && (r.year || '')) || '').trim() || String((r && (r.date || '')) || '').slice(0,4);
+    return getRowGroup(r).year;
   }
 
   function getRowMmdd(r){
-    return String((r && (r.mmdd || '')) || '').trim() || String((r && (r.date || '')) || '').slice(5,7) + String((r && (r.date || '')) || '').slice(8,10);
+    return getRowGroup(r).mmdd;
   }
 
   function getSendKey(r){
     const channel = String((r && (r.channel || '')) || '').trim();
     const sendId = String((r && (r.send_id || '')) || '').trim();
-    if(sendId){
-      return `${channel}||${sendId}`;
-    }
+    if(sendId) return `${channel}||${sendId}`;
+
     const campaign = String((r && (r.campaign || '')) || '').trim();
     const term = String((r && (r.term || '')) || '').trim();
-    if(campaign){
-      return `${channel}||${campaign}`;
-    }
-    if(term){
-      return `${channel}||${term}`;
-    }
-    return `${channel}||${String((r && (r.date || '')) || '').trim()}`;
+    if(campaign) return `${channel}||C||${campaign}`;
+    if(term) return `${channel}||T||${term}`;
+    return `${channel}||${getRowYear(r)}||${getRowMmdd(r)}`;
   }
 
   function countDistinctSends(rows){
@@ -797,7 +822,7 @@
   let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
 
   // ✅ MMDD 클릭은 "디폴트: 날짜 이동 + 7일 누적" 이므로 기본 ON
-  let GROUP_JUMP_MODE = true;
+  let GROUP_JUMP_MODE = false;
 
   const YTD_CACHE = new Map();
 
@@ -932,25 +957,6 @@
     totKakaoLeverage.textContent = fmtRatio(kakao.avg_leverage);
   }
 
-  function autoSelectDefault(){
-    if(SELECTED || !RAW || !Array.isArray(KPI) || !KPI.length) return;
-
-    const groupedCandidates = KPI
-      .filter(r => ['EDM','LMS','KAKAO'].includes(String(r.channel||'')) && getRowYear(r) && getRowMmdd(r))
-      .sort((a,b)=> String(b.date||'').localeCompare(String(a.date||'')) || Number(b.sessions||0)-Number(a.sessions||0));
-
-    if(groupedCandidates.length){
-      const first = groupedCandidates[0];
-      SELECTED = {type:'group', channel:first.channel, year:getRowYear(first), mmdd:getRowMmdd(first)};
-      return;
-    }
-
-    const first = KPI.slice().sort((a,b)=> String(b.date||'').localeCompare(String(a.date||'')) || Number(b.sessions||0)-Number(a.sessions||0))[0];
-    if(first){
-      SELECTED = {type:'single', channel:first.channel, campaign:first.campaign||'', term:first.term||''};
-    }
-  }
-
   function renderCampaignButtons(){
     wrapEDMDate.innerHTML = '';
     wrapLMSDate.innerHTML = '';
@@ -1031,6 +1037,18 @@
     renderByDate('EDM', wrapEDMDate);
     renderByDate('LMS', wrapLMSDate);
     renderByDate('KAKAO', wrapKakaoDate);
+
+    if(!SELECTED){
+      const firstBtn = [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
+      if(firstBtn){
+        SELECTED = {
+          type:'group',
+          channel:firstBtn.getAttribute('data-channel'),
+          year:firstBtn.getAttribute('data-year'),
+          mmdd:firstBtn.getAttribute('data-mmdd')
+        };
+      }
+    }
 
     function renderOtherCampaigns(channel, wrapEl){
       const rows = otherByChannel[channel].slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
@@ -1320,7 +1338,6 @@
   function selectSingle(channel, campaign, term){
     SELECTED = {type:'single', channel, campaign, term};
     renderCampaignButtons();
-    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1406,12 +1423,12 @@
       const j = normalizeBundle(raw);
 
       for (const r of (j.kpi || [])) {
-        const key = `${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}`;
+        const key = `${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}||${getRowYear(r)}||${getRowMmdd(r)}`;
         sumInto(kpiMap, key, r, ['sessions', 'users', 'purchases', 'revenue', 'items_purchased', 'send_count']);
       }
 
       for (const p of (j.prod || [])) {
-        const key = `${p.channel}||${p.send_id || ''}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}`;
+        const key = `${p.channel}||${p.send_id || ''}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}||${getRowYear(p)}||${getRowMmdd(p)}`;
         sumInto(prodMap, key, p, ['prod_items', 'prod_revenue']);
       }
     }
@@ -1431,7 +1448,6 @@
       KPI = [];
       updateChannelTotals();
       renderCampaignButtons();
-      autoSelectDefault();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
@@ -1443,7 +1459,6 @@
     filterKPI();
     updateChannelTotals();
     renderCampaignButtons();
-    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1460,7 +1475,6 @@
       updateChannelTotals();
       toggleSections();
       renderCampaignButtons();
-      autoSelectDefault();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
@@ -1483,7 +1497,6 @@
       showNotice(`선택한 기간에 데이터가 없어. (${s} ~ ${e})`);
       toggleSections();
       renderCampaignButtons();
-      autoSelectDefault();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
@@ -1508,7 +1521,6 @@
     filterKPI();
     updateChannelTotals();
     renderCampaignButtons();
-    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1631,7 +1643,7 @@
       for(const raw of all){
         const j = normalizeBundle(raw);
         for(const r of (j.kpi||[])){
-          const k = `${r.channel}||${r.send_id||''}||${r.campaign||''}||${r.term||''}`;
+          const k = `${r.date||''}||${r.channel}||${r.send_id||''}||${r.campaign||''}||${r.term||''}`;
           sumInto(kpiMap, k, r, ['sessions','users','purchases','revenue','items_purchased','send_count']);
         }
       }
@@ -1743,7 +1755,6 @@
     filterKPI();
     updateChannelTotals();
     renderCampaignButtons();
-    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1801,7 +1812,6 @@
 
     filterKPI();
     renderCampaignButtons();
-    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1813,8 +1823,8 @@
   chipLMS.addEventListener('click', ()=>onChannelChange('LMS'));
   chipKAKAO.addEventListener('click', ()=>onChannelChange('KAKAO'));
 
-  q.addEventListener('input', ()=>{ SELECTED=null; filterKPI(); renderCampaignButtons(); autoSelectDefault(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
-  topN.addEventListener('change', ()=>{ SELECTED=null; renderCampaignButtons(); autoSelectDefault(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
   btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()));
   btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
