@@ -91,13 +91,41 @@ def infer_channel(utm_campaign: Optional[str], utm_term: Optional[str], utm_medi
 # MMDD parsing (for UI group)
 # -----------------------------
 MMDD_RE = re.compile(r"(?<!\d)(\d{4})(?!\d)")
+YYYYMMDD_RE = re.compile(r"(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)")
+YYMMDD_RE = re.compile(r"(?<!\d)(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)")
+PLAIN_MMDD_RE = re.compile(r"(?<!\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)")
 
 
 def extract_mmdd(s: str) -> Optional[str]:
     if not s:
         return None
-    m = MMDD_RE.search(s)
-    return m.group(1) if m else None
+    m = PLAIN_MMDD_RE.search(str(s))
+    return f"{m.group(1)}{m.group(2)}" if m else None
+
+
+def extract_group_year_mmdd(*values: Any, fallback_date: Optional[str] = None) -> tuple[str, str]:
+    fallback_date = str(fallback_date or "")
+    fallback_year = fallback_date[:4] if len(fallback_date) >= 4 else ""
+    fallback_mmdd = (fallback_date[5:7] + fallback_date[8:10]) if len(fallback_date) >= 10 else ""
+
+    for raw in values:
+        s = str(raw or "").strip()
+        if not s:
+            continue
+
+        m8 = YYYYMMDD_RE.search(s)
+        if m8:
+            return m8.group(1), f"{m8.group(2)}{m8.group(3)}"
+
+        m6 = YYMMDD_RE.search(s)
+        if m6:
+            return f"20{m6.group(1)}", f"{m6.group(2)}{m6.group(3)}"
+
+        m4 = PLAIN_MMDD_RE.search(s)
+        if m4:
+            return fallback_year, f"{m4.group(1)}{m4.group(2)}"
+
+    return fallback_year, fallback_mmdd
 
 
 # -----------------------------
@@ -450,10 +478,31 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
         if col in prod.columns:
             prod[col] = prod[col].fillna(0).astype(float)
 
-    camp["year"] = camp["date"].astype(str).str.slice(0, 4)
-    camp["mmdd"] = camp["date"].astype(str).str.slice(5, 7) + camp["date"].astype(str).str.slice(8, 10)
-    prod["year"] = prod["date"].astype(str).str.slice(0, 4)
-    prod["mmdd"] = prod["date"].astype(str).str.slice(5, 7) + prod["date"].astype(str).str.slice(8, 10)
+    camp_group = camp.apply(
+        lambda r: extract_group_year_mmdd(
+            r.get("campaign", ""),
+            r.get("send_id", ""),
+            r.get("term", ""),
+            fallback_date=str(r.get("date", "")),
+        ),
+        axis=1,
+        result_type="expand",
+    )
+    camp["year"] = camp_group[0]
+    camp["mmdd"] = camp_group[1]
+
+    prod_group = prod.apply(
+        lambda r: extract_group_year_mmdd(
+            r.get("campaign", ""),
+            r.get("send_id", ""),
+            r.get("term", ""),
+            fallback_date=str(r.get("date", "")),
+        ),
+        axis=1,
+        result_type="expand",
+    )
+    prod["year"] = prod_group[0]
+    prod["mmdd"] = prod_group[1]
 
     campaigns: List[Dict[str, Any]] = []
     for _, r in camp.iterrows():
