@@ -677,17 +677,14 @@
   }
 
   function getRowGroup(r){
-    const fallbackYear = String((r && (r.year || '')) || '').trim() || String((r && (r.date || '')) || '').slice(0,4);
+    const fallbackYear = String((r && (r.date || '')) || '').slice(0,4);
     const parsed = extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
       || extractGroupFromText((r && (r.send_id || '')) || '', fallbackYear)
       || extractGroupFromText((r && (r.term || '')) || '', fallbackYear);
 
-    if(parsed) return parsed;
+    if(parsed) return { ...parsed, explicit: true };
 
-    return {
-      year: fallbackYear,
-      mmdd: String((r && (r.mmdd || '')) || '').trim() || String((r && (r.date || '')) || '').slice(5,7) + String((r && (r.date || '')) || '').slice(8,10),
-    };
+    return { year:'', mmdd:'', explicit:false };
   }
 
   function getRowYear(r){
@@ -707,7 +704,7 @@
     const term = String((r && (r.term || '')) || '').trim();
     if(campaign) return `${channel}||C||${campaign}`;
     if(term) return `${channel}||T||${term}`;
-    return `${channel}||${getRowYear(r)}||${getRowMmdd(r)}`;
+    return `${channel}||UNGROUPED`;
   }
 
   function countDistinctSends(rows){
@@ -788,7 +785,7 @@
     return null;
   }
   function mmddOfRow(r){
-    return getRowMmdd(r) || mmddFromText(r.campaign) || mmddFromText(r.term);
+    return getRowMmdd(r) || mmddFromText(r.campaign) || mmddFromText(r.send_id) || mmddFromText(r.term) || '';
   }
 
   function parseGroupKey(gk){
@@ -1706,24 +1703,7 @@
 
   // ✅ group(mmdd) -> 실제 존재 날짜로 resolve
   function resolveMmddToAvailableDate(year, mmdd){
-    const mm = String(mmdd).slice(0,2);
-    const dd = String(mmdd).slice(2,4);
-    const suffix = `-${mm}-${dd}`;
-
-    if(!AVAILABLE || !AVAILABLE.length){
-      return clampToAvailable(dateStrFromYearMmdd(year, mmdd));
-    }
-
-    const matches = AVAILABLE.filter(d => d.endsWith(suffix)).slice().sort();
-    if(!matches.length){
-      return clampToAvailable(dateStrFromYearMmdd(year, mmdd));
-    }
-
-    const y = String(year);
-    const prefer = matches.filter(d => d.startsWith(y + "-"));
-    if(prefer.length) return prefer[prefer.length-1];
-
-    return matches[matches.length-1];
+    return '';
   }
 
   // ✅ MMDD 클릭 시: 그 날짜부터 7일 누적(RANGE)로 디폴트 로드
@@ -1742,15 +1722,7 @@
   }
 
   async function selectGroup(channel, year, mmdd){
-    // ✅ 요구사항: "0226 클릭하면 그 일자부터 누적 7일 데이터"가 디폴트
-    if(GROUP_JUMP_MODE){
-      const target = resolveMmddToAvailableDate(year, mmdd);
-      // datePicker도 같이 맞춰주면 UX 좋음
-      datePicker.value = target;
-      await load7dFromDate(target);
-    }
-
-    // 로드 완료 후: 해당 group 드릴다운/하이라이트
+    // explicit campaign/term date group only: no automatic date remap
     SELECTED = {type:'group', channel, year, mmdd};
     filterKPI();
     updateChannelTotals();
