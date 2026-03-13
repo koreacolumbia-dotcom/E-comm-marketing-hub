@@ -671,27 +671,18 @@
   function getSendKey(r){
     const channel = String((r && (r.channel || '')) || '').trim();
     const sendId = String((r && (r.send_id || '')) || '').trim();
+    if(sendId){
+      return `${channel}||${sendId}`;
+    }
     const campaign = String((r && (r.campaign || '')) || '').trim();
     const term = String((r && (r.term || '')) || '').trim();
-    const mmdd = getRowMmdd(r);
-
-    // 중요: send distinct는 날짜별 row가 아니라 실제 발송 단위로 세야 함.
-    // 따라서 send_id가 있으면 date를 key에 넣지 않는다.
-    if(sendId){
-      return `${channel}||SEND||${sendId}`;
+    if(campaign){
+      return `${channel}||${campaign}`;
     }
-
-    // 구 schema fallback: campaign이 있으면 campaign 우선, 없으면 term.
-    // 여기서도 date를 넣으면 WEEK/RANGE에서 같은 발송이 일자별로 중복 카운트된다.
-    if(campaign && campaign !== '-'){
-      return `${channel}||CAMPAIGN||${campaign}`;
+    if(term){
+      return `${channel}||${term}`;
     }
-    if(term && term !== '-'){
-      return `${channel}||TERM||${term}`;
-    }
-
-    // 정말 식별자가 없을 때만 마지막 fallback으로 날짜 사용
-    return `${channel}||DATE||${String((r && (r.date || '')) || '').trim()}||${mmdd || ''}`;
+    return `${channel}||${String((r && (r.date || '')) || '').trim()}`;
   }
 
   function countDistinctSends(rows){
@@ -939,6 +930,25 @@
     totKakaoRevenue.textContent = fmtMoney(kakao.revenue);
     totKakaoSendCount.textContent = fmt(kakao.send_count);
     totKakaoLeverage.textContent = fmtRatio(kakao.avg_leverage);
+  }
+
+  function autoSelectDefault(){
+    if(SELECTED || !RAW || !Array.isArray(KPI) || !KPI.length) return;
+
+    const groupedCandidates = KPI
+      .filter(r => ['EDM','LMS','KAKAO'].includes(String(r.channel||'')) && getRowYear(r) && getRowMmdd(r))
+      .sort((a,b)=> String(b.date||'').localeCompare(String(a.date||'')) || Number(b.sessions||0)-Number(a.sessions||0));
+
+    if(groupedCandidates.length){
+      const first = groupedCandidates[0];
+      SELECTED = {type:'group', channel:first.channel, year:getRowYear(first), mmdd:getRowMmdd(first)};
+      return;
+    }
+
+    const first = KPI.slice().sort((a,b)=> String(b.date||'').localeCompare(String(a.date||'')) || Number(b.sessions||0)-Number(a.sessions||0))[0];
+    if(first){
+      SELECTED = {type:'single', channel:first.channel, campaign:first.campaign||'', term:first.term||''};
+    }
   }
 
   function renderCampaignButtons(){
@@ -1310,6 +1320,7 @@
   function selectSingle(channel, campaign, term){
     SELECTED = {type:'single', channel, campaign, term};
     renderCampaignButtons();
+    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1395,12 +1406,12 @@
       const j = normalizeBundle(raw);
 
       for (const r of (j.kpi || [])) {
-        const key = `${r.date}||${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}`;
+        const key = `${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}`;
         sumInto(kpiMap, key, r, ['sessions', 'users', 'purchases', 'revenue', 'items_purchased', 'send_count']);
       }
 
       for (const p of (j.prod || [])) {
-        const key = `${p.date}||${p.channel}||${p.send_id || ''}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}`;
+        const key = `${p.channel}||${p.send_id || ''}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}`;
         sumInto(prodMap, key, p, ['prod_items', 'prod_revenue']);
       }
     }
@@ -1420,6 +1431,7 @@
       KPI = [];
       updateChannelTotals();
       renderCampaignButtons();
+      autoSelectDefault();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
@@ -1431,6 +1443,7 @@
     filterKPI();
     updateChannelTotals();
     renderCampaignButtons();
+    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1447,6 +1460,7 @@
       updateChannelTotals();
       toggleSections();
       renderCampaignButtons();
+      autoSelectDefault();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
@@ -1469,6 +1483,7 @@
       showNotice(`선택한 기간에 데이터가 없어. (${s} ~ ${e})`);
       toggleSections();
       renderCampaignButtons();
+      autoSelectDefault();
       aggregateKPIForSelected();
       renderTerms();
       renderProducts();
@@ -1493,6 +1508,7 @@
     filterKPI();
     updateChannelTotals();
     renderCampaignButtons();
+    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1615,7 +1631,7 @@
       for(const raw of all){
         const j = normalizeBundle(raw);
         for(const r of (j.kpi||[])){
-          const k = `${r.date||''}||${r.channel}||${r.send_id||''}||${r.campaign||''}||${r.term||''}`;
+          const k = `${r.channel}||${r.send_id||''}||${r.campaign||''}||${r.term||''}`;
           sumInto(kpiMap, k, r, ['sessions','users','purchases','revenue','items_purchased','send_count']);
         }
       }
@@ -1727,6 +1743,7 @@
     filterKPI();
     updateChannelTotals();
     renderCampaignButtons();
+    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1784,6 +1801,7 @@
 
     filterKPI();
     renderCampaignButtons();
+    autoSelectDefault();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
@@ -1795,8 +1813,8 @@
   chipLMS.addEventListener('click', ()=>onChannelChange('LMS'));
   chipKAKAO.addEventListener('click', ()=>onChannelChange('KAKAO'));
 
-  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
-  topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  q.addEventListener('input', ()=>{ SELECTED=null; filterKPI(); renderCampaignButtons(); autoSelectDefault(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  topN.addEventListener('change', ()=>{ SELECTED=null; renderCampaignButtons(); autoSelectDefault(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
   btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()));
   btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
