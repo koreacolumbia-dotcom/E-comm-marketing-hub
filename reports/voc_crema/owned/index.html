@@ -660,38 +660,51 @@
     return x.toLocaleString('en-US', { maximumFractionDigits: 2 });
   }
 
+  function extractGroupFromText(s, fallbackYear=''){
+    s = String(s || '').trim();
+    if(!s) return null;
+
+    let m = s.match(/(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
+    if(m) return { year: m[1], mmdd: `${m[2]}${m[3]}` };
+
+    m = s.match(/(?<!\d)(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
+    if(m) return { year: `20${m[1]}`, mmdd: `${m[2]}${m[3]}` };
+
+    m = s.match(/(?<!\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
+    if(m) return { year: fallbackYear, mmdd: `${m[1]}${m[2]}` };
+
+    return null;
+  }
+
+  function getRowGroup(r){
+    const fallbackYear = String((r && (r.date || '')) || '').slice(0,4);
+    const parsed = extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
+      || extractGroupFromText((r && (r.send_id || '')) || '', fallbackYear)
+      || extractGroupFromText((r && (r.term || '')) || '', fallbackYear);
+
+    if(parsed) return { ...parsed, explicit: true };
+
+    return { year:'', mmdd:'', explicit:false };
+  }
+
   function getRowYear(r){
-    return String((r && (r.year || '')) || '').trim() || String((r && (r.date || '')) || '').slice(0,4);
+    return getRowGroup(r).year;
   }
 
   function getRowMmdd(r){
-    return String((r && (r.mmdd || '')) || '').trim() || String((r && (r.date || '')) || '').slice(5,7) + String((r && (r.date || '')) || '').slice(8,10);
+    return getRowGroup(r).mmdd;
   }
 
   function getSendKey(r){
     const channel = String((r && (r.channel || '')) || '').trim();
     const sendId = String((r && (r.send_id || '')) || '').trim();
+    if(sendId) return `${channel}||${sendId}`;
+
     const campaign = String((r && (r.campaign || '')) || '').trim();
     const term = String((r && (r.term || '')) || '').trim();
-    const mmdd = getRowMmdd(r);
-
-    // 중요: send distinct는 날짜별 row가 아니라 실제 발송 단위로 세야 함.
-    // 따라서 send_id가 있으면 date를 key에 넣지 않는다.
-    if(sendId){
-      return `${channel}||SEND||${sendId}`;
-    }
-
-    // 구 schema fallback: campaign이 있으면 campaign 우선, 없으면 term.
-    // 여기서도 date를 넣으면 WEEK/RANGE에서 같은 발송이 일자별로 중복 카운트된다.
-    if(campaign && campaign !== '-'){
-      return `${channel}||CAMPAIGN||${campaign}`;
-    }
-    if(term && term !== '-'){
-      return `${channel}||TERM||${term}`;
-    }
-
-    // 정말 식별자가 없을 때만 마지막 fallback으로 날짜 사용
-    return `${channel}||DATE||${String((r && (r.date || '')) || '').trim()}||${mmdd || ''}`;
+    if(campaign) return `${channel}||C||${campaign}`;
+    if(term) return `${channel}||T||${term}`;
+    return `${channel}||UNGROUPED`;
   }
 
   function countDistinctSends(rows){
@@ -772,7 +785,7 @@
     return null;
   }
   function mmddOfRow(r){
-    return getRowMmdd(r) || mmddFromText(r.campaign) || mmddFromText(r.term);
+    return getRowMmdd(r) || mmddFromText(r.campaign) || mmddFromText(r.send_id) || mmddFromText(r.term) || '';
   }
 
   function parseGroupKey(gk){
@@ -806,7 +819,7 @@
   let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
 
   // ✅ MMDD 클릭은 "디폴트: 날짜 이동 + 7일 누적" 이므로 기본 ON
-  let GROUP_JUMP_MODE = true;
+  let GROUP_JUMP_MODE = false;
 
   const YTD_CACHE = new Map();
 
@@ -1021,6 +1034,18 @@
     renderByDate('EDM', wrapEDMDate);
     renderByDate('LMS', wrapLMSDate);
     renderByDate('KAKAO', wrapKakaoDate);
+
+    if(!SELECTED){
+      const firstBtn = [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
+      if(firstBtn){
+        SELECTED = {
+          type:'group',
+          channel:firstBtn.getAttribute('data-channel'),
+          year:firstBtn.getAttribute('data-year'),
+          mmdd:firstBtn.getAttribute('data-mmdd')
+        };
+      }
+    }
 
     function renderOtherCampaigns(channel, wrapEl){
       const rows = otherByChannel[channel].slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
@@ -1395,12 +1420,12 @@
       const j = normalizeBundle(raw);
 
       for (const r of (j.kpi || [])) {
-        const key = `${r.date}||${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}`;
+        const key = `${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}||${getRowYear(r)}||${getRowMmdd(r)}`;
         sumInto(kpiMap, key, r, ['sessions', 'users', 'purchases', 'revenue', 'items_purchased', 'send_count']);
       }
 
       for (const p of (j.prod || [])) {
-        const key = `${p.date}||${p.channel}||${p.send_id || ''}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}`;
+        const key = `${p.channel}||${p.send_id || ''}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}||${getRowYear(p)}||${getRowMmdd(p)}`;
         sumInto(prodMap, key, p, ['prod_items', 'prod_revenue']);
       }
     }
@@ -1678,24 +1703,7 @@
 
   // ✅ group(mmdd) -> 실제 존재 날짜로 resolve
   function resolveMmddToAvailableDate(year, mmdd){
-    const mm = String(mmdd).slice(0,2);
-    const dd = String(mmdd).slice(2,4);
-    const suffix = `-${mm}-${dd}`;
-
-    if(!AVAILABLE || !AVAILABLE.length){
-      return clampToAvailable(dateStrFromYearMmdd(year, mmdd));
-    }
-
-    const matches = AVAILABLE.filter(d => d.endsWith(suffix)).slice().sort();
-    if(!matches.length){
-      return clampToAvailable(dateStrFromYearMmdd(year, mmdd));
-    }
-
-    const y = String(year);
-    const prefer = matches.filter(d => d.startsWith(y + "-"));
-    if(prefer.length) return prefer[prefer.length-1];
-
-    return matches[matches.length-1];
+    return '';
   }
 
   // ✅ MMDD 클릭 시: 그 날짜부터 7일 누적(RANGE)로 디폴트 로드
@@ -1714,15 +1722,7 @@
   }
 
   async function selectGroup(channel, year, mmdd){
-    // ✅ 요구사항: "0226 클릭하면 그 일자부터 누적 7일 데이터"가 디폴트
-    if(GROUP_JUMP_MODE){
-      const target = resolveMmddToAvailableDate(year, mmdd);
-      // datePicker도 같이 맞춰주면 UX 좋음
-      datePicker.value = target;
-      await load7dFromDate(target);
-    }
-
-    // 로드 완료 후: 해당 group 드릴다운/하이라이트
+    // explicit campaign/term date group only: no automatic date remap
     SELECTED = {type:'group', channel, year, mmdd};
     filterKPI();
     updateChannelTotals();
