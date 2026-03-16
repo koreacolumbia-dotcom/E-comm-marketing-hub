@@ -151,6 +151,13 @@
 </head>
 
 <body>
+  <div id="errorBanner" class="hidden mx-auto mt-6 max-w-[1280px] px-4 md:px-8">
+    <div class="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700 shadow-sm">
+      <div class="text-xs tracking-[0.28em] uppercase font-black mb-1">Data Error</div>
+      <div id="errorBannerText">VOC 데이터를 불러오지 못했습니다.</div>
+    </div>
+  </div>
+
   <div id="overlay" class="overlay">
     <div class="flex flex-col items-center gap-3">
       <div class="spinner"></div>
@@ -377,6 +384,12 @@
       const o = document.getElementById("overlay");
       if (o) o.classList.remove("show");
     }
+    function showError(msg){
+      const wrap = document.getElementById("errorBanner");
+      const text = document.getElementById("errorBannerText");
+      if (text) text.textContent = msg || "VOC 데이터를 불러오지 못했습니다.";
+      if (wrap) wrap.classList.remove("hidden");
+    }
     function runWithOverlay(msg, fn){
       try{
         showOverlay(msg);
@@ -409,6 +422,13 @@
       const kst = kstNow();
       kst.setDate(kst.getDate() + offsetDays);
       return `${kst.getFullYear()}-${pad2(kst.getMonth()+1)}-${pad2(kst.getDate())}`;
+    }
+    async function fetchJsonOrThrow(url){
+      const res = await fetch(url, {cache:"no-store"});
+      if (!res.ok){
+        throw new Error(`HTTP ${res.status} while loading ${url}`);
+      }
+      return await res.json();
     }
     function parseDate10(s){
       if (!s) return null;
