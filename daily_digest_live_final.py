@@ -61,6 +61,9 @@ import json
 import base64
 import datetime as dt
 import re
+import urllib.parse
+import urllib.request
+import urllib.error
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
@@ -126,6 +129,26 @@ CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1",
 
 # Paid detail (custom) — fixed order / labels
 PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
+
+TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
+MEDIA_SPEND_XLS_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_XLS_PATH", "paid_media_spend.xlsx").strip()
+
+META_APP_ID = os.getenv("META_APP_ID", "").strip()
+META_AD_ACCOUNT_ID = os.getenv("META_AD_ACCOUNT_ID", "").strip()
+META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN", "").strip()
+
+GOOGLE_ADS_CUSTOMER_ID = os.getenv("GOOGLE_ADS_CUSTOMER_ID", "").strip().replace("-", "")
+GOOGLE_ADS_DEVELOPER_TOKEN = os.getenv("GOOGLE_ADS_DEVELOPER_TOKEN", "").strip()
+GOOGLE_ADS_ACCESS_TOKEN = os.getenv("GOOGLE_ADS_ACCESS_TOKEN", "").strip()
+GOOGLE_ADS_REFRESH_TOKEN = os.getenv("GOOGLE_ADS_REFRESH_TOKEN", "").strip()
+GOOGLE_ADS_CLIENT_ID = os.getenv("GOOGLE_ADS_CLIENT_ID", "").strip()
+GOOGLE_ADS_CLIENT_SECRET = os.getenv("GOOGLE_ADS_CLIENT_SECRET", "").strip()
+GOOGLE_ADS_LOGIN_CUSTOMER_ID = os.getenv("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "").strip().replace("-", "")
+
+NAVER_AD_CUSTOMER_ID = os.getenv("NAVER_AD_CUSTOMER_ID", "").strip()
+NAVER_AD_ACCESS_LICENSE = os.getenv("NAVER_AD_ACCESS_LICENSE", "").strip()
+NAVER_AD_SECRET_KEY = os.getenv("NAVER_AD_SECRET_KEY", "").strip()
+NAVER_AD_BASE_URL = os.getenv("NAVER_AD_BASE_URL", "https://api.naver.com").strip()
 
 
 # =========================
@@ -526,9 +549,9 @@ def build_window(end_date: dt.date, mode: str) -> DigestWindow:
     if mode == "daily":
         cur_start = end_date
         cur_end = end_date
-        prev_end = end_date - dt.timedelta(days=1)
+        prev_end = end_date - dt.timedelta(days=7)
         prev_start = prev_end
-        compare_label = "DoD"
+        compare_label = "WoW"
 
         yoy_override = parse_yyyy_mm_dd(YOY_DAILY_DATE_OVERRIDE)
         if yoy_override:
@@ -1081,13 +1104,13 @@ def get_kpi_snapshot_table_3way(client: BetaAnalyticsDataClient, w: DigestWindow
 # =========================
 def get_trend_view_series(client: BetaAnalyticsDataClient, w: DigestWindow) -> dict:
     end = w.cur_end
-    start = end - dt.timedelta(days=6)
+    start = end - dt.timedelta(days=29)
     df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["date"], ["sessions","transactions","purchaseRevenue"])
-    axis_dates = [start + dt.timedelta(days=i) for i in range(7)]
-    x = [d.strftime("%m/%d") for d in axis_dates]
+    axis_dates = [start + dt.timedelta(days=i) for i in range(30)]
+    x = [f"{d.strftime('%m/%d')} ({['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d.weekday()]})" for d in axis_dates]
 
     if df.empty:
-        return {"x": x, "sessions": [0.0]*7, "revenue": [0.0]*7, "cvr": [0.0]*7}
+        return {"x": x, "dates": [ymd(d) for d in axis_dates], "sessions": [0.0]*30, "revenue": [0.0]*30, "cvr": [0.0]*30}
 
     df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", errors="coerce")
     df = df.dropna(subset=["date"]).sort_values("date")
@@ -1099,19 +1122,86 @@ def get_trend_view_series(client: BetaAnalyticsDataClient, w: DigestWindow) -> d
     s = [float(tmp.loc[d, "sessions"]) if d in tmp.index else 0.0 for d in axis_dates]
     r = [float(tmp.loc[d, "purchaseRevenue"]) if d in tmp.index else 0.0 for d in axis_dates]
     c = [float(tmp.loc[d, "cvr"]) if d in tmp.index else 0.0 for d in axis_dates]
-    return {"x": x, "sessions": s, "revenue": r, "cvr": c}
+    return {"x": x, "dates": [ymd(d) for d in axis_dates], "sessions": s, "revenue": r, "cvr": c}
+
+def combined_index_svg_monthly(
+    axis_dates: List[dt.date],
+    xlabels: List[str],
+    series: List[List[float]],
+    colors: List[str],
+    labels: List[str],
+    width=980, height=280,
+    pad_l=46, pad_r=16, pad_t=18, pad_b=62,
+) -> str:
+    n = len(xlabels)
+    if n == 0:
+        return combined_index_svg(["--"], [[100],[100],[100]], colors, labels)
+    allv = [v for s in series for v in s] or [0,1]
+    y_min, y_max = min(allv), max(allv)
+    if y_max == y_min:
+        y_max += 1
+    span = y_max - y_min
+    y_min2 = y_min - span * 0.08
+    y_max2 = y_max + span * 0.10
+    inner_w = width - pad_l - pad_r
+    inner_h = height - pad_t - pad_b
+
+    def xy(i, v):
+        x = pad_l + inner_w * (i / (n - 1 if n > 1 else 1))
+        y_norm = (v - y_min2) / (y_max2 - y_min2)
+        y = pad_t + inner_h * (1 - y_norm)
+        return x, y
+
+    grid, ylabels_svg = [], []
+    for t in range(6):
+        frac = t / 5
+        y = pad_t + inner_h * (1 - frac)
+        val = y_min2 + (y_max2 - y_min2) * frac
+        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
+        ylabels_svg.append(f"<text x='{pad_l-8}' y='{y+3:.1f}' text-anchor='end' font-size='10' fill='#6b7280'>{val:.0f}</text>")
+
+    weekend_marks = []
+    xlabels_svg = []
+    for i, (d, lab) in enumerate(zip(axis_dates, xlabels)):
+        x = pad_l + inner_w * (i / (n - 1 if n > 1 else 1))
+        wk = d.weekday()
+        color = '#6b7280'
+        if wk == 5:
+            color = '#2563eb'
+        elif wk == 6:
+            color = '#dc2626'
+        if i < n - 1:
+            nx = pad_l + inner_w * ((i+1) / (n - 1 if n > 1 else 1))
+            if wk >= 5:
+                weekend_marks.append(f"<rect x='{x:.1f}' y='{pad_t}' width='{max(1.0, nx-x):.1f}' height='{inner_h:.1f}' fill='{ '#eff6ff' if wk==5 else '#fef2f2' }' opacity='0.35'/>")
+        text = d.strftime('%m/%d')
+        dow = ['M','T','W','T','F','S','S'][wk]
+        xlabels_svg.append(f"<text x='{x:.1f}' y='{height-pad_b+18}' text-anchor='middle' font-size='9' fill='{color}'>{text}</text>")
+        xlabels_svg.append(f"<text x='{x:.1f}' y='{height-pad_b+31}' text-anchor='middle' font-size='9' fill='{color}'>{dow}</text>")
+
+    axes = f"<line x1='{pad_l}' y1='{pad_t}' x2='{pad_l}' y2='{height-pad_b}' stroke='#c7d2fe' stroke-width='1'/><line x1='{pad_l}' y1='{height-pad_b}' x2='{width-pad_r}' y2='{height-pad_b}' stroke='#c7d2fe' stroke-width='1'/>"
+    polys, dots = [], []
+    for sidx, s in enumerate(series):
+        pts = [xy(i, v) for i, v in enumerate(s)]
+        poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+        color = colors[sidx]
+        polys.append(f"<polyline fill='none' stroke='{color}' stroke-width='2.3' points='{poly}'/>")
+        dots.append("".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.3' fill='{color}'/>" for x, y in pts]))
+    legend_items = []
+    for i, lab in enumerate(labels):
+        legend_items.append(f"<g transform='translate({pad_l + i*165},8)'><line x1='0' y1='8' x2='18' y2='8' stroke='{colors[i]}' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>{lab}</text></g>")
+    return f"<svg width='100%' viewBox='0 0 {width} {height}' preserveAspectRatio='none' style='display:block;'>{''.join(weekend_marks)}{''.join(grid)}{axes}{''.join(polys)}{''.join(dots)}{''.join(ylabels_svg)}{''.join(xlabels_svg)}<text x='{pad_l}' y='{height-8}' font-size='10' fill='#94a3b8'>Index (D-30 start = 100)</text>{''.join(legend_items)}</svg>"
 
 def trend_svg_from_series(series: dict) -> str:
     x = series.get("x", [])
-    s_raw = series.get("sessions", [])
-    r_raw = series.get("revenue", [])
-    c_raw = series.get("cvr", [])
-    if not x or len(x) != 7:
-        return combined_index_svg(["--"]*7, [[100]*7,[100]*7,[100]*7], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
-    s = index_series([float(v) for v in s_raw])
-    r = index_series([float(v) for v in r_raw])
-    c = index_series([float(v) for v in c_raw])
-    return combined_index_svg(x, [s, r, c], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
+    axis_dates = [parse_yyyy_mm_dd(d) for d in series.get("dates", [])]
+    if not x or len(x) != 30 or not axis_dates or any(d is None for d in axis_dates):
+        fallback_dates = [dt.date.today() - dt.timedelta(days=29-i) for i in range(30)]
+        return combined_index_svg_monthly(fallback_dates, [d.strftime('%m/%d') for d in fallback_dates], [[100]*30,[100]*30,[100]*30], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
+    s = index_series([float(v) for v in series.get("sessions", [])])
+    r = index_series([float(v) for v in series.get("revenue", [])])
+    c = index_series([float(v) for v in series.get("cvr", [])])
+    return combined_index_svg_monthly(axis_dates, x, [s, r, c], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
 
 
 # =========================
@@ -1508,6 +1598,250 @@ def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dic
     return {"new": new_terms, "rising": rising}
 
 
+
+
+def safe_read_excel(path: str) -> pd.DataFrame:
+    try:
+        if path and os.path.exists(path):
+            return pd.read_excel(path)
+    except Exception as e:
+        print(f"[WARN] Excel read failed: {path} | {type(e).__name__}: {e}")
+    return pd.DataFrame()
+
+def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
+    df = safe_read_excel(xlsx_path)
+    if df.empty:
+        return {}
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
+    tr_col = cols.get('target_roas') or cols.get('target roas') or cols.get('target') or cols.get('목표 roas') or cols.get('목표roas')
+    if not ch_col or not tr_col:
+        return {}
+    out = {}
+    for _, r in df.iterrows():
+        ch = str(r.get(ch_col, '') or '').strip().lower()
+        if not ch:
+            continue
+        try:
+            val = float(r.get(tr_col, 0) or 0)
+        except Exception:
+            continue
+        if val > 10:  # permit 300 for 300%
+            val = val / 100.0
+        out[ch] = val
+    return out
+
+def refresh_google_ads_access_token() -> str:
+    if GOOGLE_ADS_ACCESS_TOKEN:
+        return GOOGLE_ADS_ACCESS_TOKEN
+    if not (GOOGLE_ADS_REFRESH_TOKEN and GOOGLE_ADS_CLIENT_ID and GOOGLE_ADS_CLIENT_SECRET):
+        return ''
+    data = urllib.parse.urlencode({
+        'client_id': GOOGLE_ADS_CLIENT_ID,
+        'client_secret': GOOGLE_ADS_CLIENT_SECRET,
+        'refresh_token': GOOGLE_ADS_REFRESH_TOKEN,
+        'grant_type': 'refresh_token',
+    }).encode('utf-8')
+    req = urllib.request.Request('https://oauth2.googleapis.com/token', data=data, headers={'Content-Type':'application/x-www-form-urlencoded'})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        payload = json.loads(resp.read().decode('utf-8'))
+    return str(payload.get('access_token','')).strip()
+
+def http_json(url: str, headers: Optional[Dict[str,str]] = None, data: Optional[bytes] = None, method: Optional[str] = None) -> dict:
+    req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        body = resp.read().decode('utf-8')
+    try:
+        return json.loads(body)
+    except Exception:
+        return {}
+
+def fetch_meta_spend(start: dt.date, end: dt.date) -> float:
+    act_id = META_AD_ACCOUNT_ID or ''
+    if act_id and not act_id.startswith('act_'):
+        act_id = f'act_{act_id}'
+    if not (act_id and META_ACCESS_TOKEN):
+        return 0.0
+    params = {
+        'fields': 'spend',
+        'level': 'account',
+        'time_range': json.dumps({'since': ymd(start), 'until': ymd(end)}),
+        'access_token': META_ACCESS_TOKEN,
+    }
+    url = f"https://graph.facebook.com/v23.0/{act_id}/insights?" + urllib.parse.urlencode(params)
+    try:
+        js = http_json(url)
+        rows = js.get('data', []) or []
+        return float(rows[0].get('spend', 0) or 0) if rows else 0.0
+    except Exception as e:
+        print(f"[WARN] META spend fetch failed: {type(e).__name__}: {e}")
+        return 0.0
+
+def fetch_google_ads_spend(start: dt.date, end: dt.date) -> float:
+    if not (GOOGLE_ADS_CUSTOMER_ID and GOOGLE_ADS_DEVELOPER_TOKEN):
+        return 0.0
+    token = refresh_google_ads_access_token()
+    if not token:
+        return 0.0
+    query = {
+        'query': f"SELECT metrics.cost_micros FROM customer WHERE segments.date BETWEEN '{ymd(start)}' AND '{ymd(end)}'"
+    }
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'developer-token': GOOGLE_ADS_DEVELOPER_TOKEN,
+        'Content-Type': 'application/json',
+    }
+    if GOOGLE_ADS_LOGIN_CUSTOMER_ID:
+        headers['login-customer-id'] = GOOGLE_ADS_LOGIN_CUSTOMER_ID
+    url = f"https://googleads.googleapis.com/v19/customers/{GOOGLE_ADS_CUSTOMER_ID}/googleAds:searchStream"
+    try:
+        js = http_json(url, headers=headers, data=json.dumps(query).encode('utf-8'), method='POST')
+        total = 0.0
+        if isinstance(js, list):
+            for block in js:
+                for row in block.get('results', []) or []:
+                    total += float((((row.get('metrics') or {}).get('costMicros', 0)) or 0)) / 1_000_000.0
+        return total
+    except Exception as e:
+        print(f"[WARN] GOOGLE spend fetch failed: {type(e).__name__}: {e}")
+        return 0.0
+
+def fetch_naver_spend(start: dt.date, end: dt.date) -> float:
+    # API schemas vary by contract. Fallback to manual sheet when unavailable.
+    return 0.0
+
+def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[str, float]:
+    df = safe_read_excel(xlsx_path)
+    if df.empty:
+        return {}
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
+    spend_col = cols.get('spend') or cols.get('budget') or cols.get('광고비') or cols.get('예산')
+    date_col = cols.get('date') or cols.get('일자')
+    year_col = cols.get('year') or cols.get('연도')
+    out = {}
+    if not ch_col or not spend_col:
+        return out
+    tmp = df.copy()
+    if date_col and date_col in tmp.columns:
+        tmp[date_col] = pd.to_datetime(tmp[date_col], errors='coerce').dt.date
+        tmp = tmp[(tmp[date_col] >= start) & (tmp[date_col] <= end)]
+    elif year_col and year_col in tmp.columns:
+        tmp = tmp[pd.to_numeric(tmp[year_col], errors='coerce').fillna(0).astype(int) == start.year]
+    for _, r in tmp.iterrows():
+        ch = str(r.get(ch_col, '') or '').strip().lower()
+        if not ch:
+            continue
+        out[ch] = out.get(ch, 0.0) + float(r.get(spend_col, 0) or 0)
+    return out
+
+def map_sub_to_media(sub: str) -> str:
+    sub = (sub or '').strip().lower()
+    if sub in ('google',):
+        return 'google'
+    if sub in ('meta', 'instagram'):
+        return 'meta'
+    if sub in ('naverbs', 'naver mo'):
+        return 'naver'
+    return sub
+
+def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
+    manual = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, start, end)
+    out = {k: float(v or 0) for k, v in manual.items()}
+    out['meta'] = max(out.get('meta', 0.0), fetch_meta_spend(start, end))
+    out['google'] = max(out.get('google', 0.0), fetch_google_ads_spend(start, end))
+    out['naver'] = max(out.get('naver', 0.0), fetch_naver_spend(start, end))
+    return out
+
+def get_other_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
+    dims = ["sessionSourceMedium", "sessionCampaignName"]
+    mets = ["sessions", "transactions", "purchaseRevenue"]
+    def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
+        try:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
+        except Exception:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["sessionSourceMedium"], mets, limit=250000)
+            df['sessionCampaignName'] = ''
+        if df.empty:
+            return pd.DataFrame(columns=dims + mets)
+        for c in mets:
+            df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
+        df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+        df = df[df['bucket'] == 'Other'].copy()
+        df['sub'] = df['sessionSourceMedium'].astype(str).str.strip().replace('', 'other')
+        return df
+    cur = fetch(w.cur_start, w.cur_end)
+    prev = fetch(w.prev_start, w.prev_end)
+    yoy = fetch(w.yoy_start, w.yoy_end)
+    def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
+        if df.empty:
+            return pd.DataFrame(columns=['sub', f'sessions{suffix}', f'transactions{suffix}', f'revenue{suffix}'])
+        g = df.groupby('sub', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
+        return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'transactions{suffix}','purchaseRevenue':f'revenue{suffix}'})
+    m = agg(cur,'_cur').merge(agg(prev,'_prev'), on='sub', how='outer').merge(agg(yoy,'_yoy'), on='sub', how='outer').fillna(0.0)
+    if m.empty:
+        return pd.DataFrame(columns=['sub_channel','sessions','orders','purchaseRevenue','dod','yoy'])
+    m['dod'] = m.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_prev'])), axis=1)
+    m['yoy'] = m.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_yoy'])), axis=1)
+    out = m.rename(columns={'sub':'sub_channel','sessions_cur':'sessions','transactions_cur':'orders','revenue_cur':'purchaseRevenue'})[['sub_channel','sessions','orders','purchaseRevenue','dod','yoy']]
+    out = out.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).head(12)
+    return out
+
+def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
+    dims = ["sessionSourceMedium", "sessionCampaignName"]
+    mets = ["sessions", "transactions", "purchaseRevenue"]
+    def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
+        try:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
+        except Exception:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["sessionSourceMedium"], mets, limit=250000)
+            df['sessionCampaignName'] = ''
+        if df.empty:
+            return pd.DataFrame(columns=dims + mets)
+        for c in mets:
+            df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
+        df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+        df = df[df['bucket'] == 'Paid AD'].copy()
+        df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+        df['media'] = df['sub'].map(map_sub_to_media)
+        return df
+    cur = fetch(w.cur_start, w.cur_end)
+    yoy = fetch(w.yoy_start, w.yoy_end)
+    def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
+        if df.empty:
+            return pd.DataFrame(columns=['media',f'sessions{suffix}',f'orders{suffix}',f'revenue{suffix}'])
+        g = df.groupby('media', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
+        return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'orders{suffix}','purchaseRevenue':f'revenue{suffix}'})
+    merged = agg(cur,'_cur').merge(agg(yoy,'_py'), on='media', how='outer').fillna(0.0)
+    spend_cur = fetch_platform_spend_map(w.cur_start, w.cur_end)
+    spend_py = fetch_platform_spend_map(w.yoy_start, w.yoy_end)
+    medias = ['google','naver','meta']
+    rows=[]
+    for media in medias:
+        row = merged[merged['media']==media]
+        if row.empty:
+            rc = {'sessions_cur':0.0,'orders_cur':0.0,'revenue_cur':0.0,'sessions_py':0.0,'orders_py':0.0,'revenue_py':0.0}
+        else:
+            rr = row.iloc[0]
+            rc = {k: float(rr.get(k,0) or 0) for k in ['sessions_cur','orders_cur','revenue_cur','sessions_py','orders_py','revenue_py']}
+        cur_spend = float(spend_cur.get(media,0) or 0)
+        py_spend = float(spend_py.get(media,0) or 0)
+        cur_roas = (rc['revenue_cur']/cur_spend) if cur_spend else 0.0
+        py_roas = (rc['revenue_py']/py_spend) if py_spend else 0.0
+        cur_cvr = (rc['orders_cur']/rc['sessions_cur']) if rc['sessions_cur'] else 0.0
+        py_cvr = (rc['orders_py']/rc['sessions_py']) if rc['sessions_py'] else 0.0
+        rows.append({
+            'channel': media.title(),
+            'target_roas': float(target_roas_map.get(media, target_roas_map.get(media.title().lower(), 0.0)) or 0),
+            'budget_prev_year': py_spend,
+            'budget_current_year': cur_spend,
+            'roas_prev_year': py_roas,
+            'roas_current_year': cur_roas,
+            'cvr_prev_year': py_cvr,
+            'cvr_current_year': cur_cvr,
+        })
+    return pd.DataFrame(rows)
+
 # =========================
 # Bundle JSON (cache)
 # =========================
@@ -1536,6 +1870,8 @@ def build_bundle(
     pdp_series: dict,
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
+    other_detail: pd.DataFrame,
+    paid_media_compare: pd.DataFrame,
 ) -> dict:
     cur = overall.get("current", {}) or {}
     sessions = float(cur.get("sessions", 0) or 0)
@@ -1601,6 +1937,8 @@ def build_bundle(
         "pdp_series": pdp_series,
         "search_new": to_records(search_new),
         "search_rising": to_records(search_rising),
+        "other_detail": to_records(other_detail),
+        "paid_media_compare": to_records(paid_media_compare),
     }
 
 def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str]) -> dict:
@@ -1653,6 +1991,8 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
 
     search_new = pd.DataFrame(bundle.get("search_new", []))
     search_rising = pd.DataFrame(bundle.get("search_rising", []))
+    other_detail = pd.DataFrame(bundle.get("other_detail", []))
+    paid_media_compare = pd.DataFrame(bundle.get("paid_media_compare", []))
 
     return {
         "w": w,
@@ -1668,6 +2008,8 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
         "category_pdp_trend": category_pdp_trend,
         "search_new": search_new,
         "search_rising": search_rising,
+        "other_detail": other_detail,
+        "paid_media_compare": paid_media_compare,
     }
 
 
@@ -1689,6 +2031,8 @@ def render_page_html(
     category_pdp_trend: pd.DataFrame,
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
+    other_detail: pd.DataFrame,
+    paid_media_compare: pd.DataFrame,
     nav_links: Dict[str, str],
     bundle_rel_path: str,
 ) -> str:
@@ -1847,6 +2191,32 @@ def render_page_html(
             pct = float(getattr(r, "pct", 0) or 0.0)
             rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{'+' if pct>=0 else ''}{pct:.1f}% · {fmt_int(getattr(r,'count',0))}</span></div>"
 
+    other_html = ""
+    if other_detail is not None and (not other_detail.empty):
+        for r in other_detail.itertuples(index=False):
+            other_html += table_row([
+                esc(getattr(r, "sub_channel", "")),
+                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
+                f"<div class='text-right'>{fmt_int(getattr(r, 'orders', 0))}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'yoy', 0) or 0))}'>{('+' if float(getattr(r,'yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'yoy',0) or 0),1)}</div>",
+            ])
+
+    paid_media_compare_html = ""
+    if paid_media_compare is not None and (not paid_media_compare.empty):
+        for r in paid_media_compare.itertuples(index=False):
+            paid_media_compare_html += table_row([
+                esc(getattr(r, 'channel', '')),
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'target_roas', 0) or 0),1)}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget_prev_year', 0))}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget_current_year', 0))}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas_prev_year', 0) or 0),1)}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas_current_year', 0) or 0),1)}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr_prev_year', 0) or 0),2)}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr_current_year', 0) or 0),2)}</div>",
+            ])
+
     kpis_cards = "".join([
         top_kpi_card("Sessions", fmt_int(cur["sessions"]),
                      f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
@@ -1936,13 +2306,32 @@ def render_page_html(
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="flex items-center justify-between gap-3">
-          <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
-          <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-extrabold text-slate-700 hover:bg-white">
-            Show more (12)
-          </button>
-        </div>
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Other Detail</div>
         <table class="mt-3 w-full table-auto text-sm">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+            </tr>
+          </thead>
+          <tbody>{other_html or "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">1Month Trend (Index)</div>
+      <div class="mt-3">{trend_svg}</div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
+      <div class="mt-3 overflow-x-auto">
+        <table class="w-full table-auto text-sm min-w-[920px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
@@ -1958,8 +2347,24 @@ def render_page_html(
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">7D Trend (Index)</div>
-      <div class="mt-3">{trend_svg}</div>
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
+      <div class="mt-3 overflow-x-auto">
+        <table class="w-full table-auto text-sm min-w-[1120px]">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Channel</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">PY Budget</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">CY Budget</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">PY ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">CY ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">PY CVR</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CY CVR</th>
+            </tr>
+          </thead>
+          <tbody>{paid_media_compare_html or "<tr><td colspan='8' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+        </table>
+      </div>
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -2132,6 +2537,8 @@ def build_one(
                 category_pdp_trend=rt["category_pdp_trend"],
                 search_new=rt["search_new"],
                 search_rising=rt["search_rising"],
+                other_detail=rt["other_detail"],
+                paid_media_compare=rt["paid_media_compare"],
                 nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
                 bundle_rel_path=bundle_rel,
             )
@@ -2160,6 +2567,9 @@ def build_one(
 
     paid_detail = get_paid_detail_3way(client, w, paid_ad_totals=paid_ad_totals)
     paid_top3 = get_paid_top3(client, w)
+    other_detail = get_other_detail_3way(client, w)
+    target_roas_map = load_target_roas_map(TARGET_ROAS_XLS_PATH)
+    paid_media_compare = get_paid_media_comparison_table(client, w, target_roas_map)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
 
     trend_series = get_trend_view_series(client, w)
@@ -2202,6 +2612,8 @@ def build_one(
         pdp_series=pdp_series,
         search_new=search["new"],
         search_rising=search["rising"],
+        other_detail=other_detail,
+        paid_media_compare=paid_media_compare,
     )
 
     if WRITE_DATA_CACHE:
@@ -2223,6 +2635,8 @@ def build_one(
         category_pdp_trend=category_pdp_trend,
         search_new=search["new"],
         search_rising=search["rising"],
+        other_detail=other_detail,
+        paid_media_compare=paid_media_compare,
         nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
         bundle_rel_path=bundle_rel,
     )
