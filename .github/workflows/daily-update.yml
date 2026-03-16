@@ -300,7 +300,7 @@ jobs:
               matplotlib
           fi
 
-          # requirements.txt가 있어도 Daily Digest 패치용 패키지는 보강 설치
+          # requirements.txt 와 별개로 Daily Digest 추가 패키지 보강 설치
           pip install openpyxl matplotlib
 
           python -m playwright install --with-deps chromium
@@ -386,7 +386,7 @@ jobs:
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
 
-          # 패치 버전 실행
+          # 배치 버전 실행
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
 
           echo "[INFO] Outputs:"
@@ -485,8 +485,8 @@ jobs:
           set -euo pipefail
 
           if [ -z "${CREMA_SECURE_DEVICE_TOKEN:-}" ]; then
-            echo "[WARN] CREMA_SECURE_DEVICE_TOKEN is empty. skip crema."
-            exit 0
+            echo "[ERROR] CREMA_SECURE_DEVICE_TOKEN is empty."
+            exit 1
           fi
 
           mkdir -p \
@@ -516,8 +516,7 @@ jobs:
               --start "${START_3M}" \
               --end "${YMD}" \
               --chunk-days 31 \
-              --keep-site-output \
-              || true
+              --keep-site-output
 
           else
             if [ ! -f "${FLAG}" ]; then
@@ -527,8 +526,7 @@ jobs:
                 --start "${START_3M}" \
                 --end "${YMD}" \
                 --chunk-days 31 \
-                --keep-site-output \
-                || true
+                --keep-site-output
             else
               echo "[INFO] (1) Incremental (yesterday only): ${YMD} ~ ${YMD}"
               python -u crema_voc.py \
@@ -536,8 +534,7 @@ jobs:
                 --start "${YMD}" \
                 --end "${YMD}" \
                 --chunk-days 1 \
-                --keep-site-output \
-                || true
+                --keep-site-output
             fi
           fi
 
@@ -581,11 +578,7 @@ jobs:
           fi
 
           echo "[INFO] (3) Build dashboard: build_voc_dashboard.py"
-          if [ "${DEBUG}" = "true" ]; then
-            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}" --debug
-          else
-            python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}"
-          fi
+          python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}"
 
           echo "[INFO] (3.2) Validate VOC JSON"
           python - <<'PY'
@@ -640,10 +633,26 @@ jobs:
             cp -f "${INPUT_JSON}" site/data/reviews.json
           fi
 
-          if [ ! -f "site/data/meta.json" ]; then
-            echo "[WARN] site/data/meta.json missing -> write minimal meta"
-            printf '{"build":"%s","source":"crema_voc"}\n' "${YMD}" > site/data/meta.json
-          fi
+          echo "[INFO] (3.3) Validate meta.json"
+          python - <<'"'"'PY'"'"'
+          import json, sys
+          from pathlib import Path
+
+          p = Path("site/data/meta.json")
+          if not p.exists():
+              print("[ERROR] site/data/meta.json is missing")
+              sys.exit(1)
+
+          data = json.load(open(p, "r", encoding="utf-8"))
+          required = ["updated_at", "period_start", "period_end", "period_text"]
+          missing = [k for k in required if not str(data.get(k, "")).strip()]
+          if missing:
+              print(f"[ERROR] meta.json missing required fields: {missing}")
+              sys.exit(1)
+
+          print(f"[CHECK] meta.updated_at={data['updated_at']}")
+          print(f"[CHECK] meta.period={data['period_start']} ~ {data['period_end']}")
+          PY
 
           echo "[INFO] (4) Archive site -> reports/voc_crema"
           rm -rf reports/voc_crema || true
@@ -688,7 +697,7 @@ jobs:
           mkdir -p reports/voc_blog
 
           python -u build_blog_voc_report.py \
-            --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 양말" \
+            --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 등산" \
             --days 60 \
             --per-query 100 \
             --headless \
@@ -889,3 +898,4 @@ jobs:
           fi
 
           python -u scripts/send_daily_email.py || true
+
