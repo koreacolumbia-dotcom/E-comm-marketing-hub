@@ -227,7 +227,7 @@
               <div>
                 <div class="small-label text-blue-600 mb-2">0. ML Signals</div>
                 <div class="text-2xl font-black text-slate-900">어제 리뷰 핵심 문장</div>
-                <div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) · 긍정/부정 문장 각 2개</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) 기준 긍정/부정 문장 각 2개</div>
               </div>
               <div class="flex gap-2 flex-wrap">
                 <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
@@ -239,7 +239,7 @@
               <div class="summary-card">
                 <div class="small-label text-blue-600 mb-2">YESTERDAY</div>
                 <div class="text-3xl font-black"><span id="yCount">-</span> reviews</div>
-                <div class="text-xs font-bold text-slate-500 mt-2">어제 업로드된 리뷰 수 (현재 탭/필터 기준)</div>
+                <div class="text-xs font-bold text-slate-500 mt-2">어제 업로드된 리뷰 수 (현재 필터 기준)</div>
                 <div class="text-xs font-bold text-slate-500 mt-3" id="yLowHint">-</div>
               </div>
 
@@ -331,7 +331,7 @@
               <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
                 - NEGATIVE: ★1~2 리뷰 원문 2개 노출<br/>
                 - POSITIVE: ★4~5 리뷰 원문 2개 노출<br/>
-                - 버튼 클릭 → 아래 Daily Feed 검색으로 필터
+                - 버튼 클릭 시 아래 Daily Feed 검색으로 필터
               </div>
             </div>
 
@@ -339,7 +339,7 @@
 
             <div id="mlNoData" class="hidden review-card text-center">
               <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
-              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver)을 조정해보세요.</div>
+              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/소스(Official/Naver)를 조정해보세요.</div>
             </div>
           </div>
         </section>
@@ -459,7 +459,7 @@
       if (el) el.value = q || "";
       // Daily chip on + yesterday by default is OK; just rerender
       renderAll();
-      // (옵션) Daily Feed로 스크롤
+      // 필요하면 Daily Feed로 스크롤
       document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
     }
 
@@ -572,7 +572,7 @@
 
       const reviewUrl = String(r.review_original_url || r.product_url || "").trim();
       const reviewLink = reviewUrl
-        ? `<a href="${esc(reviewUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline">리뷰 원문보기</a>`
+        ? `<a href="${esc(reviewUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline">리뷰 원문 보기</a>`
         : `<span class="text-xs font-black text-slate-400">리뷰 원문 링크 없음</span>`;
 
       return `
@@ -588,7 +588,7 @@
               </div>
             </div>
             <div class="text-right shrink-0">
-              <div class="text-xs font-black text-slate-700">★ ${esc(r.rating)}</div>
+              <div class="text-xs font-black text-slate-700">★${esc(r.rating)}</div>
               <div class="text-[11px] font-bold text-slate-500 mt-1">${esc(fmtDT(r.created_at))}</div>
             </div>
           </div>
@@ -690,7 +690,7 @@
       }
       return items.map(item => {
         const link = item.url
-          ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline mt-2 inline-block">리뷰 원문보기</a>`
+          ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline mt-2 inline-block">리뷰 원문 보기</a>`
           : ``;
         return `
           <div class="sentence-item ${cls}">
@@ -728,8 +728,8 @@
     // Product ML (Cumulative): NEG=low rating
     // -----------------------------
     const STOPWORDS = new Set([
-      "그리고","그냥","진짜","너무","정말","완전","약간","조금","그래서","하지만","근데","저는","제가","저도","그런데",
-      "합니다","했어요","했는데","되요","돼요","입니다","있어요","없어요","같아요","같습니다","이거","이것","저것","그거",
+      "그리고","그냥","진짜","너무","정말","완전","조금","근데","또","더","이런",
+      "입니다","있어요","하는데","해요","네요","없어요","같아요","같습니다","이거","그거",
       "제품","구매","배송","포장","사진","후기","리뷰","사용","구입","주문","사이즈","size","컬럼비아","콜롬비아",
       "the","and","to","of","is","are","was","were","it","this","that","with","for","on","in"
     ]);
@@ -751,7 +751,7 @@
       for (const w of raw){
         if (w.length < 2) continue;
         if (STOPWORDS.has(w)) continue;
-        // 너무 긴 토큰/이상치 컷
+        // 너무 긴 토큰/이상치는 제외
         if (w.length > 22) continue;
         out.push(w);
       }
@@ -782,12 +782,12 @@
       const now = kstNow();
       const cutoff = winDays > 0 ? new Date(now.getTime() - winDays*24*60*60*1000) : null;
 
-      // 탭 필터(Official/Naver)는 ML에도 동일 적용
+      // 소스 필터(Official/Naver)도 ML에 동일 적용
       let base = REVIEWS.slice();
       if (uiState.sourceTab === "official") base = base.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") base = base.filter(r => r.source === "Naver");
 
-      // 기간 컷(누적 분석은 Daily chip의 날짜 선택과 분리)
+      // 기간 기반 누적 분석으로 Daily chip/날짜 선택과 분리
       if (cutoff){
         base = base.filter(r => {
           const d = parseDate10(r.created_at);
@@ -822,7 +822,7 @@
         const text = String(r.text||"").trim();
         if (text) g.all.push(text);
 
-        // ✅ NEG: 저평점 기반 (★1~2)
+        // NEG: 저평점 기준 (★1~2)
         if (rating > 0 && rating <= 2){
           g.negCnt += 1;
           if (text) g.neg.push(text);
@@ -890,11 +890,11 @@
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
             <div>
-              <div class="text-xs font-black text-slate-500 mb-2">NEGATIVE 문장 2개 (★1~2)</div>
+              <div class="text-xs font-black text-slate-500 mb-2">NEGATIVE 문장 2개(★1~2)</div>
               <div class="sentence-list">${mlSentenceHTML(g.negSentences, "neg", "NEGATIVE 문장이 없습니다.")}</div>
             </div>
             <div>
-              <div class="text-xs font-black text-slate-500 mb-2">POSITIVE 문장 2개 (★4~5)</div>
+              <div class="text-xs font-black text-slate-500 mb-2">POSITIVE 문장 2개(★4~5)</div>
               <div class="sentence-list">${mlSentenceHTML(g.posSentences, "pos", "POSITIVE 문장이 없습니다.")}</div>
             </div>
           </div>
@@ -913,7 +913,7 @@
       if (sel){
         sel.value = code;
       }
-      // Daily chip on + yesterday 유지
+      // Daily chip on + 어제 기준
       renderAll();
       document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
     }
@@ -947,32 +947,44 @@
       renderMLSignals(filtered);
       renderDailyFeed(filtered);
 
-      // ✅ Product ML is cumulative (independent of daily date)
+      // Product ML is cumulative (independent of daily date)
       renderProductML();
     }
 
     async function boot(){
       runWithOverlay("Loading VOC data...", async () => {
-        const [meta, reviews] = await Promise.all([
-          fetch("./data/meta.json", {cache:"no-store"}).then(r => r.json()),
-          fetch("./data/reviews.json", {cache:"no-store"}).then(r => r.json()),
-        ]);
+        try{
+          const [meta, reviews] = await Promise.all([
+            fetchJsonOrThrow("./data/meta.json"),
+            fetchJsonOrThrow("./data/reviews.json"),
+          ]);
 
-        META = meta;
-        REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
+          META = meta || {};
+          REVIEWS = Array.isArray(reviews?.reviews) ? reviews.reviews : [];
 
-        const dayInput = document.getElementById("daySelect");
-        if (dayInput){
-          if (META?.period_start) dayInput.min = META.period_start;
-          if (META?.period_end) dayInput.max = META.period_end;
-
-          // ✅ default = yesterday(KST)
-          if (!dayInput.value){
-            dayInput.value = kstDateStr(-1);
+          if (!META.updated_at){
+            throw new Error("meta.json is missing updated_at");
           }
-        }
+          if (!Array.isArray(REVIEWS) || REVIEWS.length === 0){
+            throw new Error("reviews.json contains no review rows");
+          }
 
-        renderAll();
+          const dayInput = document.getElementById("daySelect");
+          if (dayInput){
+            if (META?.period_start) dayInput.min = META.period_start;
+            if (META?.period_end) dayInput.max = META.period_end;
+
+            // default = yesterday(KST)
+            if (!dayInput.value){
+              dayInput.value = kstDateStr(-1);
+            }
+          }
+
+          renderAll();
+        }catch(e){
+          console.error(e);
+          showError(`VOC 데이터를 불러오지 못했습니다. ${e.message || ""}`.trim());
+        }
       });
     }
 
@@ -980,3 +992,4 @@
   </script>
 </body>
 </html>
+
