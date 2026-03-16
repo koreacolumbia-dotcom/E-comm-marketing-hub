@@ -36,10 +36,12 @@ hero_main_top15_FINAL_STABLE_PATCHED_P2PLUS.py
 - HTML_USE_ABSOLUTE_FILE_URL
 """
 
-import os, re, csv, hashlib, urllib.parse, sys, time, json, traceback
+import os, re, csv, hashlib, urllib.parse, sys, time, json, traceback, html, smtplib
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple, Dict, Any
+from email.message import EmailMessage
 import requests
 from pathlib import Path
 from contextlib import contextmanager
@@ -74,11 +76,17 @@ def _now_kst_str():
 
 # Pillow (image resize + meta)
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
     from io import BytesIO
     PIL_OK = True
 except Exception:
     PIL_OK = False
+
+try:
+    import pytesseract
+    OCR_OK = True
+except Exception:
+    OCR_OK = False
 
 
 # =====================================================
@@ -248,6 +256,58 @@ BRANDS = [
 
     ("millet", "Millet", "https://www.millet.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
 ]
+
+BRAND_SEGMENTS: Dict[str, Dict[str, str]] = {
+    "The North Face": {"style": "라이프스타일", "origin": "글로벌"},
+    "patagonia": {"style": "라이프스타일", "origin": "글로벌"},
+    "arcteryx": {"style": "전문 산행", "origin": "글로벌"},
+    "salomon": {"style": "전문 산행", "origin": "글로벌"},
+    "snowpeak": {"style": "라이프스타일", "origin": "글로벌"},
+    "blackyak": {"style": "전문 산행", "origin": "로컬"},
+    "discovery": {"style": "라이프스타일", "origin": "로컬"},
+    "nepa": {"style": "전문 산행", "origin": "로컬"},
+    "natgeo": {"style": "라이프스타일", "origin": "글로벌"},
+    "kolonsport": {"style": "전문 산행", "origin": "로컬"},
+    "kolonmall": {"style": "라이프스타일", "origin": "로컬"},
+    "k2": {"style": "전문 산행", "origin": "로컬"},
+    "montbell": {"style": "전문 산행", "origin": "글로벌"},
+    "eider": {"style": "전문 산행", "origin": "글로벌"},
+    "millet": {"style": "전문 산행", "origin": "글로벌"},
+}
+
+KEYWORD_STOPWORDS = {
+    "the", "and", "for", "with", "from", "your", "into", "main", "visual", "section",
+    "campaign", "special", "more", "best", "new", "spring", "summer", "fall", "winter",
+    "brand", "official", "look", "edition", "outdoor", "image", "hero", "mainvisual",
+    "기획전", "메인", "배너", "컬렉션", "이벤트", "브랜드", "공식", "더", "및", "신상",
+    "출시", "추천", "위크", "시즌", "라인", "캠페인", "section",
+}
+
+VISUAL_TAG_RULES = [
+    ("우천", [r"rain", r"storm", r"waterproof", r"우천", r"장마", r"방수"]),
+    ("하이킹", [r"hike", r"hiking", r"trail", r"trek", r"mountain", r"등산", r"산행"]),
+    ("러닝", [r"run", r"running", r"trailrun", r"러닝"]),
+    ("캠핑", [r"camp", r"camping", r"캠핑"]),
+    ("라이프스타일", [r"lifestyle", r"casual", r"city", r"urban", r"daily", r"일상"]),
+    ("여성", [r"women", r"woman", r"women's", r"여성"]),
+    ("남성", [r"men", r"man's", r"mens", r"남성"]),
+    ("키즈", [r"kids", r"kid", r"junior", r"school", r"키즈", r"주니어"]),
+    ("백팩", [r"backpack", r"bag", r"pack", r"배낭", r"백팩"]),
+    ("풋웨어", [r"shoe", r"shoes", r"footwear", r"sneaker", r"샌들", r"슈즈"]),
+    ("재킷", [r"jacket", r"shell", r"wind", r"다운", r"자켓", r"재킷"]),
+    ("봄시즌", [r"spring", r"봄"]),
+    ("여름시즌", [r"summer", r"여름"]),
+]
+
+ALERT_EVENT_THRESHOLD = max(1, int(os.environ.get("ALERT_EVENT_THRESHOLD", "2")))
+ALERT_CHANGED_THRESHOLD = max(1, int(os.environ.get("ALERT_CHANGED_THRESHOLD", "2")))
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
+ALERT_EMAIL_TO = os.environ.get("ALERT_EMAIL_TO", "").strip()
+ALERT_EMAIL_FROM = os.environ.get("ALERT_EMAIL_FROM", "").strip()
+ALERT_SMTP_HOST = os.environ.get("ALERT_SMTP_HOST", "").strip()
+ALERT_SMTP_PORT = int(os.environ.get("ALERT_SMTP_PORT", "587"))
+ALERT_SMTP_USER = os.environ.get("ALERT_SMTP_USER", "").strip()
+ALERT_SMTP_PASSWORD = os.environ.get("ALERT_SMTP_PASSWORD", "").strip()
 
 # ✅ URL이 간혹 안되는 브랜드 대비(필요 시 너가 계속 추가/수정)
 
@@ -2129,20 +2189,70 @@ def _recent_snapshot_files(date_s: str, days: int = 7) -> List[str]:
     return sorted(out)
 
 
-def build_recent_changes(curr_csv: str, date_s: str, days: int = RECENT_CHANGE_DAYS) -> Dict[str, Any]:
-    """
-    최근 N일 내 snapshot 변화 이력 요약.
-    - 브랜드 중복은 하나로 묶음
-    - 연속 스냅샷 pair 를 훑어서 최근 7일 내 변경 이력 집계
-    """
-    files = _recent_snapshot_files(date_s, days=days)
-    if curr_csv and os.path.exists(curr_csv) and curr_csv not in files:
-        files.append(curr_csv)
-        files = sorted(set(files))
+def _snapshot_files_in_range(start_dt: datetime, end_dt: datetime, include_prev_baseline: bool = False) -> List[str]:
+    if not os.path.isdir(SNAP_DIR):
+        return []
+    out: List[str] = []
+    prev_baseline = ""
+    for fn in sorted(os.listdir(SNAP_DIR)):
+        if not fn.startswith("hero_main_banners_") or not fn.endswith(".csv"):
+            continue
+        path = os.path.join(SNAP_DIR, fn)
+        dt = _snapshot_date_from_path(path)
+        if not dt:
+            continue
+        if dt < start_dt:
+            prev_baseline = path
+        elif start_dt <= dt <= end_dt:
+            out.append(path)
+    if include_prev_baseline and prev_baseline and out:
+        out = [prev_baseline] + out
+    return out
 
+
+def _calc_delta_pct(curr: int, prev: int) -> float:
+    curr = int(curr or 0)
+    prev = int(prev or 0)
+    if prev <= 0:
+        return 100.0 if curr > 0 else 0.0
+    return round(((curr - prev) / prev) * 100.0, 1)
+
+
+def _aggregate_change_window(files: List[str]) -> Dict[str, Any]:
     by_brand: Dict[str, Dict[str, Any]] = {}
     total_added = total_removed = total_changed = total_events = 0
-    pairs = []
+    pairs: List[Dict[str, Any]] = []
+    timeline_days: List[str] = []
+
+    def ensure_brand(bk: str, brand_name: str, next_csv: str) -> Dict[str, Any]:
+        return by_brand.setdefault(bk, {
+            "brand_key": bk,
+            "brand_name": brand_name or bk,
+            "added": 0,
+            "removed": 0,
+            "changed": 0,
+            "events": 0,
+            "last_title": "",
+            "last_rank": "",
+            "last_seen_csv": os.path.basename(next_csv) if next_csv else "",
+            "recent_titles": [],
+            "daily": {},
+        })
+
+    def touch(info: Dict[str, Any], day_key: str, kind: str, title: str, rank: Any, next_csv: str):
+        daily = info["daily"].setdefault(day_key, {"added": 0, "removed": 0, "changed": 0, "events": 0})
+        daily[kind] += 1
+        daily["events"] += 1
+        info[kind] += 1
+        info["events"] += 1
+        if title:
+            info["last_title"] = title
+            if title not in info["recent_titles"]:
+                info["recent_titles"].append(title)
+                info["recent_titles"] = info["recent_titles"][-6:]
+        if rank not in {"", None}:
+            info["last_rank"] = rank
+        info["last_seen_csv"] = os.path.basename(next_csv) if next_csv else info.get("last_seen_csv", "")
 
     for prev_csv, next_csv in zip(files, files[1:]):
         diff = build_changes(prev_csv, next_csv)
@@ -2151,7 +2261,11 @@ def build_recent_changes(curr_csv: str, date_s: str, days: int = RECENT_CHANGE_D
         total_removed += int(sm.get("removed", 0) or 0)
         total_changed += int(sm.get("changed", 0) or 0)
         total_events += int(sm.get("added", 0) or 0) + int(sm.get("removed", 0) or 0) + int(sm.get("changed", 0) or 0)
+        day_dt = _snapshot_date_from_path(next_csv)
+        day_key = day_dt.strftime("%Y-%m-%d") if day_dt else os.path.basename(next_csv)
+        timeline_days.append(day_key)
         pairs.append({
+            "date": day_key,
             "prev_csv": os.path.basename(prev_csv),
             "curr_csv": os.path.basename(next_csv),
             "summary": sm,
@@ -2161,72 +2275,29 @@ def build_recent_changes(curr_csv: str, date_s: str, days: int = RECENT_CHANGE_D
             bk = r.get("brand_key", "")
             if not bk:
                 continue
-            info = by_brand.setdefault(bk, {
-                "brand_key": bk,
-                "brand_name": r.get("brand_name", bk),
-                "added": 0,
-                "removed": 0,
-                "changed": 0,
-                "events": 0,
-                "last_title": "",
-                "last_rank": "",
-                "last_seen_csv": os.path.basename(next_csv),
-            })
-            info["added"] += 1
-            info["events"] += 1
-            info["last_title"] = r.get("title", "") or info.get("last_title", "")
-            info["last_rank"] = r.get("rank", "") or info.get("last_rank", "")
-            info["last_seen_csv"] = os.path.basename(next_csv)
+            touch(ensure_brand(bk, r.get("brand_name", bk), next_csv), day_key, "added", r.get("title", "") or "", r.get("rank", ""), next_csv)
 
         for r in diff.get("removed", []) or []:
             bk = r.get("brand_key", "")
             if not bk:
                 continue
-            info = by_brand.setdefault(bk, {
-                "brand_key": bk,
-                "brand_name": r.get("brand_name", bk),
-                "added": 0,
-                "removed": 0,
-                "changed": 0,
-                "events": 0,
-                "last_title": "",
-                "last_rank": "",
-                "last_seen_csv": os.path.basename(next_csv),
-            })
-            info["removed"] += 1
-            info["events"] += 1
-            if not info.get("last_title"):
-                info["last_title"] = r.get("title", "")
-            if not info.get("last_rank"):
-                info["last_rank"] = r.get("rank", "")
-            info["last_seen_csv"] = os.path.basename(next_csv)
+            touch(ensure_brand(bk, r.get("brand_name", bk), next_csv), day_key, "removed", r.get("title", "") or "", r.get("rank", ""), next_csv)
 
         for x in diff.get("changed", []) or []:
             curr = x.get("curr") or {}
             bk = curr.get("brand_key", "")
             if not bk:
                 continue
-            info = by_brand.setdefault(bk, {
-                "brand_key": bk,
-                "brand_name": curr.get("brand_name", bk),
-                "added": 0,
-                "removed": 0,
-                "changed": 0,
-                "events": 0,
-                "last_title": "",
-                "last_rank": "",
-                "last_seen_csv": os.path.basename(next_csv),
-            })
-            info["changed"] += 1
-            info["events"] += 1
-            info["last_title"] = curr.get("title", "") or info.get("last_title", "")
-            info["last_rank"] = curr.get("rank", "") or info.get("last_rank", "")
-            info["last_seen_csv"] = os.path.basename(next_csv)
+            touch(ensure_brand(bk, curr.get("brand_name", bk), next_csv), day_key, "changed", curr.get("title", "") or "", curr.get("rank", ""), next_csv)
 
-    brands = sorted(by_brand.values(), key=lambda x: (-int(x.get("events", 0) or 0), x.get("brand_name", "")))
+    brands = sorted(
+        by_brand.values(),
+        key=lambda x: (-int(x.get("events", 0) or 0), -int(x.get("changed", 0) or 0), x.get("brand_name", "")),
+    )
+    for info in brands:
+        info["max_daily_events"] = max([int(v.get("events", 0) or 0) for v in (info.get("daily") or {}).values()] or [0])
+
     return {
-        "window_days": int(days),
-        "curr_csv": os.path.basename(curr_csv) if curr_csv else "",
         "summary": {
             "brands_touched": len(brands),
             "events": total_events,
@@ -2236,7 +2307,420 @@ def build_recent_changes(curr_csv: str, date_s: str, days: int = RECENT_CHANGE_D
         },
         "brands": brands[:100],
         "pairs": pairs[: max(len(pairs), 1)],
+        "timeline_days": sorted(set(timeline_days)),
     }
+
+
+def build_recent_changes(curr_csv: str, date_s: str, days: int = RECENT_CHANGE_DAYS) -> Dict[str, Any]:
+    """
+    최근 N일 내 snapshot 변화 이력 요약.
+    - 브랜드 중복은 하나로 묶음
+    - 연속 스냅샷 pair 를 훑어서 최근 7일 내 변경 이력 집계
+    """
+    try:
+        end_dt = datetime.strptime(date_s, "%Y-%m-%d")
+    except Exception:
+        end_dt = kst_now()
+    start_dt = end_dt - timedelta(days=max(days - 1, 0))
+    prev_end_dt = start_dt - timedelta(days=1)
+    prev_start_dt = prev_end_dt - timedelta(days=max(days - 1, 0))
+
+    files = _snapshot_files_in_range(start_dt, end_dt, include_prev_baseline=True)
+    if curr_csv and os.path.exists(curr_csv) and curr_csv not in files:
+        files.append(curr_csv)
+        files = sorted(set(files))
+
+    current = _aggregate_change_window(files)
+    previous = _aggregate_change_window(_snapshot_files_in_range(prev_start_dt, prev_end_dt, include_prev_baseline=True))
+    prev_brand_map = {x.get("brand_key", ""): x for x in previous.get("brands", []) or []}
+
+    for info in current.get("brands", []) or []:
+        prev_info = prev_brand_map.get(info.get("brand_key", ""), {})
+        prev_events = int(prev_info.get("events", 0) or 0)
+        prev_changed = int(prev_info.get("changed", 0) or 0)
+        info["prev_events"] = prev_events
+        info["prev_changed"] = prev_changed
+        info["event_delta_pct"] = _calc_delta_pct(int(info.get("events", 0) or 0), prev_events)
+        info["changed_delta_pct"] = _calc_delta_pct(int(info.get("changed", 0) or 0), prev_changed)
+
+    current_summary = current.get("summary") or {}
+    prev_summary = previous.get("summary") or {}
+    return {
+        "window_days": int(days),
+        "curr_csv": os.path.basename(curr_csv) if curr_csv else "",
+        "summary": {
+            "brands_touched": int(current_summary.get("brands_touched", 0) or 0),
+            "events": int(current_summary.get("events", 0) or 0),
+            "added": int(current_summary.get("added", 0) or 0),
+            "removed": int(current_summary.get("removed", 0) or 0),
+            "changed": int(current_summary.get("changed", 0) or 0),
+            "prev_events": int(prev_summary.get("events", 0) or 0),
+            "prev_changed": int(prev_summary.get("changed", 0) or 0),
+            "event_delta_pct": _calc_delta_pct(int(current_summary.get("events", 0) or 0), int(prev_summary.get("events", 0) or 0)),
+            "changed_delta_pct": _calc_delta_pct(int(current_summary.get("changed", 0) or 0), int(prev_summary.get("changed", 0) or 0)),
+        },
+        "brands": current.get("brands", [])[:100],
+        "pairs": current.get("pairs", [])[: max(len(current.get("pairs", []) or []), 1)],
+        "timeline_days": current.get("timeline_days", []),
+        "previous_window": {
+            "start_date": prev_start_dt.strftime("%Y-%m-%d"),
+            "end_date": prev_end_dt.strftime("%Y-%m-%d"),
+            "summary": prev_summary,
+        },
+    }
+
+
+def build_alerts(changes: Optional[Dict[str, Any]], event_threshold: int = ALERT_EVENT_THRESHOLD, changed_threshold: int = ALERT_CHANGED_THRESHOLD) -> Dict[str, Any]:
+    alerts: List[Dict[str, Any]] = []
+    if not isinstance(changes, dict):
+        return {
+            "count": 0,
+            "items": [],
+            "thresholds": {"events": int(event_threshold), "changed": int(changed_threshold)},
+        }
+
+    for info in changes.get("brands", []) or []:
+        brand_name = info.get("brand_name") or info.get("brand_key") or "-"
+        for day_key, daily in (info.get("daily") or {}).items():
+            events = int(daily.get("events", 0) or 0)
+            changed = int(daily.get("changed", 0) or 0)
+            if events < event_threshold and changed < changed_threshold:
+                continue
+            alerts.append({
+                "brand_key": info.get("brand_key", ""),
+                "brand_name": brand_name,
+                "date": day_key,
+                "events": events,
+                "changed": changed,
+                "added": int(daily.get("added", 0) or 0),
+                "removed": int(daily.get("removed", 0) or 0),
+                "last_title": info.get("last_title", ""),
+            })
+
+    alerts = sorted(alerts, key=lambda x: (-x.get("changed", 0), -x.get("events", 0), x.get("brand_name", ""), x.get("date", "")))
+    return {
+        "count": len(alerts),
+        "items": alerts[:50],
+        "thresholds": {"events": int(event_threshold), "changed": int(changed_threshold)},
+    }
+
+
+def _alert_message_lines(alerts_payload: Dict[str, Any]) -> List[str]:
+    lines = ["[Hero Banner Alert] 이례적 배너 변동 감지"]
+    for item in alerts_payload.get("items", [])[:10]:
+        lines.append(
+            f"- {item.get('date','-')} | {item.get('brand_name','-')} | events {item.get('events',0)} / changed {item.get('changed',0)} / added {item.get('added',0)} / removed {item.get('removed',0)}"
+        )
+    return lines
+
+
+def send_slack_alerts(alerts_payload: Dict[str, Any]) -> str:
+    if not SLACK_WEBHOOK_URL or not alerts_payload.get("items"):
+        return "skipped"
+    try:
+        text = "\n".join(_alert_message_lines(alerts_payload))
+        resp = requests.post(SLACK_WEBHOOK_URL, json={"text": text}, timeout=8)
+        return f"sent:{resp.status_code}" if resp.ok else f"failed:{resp.status_code}"
+    except Exception as e:
+        return f"error:{e}"
+
+
+def send_email_alerts(alerts_payload: Dict[str, Any]) -> str:
+    if not all([ALERT_EMAIL_TO, ALERT_EMAIL_FROM, ALERT_SMTP_HOST]) or not alerts_payload.get("items"):
+        return "skipped"
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = "[Hero Banner Alert] 이례적 배너 변동 감지"
+        msg["From"] = ALERT_EMAIL_FROM
+        msg["To"] = ALERT_EMAIL_TO
+        msg.set_content("\n".join(_alert_message_lines(alerts_payload)))
+        with smtplib.SMTP(ALERT_SMTP_HOST, ALERT_SMTP_PORT, timeout=10) as smtp:
+            smtp.starttls()
+            if ALERT_SMTP_USER:
+                smtp.login(ALERT_SMTP_USER, ALERT_SMTP_PASSWORD)
+            smtp.send_message(msg)
+        return "sent"
+    except Exception as e:
+        return f"error:{e}"
+
+
+def analyze_title_keywords(rows: List[Banner], top_n: int = 12) -> List[Dict[str, Any]]:
+    counter: Counter = Counter()
+    for b in rows:
+        text = norm_ws(b.title or "")
+        if not text:
+            continue
+        english_tokens = re.findall(r"[A-Za-z][A-Za-z0-9'\-/&]{2,}", text)
+        korean_tokens = re.findall(r"[가-힣]{2,}", text)
+        for raw in english_tokens + korean_tokens:
+            token = raw.strip("-_/ ").upper() if re.search(r"[A-Za-z]", raw) else raw
+            if len(token) < 2:
+                continue
+            if token.lower() in KEYWORD_STOPWORDS or token in KEYWORD_STOPWORDS:
+                continue
+            counter[token] += 1
+    return [{"keyword": k, "count": v} for k, v in counter.most_common(top_n)]
+
+
+def _banner_asset_path(banner: Banner) -> str:
+    if not banner.img_local:
+        return ""
+    return os.path.join(ASSET_DIR, banner.img_local)
+
+
+def _extract_ocr_text(image_path: str) -> str:
+    if not (OCR_OK and PIL_OK) or not image_path or not os.path.exists(image_path):
+        return ""
+    try:
+        img = Image.open(image_path)
+        img = ImageOps.autocontrast(img.convert("L"))
+        txt = pytesseract.image_to_string(img, lang="kor+eng", timeout=3)
+        return norm_ws(txt)[:160]
+    except Exception:
+        return ""
+
+
+def analyze_visual_identity(banner: Optional[Banner]) -> Dict[str, Any]:
+    if not banner:
+        return {"tags": [], "ocr_text": "", "summary": "대표 비주얼이 아직 없습니다."}
+    source_parts = [banner.title or "", banner.href_clean or "", banner.href or "", banner.img_url or ""]
+    ocr_text = _extract_ocr_text(_banner_asset_path(banner))
+    if ocr_text:
+        source_parts.append(ocr_text)
+    source_text = " ".join(source_parts).lower()
+    tags: List[str] = []
+    for label, patterns in VISUAL_TAG_RULES:
+        for pat in patterns:
+            if re.search(pat, source_text, re.I):
+                tags.append(label)
+                break
+    deduped_tags: List[str] = []
+    for tag in tags:
+        if tag not in deduped_tags:
+            deduped_tags.append(tag)
+    summary = ", ".join(deduped_tags[:4]) if deduped_tags else "태그 자동 분류 데이터 부족"
+    return {"tags": deduped_tags[:6], "ocr_text": ocr_text, "summary": summary}
+
+
+def summarize_brand_insight(brand_key: str, items: List[Banner], changes_map: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    brand_change = changes_map.get(brand_key, {}) if isinstance(changes_map, dict) else {}
+    top_item = items[0] if items else None
+    visual = analyze_visual_identity(top_item)
+    keywords = analyze_title_keywords(items, top_n=6)
+    seg = BRAND_SEGMENTS.get(brand_key, {"style": "기타", "origin": "기타"})
+    return {
+        "segment_style": seg.get("style", "기타"),
+        "segment_origin": seg.get("origin", "기타"),
+        "events": int(brand_change.get("events", 0) or 0),
+        "changed": int(brand_change.get("changed", 0) or 0),
+        "added": int(brand_change.get("added", 0) or 0),
+        "removed": int(brand_change.get("removed", 0) or 0),
+        "event_delta_pct": float(brand_change.get("event_delta_pct", 0.0) or 0.0),
+        "changed_delta_pct": float(brand_change.get("changed_delta_pct", 0.0) or 0.0),
+        "keywords": keywords,
+        "visual": visual,
+        "recent_titles": (brand_change.get("recent_titles") or [])[:4],
+        "last_rank": brand_change.get("last_rank", ""),
+        "last_title": brand_change.get("last_title", ""),
+    }
+
+
+def _h(v: Any) -> str:
+    return html.escape(str(v or ""))
+
+
+def _html_pct_chip(pct: float) -> str:
+    pct = float(pct or 0.0)
+    if pct > 0.1:
+        arrow, cls = "▲", "text-rose-700 bg-rose-50 border-rose-200"
+    elif pct < -0.1:
+        arrow, cls = "▼", "text-sky-700 bg-sky-50 border-sky-200"
+    else:
+        arrow, cls = "■", "text-slate-600 bg-slate-50 border-slate-200"
+    return f'<span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold {cls}">{arrow} {abs(pct):.1f}% vs 전주</span>'
+
+
+def _html_img_src(banner: Banner) -> str:
+    if banner.img_local:
+        local_path = os.path.join(ASSET_DIR, banner.img_local)
+        return to_file_url(local_path) if HTML_USE_ABSOLUTE_FILE_URL else f"assets/{banner.img_local}"
+    return banner.img_url or ""
+
+
+def _html_date_txt(banner: Banner) -> str:
+    if banner.plan_start and banner.plan_end:
+        return f"{banner.plan_start} ~ {banner.plan_end}"
+    if banner.plan_start:
+        return banner.plan_start
+    return "기간 정보 없음"
+
+
+def _html_meta_txt(banner: Banner) -> str:
+    if banner.img_w and banner.img_h:
+        txt = f"{banner.img_w} x {banner.img_h}"
+        if banner.img_bytes:
+            txt += f" · {int(banner.img_bytes / 1024):,}KB"
+        return txt
+    if banner.img_status and banner.img_status != "ok":
+        return banner.img_status
+    return "메타 정보 없음"
+
+
+def _render_secondary_card(banner: Banner) -> str:
+    href = _h(banner.href_clean or banner.href or "#")
+    img_url_btn = _h(banner.img_url or _html_img_src(banner) or "#")
+    img_src = _h(_html_img_src(banner))
+    title = _h(banner.title or "-")
+    return f"""
+    <article class="soft-panel overflow-hidden flex flex-col">
+      <div class="relative aspect-[16/9] bg-slate-100">
+        <img src="{img_src}" class="w-full h-full object-cover"
+             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
+        <span class="rank-chip">RANK {int(banner.rank or 0)}</span>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div>
+          <div class="text-[11px] font-semibold text-slate-500">{_h(_html_date_txt(banner))}</div>
+          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"{title}"</h4>
+          <p class="mt-2 text-[11px] text-slate-500">{_h(_html_meta_txt(banner))}</p>
+        </div>
+        <div class="mt-auto flex gap-2">
+          <a href="{href}" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
+          <a href="{img_url_btn}" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
+        </div>
+      </div>
+    </article>
+    """
+
+
+def _render_heatmap_section(changes: Dict[str, Any]) -> str:
+    brands = (changes.get("brands") or [])[:10]
+    timeline_days = changes.get("timeline_days") or [x.get("date", "") for x in (changes.get("pairs") or []) if x.get("date")]
+    window_days = int(changes.get("window_days", RECENT_CHANGE_DAYS) or RECENT_CHANGE_DAYS)
+    if not brands or not timeline_days:
+        return """
+        <section class="glass-card p-6 lg:p-7">
+          <h2 class="section-title">배너 교체 빈도 히트맵</h2>
+          <p class="section-sub mt-2">히트맵을 만들기 위한 스냅샷 이력이 아직 충분하지 않습니다.</p>
+        </section>
+        """
+
+    max_daily = max(
+        [int((((brand.get("daily") or {}).get(day, {}) or {}).get("events", 0) or 0)) for brand in brands for day in timeline_days] or [1]
+    )
+    palette = [
+        ("#f8fafc", "#94a3b8"),
+        ("#dbeafe", "#1d4ed8"),
+        ("#93c5fd", "#1e40af"),
+        ("#3b82f6", "#ffffff"),
+        ("#1d4ed8", "#ffffff"),
+    ]
+    head = "".join([f'<div class="heatmap-head-cell">{_h(day[5:])}</div>' for day in timeline_days])
+    rows = []
+    for brand in brands:
+        cells = [f'<div class="heatmap-brand">{_h(brand.get("brand_name", brand.get("brand_key", "-")))}</div>']
+        for day in timeline_days:
+            val = int((((brand.get("daily") or {}).get(day, {}) or {}).get("events", 0) or 0))
+            idx = 0 if val <= 0 else min(4, max(1, round((val / max_daily) * 4)))
+            bg, fg = palette[idx]
+            cells.append(f'<div class="heatmap-cell" style="background:{bg}; color:{fg};">{val if val > 0 else ""}</div>')
+        rows.append('<div class="heatmap-row">' + "".join(cells) + "</div>")
+    return f"""
+    <section class="glass-card p-6 lg:p-7">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 class="section-title">배너 교체 빈도 히트맵</h2>
+          <p class="section-sub">브랜드별 최근 {window_days}일 변동량을 날짜 단위로 비교합니다.</p>
+        </div>
+        <div class="text-[11px] text-slate-500">정렬 기준: 최근 이벤트 수</div>
+      </div>
+      <div class="heatmap-wrap">
+        <div class="heatmap-row heatmap-head">
+          <div class="heatmap-brand head-label">브랜드</div>
+          {head}
+        </div>
+        {''.join(rows)}
+      </div>
+      <div class="mt-4 flex flex-wrap gap-2 text-[11px] text-slate-500">
+        <span class="legend-chip">0</span>
+        <span class="legend-chip legend-mid">1~2</span>
+        <span class="legend-chip legend-strong">3+</span>
+      </div>
+    </section>
+    """
+
+
+def _dashboard_css(day_count: int) -> str:
+    heat_cols = max(int(day_count or 0), 1)
+    heat_width = 168 + heat_cols * 66
+    heat_width_mobile = 132 + heat_cols * 56
+    return f"""
+    :root {{
+      --brand: #123f8c;
+      --brand-deep: #0b2b66;
+      --bg-top: #f6f8fc;
+      --bg-bottom: #e9eff8;
+      --line: rgba(148, 163, 184, 0.22);
+      --panel: rgba(255, 255, 255, 0.82);
+      --soft: rgba(255, 255, 255, 0.72);
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(18,63,140,0.12), transparent 28%),
+        linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+      color: #0f172a;
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      min-height: 100vh;
+    }}
+    .glass-card {{ background: var(--panel); border: 1px solid rgba(255,255,255,0.88); border-radius: 30px; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.07); backdrop-filter: blur(14px); }}
+    .soft-panel {{ background: var(--soft); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 10px 28px rgba(148, 163, 184, 0.10); }}
+    .metric-card {{ background: rgba(255,255,255,0.76); border: 1px solid rgba(255,255,255,0.9); border-radius: 24px; padding: 20px 22px; box-shadow: 0 12px 32px rgba(18, 63, 140, 0.08); }}
+    .metric-label {{ font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }}
+    .metric-value {{ margin-top: 10px; font-size: 38px; font-weight: 900; letter-spacing: -0.05em; color: #0f172a; }}
+    .metric-sub {{ margin-top: 10px; font-size: 12px; color: #475569; }}
+    .section-title {{ font-size: 24px; font-weight: 900; letter-spacing: -0.03em; color: #0f172a; }}
+    .section-sub {{ margin-top: 6px; font-size: 14px; color: #64748b; }}
+    .keyword-chip {{ display: inline-flex; align-items: center; gap: 8px; margin: 0 10px 10px 0; padding: 10px 14px; border-radius: 999px; background: rgba(255,255,255,0.95); border: 1px solid rgba(191, 219, 254, 0.95); color: #123f8c; font-weight: 800; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.12); }}
+    .keyword-chip em {{ font-size: 0.78em; font-style: normal; opacity: 0.68; }}
+    .heatmap-wrap {{ overflow-x: auto; padding-bottom: 4px; }}
+    .heatmap-row {{ display: grid; grid-template-columns: 168px repeat({heat_cols}, minmax(58px, 1fr)); gap: 8px; min-width: {heat_width}px; margin-bottom: 8px; }}
+    .heatmap-head {{ margin-bottom: 12px; }}
+    .heatmap-head-cell, .heatmap-brand, .heatmap-cell {{ border-radius: 16px; min-height: 54px; display: flex; align-items: center; justify-content: center; padding: 10px; font-size: 12px; font-weight: 700; border: 1px solid rgba(148, 163, 184, 0.12); }}
+    .heatmap-brand {{ justify-content: flex-start; padding-left: 16px; background: rgba(255,255,255,0.92); color: #0f172a; }}
+    .heatmap-head-cell {{ background: rgba(15,23,42,0.04); color: #475569; }}
+    .heatmap-cell {{ box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28); }}
+    .head-label {{ font-weight: 900; }}
+    .legend-chip {{ display:inline-flex; align-items:center; justify-content:center; min-width:52px; padding: 8px 12px; border-radius: 999px; background:#f8fafc; color:#64748b; font-weight:700; border:1px solid rgba(148,163,184,0.22); }}
+    .legend-mid {{ background:#dbeafe; color:#1d4ed8; }}
+    .legend-strong {{ background:#1d4ed8; color:#fff; }}
+    .filter-btn, .tab-btn {{ display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.18); background: rgba(255,255,255,0.78); color: #475569; font-size: 13px; font-weight: 800; transition: all 0.18s ease; }}
+    .filter-btn:hover, .tab-btn:hover {{ background: #fff; color: #0f172a; transform: translateY(-1px); }}
+    .filter-btn.active, .tab-btn.active {{ background: var(--brand-deep); color: #fff; box-shadow: 0 12px 28px rgba(11,43,102,0.18); }}
+    .tab-meta {{ display:inline-flex; align-items:center; justify-content:center; min-width: 24px; height:24px; padding: 0 8px; border-radius:999px; background: rgba(255,255,255,0.18); font-size: 11px; }}
+    .rank-chip {{ position:absolute; left:16px; top:16px; display:inline-flex; align-items:center; justify-content:center; padding: 7px 12px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: 0.04em; background: rgba(15,23,42,0.55); color:#fff; backdrop-filter: blur(8px); }}
+    .btn-primary, .btn-secondary {{ display:inline-flex; align-items:center; justify-content:center; padding: 12px 16px; border-radius: 14px; font-weight: 800; text-decoration:none; }}
+    .btn-primary {{ background: linear-gradient(135deg, var(--brand-deep), var(--brand)); color:#fff; }}
+    .btn-secondary {{ background: #eef2f7; color:#334155; }}
+    .mini-card {{ display:flex; flex-direction:column; gap:6px; border-radius:18px; background:#f8fafc; border:1px solid rgba(226,232,240,0.95); padding:14px 15px; }}
+    .mini-card span {{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.07em; }}
+    .mini-card strong {{ font-size:14px; font-weight:800; color:#0f172a; }}
+    .mini-stat {{ display:inline-flex; align-items:center; padding:7px 11px; border-radius:999px; background:#f8fafc; border:1px solid rgba(148,163,184,0.18); font-size:11px; font-weight:800; color:#334155; }}
+    .insight-chip {{ display:inline-flex; align-items:center; gap:6px; padding:8px 11px; border-radius:999px; background:#f8fafc; color:#334155; border:1px solid rgba(148,163,184,0.18); font-size:12px; font-weight:800; }}
+    .insight-chip.accent {{ background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }}
+    .insight-chip em {{ font-style:normal; opacity:0.66; font-size:11px; }}
+    .panel-label {{ font-size:12px; font-weight:900; letter-spacing:0.12em; text-transform:uppercase; color:#64748b; }}
+    .insight-list-item {{ list-style:none; margin:0; padding:12px 14px; border-radius:18px; background:#f8fafc; border:1px solid rgba(226,232,240,0.95); font-size:13px; color:#334155; }}
+    .clamp-2 {{ overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
+    .clamp-3 {{ overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }}
+    body.embedded aside {{ display:none !important; }}
+    body.embedded .sidebar {{ display:none !important; }}
+    body.embedded main {{ padding: 24px !important; }}
+    @media (max-width: 1024px) {{
+      .heatmap-row {{ grid-template-columns: 132px repeat({heat_cols}, minmax(48px, 1fr)); min-width: {heat_width_mobile}px; }}
+    }}
+    """
 
 def write_json(path: str, obj: Any):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -2479,6 +2963,231 @@ def write_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] 
     }})();
   </script>
 
+</body>
+</html>
+"""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(full_html)
+
+
+def write_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] = None):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    by_brand: Dict[str, List[Banner]] = {}
+    for b in rows:
+        by_brand.setdefault(b.brand_key, []).append(b)
+
+    order = [bk for bk, _, _, _, _ in BRANDS]
+    brand_name_map = {bk: bn for bk, bn, *_ in BRANDS}
+    active_brand_keys = [bk for bk in order if bk in by_brand] or [bk for bk, *_ in BRANDS]
+    safe_changes = changes if isinstance(changes, dict) else {}
+    summary = safe_changes.get("summary") or {}
+    changes_map = {x.get("brand_key", ""): x for x in (safe_changes.get("brands") or [])}
+    alerts_payload = build_alerts(safe_changes)
+    keywords = analyze_title_keywords(rows, top_n=14)
+    brand_insights = {
+        bk: summarize_brand_insight(bk, sorted(by_brand.get(bk, []), key=lambda x: x.rank), changes_map)
+        for bk in active_brand_keys
+    }
+
+    overview_cards_html = f"""
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div class="metric-card"><div class="metric-label">추적 브랜드</div><div class="metric-value">{len(active_brand_keys)}</div><div class="metric-sub">현재 수집된 브랜드 기준</div></div>
+      <div class="metric-card"><div class="metric-label">현재 배너 수</div><div class="metric-value">{len(rows)}</div><div class="metric-sub">브랜드 탭에서 바로 비교 가능</div></div>
+      <div class="metric-card"><div class="metric-label">최근 이벤트</div><div class="metric-value">{int(summary.get('events', 0) or 0)}</div><div class="metric-sub">{_html_pct_chip(float(summary.get('event_delta_pct', 0.0) or 0.0))}</div></div>
+      <div class="metric-card"><div class="metric-label">실제 교체 감지</div><div class="metric-value">{int(summary.get('changed', 0) or 0)}</div><div class="metric-sub">{_html_pct_chip(float(summary.get('changed_delta_pct', 0.0) or 0.0))}</div></div>
+    </div>
+    """
+
+    if keywords:
+        max_count = max(int(x.get("count", 0) or 0) for x in keywords) or 1
+        keyword_cloud_html = "".join([
+            f'<span class="keyword-chip" style="font-size:{0.86 + (float(x.get("count", 0) or 0) / max_count) * 0.65:.2f}rem">{_h(x.get("keyword", ""))} <em>{int(x.get("count", 0) or 0)}</em></span>'
+            for x in keywords
+        ])
+        theme_summary = ", ".join([x.get("keyword", "") for x in keywords[:4]])
+    else:
+        keyword_cloud_html = '<div class="text-sm text-slate-500">이번 주 반복 키워드를 아직 뽑지 못했습니다.</div>'
+        theme_summary = "주요 테마 추출 데이터 부족"
+
+    alert_list_html = "".join([
+        f"""
+        <div class="rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3">
+          <div class="text-sm font-bold text-slate-900">{_h(item.get('brand_name', '-'))}</div>
+          <div class="text-[11px] text-slate-500">{_h(item.get('date', '-'))} · events {int(item.get('events', 0) or 0)} / changed {int(item.get('changed', 0) or 0)}</div>
+        </div>
+        """
+        for item in alerts_payload.get("items", [])[:4]
+    ]) or '<div class="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-700 font-semibold">설정한 기준 이상의 이례 변동은 감지되지 않았습니다.</div>'
+
+    changed_cards_html_parts: List[str] = []
+    for info in (safe_changes.get("brands") or [])[:8]:
+        seg = BRAND_SEGMENTS.get(info.get("brand_key", ""), {}) or {}
+        changed_cards_html_parts.append(f"""
+        <article class="soft-panel p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-xs font-bold text-slate-500">{_h(seg.get('style', '기타'))} · {_h(seg.get('origin', '기타'))}</div>
+              <div class="mt-1 text-base font-black text-slate-900">{_h(info.get('brand_name', info.get('brand_key', '-')))}</div>
+              <div class="mt-2 text-sm text-slate-700 clamp-2">"{_h(info.get('last_title', '-'))}"</div>
+            </div>
+            <div class="text-right">
+              <div class="text-lg font-black text-slate-900">{int(info.get('events', 0) or 0)}</div>
+              <div class="text-[11px] text-slate-500">events</div>
+            </div>
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <span class="mini-stat">changed {int(info.get('changed', 0) or 0)}</span>
+            <span class="mini-stat">added {int(info.get('added', 0) or 0)}</span>
+            <span class="mini-stat">removed {int(info.get('removed', 0) or 0)}</span>
+            {_html_pct_chip(float(info.get('event_delta_pct', 0.0) or 0.0))}
+          </div>
+        </article>
+        """)
+    changed_cards_html = "".join(changed_cards_html_parts) or '<div class="soft-panel p-6 text-sm text-slate-500">최근 변경 집계가 아직 없습니다.</div>'
+
+    filter_buttons_html = "".join([
+        f'<button class="{"filter-btn active" if key == "all" else "filter-btn"}" data-filter="{_h(key)}" onclick="setBrandFilter(\'{_h(key)}\')">{_h(label)}</button>'
+        for key, label in [("all", "전체"), ("라이프스타일", "라이프스타일"), ("전문 산행", "전문 산행"), ("글로벌", "글로벌"), ("로컬", "로컬")]
+    ])
+
+    tab_menu_html = ""
+    content_area_html = ""
+    for i, bk in enumerate(active_brand_keys):
+        items = sorted(by_brand.get(bk, []), key=lambda x: x.rank)
+        brand_name = brand_name_map.get(bk, bk)
+        seg = BRAND_SEGMENTS.get(bk, {"style": "기타", "origin": "기타"})
+        insight = brand_insights.get(bk, {})
+        tab_menu_html += f'<button onclick="switchTab(\'{_h(bk)}\')" id="tab-{_h(bk)}" class="{"tab-btn active" if i == 0 else "tab-btn"}" data-style="{_h(seg.get("style", "기타"))}" data-origin="{_h(seg.get("origin", "기타"))}"><span>{_h(brand_name)}</span><span class="tab-meta">{int(insight.get("events", 0) or len(items))}</span></button>'
+        if not items:
+            content_area_html += f'<section id="content-{_h(bk)}" class="tab-content" style="display:{ "block" if i == 0 else "none" }"><div class="glass-card p-8 text-slate-500"><div class="text-base font-bold mb-2">배너 데이터를 아직 확보하지 못했습니다.</div></div></section>'
+            continue
+
+        top_item = items[0]
+        visual = insight.get("visual", {}) or {}
+        visual_badges = "".join([f'<span class="insight-chip accent">{_h(tag)}</span>' for tag in visual.get("tags", [])[:6]]) or '<span class="text-sm text-slate-400">태그 미검출</span>'
+        keyword_badges = "".join([f'<span class="insight-chip">{_h(x.get("keyword", ""))} <em>{int(x.get("count", 0) or 0)}</em></span>' for x in insight.get("keywords", [])[:5]]) or '<span class="text-sm text-slate-400">키워드 부족</span>'
+        recent_titles_html = "".join([f'<li class="insight-list-item">"{_h(t)}"</li>' for t in insight.get("recent_titles", [])[:4]]) or '<li class="insight-list-item">최근 변경 제목 없음</li>'
+        other_cards = "".join([_render_secondary_card(it) for it in items[1:7]]) or '<div class="soft-panel p-6 text-sm text-slate-500">추가 배너가 없어 메인 비주얼만 표시했습니다.</div>'
+        brand_alerts = "".join([
+            f'<div class="rounded-2xl border border-rose-100 bg-rose-50/80 px-3 py-3 text-sm text-rose-700 font-semibold">{_h(a.get("date", "-"))} · {int(a.get("events", 0) or 0)}건 변동</div>'
+            for a in alerts_payload.get("items", []) if a.get("brand_key") == bk
+        ]) or '<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-3 text-sm text-slate-500">해당 브랜드는 기준 이상 이례 변동이 없습니다.</div>'
+        content_area_html += f"""
+        <section id="content-{_h(bk)}" class="tab-content" style="display:{'block' if i == 0 else 'none'};">
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div class="xl:col-span-2 flex flex-col gap-6">
+              <article class="glass-card overflow-hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                  <div class="relative min-h-[320px] bg-slate-100">
+                    <img src="{_h(_html_img_src(top_item))}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://placehold.co/1100x620?text=No+Image';">
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent"></div>
+                    <div class="absolute left-5 top-5 flex flex-wrap gap-2">
+                      <span class="inline-flex items-center justify-center rounded-full bg-[rgba(11,43,102,0.9)] px-3 py-2 text-[11px] font-black text-white">RANK {int(top_item.rank or 0)}</span>
+                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">{_h(seg.get('style', '기타'))}</span>
+                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">{_h(seg.get('origin', '기타'))}</span>
+                    </div>
+                  </div>
+                  <div class="p-6 lg:p-7 flex flex-col gap-5">
+                    <div>
+                      <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">선택한 브랜드 상세 배너</div>
+                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">{_h(brand_name)}</h3>
+                      <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"{_h(top_item.title or '-')}"</p>
+                      <div class="mt-4 flex flex-wrap gap-2">{_html_pct_chip(float(insight.get('event_delta_pct', 0.0) or 0.0))}{_html_pct_chip(float(insight.get('changed_delta_pct', 0.0) or 0.0))}</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="mini-card"><span>최근 이벤트</span><strong>{int(insight.get('events', 0) or 0)}</strong></div>
+                      <div class="mini-card"><span>실제 교체</span><strong>{int(insight.get('changed', 0) or 0)}</strong></div>
+                      <div class="mini-card"><span>운영 기간</span><strong>{_h(_html_date_txt(top_item))}</strong></div>
+                      <div class="mini-card"><span>이미지 정보</span><strong>{_h(_html_meta_txt(top_item))}</strong></div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">{visual_badges}</div>
+                    <div class="flex gap-2 mt-auto">
+                      <a href="{_h(top_item.href_clean or top_item.href or '#')}" target="_blank" class="btn-primary flex-1 text-center">기획전 보기</a>
+                      <a href="{_h(top_item.img_url or _html_img_src(top_item) or '#')}" target="_blank" class="btn-secondary">원본 이미지 열기</a>
+                    </div>
+                  </div>
+                </div>
+              </article>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-5">{other_cards}</div>
+            </div>
+            <aside class="flex flex-col gap-5">
+              <section class="glass-card p-6">
+                <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">브랜드 인사이트</div>
+                <h4 class="mt-2 text-xl font-black text-slate-900">{_h(brand_name)} 분석 요약</h4>
+                <p class="mt-3 text-sm text-slate-600">이번 주 주요 테마: {_h(", ".join([x.get("keyword", "") for x in insight.get("keywords", [])[:3]]) or "추출 데이터 부족")}</p>
+                <div class="mt-5 grid grid-cols-2 gap-3">
+                  <div class="mini-card"><span>추가</span><strong>{int(insight.get('added', 0) or 0)}</strong></div>
+                  <div class="mini-card"><span>삭제</span><strong>{int(insight.get('removed', 0) or 0)}</strong></div>
+                  <div class="mini-card"><span>세그먼트</span><strong>{_h(insight.get('segment_style', '기타'))}</strong></div>
+                  <div class="mini-card"><span>브랜드군</span><strong>{_h(insight.get('segment_origin', '기타'))}</strong></div>
+                </div>
+                <div class="mt-5"><div class="panel-label">키워드 클러스터</div><div class="mt-2 flex flex-wrap gap-2">{keyword_badges}</div></div>
+                <div class="mt-5"><div class="panel-label">비주얼 TPO 태깅</div><p class="mt-2 text-sm text-slate-700">{_h(visual.get('summary', '태그 자동 분류 데이터 부족'))}</p><div class="mt-2 flex flex-wrap gap-2">{visual_badges}</div></div>
+                <div class="mt-5"><div class="panel-label">OCR 텍스트</div><div class="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{_h(visual.get('ocr_text', '') or 'OCR 엔진이 없거나 추출 텍스트가 없습니다.')}</div></div>
+              </section>
+              <section class="glass-card p-6"><div class="panel-label">최근 변경 제목</div><ul class="mt-3 space-y-2">{recent_titles_html}</ul></section>
+              <section class="glass-card p-6"><div class="panel-label">실시간 대응 알림</div><div class="mt-3 space-y-3">{brand_alerts}</div></section>
+            </aside>
+          </div>
+        </section>
+        """
+
+    full_html = f"""
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M-OS PRO | Competitor Hero Analysis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>{_dashboard_css(len(safe_changes.get("timeline_days") or []))}</style>
+</head>
+<body class="flex">
+  <aside class="w-72 h-screen sticky top-0 sidebar hidden xl:flex flex-col p-8">
+    <div class="flex items-center gap-4 mb-16 px-2"><div class="w-12 h-12 bg-[var(--brand-deep)] rounded-2xl flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-mountain-sun text-xl"></i></div><div><div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div><div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Competitive Watch</div></div></div>
+    <nav class="space-y-4"><div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4"><i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC</span></div><div class="p-4 rounded-2xl bg-white shadow-sm text-[var(--brand-deep)] font-black flex items-center gap-4"><i class="fa-solid fa-chart-line"></i> <span>경쟁사 배너 분석</span></div></nav>
+  </aside>
+  <main class="flex-1 px-5 py-8 md:px-8 xl:px-12 xl:py-10">
+    <header class="mb-8"><div class="glass-card p-7 lg:p-8"><div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6"><div class="max-w-3xl"><div class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black tracking-[0.18em] text-blue-700 uppercase">Hero Banner Monitor</div><h1 class="mt-4 text-4xl lg:text-5xl font-black tracking-tight text-slate-950">데이터 가시성과 콘텐츠 의도를 함께 보는 경쟁사 대시보드</h1><p class="mt-4 text-base lg:text-lg text-slate-600">리스트 중심 화면을 히트맵, 주간 증감, 키워드 클라우드, 이미지 OCR 태깅, 세그먼트 필터, 이례 변동 알림 중심 구조로 재구성했습니다.</p><p class="mt-4 text-sm text-slate-500">최근 {int(safe_changes.get('window_days', RECENT_CHANGE_DAYS) or RECENT_CHANGE_DAYS)}일 기준 경쟁사 메인 히어로 배너 변화 모니터링 · {_h(kst_now().strftime('%Y-%m-%d %H:%M'))} KST</p><p class="mt-2 text-xs text-slate-400">이미지 경로 모드: {"ABS(file://)" if HTML_USE_ABSOLUTE_FILE_URL else "REL(assets/)"} · 날짜 추출: {"ON" if FETCH_CAMPAIGN_DATES else "OFF"} (rank1_only={"ON" if DATE_FETCH_RANK1_ONLY else "OFF"})</p></div><div class="soft-panel px-5 py-4 min-w-[240px]"><div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">이번 주 시장 테마</div><div class="mt-2 text-2xl font-black tracking-tight text-slate-900">{_h(theme_summary)}</div><div class="mt-4 text-sm text-slate-500">선택 브랜드 상세는 아래 탭에서 확인하세요.</div></div></div><div class="mt-7">{overview_cards_html}</div></div></header>
+    <section class="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.95fr)] gap-6 mb-6">{_render_heatmap_section(safe_changes)}<div class="flex flex-col gap-6"><section class="glass-card p-6 lg:p-7"><h2 class="section-title">이번 주 키워드 클라우드</h2><p class="section-sub">기획전 제목 반복어를 모아 아웃도어 시장의 주요 메시지를 빠르게 파악합니다.</p><div class="mt-5">{keyword_cloud_html}</div></section><section class="glass-card p-6 lg:p-7"><div class="flex items-center justify-between gap-3"><div><h2 class="section-title">이례 변동 알림</h2><p class="section-sub">브랜드별 일일 이벤트 {ALERT_EVENT_THRESHOLD}건 이상 또는 실제 교체 {ALERT_CHANGED_THRESHOLD}건 이상을 감지합니다.</p></div><div class="text-xs font-bold text-rose-600">{int(alerts_payload.get('count', 0) or 0)}건</div></div><div class="mt-4 space-y-3">{alert_list_html}</div></section></div></section>
+    <section class="mb-6"><div class="glass-card p-6 lg:p-7"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><h2 class="section-title">최근 변경 강도 상위 브랜드</h2><p class="section-sub">전주 대비 증감까지 함께 보여 경쟁사 공격도를 빠르게 읽을 수 있습니다.</p></div><div class="text-[11px] text-slate-500">세그먼트별 필터는 아래 브랜드 탭에 적용됩니다.</div></div><div class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">{changed_cards_html}</div></div></section>
+    <section><div class="glass-card p-6 lg:p-7"><div class="flex flex-col gap-4"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><h2 class="section-title">브랜드 상세 비교</h2><p class="section-sub">필터로 세그먼트를 좁히고, 탭에서 브랜드를 선택하면 메인 비주얼과 인사이트 패널이 함께 열립니다.</p></div><div class="flex flex-wrap gap-2">{filter_buttons_html}</div></div><div class="flex flex-wrap gap-2 pt-1">{tab_menu_html}</div></div></div><div class="mt-6 min-h-[720px] space-y-6">{content_area_html}</div></section>
+  </main>
+  <script>
+    function switchTab(brandKey) {{
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      const target = document.getElementById('content-' + brandKey);
+      if (target) target.style.display = 'block';
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById('tab-' + brandKey);
+      if (activeBtn) activeBtn.classList.add('active');
+    }}
+    function setBrandFilter(filterKey) {{
+      document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+      const activeFilter = document.querySelector('.filter-btn[data-filter=\"' + filterKey + '\"]');
+      if (activeFilter) activeFilter.classList.add('active');
+      let firstVisible = null;
+      document.querySelectorAll('.tab-btn').forEach(btn => {{
+        const matches = filterKey === 'all' || btn.dataset.style === filterKey || btn.dataset.origin === filterKey;
+        btn.style.display = matches ? 'inline-flex' : 'none';
+        if (matches && !firstVisible) firstVisible = btn;
+      }});
+      const currentActive = document.querySelector('.tab-btn.active');
+      if (!currentActive || currentActive.style.display === 'none') {{
+        if (firstVisible) switchTab(firstVisible.id.replace('tab-', ''));
+      }}
+    }}
+    (function () {{
+      try {{
+        if (window.self !== window.top) document.body.classList.add("embedded");
+      }} catch (e) {{
+        document.body.classList.add("embedded");
+      }}
+      setBrandFilter('all');
+    }})();
+  </script>
 </body>
 </html>
 """
@@ -2776,6 +3485,11 @@ def main():
             recent_changes = build_recent_changes(today_snap, date_s, days=RECENT_CHANGE_DAYS)
             recent_path = os.path.join(OUT_DIR, f"hero_changes_recent_{RECENT_CHANGE_DAYS}d_{date_s}.json")
             write_json(recent_path, recent_changes)
+            alerts_payload = build_alerts(recent_changes)
+            alert_path = os.path.join(OUT_DIR, f"hero_alerts_{date_s}.json")
+            write_json(alert_path, alerts_payload)
+            slack_status = send_slack_alerts(alerts_payload)
+            email_status = send_email_alerts(alerts_payload)
 
             write_html(report_html, rows, changes=recent_changes)
 
@@ -2800,6 +3514,11 @@ def main():
                 "img_cached": img_cached,
                 "changes_daily": (daily_changes.get("summary") if daily_changes else {}),
                 "changes_recent": (recent_changes.get("summary") if recent_changes else {}),
+                "alerts": alerts_payload,
+                "notification_status": {
+                    "slack": slack_status,
+                    "email": email_status,
+                },
                 "brand_stats": brand_stats,
                 "config": {
                     "HTML_USE_ABSOLUTE_FILE_URL": bool(HTML_USE_ABSOLUTE_FILE_URL),
@@ -2816,6 +3535,7 @@ def main():
         print(f"[ERROR_LOG] {errlog_path}", flush=True)
         print(f"[HTML_USE_ABSOLUTE_FILE_URL] {HTML_USE_ABSOLUTE_FILE_URL}", flush=True)
         print(f"[FETCH_CAMPAIGN_DATES] {FETCH_CAMPAIGN_DATES} (rank1_only={DATE_FETCH_RANK1_ONLY})", flush=True)
+        print(f"[ALERT_NOTIFY] slack={slack_status} email={email_status}", flush=True)
 
         try:
             browser.close()
