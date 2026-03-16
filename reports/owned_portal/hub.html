@@ -676,11 +676,32 @@
     return null;
   }
 
-  function getRowGroup(r){
-    const fallbackYear = String((r && (r.date || '')) || '').slice(0,4);
-    const parsed = extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
+  function hasExplicitGroupMmdd(r){
+    return !!(r && (r.has_group_mmdd === true || String(r.has_group_mmdd || '').toLowerCase() === 'true'));
+  }
+
+  function getFallbackYear(r){
+    const rowYear = String((r && (r.year || '')) || '').trim();
+    if(/^\d{4}$/.test(rowYear)) return rowYear;
+    return String((r && (r.date || '')) || '').slice(0,4);
+  }
+
+  function getTextGroup(r){
+    const fallbackYear = getFallbackYear(r);
+    return extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
       || extractGroupFromText((r && (r.send_id || '')) || '', fallbackYear)
-      || extractGroupFromText((r && (r.term || '')) || '', fallbackYear);
+      || extractGroupFromText((r && (r.term || '')) || '', fallbackYear)
+      || null;
+  }
+
+  function getRowGroup(r){
+    const rowYear = String((r && (r.year || '')) || '').trim();
+    const rowMmdd = String((r && (r.mmdd || '')) || '').trim();
+    if(hasExplicitGroupMmdd(r) && /^\d{4}$/.test(rowYear) && /^\d{4}$/.test(rowMmdd)){
+      return { year: rowYear, mmdd: rowMmdd, explicit: true };
+    }
+
+    const parsed = getTextGroup(r);
 
     if(parsed) return { ...parsed, explicit: true };
 
@@ -786,6 +807,14 @@
   }
   function mmddOfRow(r){
     return getRowMmdd(r) || mmddFromText(r.campaign) || mmddFromText(r.send_id) || mmddFromText(r.term) || '';
+  }
+
+  function getOtherCampaignDateGroup(r){
+    const parsed = getTextGroup(r);
+    if(parsed && /^\d{4}$/.test(parsed.year || '') && /^\d{4}$/.test(parsed.mmdd || '')){
+      return parsed;
+    }
+    return null;
   }
 
   function parseGroupKey(gk){
@@ -1015,7 +1044,7 @@
       let html = '';
       for(const yr of years){
         const arr = byYear.get(yr).slice(0, limit);
-        html += `<div class="year-title"><span>${yr}년</span><div class="bar"></div></div>`;
+        html += `<div class="year-title"><span>${yr}</span><div class="bar"></div></div>`;
         html += `<div class="flex flex-wrap gap-3">` + arr.map(g=>{
           const active = (SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd);
           const title = `${g.year}-${g.mmdd} · sessions:${g.agg.sessions} · terms:${g.rows.length}`;
@@ -1108,6 +1137,143 @@
     }
   }
 
+  function renderOtherCampaigns(channel, wrapEl){
+    const sourceRows = otherByChannel[channel].slice();
+    if(!sourceRows.length){
+      wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+      return;
+    }
+
+    const dateMap = new Map();
+    const plainRows = [];
+    for(const r of sourceRows){
+      const parsed = getOtherCampaignDateGroup(r);
+      if(parsed){
+        const key = `${parsed.year}-${parsed.mmdd}`;
+        if(!dateMap.has(key)) dateMap.set(key, []);
+        dateMap.get(key).push(r);
+      }else{
+        plainRows.push(r);
+      }
+    }
+
+    let html = '';
+    if(dateMap.size){
+      const groups = Array.from(dateMap.entries()).map(([gk, rows])=>{
+        const p = parseGroupKey(gk);
+        const agg = aggregateRow(rows);
+        return { year: p.year, mmdd: p.mmdd, rows, agg };
+      }).sort((a,b)=> {
+        const byYear = String(b.year).localeCompare(String(a.year));
+        if(byYear !== 0) return byYear;
+        return String(b.mmdd).localeCompare(String(a.mmdd));
+      });
+
+      const byYear = new Map();
+      for(const g of groups){
+        if(!byYear.has(g.year)) byYear.set(g.year, []);
+        byYear.get(g.year).push(g);
+      }
+
+      for(const yr of Array.from(byYear.keys()).sort((a,b)=> b.localeCompare(a))){
+        html += `<div class="year-title"><span>${yr}년</span><div class="bar"></div></div>`;
+        html += `<div class="flex flex-wrap gap-3">` + byYear.get(yr).slice(0, limit).map(g=>{
+          const active = (SELECTED && SELECTED.type==='other-group' && SELECTED.channel===channel && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd);
+          const uniqueCampaigns = new Set(g.rows.map(r => `${r.campaign||''}||${r.term||''}`)).size;
+          const title = `${g.year}-${g.mmdd} | sends:1 | campaigns:${uniqueCampaigns} | sessions:${g.agg.sessions}`;
+          return makeChip(g.mmdd, title, active, {type:'other-group', channel, year:g.year, mmdd:g.mmdd});
+        }).join('') + `</div>`;
+      }
+    }
+
+    const rows = plainRows.sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+    if(rows.length){
+      if(html) html += `<div class="year-title"><span>NO MMDD</span><div class="bar"></div></div>`;
+      html += `<div class="flex flex-wrap gap-3">` + rows.map(r=>{
+        const label = `${r.campaign||'(no-campaign)'}${r.term?(' / '+r.term):''}`;
+        const title = `sessions:${r.sessions} | revenue:${r.revenue||0}`;
+        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
+        return makeChip(label, title, active, {
+          type:'single',
+          channel:r.channel,
+          campaign:encodeURIComponent(r.campaign||''),
+          term:encodeURIComponent(r.term||'')
+        });
+      }).join('') + `</div>`;
+    }
+
+    wrapEl.innerHTML = html || `<div class="muted font-semibold text-sm">-</div>`;
+
+    Array.from(wrapEl.querySelectorAll('button.chip')).forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        if(btn.getAttribute('data-type') === 'other-group'){
+          selectOtherGroup(
+            btn.getAttribute('data-channel'),
+            btn.getAttribute('data-year'),
+            btn.getAttribute('data-mmdd')
+          );
+          return;
+        }
+        selectSingle(
+          btn.getAttribute('data-channel'),
+          decodeURIComponent(btn.getAttribute('data-campaign')||''),
+          decodeURIComponent(btn.getAttribute('data-term')||'')
+        );
+      });
+    });
+  }
+
+  function getSelectedKpiRows(sel){
+    if(!sel || !RAW) return [];
+    if(sel.type === 'single'){
+      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
+    }
+    if(sel.type === 'group'){
+      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd);
+    }
+    if(sel.type === 'other-group'){
+      return (RAW.kpi||[]).filter(x=> {
+        if(x.channel !== sel.channel) return false;
+        const parsed = getOtherCampaignDateGroup(x);
+        return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
+      });
+    }
+    return [];
+  }
+
+  function getSelectedProdRows(sel){
+    if(!sel || !RAW) return [];
+    if(sel.type === 'single'){
+      return (RAW.prod||[]).filter(r =>
+        r.channel===sel.channel &&
+        (r.campaign||'')===(sel.campaign||'') &&
+        (r.term||'')===(sel.term||'')
+      );
+    }
+    if(sel.type === 'group'){
+      return (RAW.prod||[]).filter(p =>
+        p.channel===sel.channel &&
+        getRowYear(p)===sel.year &&
+        getRowMmdd(p)===sel.mmdd
+      );
+    }
+    if(sel.type === 'other-group'){
+      return (RAW.prod||[]).filter(p => {
+        if(p.channel !== sel.channel) return false;
+        const parsed = getOtherCampaignDateGroup(p);
+        return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
+      });
+    }
+    return [];
+  }
+
+  function getSelectedSendCount(sel, rows){
+    if(sel && sel.type === 'other-group'){
+      return rows.length ? 1 : 0;
+    }
+    return countDistinctSends(rows);
+  }
+
   function aggregateKPIForSelected(){
     if(!SELECTED || !RAW){
       kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
@@ -1119,21 +1285,23 @@
       return;
     }
 
-    let rows = [];
+    const rows = getSelectedKpiRows(SELECTED);
     if(SELECTED.type==='single'){
-      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && (x.campaign||'')===(SELECTED.campaign||'') && (x.term||'')===(SELECTED.term||''));
       selChannel.textContent = SELECTED.channel;
       selCampaign.textContent = SELECTED.campaign || '-';
       selTerm.textContent = SELECTED.term || '-';
-    }else{
-      rows = (RAW.kpi||[]).filter(x=> x.channel===SELECTED.channel && getRowYear(x)===SELECTED.year && getRowMmdd(x)===SELECTED.mmdd);
+    }else if(SELECTED.type==='group'){
       selChannel.textContent = SELECTED.channel;
       selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd} (group)`;
       selTerm.textContent = `terms:${rows.length}`;
+    }else{
+      selChannel.textContent = SELECTED.channel;
+      selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd} (other campaign)`;
+      selTerm.textContent = `send count: 1`;
     }
 
     const a = aggregateRow(rows);
-    const sendCount = countDistinctSends(rows);
+    const sendCount = getSelectedSendCount(SELECTED, rows);
     const leverage = sendCount ? (a.sessions / sendCount) : 0;
     const meta = getMessageMeta(rows);
 
@@ -1163,14 +1331,13 @@
   function renderTerms(){
     if(!termSection || !termTb) return;
 
-    if(!SELECTED || SELECTED.type!=='group' || !RAW){
+    if(!SELECTED || (SELECTED.type!=='group' && SELECTED.type!=='other-group') || !RAW){
       termSection.classList.add('hidden');
       termTb.innerHTML = `<tr><td colspan="9" class="muted font-semibold">날짜 그룹을 선택하면 TERM 목록이 표시돼.</td></tr>`;
       return;
     }
 
-    const sourceRows = (RAW.kpi||[])
-      .filter(r => r.channel===SELECTED.channel && getRowYear(r)===SELECTED.year && getRowMmdd(r)===SELECTED.mmdd);
+    const sourceRows = getSelectedKpiRows(SELECTED);
 
     termSection.classList.remove('hidden');
 
@@ -1248,11 +1415,7 @@
   }
 
   function renderProductsForSingle(sel){
-    const rows = (RAW.prod||[]).filter(r =>
-      r.channel===sel.channel &&
-      (r.campaign||'')===(sel.campaign||'') &&
-      (r.term||'')===(sel.term||'')
-    );
+    const rows = getSelectedProdRows(sel);
 
     if(!rows.length){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
@@ -1283,11 +1446,7 @@
   }
 
   function renderProductsForGroup(sel){
-    const prod = (RAW.prod||[]).filter(p =>
-      p.channel===sel.channel &&
-      getRowYear(p)===sel.year &&
-      getRowMmdd(p)===sel.mmdd
-    );
+    const prod = getSelectedProdRows(sel);
 
     if(!prod.length){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">구매 상품 데이터가 없어.</td></tr>`;
@@ -1330,10 +1489,22 @@
       renderProductsForGroup(SELECTED);
       return;
     }
+    if(SELECTED.type==='other-group'){
+      renderProductsForGroup(SELECTED);
+      return;
+    }
   }
 
   function selectSingle(channel, campaign, term){
     SELECTED = {type:'single', channel, campaign, term};
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderTerms();
+    renderProducts();
+  }
+
+  function selectOtherGroup(channel, year, mmdd){
+    SELECTED = {type:'other-group', channel, year, mmdd};
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderTerms();
@@ -1362,6 +1533,7 @@
       date: r.date,
       year: r.year || String(r.date || '').slice(0,4),
       mmdd: r.mmdd || (String(r.date || '').slice(5,7) + String(r.date || '').slice(8,10)),
+      has_group_mmdd: !!r.has_group_mmdd,
       channel: r.channel,
       send_id: r.send_id || '',
       campaign: r.campaign,
@@ -1381,6 +1553,7 @@
       date: p.date,
       year: p.year || String(p.date || '').slice(0,4),
       mmdd: p.mmdd || (String(p.date || '').slice(5,7) + String(p.date || '').slice(8,10)),
+      has_group_mmdd: !!p.has_group_mmdd,
       channel: p.channel,
       send_id: p.send_id || '',
       campaign: p.campaign,
