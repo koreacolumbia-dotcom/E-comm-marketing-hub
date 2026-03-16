@@ -449,6 +449,194 @@ def list_owned_dates(owned_dir: Path) -> List[str]:
 
 
 # -----------------------------
+# Message workbook helpers
+# -----------------------------
+MESSAGE_KEY_COLUMNS = ["date", "channel", "send_id", "campaign", "term"]
+MESSAGE_WORKBOOK_COLUMNS = [
+    "is_active",
+    "date",
+    "channel",
+    "send_id",
+    "campaign",
+    "term",
+    "message_title",
+    "message_body",
+    "note",
+]
+
+
+def clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if pd.isna(value):
+        return ""
+    s = str(value).strip()
+    return "" if s.lower() == "nan" else s
+
+
+def is_active_flag(value: Any) -> bool:
+    s = clean_text(value).lower()
+    if not s:
+        return True
+    return s in {"y", "yes", "true", "1", "active"}
+
+
+def message_key_from_parts(date_v: Any, channel_v: Any, send_id_v: Any, campaign_v: Any, term_v: Any) -> tuple[str, str, str, str, str]:
+    return (
+        clean_text(date_v),
+        clean_text(channel_v),
+        clean_text(send_id_v),
+        clean_text(campaign_v),
+        clean_text(term_v),
+    )
+
+
+def build_message_template_df(df: pd.DataFrame) -> pd.DataFrame:
+    camp = df[df["row_type"] == "CAMPAIGN"].copy()
+    if camp.empty:
+        return pd.DataFrame(columns=MESSAGE_WORKBOOK_COLUMNS)
+
+    for col in MESSAGE_KEY_COLUMNS:
+        if col not in camp.columns:
+            camp[col] = ""
+        camp[col] = camp[col].map(clean_text)
+
+    template = camp[MESSAGE_KEY_COLUMNS].drop_duplicates().sort_values(MESSAGE_KEY_COLUMNS).reset_index(drop=True)
+    template.insert(0, "is_active", "Y")
+    template["message_title"] = ""
+    template["message_body"] = ""
+    template["note"] = ""
+    return template[MESSAGE_WORKBOOK_COLUMNS]
+
+
+def read_message_workbook(message_workbook: Path) -> pd.DataFrame:
+    if not message_workbook.exists():
+        return pd.DataFrame(columns=MESSAGE_WORKBOOK_COLUMNS)
+
+    df = pd.read_excel(message_workbook, sheet_name="messages", dtype=str, keep_default_na=False)
+    for col in MESSAGE_WORKBOOK_COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+    df = df[MESSAGE_WORKBOOK_COLUMNS].copy()
+    for col in MESSAGE_WORKBOOK_COLUMNS:
+        df[col] = df[col].map(clean_text)
+    return df
+
+
+def write_message_workbook(message_workbook: Path, df: pd.DataFrame) -> None:
+    ensure_dir(message_workbook.parent)
+
+    guide_df = pd.DataFrame(
+        [
+            {
+                "field": "is_active",
+                "description": "Y면 JSON에 반영되고, N이면 무시됩니다.",
+            },
+            {
+                "field": "date/channel/send_id/campaign/term",
+                "description": "스크립트가 자동으로 채우는 매칭 키입니다. 수정하지 않는 것을 권장합니다.",
+            },
+            {
+                "field": "message_title",
+                "description": "포털 카드의 제목으로 노출됩니다.",
+            },
+            {
+                "field": "message_body",
+                "description": "포털 카드의 본문으로 노출됩니다.",
+            },
+            {
+                "field": "note",
+                "description": "운영 메모용 컬럼이며 JSON에는 반영되지 않습니다.",
+            },
+        ]
+    )
+
+    with pd.ExcelWriter(message_workbook, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="messages")
+        guide_df.to_excel(writer, index=False, sheet_name="guide")
+
+        messages_ws = writer.sheets["messages"]
+        guide_ws = writer.sheets["guide"]
+        messages_ws.freeze_panes = "A2"
+        guide_ws.freeze_panes = "A2"
+
+        column_widths = {
+            "A": 10,
+            "B": 14,
+            "C": 12,
+            "D": 28,
+            "E": 42,
+            "F": 28,
+            "G": 28,
+            "H": 80,
+            "I": 28,
+        }
+        for col, width in column_widths.items():
+            messages_ws.column_dimensions[col].width = width
+        guide_ws.column_dimensions["A"].width = 28
+        guide_ws.column_dimensions["B"].width = 72
+
+
+def sync_message_workbook(message_workbook: Path, template_df: pd.DataFrame) -> pd.DataFrame:
+    existing_df = read_message_workbook(message_workbook)
+
+    if existing_df.empty:
+        combined = template_df.copy()
+    elif template_df.empty:
+        combined = existing_df.copy()
+    else:
+        existing_idx = existing_df.drop_duplicates(subset=MESSAGE_KEY_COLUMNS, keep="first").set_index(MESSAGE_KEY_COLUMNS)
+        template_idx = template_df.set_index(MESSAGE_KEY_COLUMNS)
+
+        combined_idx = template_idx.copy()
+        for col in ["is_active", "message_title", "message_body", "note"]:
+            combined_idx[col] = existing_idx[col].reindex(combined_idx.index).fillna(combined_idx[col])
+
+        extra_existing = existing_idx.loc[~existing_idx.index.isin(combined_idx.index)].reset_index()
+        combined = pd.concat([combined_idx.reset_index(), extra_existing], ignore_index=True)
+
+    if combined.empty:
+        combined = pd.DataFrame(columns=MESSAGE_WORKBOOK_COLUMNS)
+
+    for col in MESSAGE_WORKBOOK_COLUMNS:
+        if col not in combined.columns:
+            combined[col] = ""
+        combined[col] = combined[col].map(clean_text)
+
+    combined = combined[MESSAGE_WORKBOOK_COLUMNS].drop_duplicates(subset=MESSAGE_KEY_COLUMNS, keep="first")
+    combined = combined.sort_values(MESSAGE_KEY_COLUMNS).reset_index(drop=True)
+    write_message_workbook(message_workbook, combined)
+    return combined
+
+
+def build_message_lookup(messages_df: pd.DataFrame) -> Dict[tuple[str, str, str, str, str], Dict[str, str]]:
+    lookup: Dict[tuple[str, str, str, str, str], Dict[str, str]] = {}
+    if messages_df.empty:
+        return lookup
+
+    for _, row in messages_df.iterrows():
+        if not is_active_flag(row.get("is_active", "Y")):
+            continue
+
+        key = message_key_from_parts(
+            row.get("date", ""),
+            row.get("channel", ""),
+            row.get("send_id", ""),
+            row.get("campaign", ""),
+            row.get("term", ""),
+        )
+        if not any(key):
+            continue
+
+        lookup[key] = {
+            "message_title": clean_text(row.get("message_title", "")),
+            "message_body": clean_text(row.get("message_body", "")),
+        }
+
+    return lookup
+
+
+# -----------------------------
 # BigQuery runner
 # -----------------------------
 @dataclass
@@ -465,7 +653,12 @@ def run_bq_query(client: bigquery.Client, query: str) -> pd.DataFrame:
 # -----------------------------
 # Build bundles
 # -----------------------------
-def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
+def build_day_bundle(
+    df: pd.DataFrame,
+    day: str,
+    message_lookup: Optional[Dict[tuple[str, str, str, str, str], Dict[str, str]]] = None,
+) -> Dict[str, Any]:
+    message_lookup = message_lookup or {}
     camp = df[df["row_type"] == "CAMPAIGN"].copy()
     prod = df[df["row_type"] == "PRODUCT"].copy()
 
@@ -507,6 +700,14 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
 
     campaigns: List[Dict[str, Any]] = []
     for _, r in camp.iterrows():
+        message_key = message_key_from_parts(
+            r.get("date", ""),
+            r.get("channel", ""),
+            r.get("send_id", ""),
+            r.get("campaign", ""),
+            r.get("term", ""),
+        )
+        message_meta = message_lookup.get(message_key, {})
         campaigns.append(
             dict(
                 date=str(r["date"]),
@@ -524,8 +725,8 @@ def build_day_bundle(df: pd.DataFrame, day: str) -> Dict[str, Any]:
                 items_purchased=int(r["items_purchased"]),
                 send_count=int(r.get("send_count", 0) or 0),
                 avg_leverage=float(r.get("avg_leverage", 0) or 0),
-                message_title=str(r.get("message_title", "") or ""),
-                message_body=str(r.get("message_body", "") or ""),
+                message_title=message_meta.get("message_title", str(r.get("message_title", "") or "")),
+                message_body=message_meta.get("message_body", str(r.get("message_body", "") or "")),
             )
         )
 
@@ -556,6 +757,7 @@ def build_range(
     start_d: date,
     end_d: date,
     site_dir: Path,
+    message_workbook: Path,
     overwrite: bool = False,
     merge_prev_year: bool = False,
 ) -> None:
@@ -565,12 +767,15 @@ def build_range(
 
     q = build_query(bq.project, bq.dataset, ymd_suffix(start_d), ymd_suffix(end_d))
     df = run_bq_query(client, q)
+    message_template_df = build_message_template_df(df)
+    messages_df = sync_message_workbook(message_workbook, message_template_df)
+    message_lookup = build_message_lookup(messages_df)
 
     df_day_groups = df.groupby("date", dropna=True)
     for day, g in df_day_groups:
         if not isinstance(day, str):
             day = str(day)
-        bundle = build_day_bundle(g, day)
+        bundle = build_day_bundle(g, day, message_lookup=message_lookup)
         if merge_prev_year:
             bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
         out = owned_dir / f"owned_{day}.json"
@@ -659,6 +864,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--end", default="", help="End date YYYY-MM-DD")
     ap.add_argument("--recent-days", type=int, default=0, help="Incremental window (days). End is yesterday(KST)")
     ap.add_argument("--site-dir", default="site", help="Output site directory (writes data/owned)")
+    ap.add_argument(
+        "--message-workbook",
+        default="",
+        help="Excel workbook for campaign message_title/message_body management (default: <site-dir>/owned_message_map.xlsx)",
+    )
     ap.add_argument("--overwrite", action="store_true", help="Overwrite existing daily JSONs in the range")
     ap.add_argument("--merge-prev-year", action="store_true", help="Also merge previous-year same-MM-DD rows into each daily bundle")
     return ap.parse_args()
@@ -672,6 +882,7 @@ def main() -> None:
 
     site_dir = Path(args.site_dir).resolve()
     ensure_dir(site_dir / "data" / "owned")
+    message_workbook = Path(args.message_workbook).resolve() if args.message_workbook else (site_dir / "owned_message_map.xlsx")
 
     # determine range
     if args.recent_days and args.recent_days > 0:
@@ -695,12 +906,14 @@ def main() -> None:
         start_d,
         end_d,
         site_dir,
+        message_workbook=message_workbook,
         overwrite=args.overwrite,
         merge_prev_year=args.merge_prev_year,
     )
 
     owned_dir = site_dir / "data" / "owned"
     print(f"[OK] wrote: {owned_dir}")
+    print(f"[OK] message workbook: {message_workbook}")
     print(f"[OK] available_dates count: {len(list_owned_dates(owned_dir))}")
 
 
