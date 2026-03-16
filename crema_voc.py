@@ -3,27 +3,26 @@
 
 """
 [CREMA VOC COLLECTOR + ACCUMULATOR | v7.2 - IMAGE FALLBACK PATCH]
-- ✅ Crema 리뷰 수집(실제 API 호출)
-- ✅ 1회 백필 + 이후 전일 누적(incremental)
-- ✅ 자산 로컬화(상품이미지/리뷰썸네일/텍스트캡처) + Referer 대응
-- ✅ 누적 저장소(master jsonl + index) 기반 중복 방지
-- ✅ 빌더 입력: reports/crema_raw/reviews.json (cumulative)
-- ✅ 사이트 입력: site/data/reviews.json (cumulative)
+- Crema 리뷰 수집(실제 API 호출)
+- 최초 1회 백필 + 이후 일별 누적(incremental)
+- 자산 로컬화: 상품 이미지/리뷰 썸네일/텍스트 이미지 생성 + Referer 대응
+- 누적 저장소(master jsonl + index) 기반 중복 방지
+- 빌더 입력: reports/crema_raw/reviews.json (cumulative)
+- 사이트 입력: site/data/reviews.json (cumulative)
 
-✅ NEW (이미지 깨짐 방지 패치)
-- product_image_source_url / product_image_url 가 비어도 placeholder 생성
+NEW (이미지 누락 방지 패치)
+- product_image_source_url / product_image_url 이 비어도 placeholder 생성
 - 다운로드 실패(403/404 등) 시 placeholder로 대체
-- config/products.csv 에 product_image_url 또는 product_image 컬럼이 있으면 fallback 사용
-- local_product_image 가 빈값으로 남지 않도록 보장
+- config/products.csv 의 product_image_url 또는 product_image 컬럼이 있으면 fallback 사용
+- local_product_image 가 빈값으로 끝나지 않도록 보장
 
-✅ 기존 핵심 패치 유지
+기존 중단/복구 패치 요약
 - GitHub Actions 6h job timeout 회피:
-  - backfill 모드에서 "시간 예산"을 두고, chunk 단위로 안전 중단
-  - 다음 시작일(next_start)을 progress 파일에 저장해 "내일 이어서" 계속
-  - 완전 완료 전에는 latest_health.json에 incomplete / failed_chunks>0 유지
-    -> YML의 backfill_done.flag 생성 조건(failed_chunks==0)을 통과하지 못하게 함
-  - 완주하면 progress 파일 삭제 -> 그 다음 run에서 YML이 flag 생성 가능
-
+  - backfill 모드에서 시간 예산을 넘기면 chunk 단위로 안전 중단
+  - 다음 시작점(next_start)을 progress 파일에 저장해 이어받기
+  - 완전 완료 전에는 latest_health.json 에 incomplete / failed_chunks>0 유지
+    -> YML 의 backfill_done.flag 생성 조건(failed_chunks==0)을 통과하지 못하게 함
+  - 완료되면 progress 파일 삭제 -> 다음 run 에서 YML 이 flag 생성 가능
 필수 env:
 - CREMA_SECURE_DEVICE_TOKEN
 
@@ -33,19 +32,18 @@
 - CREMA_PER_PAGE (default 30)
 - OUTPUT_TZ (default Asia/Seoul)
 - PROJECT_ROOT (repo root 강제 지정)
-- CREMA_BACKFILL_MAX_SECONDS (default 19500 = 5h25m, GH 6h 안전 마진)
+- CREMA_BACKFILL_MAX_SECONDS (default 19500 = 5h25m, GH 6h 이전 마진)
 
 입력:
 - config/products.csv (product_code 필수, product_name/product_url optional)
   * optional: product_image_url 또는 product_image 컬럼 지원
-
 출력:
 - reports/crema_raw/master_reviews.jsonl
 - reports/crema_raw/master_index.json
 - reports/crema_raw/reviews.json
 - reports/crema_raw/daily/YYYY-MM-DD.json (옵션: end 날짜 스냅샷)
 - reports/crema_raw/health/latest_health.json
-- reports/crema_raw/backfill_progress.json (✅ 백필 이어받기 체크포인트)
+- reports/crema_raw/backfill_progress.json (백필 이어받기 체크포인트)
 - site/data/reviews.json
 - site/assets/products/*
 - site/assets/reviews/*
@@ -138,10 +136,10 @@ MASTER_JSONL = CREMA_RAW_DIR / "master_reviews.jsonl"
 MASTER_INDEX = CREMA_RAW_DIR / "master_index.json"
 CUMULATIVE_JSON = CREMA_RAW_DIR / "reviews.json"
 
-# ✅ 백필 이어받기 체크포인트
+# 백필 이어받기 체크포인트
 PROGRESS_JSON = CREMA_RAW_DIR / "backfill_progress.json"
 
-# ✅ GitHub Pages public path
+# GitHub Pages public path
 # Example public URL:
 #   https://koreacolumbia-dotcom.github.io/E-comm-marketing-hub/site/assets/products/xxx.jpg
 PUBLIC_SITE_PREFIX = os.getenv("PUBLIC_SITE_PREFIX", "/E-comm-marketing-hub/site").rstrip("/")
@@ -411,29 +409,22 @@ def fetch_product_reviews_in_range(
 # Tokenize / tags
 # ----------------------------
 STOPWORDS = set("""
-그리고 그러나 그래서 하지만 또한
-너무 정말 완전 진짜 매우 그냥 조금 약간
-저는 제가 우리는 너희 이거 그거 저거
-구매 구입 주문 구매해 구입해 샀어요 샀습니다 주문했
-제품 상품 물건
-사용중 사용 사용함 착용 입어 신어 써봤
-배송 택배 포장
-문의
-좋아요 좋다 좋네요 만족 추천 재구매 가성비 최고 굿
-예뻐요 이뻐요
-정사이즈 한치수 한 치수
-컬러 색상 디자인
+그리고 그래서 근데 그냥 진짜 너무 정말 완전 조금 약간
+이거 그거 저거 이런 저런 해당 관련 부분 경우 느낌
+제품 상품 구매 구입 주문 배송 포장 사진 후기 리뷰 사용 착용
+사이즈 컬러 색상 브랜드 컬럼비아 콜롬비아 공식 네이버
+있어요 없어요 같아요 같습니다 입니다 합니다 됩니다
 """.split())
 
 SIZE_KEYWORDS = [
     "사이즈", "정사이즈", "작아요", "작다", "커요", "크다",
-    "핏", "타이트", "여유", "끼", "기장", "소매", "어깨",
-    "가슴", "발볼", "헐렁", "오버", "업", "다운", "한치수", "반치수"
+    "타이트", "여유", "길이", "발볼", "발등", "허리", "품",
+    "길어요", "짧아요", "짧다", "넉넉", "끼임", "타이트함"
 ]
 
 REQUEST_KEYWORDS = [
-    "아쉬워", "아쉽", "개선", "보완", "불편", "불편해", "불편함",
-    "별로", "실망", "교환", "반품", "환불", "문의", "수정", "개선요청"
+    "아쉬움", "아쉽다", "개선", "보완", "불편", "별로",
+    "교환", "반품", "문의", "수정", "개선요청"
 ]
 
 def tokenize_ko(text: str) -> List[str]:
@@ -450,12 +441,12 @@ def has_any_kw(text: str, kws: List[str]) -> bool:
 def classify_size_direction(text: str) -> str:
     t = (text or "").replace(" ", "")
     small_kw = [
-        "작아", "작다", "타이트", "끼", "조인다", "짧다", "좁다",
-        "발볼좁", "어깨좁", "가슴좁", "다운", "한치수작", "반치수작"
+        "작아", "작다", "타이트", "끼다", "조인다", "딱맞다",
+        "발볼좁", "발등좁", "여유없", "짧다", "수축", "압박감"
     ]
     big_kw = [
-        "커", "크다", "넉넉", "오버", "길다", "넓다",
-        "헐렁", "부해", "업", "한치수큰", "반치수큰"
+        "커", "크다", "헐렁", "널널", "길다", "크게",
+        "여유", "붕뜬", "수축없", "압박없"
     ]
     for kw in small_kw:
         if kw in t:
@@ -563,7 +554,7 @@ def create_text_capture_image(
         draw.rectangle([card_x0, card_y0, card_x1, card_y1], fill=CARD)
 
     title = (product_name or "상품명 없음")[:40]
-    meta = f"★ {score}  ·  {created_at[:10] if created_at else ''}  ·  review_id={review_id}"
+    meta = f"★{score}  ·  {created_at[:10] if created_at else ''}  ·  review_id={review_id}"
 
     draw.text((card_x0 + 28, card_y0 + 24), title, font=font_title, fill=TXT)
     draw.text((card_x0 + 28, card_y0 + 70), meta, font=font_meta, fill=MUTED)
@@ -579,7 +570,7 @@ def create_text_capture_image(
 
 def create_product_placeholder_image(product_code: str, product_name: str) -> str:
     """
-    상품 이미지가 아예 없거나 다운로드 실패했을 때
+    상품 이미지가 전혀 없거나 다운로드에 실패했을 때
     GitHub Pages 404를 막기 위한 플레이스홀더 생성
     """
     key = f"{product_code}::{product_name}"
@@ -692,9 +683,9 @@ def flatten_review(
         for x in ro if isinstance(x, dict)
     }
 
-    opt_size = (po_map.get("사이즈") or ro_map.get("평소사이즈") or "").strip()
+    opt_size = (po_map.get("사이즈") or ro_map.get("선택옵션사이즈") or "").strip()
     opt_color = (po_map.get("컬러") or "").strip()
-    fit_q = (ro_map.get("사이즈 어때요?") or "").strip()
+    fit_q = (ro_map.get("사이즈는 어때요") or "").strip()
 
     tags: List[str] = []
     if score <= 2:
@@ -852,10 +843,10 @@ def run_collect(
             "image_url": product_image_csv,
         }
 
-    # ✅ backfill은 start를 2025-01-01로 강제(혹시 CLI로 이상값 들어와도 방지)
+    # backfill 은 필요 시 CLI 에서 --start 2025-01-01 처럼 명시적으로 지정
     if mode == "backfill":
-        # start는 main에서 기본값(최근 90일) 세팅됨. 전체 히스토리는 --start로 명시.
-        # ✅ resume: 기존 backfill 이어받기는 --resume 일 때만
+        # 기본값은 최근 90일이며, 전체 히스토리는 --start 로 명시
+        # resume: 기존 backfill 이어받기는 --resume 일 때만
         if resume:
             prog = load_progress()
             ns = str(prog.get("next_start") or "").strip()
@@ -867,7 +858,7 @@ def run_collect(
     if end_d < start_d:
         raise SystemExit("end < start")
 
-    # ✅ GH Actions 6h 회피용 시간 예산 (기본 5h25m)
+    # GH Actions 6h 제한을 피하기 위한 시간 예산(기본 5h25m)
     max_seconds = int(os.getenv("CREMA_BACKFILL_MAX_SECONDS", "19500"))
     t0 = time.time()
     budget_hit = False
@@ -984,7 +975,7 @@ def run_collect(
                 if prod_url:
                     prod_local = download_to_assets(prod_url, ASSET_PRODUCTS, referer=product_page)
 
-                # 2) 실패하거나 URL 자체가 없으면 placeholder 생성
+                # 2) 실패했거나 URL 자체가 없으면 placeholder 생성
                 if not prod_local:
                     prod_local = create_product_placeholder_image(
                         product_code=pcode,
@@ -1079,6 +1070,11 @@ def run_collect(
         encoding="utf-8",
     )
 
+    if len(master_rows) == 0:
+        print("[ERROR] Crema collection finished but master_rows is empty.")
+        print(f"- Health:        {CREMA_RAW_HEALTH_DIR / 'latest_health.json'}")
+        return 2
+
     print("[OK] Crema collection + accumulation done.")
     print(f"- Builder input: {CUMULATIVE_JSON}")
     print(f"- Site output:   {SITE_DATA_DIR / 'reviews.json'}")
@@ -1087,6 +1083,7 @@ def run_collect(
     print(f"- Daily snaps:   {CREMA_RAW_DAILY_DIR}")
     print(f"- Health:        {CREMA_RAW_HEALTH_DIR / 'latest_health.json'}")
     print(f"- Added: {total_added} | Skipped(dup): {total_skipped}")
+    print(f"- Total master rows: {len(master_rows)}")
     if budget_hit:
         print(f"[WARN] Backfill paused due to time budget. Will resume next run from: {budget_hit_next_start}")
     if total_failed_chunks:
@@ -1119,8 +1116,8 @@ def main():
     )
     args = ap.parse_args()
 
-    # ✅ Backfill 기본: 최근 약 3개월만 먼저 수집 (GitHub Actions 6h 제한 회피)
-    # - 전체 히스토리는 --start 2025-01-01 처럼 명시
+    # Backfill 기본값: 최근 약 3개월만 수집 (GitHub Actions 6h 제한 회피)
+    # 전체 히스토리는 --start 2025-01-01 처럼 명시
     if args.mode == "backfill" and (not str(args.start).strip()):
         args.start = (now_kst().date() - timedelta(days=90)).isoformat()
 
@@ -1139,3 +1136,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
