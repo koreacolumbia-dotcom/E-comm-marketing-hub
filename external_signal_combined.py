@@ -249,16 +249,12 @@ def build_naver_queries() -> List[Tuple[str, str]]:
     queries: List[Tuple[str, str]] = []
     seen = set()
     for brand in BRAND_LIST:
-        suffixes = NAVER_QUERY_SUFFIXES[:]
-        if brand in AMBIGUOUS_BRANDS:
-            suffixes = [s for s in suffixes if s] or [" 등산"]
-        for suffix in suffixes:
-            query = f"{brand}{suffix}".strip()
-            key = (brand, query)
-            if key in seen:
-                continue
-            seen.add(key)
-            queries.append(key)
+        query = str(brand).strip()
+        key = (brand, query)
+        if not query or key in seen:
+            continue
+        seen.add(key)
+        queries.append(key)
     return queries
 
 
@@ -575,7 +571,7 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
     kept_total = 0
     reason_totals = {"blocked_menu": 0, "cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
 
-    print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (지정 카페 whitelist 필터 적용 · 검색결과 기준 · 실제 게시일 우선 사용 · query set window={days}d)")
+    print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (지정 카페 whitelist 필터 적용 · 브랜드명 단일 query만 사용 · 검색결과 기준 · 실제 게시일 우선 사용 · query set window={days}d)")
 
     for brand, query in build_naver_queries():
         query_raw = 0
@@ -1105,7 +1101,7 @@ def export_portal(
 
     naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
     if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
-        naver_subtitle += f" · Query mode: brand / brand+카테고리 · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)}"
+        naver_subtitle += f" · Query mode: brand only · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)}"
 
     naver_panel = _source_panel_html(
         panel_id="panel-naver",
@@ -1484,7 +1480,7 @@ def export_portal(dc_posts: List[Post], dc_brand_map: Dict[str, List[dict]], dc_
 
     naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
     if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
-        naver_subtitle += f" · Query mode: brand / brand+카테고리 · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)}"
+        naver_subtitle += f" · Query mode: brand only · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)}"
 
     naver_panel = _source_panel_html(
         panel_id="panel-naver",
