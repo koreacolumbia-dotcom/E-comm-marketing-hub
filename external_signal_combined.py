@@ -10,7 +10,7 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, parse_qs, urlencode
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
@@ -70,6 +70,12 @@ NAVER_ALLOWED_CAFE_URLS = [
     "https://cafe.naver.com/onefineday7080",
     "https://cafe.naver.com/awrara",
 ]
+NAVER_BLOCKED_MENU_URLS = [
+    "https://cafe.naver.com/f-e/cafes/31116705/menus/9?viewType=L",
+]
+NAVER_BLOCKED_CAFE_MENU_KEYS = {
+    ("31116705", "9"),
+}
 AMBIGUOUS_BRANDS = {"K2", "디스커버리", "데상트", "나이키", "내셔널지오그래픽"}
 
 BRAND_LIST = [
@@ -281,9 +287,207 @@ def _extract_naver_cafe_id(url: str) -> str:
     try:
         parsed = urlparse(url)
         parts = [p for p in parsed.path.split("/") if p]
-        return parts[0].lower() if parts else ""
+        if parsed.netloc.endswith("cafe.naver.com") and parts:
+            if parts[0] == "f-e":
+                m = re.search(r"/cafes/(\d+)", parsed.path)
+                return m.group(1) if m else ""
+            return parts[0].lower()
+        return ""
     except Exception:
         return ""
+
+
+def _extract_naver_article_meta(url: str) -> dict:
+    url = _canonicalize_link(url)
+    meta = {"cafe_id": "", "article_id": "", "menu_id": ""}
+    if not url:
+        return meta
+    try:
+        parsed = urlparse(url)
+        qs = parse_qs(parsed.query)
+        path = parsed.path or ""
+
+        if "clubid" in qs:
+            meta["cafe_id"] = (qs.get("clubid") or [""])[0]
+        if "articleid" in qs:
+            meta["article_id"] = (qs.get("articleid") or [""])[0]
+        if "menuid" in qs:
+            meta["menu_id"] = (qs.get("menuid") or [""])[0]
+
+        m = re.search(r"/cafes/(\d+)/articles/(\d+)", path)
+        if m:
+            meta["cafe_id"] = meta["cafe_id"] or m.group(1)
+            meta["article_id"] = meta["article_id"] or m.group(2)
+
+        m = re.search(r"/cafes/(\d+)/menus/(\d+)", path)
+        if m:
+            meta["cafe_id"] = meta["cafe_id"] or m.group(1)
+            meta["menu_id"] = meta["menu_id"] or m.group(2)
+
+        if parsed.netloc.endswith("cafe.naver.com") and not meta["cafe_id"]:
+            parts = [p for p in path.split("/") if p]
+            if parts and parts[0] != "f-e":
+                meta["cafe_id"] = parts[0].lower()
+    except Exception:
+        return meta
+    return meta
+
+
+def _is_blocked_naver_menu(link: str, cafeurl: str, html_text: str = "") -> bool:
+    candidates = [_canonicalize_link(link).rstrip("/"), _canonicalize_link(cafeurl).rstrip("/")]
+    blocked_urls = {_canonicalize_link(u).rstrip("/") for u in NAVER_BLOCKED_MENU_URLS}
+    for cand in candidates:
+        if cand in blocked_urls:
+            return True
+        meta = _extract_naver_article_meta(cand)
+        if (meta.get("cafe_id") or "", meta.get("menu_id") or "") in NAVER_BLOCKED_CAFE_MENU_KEYS:
+            return True
+
+    if html_text:
+        cafe_match = re.search(r'cafes/(\d+)', html_text)
+        menu_match = re.search(r"(?:menus/|menuid[^0-9]{0,10})(\d+)", html_text)
+        if cafe_match and menu_match:
+            if (cafe_match.group(1), menu_match.group(1)) in NAVER_BLOCKED_CAFE_MENU_KEYS:
+                return True
+    return False
+
+
+def _naver_mobile_article_url(cafe_id: str, article_id: str) -> str:
+    return f"https://m.cafe.naver.com/ca-fe/web/cafes/{cafe_id}/articles/{article_id}"
+
+
+def _extract_naver_article_detail(link: str, cafeurl: str = "", cafename: str = "") -> tuple[str, datetime | None, str, str, str]:
+    link = _canonicalize_link(link)
+    fallback_cafe = cafename or ""
+    meta = _extract_naver_article_meta(link)
+    article_url = link
+    html_candidates = []
+    final_url = link
+
+    if meta.get("cafe_id") and meta.get("article_id"):
+        article_url = _naver_mobile_article_url(meta["cafe_id"], meta["article_id"])
+
+    fetch_urls = [u for u in [article_url, link] if u]
+    seen_fetch = set()
+    for fetch_url in fetch_urls:
+        if fetch_url in seen_fetch:
+            continue
+        seen_fetch.add(fetch_url)
+        try:
+            resp = SESSION.get(fetch_url, timeout=20)
+            if resp.status_code != 200:
+                continue
+            final_url = _canonicalize_link(resp.url or fetch_url)
+            html_candidates.append(resp.text or "")
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+            iframe = soup.select_one("iframe#cafe_main")
+            if iframe and iframe.get("src"):
+                iframe_url = urljoin(final_url, iframe.get("src"))
+                iresp = SESSION.get(iframe_url, timeout=20)
+                if iresp.status_code == 200:
+                    final_url = _canonicalize_link(iresp.url or iframe_url)
+                    html_candidates.append(iresp.text or "")
+        except Exception:
+            continue
+
+    best_text = ""
+    best_dt = None
+    best_title = ""
+    best_cafe = fallback_cafe
+
+    title_selectors = [
+        ".tit-box .title_text",
+        ".ArticleTitle .title_text",
+        "h3.title_text",
+        "meta[property='og:title']",
+        "title",
+    ]
+    content_selectors = [
+        ".se-main-container",
+        ".ContentRenderer",
+        ".article_viewer",
+        "#tbody",
+        ".postArticle",
+        ".article_container",
+        ".ArticleContentBox .content",
+        ".ArticleContentBox",
+        "#postContent",
+    ]
+    cafe_selectors = [
+        ".link_cafe", ".cafe_name", ".CafeViewer .cafe_name", "meta[property='og:article:author']"
+    ]
+    date_selectors = [
+        ".article_info .date", ".ArticleContentBox .date", ".date", "span.date", "time"
+    ]
+
+    for raw_html in html_candidates:
+        if not raw_html:
+            continue
+        if _is_blocked_naver_menu(final_url, cafeurl, raw_html):
+            return "", None, final_url, best_cafe, ""
+
+        soup = BeautifulSoup(raw_html, "html.parser")
+        text_candidates = []
+        for sel in content_selectors:
+            for node in soup.select(sel):
+                txt = node.get_text("\n", strip=True)
+                if txt:
+                    text_candidates.append(txt)
+        if text_candidates:
+            candidate = max(text_candidates, key=len)
+            if len(candidate) > len(best_text):
+                best_text = candidate
+
+        for sel in title_selectors:
+            node = soup.select_one(sel)
+            if not node:
+                continue
+            if node.name == "meta":
+                cand = (node.get("content") or "").strip()
+            else:
+                cand = node.get_text(" ", strip=True)
+            if cand:
+                best_title = cand
+                break
+
+        for sel in cafe_selectors:
+            node = soup.select_one(sel)
+            if not node:
+                continue
+            if node.name == "meta":
+                cand = (node.get("content") or "").strip()
+            else:
+                cand = node.get_text(" ", strip=True)
+            if cand:
+                best_cafe = cand
+                break
+
+        for sel in date_selectors:
+            node = soup.select_one(sel)
+            if not node:
+                continue
+            raw = node.get("datetime") if node.name == "time" else node.get_text(" ", strip=True)
+            raw = (raw or "").strip()
+            m = re.search(r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})(?:[^0-9]+(\d{1,2}):(\d{2}))?", raw)
+            if m:
+                y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                hh = int(m.group(4) or 0)
+                mm = int(m.group(5) or 0)
+                best_dt = datetime(y, mo, d, hh, mm, tzinfo=KST)
+                break
+        if not best_dt:
+            m = re.search(r'"(?:addDate|writeDate|articleWriteDate|currentArticleDate)"\s*[:=]\s*"?(20\d{2}[.\-/]\d{1,2}[.\-/]\d{1,2}(?:\s+\d{1,2}:\d{2})?)', raw_html)
+            if m:
+                raw = m.group(1)
+                m2 = re.search(r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?", raw)
+                if m2:
+                    y, mo, d = int(m2.group(1)), int(m2.group(2)), int(m2.group(3))
+                    hh = int(m2.group(4) or 0)
+                    mm = int(m2.group(5) or 0)
+                    best_dt = datetime(y, mo, d, hh, mm, tzinfo=KST)
+
+    return best_text.strip(), best_dt, final_url, best_cafe, best_title.strip()
 
 
 _NAVER_ALLOWED_CAFE_IDS = {
@@ -310,9 +514,6 @@ def _is_allowed_naver_cafe(link: str, cafeurl: str) -> bool:
 
 
 def _naver_item_keep(item: dict, brand: str, query: str) -> tuple[bool, str, datetime, str, str, str, str, str]:
-    # NOTE:
-    # Naver cafearticle search results are used here as search-result documents.
-    # Do not hard-filter on postdate because that field is not dependable in this pipeline.
     title = _clean_naver_html_text(item.get("title", ""))
     content = _clean_naver_html_text(item.get("description", ""))
     link = _canonicalize_link(item.get("link", ""))
@@ -323,20 +524,37 @@ def _naver_item_keep(item: dict, brand: str, query: str) -> tuple[bool, str, dat
     if not combined:
         return False, "empty", datetime.now(KST), title, content, link, cafename, cafeurl
 
+    if _is_blocked_naver_menu(link, cafeurl):
+        return False, "blocked_menu", datetime.now(KST), title, content, link, cafename, cafeurl
+
     if not _is_allowed_naver_cafe(link, cafeurl):
         return False, "cafe_not_allowed", datetime.now(KST), title, content, link, cafename, cafeurl
+
+    full_content, actual_dt, final_link, actual_cafename, actual_title = _extract_naver_article_detail(link, cafeurl, cafename)
+    if final_link:
+        link = final_link
+    if actual_cafename:
+        cafename = _clean_naver_html_text(actual_cafename)
+    if actual_title:
+        title = _clean_naver_html_text(actual_title)
+    if full_content:
+        content = _clean_naver_html_text(full_content)
+
+    combined = f"{title} {content} {cafename}".strip()
+    if not combined:
+        return False, "empty", datetime.now(KST), title, content, link, cafename, cafeurl
+
+    if _is_blocked_naver_menu(link, cafeurl, content):
+        return False, "blocked_menu", datetime.now(KST), title, content, link, cafename, cafeurl
 
     if not _brand_token_match(combined, brand):
         return False, "brand_miss", datetime.now(KST), title, content, link, cafename, cafeurl
 
     has_context = any(ctx.lower() in combined.lower() for ctx in NAVER_CONTEXT_TERMS)
-    # For ambiguous brands, require context. For non-ambiguous brands, keep brand-only mentions.
     if brand in AMBIGUOUS_BRANDS and not has_context:
         return False, "ambiguous_no_context", datetime.now(KST), title, content, link, cafename, cafeurl
 
-    # Search API does not give us a stable article datetime in this workflow,
-    # so we stamp with collection time and clearly label the source as Search API.
-    stamped_dt = datetime.now(KST)
+    stamped_dt = actual_dt or _parse_naver_postdate(item.get("postdate", "")) or datetime.now(KST)
     return True, "ok", stamped_dt, title, content, link, cafename, cafeurl
 
 
@@ -355,14 +573,14 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
     posts: List[Post] = []
     raw_total = 0
     kept_total = 0
-    reason_totals = {"cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
+    reason_totals = {"blocked_menu": 0, "cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
 
-    print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (지정 카페 whitelist 필터 적용 · 검색결과 기준 · 최근성 표시는 수집시각 사용 · query set window={days}d)")
+    print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (지정 카페 whitelist 필터 적용 · 검색결과 기준 · 실제 게시일 우선 사용 · query set window={days}d)")
 
     for brand, query in build_naver_queries():
         query_raw = 0
         query_kept = 0
-        query_drop = {"cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
+        query_drop = {"blocked_menu": 0, "cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
 
         for page_no in range(NAVER_PAGES):
             start = 1 + (page_no * NAVER_DISPLAY)
@@ -392,7 +610,7 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                 break
 
             page_kept = 0
-            page_drop = {"cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
+            page_drop = {"blocked_menu": 0, "cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
             for item in items:
                 keep, reason, dt, title, content, link, cafename, cafeurl = _naver_item_keep(item, brand, query)
                 if not keep:
@@ -422,7 +640,7 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                         created_at=dt,
                         platform="naver_cafe",
                         source="naver_cafe",
-                        query=query,
+                        query=cafename or query,
                     )
                 )
                 page_kept += 1
@@ -431,19 +649,19 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
 
             print(
                 f"   - query='{query}' page={page_no+1} status={status} raw={raw_count} kept={page_kept} total={len(posts)} "
-                f"drop_cafe={page_drop.get('cafe_not_allowed',0)} drop_brand={page_drop.get('brand_miss',0)} drop_ctx={page_drop.get('ambiguous_no_context',0)} "
+                f"drop_menu={page_drop.get('blocked_menu',0)} drop_cafe={page_drop.get('cafe_not_allowed',0)} drop_brand={page_drop.get('brand_miss',0)} drop_ctx={page_drop.get('ambiguous_no_context',0)} "
                 f"drop_empty={page_drop.get('empty',0)} drop_dup={page_drop.get('dup',0)}"
             )
 
         print(
             f"   ↳ query='{query}' 완료 raw={query_raw} kept={query_kept} 누적={len(posts)} "
-            f"(cafe_not_allowed={query_drop.get('cafe_not_allowed',0)}, brand_miss={query_drop.get('brand_miss',0)}, ambiguous_no_context={query_drop.get('ambiguous_no_context',0)}, dup={query_drop.get('dup',0)})"
+            f"(blocked_menu={query_drop.get('blocked_menu',0)}, cafe_not_allowed={query_drop.get('cafe_not_allowed',0)}, brand_miss={query_drop.get('brand_miss',0)}, ambiguous_no_context={query_drop.get('ambiguous_no_context',0)}, dup={query_drop.get('dup',0)})"
         )
 
     if kept_total == 0:
         msg = (
             f"NAVER Cafe 결과 0건 (raw={raw_total}, kept={kept_total}) · "
-            f"cafe_not_allowed={reason_totals.get('cafe_not_allowed',0)}, brand_miss={reason_totals.get('brand_miss',0)}, ambiguous_no_context={reason_totals.get('ambiguous_no_context',0)}, dup={reason_totals.get('dup',0)}"
+            f"blocked_menu={reason_totals.get('blocked_menu',0)}, cafe_not_allowed={reason_totals.get('cafe_not_allowed',0)}, brand_miss={reason_totals.get('brand_miss',0)}, ambiguous_no_context={reason_totals.get('ambiguous_no_context',0)}, dup={reason_totals.get('dup',0)}"
         )
         return posts, msg
 
@@ -777,7 +995,7 @@ def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str
             src = html.escape(it.get("source") or "")
             date = html.escape(it.get("date") or "")
             query = html.escape(it.get("query") or "")
-            query_badge = f'<span class="px-2 py-1 rounded-full bg-slate-100">query: {query}</span>' if query else ''
+            query_badge = f'<span class="px-2 py-1 rounded-full bg-slate-100">cafe: {query}</span>' if query else ''
             cards.append(
                 f'''
                 <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
@@ -1007,3 +1225,366 @@ if __name__ == "__main__":
         print("⚠️ DCInside 수집 데이터 0건")
     if not naver_posts:
         print("⚠️ NAVER Cafe 수집 데이터 0건")
+
+# ================= PATCH: full-width + weakly-supervised ML sentiment + brand filters =================
+from collections import Counter
+
+POSITIVE_HINTS = {
+    "좋", "만족", "추천", "예쁘", "이쁘", "편하", "편안", "가볍", "튼튼", "따뜻", "따듯", "훌륭", "최고",
+    "잘샀", "재구매", "실용", "탄탄", "마음에", "괜찮", "우수", "짱", "고급", "핏 좋", "기대 이상"
+}
+NEGATIVE_HINTS = {
+    "별로", "아쉽", "실망", "무겁", "불편", "비싸", "두껍", "얇", "구림", "최악", "문제", "하자", "환불",
+    "교환", "불량", "답답", "미끄", "후회", "냄새", "찢어", "약하", "애매"
+}
+
+def _sentiment_seed_label(text: str) -> int | None:
+    s = (text or "").lower()
+    pos = sum(1 for kw in POSITIVE_HINTS if kw in s)
+    neg = sum(1 for kw in NEGATIVE_HINTS if kw in s)
+    if pos >= 1 and neg == 0:
+        return 1
+    if neg >= 1 and pos == 0:
+        return 0
+    return None
+
+
+def build_sentiment_model(posts: List[Post]):
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.linear_model import LogisticRegression
+    except Exception:
+        return None, None
+    train_texts, train_labels = [], []
+    for p in posts:
+        candidates = ([p.title] if p.title else []) + split_sentences(p.content) + split_sentences(p.comments)
+        for sent in candidates:
+            label = _sentiment_seed_label(sent)
+            if label is None:
+                continue
+            train_texts.append(sent)
+            train_labels.append(label)
+    if len(train_texts) < 10 or len(set(train_labels)) < 2:
+        return None, None
+    vec = TfidfVectorizer(ngram_range=(1, 2), min_df=1, max_features=8000, sublinear_tf=True)
+    X = vec.fit_transform(train_texts)
+    clf = LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42)
+    clf.fit(X, train_labels)
+    return vec, clf
+
+
+def predict_sentiment_label(text: str, vec, clf) -> tuple[str, float]:
+    seeded = _sentiment_seed_label(text)
+    if vec is not None and clf is not None and text:
+        try:
+            proba = clf.predict_proba(vec.transform([text]))[0]
+            neg_p = float(proba[0]); pos_p = float(proba[1])
+            if max(pos_p, neg_p) >= 0.60:
+                return ("positive", pos_p) if pos_p >= neg_p else ("negative", neg_p)
+        except Exception:
+            pass
+    if seeded == 1:
+        return "positive", 0.58
+    if seeded == 0:
+        return "negative", 0.58
+    return "neutral", 0.0
+
+
+def process_data(posts: List[Post]):
+    patterns = build_brand_patterns()
+    vec, clf = build_sentiment_model(posts)
+    brand_map: Dict[str, List[dict]] = {b: [] for b in BRAND_LIST}
+    summary = {b: {"posts_count": 0, "title_hits": 0, "comment_mentions": 0, "total_mentions": 0} for b in BRAND_LIST}
+
+    for p in posts:
+        title = normalize_text(p.title)
+        content = normalize_text(p.content)
+        comments = normalize_text(p.comments)
+        title_sents = [title] if title else []
+        content_sents = split_sentences(content)
+        comment_sents = split_sentences(comments)
+        post_has_brand = {b: False for b in BRAND_LIST}
+        title_has_brand = {b: False for b in BRAND_LIST}
+
+        def add_item(brand, sentence, source):
+            sentiment, score = predict_sentiment_label(sentence, vec, clf)
+            brand_map[brand].append({
+                "text": sentence,
+                "url": p.url,
+                "title": title,
+                "source": source,
+                "platform": p.platform,
+                "query": p.query,
+                "date": p.created_at.strftime("%Y-%m-%d"),
+                "sentiment": sentiment,
+                "sentiment_score": round(score, 3),
+            })
+
+        for b in BRAND_LIST:
+            if contains_brand(title, b, patterns):
+                title_has_brand[b] = True
+                summary[b]["title_hits"] += 1
+                post_has_brand[b] = True
+            for s in title_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 3:
+                    add_item(b, s, "title")
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
+            for s in content_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                    add_item(b, s, "content")
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
+            for s in comment_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                    add_item(b, s, "comment")
+                    summary[b]["comment_mentions"] += 1
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
+            if title_has_brand[b]:
+                for s in comment_sents:
+                    if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                        add_item(b, s, "comment(boosted_by_title)")
+        for b in BRAND_LIST:
+            if post_has_brand[b]:
+                summary[b]["posts_count"] += 1
+
+    for b in BRAND_LIST:
+        seen = set(); uniq = []
+        for item in brand_map[b]:
+            key = (item.get("url", ""), item.get("text", ""), item.get("source", ""), item.get("platform", ""))
+            if key in seen:
+                continue
+            seen.add(key); uniq.append(item)
+        brand_map[b] = uniq
+        summary[b]["total_mentions"] = len(uniq)
+        summary[b]["comment_mentions"] = sum(1 for x in uniq if str(x.get("source", "")).startswith("comment"))
+
+    summary_df = pd.DataFrame([
+        {"brand": b, "posts_count": summary[b]["posts_count"], "title_hits": summary[b]["title_hits"], "comment_mentions": summary[b]["comment_mentions"], "total_mentions": summary[b]["total_mentions"]}
+        for b in BRAND_LIST
+    ])
+    summary_df = summary_df[~((summary_df["posts_count"] == 0) & (summary_df["title_hits"] == 0))].copy()
+    if not summary_df.empty:
+        summary_df["__pin_columbia"] = summary_df["brand"].apply(lambda x: 0 if x == "컬럼비아" else 1)
+        summary_df = summary_df.sort_values(["__pin_columbia", "total_mentions", "posts_count"], ascending=[True, False, False]).drop(columns=["__pin_columbia"])
+    return brand_map, summary_df
+
+
+def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str:
+    sections = []
+    for brand in BRAND_LIST:
+        items = [x for x in brand_map.get(brand, []) if x.get("platform") == platform]
+        if not items:
+            continue
+        counts = Counter((it.get("sentiment") or "neutral") for it in items)
+        cards = []
+        for it in items[:40]:
+            title = html.escape((it.get("title") or it.get("url") or "")[:120])
+            body_text = html.escape((it.get("text") or "").strip())
+            url = html.escape(it.get("url") or "")
+            src = html.escape(it.get("source") or "")
+            date = html.escape(it.get("date") or "")
+            query = html.escape(it.get("query") or "")
+            sentiment = (it.get("sentiment") or "neutral").strip()
+            score = float(it.get("sentiment_score") or 0)
+            senti_class = {"positive": "bg-emerald-50 text-emerald-700 border-emerald-200", "negative": "bg-rose-50 text-rose-700 border-rose-200"}.get(sentiment, "bg-slate-100 text-slate-600 border-slate-200")
+            senti_label = {"positive": "긍정", "negative": "부정"}.get(sentiment, "중립")
+            query_badge = f'<span class="px-2 py-1 rounded-full bg-slate-100">cafe: {query}</span>' if query else ''
+            score_text = f" {score:.2f}" if score else ""
+            cards.append(f'''
+                <div class="mention-card p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition" data-brand="{html.escape(brand)}" data-platform="{html.escape(platform)}">
+                  <div class="flex flex-wrap gap-2 text-[11px] text-slate-500 font-bold mb-1">
+                    <span class="px-2 py-1 rounded-full bg-slate-100">{src}</span>
+                    <span class="px-2 py-1 rounded-full bg-slate-100">{date}</span>
+                    {query_badge}
+                    <span class="px-2 py-1 rounded-full border {senti_class}">{senti_label}{score_text}</span>
+                  </div>
+                  <a class="text-sm font-extrabold text-blue-700 hover:underline" href="{url}" target="_blank" rel="noopener noreferrer">{title}</a>
+                  <div class="mt-2 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{body_text}</div>
+                </div>
+            ''')
+        sections.append(f'''
+            <section class="mt-6 brand-section" data-brand="{html.escape(brand)}" data-platform="{html.escape(platform)}">
+              <div class="flex items-baseline justify-between gap-3 flex-wrap">
+                <h3 class="text-lg font-extrabold text-slate-800">{html.escape(brand)}</h3>
+                <div class="flex flex-wrap items-center gap-2 text-xs font-bold tabular-nums">
+                  <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-600">{len(items)} mentions</span>
+                  <span class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">긍정 {counts.get('positive',0)}</span>
+                  <span class="px-2 py-1 rounded-full bg-rose-50 text-rose-700">부정 {counts.get('negative',0)}</span>
+                  <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-600">중립 {counts.get('neutral',0)}</span>
+                </div>
+              </div>
+              <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{''.join(cards)}</div>
+            </section>
+        ''')
+    if not sections:
+        return "<div class='mt-6 text-slate-500 font-bold'>브랜드 언급이 없습니다.</div>"
+    return "\n".join(sections)
+
+
+def _brand_filter_controls_html(brand_map: Dict[str, List[dict]], platform: str) -> str:
+    active_brands = [b for b in BRAND_LIST if any(x.get("platform") == platform for x in brand_map.get(b, []))]
+    if not active_brands:
+        return ""
+    buttons = [f'<button class="brand-filter-btn active px-3 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-platform="{html.escape(platform)}" data-brand="all">전체</button>']
+    for brand in active_brands:
+        buttons.append(f'<button class="brand-filter-btn px-3 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-platform="{html.escape(platform)}" data-brand="{html.escape(brand)}">{html.escape(brand)}</button>')
+    return f'<div class="mt-6 flex flex-wrap gap-2">{"".join(buttons)}</div>'
+
+
+def _source_panel_html(panel_id: str, title: str, subtitle: str, summary_html: str, weekly_html: str, sections_html: str, filter_html: str = "", warning: str = "") -> str:
+    warning_html = ""
+    if warning:
+        warning_html = f'<div class="mt-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-sm font-bold">{html.escape(warning)}</div>'
+    return f'''
+    <section id="{panel_id}" class="tab-panel hidden">
+      <div class="mt-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL</div>
+          <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900">{html.escape(title)}</h2>
+          <div class="mt-1 text-xs text-slate-500 font-bold">{html.escape(subtitle)}</div>
+        </div>
+      </div>
+      {warning_html}
+      {filter_html}
+      <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="glass rounded-3xl p-5">{summary_html}</div>
+        <div class="glass rounded-3xl p-5">{weekly_html}</div>
+      </div>
+      {sections_html}
+    </section>
+    '''
+
+
+def export_portal(dc_posts: List[Post], dc_brand_map: Dict[str, List[dict]], dc_summary_df: pd.DataFrame, naver_posts: List[Post], naver_brand_map: Dict[str, List[dict]], naver_summary_df: pd.DataFrame, naver_warning: str | None = None, out_path: str = "reports/external_signal.html"):
+    updated = _now_kst_str()
+    dc_meta = summarize_source(dc_posts, dc_brand_map, dc_summary_df, "DCInside")
+    naver_meta = summarize_source(naver_posts, naver_brand_map, naver_summary_df, "NAVER Cafe")
+    try:
+        payload = {
+            "updated_at": updated,
+            "target_days": int(TARGET_DAYS),
+            "dcinside": {"posts_collected": int(len(dc_posts)), "brands_active": int(len(dc_meta["active_brands"])), "total_mentions": int(dc_meta["total_mentions"]), "week_posts": int(dc_meta["week_posts"]), "week_mentions": int(dc_meta["week_mentions"]), "top5": dc_summary_df.head(5).to_dict(orient="records") if not dc_summary_df.empty else []},
+            "naver_cafe": {"posts_collected": int(len(naver_posts)), "brands_active": int(len(naver_meta["active_brands"])), "total_mentions": int(naver_meta["total_mentions"]), "week_posts": int(naver_meta["week_posts"]), "week_mentions": int(naver_meta["week_mentions"]), "top5": naver_summary_df.head(5).to_dict(orient="records") if not naver_summary_df.empty else [], "warning": naver_warning or ""},
+        }
+        _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
+    except Exception as e:
+        print(f"[WARN] summary.json export failed: {e}")
+
+    dc_panel = _source_panel_html(
+        panel_id="panel-dcinside",
+        title=f"DCInside · {GALLERY_ID} (최근 {int(TARGET_DAYS)}일)",
+        subtitle=f"Updated: {updated} · Posts collected: {len(dc_posts):,} · Active brands: {len(dc_meta['active_brands']):,}",
+        summary_html=_summary_table_html(dc_summary_df),
+        weekly_html=_weekly_html(dc_meta, "DCInside (게시글 작성일 기준)"),
+        sections_html=_brand_sections_html(dc_brand_map, "dcinside"),
+        filter_html=_brand_filter_controls_html(dc_brand_map, "dcinside"),
+    )
+
+    naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
+    if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
+        naver_subtitle += f" · Query mode: brand / brand+카테고리 · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)}"
+
+    naver_panel = _source_panel_html(
+        panel_id="panel-naver",
+        title="네이버 카페 · 브랜드 언급 (Search API 결과)",
+        subtitle=naver_subtitle,
+        summary_html=_summary_table_html(naver_summary_df),
+        weekly_html=_weekly_html(naver_meta, "NAVER Cafe (게시글 작성일 기준)"),
+        sections_html=_brand_sections_html(naver_brand_map, "naver_cafe"),
+        filter_html=_brand_filter_controls_html(naver_brand_map, "naver_cafe"),
+        warning=naver_warning or "",
+    )
+
+    full_html = f'''<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>External Signal | DCInside + NAVER Cafe</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root {{ --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }}
+    html, body {{ height: 100%; overflow: auto; margin:0; }}
+    body {{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+      margin:0;
+    }}
+    .glass {{
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(15,23,42,.08);
+      box-shadow: 0 10px 30px rgba(2,6,23,.08);
+      backdrop-filter: blur(10px);
+    }}
+    .tab-btn.active, .brand-filter-btn.active {{ background:#0f172a; color:#fff; border-color:#0f172a; }}
+    .embedded body {{ background: transparent !important; }}
+  </style>
+</head>
+<body class="w-full">
+  <div class="w-full px-0">
+    <div class="glass rounded-none p-5 md:p-7 w-full">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL HUB</div>
+          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside + 네이버 카페 브랜드 언급 모니터링</h1>
+          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · DCInside: 최근 {int(TARGET_DAYS)}일 / NAVER Cafe: Search API + 게시글 상세 본문/작성일</div>
+        </div>
+        <div class="text-xs text-slate-600 font-bold">브랜드 수: {len(BRAND_LIST)} · 탭별로 소스 분리 확인</div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap gap-2">
+        <button class="tab-btn active px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-dcinside">DCInside</button>
+        <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-naver">네이버 카페</button>
+      </div>
+
+      {dc_panel}
+      {naver_panel}
+    </div>
+  </div>
+
+  <script>
+    function toggleMore(btn) {{
+      const box = btn.parentElement.querySelector('.more-box');
+      if (!box) return;
+      box.classList.toggle('hidden');
+      btn.textContent = box.classList.contains('hidden') ? '+ 더보기' : '- 접기';
+    }}
+
+    (function () {{
+      const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+      const panels = Array.from(document.querySelectorAll('.tab-panel'));
+      const brandButtons = Array.from(document.querySelectorAll('.brand-filter-btn'));
+      function activate(targetId) {{
+        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
+        panels.forEach(panel => panel.classList.toggle('hidden', panel.id !== targetId));
+      }}
+      function applyBrandFilter(platform, brand) {{
+        const sections = Array.from(document.querySelectorAll(`.brand-section[data-platform="${{platform}}"]`));
+        const cards = Array.from(document.querySelectorAll(`.mention-card[data-platform="${{platform}}"]`));
+        brandButtons.filter(btn => btn.dataset.platform === platform).forEach(btn => btn.classList.toggle('active', btn.dataset.brand === brand));
+        sections.forEach(sec => sec.classList.toggle('hidden', !(brand === 'all' || sec.dataset.brand === brand)));
+        cards.forEach(card => card.classList.toggle('hidden', !(brand === 'all' || card.dataset.brand === brand)));
+      }}
+      buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.target)));
+      brandButtons.forEach(btn => btn.addEventListener('click', () => applyBrandFilter(btn.dataset.platform, btn.dataset.brand)));
+      activate('panel-dcinside');
+      ['dcinside','naver_cafe'].forEach(platform => applyBrandFilter(platform, 'all'));
+      try {{
+        if (window.self !== window.top) document.body.classList.add('embedded');
+      }} catch (e) {{
+        document.body.classList.add('embedded');
+      }}
+    }})();
+  </script>
+</body>
+</html>
+'''
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(full_html)
+    print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
