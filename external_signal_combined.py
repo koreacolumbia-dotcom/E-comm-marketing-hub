@@ -10,7 +10,7 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
@@ -62,6 +62,14 @@ NAVER_CONTEXT_TERMS = [
 ]
 NAVER_QUERY_SUFFIXES = ["", " 등산", " 등산화", " 바람막이", " 플리스", " 자켓"]
 NAVER_PAGES = max(1, int(os.getenv("NAVER_PAGES", "4")))
+NAVER_ALLOWED_CAFE_URLS = [
+    "https://cafe.naver.com/windstopper",
+    "https://cafe.naver.com/hikingf",
+    "https://cafe.naver.com/windstopper/353778",
+    "https://cafe.naver.com/firstmountain",
+    "https://cafe.naver.com/onefineday7080",
+    "https://cafe.naver.com/awrara",
+]
 AMBIGUOUS_BRANDS = {"K2", "디스커버리", "데상트", "나이키", "내셔널지오그래픽"}
 
 BRAND_LIST = [
@@ -266,6 +274,41 @@ def _canonicalize_link(link: str) -> str:
     return link.replace("http://", "https://")
 
 
+def _extract_naver_cafe_id(url: str) -> str:
+    url = _canonicalize_link(url)
+    if not url:
+        return ""
+    try:
+        parsed = urlparse(url)
+        parts = [p for p in parsed.path.split("/") if p]
+        return parts[0].lower() if parts else ""
+    except Exception:
+        return ""
+
+
+_NAVER_ALLOWED_CAFE_IDS = {
+    _extract_naver_cafe_id(u)
+    for u in NAVER_ALLOWED_CAFE_URLS
+    if _extract_naver_cafe_id(u)
+}
+_NAVER_ALLOWED_ARTICLE_URLS = {
+    _canonicalize_link(u).rstrip("/")
+    for u in NAVER_ALLOWED_CAFE_URLS
+    if len([p for p in urlparse(_canonicalize_link(u)).path.split("/") if p]) >= 2
+}
+
+
+def _is_allowed_naver_cafe(link: str, cafeurl: str) -> bool:
+    link = _canonicalize_link(link).rstrip("/")
+    cafeurl = _canonicalize_link(cafeurl).rstrip("/")
+
+    if link in _NAVER_ALLOWED_ARTICLE_URLS:
+        return True
+
+    cafe_id = _extract_naver_cafe_id(cafeurl) or _extract_naver_cafe_id(link)
+    return bool(cafe_id and cafe_id in _NAVER_ALLOWED_CAFE_IDS)
+
+
 def _naver_item_keep(item: dict, brand: str, query: str) -> tuple[bool, str, datetime, str, str, str, str, str]:
     # NOTE:
     # Naver cafearticle search results are used here as search-result documents.
@@ -279,6 +322,9 @@ def _naver_item_keep(item: dict, brand: str, query: str) -> tuple[bool, str, dat
 
     if not combined:
         return False, "empty", datetime.now(KST), title, content, link, cafename, cafeurl
+
+    if not _is_allowed_naver_cafe(link, cafeurl):
+        return False, "cafe_not_allowed", datetime.now(KST), title, content, link, cafename, cafeurl
 
     if not _brand_token_match(combined, brand):
         return False, "brand_miss", datetime.now(KST), title, content, link, cafename, cafeurl
@@ -309,14 +355,14 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
     posts: List[Post] = []
     raw_total = 0
     kept_total = 0
-    reason_totals = {"brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
+    reason_totals = {"cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
 
-    print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (검색결과 기준 · 최근성 표시는 수집시각 사용 · query set window={days}d)")
+    print(f"🚀 [M-OS SYSTEM] NAVER Cafe Search API 분석 시작 (지정 카페 whitelist 필터 적용 · 검색결과 기준 · 최근성 표시는 수집시각 사용 · query set window={days}d)")
 
     for brand, query in build_naver_queries():
         query_raw = 0
         query_kept = 0
-        query_drop = {"brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
+        query_drop = {"cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
 
         for page_no in range(NAVER_PAGES):
             start = 1 + (page_no * NAVER_DISPLAY)
@@ -346,7 +392,7 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                 break
 
             page_kept = 0
-            page_drop = {"brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
+            page_drop = {"cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
             for item in items:
                 keep, reason, dt, title, content, link, cafename, cafeurl = _naver_item_keep(item, brand, query)
                 if not keep:
@@ -385,19 +431,19 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
 
             print(
                 f"   - query='{query}' page={page_no+1} status={status} raw={raw_count} kept={page_kept} total={len(posts)} "
-                f"drop_brand={page_drop.get('brand_miss',0)} drop_ctx={page_drop.get('ambiguous_no_context',0)} "
+                f"drop_cafe={page_drop.get('cafe_not_allowed',0)} drop_brand={page_drop.get('brand_miss',0)} drop_ctx={page_drop.get('ambiguous_no_context',0)} "
                 f"drop_empty={page_drop.get('empty',0)} drop_dup={page_drop.get('dup',0)}"
             )
 
         print(
             f"   ↳ query='{query}' 완료 raw={query_raw} kept={query_kept} 누적={len(posts)} "
-            f"(brand_miss={query_drop.get('brand_miss',0)}, ambiguous_no_context={query_drop.get('ambiguous_no_context',0)}, dup={query_drop.get('dup',0)})"
+            f"(cafe_not_allowed={query_drop.get('cafe_not_allowed',0)}, brand_miss={query_drop.get('brand_miss',0)}, ambiguous_no_context={query_drop.get('ambiguous_no_context',0)}, dup={query_drop.get('dup',0)})"
         )
 
     if kept_total == 0:
         msg = (
             f"NAVER Cafe 결과 0건 (raw={raw_total}, kept={kept_total}) · "
-            f"brand_miss={reason_totals.get('brand_miss',0)}, ambiguous_no_context={reason_totals.get('ambiguous_no_context',0)}, dup={reason_totals.get('dup',0)}"
+            f"cafe_not_allowed={reason_totals.get('cafe_not_allowed',0)}, brand_miss={reason_totals.get('brand_miss',0)}, ambiguous_no_context={reason_totals.get('ambiguous_no_context',0)}, dup={reason_totals.get('dup',0)}"
         )
         return posts, msg
 
@@ -841,7 +887,7 @@ def export_portal(
 
     naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
     if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
-        naver_subtitle += " · Query mode: brand / brand+카테고리"
+        naver_subtitle += f" · Query mode: brand / brand+카테고리 · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)}"
 
     naver_panel = _source_panel_html(
         panel_id="panel-naver",
