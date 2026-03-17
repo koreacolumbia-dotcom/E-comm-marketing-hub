@@ -1884,6 +1884,62 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       });
     }
 
+    function setSearchAndRender(q){
+      const el = document.getElementById("qInput");
+      if (el) el.value = q || "";
+      // Daily chip on + yesterday by default is OK; just rerender
+      renderAll();
+      // Optional: scroll to Daily Feed after applying a search
+      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
+    }
+
+    async function boot(){
+      runWithOverlay("Loading VOC data...", async () => {
+        try{
+          const [meta, reviews] = await Promise.all([
+            fetchJsonOrThrow([
+              "./data/meta.json",
+              "./site/data/meta.json",
+              "./reports/voc_crema/data/meta.json",
+              "../data/meta.json",
+            ]),
+            fetchJsonOrThrow([
+              "./data/reviews.json",
+              "./site/data/reviews.json",
+              "./reports/voc_crema/data/reviews.json",
+              "../data/reviews.json",
+            ]),
+          ]);
+
+          META = meta || {};
+          REVIEWS = Array.isArray(reviews?.reviews) ? reviews.reviews : [];
+
+          if (!META.updated_at){
+            throw new Error("meta.json is missing updated_at");
+          }
+          if (!Array.isArray(REVIEWS) || REVIEWS.length === 0){
+            throw new Error("reviews.json contains no review rows");
+          }
+
+          const dayInput = document.getElementById("daySelect");
+          if (dayInput){
+            if (META?.period_start) dayInput.min = META.period_start;
+            if (META?.period_end) dayInput.max = META.period_end;
+
+            // default = yesterday(KST)
+            if (!dayInput.value){
+              dayInput.value = kstDateStr(-1);
+            }
+          }
+
+          renderAll();
+        }catch(e){
+          console.error(e);
+          showError(`VOC ?곗씠?곕? 遺덈윭?ㅼ? 紐삵뻽?듬땲?? ${e?.message || ""}`.trim());
+        }
+      });
+    }
+
     boot();
   </script>
 </body>
