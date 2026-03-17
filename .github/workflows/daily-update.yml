@@ -297,13 +297,11 @@ jobs:
               requests \
               playwright \
               openpyxl \
-              matplotlib \
-              beautifulsoup4 \
-              lxml
+              matplotlib
           fi
 
-          # requirements.txt와 별개로 보강 설치
-          pip install openpyxl matplotlib beautifulsoup4 lxml
+          # requirements.txt 와 별개로 Daily Digest 추가 패키지 보강 설치
+          pip install openpyxl matplotlib
 
           python -m playwright install --with-deps chromium
 
@@ -388,6 +386,7 @@ jobs:
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
 
+          # 배치 버전 실행
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
 
           echo "[INFO] Outputs:"
@@ -453,27 +452,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          FILE=""
-          for candidate in \
-            "external_signal_combined_naver_cafe_fullwidth_sentiment_brandfilter_v2.py" \
-            "external_signal_combined_naver_cafe_detail_patch.py" \
-            "external_signal_combined_naver_cafe_whitelist.py" \
-            "external_signal_combined.py"
-          do
-            FOUND="$(find . -type f -name "$candidate" | head -n 1 || true)"
-            if [ -n "$FOUND" ]; then
-              FILE="$FOUND"
-              break
-            fi
-          done
+          FILE="$(find . -type f -name 'external_signal_combined.py' | head -n 1 || true)"
 
           if [ -z "$FILE" ]; then
-            echo "[WARN] External Signal script not found. Listing candidates:"
+            echo "[WARN] external_signal_combined.py not found. Listing candidates:"
             find . -type f -name 'external_signal_combined*.py' || true
             exit 0
           fi
 
           echo "[INFO] Running: $FILE"
+
           echo "[INFO] NAVER_CLIENT_ID exists -> ${NAVER_CLIENT_ID:+yes}"
           echo "[INFO] NAVER_CLIENT_SECRET exists -> ${NAVER_CLIENT_SECRET:+yes}"
 
@@ -481,7 +469,6 @@ jobs:
 
           echo "[INFO] Output files:"
           ls -la reports/external_signal.html || true
-          find reports -maxdepth 3 -type f | sort | tail -n 100 || true
 
       - name: Run Crema VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
@@ -590,43 +577,78 @@ jobs:
             fi
           fi
 
-          echo "[INFO] (3) Build dashboard: build_voc_dashboard.py"
-          python -u build_voc_dashboard.py --input "${INPUT_JSON}" --target-days "${TARGET_DAYS}"
+          BUILD_VOC_SCRIPT=""
+          for CAND in "build_voc_dashboard (9).py" "build_voc_dashboard.py"; do
+            if [ -f "${CAND}" ]; then
+              BUILD_VOC_SCRIPT="${CAND}"
+              break
+            fi
+          done
+
+          if [ -z "${BUILD_VOC_SCRIPT}" ]; then
+            echo "[ERROR] No build_voc_dashboard script found."
+            ls -la | head -n 200 || true
+            exit 1
+          fi
+
+          echo "[INFO] (3) Build dashboard: ${BUILD_VOC_SCRIPT}"
+          HTML_TEMPLATE=""
+          for CAND in "templates/voc_index.html" "site/template.html"; do
+            if [ -f "${CAND}" ]; then
+              HTML_TEMPLATE="${CAND}"
+              break
+            fi
+          done
+
+          BUILD_ARGS=(--input "${INPUT_JSON}" --target-days "${TARGET_DAYS}")
+          if [ -n "${HTML_TEMPLATE}" ]; then
+            echo "[INFO] Using VOC HTML template: ${HTML_TEMPLATE}"
+            BUILD_ARGS+=(--html-template "${HTML_TEMPLATE}")
+          else
+            echo "[WARN] No VOC HTML template found. ${BUILD_VOC_SCRIPT} fallback will be used."
+          fi
+
+          python -u "${BUILD_VOC_SCRIPT}" "${BUILD_ARGS[@]}"
 
           echo "[INFO] (3.2) Validate VOC JSON"
           python - <<'PY'
           import json, sys
           from pathlib import Path
-
+          
           candidates = [Path('site/data/reviews.json'), Path('reports/crema_raw/reviews.json')]
           found = None
           for p in candidates:
               if p.exists():
                   found = p
                   break
-
+          
           if not found:
               print('[ERROR] reviews.json not found in site/data or reports/crema_raw')
               sys.exit(1)
-
+          
           with found.open('r', encoding='utf-8') as f:
               data = json.load(f)
-
+          
           if isinstance(data, dict):
               rows = data.get('reviews') or data.get('items') or []
           else:
               rows = data
-
+          
           if not isinstance(rows, list) or len(rows) == 0:
               print(f'[ERROR] {found} has no review rows')
               sys.exit(1)
-
+          
           created = [str(r.get('created_at', '')).strip() for r in rows if isinstance(r, dict) and r.get('created_at')]
           latest = max(created) if created else 'N/A'
           print(f'[CHECK] review_file={found}')
           print(f'[CHECK] review_count={len(rows)}')
           print(f'[CHECK] latest_created_at={latest}')
           PY
+
+          if [ -f "site/index.html" ] && grep -q "Template missing\. Provide site/template.html or --html-template\." "site/index.html"; then
+            echo "[WARN] site/index.html is placeholder output from builder. Removing so template fallback can apply."
+            rm -f "site/index.html"
+          fi
 
           echo "[INFO] (3.5) Keep builder output; only fallback-copy template when site/index.html is missing"
           if [ ! -f "site/index.html" ]; then
@@ -647,7 +669,7 @@ jobs:
           fi
 
           echo "[INFO] (3.3) Validate meta.json"
-          python - <<'PY'
+          python - <<'"'"'PY'"'"'
           import json, sys
           from pathlib import Path
 
@@ -911,3 +933,4 @@ jobs:
           fi
 
           python -u scripts/send_daily_email.py || true
+
