@@ -254,8 +254,7 @@
         <button id="btnToday" class="btn" type="button">오늘</button>
 
         <div class="ml-2 small-label">Channel</div>
-        <button id="chipAll" class="chip active" type="button">ALL</button>
-        <button id="chipEDM" class="chip" type="button">EDM</button>
+        <button id="chipEDM" class="chip active" type="button">EDM</button>
         <button id="chipLMS" class="chip" type="button">LMS</button>
         <button id="chipKAKAO" class="chip" type="button">KAKAO</button>
 
@@ -280,16 +279,9 @@
           <div class="small-label">Channel totals</div>
           <div class="muted font-semibold text-sm" id="periodText">-</div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div class="mini-card">
-            <div class="mini-title">All</div>
-            <div class="mini-value"><span id="totAllSessions">-</span></div>
-            <div class="mini-sub">Revenue: <span id="totAllRevenue">-</span></div>
-            <div class="mini-sub">Send count: <span id="totAllSendCount">-</span></div>
-            <div class="mini-sub">Avg leverage: <span id="totAllLeverage">-</span></div>
-          </div>
-          <div class="mini-card">
-            <div class="mini-title">EDM</div>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div class="mini-card">
+              <div class="mini-title">EDM</div>
             <div class="mini-value"><span id="totEdmSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totEdmRevenue">-</span></div>
             <div class="mini-sub">Send count: <span id="totEdmSendCount">-</span></div>
@@ -549,7 +541,6 @@
   const btnNext = document.getElementById('btnNext');
   const btnToday = document.getElementById('btnToday');
 
-  const chipAll = document.getElementById('chipAll');
   const chipEDM = document.getElementById('chipEDM');
   const chipLMS = document.getElementById('chipLMS');
   const chipKAKAO = document.getElementById('chipKAKAO');
@@ -582,10 +573,6 @@
   const ytdLySendCountSub = document.getElementById('ytdLySendCountSub');
   const ytdLyLeverageSub  = document.getElementById('ytdLyLeverageSub');
 
-  const totAllSessions = document.getElementById('totAllSessions');
-  const totAllRevenue = document.getElementById('totAllRevenue');
-  const totAllSendCount = document.getElementById('totAllSendCount');
-  const totAllLeverage = document.getElementById('totAllLeverage');
   const totEdmSessions = document.getElementById('totEdmSessions');
   const totEdmRevenue = document.getElementById('totEdmRevenue');
   const totEdmSendCount = document.getElementById('totEdmSendCount');
@@ -689,7 +676,6 @@
   function getTextGroup(r){
     const fallbackYear = getFallbackYear(r);
     return extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
-      || extractGroupFromText((r && (r.send_id || '')) || '', fallbackYear)
       || extractGroupFromText((r && (r.term || '')) || '', fallbackYear)
       || null;
   }
@@ -717,19 +703,14 @@
   }
 
   function getSendKey(r){
+    const group = getRowGroup(r);
     const channel = String((r && (r.channel || '')) || '').trim();
-    const sendId = String((r && (r.send_id || '')) || '').trim();
-    if(sendId) return `${channel}||${sendId}`;
-
-    const campaign = String((r && (r.campaign || '')) || '').trim();
-    const term = String((r && (r.term || '')) || '').trim();
-    if(campaign) return `${channel}||C||${campaign}`;
-    if(term) return `${channel}||T||${term}`;
-    return `${channel}||UNGROUPED`;
+    if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
+    return `${channel}||${group.year}||${group.mmdd}`;
   }
 
   function countDistinctSends(rows){
-    return new Set((rows || []).map(getSendKey)).size;
+    return new Set((rows || []).map(getSendKey).filter(Boolean)).size;
   }
 
   function calcAvgLeverage(rows){
@@ -806,7 +787,7 @@
     return null;
   }
   function mmddOfRow(r){
-    return getRowMmdd(r) || mmddFromText(r.campaign) || mmddFromText(r.send_id) || mmddFromText(r.term) || '';
+    return getRowMmdd(r) || mmddFromText(r.campaign) || mmddFromText(r.term) || '';
   }
 
   function getOtherCampaignDateGroup(r){
@@ -840,7 +821,7 @@
 
   // ✅ 기본값
   let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
-  let CHANNEL = 'ALL';    // ALL | EDM | LMS | KAKAO
+  let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
 
   let RAW = null;         // {kpi:[], prod:[]}
   let KPI = [];
@@ -875,19 +856,17 @@
   }
 
   function setChipActive(){
-    [chipAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
-    if(CHANNEL==='ALL') chipAll.classList.add('active');
+    [chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
     if(CHANNEL==='EDM') chipEDM.classList.add('active');
     if(CHANNEL==='LMS') chipLMS.classList.add('active');
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
   }
 
   function toggleSections(){
-    const showAll = (CHANNEL==='ALL');
-    secEDM.style.display = (showAll || CHANNEL==='EDM') ? '' : 'none';
-    secLMS.style.display = (showAll || CHANNEL==='LMS') ? '' : 'none';
-    secKAKAO.style.display = (showAll || CHANNEL==='KAKAO') ? '' : 'none';
-    secOTHER.style.display = showAll ? '' : 'none';
+    secEDM.style.display = (CHANNEL==='EDM') ? '' : 'none';
+    secLMS.style.display = (CHANNEL==='LMS') ? '' : 'none';
+    secKAKAO.style.display = (CHANNEL==='KAKAO') ? '' : 'none';
+    secOTHER.style.display = 'none';
   }
 
   function periodLabel(){
@@ -918,7 +897,7 @@
     if(!RAW){ KPI=[]; return; }
     const qq = (q.value||'').trim().toLowerCase();
     KPI = (RAW.kpi||[]).filter(r=>{
-      if(CHANNEL!=='ALL' && r.channel!==CHANNEL) return false;
+      if(r.channel!==CHANNEL) return false;
       if(qq){
         const c = String(r.campaign||'').toLowerCase();
         const t = String(r.term||'').toLowerCase();
@@ -951,21 +930,14 @@
   function updateChannelTotals(){
     periodText.textContent = `· ${periodLabel()}`;
     if(!RAW || !RAW.kpi){
-      [totAllSessions, totAllRevenue, totAllSendCount, totAllLeverage,
-       totEdmSessions, totEdmRevenue, totEdmSendCount, totEdmLeverage,
+      [totEdmSessions, totEdmRevenue, totEdmSendCount, totEdmLeverage,
        totLmsSessions, totLmsRevenue, totLmsSendCount, totLmsLeverage,
        totKakaoSessions, totKakaoRevenue, totKakaoSendCount, totKakaoLeverage].forEach(el=>{ if(el) el.textContent='-'; });
       return;
     }
-    const all = summarizeOwnedRows(RAW.kpi);
     const edm = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='EDM'));
     const lms = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='LMS'));
     const kakao = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='KAKAO'));
-
-    totAllSessions.textContent = fmt(all.sessions);
-    totAllRevenue.textContent = fmtMoney(all.revenue);
-    totAllSendCount.textContent = fmt(all.send_count);
-    totAllLeverage.textContent = fmtRatio(all.avg_leverage);
 
     totEdmSessions.textContent = fmt(edm.sessions);
     totEdmRevenue.textContent = fmtMoney(edm.revenue);
@@ -1268,9 +1240,6 @@
   }
 
   function getSelectedSendCount(sel, rows){
-    if(sel && sel.type === 'other-group'){
-      return rows.length ? 1 : 0;
-    }
     return countDistinctSends(rows);
   }
 
@@ -1374,7 +1343,8 @@
       cur.purchases += Number(r.purchases || 0);
       cur.revenue += Number(r.revenue || 0);
       cur.items_purchased += Number(r.items_purchased || 0);
-      cur.send_keys.add(getSendKey(r));
+      const sendKey = getSendKey(r);
+      if(sendKey) cur.send_keys.add(sendKey);
       if(!cur.message_title && (r.message_title || r.title)) cur.message_title = r.message_title || r.title || '';
       if(!cur.message_body && (r.message_body || r.content)) cur.message_body = r.message_body || r.content || '';
     }
@@ -1823,8 +1793,8 @@
     const thisAgg = await loadAgg(thisStart, thisEnd);
     const prevAgg = await loadAgg(prevStart, prevEnd);
 
-    const thisRows = (CHANNEL==='ALL') ? (thisAgg.kpi||[]) : (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
-    const prevRows = (CHANNEL==='ALL') ? (prevAgg.kpi||[]) : (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
+    const thisRows = (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
+    const prevRows = (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
 
     const thisSum = summarizeOwnedRows(thisRows);
     const prevSum = summarizeOwnedRows(prevRows);
@@ -1930,30 +1900,17 @@
     loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
   });
 
-  // ✅ 채널 클릭 시 디폴트 VIEW = WEEK (ALL은 강제하지 않음)
+  // ✅ 채널 클릭 시 디폴트 VIEW = WEEK
   async function onChannelChange(ch){
     CHANNEL = ch;
     setChipActive();
     toggleSections();
 
-    if(CHANNEL !== 'ALL'){
-      VIEW = 'WEEK';
-      setViewActive();
-      const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1))));
-      datePicker.value = d;
-      await loadWeekByDate(d);
-    }else{
-      // ALL은 현재 VIEW 유지 + 현재 값 기준 리로드
-      if(VIEW==='RANGE'){
-        await loadRange(startPicker.value, endPicker.value);
-      }else if(VIEW==='WEEK'){
-        const d = clampToAvailable(datePicker.value);
-        await loadWeekByDate(d);
-      }else{
-        const d = clampToAvailable(datePicker.value);
-        await loadDaily(d);
-      }
-    }
+    VIEW = 'WEEK';
+    setViewActive();
+    const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1))));
+    datePicker.value = d;
+    await loadWeekByDate(d);
 
     filterKPI();
     renderCampaignButtons();
@@ -1963,7 +1920,6 @@
     await computeYTD();
   }
 
-  chipAll.addEventListener('click', ()=>onChannelChange('ALL'));
   chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
   chipLMS.addEventListener('click', ()=>onChannelChange('LMS'));
   chipKAKAO.addEventListener('click', ()=>onChannelChange('KAKAO'));
