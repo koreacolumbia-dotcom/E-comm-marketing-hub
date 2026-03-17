@@ -7,6 +7,7 @@ import json
 import html
 import urllib3
 import requests
+import time
 import pandas as pd
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
@@ -77,6 +78,18 @@ NAVER_BLOCKED_CAFE_MENU_KEYS = {
     ("31116705", "9"),
 }
 AMBIGUOUS_BRANDS = {"K2", "디스커버리", "데상트", "나이키", "내셔널지오그래픽"}
+
+BRAND_CONTEXT_TERMS: Dict[str, List[str]] = {
+    "K2": ["등산", "산행", "아웃도어", "등산화", "등산복", "트레킹", "하이킹", "방수", "고어텍스"],
+    "디스커버리": ["등산", "산행", "아웃도어", "패딩", "플리스", "바람막이", "자켓", "트레킹"],
+    "데상트": ["등산", "산행", "아웃도어", "러닝", "트레일", "바람막이", "자켓", "하이킹"],
+    "나이키": ["등산", "산행", "아웃도어", "트레일", "하이킹", "트레킹", "러닝화", "등산화"],
+    "내셔널지오그래픽": ["등산", "산행", "아웃도어", "패딩", "플리스", "바람막이", "자켓", "트레킹"],
+}
+
+NAVER_DETAIL_CACHE: Dict[str, tuple[str, datetime | None, str, str, str]] = {}
+NAVER_REJECT_LOGS: List[dict] = []
+NAVER_LAST_RUN_META: Dict[str, object] = {}
 
 BRAND_LIST = [
     "컬럼비아", "노스페이스", "파타고니아", "아크테릭스", "블랙야크",
@@ -245,16 +258,89 @@ def _parse_naver_postdate(postdate: str) -> datetime | None:
     return None
 
 
+
+def _get_brand_context_terms(brand: str) -> List[str]:
+    return BRAND_CONTEXT_TERMS.get(brand, NAVER_CONTEXT_TERMS)
+
+
+def _combined_has_context(text: str, brand: str) -> bool:
+    low = (text or "").lower()
+    return any(ctx.lower() in low for ctx in _get_brand_context_terms(brand))
+
+
+def _is_within_days(dt: datetime | None, days: int) -> bool:
+    if dt is None:
+        return False
+    cutoff = datetime.now(KST) - timedelta(days=max(1, int(days)))
+    return dt >= cutoff
+
+
+def _get_with_retry(url: str, *, headers=None, params=None, timeout=20, retries=3):
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            resp = SESSION.get(url, headers=headers, params=params, timeout=timeout)
+            if resp.status_code not in (429, 500, 502, 503, 504):
+                return resp
+            time.sleep(1.0 * (attempt + 1))
+        except Exception as e:
+            last_exc = e
+            time.sleep(1.0 * (attempt + 1))
+    if last_exc:
+        raise last_exc
+    raise RuntimeError(f"request failed: {url}")
+
+
+def _extract_naver_article_detail_cached(link: str, cafeurl: str = "", cafename: str = "") -> tuple[str, datetime | None, str, str, str]:
+    key = _canonicalize_link(link).rstrip("/")
+    if key and key in NAVER_DETAIL_CACHE:
+        return NAVER_DETAIL_CACHE[key]
+    result = _extract_naver_article_detail(link, cafeurl, cafename)
+    if key:
+        NAVER_DETAIL_CACHE[key] = result
+    return result
+
+
+def _naver_dedupe_key(brand: str, link: str, title: str) -> tuple:
+    meta = _extract_naver_article_meta(link)
+    cafe_id = meta.get("cafe_id") or ""
+    article_id = meta.get("article_id") or ""
+    if cafe_id and article_id:
+        return (brand, cafe_id, article_id)
+    return (brand, _canonicalize_link(link).rstrip("/"), re.sub(r"\s+", " ", title or "").strip())
+
+
+def _naver_log_reject(item: dict, brand: str, query: str, reason: str, title: str, content: str, link: str, cafename: str, cafeurl: str, dt: datetime | None = None):
+    NAVER_REJECT_LOGS.append(
+        {
+            "brand": brand,
+            "query": query,
+            "reason": reason,
+            "title": title,
+            "content_preview": (content or "")[:250],
+            "link": link,
+            "cafename": cafename,
+            "cafeurl": cafeurl,
+            "postdate": (dt.astimezone(KST).strftime("%Y-%m-%d %H:%M") if isinstance(dt, datetime) else ""),
+        }
+    )
+
+
 def build_naver_queries() -> List[Tuple[str, str]]:
     queries: List[Tuple[str, str]] = []
     seen = set()
     for brand in BRAND_LIST:
-        query = str(brand).strip()
-        key = (brand, query)
-        if not query or key in seen:
-            continue
-        seen.add(key)
-        queries.append(key)
+        seed_queries = [str(brand).strip()]
+        if brand in AMBIGUOUS_BRANDS:
+            seed_queries.extend(f"{brand}{suffix}" for suffix in NAVER_QUERY_SUFFIXES if suffix)
+
+        for query in seed_queries:
+            query = str(query).strip()
+            key = (brand, query)
+            if not query or key in seen:
+                continue
+            seen.add(key)
+            queries.append(key)
     return queries
 
 
@@ -370,7 +456,7 @@ def _extract_naver_article_detail(link: str, cafeurl: str = "", cafename: str = 
             continue
         seen_fetch.add(fetch_url)
         try:
-            resp = SESSION.get(fetch_url, timeout=20)
+            resp = _get_with_retry(fetch_url, timeout=20)
             if resp.status_code != 200:
                 continue
             final_url = _canonicalize_link(resp.url or fetch_url)
@@ -380,7 +466,7 @@ def _extract_naver_article_detail(link: str, cafeurl: str = "", cafename: str = 
             iframe = soup.select_one("iframe#cafe_main")
             if iframe and iframe.get("src"):
                 iframe_url = urljoin(final_url, iframe.get("src"))
-                iresp = SESSION.get(iframe_url, timeout=20)
+                iresp = _get_with_retry(iframe_url, timeout=20)
                 if iresp.status_code == 200:
                     final_url = _canonicalize_link(iresp.url or iframe_url)
                     html_candidates.append(iresp.text or "")
@@ -1101,11 +1187,26 @@ def export_portal(
 
     naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
     if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
-        naver_subtitle += f" · Query mode: brand only · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)}"
+        mode_label = str((NAVER_LAST_RUN_META or {}).get("query_mode", "brand only"))
+        raw_total = int((NAVER_LAST_RUN_META or {}).get("raw_total", 0))
+        kept_total = int((NAVER_LAST_RUN_META or {}).get("kept_total", len(naver_posts)))
+        detail_cache_size = int((NAVER_LAST_RUN_META or {}).get("detail_cache_size", 0))
+        naver_subtitle += f" · Query mode: {mode_label} · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)} · Raw: {raw_total:,} → Kept: {kept_total:,} · Detail cache: {detail_cache_size:,}"
+
+    naver_reason_totals = (NAVER_LAST_RUN_META or {}).get("reason_totals", {}) or {}
+    if naver_reason_totals:
+        reason_line = (
+            f"drop preview={int(naver_reason_totals.get('brand_miss_preview',0)):,}, "
+            f"brand={int(naver_reason_totals.get('brand_miss',0)):,}, "
+            f"context={int(naver_reason_totals.get('ambiguous_no_context',0)):,}, "
+            f"old={int(naver_reason_totals.get('out_of_range',0)):,}, "
+            f"dup={int(naver_reason_totals.get('dup',0)):,}"
+        )
+        naver_warning = f"{naver_warning} | {reason_line}" if naver_warning else reason_line
 
     naver_panel = _source_panel_html(
         panel_id="panel-naver",
-        title="네이버 카페 · 브랜드 언급 (Search API 결과)",
+        title="네이버 카페 · 브랜드 언급 / 필터링 결과",
         subtitle=naver_subtitle,
         summary_html=_summary_table_html(naver_summary_df),
         weekly_html=_weekly_html(naver_meta, "NAVER Cafe Search API (수집시각 기준)"),
@@ -1480,11 +1581,15 @@ def export_portal(dc_posts: List[Post], dc_brand_map: Dict[str, List[dict]], dc_
 
     naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
     if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
-        naver_subtitle += f" · Query mode: brand only · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)}"
+        mode_label = str((NAVER_LAST_RUN_META or {}).get("query_mode", "brand only"))
+        raw_total = int((NAVER_LAST_RUN_META or {}).get("raw_total", 0))
+        kept_total = int((NAVER_LAST_RUN_META or {}).get("kept_total", len(naver_posts)))
+        detail_cache_size = int((NAVER_LAST_RUN_META or {}).get("detail_cache_size", 0))
+        naver_subtitle += f" · Query mode: {mode_label} · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)} · Raw: {raw_total:,} → Kept: {kept_total:,} · Detail cache: {detail_cache_size:,}"
 
     naver_panel = _source_panel_html(
         panel_id="panel-naver",
-        title="네이버 카페 · 브랜드 언급 (Search API 결과)",
+        title="네이버 카페 · 브랜드 언급 / 필터링 결과",
         subtitle=naver_subtitle,
         summary_html=_summary_table_html(naver_summary_df),
         weekly_html=_weekly_html(naver_meta, "NAVER Cafe (게시글 작성일 기준)"),
