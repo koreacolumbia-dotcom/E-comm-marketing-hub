@@ -1030,6 +1030,13 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 </head>
 
 <body>
+  <div id="errorBanner" class="hidden mx-auto mt-6 max-w-[1280px] px-4 md:px-8">
+    <div class="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700 shadow-sm">
+      <div class="text-xs tracking-[0.28em] uppercase font-black mb-1">Data Error</div>
+      <div id="errorBannerText">VOC 데이터를 불러오지 못했습니다.</div>
+    </div>
+  </div>
+
   <div id="overlay" class="overlay">
     <div class="flex flex-col items-center gap-3">
       <div class="spinner"></div>
@@ -1256,6 +1263,12 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       const o = document.getElementById("overlay");
       if (o) o.classList.remove("show");
     }
+    function showError(msg){
+      const wrap = document.getElementById("errorBanner");
+      const text = document.getElementById("errorBannerText");
+      if (text) text.textContent = msg || "VOC 데이터를 불러오지 못했습니다.";
+      if (wrap) wrap.classList.remove("hidden");
+    }
     function runWithOverlay(msg, fn){
       try{
         showOverlay(msg);
@@ -1289,6 +1302,22 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       kst.setDate(kst.getDate() + offsetDays);
       return `${kst.getFullYear()}-${pad2(kst.getMonth()+1)}-${pad2(kst.getDate())}`;
     }
+    async function fetchJsonOrThrow(urls){
+      const candidates = Array.isArray(urls) ? urls : [urls];
+      let lastError = null;
+      for (const url of candidates){
+        try{
+          const res = await fetch(url, {cache:"no-store"});
+          if (!res.ok){
+            throw new Error(`HTTP ${res.status} while loading ${url}`);
+          }
+          return await res.json();
+        }catch(err){
+          lastError = err;
+        }
+      }
+      throw lastError || new Error(`Failed to load JSON from candidates: ${candidates.join(", ")}`);
+    }
     function parseDate10(s){
       if (!s) return null;
       const d10 = String(s).slice(0,10);
@@ -1301,8 +1330,6 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       document.querySelectorAll(".tab-btn").forEach(b=>{
         b.classList.toggle("active", b.getAttribute("data-tab") === tab);
       });
-      renderAll();
-    }
       renderAll();
     }
 
@@ -1812,13 +1839,31 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     async function boot(){
       runWithOverlay("Loading VOC data...", async () => {
+        try{
         const [meta, reviews] = await Promise.all([
-          fetch("./data/meta.json", {cache:"no-store"}).then(r => r.json()),
-          fetch("./data/reviews.json", {cache:"no-store"}).then(r => r.json()),
+          fetchJsonOrThrow([
+            "./data/meta.json",
+            "./site/data/meta.json",
+            "./reports/voc_crema/data/meta.json",
+            "../data/meta.json",
+          ]),
+          fetchJsonOrThrow([
+            "./data/reviews.json",
+            "./site/data/reviews.json",
+            "./reports/voc_crema/data/reviews.json",
+            "../data/reviews.json",
+          ]),
         ]);
 
-        META = meta;
-        REVIEWS = (reviews && reviews.reviews) ? reviews.reviews : [];
+        META = meta || {};
+        REVIEWS = Array.isArray(reviews?.reviews) ? reviews.reviews : [];
+
+        if (!META.updated_at){
+          throw new Error("meta.json is missing updated_at");
+        }
+        if (!Array.isArray(REVIEWS) || REVIEWS.length === 0){
+          throw new Error("reviews.json contains no review rows");
+        }
 
         const dayInput = document.getElementById("daySelect");
         if (dayInput){
@@ -1832,6 +1877,10 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         }
 
         renderAll();
+        }catch(e){
+          console.error(e);
+          showError(`VOC 데이터를 불러오지 못했습니다. ${e?.message || ""}`.trim());
+        }
       });
     }
 
@@ -1849,9 +1898,13 @@ def load_html_template(cli_template: Optional[str]) -> str:
         if p.exists():
             return p.read_text(encoding="utf-8")
 
-    tpl = SITE_DIR / "template.html"
-    if tpl.exists():
-        return tpl.read_text(encoding="utf-8")
+    for tpl in [
+        SITE_DIR / "template.html",
+        ROOT / "templates" / "voc_index.html",
+        ROOT / "templates" / "voc_dashboard.html",
+    ]:
+        if tpl.exists():
+            return tpl.read_text(encoding="utf-8")
 
     return DEFAULT_HTML_TEMPLATE
 
