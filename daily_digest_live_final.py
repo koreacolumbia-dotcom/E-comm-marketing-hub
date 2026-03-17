@@ -1,36 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Columbia Daily Digest — Live GA4 Data (Google Analytics Data API) + BigQuery PDP Trend
-+ ✅ Compare UI (A date/period vs B date/period) — **NO extra GA/BQ cost**
-+ ✅ File-based Data Cache (bundle JSON) — regenerate HTML without re-query
-+ ✅ Expensive part cache (BigQuery PDP Trend) — reuses cached JSON
+Columbia Daily Digest live report builder.
 
-✅ PATCH (이번 요청 반영)
-1) KPI Sessions == Channel Snapshot Total Sessions **항상 일치**
-   - Total row는 무조건 Overall KPI(current/prev/yoy)로 “강제” 세팅 (권위 데이터)
-2) Channel Snapshot의 Paid AD == Paid Detail Total (sessions / revenue) **항상 일치**
-   - Channel Snapshot을 Looker CASE(샘플.rtf) 기반 source/medium + campaign 로직으로 집계
-   - Paid Detail도 동일 베이스에서 Paid AD만 필터 → sub 분해
-   - Paid Detail Total은 Paid AD row 값을 “강제” 세팅(세션/매출)
-3) Paid Detail Total mismatch 원인 제거
-   - 기존처럼 “표에 보여줄 일부(sub top)”만으로 Total 계산하지 않음 (전체 Paid AD 합으로 계산)
-4) Hub의 Range A/B “구간비교” UI/기능 **아예 제거**
-5) Channel Snapshot / Paid Detail 테이블에서 DoD/YoY 컬럼이 잘리는 문제 완화
-   - td padding 축소, 마지막 컬럼 우측 padding 확대, table-auto + whitespace-nowrap 적용
-6) Best Sellers vs Rising Products 중복 완화
-   - Best Sellers: itemsPurchased 상위
-   - Rising: 전기간 대비 qty 증가(Δ) 기준 + **Best Sellers SKU는 제외** + prev>0 조건(“올라오는” 성격)
-   - (원하면 prev==0 신규 급등도 포함하도록 옵션화 가능)
+Features
+- GA4 Data API based daily / weekly digest
+- BigQuery PDP trend enrichment
+- Bundle JSON cache for rebuilding HTML without re-query
+- Client-side compare UI using cached data only
 
-How it works (cost-min)
-- Each report build writes a compact data bundle:
-    reports/daily_digest/data/daily/YYYY-MM-DD.json
-    reports/daily_digest/data/weekly/END_YYYY-MM-DD.json
-- Report HTML includes a “Compare” bar.
-  When you compare, the browser fetches these cached JSON files (static),
-  then computes diffs client-side. ✅ No GA4 API / BigQuery calls.
-- If bundle JSON exists, script can rebuild HTML from bundle without querying.
+Key behavior
+1. KPI Sessions always matches Channel Snapshot Total Sessions.
+2. Channel Snapshot Paid AD always matches Paid Detail Total.
+3. Paid Detail Total is computed from the full Paid AD base, not only visible rows.
+4. Compare UI works from cached JSON, so no extra GA4 / BigQuery cost is added.
+5. Trend cards, search cards, and table layouts are rendered for email-friendly HTML.
 
 Env (new)
 - DAILY_DIGEST_USE_DATA_CACHE=true|false   (default true)
@@ -94,7 +78,7 @@ OUT_DIR = os.getenv("DAILY_DIGEST_OUT_DIR", os.path.join("reports", "daily_diges
 DATA_DIR = os.getenv("DAILY_DIGEST_DATA_DIR", os.path.join(OUT_DIR, "data")).strip()
 DAYS_TO_BUILD = int(os.getenv("DAILY_DIGEST_BUILD_DAYS", "14"))
 
-IMAGE_XLS_PATH = os.getenv("DAILY_DIGEST_IMAGE_XLS_PATH", "상품코드별 이미지.xlsx").strip()
+IMAGE_XLS_PATH = os.getenv("DAILY_DIGEST_IMAGE_XLS_PATH", "product_code_image.xlsx").strip()
 MISSING_SKU_OUT = os.getenv("DAILY_DIGEST_MISSING_SKU_OUT", "missing_image_skus.csv")
 PLACEHOLDER_IMG = os.getenv("DAILY_DIGEST_PLACEHOLDER_IMG", "").strip()
 
@@ -119,15 +103,15 @@ YOY_WEEKLY_END_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_WEEKLY_END", "").strip()  
 # Cost-saving: if HTML exists for same date, skip all queries and keep HTML as-is
 SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "true").strip().lower() in ("1", "true", "yes", "y")
 
-# ✅ New: hub index write control (keep your own static index.html)
+# Hub index write control
 SKIP_HUB_WRITE = os.getenv("DAILY_DIGEST_SKIP_HUB_WRITE", "true").strip().lower() in ("1", "true", "yes", "y")
 
-# ✅ New: data cache (bundle JSON)
+# Data cache (bundle JSON)
 USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
-# Paid detail (custom) — fixed order / labels
+# Paid detail fixed order / labels
 PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
 
 TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
@@ -173,7 +157,7 @@ def fmt_currency_krw(n) -> str:
     try:
         return f"₩{int(round(float(n))):,}"
     except Exception:
-        return "₩-"
+        return "-"
 
 def fmt_pct(p, digits=1) -> str:
     try:
@@ -638,7 +622,7 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
 
 
 # =========================
-# Looker CASE rules (샘플.rtf) — source/medium + campaign
+# Looker CASE rules based on sample.rtf source/medium + campaign logic
 # =========================
 def _rx(p: str):
     return re.compile(p, re.IGNORECASE)
@@ -647,7 +631,7 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     sm = (source_medium or "").strip()
     cp = (campaign or "").strip()
 
-    # Order is 중요한 “CASE 순서” (샘플.rtf)
+    # Order matters here to match the Looker CASE evaluation order.
     if _rx(r".*(instagram).*").search(sm) and _rx(r".*(story).*").search(sm):
         return "SNS"
     if _rx(r".*(benz).*").search(sm):
@@ -671,8 +655,8 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     if _rx(r".*(kakao_fridnstalk).*").search(sm):
         return "Owned"
 
-    # 샘플.rtf에서 mkt/_bd 캠페인 조건
-    if _rx(r".*(mkt|_bd).*").search(sm) or _rx(r".*(mkt|_bd).*").search(cp):
+    # Awareness campaign patterns from sample.rtf.
+    if _rx(r".*(mkt|_bd|\[bd).*").search(sm) or _rx(r".*(mkt|_bd|\[bd).*").search(cp):
         return "Awareness"
 
     if _rx(r".*(igshopping).*").search(sm):
@@ -693,7 +677,7 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
         return "Awareness"
     if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(discovery).*").search(cp):
         return "Awareness"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(sa|ss).*").search(cp):
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(sa|ss|search).*").search(cp):
         return "Paid AD"
     if _rx(r".*google\s*/\s*cpc.*").search(sm):
         return "Paid AD"
@@ -806,7 +790,7 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 
 
 # =========================
-# Channel Snapshot — Looker CASE 기반 (sessions/revenue 합치기)
+# Channel Snapshot based on Looker CASE rules
 # =========================
 def get_channel_snapshot_3way(
     client: BetaAnalyticsDataClient,
@@ -814,9 +798,8 @@ def get_channel_snapshot_3way(
     overall: Dict[str, Dict[str, float]],
 ) -> pd.DataFrame:
     """
-    ✅ FIX 핵심
-    - Looker CASE(샘플.rtf) 기준으로 bucket 분류
-    - Total row는 Overall KPI를 “강제”로 사용 → KPI Sessions와 100% 동일
+    Build Channel Snapshot using the Looker CASE bucket logic.
+    The Total row is always forced from the authoritative overall KPI.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
@@ -834,7 +817,7 @@ def get_channel_snapshot_3way(
             df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
             return df
         except Exception:
-            # fallback: campaign dimension 미지원 케이스 대비
+            # Fallback when sessionCampaignName is unavailable.
             dims2 = ["sessionSourceMedium"]
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
             if df.empty:
@@ -868,6 +851,49 @@ def get_channel_snapshot_3way(
 
     m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
 
+    oc = overall.get("current", {}) or {}
+    op = overall.get("prev", {}) or {}
+    oy = overall.get("yoy", {}) or {}
+
+    total_sessions_cur = float(oc.get("sessions", 0) or 0)
+    total_sessions_prev = float(op.get("sessions", 0) or 0)
+    total_sessions_yoy = float(oy.get("sessions", 0) or 0)
+    total_orders_cur = float(oc.get("transactions", 0) or 0)
+    total_orders_prev = float(op.get("transactions", 0) or 0)
+    total_orders_yoy = float(oy.get("transactions", 0) or 0)
+    total_revenue_cur = float(oc.get("purchaseRevenue", 0) or 0)
+    total_revenue_prev = float(op.get("purchaseRevenue", 0) or 0)
+    total_revenue_yoy = float(oy.get("purchaseRevenue", 0) or 0)
+
+    canonical_buckets = ["Organic", "Paid AD", "Owned", "Awareness", "SNS", "Other"]
+    numeric_cols = [
+        "sessions_cur", "transactions_cur", "revenue_cur",
+        "sessions_prev", "transactions_prev", "revenue_prev",
+        "sessions_yoy", "transactions_yoy", "revenue_yoy",
+    ]
+    if m.empty:
+        m = pd.DataFrame({"bucket": canonical_buckets})
+    for col in numeric_cols:
+        if col not in m.columns:
+            m[col] = 0.0
+    missing = [b for b in canonical_buckets if b not in set(m["bucket"].tolist())]
+    if missing:
+        m = pd.concat([m, pd.DataFrame({"bucket": missing})], ignore_index=True, sort=False)
+    m[numeric_cols] = m[numeric_cols].fillna(0.0)
+    m = m.groupby("bucket", as_index=False)[numeric_cols].sum().set_index("bucket")
+
+    non_other = [b for b in canonical_buckets if b != "Other"]
+    m.loc["Other", "sessions_cur"] = max(total_sessions_cur - float(m.loc[non_other, "sessions_cur"].sum()), 0.0)
+    m.loc["Other", "sessions_prev"] = max(total_sessions_prev - float(m.loc[non_other, "sessions_prev"].sum()), 0.0)
+    m.loc["Other", "sessions_yoy"] = max(total_sessions_yoy - float(m.loc[non_other, "sessions_yoy"].sum()), 0.0)
+    m.loc["Other", "transactions_cur"] = max(total_orders_cur - float(m.loc[non_other, "transactions_cur"].sum()), 0.0)
+    m.loc["Other", "transactions_prev"] = max(total_orders_prev - float(m.loc[non_other, "transactions_prev"].sum()), 0.0)
+    m.loc["Other", "transactions_yoy"] = max(total_orders_yoy - float(m.loc[non_other, "transactions_yoy"].sum()), 0.0)
+    m.loc["Other", "revenue_cur"] = max(total_revenue_cur - float(m.loc[non_other, "revenue_cur"].sum()), 0.0)
+    m.loc["Other", "revenue_prev"] = max(total_revenue_prev - float(m.loc[non_other, "revenue_prev"].sum()), 0.0)
+    m.loc["Other", "revenue_yoy"] = max(total_revenue_yoy - float(m.loc[non_other, "revenue_yoy"].sum()), 0.0)
+    m = m.reset_index()
+
     m["dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     m["yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
 
@@ -884,20 +910,12 @@ def get_channel_snapshot_3way(
     out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
     out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
 
-    # ✅ Total row는 KPI(Overall)로 강제
-    oc = overall.get("current", {}) or {}
-    op = overall.get("prev", {}) or {}
-    oy = overall.get("yoy", {}) or {}
-
-    total_sessions_cur = float(oc.get("sessions", 0) or 0)
-    total_sessions_prev = float(op.get("sessions", 0) or 0)
-    total_sessions_yoy = float(oy.get("sessions", 0) or 0)
-
+    # Total row is forced from overall KPI.
     total = pd.DataFrame([{
         "bucket": "Total",
         "sessions": total_sessions_cur,
-        "transactions": float(oc.get("transactions", 0) or 0),
-        "purchaseRevenue": float(oc.get("purchaseRevenue", 0) or 0),
+        "transactions": total_orders_cur,
+        "purchaseRevenue": total_revenue_cur,
         "rev_dod": pct_change(total_sessions_cur, total_sessions_prev),
         "rev_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
     }])
@@ -907,7 +925,7 @@ def get_channel_snapshot_3way(
 
 
 # =========================
-# Paid Detail — Channel Snapshot과 동일 베이스(Paid AD)에서 sub 분해
+# Paid Detail split from the same Paid AD base as Channel Snapshot
 # =========================
 def get_paid_detail_3way(
     client: BetaAnalyticsDataClient,
@@ -915,9 +933,8 @@ def get_paid_detail_3way(
     paid_ad_totals: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> pd.DataFrame:
     """
-    ✅ FIX
-    - Paid Detail Total이 Channel Snapshot Paid AD와 항상 일치하도록
-    - DoD/YoY는 Sessions 기준(표 컬럼 의미 일관)
+    Keep Paid Detail Total aligned with Channel Snapshot Paid AD.
+    DoD / YoY are session based.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "purchaseRevenue"]
@@ -968,7 +985,7 @@ def get_paid_detail_3way(
     merged["dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     merged["yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
 
-    # 표에 반드시 보여줄 core label 보강
+    # Ensure core labels always exist in the visible table.
     core = list(PAID_DETAIL_SOURCES)
     for c in core:
         if c not in set(merged["sub"].tolist()):
@@ -979,7 +996,7 @@ def get_paid_detail_3way(
                 "dod": 0.0, "yoy": 0.0
             }])], ignore_index=True)
 
-    # 표에선 core + others(top)만 노출, 하지만 Total은 “전체 Paid AD 합”으로 계산
+    # Show core rows plus top "others", but compute Total from the full Paid AD base.
     others = merged[~merged["sub"].isin(core)].copy()
     others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False]).head(6)
 
@@ -988,9 +1005,9 @@ def get_paid_detail_3way(
         others.assign(_ord=999),
     ], ignore_index=True)
 
-    # ✅ Total 강제 (Channel Snapshot Paid AD와 동일)
-    # current는 Channel Snapshot Paid AD 값을 우선 사용하고,
-    # prev / yoy raw 값이 없으면 merged 합계로 fallback 해서 100% 고정 버그 방지
+    # Force Total to match Channel Snapshot Paid AD.
+    # Use Channel Snapshot current values first, then fallback to merged sums.
+    # If prev / yoy snapshot values are unavailable, fallback to merged sums.
     merged_cur_s = float(merged["sessions_cur"].sum()) if not merged.empty else 0.0
     merged_prev_s = float(merged["sessions_prev"].sum()) if not merged.empty else 0.0
     merged_yoy_s = float(merged["sessions_yoy"].sum()) if not merged.empty else 0.0
@@ -1039,7 +1056,7 @@ def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFr
 
     dims = ["sessionSourceMedium"]
     mets = ["sessions", "purchaseRevenue"]
-    # (기존 유지: Paid AD 그룹을 sessionDefaultChannelGroup으로 잡는 부분은 남겨둠)
+    # Keep the legacy fallback that maps Paid AD from sessionDefaultChannelGroup.
     filt = ga_filter_in("sessionDefaultChannelGroup", ["Paid Search", "Paid Social", "Display"])
     order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="purchaseRevenue"), desc=True)]
 
@@ -1130,6 +1147,7 @@ def combined_index_svg_monthly(
     series: List[List[float]],
     colors: List[str],
     labels: List[str],
+    footer_label: str = "Index",
     width=980, height=280,
     pad_l=46, pad_r=16, pad_t=18, pad_b=62,
 ) -> str:
@@ -1190,18 +1208,47 @@ def combined_index_svg_monthly(
     legend_items = []
     for i, lab in enumerate(labels):
         legend_items.append(f"<g transform='translate({pad_l + i*165},8)'><line x1='0' y1='8' x2='18' y2='8' stroke='{colors[i]}' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>{lab}</text></g>")
-    return f"<svg width='100%' viewBox='0 0 {width} {height}' preserveAspectRatio='none' style='display:block;'>{''.join(weekend_marks)}{''.join(grid)}{axes}{''.join(polys)}{''.join(dots)}{''.join(ylabels_svg)}{''.join(xlabels_svg)}<text x='{pad_l}' y='{height-8}' font-size='10' fill='#94a3b8'>Index (D-30 start = 100)</text>{''.join(legend_items)}</svg>"
+    return f"<svg width='100%' viewBox='0 0 {width} {height}' preserveAspectRatio='none' style='display:block;'>{''.join(weekend_marks)}{''.join(grid)}{axes}{''.join(polys)}{''.join(dots)}{''.join(ylabels_svg)}{''.join(xlabels_svg)}<text x='{pad_l}' y='{height-8}' font-size='10' fill='#94a3b8'>{footer_label}</text>{''.join(legend_items)}</svg>"
 
-def trend_svg_from_series(series: dict) -> str:
-    x = series.get("x", [])
-    axis_dates = [parse_yyyy_mm_dd(d) for d in series.get("dates", [])]
-    if not x or len(x) != 30 or not axis_dates or any(d is None for d in axis_dates):
-        fallback_dates = [dt.date.today() - dt.timedelta(days=29-i) for i in range(30)]
-        return combined_index_svg_monthly(fallback_dates, [d.strftime('%m/%d') for d in fallback_dates], [[100]*30,[100]*30,[100]*30], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
-    s = index_series([float(v) for v in series.get("sessions", [])])
-    r = index_series([float(v) for v in series.get("revenue", [])])
-    c = index_series([float(v) for v in series.get("cvr", [])])
-    return combined_index_svg_monthly(axis_dates, x, [s, r, c], ["#0055a5","#16a34a","#c2410c"], ["Sessions","Revenue","CVR"])
+def trend_svg_from_series(series: dict, days: int = 30) -> str:
+    raw_dates = [parse_yyyy_mm_dd(d) for d in series.get("dates", [])]
+    raw_sessions = [float(v) for v in series.get("sessions", [])]
+    raw_revenue = [float(v) for v in series.get("revenue", [])]
+    raw_cvr = [float(v) for v in series.get("cvr", [])]
+    available = min(len(raw_dates), len(raw_sessions), len(raw_revenue), len(raw_cvr))
+    days = max(1, int(days or 30))
+    if available <= 0 or any(d is None for d in raw_dates[:available]):
+        fallback_dates = [dt.date.today() - dt.timedelta(days=days - 1 - i) for i in range(days)]
+        base = [[100] * days, [100] * days, [100] * days]
+        return combined_index_svg_monthly(
+            fallback_dates,
+            [d.strftime('%m/%d') for d in fallback_dates],
+            base,
+            ["#0055a5", "#16a34a", "#c2410c"],
+            ["Sessions", "Revenue", "CVR"],
+            footer_label=f"Index (D-{days} start = 100)",
+        )
+
+    use_days = min(days, available)
+    axis_dates = [d for d in raw_dates[available - use_days:available] if d is not None]
+    sessions = raw_sessions[available - use_days:available]
+    revenue = raw_revenue[available - use_days:available]
+    cvr = raw_cvr[available - use_days:available]
+    return combined_index_svg_monthly(
+        axis_dates,
+        [d.strftime('%m/%d') for d in axis_dates],
+        [index_series(sessions), index_series(revenue), index_series(cvr)],
+        ["#0055a5", "#16a34a", "#c2410c"],
+        ["Sessions", "Revenue", "CVR"],
+        footer_label=f"Index (D-{use_days} start = 100)",
+    )
+
+def build_trend_svg_map(series: dict) -> Dict[str, str]:
+    return {
+        "7d": trend_svg_from_series(series, days=7),
+        "14d": trend_svg_from_series(series, days=14),
+        "1m": trend_svg_from_series(series, days=30),
+    }
 
 
 # =========================
@@ -1235,7 +1282,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
     top["qty"] = top["itemsPurchased"]
     skus = [str(s).strip() for s in top["itemId"].tolist() if str(s).strip()]
 
-    # ✅ Best Sellers 카드에 Views 수치 노출
+    # Fetch views for the Best Sellers cards.
     views_df = _get_item_views_best_effort(client, start, end, skus)
     if views_df.empty:
         top["views"] = 0.0
@@ -1289,7 +1336,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
 
 
 # =========================
-# Rising Products (Best Sellers와 겹침 완화)
+# Rising Products
 # =========================
 def _get_item_views_best_effort(
     client: BetaAnalyticsDataClient,
@@ -1358,10 +1405,8 @@ def get_rising_products(
     exclude_skus: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
-    ✅ Rising 정의(현재 구현)
-    - prev 대비 qty 증가(Δ) 큰 상품
-    - prev > 0 (완전 신규 폭증 대신 “올라오는” 성격)
-    - Best Sellers SKU는 제외(겹침 완화)
+    Rising products are items with positive quantity growth vs the previous period.
+    Items with prev == 0 are excluded, and Best Sellers SKUs are also excluded.
     """
     exclude = set([str(x).strip() for x in (exclude_skus or []) if str(x).strip()])
     cur_start, cur_end = (w.cur_end, w.cur_end) if w.mode == "daily" else (w.cur_start, w.cur_end)
@@ -1391,7 +1436,7 @@ def get_rising_products(
     qty_m["qty_prev"] = qty_m["itemsPurchased_prev"]
     qty_m["qty_delta"] = qty_m["qty"] - qty_m["qty_prev"]
 
-    # ✅ exclude best sellers + “올라오는” 조건(prev > 0) + delta>0
+    # Exclude best sellers and keep only prev > 0 with positive delta.
     qty_m = qty_m[~qty_m["itemId"].isin(exclude)].copy()
     qty_m = qty_m[(qty_m["qty_prev"] > 0) & (qty_m["qty_delta"] > 0)].copy()
     if qty_m.empty:
@@ -1422,16 +1467,16 @@ def get_rising_products(
 
     if RISING_BASIS == "views":
         m["delta"] = m["views_delta"]
-        m["delta_label"] = "Views Δ"
+        m["delta_label"] = "Views ?"
     elif RISING_BASIS == "revenue":
         m["delta"] = m["revenue_delta"]
-        m["delta_label"] = "Revenue Δ"
+        m["delta_label"] = "Revenue ?"
     else:
         m["delta"] = m["qty_delta"]
-        m["delta_label"] = "Qty Δ"
+        m["delta_label"] = "Qty ?"
 
     m = m.sort_values("delta", ascending=False).head(top_n).copy()
-    m["image_url"] = ""  # attach_image_urls에서 채움
+    m["image_url"] = ""  # Filled later by attach_image_urls().
     return m[["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"]]
 
 
@@ -1440,26 +1485,26 @@ def get_rising_products(
 # =========================
 PDP_CATEGORY_MAP = {
     "OUTER": {
-        "경량패딩/슬림다운": ["Padding/Slim Down"],
-        "미드/롱다운": ["Mid/Heavy Down"],
-        "인터체인지": ["Interchange (3 in 1)"],
-        "방수자켓": ["Rain"],
+        "Padding/Slim Down": ["Padding/Slim Down"],
+        "Mid/Heavy Down": ["Mid/Heavy Down"],
+        "Interchange": ["Interchange (3 in 1)"],
+        "Rain": ["Rain"],
     },
     "FLEECE": {
-        "플리스 풀오버": ["Fleece pullover"],
-        "자켓/베스트": ["Jacket"],
+        "Fleece Pullover": ["Fleece pullover"],
+        "Jacket": ["Jacket"],
     },
     "TOPS": {
-        "플리스": ["Fleece top"],
-        "라운드티": ["Round T-shirt"],
-        "폴로티/집업": ["Polo/Zip up"],
+        "Fleece Top": ["Fleece top"],
+        "Round T-shirt": ["Round T-shirt"],
+        "Polo/Zip Up": ["Polo/Zip up"],
     },
-    "PANTS": {"긴바지": ["Pants"]},
+    "PANTS": {"Pants": ["Pants"]},
     "FOOTWEAR": {
-        "윈터부츠": ["Boots"],
-        "옴니맥스": ["Omni-Max"],
-        "등산화": ["Hiking"],
-        "스니커즈": ["Sneakers"],
+        "Boots": ["Boots"],
+        "Omni-Max": ["Omni-Max"],
+        "Hiking": ["Hiking"],
+        "Sneakers": ["Sneakers"],
     },
 }
 
@@ -1537,7 +1582,7 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
                 d1 = ys[-1] if ys else 0.0
                 avg7 = (sum(ys) / len(ys)) if ys else 0.0
                 rows.append({
-                    'itemCategory': f"{c1} · {sub_label}",
+                    'itemCategory': f"{c1} 쨌 {sub_label}",
                     'views_d1': float(d1),
                     'views_avg7d': float(avg7),
                     'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
@@ -1589,12 +1634,12 @@ def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dic
 
     merged = y_df.merge(prior_agg, on="searchTerm", how="left").fillna(0.0)
 
-    new_terms = merged[merged["prior_avg"] == 0].head(3)[["searchTerm","count"]].copy()
+    new_terms = merged[merged["prior_avg"] == 0].head(10)[["searchTerm","count"]].copy()
 
     rising = merged[merged["prior_avg"] > 0].copy()
     rising["pct"] = (rising["count"] - rising["prior_avg"]) / rising["prior_avg"] * 100.0
     rising = rising.replace([float("inf"), -float("inf")], 0.0)
-    rising = rising.sort_values("pct", ascending=False).head(3)[["searchTerm","pct","count"]]
+    rising = rising.sort_values("pct", ascending=False).head(10)[["searchTerm","pct","count"]]
     return {"new": new_terms, "rising": rising}
 
 
@@ -1613,8 +1658,8 @@ def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
     if df.empty:
         return {}
     cols = {str(c).strip().lower(): c for c in df.columns}
-    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
-    tr_col = cols.get('target_roas') or cols.get('target roas') or cols.get('target') or cols.get('목표 roas') or cols.get('목표roas')
+    ch_col = cols.get('channel') or cols.get('media') or cols.get('留ㅼ껜') or cols.get('梨꾨꼸')
+    tr_col = cols.get('target_roas') or cols.get('target roas') or cols.get('target') or cols.get('紐⑺몴 roas') or cols.get('紐⑺몴roas')
     if not ch_col or not tr_col:
         return {}
     out = {}
@@ -1715,10 +1760,10 @@ def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[
     if df.empty:
         return {}
     cols = {str(c).strip().lower(): c for c in df.columns}
-    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
-    spend_col = cols.get('spend') or cols.get('budget') or cols.get('광고비') or cols.get('예산')
-    date_col = cols.get('date') or cols.get('일자')
-    year_col = cols.get('year') or cols.get('연도')
+    ch_col = cols.get('channel') or cols.get('media') or cols.get('留ㅼ껜') or cols.get('梨꾨꼸')
+    spend_col = cols.get('spend') or cols.get('budget') or cols.get('cost')
+    date_col = cols.get('date') or cols.get('?쇱옄')
+    year_col = cols.get('year') or cols.get('?곕룄')
     out = {}
     if not ch_col or not spend_col:
         return out
@@ -1956,19 +2001,19 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     kpi_snapshot = pd.DataFrame(bundle.get("kpi_snapshot", []))
 
     trend_series = bundle.get("trend_series", {})
-    trend_svg = trend_svg_from_series(trend_series)
+    page_trend_svgs = build_trend_svg_map(trend_series)
 
     bs_base = pd.DataFrame(bundle.get("best_sellers", []))
     bs_series = bundle.get("best_sellers_series", {"x": [], "items": []})
     x = bs_series.get("x", [])
     items_map = {it.get("itemId"): it.get("ys", [0.0]*7) for it in bs_series.get("items", []) if it.get("itemId")}
-    trend_svgs = []
+    bs_trend_svgs = []
     for _, r in bs_base.iterrows():
         sku = str(r.get("itemId", "")).strip()
         ys = items_map.get(sku, [0.0]*7)
-        trend_svgs.append(spark_svg(x or ["--"]*7, ys, width=240, height=70, stroke="#0055a5"))
+        bs_trend_svgs.append(spark_svg(x or ["--"]*7, ys, width=240, height=70, stroke="#0055a5"))
     if not bs_base.empty:
-        bs_base["trend_svg"] = trend_svgs
+        bs_base["trend_svg"] = bs_trend_svgs
         if PLACEHOLDER_IMG and "image_url" in bs_base.columns:
             bs_base.loc[bs_base["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
 
@@ -2002,7 +2047,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
         "paid_detail": paid_detail,
         "paid_top3": paid_top3,
         "kpi_snapshot": kpi_snapshot,
-        "trend_svg": trend_svg,
+        "trend_svgs": page_trend_svgs,
         "best_sellers": bs_base,
         "rising": rising,
         "category_pdp_trend": category_pdp_trend,
@@ -2025,7 +2070,7 @@ def render_page_html(
     paid_detail: pd.DataFrame,
     paid_top3: pd.DataFrame,
     kpi_snapshot: pd.DataFrame,
-    trend_svg: str,
+    trend_svgs: Dict[str, str],
     best_sellers: pd.DataFrame,
     rising: pd.DataFrame,
     category_pdp_trend: pd.DataFrame,
@@ -2067,7 +2112,7 @@ def render_page_html(
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
           <div class="mt-1 text-xl font-black text-slate-900">{esc(value)}</div>
-          <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> · YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> 쨌 YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
         </div>
         """
 
@@ -2077,7 +2122,7 @@ def render_page_html(
             return f"<img src='{esc(u)}' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>"
         return "<div class='w-8 h-8 rounded-xl bg-slate-100 border border-slate-200'></div>"
 
-    # ✅ padding 조정(마지막 컬럼 잘림 완화)
+    # Slightly tighter padding to protect the last columns from clipping.
     def table_row(cols: List[str], bold=False, row_class: str = "") -> str:
         fw = "font-extrabold" if bold else "font-medium"
         bg = "bg-slate-50" if bold else ""
@@ -2143,7 +2188,7 @@ def render_page_html(
               {product_img(getattr(r, "image_url", ""))}
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
+                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} 쨌 Qty {fmt_int(getattr(r, "qty", 0))} 쨌 Views {fmt_int(getattr(r, "views", 0))}</div>
               </div>
               <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
             </div>
@@ -2159,9 +2204,9 @@ def render_page_html(
               {product_img(getattr(r, "image_url", ""))}
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
+                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} 쨌 Qty {fmt_int(getattr(r, "qty", 0))} 쨌 Views {fmt_int(getattr(r, "views", 0))}</div>
               </div>
-              <div class="text-sm font-black {cls}">{esc(getattr(r, "delta_label", "Δ") or "Δ")} {('+' if delta>=0 else '')}{fmt_int(delta)}</div>
+              <div class="text-sm font-black {cls}">{esc(getattr(r, "delta_label", "?") or "?")} {('+' if delta>=0 else '')}{fmt_int(delta)}</div>
             </div>
             """
 
@@ -2172,7 +2217,7 @@ def render_page_html(
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemCategory", "") or "")}</div>
-                <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} · 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
+                <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} 쨌 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
               </div>
               <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
             </div>
@@ -2188,8 +2233,7 @@ def render_page_html(
     rising_terms_html = ""
     if search_rising is not None and (not search_rising.empty):
         for r in search_rising.itertuples(index=False):
-            pct = float(getattr(r, "pct", 0) or 0.0)
-            rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{'+' if pct>=0 else ''}{pct:.1f}% · {fmt_int(getattr(r,'count',0))}</span></div>"
+            rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
 
     other_html = ""
     if other_detail is not None and (not other_detail.empty):
@@ -2240,21 +2284,61 @@ def render_page_html(
                      delta_cls(su_delta), delta_cls(su_yoy_delta)),
     ])
 
+    trend_tabs = [
+        ("7d", "7D", trend_svgs.get("7d", "")),
+        ("14d", "14D", trend_svgs.get("14d", "")),
+        ("1m", "1M", trend_svgs.get("1m", "")),
+    ]
+    trend_tabs_html = "".join([
+        f"<button type='button' data-trend-tab='{key}' class='rounded-full border px-3 py-1 text-xs font-extrabold transition {'border-slate-900 bg-slate-900 text-white' if i == 0 else 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}'>{label}</button>"
+        for i, (key, label, _) in enumerate(trend_tabs)
+    ])
+    trend_panels_html = "".join([
+        f"<div data-trend-panel='{key}' class='mt-3{' hidden' if i != 0 else ''}'>{svg}</div>"
+        for i, (key, _, svg) in enumerate(trend_tabs)
+    ])
+
     paid_toggle_js = """<script>
 (function(){
   const btn = document.getElementById('paidToggle');
-  if(!btn) return;
-  let on = false;
-  function set(onNext){
-    on = !!onNext;
-    document.querySelectorAll('.paid-extra').forEach(el=>{
-      if(on) el.classList.remove('hidden');
+  if(btn){
+    let on = false;
+    function setPaid(onNext){
+      on = !!onNext;
+      document.querySelectorAll('.paid-extra').forEach(el=>{
+        if(on) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      });
+      btn.textContent = on ? 'Show less' : 'Show more (12)';
+    }
+    btn.addEventListener('click', ()=> setPaid(!on));
+    setPaid(false);
+  }
+
+  const trendBtns = Array.from(document.querySelectorAll('[data-trend-tab]'));
+  const trendPanels = Array.from(document.querySelectorAll('[data-trend-panel]'));
+  function setTrend(target){
+    trendBtns.forEach(el=>{
+      const active = el.getAttribute('data-trend-tab') === target;
+      el.classList.toggle('border-slate-900', active);
+      el.classList.toggle('bg-slate-900', active);
+      el.classList.toggle('text-white', active);
+      el.classList.toggle('border-slate-200', !active);
+      el.classList.toggle('bg-white', !active);
+      el.classList.toggle('text-slate-500', !active);
+    });
+    trendPanels.forEach(el=>{
+      const active = el.getAttribute('data-trend-panel') === target;
+      if(active) el.classList.remove('hidden');
       else el.classList.add('hidden');
     });
-    btn.textContent = on ? 'Show less' : 'Show more (12)';
   }
-  btn.addEventListener('click', ()=> set(!on));
-  set(false);
+  trendBtns.forEach(el=>{
+    el.addEventListener('click', ()=> setTrend(el.getAttribute('data-trend-tab')));
+  });
+  if(trendBtns.length){
+    setTrend(trendBtns[0].getAttribute('data-trend-tab'));
+  }
 })();
 </script>"""
 
@@ -2276,7 +2360,7 @@ def render_page_html(
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
-        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
+        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} 쨌 {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} 쨌 YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
       </div>
       <div class="flex items-center gap-2">
         <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
@@ -2324,8 +2408,11 @@ def render_page_html(
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">1Month Trend (Index)</div>
-      <div class="mt-3">{trend_svg}</div>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Trend (Index)</div>
+        <div class="flex flex-wrap items-center gap-2">{trend_tabs_html}</div>
+      </div>
+      {trend_panels_html}
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
@@ -2343,6 +2430,9 @@ def render_page_html(
           </thead>
           <tbody>{paid_html}</tbody>
         </table>
+      </div>
+      <div class="mt-3 flex justify-end">
+        <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Show more (12)</button>
       </div>
     </div>
 
@@ -2405,7 +2495,7 @@ def render_page_html(
 
 
 # =========================
-# Hub page (구간비교 제거 버전)
+# Hub page
 # =========================
 def render_hub_index(dates: List[dt.date]) -> str:
     dates = sorted(dates)
@@ -2434,7 +2524,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
         <div class="text-2xl font-black">Daily Digest Hub</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">STATIC</div>
       </div>
-      <div class="text-sm text-slate-500">Data cache 기반</div>
+      <div class="text-sm text-slate-500">Data cache 湲곕컲</div>
     </div>
 
     <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -2531,7 +2621,7 @@ def build_one(
                 paid_detail=rt["paid_detail"],
                 paid_top3=rt["paid_top3"],
                 kpi_snapshot=rt["kpi_snapshot"],
-                trend_svg=rt["trend_svg"],
+                trend_svgs=rt["trend_svgs"],
                 best_sellers=rt["best_sellers"],
                 rising=rt["rising"],
                 category_pdp_trend=rt["category_pdp_trend"],
@@ -2547,17 +2637,17 @@ def build_one(
     overall = get_overall_kpis(client, w)
     signup_users = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
 
-    # ✅ Channel Snapshot: Looker CASE + Total 강제(KPI)
+    # Channel Snapshot: Looker CASE + Total forced from KPI.
     channel_snapshot = get_channel_snapshot_3way(client, w, overall=overall)
 
-    # ✅ Paid AD totals 추출(채널스냅샷 기반으로 강제용)
+    # Extract Paid AD totals from Channel Snapshot for Paid Detail alignment.
     paid_ad_totals = {
         "current": {"sessions": None, "revenue": None},
         "prev": {"sessions": None, "revenue": None},
         "yoy": {"sessions": None, "revenue": None},
     }
     try:
-        # Channel snapshot은 current period값만 들어있고(prev/yoy는 %로만) → Paid Detail Total 강제는 current만 필요
+        # Only current-period absolute values are needed to force Paid Detail Total.
         row = channel_snapshot[channel_snapshot["bucket"] == "Paid AD"]
         if not row.empty:
             paid_ad_totals["current"]["sessions"] = float(row.iloc[0]["sessions"])
@@ -2573,11 +2663,11 @@ def build_one(
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
 
     trend_series = get_trend_view_series(client, w)
-    trend_svg = trend_svg_from_series(trend_series)
+    trend_svgs = build_trend_svg_map(trend_series)
 
     best_sellers, best_sellers_series = get_best_sellers_with_trends(client, w, image_map)
 
-    # ✅ Rising: Best Sellers SKU 제외 + prev>0 + delta>0
+    # Rising: exclude Best Sellers SKUs and keep prev > 0 with positive delta.
     exclude = []
     if not best_sellers.empty and "itemId" in best_sellers.columns:
         exclude = [str(x).strip() for x in best_sellers["itemId"].tolist() if str(x).strip()]
@@ -2629,7 +2719,7 @@ def build_one(
         paid_detail=paid_detail,
         paid_top3=paid_top3,
         kpi_snapshot=kpi_snapshot,
-        trend_svg=trend_svg,
+        trend_svgs=trend_svgs,
         best_sellers=best_sellers,
         rising=rising,
         category_pdp_trend=category_pdp_trend,
@@ -2688,7 +2778,7 @@ def main():
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
 
-        # ✅✅✅ "전일(latest_end)"은 항상 강제 재생성 (SKIP_IF_EXISTS 무시)
+        # Always rebuild the latest end date even if SKIP_IF_EXISTS is enabled.
         force_rebuild = (d == latest_end)
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
@@ -2723,3 +2813,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
