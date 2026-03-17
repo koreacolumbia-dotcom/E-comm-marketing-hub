@@ -578,7 +578,7 @@ jobs:
           fi
 
           BUILD_VOC_SCRIPT=""
-          for CAND in "build_voc_dashboard.py"; do
+          for CAND in "build_voc_dashboard (9).py" "build_voc_dashboard.py"; do
             if [ -f "${CAND}" ]; then
               BUILD_VOC_SCRIPT="${CAND}"
               break
@@ -669,7 +669,7 @@ jobs:
           fi
 
           echo "[INFO] (3.3) Validate meta.json"
-          python - <<'"'"'PY'"'"'
+          python - <<'PY'
           import json, sys
           from pathlib import Path
 
