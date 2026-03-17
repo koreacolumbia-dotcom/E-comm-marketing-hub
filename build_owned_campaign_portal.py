@@ -127,6 +127,48 @@ def extract_group_year_mmdd(*values: Any, fallback_date: Optional[str] = None) -
     return "", "", False
 
 
+def apply_send_group_metrics(camp: pd.DataFrame) -> pd.DataFrame:
+    if camp.empty:
+        return camp
+
+    camp = camp.copy()
+    camp["send_group_key"] = ""
+
+    camp = camp.sort_values(
+        by=["date", "channel", "year", "mmdd", "campaign", "term"],
+        kind="stable",
+    ).reset_index(drop=True)
+
+    valid_mask = (
+        camp["has_group_mmdd"].astype(bool)
+        & camp["year"].astype(str).str.fullmatch(r"\d{4}")
+        & camp["mmdd"].astype(str).str.fullmatch(r"\d{4}")
+    )
+
+    camp.loc[valid_mask, "send_group_key"] = (
+        camp.loc[valid_mask, "channel"].astype(str)
+        + "||"
+        + camp.loc[valid_mask, "year"].astype(str)
+        + "||"
+        + camp.loc[valid_mask, "mmdd"].astype(str)
+    )
+
+    camp["send_count"] = 0
+    camp["avg_leverage"] = 0.0
+
+    valid_groups = camp.loc[valid_mask, "send_group_key"]
+    if not valid_groups.empty:
+        first_rows = camp.loc[valid_mask].groupby("send_group_key", sort=False).head(1).index
+        group_sessions = camp.loc[valid_mask].groupby("send_group_key", sort=False)["sessions"].sum()
+
+        camp.loc[first_rows, "send_count"] = 1
+        camp.loc[first_rows, "avg_leverage"] = (
+            camp.loc[first_rows, "send_group_key"].map(group_sessions).fillna(0.0).astype(float)
+        )
+
+    return camp.drop(columns=["send_group_key"], errors="ignore")
+
+
 # -----------------------------
 # SQL builder
 # -----------------------------
@@ -673,7 +715,6 @@ def build_day_bundle(
     camp_group = camp.apply(
         lambda r: extract_group_year_mmdd(
             r.get("campaign", ""),
-            r.get("send_id", ""),
             r.get("term", ""),
             fallback_date=str(r.get("date", "")),
         ),
@@ -683,11 +724,11 @@ def build_day_bundle(
     camp["year"] = camp_group[0]
     camp["mmdd"] = camp_group[1]
     camp["has_group_mmdd"] = camp_group[2].astype(bool)
+    camp = apply_send_group_metrics(camp)
 
     prod_group = prod.apply(
         lambda r: extract_group_year_mmdd(
             r.get("campaign", ""),
-            r.get("send_id", ""),
             r.get("term", ""),
             fallback_date=str(r.get("date", "")),
         ),
