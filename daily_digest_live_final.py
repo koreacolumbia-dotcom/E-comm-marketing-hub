@@ -1582,7 +1582,7 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
                 d1 = ys[-1] if ys else 0.0
                 avg7 = (sum(ys) / len(ys)) if ys else 0.0
                 rows.append({
-                    'itemCategory': f"{c1} 쨌 {sub_label}",
+                    'itemCategory': f"{c1} · {sub_label}",
                     'views_d1': float(d1),
                     'views_avg7d': float(avg7),
                     'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
@@ -1658,8 +1658,8 @@ def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
     if df.empty:
         return {}
     cols = {str(c).strip().lower(): c for c in df.columns}
-    ch_col = cols.get('channel') or cols.get('media') or cols.get('留ㅼ껜') or cols.get('梨꾨꼸')
-    tr_col = cols.get('target_roas') or cols.get('target roas') or cols.get('target') or cols.get('紐⑺몴 roas') or cols.get('紐⑺몴roas')
+    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
+    tr_col = cols.get('target_roas') or cols.get('target roas') or cols.get('target') or cols.get('목표 roas') or cols.get('목표roas')
     if not ch_col or not tr_col:
         return {}
     out = {}
@@ -1760,10 +1760,10 @@ def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[
     if df.empty:
         return {}
     cols = {str(c).strip().lower(): c for c in df.columns}
-    ch_col = cols.get('channel') or cols.get('media') or cols.get('留ㅼ껜') or cols.get('梨꾨꼸')
+    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
     spend_col = cols.get('spend') or cols.get('budget') or cols.get('cost')
-    date_col = cols.get('date') or cols.get('?쇱옄')
-    year_col = cols.get('year') or cols.get('?곕룄')
+    date_col = cols.get('date') or cols.get('일자')
+    year_col = cols.get('year') or cols.get('연도')
     out = {}
     if not ch_col or not spend_col:
         return out
@@ -2112,7 +2112,7 @@ def render_page_html(
         <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
           <div class="mt-1 text-xl font-black text-slate-900">{esc(value)}</div>
-          <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> 쨌 YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
+          <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> · YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
         </div>
         """
 
@@ -2188,7 +2188,7 @@ def render_page_html(
               {product_img(getattr(r, "image_url", ""))}
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} 쨌 Qty {fmt_int(getattr(r, "qty", 0))} 쨌 Views {fmt_int(getattr(r, "views", 0))}</div>
+                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
               </div>
               <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
             </div>
@@ -2204,7 +2204,7 @@ def render_page_html(
               {product_img(getattr(r, "image_url", ""))}
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} 쨌 Qty {fmt_int(getattr(r, "qty", 0))} 쨌 Views {fmt_int(getattr(r, "views", 0))}</div>
+                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
               </div>
               <div class="text-sm font-black {cls}">{esc(getattr(r, "delta_label", "?") or "?")} {('+' if delta>=0 else '')}{fmt_int(delta)}</div>
             </div>
@@ -2217,7 +2217,7 @@ def render_page_html(
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemCategory", "") or "")}</div>
-                <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} 쨌 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
+                <div class="text-xs text-slate-500">D1 {fmt_int(getattr(r, "views_d1", 0))} · 7D Avg {fmt_int(getattr(r, "views_avg7d", 0))}</div>
               </div>
               <div class="shrink-0">{getattr(r, "trend_svg", "") or ""}</div>
             </div>
@@ -2351,7 +2351,7 @@ def render_page_html(
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
+    body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -2360,7 +2360,7 @@ def render_page_html(
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
-        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} 쨌 {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} 쨌 YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
+        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
       </div>
       <div class="flex items-center gap-2">
         <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
@@ -2371,48 +2371,21 @@ def render_page_html(
       {kpis_cards}
     </div>
 
-    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
-        <table class="mt-3 w-full table-auto text-sm">
-          <thead class="text-xs text-slate-500">
-            <tr>
-              <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
-            </tr>
-          </thead>
-          <tbody>{chan_html}</tbody>
-        </table>
-      </div>
-
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Other Detail</div>
-        <table class="mt-3 w-full table-auto text-sm">
-          <thead class="text-xs text-slate-500">
-            <tr>
-              <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
-            </tr>
-          </thead>
-          <tbody>{other_html or "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
-        </table>
-      </div>
-    </div>
-
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Trend (Index)</div>
-        <div class="flex flex-wrap items-center gap-2">{trend_tabs_html}</div>
-      </div>
-      {trend_panels_html}
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
+      <table class="mt-3 w-full table-auto text-sm">
+        <thead class="text-xs text-slate-500">
+          <tr>
+            <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+          </tr>
+        </thead>
+        <tbody>{chan_html}</tbody>
+      </table>
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
@@ -2455,6 +2428,31 @@ def render_page_html(
           <tbody>{paid_media_compare_html or "<tr><td colspan='8' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
         </table>
       </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Other Detail</div>
+      <table class="mt-3 w-full table-auto text-sm">
+        <thead class="text-xs text-slate-500">
+          <tr>
+            <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+          </tr>
+        </thead>
+        <tbody>{other_html or "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+      </table>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Trend (Index)</div>
+        <div class="flex flex-wrap items-center gap-2">{trend_tabs_html}</div>
+      </div>
+      {trend_panels_html}
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -2514,7 +2512,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    body{{ font-family:'Plus Jakarta Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
+    body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -2524,7 +2522,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
         <div class="text-2xl font-black">Daily Digest Hub</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">STATIC</div>
       </div>
-      <div class="text-sm text-slate-500">Data cache 湲곕컲</div>
+      <div class="text-sm text-slate-500">Data cache 기반</div>
     </div>
 
     <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
