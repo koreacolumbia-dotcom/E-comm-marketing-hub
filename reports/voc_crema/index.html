@@ -428,9 +428,9 @@
       const candidates = Array.isArray(urls) ? urls.slice() : [urls];
       if (typeof src === "string"){
         if (src.endsWith("/data/meta.json") || src === "./data/meta.json"){
-          candidates.push("./site/data/meta.json", "./reports/voc_crema/data/meta.json", "../data/meta.json");
+          candidates.push("./data/meta.json", "./reports/voc_crema/data/meta.json", "../data/meta.json");
         }else if (src.endsWith("/data/reviews.json") || src === "./data/reviews.json"){
-          candidates.push("./site/data/reviews.json", "./reports/voc_crema/data/reviews.json", "../data/reviews.json");
+          candidates.push("./data/reviews.json", "./reports/voc_crema/data/reviews.json", "../data/reviews.json");
         }
       }
       const uniq = [...new Set(candidates.filter(Boolean))];
@@ -973,13 +973,13 @@
           const [meta, reviews] = await Promise.all([
             fetchJsonOrThrow([
               "./data/meta.json",
-              "./site/data/meta.json",
+              "./data/meta.json",
               "./reports/voc_crema/data/meta.json",
               "../data/meta.json",
             ]),
             fetchJsonOrThrow([
               "./data/reviews.json",
-              "./site/data/reviews.json",
+              "./data/reviews.json",
               "./reports/voc_crema/data/reviews.json",
               "../data/reviews.json",
             ]),
