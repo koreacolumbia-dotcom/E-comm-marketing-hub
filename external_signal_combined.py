@@ -70,6 +70,11 @@ NAVER_ALLOWED_CAFE_URLS = [
     "https://cafe.naver.com/firstmountain",
     "https://cafe.naver.com/onefineday7080",
     "https://cafe.naver.com/awrara",
+    "https://cafe.naver.com/dieselmania",
+    "https://cafe.naver.com/casuallydressed",
+    "https://cafe.naver.com/nyblog",
+    "https://cafe.naver.com/fitthesize",
+    "https://cafe.naver.com/tnvdla",
 ]
 NAVER_BLOCKED_MENU_URLS = [
     "https://cafe.naver.com/f-e/cafes/31116705/menus/9?viewType=L",
@@ -330,17 +335,12 @@ def build_naver_queries() -> List[Tuple[str, str]]:
     queries: List[Tuple[str, str]] = []
     seen = set()
     for brand in BRAND_LIST:
-        seed_queries = [str(brand).strip()]
-        if brand in AMBIGUOUS_BRANDS:
-            seed_queries.extend(f"{brand}{suffix}" for suffix in NAVER_QUERY_SUFFIXES if suffix)
-
-        for query in seed_queries:
-            query = str(query).strip()
-            key = (brand, query)
-            if not query or key in seen:
-                continue
-            seen.add(key)
-            queries.append(key)
+        query = str(brand).strip()
+        key = (brand, query)
+        if not query or key in seen:
+            continue
+        seen.add(key)
+        queries.append(key)
     return queries
 
 
