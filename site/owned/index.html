@@ -727,6 +727,56 @@
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
 
+  function normalizeMessageLogRows(rows){
+    const map = new Map();
+    for(const row of (rows || [])){
+      const date = String((row && row.date) || '').trim();
+      const channel = String((row && row.channel) || '').trim();
+      const title = String((row && (row.message_title || row.title)) || '').trim();
+      const body = String((row && (row.message_body || row.content)) || '').trim();
+      if(!date || !channel || !title) continue;
+      const key = `${date}||${channel}||${title}`;
+      if(!map.has(key)){
+        map.set(key, { date, channel, message_title: title, message_body: body });
+      }
+    }
+    return Array.from(map.values()).sort((a,b)=>{
+      const byDate = String(a.date).localeCompare(String(b.date));
+      if(byDate !== 0) return byDate;
+      const byChannel = String(a.channel).localeCompare(String(b.channel));
+      if(byChannel !== 0) return byChannel;
+      return String(a.message_title).localeCompare(String(b.message_title));
+    });
+  }
+
+  function getMessageLogRows(messageLog, channel, year){
+    const yearPrefix = `${year}-`;
+    return normalizeMessageLogRows(messageLog).filter(m => m.channel===channel && String(m.date||'').startsWith(yearPrefix));
+  }
+
+  function countCumulativeMessages(messageLog, channel, endDate){
+    const year = String(endDate || '').slice(0,4);
+    if(!/^\d{4}$/.test(year)) return null;
+    const yearRows = getMessageLogRows(messageLog, channel, year);
+    if(!yearRows.length) return null;
+    return yearRows.filter(m => String(m.date || '') <= endDate).length;
+  }
+
+  function getMessagesForYearMmdd(messageLog, channel, year, mmdd){
+    if(!/^\d{4}$/.test(String(year || '')) || !/^\d{4}$/.test(String(mmdd || ''))) return null;
+    const yearRows = getMessageLogRows(messageLog, channel, year);
+    if(!yearRows.length) return null;
+    return yearRows.filter(m => String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10) === mmdd);
+  }
+
+  function getChannelSummary(rows, channel, endDate, messageLog){
+    const agg = aggregateRow(rows || []);
+    const scheduledSendCount = countCumulativeMessages(messageLog, channel, endDate);
+    const sendCount = scheduledSendCount === null ? countDistinctSends(rows || []) : scheduledSendCount;
+    const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
+    return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
+  }
+
   function getMessageMeta(rows){
     const arr = rows || [];
     const withMeta = arr.find(r => (r.message_title || r.title || r.message_body || r.content));
@@ -935,9 +985,11 @@
        totKakaoSessions, totKakaoRevenue, totKakaoSendCount, totKakaoLeverage].forEach(el=>{ if(el) el.textContent='-'; });
       return;
     }
-    const edm = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='EDM'));
-    const lms = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='LMS'));
-    const kakao = summarizeOwnedRows(RAW.kpi.filter(r=>r.channel==='KAKAO'));
+    const endDate = currentPeriodEndDate();
+    const messageLog = (RAW && RAW.message_log) || [];
+    const edm = getChannelSummary(RAW.kpi.filter(r=>r.channel==='EDM'), 'EDM', endDate, messageLog);
+    const lms = getChannelSummary(RAW.kpi.filter(r=>r.channel==='LMS'), 'LMS', endDate, messageLog);
+    const kakao = getChannelSummary(RAW.kpi.filter(r=>r.channel==='KAKAO'), 'KAKAO', endDate, messageLog);
 
     totEdmSessions.textContent = fmt(edm.sessions);
     totEdmRevenue.textContent = fmtMoney(edm.revenue);
@@ -1213,6 +1265,26 @@
     return [];
   }
 
+  function getSelectionMessageRows(sel, rows){
+    const messageLog = (RAW && RAW.message_log) || [];
+    if(!sel) return null;
+
+    if(sel.type === 'group' || sel.type === 'other-group'){
+      return getMessagesForYearMmdd(messageLog, sel.channel, sel.year, sel.mmdd);
+    }
+
+    if(sel.type === 'single'){
+      const first = (rows || [])[0];
+      const year = getRowYear(first);
+      const mmdd = getRowMmdd(first);
+      if(year && mmdd){
+        return getMessagesForYearMmdd(messageLog, sel.channel, year, mmdd);
+      }
+    }
+
+    return null;
+  }
+
   function getSelectedProdRows(sel){
     if(!sel || !RAW) return [];
     if(sel.type === 'single'){
@@ -1240,6 +1312,8 @@
   }
 
   function getSelectedSendCount(sel, rows){
+    const messageRows = getSelectionMessageRows(sel, rows);
+    if(messageRows !== null) return messageRows.length;
     return countDistinctSends(rows);
   }
 
@@ -1266,13 +1340,19 @@
     }else{
       selChannel.textContent = SELECTED.channel;
       selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd} (other campaign)`;
-      selTerm.textContent = `send count: 1`;
+      selTerm.textContent = `terms:${rows.length}`;
     }
 
     const a = aggregateRow(rows);
     const sendCount = getSelectedSendCount(SELECTED, rows);
     const leverage = sendCount ? (a.sessions / sendCount) : 0;
-    const meta = getMessageMeta(rows);
+    const selectionMessages = getSelectionMessageRows(SELECTED, rows);
+    const meta = (selectionMessages && selectionMessages.length)
+      ? {
+          title: selectionMessages.map(m => m.message_title).join(' | ') || '-',
+          body: selectionMessages.map(m => m.message_body).filter(Boolean).join(' | ') || '-',
+        }
+      : getMessageMeta(rows);
 
     kSessions.textContent = fmt(a.sessions);
     kUsers.textContent = fmt(a.users);
@@ -1488,13 +1568,14 @@
   }
 
   function normalizeBundle(j){
-    if(!j) return { kpi: [], prod: [] };
+    if(!j) return { kpi: [], prod: [], message_log: [] };
 
     // already new schema?
-    if(Array.isArray(j.kpi) || Array.isArray(j.prod)){
+    if(Array.isArray(j.kpi) || Array.isArray(j.prod) || Array.isArray(j.message_log)){
       return {
         kpi: Array.isArray(j.kpi) ? j.kpi : [],
         prod: Array.isArray(j.prod) ? j.prod : [],
+        message_log: normalizeMessageLogRows(Array.isArray(j.message_log) ? j.message_log : []),
       };
     }
 
@@ -1534,7 +1615,7 @@
       prod_revenue: Number(p.revenue || 0),
     }));
 
-    return { kpi, prod };
+    return { kpi, prod, message_log: normalizeMessageLogRows(j.message_log || []) };
   }
 
   function listDatesBetween(startStr, endStr){
@@ -1558,6 +1639,7 @@
   function buildAggregated(dailyJsonList) {
     const kpiMap = new Map();
     const prodMap = new Map();
+    const messageLog = [];
 
     for (const raw of dailyJsonList) {
       const j = normalizeBundle(raw);
@@ -1571,9 +1653,11 @@
         const key = `${p.channel}||${p.send_id || ''}||${p.campaign || ''}||${p.term || ''}||${p.item_id || ''}||${getRowYear(p)}||${getRowMmdd(p)}`;
         sumInto(prodMap, key, p, ['prod_items', 'prod_revenue']);
       }
+
+      messageLog.push(...(j.message_log || []));
     }
 
-    return { kpi: Array.from(kpiMap.values()), prod: Array.from(prodMap.values()) };
+    return { kpi: Array.from(kpiMap.values()), prod: Array.from(prodMap.values()), message_log: normalizeMessageLogRows(messageLog) };
   }
 
   async function loadDaily(dStr){
@@ -1779,15 +1863,7 @@
       hideNotice();
 
       // ✅ normalizeBundle 적용 (기존 schema(campaigns/products)도 YTD에서 누락 없이 합산)
-      const kpiMap = new Map();
-      for(const raw of all){
-        const j = normalizeBundle(raw);
-        for(const r of (j.kpi||[])){
-          const k = `${r.date||''}||${r.channel}||${r.send_id||''}||${r.campaign||''}||${r.term||''}`;
-          sumInto(kpiMap, k, r, ['sessions','users','purchases','revenue','items_purchased','send_count']);
-        }
-      }
-      return {kpi: Array.from(kpiMap.values())};
+      return buildAggregated(all);
     }
 
     const thisAgg = await loadAgg(thisStart, thisEnd);
@@ -1796,8 +1872,8 @@
     const thisRows = (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
     const prevRows = (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
 
-    const thisSum = summarizeOwnedRows(thisRows);
-    const prevSum = summarizeOwnedRows(prevRows);
+    const thisSum = getChannelSummary(thisRows, CHANNEL, thisEnd, thisAgg.message_log || []);
+    const prevSum = getChannelSummary(prevRows, CHANNEL, prevEnd, prevAgg.message_log || []);
 
     YTD_CACHE.set(key, {this:thisSum, prev:prevSum});
 
