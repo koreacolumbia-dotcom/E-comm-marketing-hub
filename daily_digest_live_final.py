@@ -45,9 +45,6 @@ import json
 import base64
 import datetime as dt
 import re
-import urllib.parse
-import urllib.request
-import urllib.error
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
@@ -115,24 +112,9 @@ CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1",
 PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
 
 TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
-MEDIA_SPEND_XLS_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_XLS_PATH", "paid_media_spend.xlsx").strip()
-
-META_APP_ID = os.getenv("META_APP_ID", "").strip()
-META_AD_ACCOUNT_ID = os.getenv("META_AD_ACCOUNT_ID", "").strip()
-META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN", "").strip()
-
-GOOGLE_ADS_CUSTOMER_ID = os.getenv("GOOGLE_ADS_CUSTOMER_ID", "").strip().replace("-", "")
-GOOGLE_ADS_DEVELOPER_TOKEN = os.getenv("GOOGLE_ADS_DEVELOPER_TOKEN", "").strip()
-GOOGLE_ADS_ACCESS_TOKEN = os.getenv("GOOGLE_ADS_ACCESS_TOKEN", "").strip()
-GOOGLE_ADS_REFRESH_TOKEN = os.getenv("GOOGLE_ADS_REFRESH_TOKEN", "").strip()
-GOOGLE_ADS_CLIENT_ID = os.getenv("GOOGLE_ADS_CLIENT_ID", "").strip()
-GOOGLE_ADS_CLIENT_SECRET = os.getenv("GOOGLE_ADS_CLIENT_SECRET", "").strip()
-GOOGLE_ADS_LOGIN_CUSTOMER_ID = os.getenv("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "").strip().replace("-", "")
-
-NAVER_AD_CUSTOMER_ID = os.getenv("NAVER_AD_CUSTOMER_ID", "").strip()
-NAVER_AD_ACCESS_LICENSE = os.getenv("NAVER_AD_ACCESS_LICENSE", "").strip()
-NAVER_AD_SECRET_KEY = os.getenv("NAVER_AD_SECRET_KEY", "").strip()
-NAVER_AD_BASE_URL = os.getenv("NAVER_AD_BASE_URL", "https://api.naver.com").strip()
+MEDIA_SPEND_XLS_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_XLS_PATH", os.path.join(DATA_DIR, "paid_media_spend.xlsx")).strip()
+MEDIA_SPEND_HISTORY_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_HISTORY_PATH", os.path.join(DATA_DIR, "paid_media_spend_history.csv")).strip()
+MEDIA_SPEND_VENDOR_DIR = os.getenv("DAILY_DIGEST_MEDIA_SPEND_VENDOR_DIR", DATA_DIR).strip()
 
 
 # =========================
@@ -1653,8 +1635,126 @@ def safe_read_excel(path: str) -> pd.DataFrame:
         print(f"[WARN] Excel read failed: {path} | {type(e).__name__}: {e}")
     return pd.DataFrame()
 
+def safe_read_table(path: str) -> pd.DataFrame:
+    try:
+        if not path or not os.path.exists(path):
+            return pd.DataFrame()
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".csv":
+            return pd.read_csv(path)
+        return pd.read_excel(path)
+    except Exception as e:
+        print(f"[WARN] Table read failed: {path} | {type(e).__name__}: {e}")
+        return pd.DataFrame()
+
+def normalize_media_channel(value: str) -> str:
+    s = str(value or "").strip().lower()
+    if not s:
+        return ""
+    if "google" in s or "구글" in s:
+        return "google"
+    if "meta" in s or "메타" in s or "instagram" in s or "인스타" in s:
+        return "meta"
+    if "naver" in s or "네이버" in s or "브랜드검색" in s or "쇼검" in s or "쇼핑검색" in s:
+        return "naver"
+    return s
+
+def list_glink_vendor_files(source_dir: str) -> List[str]:
+    if not source_dir or not os.path.isdir(source_dir):
+        return []
+    pattern = re.compile(r"^\(glink\)\s*columbia_.*report_\d{6,8}\.(xlsx|xlsm|xls)$", re.IGNORECASE)
+    out: List[str] = []
+    for name in os.listdir(source_dir):
+        low = name.lower()
+        if not os.path.isfile(os.path.join(source_dir, name)):
+            continue
+        if not low.endswith((".xlsx", ".xlsm", ".xls")):
+            continue
+        if low.startswith("~$"):
+            continue
+        if pattern.match(low):
+            out.append(os.path.join(source_dir, name))
+    return sorted(out)
+
+def find_header_row(df: pd.DataFrame, required_labels: List[str], scan_rows: int = 20) -> Optional[int]:
+    max_rows = min(scan_rows, len(df.index))
+    required = [str(x).strip() for x in required_labels]
+    for idx in range(max_rows):
+        vals = [str(v).replace("\n", "").replace("\r", "").strip() for v in df.iloc[idx].tolist()]
+        if all(label in vals for label in required):
+            return idx
+    return None
+
+def extract_glink_spend_history_rows(xlsx_path: str) -> pd.DataFrame:
+    try:
+        raw = pd.read_excel(xlsx_path, sheet_name="매체RAW", header=None)
+    except Exception as e:
+        print(f"[WARN] Glink spend parse failed: {xlsx_path} | {type(e).__name__}: {e}")
+        return pd.DataFrame(columns=["date", "channel", "spend", "source_file", "source_mtime"])
+
+    header_idx = find_header_row(raw, ["매체", "날짜최종", "총비용(vat제외)"])
+    if header_idx is None:
+        print(f"[WARN] Could not find spend header row in: {xlsx_path}")
+        return pd.DataFrame(columns=["date", "channel", "spend", "source_file", "source_mtime"])
+
+    header_vals = []
+    for i, v in enumerate(raw.iloc[header_idx].tolist()):
+        label = str(v).replace("\n", "").replace("\r", "").strip()
+        header_vals.append(label or f"col_{i}")
+
+    df = raw.iloc[header_idx + 1 :].copy()
+    df.columns = header_vals
+    cols = {str(c).strip(): c for c in df.columns}
+    date_col = cols.get("날짜최종") or cols.get("기간")
+    media_col = cols.get("매체") or cols.get("채널")
+    spend_col = cols.get("총비용(vat제외)") or cols.get("광고비(vat제외)") or cols.get("광고비(vat-)") or cols.get("광고비")
+    if not date_col or not media_col or not spend_col:
+        print(f"[WARN] Missing spend columns in: {xlsx_path}")
+        return pd.DataFrame(columns=["date", "channel", "spend", "source_file", "source_mtime"])
+
+    tmp = df[[date_col, media_col, spend_col]].copy()
+    tmp.columns = ["date", "media", "spend"]
+    tmp["date"] = pd.to_datetime(tmp["date"], errors="coerce").dt.date
+    tmp["spend"] = pd.to_numeric(tmp["spend"].astype(str).str.replace(",", "", regex=False).str.strip(), errors="coerce").fillna(0.0)
+    tmp["channel"] = tmp["media"].map(normalize_media_channel)
+    tmp = tmp[tmp["date"].notna()].copy()
+    tmp = tmp[tmp["channel"].isin(["google", "naver", "meta"])].copy()
+    if tmp.empty:
+        return pd.DataFrame(columns=["date", "channel", "spend", "source_file", "source_mtime"])
+
+    out = tmp.groupby(["date", "channel"], as_index=False)["spend"].sum()
+    out["source_file"] = os.path.basename(xlsx_path)
+    out["source_mtime"] = os.path.getmtime(xlsx_path)
+    return out[["date", "channel", "spend", "source_file", "source_mtime"]]
+
+def refresh_glink_spend_history(source_dir: str, out_path: str) -> pd.DataFrame:
+    files = list_glink_vendor_files(source_dir)
+    if not files:
+        return pd.DataFrame(columns=["date", "channel", "spend"])
+
+    frames: List[pd.DataFrame] = []
+    for path in files:
+        rows = extract_glink_spend_history_rows(path)
+        if not rows.empty:
+            frames.append(rows)
+    if not frames:
+        return pd.DataFrame(columns=["date", "channel", "spend"])
+
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.sort_values(["date", "channel", "source_mtime", "source_file"])
+    merged = merged.drop_duplicates(subset=["date", "channel"], keep="last")
+    merged = merged.sort_values(["date", "channel"]).reset_index(drop=True)
+
+    out = merged[["date", "channel", "spend"]].copy()
+    try:
+        ensure_dir(os.path.dirname(out_path))
+        out.to_csv(out_path, index=False, encoding="utf-8-sig")
+    except Exception as e:
+        print(f"[WARN] Could not write spend history: {out_path} | {type(e).__name__}: {e}")
+    return out
+
 def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
-    df = safe_read_excel(xlsx_path)
+    df = safe_read_table(xlsx_path)
     if df.empty:
         return {}
     cols = {str(c).strip().lower(): c for c in df.columns}
@@ -1676,87 +1776,14 @@ def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
         out[ch] = val
     return out
 
-def refresh_google_ads_access_token() -> str:
-    if GOOGLE_ADS_ACCESS_TOKEN:
-        return GOOGLE_ADS_ACCESS_TOKEN
-    if not (GOOGLE_ADS_REFRESH_TOKEN and GOOGLE_ADS_CLIENT_ID and GOOGLE_ADS_CLIENT_SECRET):
-        return ''
-    data = urllib.parse.urlencode({
-        'client_id': GOOGLE_ADS_CLIENT_ID,
-        'client_secret': GOOGLE_ADS_CLIENT_SECRET,
-        'refresh_token': GOOGLE_ADS_REFRESH_TOKEN,
-        'grant_type': 'refresh_token',
-    }).encode('utf-8')
-    req = urllib.request.Request('https://oauth2.googleapis.com/token', data=data, headers={'Content-Type':'application/x-www-form-urlencoded'})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        payload = json.loads(resp.read().decode('utf-8'))
-    return str(payload.get('access_token','')).strip()
-
-def http_json(url: str, headers: Optional[Dict[str,str]] = None, data: Optional[bytes] = None, method: Optional[str] = None) -> dict:
-    req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        body = resp.read().decode('utf-8')
-    try:
-        return json.loads(body)
-    except Exception:
-        return {}
-
-def fetch_meta_spend(start: dt.date, end: dt.date) -> float:
-    act_id = META_AD_ACCOUNT_ID or ''
-    if act_id and not act_id.startswith('act_'):
-        act_id = f'act_{act_id}'
-    if not (act_id and META_ACCESS_TOKEN):
-        return 0.0
-    params = {
-        'fields': 'spend',
-        'level': 'account',
-        'time_range': json.dumps({'since': ymd(start), 'until': ymd(end)}),
-        'access_token': META_ACCESS_TOKEN,
-    }
-    url = f"https://graph.facebook.com/v23.0/{act_id}/insights?" + urllib.parse.urlencode(params)
-    try:
-        js = http_json(url)
-        rows = js.get('data', []) or []
-        return float(rows[0].get('spend', 0) or 0) if rows else 0.0
-    except Exception as e:
-        print(f"[WARN] META spend fetch failed: {type(e).__name__}: {e}")
-        return 0.0
-
-def fetch_google_ads_spend(start: dt.date, end: dt.date) -> float:
-    if not (GOOGLE_ADS_CUSTOMER_ID and GOOGLE_ADS_DEVELOPER_TOKEN):
-        return 0.0
-    token = refresh_google_ads_access_token()
-    if not token:
-        return 0.0
-    query = {
-        'query': f"SELECT metrics.cost_micros FROM customer WHERE segments.date BETWEEN '{ymd(start)}' AND '{ymd(end)}'"
-    }
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'developer-token': GOOGLE_ADS_DEVELOPER_TOKEN,
-        'Content-Type': 'application/json',
-    }
-    if GOOGLE_ADS_LOGIN_CUSTOMER_ID:
-        headers['login-customer-id'] = GOOGLE_ADS_LOGIN_CUSTOMER_ID
-    url = f"https://googleads.googleapis.com/v19/customers/{GOOGLE_ADS_CUSTOMER_ID}/googleAds:searchStream"
-    try:
-        js = http_json(url, headers=headers, data=json.dumps(query).encode('utf-8'), method='POST')
-        total = 0.0
-        if isinstance(js, list):
-            for block in js:
-                for row in block.get('results', []) or []:
-                    total += float((((row.get('metrics') or {}).get('costMicros', 0)) or 0)) / 1_000_000.0
-        return total
-    except Exception as e:
-        print(f"[WARN] GOOGLE spend fetch failed: {type(e).__name__}: {e}")
-        return 0.0
-
-def fetch_naver_spend(start: dt.date, end: dt.date) -> float:
-    # API schemas vary by contract. Fallback to manual sheet when unavailable.
-    return 0.0
-
 def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[str, float]:
-    df = safe_read_excel(xlsx_path)
+    df = refresh_glink_spend_history(MEDIA_SPEND_VENDOR_DIR, MEDIA_SPEND_HISTORY_PATH)
+    if df.empty:
+        history_df = safe_read_table(MEDIA_SPEND_HISTORY_PATH)
+        if not history_df.empty:
+            df = history_df
+    if df.empty:
+        df = safe_read_table(xlsx_path)
     if df.empty:
         return {}
     cols = {str(c).strip().lower(): c for c in df.columns}
@@ -1774,7 +1801,7 @@ def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[
     elif year_col and year_col in tmp.columns:
         tmp = tmp[pd.to_numeric(tmp[year_col], errors='coerce').fillna(0).astype(int) == start.year]
     for _, r in tmp.iterrows():
-        ch = str(r.get(ch_col, '') or '').strip().lower()
+        ch = normalize_media_channel(str(r.get(ch_col, '') or '').strip().lower())
         if not ch:
             continue
         out[ch] = out.get(ch, 0.0) + float(r.get(spend_col, 0) or 0)
@@ -1792,11 +1819,7 @@ def map_sub_to_media(sub: str) -> str:
 
 def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
     manual = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, start, end)
-    out = {k: float(v or 0) for k, v in manual.items()}
-    out['meta'] = max(out.get('meta', 0.0), fetch_meta_spend(start, end))
-    out['google'] = max(out.get('google', 0.0), fetch_google_ads_spend(start, end))
-    out['naver'] = max(out.get('naver', 0.0), fetch_naver_spend(start, end))
-    return out
+    return {k: float(v or 0) for k, v in manual.items()}
 
 def get_other_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     dims = ["sessionSourceMedium", "sessionCampaignName"]
