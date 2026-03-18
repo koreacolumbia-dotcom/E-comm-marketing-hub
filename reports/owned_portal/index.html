@@ -882,6 +882,7 @@
 
   // ✅ MMDD 클릭은 "디폴트: 날짜 이동 + 7일 누적" 이므로 기본 ON
   let GROUP_JUMP_MODE = false;
+  let WEEK_ANCHORED_MODE = false;
 
   const YTD_CACHE = new Map();
 
@@ -926,9 +927,15 @@
       return `${datePicker.value || '-'}`;
     }
     if(VIEW==='WEEK'){
-      const cur = parseYMD(datePicker.value || ymd(new Date()));
-      const s = ymd(startOfWeekMon(cur));
-      const e = ymd(endOfWeekSun(cur));
+      let s, e;
+      if(WEEK_ANCHORED_MODE){
+        s = datePicker.value || '-';
+        e = endPicker.value || ymd(addDays(parseYMD(s), 6));
+      }else{
+        const cur = parseYMD(datePicker.value || ymd(new Date()));
+        s = ymd(startOfWeekMon(cur));
+        e = ymd(endOfWeekSun(cur));
+      }
       return `WEEK ${s} ~ ${e}`;
     }
     return `${startPicker.value || '-'} ~ ${endPicker.value || '-'}`;
@@ -939,6 +946,9 @@
       return datePicker.value || ymd(addDays(new Date(), -1));
     }
     if(VIEW==='WEEK'){
+      if(WEEK_ANCHORED_MODE){
+        return endPicker.value || ymd(addDays(parseYMD(datePicker.value || ymd(addDays(new Date(), -1))), 6));
+      }
       const cur = parseYMD(datePicker.value || ymd(addDays(new Date(), -1)));
       return ymd(endOfWeekSun(cur));
     }
@@ -1754,8 +1764,10 @@
 
   async function loadWeekByDate(dStr){
     const cur = parseYMD(dStr);
-    const s = ymd(startOfWeekMon(cur));
-    const e = ymd(endOfWeekSun(cur));
+    const s = WEEK_ANCHORED_MODE ? ymd(cur) : ymd(startOfWeekMon(cur));
+    const e = WEEK_ANCHORED_MODE ? clampToAvailable(ymd(addDays(cur, 6))) : ymd(endOfWeekSun(cur));
+    startPicker.value = s;
+    endPicker.value = e;
     await loadRange(s, e);
   }
 
@@ -1924,7 +1936,10 @@
 
   // ✅ group(mmdd) -> 실제 존재 날짜로 resolve
   function resolveMmddToAvailableDate(year, mmdd){
-    return '';
+    const target = dateStrFromYearMmdd(year, mmdd);
+    if(!AVAILABLE || !AVAILABLE.length) return target;
+    if(AVAILABLE.includes(target)) return target;
+    return clampToAvailable(target);
   }
 
   // ✅ MMDD 클릭 시: 그 날짜부터 7일 누적(RANGE)로 디폴트 로드
@@ -1933,8 +1948,10 @@
     const eRaw = ymd(addDays(parseYMD(s), 6));
     const e = clampToAvailable(eRaw);
 
-    VIEW = 'RANGE';
+    WEEK_ANCHORED_MODE = true;
+    VIEW = 'WEEK';
     setViewActive();
+    datePicker.value = s;
     startPicker.value = s;
     endPicker.value = e;
 
@@ -1943,7 +1960,22 @@
   }
 
   async function selectGroup(channel, year, mmdd){
-    // explicit campaign/term date group only: no automatic date remap
+    if(GROUP_JUMP_MODE){
+      const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
+      if(resolvedDate){
+        await load7dFromDate(resolvedDate);
+        SELECTED = {type:'group', channel, year, mmdd};
+        filterKPI();
+        updateChannelTotals();
+        renderCampaignButtons();
+        aggregateKPIForSelected();
+        renderTerms();
+        renderProducts();
+        return;
+      }
+    }
+
+    WEEK_ANCHORED_MODE = false;
     SELECTED = {type:'group', channel, year, mmdd};
     filterKPI();
     updateChannelTotals();
@@ -1955,6 +1987,7 @@
 
   // View toggles
   chipDaily.addEventListener('click', ()=>{
+    WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
@@ -1963,6 +1996,7 @@
   });
 
   chipWeek.addEventListener('click', async ()=>{
+    WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
@@ -1972,6 +2006,7 @@
   });
 
   chipRange.addEventListener('click', ()=>{
+    WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
     setViewActive();
     setToLastNDays(7);
@@ -1984,6 +2019,7 @@
     setChipActive();
     toggleSections();
 
+    WEEK_ANCHORED_MODE = false;
     VIEW = 'WEEK';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1))));
@@ -2005,11 +2041,11 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()));
-  btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnApplyRange.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btn7d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btn30d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnMTD.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnWEEK.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
 
   btnPrev.addEventListener('click', async ()=>{
     if(VIEW==='DAILY'){
