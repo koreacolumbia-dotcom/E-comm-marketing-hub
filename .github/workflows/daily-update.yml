@@ -102,7 +102,10 @@ on:
           - "true"
 
   schedule:
-    - cron: "30 21 * * *"
+    # 05:00 KST daily
+    - cron: "0 20 * * *"
+    # 14:00 KST daily (Daily Digest only, no email)
+    - cron: "0 5 * * *"
 
 concurrency:
   group: daily-update-main
@@ -138,6 +141,8 @@ jobs:
           set -euo pipefail
 
           EVENT="${{ github.event_name }}"
+          SCHEDULE_CRON="${{ github.event.schedule }}"
+          AFTERNOON_DAILY_CRON="0 5 * * *"
 
           DAILY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}"
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
@@ -172,6 +177,19 @@ jobs:
           RUN_BLOG=true
           RUN_SUMMARY=true
           RUN_OWNED=true
+          SEND_DAILY_EMAIL=true
+
+          if [ "$EVENT" = "schedule" ] && [ "$SCHEDULE_CRON" = "$AFTERNOON_DAILY_CRON" ]; then
+            RUN_DAILY=true
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+            SEND_DAILY_EMAIL=false
+          fi
 
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
             RUN_DAILY=false
@@ -258,6 +276,7 @@ jobs:
           echo "run_blog=$RUN_BLOG" >> "$GITHUB_OUTPUT"
           echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
           echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
+          echo "send_daily_email=$SEND_DAILY_EMAIL" >> "$GITHUB_OUTPUT"
 
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" = "workflow_dispatch" ]; then
@@ -897,7 +916,7 @@ jobs:
           exit 1
 
       - name: Send daily email (yesterday daily report PNG)
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
         continue-on-error: true
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
@@ -927,4 +946,3 @@ jobs:
           fi
 
           python -u scripts/send_daily_email.py || true
-
