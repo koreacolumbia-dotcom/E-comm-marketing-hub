@@ -197,13 +197,20 @@ def write_missing_image_skus(path: str, skus: list[str]) -> None:
     except Exception as e:
         print(f"[WARN] Could not write missing image SKUs: {type(e).__name__}: {e}")
 
+def normalize_sku_key(value: Any) -> str:
+    s = str(value or "").strip()
+    if not s:
+        return ""
+    s = re.sub(r"\.0+$", "", s)
+    return s.upper()
+
 def attach_image_urls(df: pd.DataFrame, image_map: Dict[str, str]) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame(df, copy=True)
     out = df.copy()
     if "itemId" not in out.columns:
         return out
-    out["image_url"] = out["itemId"].astype(str).str.strip().map(lambda x: image_map.get(x, ""))
+    out["image_url"] = out["itemId"].map(lambda x: image_map.get(normalize_sku_key(x), ""))
     return out
 
 def is_not_set(x: str) -> bool:
@@ -449,15 +456,16 @@ def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
         return {}
 
     if not os.path.exists(xlsx_path):
-        alt = os.path.join(os.path.dirname(os.path.abspath(__file__)), xlsx_path)
-        if os.path.exists(alt):
-            xlsx_path = alt
+        candidates = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), xlsx_path),
+            os.path.join(DATA_DIR, os.path.basename(xlsx_path)),
+        ]
+        found = next((p for p in candidates if os.path.exists(p)), "")
+        if found:
+            xlsx_path = found
         else:
             print(f"[WARN] Image Excel not found: {xlsx_path}")
             return {}
-
-    def norm(x) -> str:
-        return str(x).strip() if x is not None else ""
 
     m: Dict[str, str] = {}
     try:
@@ -487,8 +495,8 @@ def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
             header_row = 0
 
         for r in range(header_row + 1, raw.shape[0]):
-            sku = norm(raw.iat[r, sku_idx]) if sku_idx < raw.shape[1] else ""
-            url = norm(raw.iat[r, url_idx]) if url_idx < raw.shape[1] else ""
+            sku = normalize_sku_key(raw.iat[r, sku_idx]) if sku_idx < raw.shape[1] else ""
+            url = str(raw.iat[r, url_idx]).strip() if url_idx < raw.shape[1] else ""
             if not sku:
                 continue
             if url.lower().startswith("http"):
@@ -762,7 +770,7 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
         return re.search(p, s, re.IGNORECASE) is not None
 
     if has(r".*naverbs.*", sm):
-        return "naverbs"
+        return "naver brand search"
     if has(r".*(igshopping|instagram|(^|[^a-z])ig([^a-z]|$)).*", sm):
         return "instagram"
     if has(r".*criteo.*", sm):
@@ -980,10 +988,12 @@ def get_paid_detail_3way(
     cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "purchaseRevenue": "rev_cur"})
     prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "purchaseRevenue": "rev_prev"})
     yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "purchaseRevenue": "rev_yoy_base"})
+    yoy_subs = set(yoy_a["sub"].astype(str).tolist()) if not yoy_a.empty else set()
 
     merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
     merged["dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     merged["yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    merged["has_yoy"] = merged["sub"].astype(str).isin(yoy_subs)
 
     # Ensure core labels always exist in the visible table.
     core = list(PAID_DETAIL_SOURCES)
@@ -993,7 +1003,7 @@ def get_paid_detail_3way(
                 "sub": c, "sessions_cur": 0.0, "rev_cur": 0.0,
                 "sessions_prev": 0.0, "rev_prev": 0.0,
                 "sessions_yoy": 0.0, "rev_yoy_base": 0.0,
-                "dod": 0.0, "yoy": 0.0
+                "dod": 0.0, "yoy": 0.0, "has_yoy": False
             }])], ignore_index=True)
 
     # Show core rows plus top "others", but compute Total from the full Paid AD base.
@@ -1035,9 +1045,10 @@ def get_paid_detail_3way(
         "purchaseRevenue": t_cur_r,
         "dod": pct_change(t_cur_s, t_prev_s),
         "yoy": pct_change(t_cur_s, t_yoy_s),
+        "has_yoy": (t_yoy_s not in (None, 0, 0.0)),
     }
 
-    out = ordered[["sub", "sessions_cur", "rev_cur", "dod", "yoy"]].copy()
+    out = ordered[["sub", "sessions_cur", "rev_cur", "dod", "yoy", "has_yoy"]].copy()
     out = out.rename(columns={
         "sub": "sub_channel",
         "sessions_cur": "sessions",
@@ -1269,13 +1280,13 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
         return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
 
     cand["itemsPurchased"] = pd.to_numeric(cand["itemsPurchased"], errors="coerce").fillna(0.0)
-    cand["itemId"] = cand["itemId"].astype(str).str.strip()
+    cand["itemId"] = cand["itemId"].map(normalize_sku_key)
     cand["itemName"] = cand["itemName"].astype(str).fillna("").map(lambda x: x.strip())
     cand = cand[~cand["itemName"].map(is_not_set)]
     if cand.empty:
         return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
 
-    cand["image_url"] = cand["itemId"].map(lambda s: image_map.get(str(s).strip(), ""))
+    cand["image_url"] = cand["itemId"].map(lambda s: image_map.get(normalize_sku_key(s), ""))
     with_img = cand[cand["image_url"].astype(str).str.strip() != ""].copy().sort_values("itemsPurchased", ascending=False)
     no_img = cand[cand["image_url"].astype(str).str.strip() == ""].copy().sort_values("itemsPurchased", ascending=False)
     top = pd.concat([with_img.head(5), no_img.head(max(0, 5 - len(with_img.head(5))))], ignore_index=True).head(5).copy()
@@ -1287,7 +1298,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
     if views_df.empty:
         top["views"] = 0.0
     else:
-        views_df["itemId"] = views_df["itemId"].astype(str).str.strip()
+        views_df["itemId"] = views_df["itemId"].map(normalize_sku_key)
         views_df["views"] = pd.to_numeric(views_df["views"], errors="coerce").fillna(0.0)
         top = top.merge(views_df[["itemId", "views"]], on="itemId", how="left")
         top["views"] = pd.to_numeric(top["views"], errors="coerce").fillna(0.0)
@@ -1317,7 +1328,7 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
 
     ts["date"] = ts["date"].apply(parse_yyyymmdd)
     ts["itemsPurchased"] = pd.to_numeric(ts["itemsPurchased"], errors="coerce").fillna(0.0)
-    ts["itemId"] = ts["itemId"].astype(str).str.strip()
+    ts["itemId"] = ts["itemId"].map(normalize_sku_key)
     ts = ts.sort_values(["itemId","date"])
 
     svgs = []
@@ -1892,39 +1903,31 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
         df['media'] = df['sub'].map(map_sub_to_media)
         return df
     cur = fetch(w.cur_start, w.cur_end)
-    yoy = fetch(w.yoy_start, w.yoy_end)
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame(columns=['media',f'sessions{suffix}',f'orders{suffix}',f'revenue{suffix}'])
         g = df.groupby('media', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
         return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'orders{suffix}','purchaseRevenue':f'revenue{suffix}'})
-    merged = agg(cur,'_cur').merge(agg(yoy,'_py'), on='media', how='outer').fillna(0.0)
+    merged = agg(cur,'_cur').fillna(0.0)
     spend_cur = fetch_platform_spend_map(w.cur_start, w.cur_end)
-    spend_py = fetch_platform_spend_map(w.yoy_start, w.yoy_end)
     medias = ['google','naver','meta']
     rows=[]
     for media in medias:
         row = merged[merged['media']==media]
         if row.empty:
-            rc = {'sessions_cur':0.0,'orders_cur':0.0,'revenue_cur':0.0,'sessions_py':0.0,'orders_py':0.0,'revenue_py':0.0}
+            rc = {'sessions_cur':0.0,'orders_cur':0.0,'revenue_cur':0.0}
         else:
             rr = row.iloc[0]
-            rc = {k: float(rr.get(k,0) or 0) for k in ['sessions_cur','orders_cur','revenue_cur','sessions_py','orders_py','revenue_py']}
+            rc = {k: float(rr.get(k,0) or 0) for k in ['sessions_cur','orders_cur','revenue_cur']}
         cur_spend = float(spend_cur.get(media,0) or 0)
-        py_spend = float(spend_py.get(media,0) or 0)
         cur_roas = (rc['revenue_cur']/cur_spend) if cur_spend else 0.0
-        py_roas = (rc['revenue_py']/py_spend) if py_spend else 0.0
         cur_cvr = (rc['orders_cur']/rc['sessions_cur']) if rc['sessions_cur'] else 0.0
-        py_cvr = (rc['orders_py']/rc['sessions_py']) if rc['sessions_py'] else 0.0
         rows.append({
             'channel': media.title(),
             'target_roas': float(target_roas_map.get(media, target_roas_map.get(media.title().lower(), 0.0)) or 0),
-            'budget_prev_year': py_spend,
-            'budget_current_year': cur_spend,
-            'roas_prev_year': py_roas,
-            'roas_current_year': cur_roas,
-            'cvr_prev_year': py_cvr,
-            'cvr_current_year': cur_cvr,
+            'budget': cur_spend,
+            'roas': cur_roas,
+            'cvr': cur_cvr,
         })
     return pd.DataFrame(rows)
 
@@ -2198,6 +2201,7 @@ def render_page_html(
             sub = str(getattr(r, "sub_channel", "") or "").strip()
             is_total = (sub.lower() == "total")
             is_bold = (sub.lower() == "total") or (sub.lower() == "google")
+            has_yoy = bool(getattr(r, "has_yoy", False))
 
             row_cls = ""
             if (not is_total) and idx_non_total >= show_n:
@@ -2205,12 +2209,19 @@ def render_page_html(
             if not is_total:
                 idx_non_total += 1
 
+            yoy_val = float(getattr(r, 'yoy', 0) or 0)
+            yoy_html = (
+                f"<div class='text-right {delta_cls(yoy_val)}'>{('+' if yoy_val>=0 else '')}{fmt_pct(yoy_val,1)}</div>"
+                if (is_total or has_yoy)
+                else "<div class='text-right text-slate-400'>-</div>"
+            )
+
             row_html = table_row([
                 esc(sub),
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'yoy', 0) or 0))}'>{('+' if float(getattr(r,'yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'yoy',0) or 0),1)}</div>",
+                yoy_html,
             ], bold=is_bold, row_class=row_cls)
 
             if is_total:
@@ -2276,30 +2287,15 @@ def render_page_html(
         for r in search_rising.itertuples(index=False):
             rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
 
-    other_html = ""
-    if other_detail is not None and (not other_detail.empty):
-        for r in other_detail.itertuples(index=False):
-            other_html += table_row([
-                esc(getattr(r, "sub_channel", "")),
-                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
-                f"<div class='text-right'>{fmt_int(getattr(r, 'orders', 0))}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'yoy', 0) or 0))}'>{('+' if float(getattr(r,'yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'yoy',0) or 0),1)}</div>",
-            ])
-
     paid_media_compare_html = ""
     if paid_media_compare is not None and (not paid_media_compare.empty):
         for r in paid_media_compare.itertuples(index=False):
             paid_media_compare_html += table_row([
                 esc(getattr(r, 'channel', '')),
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'target_roas', 0) or 0),1)}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget_prev_year', 0))}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget_current_year', 0))}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas_prev_year', 0) or 0),1)}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas_current_year', 0) or 0),1)}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr_prev_year', 0) or 0),2)}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr_current_year', 0) or 0),2)}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget', 0))}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas', 0) or 0),1)}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
             ])
 
     kpis_cards = "".join([
@@ -2453,39 +2449,19 @@ def render_page_html(
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
       <div class="mt-3 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[1120px]">
+        <table class="w-full table-auto text-sm min-w-[760px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Channel</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">PY Budget</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">CY Budget</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">PY ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">CY ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">PY CVR</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CY CVR</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
             </tr>
           </thead>
-          <tbody>{paid_media_compare_html or "<tr><td colspan='8' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+          <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
         </table>
       </div>
-    </div>
-
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Other Detail</div>
-      <table class="mt-3 w-full table-auto text-sm">
-        <thead class="text-xs text-slate-500">
-          <tr>
-            <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
-          </tr>
-        </thead>
-        <tbody>{other_html or "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
-      </table>
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
@@ -2696,7 +2672,7 @@ def build_one(
 
     paid_detail = get_paid_detail_3way(client, w, paid_ad_totals=paid_ad_totals)
     paid_top3 = get_paid_top3(client, w)
-    other_detail = get_other_detail_3way(client, w)
+    other_detail = pd.DataFrame()
     target_roas_map = load_target_roas_map(TARGET_ROAS_XLS_PATH)
     paid_media_compare = get_paid_media_comparison_table(client, w, target_roas_map)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
