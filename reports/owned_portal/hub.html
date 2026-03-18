@@ -702,27 +702,28 @@
     return getRowGroup(r).mmdd;
   }
 
-  function getSendKey(r){
+  function getSendKey(r, expectedYear=''){
     const group = getRowGroup(r);
     const channel = String((r && (r.channel || '')) || '').trim();
     if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
+    if(expectedYear && String(group.year) !== String(expectedYear)) return '';
     return `${channel}||${group.year}||${group.mmdd}`;
   }
 
-  function countDistinctSends(rows){
-    return new Set((rows || []).map(getSendKey).filter(Boolean)).size;
+  function countDistinctSends(rows, expectedYear=''){
+    return new Set((rows || []).map(r => getSendKey(r, expectedYear)).filter(Boolean)).size;
   }
 
-  function calcAvgLeverage(rows){
-    const sendCount = countDistinctSends(rows);
+  function calcAvgLeverage(rows, expectedYear=''){
+    const sendCount = countDistinctSends(rows, expectedYear);
     if(!sendCount) return 0;
     const sessions = (rows || []).reduce((acc, r)=> acc + Number(r.sessions || 0), 0);
     return sessions / sendCount;
   }
 
-  function summarizeOwnedRows(rows){
+  function summarizeOwnedRows(rows, expectedYear=''){
     const agg = aggregateRow(rows || []);
-    const sendCount = countDistinctSends(rows || []);
+    const sendCount = countDistinctSends(rows || [], expectedYear);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
@@ -771,8 +772,9 @@
 
   function getChannelSummary(rows, channel, endDate, messageLog){
     const agg = aggregateRow(rows || []);
+    const expectedYear = String(endDate || '').slice(0,4);
     const scheduledSendCount = countCumulativeMessages(messageLog, channel, endDate);
-    const sendCount = scheduledSendCount === null ? countDistinctSends(rows || []) : scheduledSendCount;
+    const sendCount = scheduledSendCount === null ? countDistinctSends(rows || [], expectedYear) : scheduledSendCount;
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
