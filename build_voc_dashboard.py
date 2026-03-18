@@ -2,6 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """
+[CANONICAL VOC DASHBOARD BUILDER]
+- This is the active builder to keep using in `voc_fix9`.
+- Workflow discovery in `daily-update.yml` is intended to pick this file.
+- If you keep historical copies, mark them as legacy/backups so they do not look active.
+
 [BUILD VOC DASHBOARD FROM JSON | v6.1 MAX PATCH | ACCUMULATIVE + ML/DL TREND]
 - Input: aggregated reviews.json ({"reviews":[...]}), created_at ISO recommended
 - Output:
@@ -1884,62 +1889,6 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       });
     }
 
-    function setSearchAndRender(q){
-      const el = document.getElementById("qInput");
-      if (el) el.value = q || "";
-      // Daily chip on + yesterday by default is OK; just rerender
-      renderAll();
-      // Optional: scroll to Daily Feed after applying a search
-      document.getElementById("dailyFeed")?.scrollIntoView({behavior:"smooth", block:"start"});
-    }
-
-    async function boot(){
-      runWithOverlay("Loading VOC data...", async () => {
-        try{
-          const [meta, reviews] = await Promise.all([
-            fetchJsonOrThrow([
-              "./data/meta.json",
-              "./site/data/meta.json",
-              "./reports/voc_crema/data/meta.json",
-              "../data/meta.json",
-            ]),
-            fetchJsonOrThrow([
-              "./data/reviews.json",
-              "./site/data/reviews.json",
-              "./reports/voc_crema/data/reviews.json",
-              "../data/reviews.json",
-            ]),
-          ]);
-
-          META = meta || {};
-          REVIEWS = Array.isArray(reviews?.reviews) ? reviews.reviews : [];
-
-          if (!META.updated_at){
-            throw new Error("meta.json is missing updated_at");
-          }
-          if (!Array.isArray(REVIEWS) || REVIEWS.length === 0){
-            throw new Error("reviews.json contains no review rows");
-          }
-
-          const dayInput = document.getElementById("daySelect");
-          if (dayInput){
-            if (META?.period_start) dayInput.min = META.period_start;
-            if (META?.period_end) dayInput.max = META.period_end;
-
-            // default = yesterday(KST)
-            if (!dayInput.value){
-              dayInput.value = kstDateStr(-1);
-            }
-          }
-
-          renderAll();
-        }catch(e){
-          console.error(e);
-          showError(`VOC ?곗씠?곕? 遺덈윭?ㅼ? 紐삵뻽?듬땲?? ${e?.message || ""}`.trim());
-        }
-      });
-    }
-
     boot();
   </script>
 </body>
@@ -1982,6 +1931,44 @@ def normalize_template_paths(html: str) -> str:
     # Some templates used absolute-like /site/data (rare)
     html = html.replace("/site/data/", "data/")
     html = html.replace("/site/data", "data")
+    # Older templates fetched only ./data/*.json, which breaks when the page is
+    # opened from site/, reports/voc_crema/, or a copied standalone HTML file.
+    new_fetch = """async function fetchJsonOrThrow(urls){
+      const src = Array.isArray(urls) ? urls[0] : urls;
+      const candidates = Array.isArray(urls) ? urls.slice() : [urls];
+      if (typeof src === "string"){
+        if (src.endsWith("/data/meta.json") || src === "./data/meta.json"){
+          candidates.push("./site/data/meta.json", "./reports/voc_crema/data/meta.json", "../data/meta.json");
+        }else if (src.endsWith("/data/reviews.json") || src === "./data/reviews.json"){
+          candidates.push("./site/data/reviews.json", "./reports/voc_crema/data/reviews.json", "../data/reviews.json");
+        }
+      }
+      const uniq = [...new Set(candidates.filter(Boolean))];
+      let lastError = null;
+      for (const url of uniq){
+        try{
+          const res = await fetch(url, {cache:"no-store"});
+          if (!res.ok){
+            throw new Error(`HTTP ${res.status} while loading ${url}`);
+          }
+          return await res.json();
+        }catch(err){
+          lastError = err;
+        }
+      }
+      throw lastError || new Error(`Failed to load JSON from candidates: ${uniq.join(", ")}`);
+    }"""
+    html = re.sub(
+        r'async function fetchJsonOrThrow\(\s*url\s*\)\s*\{.*?return await res\.json\(\);\s*\}',
+        new_fetch,
+        html,
+        count=1,
+        flags=re.S,
+    )
+    html = html.replace(
+        'dayInput.value = kstDateStr(-1);',
+        'dayInput.value = (META?.dashboard_default_day || META?.period_end || kstDateStr(-1));',
+    )
     return html
 
 
