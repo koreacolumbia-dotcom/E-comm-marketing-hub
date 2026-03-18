@@ -169,6 +169,100 @@ def apply_send_group_metrics(camp: pd.DataFrame) -> pd.DataFrame:
     return camp.drop(columns=["send_group_key"], errors="ignore")
 
 
+OWNED_MESSAGE_BLOCKS = (
+    {"channel": "KAKAO", "title_col": 2, "date_col": 3},
+    {"channel": "LMS", "title_col": 11, "date_col": 12},
+    {"channel": "EDM", "title_col": 21, "date_col": 22},
+)
+
+
+def guess_owned_message_source(cli_value: str = "") -> Optional[Path]:
+    if cli_value:
+        p = Path(cli_value).expanduser()
+        return p.resolve() if p.exists() else p.resolve()
+
+    repo_candidate = Path("data") / "owned_inputs" / "KAKAO,LMS 2025.xlsx"
+    if repo_candidate.exists():
+        return repo_candidate.resolve()
+
+    default_candidate = Path.home() / "Downloads" / "KAKAO,LMS 2025.xlsx"
+    if default_candidate.exists():
+        return default_candidate.resolve()
+    return None
+
+
+def parse_owned_message_date(raw_value: Any, default_year: str) -> Optional[str]:
+    s = clean_text(raw_value)
+    if not s:
+        return None
+
+    m = re.search(r"(20\d{2})[^\d]?(0?[1-9]|1[0-2])[^\d]?(0?[1-9]|[12]\d|3[01])", s)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+
+    m = re.search(r"(0?[1-9]|1[0-2])\s*월\s*(0?[1-9]|[12]\d|3[01])\s*일", s)
+    if m and re.fullmatch(r"\d{4}", default_year or ""):
+        return f"{default_year}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+
+    return None
+
+
+def load_owned_message_log(message_source: Optional[Path]) -> pd.DataFrame:
+    columns = ["date", "channel", "message_title", "message_body"]
+    if not message_source or not message_source.exists():
+        return pd.DataFrame(columns=columns)
+
+    inferred_year_match = re.search(r"(20\d{2})", message_source.name)
+    inferred_year = inferred_year_match.group(1) if inferred_year_match else ""
+
+    raw = pd.read_excel(message_source, sheet_name=0, header=None)
+    rows: List[Dict[str, str]] = []
+
+    for block in OWNED_MESSAGE_BLOCKS:
+        channel = block["channel"]
+        title_col = block["title_col"]
+        date_col = block["date_col"]
+        if raw.shape[1] <= max(title_col, date_col):
+            continue
+
+        for idx in raw.index:
+            title = clean_text(raw.iat[idx, title_col])
+            date_str = parse_owned_message_date(raw.iat[idx, date_col], inferred_year)
+            if not title or not date_str:
+                continue
+            rows.append(
+                {
+                    "date": date_str,
+                    "channel": channel,
+                    "message_title": title,
+                    "message_body": "",
+                }
+            )
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    out = pd.DataFrame(rows, columns=columns).drop_duplicates().sort_values(["date", "channel", "message_title"]).reset_index(drop=True)
+    return out
+
+
+def build_owned_message_title_lookup(message_log_df: pd.DataFrame) -> Dict[tuple[str, str], str]:
+    lookup: Dict[tuple[str, str], str] = {}
+    if message_log_df.empty:
+        return lookup
+
+    grouped = (
+        message_log_df.groupby(["date", "channel"], dropna=False)["message_title"]
+        .apply(lambda s: " | ".join(dict.fromkeys(clean_text(v) for v in s if clean_text(v))))
+        .reset_index()
+    )
+    for _, row in grouped.iterrows():
+        key = (clean_text(row.get("date", "")), clean_text(row.get("channel", "")))
+        if any(key):
+            lookup[key] = clean_text(row.get("message_title", ""))
+    return lookup
+
+
 # -----------------------------
 # SQL builder
 # -----------------------------
@@ -533,10 +627,12 @@ def message_key_from_parts(date_v: Any, channel_v: Any, send_id_v: Any, campaign
     )
 
 
-def build_message_template_df(df: pd.DataFrame) -> pd.DataFrame:
+def build_message_template_df(df: pd.DataFrame, owned_message_title_lookup: Optional[Dict[tuple[str, str], str]] = None) -> pd.DataFrame:
     camp = df[df["row_type"] == "CAMPAIGN"].copy()
     if camp.empty:
         return pd.DataFrame(columns=MESSAGE_WORKBOOK_COLUMNS)
+
+    owned_message_title_lookup = owned_message_title_lookup or {}
 
     for col in MESSAGE_KEY_COLUMNS:
         if col not in camp.columns:
@@ -545,7 +641,16 @@ def build_message_template_df(df: pd.DataFrame) -> pd.DataFrame:
 
     template = camp[MESSAGE_KEY_COLUMNS].drop_duplicates().sort_values(MESSAGE_KEY_COLUMNS).reset_index(drop=True)
     template.insert(0, "is_active", "Y")
-    template["message_title"] = ""
+    template["message_title"] = template.apply(
+        lambda r: owned_message_title_lookup.get(
+            (
+                clean_text(r.get("date", "")),
+                clean_text(r.get("channel", "")),
+            ),
+            "",
+        ),
+        axis=1,
+    )
     template["message_body"] = ""
     template["note"] = ""
     return template[MESSAGE_WORKBOOK_COLUMNS]
@@ -632,7 +737,8 @@ def sync_message_workbook(message_workbook: Path, template_df: pd.DataFrame) -> 
 
         combined_idx = template_idx.copy()
         for col in ["is_active", "message_title", "message_body", "note"]:
-            combined_idx[col] = existing_idx[col].reindex(combined_idx.index).fillna(combined_idx[col])
+            existing_series = existing_idx[col].reindex(combined_idx.index)
+            combined_idx[col] = existing_series.where(existing_series.map(clean_text).ne(""), combined_idx[col])
 
         extra_existing = existing_idx.loc[~existing_idx.index.isin(combined_idx.index)].reset_index()
         combined = pd.concat([combined_idx.reset_index(), extra_existing], ignore_index=True)
@@ -699,8 +805,12 @@ def build_day_bundle(
     df: pd.DataFrame,
     day: str,
     message_lookup: Optional[Dict[tuple[str, str, str, str, str], Dict[str, str]]] = None,
+    owned_message_title_lookup: Optional[Dict[tuple[str, str], str]] = None,
+    owned_message_log: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     message_lookup = message_lookup or {}
+    owned_message_title_lookup = owned_message_title_lookup or {}
+    owned_message_log = owned_message_log or []
     camp = df[df["row_type"] == "CAMPAIGN"].copy()
     prod = df[df["row_type"] == "PRODUCT"].copy()
 
@@ -749,6 +859,7 @@ def build_day_bundle(
             r.get("term", ""),
         )
         message_meta = message_lookup.get(message_key, {})
+        schedule_title = owned_message_title_lookup.get((str(r["date"]), str(r["channel"])), "")
         campaigns.append(
             dict(
                 date=str(r["date"]),
@@ -766,7 +877,7 @@ def build_day_bundle(
                 items_purchased=int(r["items_purchased"]),
                 send_count=int(r.get("send_count", 0) or 0),
                 avg_leverage=float(r.get("avg_leverage", 0) or 0),
-                message_title=message_meta.get("message_title", str(r.get("message_title", "") or "")),
+                message_title=message_meta.get("message_title") or schedule_title or str(r.get("message_title", "") or ""),
                 message_body=message_meta.get("message_body", str(r.get("message_body", "") or "")),
             )
         )
@@ -790,7 +901,7 @@ def build_day_bundle(
             )
         )
 
-    return {"date": day, "campaigns": campaigns, "products": products}
+    return {"date": day, "campaigns": campaigns, "products": products, "message_log": owned_message_log}
 
 
 def build_range(
@@ -799,6 +910,7 @@ def build_range(
     end_d: date,
     site_dir: Path,
     message_workbook: Path,
+    owned_message_source: Optional[Path] = None,
     overwrite: bool = False,
     merge_prev_year: bool = False,
 ) -> None:
@@ -808,7 +920,11 @@ def build_range(
 
     q = build_query(bq.project, bq.dataset, ymd_suffix(start_d), ymd_suffix(end_d))
     df = run_bq_query(client, q)
-    message_template_df = build_message_template_df(df)
+    owned_message_log_df = load_owned_message_log(owned_message_source)
+    owned_message_title_lookup = build_owned_message_title_lookup(owned_message_log_df)
+    owned_message_log = owned_message_log_df.to_dict(orient="records") if not owned_message_log_df.empty else []
+
+    message_template_df = build_message_template_df(df, owned_message_title_lookup=owned_message_title_lookup)
     messages_df = sync_message_workbook(message_workbook, message_template_df)
     message_lookup = build_message_lookup(messages_df)
 
@@ -816,7 +932,13 @@ def build_range(
     for day, g in df_day_groups:
         if not isinstance(day, str):
             day = str(day)
-        bundle = build_day_bundle(g, day, message_lookup=message_lookup)
+        bundle = build_day_bundle(
+            g,
+            day,
+            message_lookup=message_lookup,
+            owned_message_title_lookup=owned_message_title_lookup,
+            owned_message_log=owned_message_log,
+        )
         if merge_prev_year:
             bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
         out = owned_dir / f"owned_{day}.json"
@@ -887,12 +1009,15 @@ def merge_previous_year_bundle_rows(owned_dir: Path, bundle: Dict[str, Any], day
     prev_year = str(cur_d.year - 1)
     cur_campaigns = list(bundle.get("campaigns") or [])
     cur_products = list(bundle.get("products") or [])
+    cur_message_log = list(bundle.get("message_log") or [])
 
     prev_campaigns = _filter_exact_year_rows(list(prev_obj.get("campaigns") or []), prev_year)
     prev_products = _filter_exact_year_rows(list(prev_obj.get("products") or []), prev_year)
+    prev_message_log = _filter_exact_year_rows(list(prev_obj.get("message_log") or []), prev_year)
 
     bundle["campaigns"] = _unique_dict_rows(cur_campaigns + prev_campaigns)
     bundle["products"] = _unique_dict_rows(cur_products + prev_products)
+    bundle["message_log"] = _unique_dict_rows(cur_message_log + prev_message_log)
     bundle["previous_year_merged_from"] = str(prev_path)
     return bundle
 
@@ -910,6 +1035,11 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Excel workbook for campaign message_title/message_body management (default: <site-dir>/owned_message_map.xlsx)",
     )
+    ap.add_argument(
+        "--owned-message-source",
+        default="",
+        help="Owned send history workbook used for cumulative send count/message title autofill (default: ~/Downloads/KAKAO,LMS 2025.xlsx if present)",
+    )
     ap.add_argument("--overwrite", action="store_true", help="Overwrite existing daily JSONs in the range")
     ap.add_argument("--merge-prev-year", action="store_true", help="Also merge previous-year same-MM-DD rows into each daily bundle")
     return ap.parse_args()
@@ -924,6 +1054,7 @@ def main() -> None:
     site_dir = Path(args.site_dir).resolve()
     ensure_dir(site_dir / "data" / "owned")
     message_workbook = Path(args.message_workbook).resolve() if args.message_workbook else (site_dir / "owned_message_map.xlsx")
+    owned_message_source = guess_owned_message_source(args.owned_message_source)
 
     # determine range
     if args.recent_days and args.recent_days > 0:
@@ -948,6 +1079,7 @@ def main() -> None:
         end_d,
         site_dir,
         message_workbook=message_workbook,
+        owned_message_source=owned_message_source,
         overwrite=args.overwrite,
         merge_prev_year=args.merge_prev_year,
     )
@@ -955,6 +1087,8 @@ def main() -> None:
     owned_dir = site_dir / "data" / "owned"
     print(f"[OK] wrote: {owned_dir}")
     print(f"[OK] message workbook: {message_workbook}")
+    if owned_message_source and owned_message_source.exists():
+        print(f"[OK] owned message source: {owned_message_source}")
     print(f"[OK] available_dates count: {len(list_owned_dates(owned_dir))}")
 
 
