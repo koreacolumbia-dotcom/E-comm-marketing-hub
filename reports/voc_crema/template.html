@@ -423,12 +423,30 @@
       kst.setDate(kst.getDate() + offsetDays);
       return `${kst.getFullYear()}-${pad2(kst.getMonth()+1)}-${pad2(kst.getDate())}`;
     }
-    async function fetchJsonOrThrow(url){
-      const res = await fetch(url, {cache:"no-store"});
-      if (!res.ok){
-        throw new Error(`HTTP ${res.status} while loading ${url}`);
+    async function fetchJsonOrThrow(urls){
+      const src = Array.isArray(urls) ? urls[0] : urls;
+      const candidates = Array.isArray(urls) ? urls.slice() : [urls];
+      if (typeof src === "string"){
+        if (src.endsWith("/data/meta.json") || src === "./data/meta.json"){
+          candidates.push("./site/data/meta.json", "./reports/voc_crema/data/meta.json", "../data/meta.json");
+        }else if (src.endsWith("/data/reviews.json") || src === "./data/reviews.json"){
+          candidates.push("./site/data/reviews.json", "./reports/voc_crema/data/reviews.json", "../data/reviews.json");
+        }
       }
-      return await res.json();
+      const uniq = [...new Set(candidates.filter(Boolean))];
+      let lastError = null;
+      for (const url of uniq){
+        try{
+          const res = await fetch(url, {cache:"no-store"});
+          if (!res.ok){
+            throw new Error(`HTTP ${res.status} while loading ${url}`);
+          }
+          return await res.json();
+        }catch(err){
+          lastError = err;
+        }
+      }
+      throw lastError || new Error(`Failed to load JSON from candidates: ${uniq.join(", ")}`);
     }
     function parseDate10(s){
       if (!s) return null;
@@ -955,8 +973,18 @@
       runWithOverlay("Loading VOC data...", async () => {
         try{
           const [meta, reviews] = await Promise.all([
-            fetchJsonOrThrow("./data/meta.json"),
-            fetchJsonOrThrow("./data/reviews.json"),
+            fetchJsonOrThrow([
+              "./data/meta.json",
+              "./site/data/meta.json",
+              "./reports/voc_crema/data/meta.json",
+              "../data/meta.json",
+            ]),
+            fetchJsonOrThrow([
+              "./data/reviews.json",
+              "./site/data/reviews.json",
+              "./reports/voc_crema/data/reviews.json",
+              "../data/reviews.json",
+            ]),
           ]);
 
           META = meta || {};
@@ -976,7 +1004,7 @@
 
             // default = yesterday(KST)
             if (!dayInput.value){
-              dayInput.value = kstDateStr(-1);
+              dayInput.value = (META?.dashboard_default_day || META?.period_end || kstDateStr(-1));
             }
           }
 
@@ -992,4 +1020,3 @@
   </script>
 </body>
 </html>
-
