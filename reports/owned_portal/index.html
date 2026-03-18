@@ -702,28 +702,32 @@
     return getRowGroup(r).mmdd;
   }
 
-  function getSendKey(r, expectedYear=''){
+  function getSendKey(r, expectedYear='', cutoffDate=''){
     const group = getRowGroup(r);
     const channel = String((r && (r.channel || '')) || '').trim();
     if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
     if(expectedYear && String(group.year) !== String(expectedYear)) return '';
+    if(cutoffDate){
+      const groupDate = dateStrFromYearMmdd(group.year, group.mmdd);
+      if(groupDate > cutoffDate) return '';
+    }
     return `${channel}||${group.year}||${group.mmdd}`;
   }
 
-  function countDistinctSends(rows, expectedYear=''){
-    return new Set((rows || []).map(r => getSendKey(r, expectedYear)).filter(Boolean)).size;
+  function countDistinctSends(rows, expectedYear='', cutoffDate=''){
+    return new Set((rows || []).map(r => getSendKey(r, expectedYear, cutoffDate)).filter(Boolean)).size;
   }
 
-  function calcAvgLeverage(rows, expectedYear=''){
-    const sendCount = countDistinctSends(rows, expectedYear);
+  function calcAvgLeverage(rows, expectedYear='', cutoffDate=''){
+    const sendCount = countDistinctSends(rows, expectedYear, cutoffDate);
     if(!sendCount) return 0;
     const sessions = (rows || []).reduce((acc, r)=> acc + Number(r.sessions || 0), 0);
     return sessions / sendCount;
   }
 
-  function summarizeOwnedRows(rows, expectedYear=''){
+  function summarizeOwnedRows(rows, expectedYear='', cutoffDate=''){
     const agg = aggregateRow(rows || []);
-    const sendCount = countDistinctSends(rows || [], expectedYear);
+    const sendCount = countDistinctSends(rows || [], expectedYear, cutoffDate);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
@@ -755,6 +759,28 @@
     return normalizeMessageLogRows(messageLog).filter(m => m.channel===channel && String(m.date||'').startsWith(yearPrefix));
   }
 
+  function getRowGroupDate(r){
+    const group = getRowGroup(r);
+    if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
+    return dateStrFromYearMmdd(group.year, group.mmdd);
+  }
+
+  function getScheduledMessageRowsUpTo(messageLog, channel, endDate){
+    const year = String(endDate || '').slice(0,4);
+    if(!/^\d{4}$/.test(year)) return [];
+    return getMessageLogRows(messageLog, channel, year).filter(m => String(m.date || '') <= endDate);
+  }
+
+  function getScheduledMessageDateSet(messageLog, channel, endDate){
+    return new Set(getScheduledMessageRowsUpTo(messageLog, channel, endDate).map(m => String(m.date || '')));
+  }
+
+  function filterRowsToScheduledDates(rows, channel, endDate, messageLog){
+    const scheduledDates = getScheduledMessageDateSet(messageLog, channel, endDate);
+    if(!scheduledDates.size) return rows || [];
+    return (rows || []).filter(r => scheduledDates.has(getRowGroupDate(r)));
+  }
+
   function countCumulativeMessages(messageLog, channel, endDate){
     const year = String(endDate || '').slice(0,4);
     if(!/^\d{4}$/.test(year)) return null;
@@ -771,10 +797,11 @@
   }
 
   function getChannelSummary(rows, channel, endDate, messageLog){
-    const agg = aggregateRow(rows || []);
     const expectedYear = String(endDate || '').slice(0,4);
-    const scheduledSendCount = countCumulativeMessages(messageLog, channel, endDate);
-    const sendCount = scheduledSendCount === null ? countDistinctSends(rows || [], expectedYear) : scheduledSendCount;
+    const scheduledRows = getScheduledMessageRowsUpTo(messageLog, channel, endDate);
+    const metricRows = scheduledRows.length ? filterRowsToScheduledDates(rows || [], channel, endDate, messageLog) : (rows || []);
+    const agg = aggregateRow(metricRows);
+    const sendCount = scheduledRows.length ? scheduledRows.length : countDistinctSends(rows || [], expectedYear, endDate);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
@@ -869,6 +896,28 @@
     const mm = String(mmdd||'').slice(0,2);
     const dd = String(mmdd||'').slice(2,4);
     return `${year}-${mm}-${dd}`;
+  }
+
+  function getComparableCutoffForYear(endDate, targetYear){
+    const base = String(endDate || '');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(base) || !/^\d{4}$/.test(String(targetYear || ''))) return '';
+    return `${targetYear}-${base.slice(5)}`;
+  }
+
+  function isRowEligibleForYearCutoff(r, channel, endDate, messageLog){
+    const rowDate = getRowGroupDate(r);
+    const rowYear = getRowYear(r);
+    if(!rowDate || !rowYear || channel !== String((r && r.channel) || '')) return false;
+
+    const cutoffForYear = getComparableCutoffForYear(endDate, rowYear);
+    if(!cutoffForYear) return true;
+
+    const scheduledDates = getScheduledMessageDateSet(messageLog, channel, cutoffForYear);
+    if(scheduledDates.size){
+      return scheduledDates.has(rowDate);
+    }
+
+    return rowDate <= cutoffForYear;
   }
 
   // ✅ 기본값
@@ -1044,12 +1093,15 @@
     const by = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
     const otherByChannel = {EDM:[], LMS:[], KAKAO:[]};
     const otherChannels = [];
+    const cutoffDate = currentPeriodEndDate();
+    const messageLog = (RAW && RAW.message_log) || [];
 
     for(const r of KPI){
       if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
         const mmdd = mmddOfRow(r);
         const year = getRowYear(r);
         if(mmdd && /^\d{4}$/.test(year)){
+          if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog)) continue;
           const gk = `${getRowYear(r)}-${getRowMmdd(r)}`;
           const m = by[r.channel];
           if(!m.has(gk)) m.set(gk, []);
