@@ -577,16 +577,10 @@ jobs:
             fi
           fi
 
-          BUILD_VOC_SCRIPT=""
-          for CAND in "build_voc_dashboard (9).py" "build_voc_dashboard.py"; do
-            if [ -f "${CAND}" ]; then
-              BUILD_VOC_SCRIPT="${CAND}"
-              break
-            fi
-          done
-
-          if [ -z "${BUILD_VOC_SCRIPT}" ]; then
-            echo "[ERROR] No build_voc_dashboard script found."
+          BUILD_VOC_SCRIPT="build_voc_dashboard.py"
+          # Canonical VOC builder: only use `build_voc_dashboard.py`.
+          if [ ! -f "${BUILD_VOC_SCRIPT}" ]; then
+            echo "[ERROR] Missing canonical VOC builder: ${BUILD_VOC_SCRIPT}"
             ls -la | head -n 200 || true
             exit 1
           fi
