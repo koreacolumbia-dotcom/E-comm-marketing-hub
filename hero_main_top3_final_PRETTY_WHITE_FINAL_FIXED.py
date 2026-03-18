@@ -203,6 +203,10 @@ FETCH_CAMPAIGN_DATES = os.environ.get("FETCH_CAMPAIGN_DATES", "1") != "0"
 DATE_FETCH_TIMEOUT_MS = int(os.environ.get("DATE_FETCH_TIMEOUT_MS", "12000"))
 DATE_FETCH_RANK1_ONLY = os.environ.get("DATE_FETCH_RANK1_ONLY", "1") != "0"
 CAMPAIGN_DATE_CACHE_TTL_DAYS = int(os.environ.get("CAMPAIGN_DATE_CACHE_TTL_DAYS", "14"))
+FETCH_CAMPAIGN_META = os.environ.get("FETCH_CAMPAIGN_META", "1") != "0"
+CAMPAIGN_META_RANK_LIMIT = max(1, int(os.environ.get("CAMPAIGN_META_RANK_LIMIT", "1")))
+CAMPAIGN_META_CACHE_TTL_DAYS = max(1, int(os.environ.get("CAMPAIGN_META_CACHE_TTL_DAYS", "7")))
+ENABLE_OCR = os.environ.get("ENABLE_OCR", "0") == "1"
 
 USER_AGENT = os.environ.get(
     "USER_AGENT",
@@ -236,7 +240,7 @@ EXCLUDE_STYLE_CODES = {
 # =====================================================
 
 BRANDS = [
-    ("The North Face", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", DEFAULT_MAX_ITEMS),
+    ("tnf", "The North Face", "https://www.thenorthfacekorea.co.kr/", "tnf_slick", DEFAULT_MAX_ITEMS),
     ("patagonia", "Patagonia", "https://www.patagonia.co.kr/", "patagonia_static_hero", DEFAULT_MAX_ITEMS),
     ("arcteryx", "Arc'teryx", "https://www.arcteryx.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
     ("salomon", "Salomon", "https://salomon.co.kr/", "hero_sections", DEFAULT_MAX_ITEMS),
@@ -258,7 +262,7 @@ BRANDS = [
 ]
 
 BRAND_SEGMENTS: Dict[str, Dict[str, str]] = {
-    "The North Face": {"style": "라이프스타일", "origin": "글로벌"},
+    "tnf": {"style": "라이프스타일", "origin": "글로벌"},
     "patagonia": {"style": "라이프스타일", "origin": "글로벌"},
     "arcteryx": {"style": "전문 산행", "origin": "글로벌"},
     "salomon": {"style": "전문 산행", "origin": "글로벌"},
@@ -268,7 +272,6 @@ BRAND_SEGMENTS: Dict[str, Dict[str, str]] = {
     "nepa": {"style": "전문 산행", "origin": "로컬"},
     "natgeo": {"style": "라이프스타일", "origin": "글로벌"},
     "kolonsport": {"style": "전문 산행", "origin": "로컬"},
-    "kolonmall": {"style": "라이프스타일", "origin": "로컬"},
     "k2": {"style": "전문 산행", "origin": "로컬"},
     "montbell": {"style": "전문 산행", "origin": "글로벌"},
     "eider": {"style": "전문 산행", "origin": "글로벌"},
@@ -281,6 +284,21 @@ KEYWORD_STOPWORDS = {
     "brand", "official", "look", "edition", "outdoor", "image", "hero", "mainvisual",
     "기획전", "메인", "배너", "컬렉션", "이벤트", "브랜드", "공식", "더", "및", "신상",
     "출시", "추천", "위크", "시즌", "라인", "캠페인", "section",
+}
+
+DASHBOARD_KEYWORD_EXCLUDES = {
+    "COLLECTION",
+    "MILLET",
+    "ITEM",
+    "루트",
+    "지구",
+    "경이로운",
+    "행성",
+    "담은",
+    "화이트라벨",
+    "루벤",
+    "박보검",
+    "몬테라",
 }
 
 VISUAL_TAG_RULES = [
@@ -312,7 +330,7 @@ ALERT_SMTP_PASSWORD = os.environ.get("ALERT_SMTP_PASSWORD", "").strip()
 # ✅ URL이 간혹 안되는 브랜드 대비(필요 시 너가 계속 추가/수정)
 
 ALT_URLS: Dict[str, List[str]] = {
-    "The North Face": [
+    "tnf": [
         "https://www.thenorthfacekorea.co.kr/",
         "https://www.thenorthfacekorea.co.kr/main",
         "https://www.thenorthfacekorea.co.kr/main/",
@@ -334,6 +352,10 @@ ALT_URLS: Dict[str, List[str]] = {
         "https://www.natgeokorea.com/main",
     ],
 }
+
+BRAND_NAME_MAP: Dict[str, str] = {bk: bn for bk, bn, *_ in BRANDS}
+BRAND_ORDER = [bk for bk, *_ in BRANDS]
+DEEP_SCAN_BRANDS = {"tnf", "arcteryx", "k2", "salomon", "snowpeak", "natgeo", "kolonsport", "montbell", "eider", "millet"}
 
 
 # =====================================================
@@ -357,6 +379,20 @@ class Banner:
     img_h: int = 0
     img_bytes: int = 0
     img_status: str = ""   # ok / cached / download_fail / blocked / blocked_html / http_403 / http_429 / no_url / unknown
+    img_signature: str = ""
+    brand_resolved_url: str = ""
+
+    extract_source: str = ""
+    confidence_score: float = 0.0
+    is_fallback: bool = False
+    is_primary_hero: bool = False
+
+    landing_title: str = ""
+    landing_subtitle: str = ""
+    landing_summary: str = ""
+    landing_keywords: str = ""
+    landing_category: str = ""
+    landing_text_status: str = ""
 
     # 운영/디버깅
     brand_resolved_url: str = ""
@@ -367,6 +403,8 @@ class Banner:
 # =====================================================
 IMG_URL_CACHE: Dict[str, str] = {}       # normalize_img_url(img_url) -> local filename
 IMG_META: Dict[str, Tuple[int, int, int]] = {}  # local filename -> (w,h,bytes)
+CAMPAIGN_CACHE: Dict[str, Any] = {}
+CAMPAIGN_META_CACHE: Dict[str, Any] = {}
 
 
 # =====================================================
@@ -614,6 +652,37 @@ def _record_img_meta(local_path: str, fname: str):
             w = h = 0
     IMG_META[fname] = (int(w or 0), int(h or 0), int(size_b or 0))
 
+
+def _image_signature(img_local: str, img_url: str = "") -> str:
+    if img_local:
+        path = os.path.join(ASSET_DIR, img_local)
+        try:
+            with open(path, "rb") as f:
+                head = f.read(65536)
+            return hashlib.sha1(head).hexdigest()[:16]
+        except Exception:
+            pass
+    norm_img = normalize_img_url(img_url or "")
+    return sha1(norm_img) if norm_img else ""
+
+
+def build_banner(date_s: str, brand_key: str, brand_name: str, rank: int, title: str,
+                 href: str, img_url: str, img_local: str, raw_img_status: str,
+                 extract_source: str = "", confidence_score: float = 0.0,
+                 is_fallback: bool = False, is_primary_hero: bool = False) -> Banner:
+    banner = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
+    banner.href_clean = normalize_href(href)
+    banner.img_status = raw_img_status or ("ok" if img_local else "")
+    banner.img_signature = _image_signature(img_local, img_url)
+    banner.extract_source = extract_source or ""
+    banner.confidence_score = round(float(confidence_score or 0.0), 2)
+    banner.is_fallback = bool(is_fallback)
+    banner.is_primary_hero = bool(is_primary_hero)
+    if img_local and img_local in IMG_META:
+        w, h, sz = IMG_META[img_local]
+        banner.img_w, banner.img_h, banner.img_bytes = w, h, sz
+    return banner
+
 def save_and_resize_image(context, img_url: str, brand_key: str, rank: int, referer: str = "") -> Tuple[str, str]:
     """
     returns: (local_filename, status)
@@ -741,6 +810,46 @@ def launch(pw):
     return browser, context
 
 
+def append_error_log(path: str, brand_key: str, stage: str, message: str,
+                     brand_name: str = "", error_type: str = "", attempt: int = 0,
+                     extra: Optional[Dict[str, Any]] = None) -> None:
+    payload = {
+        "ts": datetime.now(_KST).isoformat(),
+        "brand_key": brand_key or "",
+        "brand_name": brand_name or BRAND_NAME_MAP.get(brand_key, ""),
+        "stage": stage or "",
+        "error_type": error_type or "error",
+        "message": norm_ws(message or ""),
+        "attempt": int(attempt or 0),
+    }
+    if extra:
+        payload["extra"] = extra
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def classify_img_status(status: str) -> str:
+    st = (status or "").strip().lower()
+    if st == "ok":
+        return "img_ok"
+    if st == "cached":
+        return "img_cached"
+    if st == "no_url":
+        return "img_no_url"
+    if st in {"http_403", "http_429", "blocked_html"}:
+        return "img_blocked"
+    if st in {"download_fail", "exception", "pw_exception", "pw_noresp", "pw_notok"}:
+        return "img_transport_fail"
+    if st.startswith("http_5"):
+        return "img_transport_fail"
+    if st.startswith("http_"):
+        return "img_other_fail"
+    return "img_other_fail" if st else ""
+
+
 # =====================================================
 # Campaign date extraction + caching
 # =====================================================
@@ -860,6 +969,278 @@ def fetch_campaign_dates(context, href: str) -> Tuple[str, str]:
         except Exception:
             pass
     return s, e
+
+
+LANDING_TITLE_SELECTORS = [
+    "main h1", "h1", "[class*='hero'] h1", "[class*='hero'] h2",
+    "[class*='headline']", "[class*='title']", "[class*='tit']",
+    ".event-title", ".promo-title", ".hero-title",
+]
+LANDING_SUBTITLE_SELECTORS = [
+    "main h2", "[class*='subtitle']", "[class*='subtit']", "[class*='desc']",
+    "[class*='copy']", "[class*='summary']", "[class*='lead']", "[class*='hero'] p",
+]
+LANDING_SUMMARY_SELECTORS = [
+    "main p", "article p", "[class*='description']", "[class*='desc']",
+    "[class*='copy']", "[class*='summary']", "[class*='lead']",
+]
+LANDING_CATEGORY_RULES = [
+    ("하이킹", [r"hik", r"trail", r"trek", r"mountain", r"등산", r"산행"]),
+    ("러닝", [r"run", r"runner", r"trail run", r"러닝", r"러너"]),
+    ("캠핑", [r"camp", r"tent", r"sleeping", r"캠핑", r"텐트"]),
+    ("라이프스타일", [r"lifestyle", r"casual", r"daily", r"urban", r"city", r"라이프스타일", r"일상"]),
+    ("키즈", [r"kids", r"kid", r"junior", r"school", r"키즈", r"주니어"]),
+    ("여성", [r"women", r"woman", r"female", r"여성", r"우먼"]),
+    ("우천/방수", [r"rain", r"storm", r"waterproof", r"gore-tex", r"방수", r"우천", r"레인"]),
+    ("풋웨어", [r"shoe", r"shoes", r"footwear", r"sneaker", r"boot", r"신발", r"슈즈"]),
+    ("백팩", [r"backpack", r"rucksack", r"bag", r"pack", r"백팩", r"가방"]),
+    ("재킷", [r"jacket", r"shell", r"wind", r"down", r"자켓", r"재킷"]),
+]
+BLOCKED_TEXT_PATTERNS = ["access denied", "forbidden", "captcha", "cloudflare", "bot verification", "서비스 이용에 불편"]
+
+
+def _campaign_meta_cache_path() -> str:
+    _safe_mkdir(CACHE_DIR)
+    return os.path.join(CACHE_DIR, "campaign_page_meta.json")
+
+
+def load_campaign_meta_cache() -> Dict[str, Any]:
+    path = _campaign_meta_cache_path()
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f) or {}
+    except Exception:
+        pass
+    return {}
+
+
+def save_campaign_meta_cache(cache: Dict[str, Any]) -> None:
+    path = _campaign_meta_cache_path()
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def _cache_fresh_ttl(ts_iso: str, ttl_days: int) -> bool:
+    try:
+        t = datetime.fromisoformat((ts_iso or "").replace("Z", "+00:00"))
+        return (datetime.now(timezone.utc) - t) <= timedelta(days=max(int(ttl_days or 1), 1))
+    except Exception:
+        return False
+
+
+def _clean_text_list(values: List[str], max_items: int = 8, max_len: int = 220) -> List[str]:
+    out: List[str] = []
+    seen = set()
+    for raw in values or []:
+        txt = norm_ws(raw)
+        txt = re.sub(r"\s+[|/>\-]+\s+", " ", txt)
+        txt = txt.strip(" -|/>'\"")
+        if len(txt) < 2:
+            continue
+        key = txt.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(txt[:max_len])
+        if len(out) >= max_items:
+            break
+    return out
+
+
+def _collect_locator_texts(page, selectors: List[str], limit: int = 6, max_len: int = 220) -> List[str]:
+    texts: List[str] = []
+    for sel in selectors:
+        try:
+            loc = page.locator(sel)
+            cnt = min(loc.count(), limit)
+        except Exception:
+            cnt = 0
+        for i in range(cnt):
+            try:
+                txt = loc.nth(i).inner_text(timeout=1200)
+            except Exception:
+                txt = ""
+            texts.extend(_clean_text_list([txt], max_items=1, max_len=max_len))
+            if len(texts) >= limit:
+                return _clean_text_list(texts, max_items=limit, max_len=max_len)
+    return _clean_text_list(texts, max_items=limit, max_len=max_len)
+
+
+def _head_meta(page) -> Dict[str, str]:
+    try:
+        return page.evaluate(
+            """() => {
+                const read = (sel) => document.querySelector(sel)?.getAttribute('content') || '';
+                return {
+                    page_title: document.title || '',
+                    og_title: read('meta[property=\"og:title\"]'),
+                    twitter_title: read('meta[name=\"twitter:title\"]'),
+                    description: read('meta[name=\"description\"]') || read('meta[property=\"og:description\"]') || read('meta[name=\"twitter:description\"]'),
+                };
+            }"""
+        ) or {}
+    except Exception:
+        return {}
+
+
+def _landing_keywords_from_text(*parts: str, limit: int = 6) -> List[str]:
+    counter: Counter = Counter()
+    text = " ".join([norm_ws(x) for x in parts if norm_ws(x)])
+    english_tokens = re.findall(r"[A-Za-z][A-Za-z0-9'\-/&]{2,}", text)
+    korean_tokens = re.findall(r"[가-힣]{2,}", text)
+    for raw in english_tokens + korean_tokens:
+        token = raw.strip("-_/ ").upper() if re.search(r"[A-Za-z]", raw) else raw
+        if len(token) < 2:
+            continue
+        if token.lower() in KEYWORD_STOPWORDS or token in KEYWORD_STOPWORDS:
+            continue
+        counter[token] += 1
+    return [k for k, _ in counter.most_common(limit)]
+
+
+def _infer_landing_category(title: str, subtitle: str, summary: str, keywords: List[str]) -> str:
+    hay = " ".join([title, subtitle, summary, " ".join(keywords)]).lower()
+    for category, patterns in LANDING_CATEGORY_RULES:
+        for pat in patterns:
+            if re.search(pat, hay, re.I):
+                return category
+    return ""
+
+
+def _build_landing_summary(title: str, subtitle: str, summary: str, keywords: List[str]) -> str:
+    if summary:
+        return summary[:220]
+    if title and subtitle and subtitle.lower() not in title.lower():
+        return f"{title} - {subtitle}"[:220]
+    if title and keywords:
+        return f"{title} | 키워드: {', '.join(keywords[:4])}"[:220]
+    if title:
+        return title[:220]
+    return "기획전 설명 추출 실패"
+
+
+def _is_blocked_body(*parts: str) -> bool:
+    body = " ".join([norm_ws(x) for x in parts if norm_ws(x)]).lower()
+    return any(token in body for token in BLOCKED_TEXT_PATTERNS)
+
+
+def _campaign_meta_defaults(status: str = "") -> Dict[str, Any]:
+    return {
+        "plan_start": "",
+        "plan_end": "",
+        "landing_title": "",
+        "landing_subtitle": "",
+        "landing_summary": "",
+        "landing_keywords": [],
+        "landing_category": "",
+        "landing_text_status": status,
+    }
+
+
+def fetch_campaign_page_meta(context, href: str) -> Dict[str, Any]:
+    if not href or not FETCH_CAMPAIGN_META:
+        return _campaign_meta_defaults("skipped")
+
+    key = normalize_href(href)
+    cache = CAMPAIGN_META_CACHE
+    if key and key in cache:
+        cached = cache.get(key) or {}
+        if _cache_fresh_ttl(cached.get("checked_at", ""), CAMPAIGN_META_CACHE_TTL_DAYS):
+            out = _campaign_meta_defaults(cached.get("landing_text_status", ""))
+            out.update(cached)
+            out["landing_keywords"] = list(cached.get("landing_keywords") or [])
+            return out
+
+    page = None
+    out = _campaign_meta_defaults()
+    checked_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    try:
+        page = context.new_page()
+        page.goto(href, timeout=DATE_FETCH_TIMEOUT_MS, wait_until="domcontentloaded")
+        try:
+            page.wait_for_load_state("networkidle", timeout=2500)
+        except Exception:
+            pass
+        page.wait_for_timeout(300)
+
+        head = _head_meta(page)
+        try:
+            body_text = page.locator("body").inner_text(timeout=1500)
+        except Exception:
+            body_text = ""
+        try:
+            main_text = page.locator("main").first.inner_text(timeout=1200)
+        except Exception:
+            main_text = ""
+        try:
+            html_text = page.content()
+        except Exception:
+            html_text = ""
+
+        title_candidates = _clean_text_list([
+            head.get("og_title", ""),
+            head.get("twitter_title", ""),
+            head.get("page_title", ""),
+        ] + _collect_locator_texts(page, LANDING_TITLE_SELECTORS, limit=6, max_len=120), max_items=8, max_len=120)
+        subtitle_candidates = _clean_text_list(_collect_locator_texts(page, LANDING_SUBTITLE_SELECTORS, limit=8, max_len=160), max_items=8, max_len=160)
+        summary_candidates = _clean_text_list([
+            head.get("description", ""),
+        ] + _collect_locator_texts(page, LANDING_SUMMARY_SELECTORS, limit=10, max_len=220), max_items=10, max_len=220)
+
+        title = choose_title(*title_candidates)
+        if title == "메인 배너":
+            title = ""
+        subtitle = ""
+        for cand in subtitle_candidates:
+            if cand and cand.lower() != title.lower():
+                subtitle = cand
+                break
+        summary_text = ""
+        for cand in summary_candidates:
+            if not cand:
+                continue
+            if title and cand.lower() == title.lower():
+                continue
+            if subtitle and cand.lower() == subtitle.lower():
+                continue
+            summary_text = cand
+            break
+
+        s, e = extract_date_range_from_text(" ".join([body_text, main_text, html_text]))
+        keywords = _landing_keywords_from_text(title, subtitle, summary_text, body_text[:300])
+        category = _infer_landing_category(title, subtitle, summary_text, keywords)
+        blocked = _is_blocked_body(head.get("page_title", ""), body_text, html_text[:800])
+
+        out.update({
+            "plan_start": s,
+            "plan_end": e,
+            "landing_title": title,
+            "landing_subtitle": subtitle,
+            "landing_summary": _build_landing_summary(title, subtitle, summary_text, keywords),
+            "landing_keywords": keywords,
+            "landing_category": category,
+            "landing_text_status": "blocked" if blocked else ("ok" if any([title, subtitle, summary_text, keywords, s, e]) else "no_text"),
+        })
+    except PWTimeoutError:
+        out["landing_text_status"] = "timeout"
+    except Exception:
+        out["landing_text_status"] = "exception"
+    finally:
+        try:
+            if key:
+                cache[key] = dict(out, checked_at=checked_at)
+        except Exception:
+            pass
+        try:
+            if page:
+                page.close()
+        except Exception:
+            pass
+    return out
 
 
 # =====================================================
@@ -1032,7 +1413,15 @@ def dedupe_brand_rows(rows: List[Banner]) -> List[Banner]:
     """브랜드 내 중복 제거: href_clean + img_url(정규화)"""
     if not rows:
         return rows
-    rows_sorted = sorted(rows, key=lambda x: x.rank)
+    rows_sorted = sorted(
+        rows,
+        key=lambda x: (
+            int(x.rank or 9999),
+            0 if x.is_primary_hero else 1,
+            0 if not x.is_fallback else 1,
+            -float(x.confidence_score or 0.0),
+        ),
+    )
 
     seen_href = set()
     seen_img = set()
@@ -1057,20 +1446,32 @@ def dedupe_brand_rows(rows: List[Banner]) -> List[Banner]:
         b.rank = i
     return out
 
-def enrich_dates_for_rows(context, rows: List[Banner]) -> None:
-    if not FETCH_CAMPAIGN_DATES:
+def enrich_campaign_meta_for_rows(context, rows: List[Banner]) -> None:
+    if not FETCH_CAMPAIGN_META:
         return
     for b in rows:
-        if DATE_FETCH_RANK1_ONLY and b.rank != 1:
+        if int(b.rank or 0) > CAMPAIGN_META_RANK_LIMIT:
+            b.landing_text_status = b.landing_text_status or "skipped"
             continue
         if not b.href_clean and b.href:
             b.href_clean = normalize_href(b.href)
         h = b.href_clean or b.href
         if not h:
+            b.landing_text_status = b.landing_text_status or "no_href"
             continue
-        s, e = fetch_campaign_dates(context, h)
-        b.plan_start = s
-        b.plan_end = e
+        meta = fetch_campaign_page_meta(context, h)
+        b.plan_start = meta.get("plan_start", "") or ""
+        b.plan_end = meta.get("plan_end", "") or ""
+        b.landing_title = meta.get("landing_title", "") or ""
+        b.landing_subtitle = meta.get("landing_subtitle", "") or ""
+        b.landing_summary = meta.get("landing_summary", "") or ""
+        b.landing_keywords = ", ".join(meta.get("landing_keywords") or [])
+        b.landing_category = meta.get("landing_category", "") or ""
+        b.landing_text_status = meta.get("landing_text_status", "") or ""
+
+
+def enrich_dates_for_rows(context, rows: List[Banner]) -> None:
+    enrich_campaign_meta_for_rows(context, rows)
 
 
 # =====================================================
@@ -1150,14 +1551,9 @@ def tnf_slick(context, page, base_url: str, brand_key: str, brand_name: str, dat
         title = choose_title(txt, alt)
         img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url) if img_url else ("", "no_url")
 
-        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
-        b.href_clean = normalize_href(href)
-        b.img_status = "ok" if img_local else st
-
-        if img_local and img_local in IMG_META:
-            w, h, sz = IMG_META[img_local]
-            b.img_w, b.img_h, b.img_bytes = w, h, sz
-
+        b = build_banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local, st,
+                         extract_source="tnf_slick", confidence_score=0.96,
+                         is_fallback=False, is_primary_hero=(rank == 1))
         out.append(b)
         rank += 1
     return out
@@ -1226,12 +1622,9 @@ def discovery_swiper(context, page, base_url: str, brand_key: str, brand_name: s
         title = choose_title(title_txt, get_any_alt_text(page.locator("body")))
         img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
-        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
-        b.href_clean = normalize_href(href)
-        b.img_status = "ok" if img_local else st
-        if img_local and img_local in IMG_META:
-            w, h, sz = IMG_META[img_local]
-            b.img_w, b.img_h, b.img_bytes = w, h, sz
+        b = build_banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local, st,
+                         extract_source="discovery_swiper", confidence_score=0.93,
+                         is_fallback=False, is_primary_hero=(rank == 1))
         out.append(b)
         rank += 1
     return out
@@ -1309,12 +1702,9 @@ def blackyak_swiper(context, page, base_url: str, brand_key: str, brand_name: st
         title = choose_title(txt, alt)
         img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
-        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
-        b.href_clean = normalize_href(href)
-        b.img_status = "ok" if img_local else st
-        if img_local and img_local in IMG_META:
-            w, h, sz = IMG_META[img_local]
-            b.img_w, b.img_h, b.img_bytes = w, h, sz
+        b = build_banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local, st,
+                         extract_source="blackyak_swiper", confidence_score=0.93,
+                         is_fallback=False, is_primary_hero=(rank == 1))
         out.append(b)
         rank += 1
     return out
@@ -1364,13 +1754,9 @@ def nepa_static(context, page, base_url: str, brand_key: str, brand_name: str, d
 
         img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
-        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
-        b.href_clean = normalize_href(href)
-        b.img_status = "ok" if img_local else st
-        if img_local and img_local in IMG_META:
-            w, h, sz = IMG_META[img_local]
-            b.img_w, b.img_h, b.img_bytes = w, h, sz
-        return b
+        return build_banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local, st,
+                            extract_source="nepa_static", confidence_score=0.92,
+                            is_fallback=False, is_primary_hero=(rank == 1))
 
     rank = 1
     for idx in range(1, 35):
@@ -1433,12 +1819,9 @@ def patagonia_static_hero(context, page, base_url: str, brand_key: str, brand_na
     title = choose_title(best_title, urllib.parse.unquote((best_img or "").split("/")[-1]))
     img_local, st = save_and_resize_image(context, best_img, brand_key, 1, referer=base_url)
 
-    b = Banner(date_s, brand_key, brand_name, 1, title, best_href, best_img, img_local)
-    b.href_clean = normalize_href(best_href)
-    b.img_status = "ok" if img_local else st
-    if img_local and img_local in IMG_META:
-        w, h, sz = IMG_META[img_local]
-        b.img_w, b.img_h, b.img_bytes = w, h, sz
+    b = build_banner(date_s, brand_key, brand_name, 1, title, best_href, best_img, img_local, st,
+                     extract_source="patagonia_static_hero", confidence_score=0.94,
+                     is_fallback=False, is_primary_hero=True)
     return [b]
 
 
@@ -1561,12 +1944,9 @@ def deep_section_banners(context, page, base_url: str, brand_key: str, brand_nam
             title = clean_campaign_title(f"{title} | {section}")
 
         img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
-        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
-        b.href_clean = normalize_href(href)
-        b.img_status = 'ok' if img_local else st
-        if img_local and img_local in IMG_META:
-            w, h, sz = IMG_META[img_local]
-            b.img_w, b.img_h, b.img_bytes = w, h, sz
+        b = build_banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local, st,
+                         extract_source="deep_section", confidence_score=0.68,
+                         is_fallback=True, is_primary_hero=False)
         out.append(b)
         rank += 1
 
@@ -1665,14 +2045,9 @@ def generic_top_banners(context, page_or_frame, base_url: str, brand_key: str, b
             title = choose_title(title_txt, get_any_alt_text(el))
             img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
-            b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
-            b.href_clean = normalize_href(href)
-            b.img_status = "ok" if img_local else st
-
-            if img_local and img_local in IMG_META:
-                w, h, sz = IMG_META[img_local]
-                b.img_w, b.img_h, b.img_bytes = w, h, sz
-
+            b = build_banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local, st,
+                             extract_source="generic_fallback", confidence_score=0.55,
+                             is_fallback=True, is_primary_hero=False)
             out.append(b)
             rank += 1
         except Exception:
@@ -1859,12 +2234,9 @@ def _hero_slider_from_container(context, page, base_url: str, brand_key: str, br
             title = choose_title(txt, alt)
             img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
-            b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
-            b.href_clean = normalize_href(href)
-            b.img_status = "ok" if img_local else st
-            if img_local and img_local in IMG_META:
-                w, h, sz = IMG_META[img_local]
-                b.img_w, b.img_h, b.img_bytes = w, h, sz
+            b = build_banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local, st,
+                             extract_source="hero_slider_container", confidence_score=0.88,
+                             is_fallback=False, is_primary_hero=(rank == 1))
             out.append(b)
             rank += 1
 
@@ -2000,12 +2372,9 @@ def _hero_slider_broad(context, page, base_url: str, brand_key: str, brand_name:
         title = choose_title(txt, alt)
         img_local, st = save_and_resize_image(context, img_url, brand_key, rank, referer=base_url)
 
-        b = Banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local)
-        b.href_clean = normalize_href(href)
-        b.img_status = "ok" if img_local else st
-        if img_local and img_local in IMG_META:
-            w, h, sz = IMG_META[img_local]
-            b.img_w, b.img_h, b.img_bytes = w, h, sz
+        b = build_banner(date_s, brand_key, brand_name, rank, title, href, img_url, img_local, st,
+                         extract_source="hero_slider_broad", confidence_score=0.72,
+                         is_fallback=True, is_primary_hero=(rank == 1))
         out.append(b)
         rank += 1
 
@@ -2048,7 +2417,10 @@ def write_csv(path: str, rows: List[Banner]):
             "plan_start","plan_end",
             "img_url","img_local","img_status",
             "img_w","img_h","img_bytes",
-            "brand_resolved_url",
+            "img_signature","brand_resolved_url",
+            "extract_source","confidence_score","is_fallback","is_primary_hero",
+            "landing_title","landing_subtitle","landing_summary",
+            "landing_keywords","landing_category","landing_text_status",
         ])
         for b in rows:
             w.writerow([
@@ -2057,7 +2429,10 @@ def write_csv(path: str, rows: List[Banner]):
                 b.plan_start,b.plan_end,
                 b.img_url,b.img_local,b.img_status,
                 b.img_w,b.img_h,b.img_bytes,
-                b.brand_resolved_url,
+                b.img_signature,b.brand_resolved_url,
+                b.extract_source,b.confidence_score,int(bool(b.is_fallback)),int(bool(b.is_primary_hero)),
+                b.landing_title,b.landing_subtitle,b.landing_summary,
+                b.landing_keywords,b.landing_category,b.landing_text_status,
             ])
 
 def _read_csv_rows(path: str) -> List[Dict[str, str]]:
@@ -2159,6 +2534,169 @@ def build_changes(prev_csv: str, curr_csv: str) -> Dict[str, Any]:
     }
 
 
+def _banner_identity_candidates(row: Dict[str, str]) -> List[str]:
+    keys: List[str] = []
+    href = normalize_href(row.get("href_clean", "") or row.get("href", ""))
+    title = norm_ws((row.get("landing_title", "") or row.get("title", "") or "")).lower()
+    subtitle = norm_ws(row.get("landing_subtitle", "") or "").lower()
+    img_sig = (row.get("img_signature", "") or "").strip().lower()
+    img_url = normalize_img_url(row.get("img_url", "") or "").lower()
+
+    if href:
+        keys.append(f"href:{href}")
+    if img_sig:
+        keys.append(f"imgsig:{img_sig}")
+    if href and title:
+        keys.append(f"href_title:{sha1(href + '|' + title)}")
+    if title and img_sig:
+        keys.append(f"title_sig:{sha1(title + '|' + img_sig)}")
+    if title and img_url:
+        keys.append(f"title_img:{sha1(title + '|' + img_url)}")
+    if title:
+        keys.append(f"title:{sha1(title)}")
+    if subtitle:
+        keys.append(f"subtitle:{sha1(subtitle)}")
+    if img_url:
+        keys.append(f"img:{img_url}")
+    return keys
+
+
+def _change_subtypes(prev_row: Dict[str, str], curr_row: Dict[str, str], diffs: Dict[str, Dict[str, str]]) -> List[str]:
+    subtypes: List[str] = []
+    if (prev_row.get("rank", "") or "") != (curr_row.get("rank", "") or ""):
+        subtypes.append("rank_shift")
+    if any(k in diffs for k in {"img_url", "img_local", "img_signature"}):
+        subtypes.append("image_changed")
+    if "href_clean" in diffs:
+        subtypes.append("link_changed")
+    if any(k in diffs for k in {"landing_title", "landing_subtitle", "landing_summary", "landing_keywords", "landing_category"}):
+        subtypes.append("landing_text_changed")
+    if "title" in diffs:
+        subtypes.append("title_changed")
+    if any(k in diffs for k in {"plan_start", "plan_end"}):
+        subtypes.append("date_changed")
+    if any(k in diffs for k in {"extract_source", "confidence_score", "is_fallback", "is_primary_hero"}):
+        subtypes.append("extractor_changed")
+    if not subtypes and diffs:
+        subtypes.append("content_changed")
+    return subtypes
+
+
+def _primary_subtype(subtypes: List[str]) -> str:
+    priority = [
+        "image_changed", "link_changed", "landing_text_changed", "title_changed",
+        "date_changed", "rank_shift", "extractor_changed", "content_changed",
+    ]
+    for item in priority:
+        if item in subtypes:
+            return item
+    return subtypes[0] if subtypes else ""
+
+
+def build_changes(prev_csv: str, curr_csv: str) -> Dict[str, Any]:
+    prev = _read_csv_rows(prev_csv)
+    curr = _read_csv_rows(curr_csv)
+
+    prev_by_brand: Dict[str, List[Dict[str, str]]] = {}
+    curr_by_brand: Dict[str, List[Dict[str, str]]] = {}
+    for row in prev:
+        prev_by_brand.setdefault(row.get("brand_key", ""), []).append(row)
+    for row in curr:
+        curr_by_brand.setdefault(row.get("brand_key", ""), []).append(row)
+
+    added: List[Dict[str, str]] = []
+    removed: List[Dict[str, str]] = []
+    changed: List[Dict[str, Any]] = []
+    by_brand: Dict[str, Dict[str, Any]] = {}
+    subtype_counts: Counter = Counter()
+    compare_fields = [
+        "rank", "title", "href_clean", "img_url", "img_local", "img_status", "img_signature",
+        "plan_start", "plan_end", "extract_source", "confidence_score", "is_fallback", "is_primary_hero",
+        "landing_title", "landing_subtitle", "landing_summary", "landing_keywords", "landing_category", "landing_text_status",
+    ]
+
+    for bk in sorted(set(prev_by_brand.keys()) | set(curr_by_brand.keys())):
+        prev_rows = sorted(prev_by_brand.get(bk, []), key=lambda r: int(r.get("rank", "9999") or 9999))
+        curr_rows = sorted(curr_by_brand.get(bk, []), key=lambda r: int(r.get("rank", "9999") or 9999))
+
+        curr_key_map: Dict[str, List[int]] = {}
+        for idx, row in enumerate(curr_rows):
+            for key in _banner_identity_candidates(row):
+                curr_key_map.setdefault(key, []).append(idx)
+
+        used_curr = set()
+        matches: List[Tuple[Dict[str, str], Dict[str, str]]] = []
+        for prev_row in prev_rows:
+            match_idx = None
+            for key in _banner_identity_candidates(prev_row):
+                for idx in curr_key_map.get(key, []):
+                    if idx not in used_curr:
+                        match_idx = idx
+                        break
+                if match_idx is not None:
+                    break
+            if match_idx is None:
+                removed.append(prev_row)
+            else:
+                used_curr.add(match_idx)
+                matches.append((prev_row, curr_rows[match_idx]))
+
+        for idx, row in enumerate(curr_rows):
+            if idx not in used_curr:
+                added.append(row)
+
+        for prev_row, curr_row in matches:
+            diffs = {}
+            for field in compare_fields:
+                if (prev_row.get(field, "") or "") != (curr_row.get(field, "") or ""):
+                    diffs[field] = {"prev": prev_row.get(field, "") or "", "curr": curr_row.get(field, "") or ""}
+            if not diffs:
+                continue
+            subtypes = _change_subtypes(prev_row, curr_row, diffs)
+            subtype = _primary_subtype(subtypes)
+            changed.append({
+                "identity": _banner_identity_candidates(curr_row)[0] if _banner_identity_candidates(curr_row) else f"{bk}|{curr_row.get('rank', '')}",
+                "brand_key": bk,
+                "rank": curr_row.get("rank", ""),
+                "prev_rank": prev_row.get("rank", ""),
+                "subtype": subtype,
+                "subtypes": subtypes,
+                "diffs": diffs,
+                "prev": prev_row,
+                "curr": curr_row,
+            })
+            subtype_counts[subtype] += 1
+            by_brand.setdefault(bk, {"added": 0, "removed": 0, "changed": 0, "subtypes": {}})
+            by_brand[bk]["changed"] += 1
+            for item in subtypes:
+                by_brand[bk]["subtypes"][item] = int(by_brand[bk]["subtypes"].get(item, 0) or 0) + 1
+
+    for row in added:
+        bk = row.get("brand_key", "")
+        by_brand.setdefault(bk, {"added": 0, "removed": 0, "changed": 0, "subtypes": {}})
+        by_brand[bk]["added"] += 1
+    for row in removed:
+        bk = row.get("brand_key", "")
+        by_brand.setdefault(bk, {"added": 0, "removed": 0, "changed": 0, "subtypes": {}})
+        by_brand[bk]["removed"] += 1
+
+    return {
+        "prev_csv": os.path.basename(prev_csv) if prev_csv else "",
+        "curr_csv": os.path.basename(curr_csv) if curr_csv else "",
+        "summary": {
+            "added": len(added),
+            "removed": len(removed),
+            "changed": len(changed),
+            "brands_touched": len([k for k, v in by_brand.items() if (v.get("added", 0) + v.get("removed", 0) + v.get("changed", 0)) > 0]),
+            "subtypes": dict(subtype_counts),
+        },
+        "by_brand": by_brand,
+        "added": added[:200],
+        "removed": removed[:200],
+        "changed": changed[:200],
+    }
+
+
 def _snapshot_date_from_path(path: str) -> Optional[datetime]:
     try:
         m = re.search(r"hero_main_banners_(\d{4}-\d{2}-\d{2})\.csv$", os.path.basename(path or ""))
@@ -2237,10 +2775,11 @@ def _aggregate_change_window(files: List[str]) -> Dict[str, Any]:
             "last_seen_csv": os.path.basename(next_csv) if next_csv else "",
             "recent_titles": [],
             "daily": {},
+            "subtypes": {},
         })
 
-    def touch(info: Dict[str, Any], day_key: str, kind: str, title: str, rank: Any, next_csv: str):
-        daily = info["daily"].setdefault(day_key, {"added": 0, "removed": 0, "changed": 0, "events": 0})
+    def touch(info: Dict[str, Any], day_key: str, kind: str, title: str, rank: Any, next_csv: str, subtypes: Optional[List[str]] = None):
+        daily = info["daily"].setdefault(day_key, {"added": 0, "removed": 0, "changed": 0, "events": 0, "subtypes": {}})
         daily[kind] += 1
         daily["events"] += 1
         info[kind] += 1
@@ -2253,6 +2792,9 @@ def _aggregate_change_window(files: List[str]) -> Dict[str, Any]:
         if rank not in {"", None}:
             info["last_rank"] = rank
         info["last_seen_csv"] = os.path.basename(next_csv) if next_csv else info.get("last_seen_csv", "")
+        for subtype in subtypes or []:
+            daily["subtypes"][subtype] = int(daily["subtypes"].get(subtype, 0) or 0) + 1
+            info["subtypes"][subtype] = int(info["subtypes"].get(subtype, 0) or 0) + 1
 
     for prev_csv, next_csv in zip(files, files[1:]):
         diff = build_changes(prev_csv, next_csv)
@@ -2288,7 +2830,15 @@ def _aggregate_change_window(files: List[str]) -> Dict[str, Any]:
             bk = curr.get("brand_key", "")
             if not bk:
                 continue
-            touch(ensure_brand(bk, curr.get("brand_name", bk), next_csv), day_key, "changed", curr.get("title", "") or "", curr.get("rank", ""), next_csv)
+            touch(
+                ensure_brand(bk, curr.get("brand_name", bk), next_csv),
+                day_key,
+                "changed",
+                curr.get("landing_title", "") or curr.get("title", "") or "",
+                curr.get("rank", ""),
+                next_csv,
+                x.get("subtypes") or ([x.get("subtype")] if x.get("subtype") else []),
+            )
 
     brands = sorted(
         by_brand.values(),
@@ -2304,6 +2854,7 @@ def _aggregate_change_window(files: List[str]) -> Dict[str, Any]:
             "added": total_added,
             "removed": total_removed,
             "changed": total_changed,
+            "subtypes": dict(Counter({k: sum(int((b.get('subtypes') or {}).get(k, 0) or 0) for b in brands) for k in set().union(*[set((b.get('subtypes') or {}).keys()) for b in brands])})) if brands else {},
         },
         "brands": brands[:100],
         "pairs": pairs[: max(len(pairs), 1)],
@@ -2593,6 +3144,214 @@ def _render_secondary_card(banner: Banner) -> str:
     """
 
 
+def analyze_title_keywords(rows: List[Banner], top_n: int = 12) -> List[Dict[str, Any]]:
+    counter: Counter = Counter()
+    for b in rows:
+        text = " ".join([
+            norm_ws(b.landing_title or ""),
+            norm_ws(b.landing_subtitle or ""),
+            norm_ws(b.landing_summary or ""),
+            norm_ws(b.landing_keywords or ""),
+            norm_ws(b.title or ""),
+        ]).strip()
+        if not text:
+            continue
+        english_tokens = re.findall(r"[A-Za-z][A-Za-z0-9'\-/&]{2,}", text)
+        korean_tokens = re.findall(r"[가-힣]{2,}", text)
+        for raw in english_tokens + korean_tokens:
+            token = raw.strip("-_/ ").upper() if re.search(r"[A-Za-z]", raw) else raw
+            if len(token) < 2:
+                continue
+            if token.lower() in KEYWORD_STOPWORDS or token in KEYWORD_STOPWORDS:
+                continue
+            counter[token] += 1
+    return [{"keyword": k, "count": v} for k, v in counter.most_common(top_n)]
+
+
+def _normalize_dashboard_keyword(token: Any) -> str:
+    txt = norm_ws(str(token or ""))
+    if not txt:
+        return ""
+    return txt.upper() if re.search(r"[A-Za-z]", txt) else txt
+
+
+def filter_dashboard_keywords(items: List[Dict[str, Any]], top_n: int = 14) -> List[Dict[str, Any]]:
+    filtered: List[Dict[str, Any]] = []
+    for item in items or []:
+        keyword = _normalize_dashboard_keyword(item.get("keyword", ""))
+        if not keyword or keyword in DASHBOARD_KEYWORD_EXCLUDES:
+            continue
+        filtered.append({
+            "keyword": keyword,
+            "count": int(item.get("count", 0) or 0),
+        })
+        if len(filtered) >= top_n:
+            break
+    return filtered
+
+
+def _extract_ocr_text(image_path: str) -> str:
+    if not (ENABLE_OCR and OCR_OK and PIL_OK) or not image_path or not os.path.exists(image_path):
+        return ""
+    try:
+        img = Image.open(image_path)
+        img = ImageOps.autocontrast(img.convert("L"))
+        txt = pytesseract.image_to_string(img, lang="kor+eng", timeout=3)
+        return norm_ws(txt)[:160]
+    except Exception:
+        return ""
+
+
+def analyze_visual_identity(banner: Optional[Banner]) -> Dict[str, Any]:
+    if not banner:
+        return {"tags": [], "ocr_text": "", "summary": "대표 비주얼이 아직 없습니다."}
+    source_parts = [
+        banner.landing_title or "",
+        banner.landing_subtitle or "",
+        banner.landing_summary or "",
+        banner.landing_keywords or "",
+        banner.title or "",
+        banner.href_clean or "",
+        banner.href or "",
+        banner.img_url or "",
+    ]
+    ocr_text = _extract_ocr_text(_banner_asset_path(banner))
+    if ocr_text:
+        source_parts.append(ocr_text)
+    source_text = " ".join(source_parts).lower()
+    tags: List[str] = []
+    for label, patterns in VISUAL_TAG_RULES:
+        for pat in patterns:
+            if re.search(pat, source_text, re.I):
+                tags.append(label)
+                break
+    deduped_tags: List[str] = []
+    for tag in tags:
+        if tag not in deduped_tags:
+            deduped_tags.append(tag)
+    summary = ", ".join(deduped_tags[:4]) if deduped_tags else "태그 자동 분류 데이터 부족"
+    return {"tags": deduped_tags[:6], "ocr_text": ocr_text, "summary": summary}
+
+
+def summarize_brand_insight(brand_key: str, items: List[Banner], changes_map: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    brand_change = changes_map.get(brand_key, {}) if isinstance(changes_map, dict) else {}
+    top_item = items[0] if items else None
+    visual = analyze_visual_identity(top_item)
+    keywords = analyze_title_keywords(items, top_n=6)
+    seg = BRAND_SEGMENTS.get(brand_key, {"style": "기타", "origin": "기타"})
+    return {
+        "segment_style": seg.get("style", "기타"),
+        "segment_origin": seg.get("origin", "기타"),
+        "events": int(brand_change.get("events", 0) or 0),
+        "changed": int(brand_change.get("changed", 0) or 0),
+        "added": int(brand_change.get("added", 0) or 0),
+        "removed": int(brand_change.get("removed", 0) or 0),
+        "event_delta_pct": float(brand_change.get("event_delta_pct", 0.0) or 0.0),
+        "changed_delta_pct": float(brand_change.get("changed_delta_pct", 0.0) or 0.0),
+        "keywords": keywords,
+        "visual": visual,
+        "recent_titles": (brand_change.get("recent_titles") or [])[:4],
+        "last_rank": brand_change.get("last_rank", ""),
+        "last_title": brand_change.get("last_title", ""),
+        "subtypes": brand_change.get("subtypes", {}) or {},
+    }
+
+
+def _display_title(banner: Banner) -> str:
+    return banner.landing_title or banner.landing_subtitle or banner.title or "-"
+
+
+def _display_subtitle(banner: Banner) -> str:
+    current = norm_ws(_display_title(banner))
+    for value in [banner.title, banner.landing_subtitle]:
+        txt = norm_ws(value or "")
+        if txt and txt != current:
+            return txt
+    return ""
+
+
+def _display_summary(banner: Banner) -> str:
+    if banner.landing_summary:
+        return banner.landing_summary
+    subtitle = _display_subtitle(banner)
+    if subtitle:
+        return subtitle
+    return banner.title or "설명 없음"
+
+
+def _keyword_chip_list(banner: Banner) -> List[str]:
+    chips = []
+    for raw in (banner.landing_keywords or "").split(","):
+        txt = norm_ws(raw)
+        if txt and txt not in chips:
+            chips.append(txt)
+    return chips[:6]
+
+
+def _html_date_txt(banner: Banner) -> str:
+    if banner.plan_start and banner.plan_end:
+        return f"{banner.plan_start} ~ {banner.plan_end}"
+    if banner.plan_start:
+        return banner.plan_start
+    return "기간 정보 없음"
+
+
+def _html_meta_txt(banner: Banner) -> str:
+    if banner.img_w and banner.img_h:
+        txt = f"{banner.img_w} x {banner.img_h}"
+        if banner.img_bytes:
+            txt += f" · {int(banner.img_bytes / 1024):,}KB"
+        return txt
+    if banner.img_status and banner.img_status != "ok":
+        return banner.img_status
+    return "메타 정보 없음"
+
+
+def _banner_status_meta(banner: Banner) -> str:
+    bits = []
+    if banner.extract_source:
+        bits.append(f"src {banner.extract_source}")
+    if banner.confidence_score:
+        bits.append(f"conf {banner.confidence_score:.2f}")
+    if banner.landing_text_status:
+        bits.append(f"meta {banner.landing_text_status}")
+    if banner.landing_category:
+        bits.append(banner.landing_category)
+    return " | ".join(bits)
+
+
+def _render_secondary_card(banner: Banner) -> str:
+    href = _h(banner.href_clean or banner.href or "#")
+    img_url_btn = _h(banner.img_url or _html_img_src(banner) or "#")
+    img_src = _h(_html_img_src(banner))
+    title = _h(_display_title(banner))
+    subtitle = _display_subtitle(banner)
+    summary = _display_summary(banner)
+    chips = "".join([f'<span class="mini-stat">{_h(x)}</span>' for x in _keyword_chip_list(banner)]) or f'<span class="mini-stat">{_h(banner.landing_category or banner.extract_source or "meta 없음")}</span>'
+    return f"""
+    <article class="soft-panel overflow-hidden flex flex-col">
+      <div class="relative aspect-[16/9] bg-slate-100">
+        <img src="{img_src}" class="w-full h-full object-cover"
+             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
+        <span class="rank-chip">RANK {int(banner.rank or 0)}</span>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div>
+          <div class="text-[11px] font-semibold text-slate-500">{_h(_html_date_txt(banner))}</div>
+          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"{title}"</h4>
+          <p class="mt-1 text-[12px] text-slate-500 clamp-2">{_h(subtitle or summary)}</p>
+          <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
+          <p class="mt-2 text-[11px] text-slate-500">{_h(_banner_status_meta(banner) or _html_meta_txt(banner))}</p>
+        </div>
+        <div class="mt-auto flex gap-2">
+          <a href="{href}" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
+          <a href="{img_url_btn}" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
+        </div>
+      </div>
+    </article>
+    """
+
+
 def _render_heatmap_section(changes: Dict[str, Any]) -> str:
     brands = (changes.get("brands") or [])[:10]
     timeline_days = changes.get("timeline_days") or [x.get("date", "") for x in (changes.get("pairs") or []) if x.get("date")]
@@ -2727,7 +3486,7 @@ def write_json(path: str, obj: Any):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
-def write_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] = None):
+def write_html_legacy(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] = None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
     by_brand: Dict[str, List[Banner]] = {}
@@ -2970,7 +3729,235 @@ def write_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] 
         f.write(full_html)
 
 
-def write_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] = None):
+def build_collection_health(rows: List[Banner]) -> Dict[str, Any]:
+    total = max(len(rows), 1)
+    fallback_count = sum(1 for b in rows if b.is_fallback)
+    low_confidence_count = sum(1 for b in rows if float(b.confidence_score or 0.0) < 0.7)
+    meta_attempted = [b for b in rows if (b.landing_text_status or "") not in {"", "skipped", "no_href"}]
+    meta_ok = sum(1 for b in meta_attempted if b.landing_text_status == "ok")
+    meta_fail = sum(1 for b in meta_attempted if b.landing_text_status != "ok")
+    brand_zero_banner_list = [BRAND_NAME_MAP.get(bk, bk) for bk in BRAND_ORDER if not any(r.brand_key == bk for r in rows)]
+    health = {
+        "empty_brand_count": len(brand_zero_banner_list),
+        "brand_zero_banner_list": brand_zero_banner_list,
+        "fallback_count": fallback_count,
+        "fallback_ratio": round(fallback_count / total, 3),
+        "low_confidence_count": low_confidence_count,
+        "low_confidence_ratio": round(low_confidence_count / total, 3),
+        "landing_meta_ok": meta_ok,
+        "landing_meta_fail": meta_fail,
+        "landing_meta_fail_ratio": round(meta_fail / max(len(meta_attempted), 1), 3) if meta_attempted else 0.0,
+    }
+    alerts = []
+    if health["empty_brand_count"] > 0:
+        alerts.append(f"배너 0개 브랜드 {health['empty_brand_count']}개")
+    if health["fallback_ratio"] > 0.6:
+        alerts.append(f"fallback 비율 높음 ({health['fallback_ratio']:.0%})")
+    if health["low_confidence_ratio"] > 0.5:
+        alerts.append(f"low confidence 비율 높음 ({health['low_confidence_ratio']:.0%})")
+    if health["landing_meta_fail_ratio"] > 0.5:
+        alerts.append(f"landing meta 실패 비율 높음 ({health['landing_meta_fail_ratio']:.0%})")
+    health["alerts"] = alerts
+    return health
+
+
+def write_dashboard_html_legacy(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] = None):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    by_brand: Dict[str, List[Banner]] = {}
+    for b in rows:
+        by_brand.setdefault(b.brand_key, []).append(b)
+
+    active_brand_keys = [bk for bk in BRAND_ORDER if bk in by_brand] or BRAND_ORDER
+    safe_changes = changes if isinstance(changes, dict) else {}
+    summary = safe_changes.get("summary") or {}
+    changes_map = {x.get("brand_key", ""): x for x in (safe_changes.get("brands") or [])}
+    alerts_payload = build_alerts(safe_changes)
+    keywords = filter_dashboard_keywords(analyze_title_keywords(rows, top_n=40), top_n=14)
+    brand_insights = {
+        bk: summarize_brand_insight(bk, sorted(by_brand.get(bk, []), key=lambda x: x.rank), changes_map)
+        for bk in active_brand_keys
+    }
+    health = build_collection_health(rows)
+
+    overview_cards_html = f"""
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div class="metric-card"><div class="metric-label">Tracked Brands</div><div class="metric-value">{len(active_brand_keys)}</div><div class="metric-sub">이번 실행 기준</div></div>
+      <div class="metric-card"><div class="metric-label">Hero Banners</div><div class="metric-value">{len(rows)}</div><div class="metric-sub">배너 / 카드 / 히어로 후보</div></div>
+      <div class="metric-card"><div class="metric-label">Change Events</div><div class="metric-value">{int(summary.get('events', 0) or 0)}</div><div class="metric-sub">{_html_pct_chip(float(summary.get('event_delta_pct', 0.0) or 0.0))}</div></div>
+      <div class="metric-card"><div class="metric-label">Landing Meta</div><div class="metric-value">{int(health.get('landing_meta_ok', 0) or 0)}</div><div class="metric-sub">ok {int(health.get('landing_meta_ok', 0) or 0)} / fail {int(health.get('landing_meta_fail', 0) or 0)}</div></div>
+    </div>
+    """
+
+    if keywords:
+        max_count = max(int(x.get("count", 0) or 0) for x in keywords) or 1
+        keyword_cloud_html = "".join([
+            f'<span class="keyword-chip" style="font-size:{0.86 + (float(x.get("count", 0) or 0) / max_count) * 0.65:.2f}rem">{_h(x.get("keyword", ""))} <em>{int(x.get("count", 0) or 0)}</em></span>'
+            for x in keywords
+        ])
+        theme_summary = ", ".join([x.get("keyword", "") for x in keywords[:4]])
+    else:
+        keyword_cloud_html = '<div class="text-sm text-slate-500">키워드 집계 데이터가 아직 없습니다.</div>'
+        theme_summary = "키워드 부족"
+
+    ops_warning_html = "".join([
+        f'<div class="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-800 font-semibold">{_h(msg)}</div>'
+        for msg in health.get("alerts", [])
+    ]) or '<div class="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-700 font-semibold">구조 이상 징후는 아직 감지되지 않았습니다.</div>'
+    if health.get("brand_zero_banner_list"):
+        ops_warning_html += f'<div class="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-600">배너 0개 브랜드: {_h(", ".join(health.get("brand_zero_banner_list", [])[:8]))}</div>'
+
+    subtype_summary_html = "".join([
+        f'<span class="insight-chip">{_h(k)} <em>{int(v or 0)}</em></span>'
+        for k, v in sorted((summary.get("subtypes") or {}).items(), key=lambda x: (-int(x[1] or 0), x[0]))[:6]
+    ]) or '<span class="text-sm text-slate-400">변화 subtype 집계 없음</span>'
+
+    alert_list_html = "".join([
+        f"""
+        <div class="rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3">
+          <div class="text-sm font-bold text-slate-900">{_h(item.get('brand_name', '-'))}</div>
+          <div class="text-[11px] text-slate-500">{_h(item.get('date', '-'))} · events {int(item.get('events', 0) or 0)} / changed {int(item.get('changed', 0) or 0)}</div>
+        </div>
+        """
+        for item in alerts_payload.get("items", [])[:4]
+    ]) or '<div class="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-700 font-semibold">기준 이상 변화 알림은 아직 없습니다.</div>'
+
+    tab_menu_html = ""
+    content_area_html = ""
+    for i, bk in enumerate(active_brand_keys):
+        items = sorted(by_brand.get(bk, []), key=lambda x: x.rank)
+        brand_name = BRAND_NAME_MAP.get(bk, bk)
+        seg = BRAND_SEGMENTS.get(bk, {"style": "기타", "origin": "기타"})
+        insight = brand_insights.get(bk, {})
+        tab_menu_html += f'<button onclick="switchTab(\'{_h(bk)}\')" id="tab-{_h(bk)}" class="{"tab-btn active" if i == 0 else "tab-btn"}"><span>{_h(brand_name)}</span><span class="tab-meta">{len(items)}</span></button>'
+        if not items:
+            content_area_html += f'<section id="content-{_h(bk)}" class="tab-content" style="display:{ "block" if i == 0 else "none" }"><div class="glass-card p-8 text-slate-500"><div class="text-base font-bold mb-2">배너 데이터를 가져오지 못했습니다.</div></div></section>'
+            continue
+
+        top_item = items[0]
+        visual = insight.get("visual", {}) or {}
+        keyword_badges = "".join([f'<span class="insight-chip">{_h(x.get("keyword", ""))} <em>{int(x.get("count", 0) or 0)}</em></span>' for x in insight.get("keywords", [])[:5]]) or '<span class="text-sm text-slate-400">키워드 부족</span>'
+        subtype_badges = "".join([f'<span class="insight-chip accent">{_h(k)} <em>{int(v or 0)}</em></span>' for k, v in sorted((insight.get("subtypes") or {}).items(), key=lambda x: (-int(x[1] or 0), x[0]))[:4]]) or '<span class="text-sm text-slate-400">subtype 없음</span>'
+        landing_badges = "".join([f'<span class="insight-chip">{_h(x)}</span>' for x in _keyword_chip_list(top_item)]) or '<span class="text-sm text-slate-400">landing keyword 없음</span>'
+        recent_titles_html = "".join([f'<li class="insight-list-item">"{_h(t)}"</li>' for t in insight.get("recent_titles", [])[:4]]) or '<li class="insight-list-item">최근 변화 제목 없음</li>'
+        other_cards = "".join([_render_secondary_card(it) for it in items[1:7]]) or '<div class="soft-panel p-6 text-sm text-slate-500">추가 배너가 없어 메인 카드만 표시합니다.</div>'
+        brand_alerts = "".join([
+            f'<div class="rounded-2xl border border-rose-100 bg-rose-50/80 px-3 py-3 text-sm text-rose-700 font-semibold">{_h(a.get("date", "-"))} · {int(a.get("events", 0) or 0)}건 변화</div>'
+            for a in alerts_payload.get("items", []) if a.get("brand_key") == bk
+        ]) or '<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-3 text-sm text-slate-500">해당 브랜드는 기준 이상 알림이 없습니다.</div>'
+        content_area_html += f"""
+        <section id="content-{_h(bk)}" class="tab-content" style="display:{'block' if i == 0 else 'none'};">
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div class="xl:col-span-2 flex flex-col gap-6">
+              <article class="glass-card overflow-hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+                  <div class="relative min-h-[320px] bg-slate-100">
+                    <img src="{_h(_html_img_src(top_item))}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://placehold.co/1100x620?text=No+Image';">
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-transparent"></div>
+                    <div class="absolute left-5 top-5 flex flex-wrap gap-2">
+                      <span class="inline-flex items-center justify-center rounded-full bg-[rgba(11,43,102,0.9)] px-3 py-2 text-[11px] font-black text-white">RANK {int(top_item.rank or 0)}</span>
+                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">{_h(seg.get('style', '기타'))}</span>
+                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">{_h(seg.get('origin', '기타'))}</span>
+                    </div>
+                  </div>
+                  <div class="p-6 lg:p-7 flex flex-col gap-5">
+                    <div>
+                      <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Landing-first Hero Card</div>
+                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">{_h(brand_name)}</h3>
+                      <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"{_h(_display_title(top_item))}"</p>
+                      <p class="mt-2 text-sm text-slate-600 clamp-3">{_h(_display_subtitle(top_item) or _display_summary(top_item))}</p>
+                      <p class="mt-3 text-sm text-slate-500 clamp-3">{_h(_display_summary(top_item))}</p>
+                      <div class="mt-4 flex flex-wrap gap-2">{landing_badges}</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="mini-card"><span>기간</span><strong>{_h(_html_date_txt(top_item))}</strong></div>
+                      <div class="mini-card"><span>이미지</span><strong>{_h(_html_meta_txt(top_item))}</strong></div>
+                      <div class="mini-card"><span>source</span><strong>{_h(top_item.extract_source or '-')}</strong></div>
+                      <div class="mini-card"><span>confidence</span><strong>{float(top_item.confidence_score or 0.0):.2f}</strong></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="mini-card"><span>landing status</span><strong>{_h(top_item.landing_text_status or '-')}</strong></div>
+                      <div class="mini-card"><span>category</span><strong>{_h(top_item.landing_category or '-')}</strong></div>
+                    </div>
+                    <div class="flex gap-2 mt-auto">
+                      <a href="{_h(top_item.href_clean or top_item.href or '#')}" target="_blank" class="btn-primary flex-1 text-center">기획전 보기</a>
+                      <a href="{_h(top_item.img_url or _html_img_src(top_item) or '#')}" target="_blank" class="btn-secondary">원본 이미지</a>
+                    </div>
+                  </div>
+                </div>
+              </article>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-5">{other_cards}</div>
+            </div>
+            <aside class="flex flex-col gap-5">
+              <section class="glass-card p-6">
+                <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">브랜드 인사이트</div>
+                <h4 class="mt-2 text-xl font-black text-slate-900">{_h(brand_name)} 분석 요약</h4>
+                <p class="mt-3 text-sm text-slate-600">대표 landing summary: {_h(_display_summary(top_item))}</p>
+                <div class="mt-5 grid grid-cols-2 gap-3">
+                  <div class="mini-card"><span>events</span><strong>{int(insight.get('events', 0) or 0)}</strong></div>
+                  <div class="mini-card"><span>changed</span><strong>{int(insight.get('changed', 0) or 0)}</strong></div>
+                  <div class="mini-card"><span>added</span><strong>{int(insight.get('added', 0) or 0)}</strong></div>
+                  <div class="mini-card"><span>removed</span><strong>{int(insight.get('removed', 0) or 0)}</strong></div>
+                </div>
+                <div class="mt-5"><div class="panel-label">Keyword Cluster</div><div class="mt-2 flex flex-wrap gap-2">{keyword_badges}</div></div>
+                <div class="mt-5"><div class="panel-label">Change Subtypes</div><div class="mt-2 flex flex-wrap gap-2">{subtype_badges}</div></div>
+                <div class="mt-5"><div class="panel-label">Visual / OCR</div><p class="mt-2 text-sm text-slate-700">{_h(visual.get('summary', '태그 자동 분류 데이터 부족'))}</p><div class="mt-2 flex flex-wrap gap-2">{"".join([f'<span class="insight-chip accent">{_h(tag)}</span>' for tag in visual.get('tags', [])[:6]]) or '<span class="text-sm text-slate-400">태그 없음</span>'}</div></div>
+                <div class="mt-5"><div class="panel-label">OCR 텍스트</div><div class="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{_h(visual.get('ocr_text', '') or ('OCR 비활성화' if not ENABLE_OCR else '추출 텍스트 없음'))}</div></div>
+              </section>
+              <section class="glass-card p-6"><div class="panel-label">최근 변화 제목</div><ul class="mt-3 space-y-2">{recent_titles_html}</ul></section>
+              <section class="glass-card p-6"><div class="panel-label">알림</div><div class="mt-3 space-y-3">{brand_alerts}</div></section>
+            </aside>
+          </div>
+        </section>
+        """
+
+    full_html = f"""
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M-OS PRO | Competitor Hero Analysis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>{_dashboard_css(len(safe_changes.get("timeline_days") or []))}</style>
+</head>
+<body class="flex">
+  <aside class="w-72 h-screen sticky top-0 sidebar hidden xl:flex flex-col p-8">
+    <div class="flex items-center gap-4 mb-16 px-2"><div class="w-12 h-12 bg-[var(--brand-deep)] rounded-2xl flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-mountain-sun text-xl"></i></div><div><div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div><div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Competitive Watch</div></div></div>
+    <nav class="space-y-4"><div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4"><i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC</span></div><div class="p-4 rounded-2xl bg-white shadow-sm text-[var(--brand-deep)] font-black flex items-center gap-4"><i class="fa-solid fa-chart-line"></i> <span>Hero Banner Monitor</span></div></nav>
+  </aside>
+  <main class="flex-1 px-5 py-8 md:px-8 xl:px-12 xl:py-10">
+    <header class="mb-8"><div class="glass-card p-7 lg:p-8"><div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6"><div class="max-w-3xl"><div class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black tracking-[0.18em] text-blue-700 uppercase">Hero Banner Monitor</div><h1 class="mt-4 text-4xl lg:text-5xl font-black tracking-tight text-slate-950">배너 의미와 구조 이상 징후를 함께 보는 경쟁사 대시보드</h1><p class="mt-4 text-base lg:text-lg text-slate-600">landing title, summary, keyword, category, extractor confidence, 구조 이상 징후를 한 화면에서 보도록 개편했습니다.</p><p class="mt-4 text-sm text-slate-500">최근 {int(safe_changes.get('window_days', RECENT_CHANGE_DAYS) or RECENT_CHANGE_DAYS)}일 기준 변화 모니터링 · {_h(kst_now().strftime('%Y-%m-%d %H:%M'))} KST</p><p class="mt-2 text-xs text-slate-400">이미지 경로: {"ABS(file://)" if HTML_USE_ABSOLUTE_FILE_URL else "REL(assets/)"} · campaign meta: {"ON" if FETCH_CAMPAIGN_META else "OFF"} (rank_limit={int(CAMPAIGN_META_RANK_LIMIT)}) · OCR: {"ON" if ENABLE_OCR else "OFF"}</p></div><div class="soft-panel px-5 py-4 min-w-[240px]"><div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">이번 주 시장 테마</div><div class="mt-2 text-2xl font-black tracking-tight text-slate-900">{_h(theme_summary)}</div><div class="mt-4 text-sm text-slate-500">랜딩 메타와 change subtype 기준으로 정리했습니다.</div></div></div><div class="mt-7">{overview_cards_html}</div></div></header>
+    <section class="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.95fr)] gap-6 mb-6">{_render_heatmap_section(safe_changes)}<div class="flex flex-col gap-6"><section class="glass-card p-6 lg:p-7"><h2 class="section-title">이번 주 키워드 클라우드</h2><p class="section-sub">landing title / summary 기준으로 반복 메시지를 집계했습니다.</p><div class="mt-5">{keyword_cloud_html}</div></section><section class="glass-card p-6 lg:p-7"><h2 class="section-title">운영 이상 징후</h2><p class="section-sub">empty brand, fallback ratio, low confidence, landing meta fail 비율을 같이 봅니다.</p><div class="mt-4 space-y-3">{ops_warning_html}</div></section></div></section>
+    <section class="mb-6"><div class="glass-card p-6 lg:p-7"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><h2 class="section-title">변화 해석</h2><p class="section-sub">rank shift, image changed, landing text changed 등을 구분해서 봅니다.</p></div><div class="text-[11px] text-slate-500">subtype 기준 상위 항목</div></div><div class="mt-5 flex flex-wrap gap-2">{subtype_summary_html}</div><div class="mt-5 space-y-3">{alert_list_html}</div></div></section>
+    <section><div class="glass-card p-6 lg:p-7"><div class="flex flex-col gap-4"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><h2 class="section-title">브랜드 상세 비교</h2><p class="section-sub">landing-first 카드로 실제 기획전 성격과 변화 의미를 바로 파악할 수 있게 구성했습니다.</p></div></div><div class="flex flex-wrap gap-2 pt-1">{tab_menu_html}</div></div></div><div class="mt-6 min-h-[720px] space-y-6">{content_area_html}</div></section>
+  </main>
+  <script>
+    function switchTab(brandKey) {{
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      const target = document.getElementById('content-' + brandKey);
+      if (target) target.style.display = 'block';
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById('tab-' + brandKey);
+      if (activeBtn) activeBtn.classList.add('active');
+    }}
+    (function () {{
+      try {{
+        if (window.self !== window.top) document.body.classList.add("embedded");
+      }} catch (e) {{
+        document.body.classList.add("embedded");
+      }}
+    }})();
+  </script>
+</body>
+</html>
+"""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(full_html)
+
+
+def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] = None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
     by_brand: Dict[str, List[Banner]] = {}
@@ -2984,7 +3971,7 @@ def write_html(path: str, rows: List[Banner], changes: Optional[Dict[str, Any]] 
     summary = safe_changes.get("summary") or {}
     changes_map = {x.get("brand_key", ""): x for x in (safe_changes.get("brands") or [])}
     alerts_payload = build_alerts(safe_changes)
-    keywords = analyze_title_keywords(rows, top_n=14)
+    keywords = filter_dashboard_keywords(analyze_title_keywords(rows, top_n=40), top_n=14)
     brand_insights = {
         bk: summarize_brand_insight(bk, sorted(by_brand.get(bk, []), key=lambda x: x.rank), changes_map)
         for bk in active_brand_keys
@@ -3268,9 +4255,7 @@ def crawl_brand(context, page, bk, bn, url, mode, date_s, mx, errlog_path: str, 
     with stage(bn, "goto"):
         ok, resolved_url, err = robust_goto(page, bk, url, NAV_TIMEOUT_MS)
         if not ok:
-            # error log
-            with open(errlog_path, "a", encoding="utf-8") as ef:
-                ef.write(f"[GOTO_FAIL] {bk} {bn} url={url} err={err}\n")
+            append_error_log(errlog_path, bk, "goto", err, brand_name=bn, error_type="goto_fail", extra={"url": url})
             brand_stats[bk]["goto_fail"] += 1
             return [], resolved_url
 
@@ -3294,15 +4279,13 @@ def crawl_brand(context, page, bk, bn, url, mode, date_s, mx, errlog_path: str, 
             else:
                 rows = generic_top_banners(context, page, resolved_url or url, bk, bn, date_s, mx)
         except Exception as e:
-            with open(errlog_path, "a", encoding="utf-8") as ef:
-                ef.write(f"[EXTRACT_FAIL] {bk} {bn} mode={mode} err={e}\n")
-                ef.write(traceback.format_exc() + "\n")
+            append_error_log(errlog_path, bk, "extract", str(e), brand_name=bn, error_type="extract_fail", extra={"mode": mode, "traceback": traceback.format_exc()})
             brand_stats[bk]["extract_fail"] += 1
             rows = []
 
 
     # TNF / Arc'teryx / K2 / 기타 섹션형 브랜드는 deep scan 결과도 병합해서 누락 방지
-    if bk in {"tnf", "arcteryx", "k2", "salomon", "snowpeak", "natgeo", "kolonsport", "kolonmall", "montbell", "eider", "millet"}:
+    if bk in DEEP_SCAN_BRANDS:
         try:
             extra_rows = deep_section_banners(context, page, resolved_url or url, bk, bn, date_s, mx, y_max=SECTION_SCAN_Y_MAX)
             rows = dedupe_brand_rows(rows + extra_rows)
@@ -3327,11 +4310,14 @@ def _init_brand_stats() -> Dict[str, Any]:
             "banners": 0,
             "img_ok": 0,
             "img_cached": 0,
-            "img_fail": 0,
-            "img_403": 0,
-            "img_429": 0,
-            "img_blocked_html": 0,
-            "no_url": 0,
+            "img_no_url": 0,
+            "img_blocked": 0,
+            "img_transport_fail": 0,
+            "img_other_fail": 0,
+            "fallback_count": 0,
+            "low_confidence_count": 0,
+            "landing_meta_ok": 0,
+            "landing_meta_fail": 0,
             "goto_fail": 0,
             "extract_fail": 0,
             "empty_result": 0,
@@ -3344,28 +4330,23 @@ def _accum_brand_stats(brand_stats: Dict[str, Any], bk: str, rows: List[Banner],
     s["resolved_url"] = resolved_url or s.get("resolved_url","")
     s["banners"] += len(rows)
     for b in rows:
-        st = (b.img_status or "").strip()
-        if st == "ok":
-            s["img_ok"] += 1
-        elif st == "cached":
-            s["img_cached"] += 1
-        elif st == "no_url":
-            s["no_url"] += 1
-        elif st == "http_403":
-            s["img_403"] += 1
-            s["img_fail"] += 1
-        elif st == "http_429":
-            s["img_429"] += 1
-            s["img_fail"] += 1
-        elif st == "blocked_html":
-            s["img_blocked_html"] += 1
-            s["img_fail"] += 1
-        elif st:
-            s["img_fail"] += 1
+        bucket = classify_img_status(b.img_status or "")
+        if bucket:
+            s[bucket] = int(s.get(bucket, 0) or 0) + 1
+        if b.is_fallback:
+            s["fallback_count"] += 1
+        if float(b.confidence_score or 0.0) < 0.7:
+            s["low_confidence_count"] += 1
+        if (b.landing_text_status or "") in {"", "skipped", "no_href"}:
+            pass
+        elif b.landing_text_status == "ok":
+            s["landing_meta_ok"] += 1
+        else:
+            s["landing_meta_fail"] += 1
     brand_stats[bk] = s
 
 def main():
-    global PROG, CAMPAIGN_CACHE
+    global PROG, CAMPAIGN_CACHE, CAMPAIGN_META_CACHE
 
     os.makedirs(OUT_DIR, exist_ok=True)
     os.makedirs(ASSET_DIR, exist_ok=True)
@@ -3379,10 +4360,11 @@ def main():
     today_snap = os.path.join(SNAP_DIR, f"hero_main_banners_{date_s}.csv")
     report_csv = os.path.join(OUT_DIR, f"hero_main_banners_{ts}.csv")
     report_html = os.path.join(OUT_DIR, "hero_main.html")
-    errlog_path = os.path.join(SNAP_DIR, f"errors_{date_s}.log")
+    errlog_path = os.path.join(SNAP_DIR, f"errors_{date_s}.jsonl")
 
     # load campaign cache
     CAMPAIGN_CACHE = load_campaign_cache()
+    CAMPAIGN_META_CACHE = load_campaign_meta_cache()
 
     rows: List[Banner] = []
     brand_stats = _init_brand_stats()
@@ -3419,10 +4401,7 @@ def main():
                     break
 
                 except (PWTimeoutError, PWError, Exception) as e:
-                    # error log
-                    with open(errlog_path, "a", encoding="utf-8") as ef:
-                        ef.write(f"[BRAND_RUN_ERROR] {bk} {bn} try={attempt} err={e}\n")
-                        ef.write(traceback.format_exc() + "\n")
+                    append_error_log(errlog_path, bk, "brand_run", str(e), brand_name=bn, error_type="brand_run_error", attempt=attempt, extra={"traceback": traceback.format_exc()})
 
                     try:
                         if page:
@@ -3444,8 +4423,8 @@ def main():
             brand_rows = dedupe_brand_rows(brand_rows)
 
             # ✅ 날짜 enrich (rank1 only + cache)
-            with stage(bn, "fetch_dates"):
-                enrich_dates_for_rows(context, brand_rows)
+            with stage(bn, "fetch_campaign_meta"):
+                enrich_campaign_meta_for_rows(context, brand_rows)
 
             # ✅ resolved url 기록(혹시 빈 리스트라도 stats엔 남김)
             brand_stats[bk]["resolved_url"] = resolved_url or brand_stats[bk].get("resolved_url","")
@@ -3466,6 +4445,7 @@ def main():
 
         # save campaign cache
         save_campaign_cache(CAMPAIGN_CACHE)
+        save_campaign_meta_cache(CAMPAIGN_META_CACHE)
 
         # write outputs
         with stage("OUTPUT", "write_csv/html/diff"):
@@ -3491,14 +4471,21 @@ def main():
             slack_status = send_slack_alerts(alerts_payload)
             email_status = send_email_alerts(alerts_payload)
 
-            write_html(report_html, rows, changes=recent_changes)
+            write_dashboard_html(report_html, rows, changes=recent_changes)
 
             # summary.json for Hub
             out_dir = os.path.dirname(report_html) or "."
-            no_image_true = int(sum(1 for b in rows if (not b.img_url and not b.img_local)))
-            img_download_fail = int(sum(1 for b in rows if (b.img_status in {"download_fail","exception"} or (b.img_status or "").startswith("http_"))))
-            img_blocked = int(sum(1 for b in rows if b.img_status in {"http_403","http_429","blocked_html"}))
-            img_cached = int(sum(1 for b in rows if b.img_status == "cached"))
+            collection_health = build_collection_health(rows)
+            img_ok = int(sum(1 for b in rows if classify_img_status(b.img_status) == "img_ok"))
+            img_cached = int(sum(1 for b in rows if classify_img_status(b.img_status) == "img_cached"))
+            img_no_url = int(sum(1 for b in rows if classify_img_status(b.img_status) == "img_no_url"))
+            img_blocked = int(sum(1 for b in rows if classify_img_status(b.img_status) == "img_blocked"))
+            img_transport_fail = int(sum(1 for b in rows if classify_img_status(b.img_status) == "img_transport_fail"))
+            img_other_fail = int(sum(1 for b in rows if classify_img_status(b.img_status) == "img_other_fail"))
+            fallback_count = int(sum(1 for b in rows if b.is_fallback))
+            low_confidence_count = int(sum(1 for b in rows if float(b.confidence_score or 0.0) < 0.7))
+            landing_meta_ok = int(collection_health.get("landing_meta_ok", 0) or 0)
+            landing_meta_fail = int(collection_health.get("landing_meta_fail", 0) or 0)
 
             _write_summary_json(out_dir, "hero_main", {
                 "generated_at": _now_kst_str(),
@@ -3508,13 +4495,20 @@ def main():
                 "snapshot_csv": os.path.basename(today_snap),
                 "brands": int(len(set([b.brand_key for b in rows]))),
                 "banners": int(len(rows)),
-                "no_image": no_image_true,
-                "img_download_fail": img_download_fail,
-                "img_blocked": img_blocked,
+                "img_ok": img_ok,
                 "img_cached": img_cached,
+                "img_no_url": img_no_url,
+                "img_blocked": img_blocked,
+                "img_transport_fail": img_transport_fail,
+                "img_other_fail": img_other_fail,
+                "fallback_count": fallback_count,
+                "low_confidence_count": low_confidence_count,
+                "landing_meta_ok": landing_meta_ok,
+                "landing_meta_fail": landing_meta_fail,
                 "changes_daily": (daily_changes.get("summary") if daily_changes else {}),
                 "changes_recent": (recent_changes.get("summary") if recent_changes else {}),
                 "alerts": alerts_payload,
+                "collection_health": collection_health,
                 "notification_status": {
                     "slack": slack_status,
                     "email": email_status,
@@ -3525,6 +4519,10 @@ def main():
                     "FETCH_CAMPAIGN_DATES": bool(FETCH_CAMPAIGN_DATES),
                     "DATE_FETCH_RANK1_ONLY": bool(DATE_FETCH_RANK1_ONLY),
                     "CAMPAIGN_DATE_CACHE_TTL_DAYS": int(CAMPAIGN_DATE_CACHE_TTL_DAYS),
+                    "FETCH_CAMPAIGN_META": bool(FETCH_CAMPAIGN_META),
+                    "CAMPAIGN_META_RANK_LIMIT": int(CAMPAIGN_META_RANK_LIMIT),
+                    "CAMPAIGN_META_CACHE_TTL_DAYS": int(CAMPAIGN_META_CACHE_TTL_DAYS),
+                    "ENABLE_OCR": bool(ENABLE_OCR),
                 }
             })
 
@@ -3534,7 +4532,7 @@ def main():
         print(f"[ASSET_DIR] {os.path.abspath(ASSET_DIR)}", flush=True)
         print(f"[ERROR_LOG] {errlog_path}", flush=True)
         print(f"[HTML_USE_ABSOLUTE_FILE_URL] {HTML_USE_ABSOLUTE_FILE_URL}", flush=True)
-        print(f"[FETCH_CAMPAIGN_DATES] {FETCH_CAMPAIGN_DATES} (rank1_only={DATE_FETCH_RANK1_ONLY})", flush=True)
+        print(f"[FETCH_CAMPAIGN_META] {FETCH_CAMPAIGN_META} (rank_limit={CAMPAIGN_META_RANK_LIMIT})", flush=True)
         print(f"[ALERT_NOTIFY] slack={slack_status} email={email_status}", flush=True)
 
         try:
@@ -3552,6 +4550,7 @@ def main():
 
 # global campaign cache
 CAMPAIGN_CACHE: Dict[str, Any] = {}
+CAMPAIGN_META_CACHE: Dict[str, Any] = {}
 
 if __name__ == "__main__":
     main()
