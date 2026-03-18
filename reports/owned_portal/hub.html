@@ -102,6 +102,54 @@
       font-weight: 900;
       cursor:pointer;
     }
+    .loading-overlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(246,248,251,0.72);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 24px;
+    }
+    .loading-card{
+      min-width: 260px;
+      max-width: 420px;
+      border: 1px solid rgba(148,163,184,0.18);
+      background: rgba(255,255,255,0.92);
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(0,45,114,0.12);
+      padding: 22px 24px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:12px;
+      text-align:center;
+    }
+    .loading-spinner{
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 3px solid rgba(148,163,184,0.22);
+      border-top-color: #002d72;
+      animation: spin .8s linear infinite;
+    }
+    .loading-title{
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color:#94a3b8;
+    }
+    .loading-text{
+      font-size: 14px;
+      font-weight: 900;
+      color:#0f172a;
+    }
+    @keyframes spin{
+      to{ transform: rotate(360deg); }
+    }
 
     .kpi-card{
       border: 1px solid rgba(148,163,184,0.22);
@@ -217,6 +265,14 @@
       <div class="dot"></div>
       <div id="noticeText">-</div>
       <button id="noticeClose" class="x" type="button">닫기</button>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="loading-card">
+        <div class="loading-spinner"></div>
+        <div class="loading-title">Loading</div>
+        <div id="loadingText" class="loading-text">데이터 불러오는 중…</div>
+      </div>
     </div>
 
     <div class="glass p-6">
@@ -513,8 +569,18 @@
   const notice = document.getElementById('notice');
   const noticeText = document.getElementById('noticeText');
   const noticeClose = document.getElementById('noticeClose');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const loadingText = document.getElementById('loadingText');
   function showNotice(msg){ noticeText.textContent = msg; notice.style.display='flex'; }
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
+  function showLoading(msg){
+    if(loadingText) loadingText.textContent = msg || '데이터 불러오는 중…';
+    if(loadingOverlay) loadingOverlay.style.display = 'flex';
+  }
+  function hideLoading(){
+    if(loadingOverlay) loadingOverlay.style.display = 'none';
+    if(loadingText) loadingText.textContent = '데이터 불러오는 중…';
+  }
   noticeClose.addEventListener('click', hideNotice);
 
   const btnReload = document.getElementById('btnReload');
@@ -1795,14 +1861,14 @@
     const chunkSize = 10;
     for(let i=0;i<dates.length;i+=chunkSize){
       const chunk = dates.slice(i, i+chunkSize);
-      showNotice(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+      showLoading(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
       const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
       const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
       res.forEach((r)=>{
         if(r.status==='fulfilled') all.push(r.value);
       });
     }
-    hideNotice();
+    hideLoading();
 
     RAW = buildAggregated(all);
     toggleSections();
@@ -1921,12 +1987,12 @@
       const chunkSize = 10;
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
-        showNotice(`YTD 로딩… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+        showLoading(`YTD 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
         const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
         const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
-      hideNotice();
+      hideLoading();
 
       // ✅ normalizeBundle 적용 (기존 schema(campaigns/products)도 YTD에서 누락 없이 합산)
       return buildAggregated(all);
