@@ -109,7 +109,17 @@ WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lo
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
 # Paid detail fixed order / labels
-PAID_DETAIL_SOURCES = ["naverbs", "criteo", "meta", "google", "naver mo", "instagram"]
+PAID_DETAIL_SOURCES = [
+    "naver brand search",
+    "naver search",
+    "criteo",
+    "meta",
+    "google demand gen",
+    "google pmax",
+    "google search",
+    "google",
+    "instagram",
+]
 
 TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
 MEDIA_SPEND_XLS_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_XLS_PATH", os.path.join(DATA_DIR, "paid_media_spend.xlsx")).strip()
@@ -760,11 +770,19 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
     if has(r".*(meta|facebook|(^|[^a-z])fb([^a-z]|$)).*", sm):
         return "meta"
     if has(r".*google\s*/\s*cpc.*", sm) or has(r"(^|[^a-z])google([^a-z]|$)", sm):
+        if has(r"(^|[^a-z])(dg|demand|demand[\s_-]*gen)([^a-z]|$)", cp):
+            return "google demand gen"
+        if has(r"(^|[^a-z])pmax([^a-z]|$)", cp):
+            return "google pmax"
+        if has(r"(^|[^a-z])(sa|ss|search)([^a-z]|$)", cp):
+            return "google search"
         return "google"
-    if has(r".*(m\.search\.naver\.com|m\.ad\.search\.naver\.com|m\.search\.naver).*", sm):
-        return "naver mo"
     if has(r".*naver.*", sm) and has(r".*cpc.*", sm):
-        return "naver mo"
+        if has(r"(naverbs|brandsearch|brand search)", cp) or has(r"(naverbs|brandsearch|brand search)", sm):
+            return "naver brand search"
+        if has(r"(naversa|(^|[^a-z])sa([^a-z]|$)|search)", cp) or has(r".*(m\.search\.naver\.com|m\.ad\.search\.naver\.com|m\.search\.naver).*", sm):
+            return "naver search"
+        return "naver search"
 
     base = sm.split("/")[0].strip()
     base = re.sub(r"\s+", " ", base)
@@ -1809,11 +1827,11 @@ def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[
 
 def map_sub_to_media(sub: str) -> str:
     sub = (sub or '').strip().lower()
-    if sub in ('google',):
+    if sub in ('google', 'google demand gen', 'google pmax', 'google search'):
         return 'google'
     if sub in ('meta', 'instagram'):
         return 'meta'
-    if sub in ('naverbs', 'naver mo'):
+    if sub in ('naver brand search', 'naver search'):
         return 'naver'
     return sub
 
@@ -2172,8 +2190,8 @@ def render_page_html(
     paid_html = ""
     paid_total_row = ""
     if paid_detail is not None and (not paid_detail.empty):
-        show_n = 6
-        max_n = 12
+        show_n = 8
+        max_n = 14
         idx_non_total = 0
 
         for r in paid_detail.itertuples(index=False):
@@ -2332,7 +2350,7 @@ def render_page_html(
         if(on) el.classList.remove('hidden');
         else el.classList.add('hidden');
       });
-      btn.textContent = on ? 'Show less' : 'Show more (12)';
+      btn.textContent = on ? 'Show less' : 'Show more';
     }
     btn.addEventListener('click', ()=> setPaid(!on));
     setPaid(false);
@@ -2428,7 +2446,7 @@ def render_page_html(
         </table>
       </div>
       <div class="mt-3 flex justify-end">
-        <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Show more (12)</button>
+        <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Show more</button>
       </div>
     </div>
 
