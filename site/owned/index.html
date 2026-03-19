@@ -102,6 +102,54 @@
       font-weight: 900;
       cursor:pointer;
     }
+    .loading-overlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(246,248,251,0.72);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 24px;
+    }
+    .loading-card{
+      min-width: 260px;
+      max-width: 420px;
+      border: 1px solid rgba(148,163,184,0.18);
+      background: rgba(255,255,255,0.92);
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(0,45,114,0.12);
+      padding: 22px 24px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:12px;
+      text-align:center;
+    }
+    .loading-spinner{
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 3px solid rgba(148,163,184,0.22);
+      border-top-color: #002d72;
+      animation: spin .8s linear infinite;
+    }
+    .loading-title{
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color:#94a3b8;
+    }
+    .loading-text{
+      font-size: 14px;
+      font-weight: 900;
+      color:#0f172a;
+    }
+    @keyframes spin{
+      to{ transform: rotate(360deg); }
+    }
 
     .kpi-card{
       border: 1px solid rgba(148,163,184,0.22);
@@ -217,6 +265,14 @@
       <div class="dot"></div>
       <div id="noticeText">-</div>
       <button id="noticeClose" class="x" type="button">닫기</button>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="loading-card">
+        <div class="loading-spinner"></div>
+        <div class="loading-title">Loading</div>
+        <div id="loadingText" class="loading-text">데이터 불러오는 중…</div>
+      </div>
     </div>
 
     <div class="glass p-6">
@@ -513,8 +569,18 @@
   const notice = document.getElementById('notice');
   const noticeText = document.getElementById('noticeText');
   const noticeClose = document.getElementById('noticeClose');
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const loadingText = document.getElementById('loadingText');
   function showNotice(msg){ noticeText.textContent = msg; notice.style.display='flex'; }
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
+  function showLoading(msg){
+    if(loadingText) loadingText.textContent = msg || '데이터 불러오는 중…';
+    if(loadingOverlay) loadingOverlay.style.display = 'flex';
+  }
+  function hideLoading(){
+    if(loadingOverlay) loadingOverlay.style.display = 'none';
+    if(loadingText) loadingText.textContent = '데이터 불러오는 중…';
+  }
   noticeClose.addEventListener('click', hideNotice);
 
   const btnReload = document.getElementById('btnReload');
@@ -702,27 +768,32 @@
     return getRowGroup(r).mmdd;
   }
 
-  function getSendKey(r){
+  function getSendKey(r, expectedYear='', cutoffDate=''){
     const group = getRowGroup(r);
     const channel = String((r && (r.channel || '')) || '').trim();
     if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
+    if(expectedYear && String(group.year) !== String(expectedYear)) return '';
+    if(cutoffDate){
+      const groupDate = dateStrFromYearMmdd(group.year, group.mmdd);
+      if(groupDate > cutoffDate) return '';
+    }
     return `${channel}||${group.year}||${group.mmdd}`;
   }
 
-  function countDistinctSends(rows){
-    return new Set((rows || []).map(getSendKey).filter(Boolean)).size;
+  function countDistinctSends(rows, expectedYear='', cutoffDate=''){
+    return new Set((rows || []).map(r => getSendKey(r, expectedYear, cutoffDate)).filter(Boolean)).size;
   }
 
-  function calcAvgLeverage(rows){
-    const sendCount = countDistinctSends(rows);
+  function calcAvgLeverage(rows, expectedYear='', cutoffDate=''){
+    const sendCount = countDistinctSends(rows, expectedYear, cutoffDate);
     if(!sendCount) return 0;
     const sessions = (rows || []).reduce((acc, r)=> acc + Number(r.sessions || 0), 0);
     return sessions / sendCount;
   }
 
-  function summarizeOwnedRows(rows){
+  function summarizeOwnedRows(rows, expectedYear='', cutoffDate=''){
     const agg = aggregateRow(rows || []);
-    const sendCount = countDistinctSends(rows || []);
+    const sendCount = countDistinctSends(rows || [], expectedYear, cutoffDate);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
@@ -754,6 +825,28 @@
     return normalizeMessageLogRows(messageLog).filter(m => m.channel===channel && String(m.date||'').startsWith(yearPrefix));
   }
 
+  function getRowGroupDate(r){
+    const group = getRowGroup(r);
+    if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
+    return dateStrFromYearMmdd(group.year, group.mmdd);
+  }
+
+  function getScheduledMessageRowsUpTo(messageLog, channel, endDate){
+    const year = String(endDate || '').slice(0,4);
+    if(!/^\d{4}$/.test(year)) return [];
+    return getMessageLogRows(messageLog, channel, year).filter(m => String(m.date || '') <= endDate);
+  }
+
+  function getScheduledMessageDateSet(messageLog, channel, endDate){
+    return new Set(getScheduledMessageRowsUpTo(messageLog, channel, endDate).map(m => String(m.date || '')));
+  }
+
+  function filterRowsToScheduledDates(rows, channel, endDate, messageLog){
+    const scheduledDates = getScheduledMessageDateSet(messageLog, channel, endDate);
+    if(!scheduledDates.size) return rows || [];
+    return (rows || []).filter(r => scheduledDates.has(getRowGroupDate(r)));
+  }
+
   function countCumulativeMessages(messageLog, channel, endDate){
     const year = String(endDate || '').slice(0,4);
     if(!/^\d{4}$/.test(year)) return null;
@@ -770,9 +863,11 @@
   }
 
   function getChannelSummary(rows, channel, endDate, messageLog){
-    const agg = aggregateRow(rows || []);
-    const scheduledSendCount = countCumulativeMessages(messageLog, channel, endDate);
-    const sendCount = scheduledSendCount === null ? countDistinctSends(rows || []) : scheduledSendCount;
+    const expectedYear = String(endDate || '').slice(0,4);
+    const scheduledRows = getScheduledMessageRowsUpTo(messageLog, channel, endDate);
+    const metricRows = scheduledRows.length ? filterRowsToScheduledDates(rows || [], channel, endDate, messageLog) : (rows || []);
+    const agg = aggregateRow(metricRows);
+    const sendCount = scheduledRows.length ? scheduledRows.length : countDistinctSends(rows || [], expectedYear, endDate);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
@@ -869,6 +964,28 @@
     return `${year}-${mm}-${dd}`;
   }
 
+  function getComparableCutoffForYear(endDate, targetYear){
+    const base = String(endDate || '');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(base) || !/^\d{4}$/.test(String(targetYear || ''))) return '';
+    return `${targetYear}-${base.slice(5)}`;
+  }
+
+  function isRowEligibleForYearCutoff(r, channel, endDate, messageLog){
+    const rowDate = getRowGroupDate(r);
+    const rowYear = getRowYear(r);
+    if(!rowDate || !rowYear || channel !== String((r && r.channel) || '')) return false;
+
+    const cutoffForYear = getComparableCutoffForYear(endDate, rowYear);
+    if(!cutoffForYear) return true;
+
+    const scheduledDates = getScheduledMessageDateSet(messageLog, channel, cutoffForYear);
+    if(scheduledDates.size){
+      return scheduledDates.has(rowDate);
+    }
+
+    return rowDate <= cutoffForYear;
+  }
+
   // ✅ 기본값
   let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
   let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
@@ -880,6 +997,7 @@
 
   // ✅ MMDD 클릭은 "디폴트: 날짜 이동 + 7일 누적" 이므로 기본 ON
   let GROUP_JUMP_MODE = false;
+  let WEEK_ANCHORED_MODE = false;
 
   const YTD_CACHE = new Map();
 
@@ -924,9 +1042,15 @@
       return `${datePicker.value || '-'}`;
     }
     if(VIEW==='WEEK'){
-      const cur = parseYMD(datePicker.value || ymd(new Date()));
-      const s = ymd(startOfWeekMon(cur));
-      const e = ymd(endOfWeekSun(cur));
+      let s, e;
+      if(WEEK_ANCHORED_MODE){
+        s = datePicker.value || '-';
+        e = endPicker.value || ymd(addDays(parseYMD(s), 6));
+      }else{
+        const cur = parseYMD(datePicker.value || ymd(new Date()));
+        s = ymd(startOfWeekMon(cur));
+        e = ymd(endOfWeekSun(cur));
+      }
       return `WEEK ${s} ~ ${e}`;
     }
     return `${startPicker.value || '-'} ~ ${endPicker.value || '-'}`;
@@ -937,6 +1061,9 @@
       return datePicker.value || ymd(addDays(new Date(), -1));
     }
     if(VIEW==='WEEK'){
+      if(WEEK_ANCHORED_MODE){
+        return endPicker.value || ymd(addDays(parseYMD(datePicker.value || ymd(addDays(new Date(), -1))), 6));
+      }
       const cur = parseYMD(datePicker.value || ymd(addDays(new Date(), -1)));
       return ymd(endOfWeekSun(cur));
     }
@@ -1032,12 +1159,15 @@
     const by = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
     const otherByChannel = {EDM:[], LMS:[], KAKAO:[]};
     const otherChannels = [];
+    const cutoffDate = currentPeriodEndDate();
+    const messageLog = (RAW && RAW.message_log) || [];
 
     for(const r of KPI){
       if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
         const mmdd = mmddOfRow(r);
         const year = getRowYear(r);
         if(mmdd && /^\d{4}$/.test(year)){
+          if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog)) continue;
           const gk = `${getRowYear(r)}-${getRowMmdd(r)}`;
           const m = by[r.channel];
           if(!m.has(gk)) m.set(gk, []);
@@ -1571,7 +1701,7 @@
     if(!j) return { kpi: [], prod: [], message_log: [] };
 
     // already new schema?
-    if(Array.isArray(j.kpi) || Array.isArray(j.prod) || Array.isArray(j.message_log)){
+    if(Array.isArray(j.kpi) || Array.isArray(j.prod)){
       return {
         kpi: Array.isArray(j.kpi) ? j.kpi : [],
         prod: Array.isArray(j.prod) ? j.prod : [],
@@ -1731,14 +1861,14 @@
     const chunkSize = 10;
     for(let i=0;i<dates.length;i+=chunkSize){
       const chunk = dates.slice(i, i+chunkSize);
-      showNotice(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+      showLoading(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
       const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
       const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
       res.forEach((r)=>{
         if(r.status==='fulfilled') all.push(r.value);
       });
     }
-    hideNotice();
+    hideLoading();
 
     RAW = buildAggregated(all);
     toggleSections();
@@ -1752,8 +1882,10 @@
 
   async function loadWeekByDate(dStr){
     const cur = parseYMD(dStr);
-    const s = ymd(startOfWeekMon(cur));
-    const e = ymd(endOfWeekSun(cur));
+    const s = WEEK_ANCHORED_MODE ? ymd(cur) : ymd(startOfWeekMon(cur));
+    const e = WEEK_ANCHORED_MODE ? clampToAvailable(ymd(addDays(cur, 6))) : ymd(endOfWeekSun(cur));
+    startPicker.value = s;
+    endPicker.value = e;
     await loadRange(s, e);
   }
 
@@ -1855,12 +1987,12 @@
       const chunkSize = 10;
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
-        showNotice(`YTD 로딩… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+        showLoading(`YTD 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
         const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
         const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
-      hideNotice();
+      hideLoading();
 
       // ✅ normalizeBundle 적용 (기존 schema(campaigns/products)도 YTD에서 누락 없이 합산)
       return buildAggregated(all);
@@ -1922,7 +2054,10 @@
 
   // ✅ group(mmdd) -> 실제 존재 날짜로 resolve
   function resolveMmddToAvailableDate(year, mmdd){
-    return '';
+    const target = dateStrFromYearMmdd(year, mmdd);
+    if(!AVAILABLE || !AVAILABLE.length) return target;
+    if(AVAILABLE.includes(target)) return target;
+    return clampToAvailable(target);
   }
 
   // ✅ MMDD 클릭 시: 그 날짜부터 7일 누적(RANGE)로 디폴트 로드
@@ -1931,8 +2066,10 @@
     const eRaw = ymd(addDays(parseYMD(s), 6));
     const e = clampToAvailable(eRaw);
 
-    VIEW = 'RANGE';
+    WEEK_ANCHORED_MODE = true;
+    VIEW = 'WEEK';
     setViewActive();
+    datePicker.value = s;
     startPicker.value = s;
     endPicker.value = e;
 
@@ -1941,7 +2078,22 @@
   }
 
   async function selectGroup(channel, year, mmdd){
-    // explicit campaign/term date group only: no automatic date remap
+    if(GROUP_JUMP_MODE){
+      const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
+      if(resolvedDate){
+        await load7dFromDate(resolvedDate);
+        SELECTED = {type:'group', channel, year, mmdd};
+        filterKPI();
+        updateChannelTotals();
+        renderCampaignButtons();
+        aggregateKPIForSelected();
+        renderTerms();
+        renderProducts();
+        return;
+      }
+    }
+
+    WEEK_ANCHORED_MODE = false;
     SELECTED = {type:'group', channel, year, mmdd};
     filterKPI();
     updateChannelTotals();
@@ -1953,6 +2105,7 @@
 
   // View toggles
   chipDaily.addEventListener('click', ()=>{
+    WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
@@ -1961,6 +2114,7 @@
   });
 
   chipWeek.addEventListener('click', async ()=>{
+    WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
@@ -1970,6 +2124,7 @@
   });
 
   chipRange.addEventListener('click', ()=>{
+    WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
     setViewActive();
     setToLastNDays(7);
@@ -1982,6 +2137,7 @@
     setChipActive();
     toggleSections();
 
+    WEEK_ANCHORED_MODE = false;
     VIEW = 'WEEK';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1))));
@@ -2003,11 +2159,11 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  btnApplyRange.addEventListener('click', ()=> loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()));
-  btn7d.addEventListener('click', ()=>{ setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btn30d.addEventListener('click', ()=>{ setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btnMTD.addEventListener('click', ()=>{ setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btnWEEK.addEventListener('click', ()=>{ setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnApplyRange.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btn7d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btn30d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnMTD.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnWEEK.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
 
   btnPrev.addEventListener('click', async ()=>{
     if(VIEW==='DAILY'){
