@@ -1688,6 +1688,41 @@ def normalize_media_channel(value: str) -> str:
         return "naver"
     return s
 
+def classify_glink_spend_sub(media: Any, campaign_type: Any = "", device: Any = "", segment: Any = "") -> str:
+    m = str(media or "").strip().lower()
+    ct = str(campaign_type or "").strip().lower()
+    dv = str(device or "").strip().lower()
+    sg = str(segment or "").strip().lower()
+    joined = " ".join([m, ct, dv, sg])
+
+    def has(p: str) -> bool:
+        return re.search(p, joined, re.IGNORECASE) is not None
+
+    if has(r"criteo"):
+        return "criteo"
+    if has(r"(instagram|인스타)"):
+        return "instagram"
+    if has(r"(meta|메타|facebook|페이스북)"):
+        return "meta"
+
+    if has(r"(google|구글)"):
+        if has(r"(demand|dg|demand[\s_-]*gen)"):
+            return "google demand gen"
+        if has(r"pmax"):
+            return "google pmax"
+        if has(r"(^|[^a-z])(sa|ss|search)([^a-z]|$)|검색"):
+            return "google search"
+        return "google"
+
+    if has(r"(naver|네이버)"):
+        if has(r"(brandsearch|brand search|브랜드검색|naverbs)"):
+            return "naver brand search"
+        if has(r"(naversa|search|검색|쇼핑검색|쇼검)"):
+            return "naver search"
+        return "naver search"
+
+    return normalize_media_channel(m)
+
 def list_glink_vendor_files(source_dir: str) -> List[str]:
     if not source_dir or not os.path.isdir(source_dir):
         return []
@@ -1719,12 +1754,12 @@ def extract_glink_spend_history_rows(xlsx_path: str) -> pd.DataFrame:
         raw = pd.read_excel(xlsx_path, sheet_name="매체RAW", header=None)
     except Exception as e:
         print(f"[WARN] Glink spend parse failed: {xlsx_path} | {type(e).__name__}: {e}")
-        return pd.DataFrame(columns=["date", "channel", "spend", "source_file", "source_mtime"])
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"])
 
     header_idx = find_header_row(raw, ["매체", "날짜최종", "총비용(vat제외)"])
     if header_idx is None:
         print(f"[WARN] Could not find spend header row in: {xlsx_path}")
-        return pd.DataFrame(columns=["date", "channel", "spend", "source_file", "source_mtime"])
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"])
 
     header_vals = []
     for i, v in enumerate(raw.iloc[header_idx].tolist()):
@@ -1736,30 +1771,61 @@ def extract_glink_spend_history_rows(xlsx_path: str) -> pd.DataFrame:
     cols = {str(c).strip(): c for c in df.columns}
     date_col = cols.get("날짜최종") or cols.get("기간")
     media_col = cols.get("매체") or cols.get("채널")
+    campaign_type_col = cols.get("캠페인유형") or cols.get("campaign_type")
+    device_col = cols.get("기기") or cols.get("device")
+    segment_col = cols.get("구분") or cols.get("segment")
     spend_col = cols.get("총비용(vat제외)") or cols.get("광고비(vat제외)") or cols.get("광고비(vat-)") or cols.get("광고비")
     if not date_col or not media_col or not spend_col:
         print(f"[WARN] Missing spend columns in: {xlsx_path}")
-        return pd.DataFrame(columns=["date", "channel", "spend", "source_file", "source_mtime"])
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"])
 
-    tmp = df[[date_col, media_col, spend_col]].copy()
-    tmp.columns = ["date", "media", "spend"]
+    keep_cols = [date_col, media_col, spend_col]
+    if campaign_type_col:
+        keep_cols.append(campaign_type_col)
+    if device_col:
+        keep_cols.append(device_col)
+    if segment_col:
+        keep_cols.append(segment_col)
+
+    tmp = df[keep_cols].copy()
+    rename_map = {
+        date_col: "date",
+        media_col: "media",
+        spend_col: "spend",
+    }
+    if campaign_type_col:
+        rename_map[campaign_type_col] = "campaign_type"
+    if device_col:
+        rename_map[device_col] = "device"
+    if segment_col:
+        rename_map[segment_col] = "segment"
+    tmp = tmp.rename(columns=rename_map)
     tmp["date"] = pd.to_datetime(tmp["date"], errors="coerce").dt.date
     tmp["spend"] = pd.to_numeric(tmp["spend"].astype(str).str.replace(",", "", regex=False).str.strip(), errors="coerce").fillna(0.0)
     tmp["channel"] = tmp["media"].map(normalize_media_channel)
+    tmp["sub_channel"] = tmp.apply(
+        lambda r: classify_glink_spend_sub(
+            r.get("media", ""),
+            r.get("campaign_type", ""),
+            r.get("device", ""),
+            r.get("segment", ""),
+        ),
+        axis=1,
+    )
     tmp = tmp[tmp["date"].notna()].copy()
     tmp = tmp[tmp["channel"].isin(["google", "naver", "meta"])].copy()
     if tmp.empty:
-        return pd.DataFrame(columns=["date", "channel", "spend", "source_file", "source_mtime"])
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"])
 
-    out = tmp.groupby(["date", "channel"], as_index=False)["spend"].sum()
+    out = tmp.groupby(["date", "channel", "sub_channel"], as_index=False)["spend"].sum()
     out["source_file"] = os.path.basename(xlsx_path)
     out["source_mtime"] = os.path.getmtime(xlsx_path)
-    return out[["date", "channel", "spend", "source_file", "source_mtime"]]
+    return out[["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"]]
 
 def refresh_glink_spend_history(source_dir: str, out_path: str) -> pd.DataFrame:
     files = list_glink_vendor_files(source_dir)
     if not files:
-        return pd.DataFrame(columns=["date", "channel", "spend"])
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend"])
 
     frames: List[pd.DataFrame] = []
     for path in files:
@@ -1767,14 +1833,14 @@ def refresh_glink_spend_history(source_dir: str, out_path: str) -> pd.DataFrame:
         if not rows.empty:
             frames.append(rows)
     if not frames:
-        return pd.DataFrame(columns=["date", "channel", "spend"])
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend"])
 
     merged = pd.concat(frames, ignore_index=True)
-    merged = merged.sort_values(["date", "channel", "source_mtime", "source_file"])
-    merged = merged.drop_duplicates(subset=["date", "channel"], keep="last")
-    merged = merged.sort_values(["date", "channel"]).reset_index(drop=True)
+    merged = merged.sort_values(["date", "channel", "sub_channel", "source_mtime", "source_file"])
+    merged = merged.drop_duplicates(subset=["date", "channel", "sub_channel"], keep="last")
+    merged = merged.sort_values(["date", "channel", "sub_channel"]).reset_index(drop=True)
 
-    out = merged[["date", "channel", "spend"]].copy()
+    out = merged[["date", "channel", "sub_channel", "spend"]].copy()
     try:
         ensure_dir(os.path.dirname(out_path))
         out.to_csv(out_path, index=False, encoding="utf-8-sig")
@@ -1805,7 +1871,7 @@ def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
         out[ch] = val
     return out
 
-def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[str, float]:
+def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date, group_key: str = "channel") -> Dict[str, float]:
     df = refresh_glink_spend_history(MEDIA_SPEND_VENDOR_DIR, MEDIA_SPEND_HISTORY_PATH)
     if df.empty:
         history_df = safe_read_table(MEDIA_SPEND_HISTORY_PATH)
@@ -1816,7 +1882,10 @@ def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[
     if df.empty:
         return {}
     cols = {str(c).strip().lower(): c for c in df.columns}
-    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
+    if group_key == "sub_channel":
+        ch_col = cols.get('sub_channel') or cols.get('sub') or cols.get('sub channel')
+    else:
+        ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
     spend_col = cols.get('spend') or cols.get('budget') or cols.get('cost')
     date_col = cols.get('date') or cols.get('일자')
     year_col = cols.get('year') or cols.get('연도')
@@ -1830,7 +1899,8 @@ def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date) -> Dict[
     elif year_col and year_col in tmp.columns:
         tmp = tmp[pd.to_numeric(tmp[year_col], errors='coerce').fillna(0).astype(int) == start.year]
     for _, r in tmp.iterrows():
-        ch = normalize_media_channel(str(r.get(ch_col, '') or '').strip().lower())
+        raw_key = str(r.get(ch_col, '') or '').strip().lower()
+        ch = raw_key if group_key == "sub_channel" else normalize_media_channel(raw_key)
         if not ch:
             continue
         out[ch] = out.get(ch, 0.0) + float(r.get(spend_col, 0) or 0)
@@ -1900,36 +1970,59 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
         df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
         df = df[df['bucket'] == 'Paid AD'].copy()
         df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
-        df['media'] = df['sub'].map(map_sub_to_media)
         return df
     cur = fetch(w.cur_start, w.cur_end)
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=['media',f'sessions{suffix}',f'orders{suffix}',f'revenue{suffix}'])
-        g = df.groupby('media', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
+            return pd.DataFrame(columns=['sub',f'sessions{suffix}',f'orders{suffix}',f'revenue{suffix}'])
+        g = df.groupby('sub', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
         return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'orders{suffix}','purchaseRevenue':f'revenue{suffix}'})
     merged = agg(cur,'_cur').fillna(0.0)
-    spend_cur = fetch_platform_spend_map(w.cur_start, w.cur_end)
-    medias = ['google','naver','meta']
+    spend_cur = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, w.cur_start, w.cur_end, group_key="sub_channel")
+    if spend_cur:
+        top_level_spend = {}
+        for sub_key, spend in spend_cur.items():
+            media_key = map_sub_to_media(sub_key)
+            top_level_spend[media_key] = top_level_spend.get(media_key, 0.0) + float(spend or 0.0)
+        for media_key, spend in top_level_spend.items():
+            if media_key not in spend_cur:
+                spend_cur[media_key] = spend
+
+    subs = list(PAID_DETAIL_SOURCES)
+    extras = []
+    merged_subs = merged["sub"].astype(str).tolist() if not merged.empty else []
+    for key in merged_subs + list(spend_cur.keys()):
+        k = str(key or "").strip()
+        if k and k not in subs and k not in extras:
+            extras.append(k)
+    subs.extend(extras)
+
     rows=[]
-    for media in medias:
-        row = merged[merged['media']==media]
+    for sub in subs:
+        row = merged[merged['sub']==sub]
         if row.empty:
             rc = {'sessions_cur':0.0,'orders_cur':0.0,'revenue_cur':0.0}
         else:
             rr = row.iloc[0]
             rc = {k: float(rr.get(k,0) or 0) for k in ['sessions_cur','orders_cur','revenue_cur']}
-        cur_spend = float(spend_cur.get(media,0) or 0)
+        cur_spend = float(spend_cur.get(sub,0) or 0)
         cur_roas = (rc['revenue_cur']/cur_spend) if cur_spend else 0.0
         cur_cvr = (rc['orders_cur']/rc['sessions_cur']) if rc['sessions_cur'] else 0.0
+        media = map_sub_to_media(sub)
         rows.append({
-            'channel': media.title(),
-            'target_roas': float(target_roas_map.get(media, target_roas_map.get(media.title().lower(), 0.0)) or 0),
+            'channel': sub,
+            'target_roas': float(
+                target_roas_map.get(sub, target_roas_map.get(media, target_roas_map.get(media.title().lower(), 0.0))) or 0
+            ),
             'budget': cur_spend,
             'roas': cur_roas,
             'cvr': cur_cvr,
         })
-    return pd.DataFrame(rows)
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    out = out[(out["budget"] != 0) | (out["roas"] != 0) | (out["cvr"] != 0)].copy()
+    return out
 
 # =========================
 # Bundle JSON (cache)
@@ -2452,7 +2545,7 @@ def render_page_html(
         <table class="w-full table-auto text-sm min-w-[760px]">
           <thead class="text-xs text-slate-500">
             <tr>
-              <th class="px-2 py-2 text-left whitespace-nowrap">Channel</th>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
