@@ -887,7 +887,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VOC Dashboard | Official + Naver Reviews</title>
+  <title>VOC Dashboard | Official + Naver Brand Reviews</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -1058,7 +1058,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
           </div>
           <div>
             <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
-            <div class="text-xs font-bold text-slate-500">Official + Naver</div>
+            <div class="text-xs font-bold text-slate-500">Official + Naver Brand</div>
           </div>
         </div>
 
@@ -1085,7 +1085,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
           <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
             <div>
               <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-                Official몰 & Naver 리뷰 VOC 대시보드
+                Official몰 & Naver Brand 리뷰 VOC 대시보드
               </h1>
               <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
             </div>
@@ -1098,7 +1098,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
                 <i class="fa-solid fa-store mr-2"></i>Official
               </button>
               <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
-                <i class="fa-brands fa-naver mr-2"></i>Naver
+                <i class="fa-brands fa-naver mr-2"></i>Naver Brand
               </button>
             </div>
           </header>
@@ -1223,7 +1223,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
             <div id="mlNoData" class="hidden review-card text-center">
               <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
-              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver)을 조정해보세요.</div>
+              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver Brand)을 조정해보세요.</div>
             </div>
           </div>
         </section>
@@ -1925,12 +1925,26 @@ def normalize_template_paths(html: str) -> str:
     """
     if not html:
         return html
+    # Remove the extra top status strip so the dashboard starts from the main hero.
+    html = re.sub(
+        r'<header class="topbar sticky top-0 z-50">.*?</header>\s*',
+        "",
+        html,
+        count=1,
+        flags=re.S,
+    )
     # Common patterns from older templates / inline notes
     html = html.replace("site/data/", "data/")
     html = html.replace("site/data", "data")
     # Some templates used absolute-like /site/data (rare)
     html = html.replace("/site/data/", "data/")
     html = html.replace("/site/data", "data")
+    html = html.replace("VOC Dashboard | Official + Naver Reviews", "VOC Dashboard | Official + Naver Brand Reviews")
+    html = html.replace("Official + Naver", "Official + Naver Brand")
+    html = html.replace("Official + Naver Brand Brand", "Official + Naver Brand")
+    html = html.replace("Official몰 & Naver 리뷰 VOC 대시보드", "Official몰 & Naver Brand 리뷰 VOC 대시보드")
+    html = html.replace('<i class="fa-brands fa-naver mr-2"></i>Naver', '<i class="fa-brands fa-naver mr-2"></i>Naver Brand')
+    html = html.replace("탭(Official/Naver)", "탭(Official/Naver Brand)")
     # Older templates fetched only ./data/*.json, which breaks when the page is
     # opened from site/, reports/voc_crema/, or a copied standalone HTML file.
     new_fetch = """async function fetchJsonOrThrow(urls){
@@ -1968,6 +1982,239 @@ def normalize_template_paths(html: str) -> str:
     html = html.replace(
         'dayInput.value = kstDateStr(-1);',
         'dayInput.value = (META?.dashboard_default_day || META?.period_end || kstDateStr(-1));',
+    )
+    html = html.replace(
+        '<div class="text-2xl font-black text-slate-900">어제 리뷰 핵심 문장</div>',
+        '<div class="text-2xl font-black text-slate-900" id="signalsTitle">일간 리뷰 핵심 문장</div>',
+    )
+    html = html.replace(
+        '<div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) 기준 긍정/부정 문장 각 2개</div>',
+        '<div class="text-sm font-bold text-slate-500 mt-2" id="signalsSubtitle">기본: 선택한 날짜 기준 긍정/부정 문장 각 2개</div>',
+    )
+    html = html.replace(
+        """<div class="flex gap-2 flex-wrap">
+                <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
+                <button class="chip" id="chip-low" onclick="toggleChip('low')">Low</button>
+              </div>""",
+        """<div class="flex gap-2 flex-wrap">
+                <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
+                <button class="chip" id="chip-7d" onclick="toggleChip('7d')">7D</button>
+                <button class="chip" id="chip-low" onclick="toggleChip('low')">Low</button>
+              </div>""",
+    )
+    html = html.replace(
+        '<div class="small-label text-blue-600 mb-2">YESTERDAY</div>',
+        '<div class="small-label text-blue-600 mb-2" id="windowLabel">DAILY</div>',
+    )
+    html = html.replace(
+        '<div class="text-xs font-bold text-slate-500 mt-2">어제 업로드된 리뷰 수 (현재 필터 기준)</div>',
+        '<div class="text-xs font-bold text-slate-500 mt-2" id="windowCountSub">선택한 날짜 리뷰 수 (현재 필터 기준)</div>',
+    )
+    html = html.replace(
+        '<div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>',
+        '<div class="text-2xl font-black text-slate-900" id="feedTitle">그날 올라온 리뷰 (업로드 순)</div>',
+    )
+    html = html.replace(
+        '<div class="text-sm font-bold text-slate-500 mt-2">기본 날짜: 어제(KST) · 최근 7일 범위 내 선택</div>',
+        '<div class="text-sm font-bold text-slate-500 mt-2" id="feedSubtitle">기본 날짜: 선택한 날짜 · 최근 7일 범위 내 선택</div>',
+    )
+    html = html.replace(
+        """const uiState = {
+      sourceTab: "combined",
+      chips: { daily: true, low: false },
+    };""",
+        """const uiState = {
+      sourceTab: "combined",
+      viewMode: "daily",
+      chips: { low: false },
+    };""",
+    )
+    html = re.sub(
+        r"""function switchSourceTab\(tab\)\s*\{.*?\n    function setSearchAndRender\(q\)\s*\{""",
+        """function switchSourceTab(tab){
+      uiState.sourceTab = tab;
+      document.querySelectorAll(".tab-btn").forEach(b=>{
+        b.classList.toggle("active", b.getAttribute("data-tab") === tab);
+      });
+      renderAll();
+    }
+
+    function currentDayValue(){
+      return (document.getElementById("daySelect")?.value || META?.dashboard_default_day || META?.period_end || kstDateStr(-1)).trim();
+    }
+
+    function syncWindowUI(){
+      const is7d = uiState.viewMode === "7d";
+      document.getElementById("chip-daily")?.classList.toggle("active", !is7d);
+      document.getElementById("chip-7d")?.classList.toggle("active", is7d);
+      document.getElementById("chip-low")?.classList.toggle("active", !!uiState.chips.low);
+
+      const dayInput = document.getElementById("daySelect");
+      if (dayInput){
+        dayInput.disabled = is7d;
+        dayInput.classList.toggle("opacity-50", is7d);
+        dayInput.classList.toggle("cursor-not-allowed", is7d);
+      }
+    }
+
+    function updateWindowCopy(){
+      const is7d = uiState.viewMode === "7d";
+      const signalsTitle = document.getElementById("signalsTitle");
+      const signalsSubtitle = document.getElementById("signalsSubtitle");
+      const windowLabel = document.getElementById("windowLabel");
+      const windowCountSub = document.getElementById("windowCountSub");
+      const feedTitle = document.getElementById("feedTitle");
+      const feedSubtitle = document.getElementById("feedSubtitle");
+
+      if (signalsTitle) signalsTitle.textContent = is7d ? "최근 7일 리뷰 핵심 문장" : "일간 리뷰 핵심 문장";
+      if (signalsSubtitle) signalsSubtitle.textContent = is7d ? "기본: 최근 7일 누적 기준 긍정/부정 문장 각 2개" : "기본: 선택한 날짜 기준 긍정/부정 문장 각 2개";
+      if (windowLabel) windowLabel.textContent = is7d ? "7 DAYS" : "DAILY";
+      if (windowCountSub) windowCountSub.textContent = is7d ? "최근 7일 누적 리뷰 수 (현재 필터 기준)" : "선택한 날짜 리뷰 수 (현재 필터 기준)";
+      if (feedTitle) feedTitle.textContent = is7d ? "최근 7일 누적 리뷰" : "그날 올라온 리뷰 (업로드 순)";
+      if (feedSubtitle) feedSubtitle.textContent = is7d ? "기본: 최근 7일 누적 · 제품/옵션/텍스트 필터 적용" : "기본 날짜: 선택한 날짜 · 최근 7일 범위 내 선택";
+    }
+
+    function toggleChip(name){
+      if (name === "daily" || name === "7d"){
+        uiState.viewMode = name;
+      }else if (name === "low"){
+        uiState.chips.low = !uiState.chips.low;
+      }
+      syncWindowUI();
+      renderAll();
+    }
+
+    function setSearchAndRender(q){""",
+        html,
+        count=1,
+        flags=re.S,
+    )
+    html = re.sub(
+        r"""function getFilteredReviews\(\)\s*\{.*?\n      return rows;\n    \}""",
+        """function getFilteredReviews(){
+      let rows = REVIEWS.slice();
+
+      if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
+      if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
+
+      const day = currentDayValue();
+      if (uiState.viewMode === "daily" && day){
+        rows = rows.filter(r => String(r.created_at || "").slice(0,10) === day);
+      }
+
+      const prod = (document.getElementById("productSelect")?.value || "").trim();
+      if (prod) rows = rows.filter(r => String(r.product_code || "") === prod);
+
+      const sz = (document.getElementById("sizeSelect")?.value || "").trim();
+      if (sz) rows = rows.filter(r => String(r.option_size || "") === sz);
+
+      if (uiState.chips.low){
+        rows = rows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low"));
+      }
+
+      const q = (document.getElementById("qInput")?.value || "").trim().toLowerCase();
+      if (q){
+        rows = rows.filter(r =>
+          String(r.text||"").toLowerCase().includes(q) ||
+          String(r.product_name||"").toLowerCase().includes(q)
+        );
+      }
+
+      const sort = document.getElementById("sortSelect")?.value || "upload";
+      if (sort === "latest") rows.sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+      else if (sort === "long") rows.sort((a,b)=> (String(b.text||"").length - String(a.text||"").length));
+      else if (sort === "low") rows.sort((a,b)=> (Number(a.rating||0) - Number(b.rating||0)) || (new Date(b.created_at||0) - new Date(a.created_at||0)));
+
+      return rows;
+    }""",
+        html,
+        count=1,
+        flags=re.S,
+    )
+    html = re.sub(
+        r"""function renderDailyFeed\(reviews\)\s*\{.*?\n    \}""",
+        """function renderDailyFeed(reviews){
+      const container = document.getElementById("dailyFeed");
+      const no = document.getElementById("noResults");
+      if (!container || !no) return;
+
+      const rows = uiState.viewMode === "7d" ? reviews.slice() : reviews.slice(0, 60);
+      if (!rows.length){
+        container.innerHTML = "";
+        no.classList.remove("hidden");
+        return;
+      }
+
+      no.classList.add("hidden");
+      container.innerHTML = rows.map(reviewCardHTML).join("");
+    }""",
+        html,
+        count=1,
+        flags=re.S,
+    )
+    html = re.sub(
+        r"""function renderMLSignals\(allFiltered\)\s*\{.*?\n    \}\n\n    // -----------------------------""",
+        """function renderMLSignals(allFiltered){
+      const is7d = uiState.viewMode === "7d";
+      const day = currentDayValue();
+      const baseRows = allFiltered
+        .slice()
+        .sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+      const windowRows = is7d
+        ? baseRows
+        : baseRows.filter(r => String(r.created_at||"").slice(0,10) === day);
+      const count = windowRows.length;
+
+      const yCountEl = document.getElementById("yCount");
+      if (yCountEl) yCountEl.textContent = count;
+
+      const lowCnt = windowRows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low")).length;
+      const hint = document.getElementById("yLowHint");
+      if (hint){
+        hint.textContent = count
+          ? `Low/리스크 추정: ${lowCnt}건`
+          : (is7d ? "최근 7일 데이터가 없습니다." : "선택한 날짜 데이터가 없습니다.");
+      }
+
+      const negEl = document.getElementById("yNegSentences");
+      const posEl = document.getElementById("yPosSentences");
+      if (negEl) negEl.innerHTML = sentenceListHTML(
+        pickTopSentences(windowRows, "neg"),
+        "neg",
+        is7d ? "최근 7일 부정 문장이 없습니다." : "선택한 날짜 부정 문장이 없습니다.",
+      );
+      if (posEl) posEl.innerHTML = sentenceListHTML(
+        pickTopSentences(windowRows, "pos"),
+        "pos",
+        is7d ? "최근 7일 긍정 문장이 없습니다." : "선택한 날짜 긍정 문장이 없습니다.",
+      );
+    }
+
+    // -----------------------------""",
+        html,
+        count=1,
+        flags=re.S,
+    )
+    html = re.sub(
+        r"""function renderAll\(\)\s*\{.*?\n    \}""",
+        """function renderAll(){
+      syncWindowUI();
+      updateWindowCopy();
+      renderHeader();
+      renderProductSelect();
+      renderSizeSelect();
+
+      const filtered = getFilteredReviews();
+
+      renderMLSignals(filtered);
+      renderDailyFeed(filtered);
+
+      // Product ML is cumulative (independent of daily/date mode)
+      renderProductML();
+    }""",
+        html,
+        count=1,
+        flags=re.S,
     )
     return html
 
