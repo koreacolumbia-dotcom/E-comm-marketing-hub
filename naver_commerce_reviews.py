@@ -395,6 +395,11 @@ def fetch_naver_reviews(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Merge Naver Commerce reviews into VOC dashboard input.")
     parser.add_argument("--base-input", required=True, help="Existing review JSON from Crema or site/data.")
+    parser.add_argument(
+        "--existing-naver-input",
+        default="",
+        help="Existing cumulative Naver-only review JSON. When present, newly fetched rows are merged into it.",
+    )
     parser.add_argument("--output", required=True, help="Merged review JSON output path.")
     parser.add_argument("--naver-output", required=True, help="Normalized Naver-only review JSON output path.")
     parser.add_argument("--start", required=True, help="Review fetch start date (YYYY-MM-DD).")
@@ -408,17 +413,21 @@ def main() -> int:
     args = parser.parse_args()
 
     base_path = Path(args.base_input)
+    existing_naver_path = Path(args.existing_naver_input).expanduser() if str(args.existing_naver_input).strip() else None
     output_path = Path(args.output)
     naver_output_path = Path(args.naver_output)
 
     base_rows = load_rows(base_path)
+    existing_naver_rows = load_rows(existing_naver_path) if existing_naver_path else []
     log(f"[INFO] Base review rows={len(base_rows)} from {base_path}")
+    if existing_naver_path:
+        log(f"[INFO] Existing Naver rows={len(existing_naver_rows)} from {existing_naver_path}")
 
     enabled = env_flag("NAVER_COMMERCE_REVIEWS_ENABLED", default=False)
-    naver_rows: list[dict[str, Any]] = []
+    fetched_naver_rows: list[dict[str, Any]] = []
     if enabled:
         try:
-            naver_rows = fetch_naver_reviews(
+            fetched_naver_rows = fetch_naver_reviews(
                 start_date=args.start,
                 end_date=args.end,
                 brand_channel_no=str(args.brand_channel_no or os.getenv("NAVER_COMMERCE_BRAND_CHANNEL_NO", "")).strip(),
@@ -426,13 +435,14 @@ def main() -> int:
             )
         except Exception as exc:  # pragma: no cover - runtime/network branch
             log(f"[WARN] Naver Commerce fetch failed -> keeping base reviews only: {type(exc).__name__}: {exc}")
-            naver_rows = []
+            fetched_naver_rows = []
     else:
         log("[INFO] NAVER_COMMERCE_REVIEWS_ENABLED=false -> pass-through mode")
 
-    merged = merge_rows(base_rows, naver_rows)
+    cumulative_naver_rows = merge_rows(existing_naver_rows, fetched_naver_rows)
+    merged = merge_rows(base_rows, cumulative_naver_rows)
     dump_reviews(output_path, merged)
-    dump_reviews(naver_output_path, naver_rows)
+    dump_reviews(naver_output_path, cumulative_naver_rows)
 
     source_counts: dict[str, int] = {}
     for row in merged:
@@ -440,7 +450,8 @@ def main() -> int:
         source_counts[src] = source_counts.get(src, 0) + 1
 
     log(f"[CHECK] merged_review_count={len(merged)}")
-    log(f"[CHECK] naver_review_count={len(naver_rows)}")
+    log(f"[CHECK] naver_fetched_review_count={len(fetched_naver_rows)}")
+    log(f"[CHECK] naver_cumulative_review_count={len(cumulative_naver_rows)}")
     log(f"[CHECK] source_counts={json.dumps(source_counts, ensure_ascii=False, sort_keys=True)}")
     log(f"[CHECK] merged_output={output_path}")
     log(f"[CHECK] naver_output={naver_output_path}")
