@@ -461,6 +461,25 @@ prod_rows AS (
   CROSS JOIN UNNEST(b.items) it
   GROUP BY 1,2,3,4,5,6
 ),
+prod_user_rows AS (
+  SELECT
+    s.date,
+    s.channel,
+    s.send_id,
+    s.campaign,
+    s.term,
+    CAST(it.item_id AS STRING) AS item_id,
+    ANY_VALUE(it.item_name) AS item_name,
+    CAST(s.user_pseudo_id AS STRING) AS user_id,
+    SUM(IFNULL(it.quantity,0)) AS items,
+    SUM(IFNULL(it.item_revenue,0)) AS revenue
+  FROM owned_labeled s
+  JOIN base2 b
+    ON b.session_key = s.session_key
+   AND b.event_name='purchase'
+  CROSS JOIN UNNEST(b.items) it
+  GROUP BY 1,2,3,4,5,6,8
+),
 send_rollup AS (
   SELECT
     date,
@@ -531,6 +550,7 @@ SELECT
   '' AS message_body,
   NULL AS item_id,
   NULL AS item_name,
+  NULL AS user_id,
   NULL AS items,
   NULL AS item_revenue
 FROM final_campaign
@@ -555,9 +575,35 @@ SELECT
   '' AS message_body,
   item_id,
   item_name,
+  NULL AS user_id,
   items,
   revenue AS item_revenue
 FROM prod_rows
+
+UNION ALL
+
+SELECT
+  'PRODUCT_USER' AS row_type,
+  CAST(date AS STRING) AS date,
+  channel,
+  send_id,
+  campaign,
+  term,
+  NULL AS sessions,
+  NULL AS users,
+  NULL AS purchases,
+  NULL AS revenue,
+  NULL AS items_purchased,
+  NULL AS send_count,
+  NULL AS avg_leverage,
+  '' AS message_title,
+  '' AS message_body,
+  item_id,
+  item_name,
+  user_id,
+  items,
+  revenue AS item_revenue
+FROM prod_user_rows
 ;
 """
 
@@ -813,6 +859,7 @@ def build_day_bundle(
     owned_message_log = owned_message_log or []
     camp = df[df["row_type"] == "CAMPAIGN"].copy()
     prod = df[df["row_type"] == "PRODUCT"].copy()
+    prod_user = df[df["row_type"] == "PRODUCT_USER"].copy()
 
     for col in ["sessions", "users", "purchases", "revenue", "items_purchased", "send_count", "avg_leverage"]:
         if col in camp.columns:
@@ -821,6 +868,8 @@ def build_day_bundle(
     for col in ["items", "item_revenue"]:
         if col in prod.columns:
             prod[col] = prod[col].fillna(0).astype(float)
+        if col in prod_user.columns:
+            prod_user[col] = prod_user[col].fillna(0).astype(float)
 
     camp_group = camp.apply(
         lambda r: extract_group_year_mmdd(
@@ -901,7 +950,31 @@ def build_day_bundle(
             )
         )
 
-    return {"date": day, "campaigns": campaigns, "products": products, "message_log": owned_message_log}
+    product_users: List[Dict[str, Any]] = []
+    for _, r in prod_user.iterrows():
+        product_users.append(
+            dict(
+                date=str(r["date"]),
+                year=str(r.get("date", ""))[:4],
+                channel=str(r["channel"]),
+                send_id=str(r.get("send_id", "") or ""),
+                campaign=str(r["campaign"]),
+                term=str(r["term"]),
+                item_id=r["item_id"],
+                item_name=r["item_name"],
+                user_id=str(r.get("user_id", "") or ""),
+                items=int(r["items"]),
+                revenue=float(r["item_revenue"]),
+            )
+        )
+
+    return {
+        "date": day,
+        "campaigns": campaigns,
+        "products": products,
+        "product_users": product_users,
+        "message_log": owned_message_log,
+    }
 
 
 def build_range(
@@ -1009,14 +1082,17 @@ def merge_previous_year_bundle_rows(owned_dir: Path, bundle: Dict[str, Any], day
     prev_year = str(cur_d.year - 1)
     cur_campaigns = list(bundle.get("campaigns") or [])
     cur_products = list(bundle.get("products") or [])
+    cur_product_users = list(bundle.get("product_users") or [])
     cur_message_log = list(bundle.get("message_log") or [])
 
     prev_campaigns = _filter_exact_year_rows(list(prev_obj.get("campaigns") or []), prev_year)
     prev_products = _filter_exact_year_rows(list(prev_obj.get("products") or []), prev_year)
+    prev_product_users = _filter_exact_year_rows(list(prev_obj.get("product_users") or []), prev_year)
     prev_message_log = _filter_exact_year_rows(list(prev_obj.get("message_log") or []), prev_year)
 
     bundle["campaigns"] = _unique_dict_rows(cur_campaigns + prev_campaigns)
     bundle["products"] = _unique_dict_rows(cur_products + prev_products)
+    bundle["product_users"] = _unique_dict_rows(cur_product_users + prev_product_users)
     bundle["message_log"] = _unique_dict_rows(cur_message_log + prev_message_log)
     bundle["previous_year_merged_from"] = str(prev_path)
     return bundle
