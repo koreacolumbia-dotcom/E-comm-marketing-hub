@@ -82,6 +82,12 @@ NAVER_BLOCKED_MENU_URLS = [
 NAVER_BLOCKED_CAFE_MENU_KEYS = {
     ("31116705", "9"),
 }
+NAVER_BLOCKED_ARTICLE_URLS = [
+    "https://cafe.naver.com/nyblog/2140287",
+]
+NAVER_BLOCKED_CAFE_ARTICLE_KEYS = {
+    ("nyblog", "2140287"),
+}
 AMBIGUOUS_BRANDS = {"K2", "디스커버리", "데상트", "나이키", "내셔널지오그래픽"}
 
 BRAND_CONTEXT_TERMS: Dict[str, List[str]] = {
@@ -99,9 +105,9 @@ NAVER_LAST_RUN_META: Dict[str, object] = {}
 BRAND_LIST = [
     "컬럼비아", "노스페이스", "파타고니아", "아크테릭스", "블랙야크",
     "K2", "캠프라인", "살로몬", "호카", "마무트",
-    "스노우피크", "내셔널지오그래픽", "디스커버리", "코오롱스포츠", "몽벨",
-    "네파", "아이더", "밀레", "라푸마",
-    "데상트", "나이키",
+    "스노우피크", "내셔널지오그래픽", "디스커버리", "코오롱스포츠", "몬벨",
+    "네파", "아이더", "노스케이프", "밀레", "라푸마",
+    "헬리한센", "오스프리", "그레고리", "데상트", "나이키",
 ]
 
 BRAND_ALIASES: Dict[str, List[str]] = {
@@ -111,8 +117,8 @@ BRAND_ALIASES: Dict[str, List[str]] = {
     "살로몬": ["Salomon", "SALOMON"],
     "스노우피크": ["Snow Peak", "SNOWPEAK", "Snowpeak"],
     "내셔널지오그래픽": ["National Geographic", "NATIONALGEOGRAPHIC", "NatGeo"],
-    "코오롱스포츠": ["코오롱", "Kolon Sport", "KOLONSPORT", "Kolonsport"],
-    "몽벨": ["몽벨", "Montbell", "MONTBELL"],
+    "코오롱스포츠": ["Kolon Sport", "KOLONSPORT", "Kolonsport"],
+    "몬벨": ["몽벨", "Montbell", "MONTBELL"],
     "디스커버리": ["Discovery", "DISCOVERY"],
     "컬럼비아": ["Columbia", "COLUMBIA", "콜롬비아"],
     "블랙야크": ["Black Yak", "BLACKYAK"],
@@ -123,6 +129,9 @@ BRAND_ALIASES: Dict[str, List[str]] = {
     "호카": ["HOKA", "Hoka"],
     "마무트": ["Mammut", "MAMMUT"],
     "캠프라인": ["CampLine", "CAMPLINE"],
+    "오스프리": ["Osprey", "OSPREY"],
+    "그레고리": ["Gregory", "GREGORY"],
+    "헬리한센": ["Helly Hansen", "HELLY HANSEN", "HELLYHANSEN"],
     "라푸마": ["Lafuma", "LAFUMA"],
 }
 
@@ -407,6 +416,8 @@ def _extract_naver_article_meta(url: str) -> dict:
             parts = [p for p in path.split("/") if p]
             if parts and parts[0] != "f-e":
                 meta["cafe_id"] = parts[0].lower()
+                if len(parts) >= 2 and parts[1].isdigit():
+                    meta["article_id"] = parts[1]
     except Exception:
         return meta
     return meta
@@ -415,11 +426,14 @@ def _extract_naver_article_meta(url: str) -> dict:
 def _is_blocked_naver_menu(link: str, cafeurl: str, html_text: str = "") -> bool:
     candidates = [_canonicalize_link(link).rstrip("/"), _canonicalize_link(cafeurl).rstrip("/")]
     blocked_urls = {_canonicalize_link(u).rstrip("/") for u in NAVER_BLOCKED_MENU_URLS}
+    blocked_article_urls = {_canonicalize_link(u).rstrip("/") for u in NAVER_BLOCKED_ARTICLE_URLS}
     for cand in candidates:
-        if cand in blocked_urls:
+        if cand in blocked_urls or cand in blocked_article_urls:
             return True
         meta = _extract_naver_article_meta(cand)
         if (meta.get("cafe_id") or "", meta.get("menu_id") or "") in NAVER_BLOCKED_CAFE_MENU_KEYS:
+            return True
+        if (meta.get("cafe_id") or "", meta.get("article_id") or "") in NAVER_BLOCKED_CAFE_ARTICLE_KEYS:
             return True
 
     if html_text:
