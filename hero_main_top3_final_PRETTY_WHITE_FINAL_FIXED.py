@@ -290,6 +290,17 @@ DASHBOARD_KEYWORD_EXCLUDES = {
     "COLLECTION",
     "MILLET",
     "ITEM",
+    "NATIONAL",
+    "GEOGRAPHIC",
+    "ARRIVALS",
+    "온라인스토어",
+    "아웃도어",
+    "아크테릭스코리아",
+    "모디세이",
+    "에어로",
+    "살로몬",
+    "스노우피크",
+    "어패럴",
     "루트",
     "지구",
     "경이로운",
@@ -3772,7 +3783,6 @@ def write_dashboard_html_legacy(path: str, rows: List[Banner], changes: Optional
     safe_changes = changes if isinstance(changes, dict) else {}
     summary = safe_changes.get("summary") or {}
     changes_map = {x.get("brand_key", ""): x for x in (safe_changes.get("brands") or [])}
-    alerts_payload = build_alerts(safe_changes)
     keywords = filter_dashboard_keywords(analyze_title_keywords(rows, top_n=40), top_n=14)
     brand_insights = {
         bk: summarize_brand_insight(bk, sorted(by_brand.get(bk, []), key=lambda x: x.rank), changes_map)
@@ -3970,7 +3980,6 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
     safe_changes = changes if isinstance(changes, dict) else {}
     summary = safe_changes.get("summary") or {}
     changes_map = {x.get("brand_key", ""): x for x in (safe_changes.get("brands") or [])}
-    alerts_payload = build_alerts(safe_changes)
     keywords = filter_dashboard_keywords(analyze_title_keywords(rows, top_n=40), top_n=14)
     brand_insights = {
         bk: summarize_brand_insight(bk, sorted(by_brand.get(bk, []), key=lambda x: x.rank), changes_map)
@@ -3979,10 +3988,10 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
 
     overview_cards_html = f"""
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-      <div class="metric-card"><div class="metric-label">추적 브랜드</div><div class="metric-value">{len(active_brand_keys)}</div><div class="metric-sub">현재 수집된 브랜드 기준</div></div>
-      <div class="metric-card"><div class="metric-label">현재 배너 수</div><div class="metric-value">{len(rows)}</div><div class="metric-sub">브랜드 탭에서 바로 비교 가능</div></div>
-      <div class="metric-card"><div class="metric-label">최근 이벤트</div><div class="metric-value">{int(summary.get('events', 0) or 0)}</div><div class="metric-sub">{_html_pct_chip(float(summary.get('event_delta_pct', 0.0) or 0.0))}</div></div>
-      <div class="metric-card"><div class="metric-label">실제 교체 감지</div><div class="metric-value">{int(summary.get('changed', 0) or 0)}</div><div class="metric-sub">{_html_pct_chip(float(summary.get('changed_delta_pct', 0.0) or 0.0))}</div></div>
+      <div class="metric-card"><div class="metric-label">Tracked Brands</div><div class="metric-value">{len(active_brand_keys)}</div><div class="metric-sub">Current brand coverage</div></div>
+      <div class="metric-card"><div class="metric-label">Hero Banners</div><div class="metric-value">{len(rows)}</div><div class="metric-sub">Main campaign cards</div></div>
+      <div class="metric-card"><div class="metric-label">Change Events</div><div class="metric-value">{int(summary.get('events', 0) or 0)}</div><div class="metric-sub">{_html_pct_chip(float(summary.get('event_delta_pct', 0.0) or 0.0))}</div></div>
+      <div class="metric-card"><div class="metric-label">Actual Changes</div><div class="metric-value">{int(summary.get('changed', 0) or 0)}</div><div class="metric-sub">{_html_pct_chip(float(summary.get('changed_delta_pct', 0.0) or 0.0))}</div></div>
     </div>
     """
 
@@ -3995,46 +4004,12 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
         theme_summary = ", ".join([x.get("keyword", "") for x in keywords[:4]])
     else:
         keyword_cloud_html = '<div class="text-sm text-slate-500">이번 주 반복 키워드를 아직 뽑지 못했습니다.</div>'
-        theme_summary = "주요 테마 추출 데이터 부족"
-
-    alert_list_html = "".join([
-        f"""
-        <div class="rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3">
-          <div class="text-sm font-bold text-slate-900">{_h(item.get('brand_name', '-'))}</div>
-          <div class="text-[11px] text-slate-500">{_h(item.get('date', '-'))} · events {int(item.get('events', 0) or 0)} / changed {int(item.get('changed', 0) or 0)}</div>
-        </div>
-        """
-        for item in alerts_payload.get("items", [])[:4]
-    ]) or '<div class="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-700 font-semibold">설정한 기준 이상의 이례 변동은 감지되지 않았습니다.</div>'
-
-    changed_cards_html_parts: List[str] = []
-    for info in (safe_changes.get("brands") or [])[:8]:
-        seg = BRAND_SEGMENTS.get(info.get("brand_key", ""), {}) or {}
-        changed_cards_html_parts.append(f"""
-        <article class="soft-panel p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <div class="text-xs font-bold text-slate-500">{_h(seg.get('style', '기타'))} · {_h(seg.get('origin', '기타'))}</div>
-              <div class="mt-1 text-base font-black text-slate-900">{_h(info.get('brand_name', info.get('brand_key', '-')))}</div>
-              <div class="mt-2 text-sm text-slate-700 clamp-2">"{_h(info.get('last_title', '-'))}"</div>
-            </div>
-            <div class="text-right">
-              <div class="text-lg font-black text-slate-900">{int(info.get('events', 0) or 0)}</div>
-              <div class="text-[11px] text-slate-500">events</div>
-            </div>
-          </div>
-          <div class="mt-4 flex flex-wrap items-center gap-2">
-            <span class="mini-stat">changed {int(info.get('changed', 0) or 0)}</span>
-            <span class="mini-stat">added {int(info.get('added', 0) or 0)}</span>
-            <span class="mini-stat">removed {int(info.get('removed', 0) or 0)}</span>
-            {_html_pct_chip(float(info.get('event_delta_pct', 0.0) or 0.0))}
-          </div>
-        </article>
-        """)
-    changed_cards_html = "".join(changed_cards_html_parts) or '<div class="soft-panel p-6 text-sm text-slate-500">최근 변경 집계가 아직 없습니다.</div>'
+        theme_summary = '주요 테마 추출 데이터 부족'
 
     filter_buttons_html = "".join([
-        f'<button class="{"filter-btn active" if key == "all" else "filter-btn"}" data-filter="{_h(key)}" onclick="setBrandFilter(\'{_h(key)}\')">{_h(label)}</button>'
+        '<button class="{cls}" data-filter="{key}" onclick="setBrandFilter(\'{key}\')">{label}</button>'.format(
+            cls=("filter-btn active" if key == "all" else "filter-btn"), key=_h(key), label=_h(label)
+        )
         for key, label in [("all", "전체"), ("라이프스타일", "라이프스타일"), ("전문 산행", "전문 산행"), ("글로벌", "글로벌"), ("로컬", "로컬")]
     ])
 
@@ -4043,23 +4018,26 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
     for i, bk in enumerate(active_brand_keys):
         items = sorted(by_brand.get(bk, []), key=lambda x: x.rank)
         brand_name = brand_name_map.get(bk, bk)
-        seg = BRAND_SEGMENTS.get(bk, {"style": "기타", "origin": "기타"})
+        seg = BRAND_SEGMENTS.get(bk, {"style": "ETC", "origin": "ETC"})
         insight = brand_insights.get(bk, {})
-        tab_menu_html += f'<button onclick="switchTab(\'{_h(bk)}\')" id="tab-{_h(bk)}" class="{"tab-btn active" if i == 0 else "tab-btn"}" data-style="{_h(seg.get("style", "기타"))}" data-origin="{_h(seg.get("origin", "기타"))}"><span>{_h(brand_name)}</span><span class="tab-meta">{int(insight.get("events", 0) or len(items))}</span></button>'
+        tab_menu_html += '<button onclick="switchTab(\'{bk}\')" id="tab-{bk}" class="{cls}" data-style="{style}" data-origin="{origin}"><span>{name}</span><span class="tab-meta">{meta}</span></button>'.format(
+            bk=_h(bk),
+            cls=("tab-btn active" if i == 0 else "tab-btn"),
+            style=_h(seg.get("style", "ETC")),
+            origin=_h(seg.get("origin", "ETC")),
+            name=_h(brand_name),
+            meta=int(insight.get("events", 0) or len(items)),
+        )
         if not items:
-            content_area_html += f'<section id="content-{_h(bk)}" class="tab-content" style="display:{ "block" if i == 0 else "none" }"><div class="glass-card p-8 text-slate-500"><div class="text-base font-bold mb-2">배너 데이터를 아직 확보하지 못했습니다.</div></div></section>'
+            content_area_html += f'<section id="content-{_h(bk)}" class="tab-content" style="display:{"block" if i == 0 else "none"}"><div class="glass-card p-8 text-slate-500"><div class="text-base font-bold mb-2">No banner data collected yet.</div></div></section>'
             continue
 
         top_item = items[0]
         visual = insight.get("visual", {}) or {}
-        visual_badges = "".join([f'<span class="insight-chip accent">{_h(tag)}</span>' for tag in visual.get("tags", [])[:6]]) or '<span class="text-sm text-slate-400">태그 미검출</span>'
-        keyword_badges = "".join([f'<span class="insight-chip">{_h(x.get("keyword", ""))} <em>{int(x.get("count", 0) or 0)}</em></span>' for x in insight.get("keywords", [])[:5]]) or '<span class="text-sm text-slate-400">키워드 부족</span>'
-        recent_titles_html = "".join([f'<li class="insight-list-item">"{_h(t)}"</li>' for t in insight.get("recent_titles", [])[:4]]) or '<li class="insight-list-item">최근 변경 제목 없음</li>'
-        other_cards = "".join([_render_secondary_card(it) for it in items[1:7]]) or '<div class="soft-panel p-6 text-sm text-slate-500">추가 배너가 없어 메인 비주얼만 표시했습니다.</div>'
-        brand_alerts = "".join([
-            f'<div class="rounded-2xl border border-rose-100 bg-rose-50/80 px-3 py-3 text-sm text-rose-700 font-semibold">{_h(a.get("date", "-"))} · {int(a.get("events", 0) or 0)}건 변동</div>'
-            for a in alerts_payload.get("items", []) if a.get("brand_key") == bk
-        ]) or '<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-3 text-sm text-slate-500">해당 브랜드는 기준 이상 이례 변동이 없습니다.</div>'
+        visual_badges = "".join([f'<span class="insight-chip accent">{_h(tag)}</span>' for tag in visual.get("tags", [])[:6]]) or '<span class="text-sm text-slate-400">No tags</span>'
+        keyword_badges = "".join([f'<span class="insight-chip">{_h(x.get("keyword", ""))} <em>{int(x.get("count", 0) or 0)}</em></span>' for x in insight.get("keywords", [])[:5]]) or '<span class="text-sm text-slate-400">No keywords</span>'
+        recent_titles_html = "".join([f'<li class="insight-list-item">"{_h(t)}"</li>' for t in insight.get("recent_titles", [])[:4]]) or '<li class="insight-list-item">No recent title changes</li>'
+        other_cards = "".join([_render_secondary_card(it) for it in items[1:7]]) or '<div class="soft-panel p-6 text-sm text-slate-500">No additional banner cards.</div>'
         content_area_html += f"""
         <section id="content-{_h(bk)}" class="tab-content" style="display:{'block' if i == 0 else 'none'};">
           <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -4071,27 +4049,27 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
                     <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent"></div>
                     <div class="absolute left-5 top-5 flex flex-wrap gap-2">
                       <span class="inline-flex items-center justify-center rounded-full bg-[rgba(11,43,102,0.9)] px-3 py-2 text-[11px] font-black text-white">RANK {int(top_item.rank or 0)}</span>
-                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">{_h(seg.get('style', '기타'))}</span>
-                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">{_h(seg.get('origin', '기타'))}</span>
+                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">{_h(seg.get('style', 'ETC'))}</span>
+                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">{_h(seg.get('origin', 'ETC'))}</span>
                     </div>
                   </div>
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
-                      <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">선택한 브랜드 상세 배너</div>
+                      <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
                       <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">{_h(brand_name)}</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"{_h(top_item.title or '-')}"</p>
                       <div class="mt-4 flex flex-wrap gap-2">{_html_pct_chip(float(insight.get('event_delta_pct', 0.0) or 0.0))}{_html_pct_chip(float(insight.get('changed_delta_pct', 0.0) or 0.0))}</div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                      <div class="mini-card"><span>최근 이벤트</span><strong>{int(insight.get('events', 0) or 0)}</strong></div>
-                      <div class="mini-card"><span>실제 교체</span><strong>{int(insight.get('changed', 0) or 0)}</strong></div>
-                      <div class="mini-card"><span>운영 기간</span><strong>{_h(_html_date_txt(top_item))}</strong></div>
-                      <div class="mini-card"><span>이미지 정보</span><strong>{_h(_html_meta_txt(top_item))}</strong></div>
+                      <div class="mini-card"><span>Events</span><strong>{int(insight.get('events', 0) or 0)}</strong></div>
+                      <div class="mini-card"><span>Actual Changes</span><strong>{int(insight.get('changed', 0) or 0)}</strong></div>
+                      <div class="mini-card"><span>Campaign Dates</span><strong>{_h(_html_date_txt(top_item))}</strong></div>
+                      <div class="mini-card"><span>Image Meta</span><strong>{_h(_html_meta_txt(top_item))}</strong></div>
                     </div>
                     <div class="flex flex-wrap gap-2">{visual_badges}</div>
                     <div class="flex gap-2 mt-auto">
-                      <a href="{_h(top_item.href_clean or top_item.href or '#')}" target="_blank" class="btn-primary flex-1 text-center">기획전 보기</a>
-                      <a href="{_h(top_item.img_url or _html_img_src(top_item) or '#')}" target="_blank" class="btn-secondary">원본 이미지 열기</a>
+                      <a href="{_h(top_item.href_clean or top_item.href or '#')}" target="_blank" class="btn-primary flex-1 text-center">Open Landing</a>
+                      <a href="{_h(top_item.img_url or _html_img_src(top_item) or '#')}" target="_blank" class="btn-secondary">Open Image</a>
                     </div>
                   </div>
                 </div>
@@ -4100,21 +4078,20 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
             </div>
             <aside class="flex flex-col gap-5">
               <section class="glass-card p-6">
-                <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">브랜드 인사이트</div>
-                <h4 class="mt-2 text-xl font-black text-slate-900">{_h(brand_name)} 분석 요약</h4>
-                <p class="mt-3 text-sm text-slate-600">이번 주 주요 테마: {_h(", ".join([x.get("keyword", "") for x in insight.get("keywords", [])[:3]]) or "추출 데이터 부족")}</p>
+                <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Insight</div>
+                <h4 class="mt-2 text-xl font-black text-slate-900">{_h(brand_name)} Summary</h4>
+                <p class="mt-3 text-sm text-slate-600">Weekly theme: {_h(', '.join([x.get('keyword', '') for x in insight.get('keywords', [])[:3]]) or 'No keyword summary')}</p>
                 <div class="mt-5 grid grid-cols-2 gap-3">
-                  <div class="mini-card"><span>추가</span><strong>{int(insight.get('added', 0) or 0)}</strong></div>
-                  <div class="mini-card"><span>삭제</span><strong>{int(insight.get('removed', 0) or 0)}</strong></div>
-                  <div class="mini-card"><span>세그먼트</span><strong>{_h(insight.get('segment_style', '기타'))}</strong></div>
-                  <div class="mini-card"><span>브랜드군</span><strong>{_h(insight.get('segment_origin', '기타'))}</strong></div>
+                  <div class="mini-card"><span>Added</span><strong>{int(insight.get('added', 0) or 0)}</strong></div>
+                  <div class="mini-card"><span>Removed</span><strong>{int(insight.get('removed', 0) or 0)}</strong></div>
+                  <div class="mini-card"><span>Segment</span><strong>{_h(insight.get('segment_style', 'ETC'))}</strong></div>
+                  <div class="mini-card"><span>Origin</span><strong>{_h(insight.get('segment_origin', 'ETC'))}</strong></div>
                 </div>
-                <div class="mt-5"><div class="panel-label">키워드 클러스터</div><div class="mt-2 flex flex-wrap gap-2">{keyword_badges}</div></div>
-                <div class="mt-5"><div class="panel-label">비주얼 TPO 태깅</div><p class="mt-2 text-sm text-slate-700">{_h(visual.get('summary', '태그 자동 분류 데이터 부족'))}</p><div class="mt-2 flex flex-wrap gap-2">{visual_badges}</div></div>
-                <div class="mt-5"><div class="panel-label">OCR 텍스트</div><div class="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{_h(visual.get('ocr_text', '') or 'OCR 엔진이 없거나 추출 텍스트가 없습니다.')}</div></div>
+                <div class="mt-5"><div class="panel-label">Keyword Cluster</div><div class="mt-2 flex flex-wrap gap-2">{keyword_badges}</div></div>
+                <div class="mt-5"><div class="panel-label">Visual / OCR</div><p class="mt-2 text-sm text-slate-700">{_h(visual.get('summary', 'No visual summary'))}</p><div class="mt-2 flex flex-wrap gap-2">{visual_badges}</div></div>
+                <div class="mt-5"><div class="panel-label">OCR Text</div><div class="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{_h(visual.get('ocr_text', '') or 'OCR disabled or no text')}</div></div>
               </section>
-              <section class="glass-card p-6"><div class="panel-label">최근 변경 제목</div><ul class="mt-3 space-y-2">{recent_titles_html}</ul></section>
-              <section class="glass-card p-6"><div class="panel-label">실시간 대응 알림</div><div class="mt-3 space-y-3">{brand_alerts}</div></section>
+              <section class="glass-card p-6"><div class="panel-label">Recent Title Changes</div><ul class="mt-3 space-y-2">{recent_titles_html}</ul></section>
             </aside>
           </div>
         </section>
@@ -4134,13 +4111,12 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
 <body class="flex">
   <aside class="w-72 h-screen sticky top-0 sidebar hidden xl:flex flex-col p-8">
     <div class="flex items-center gap-4 mb-16 px-2"><div class="w-12 h-12 bg-[var(--brand-deep)] rounded-2xl flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-mountain-sun text-xl"></i></div><div><div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div><div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Competitive Watch</div></div></div>
-    <nav class="space-y-4"><div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4"><i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC</span></div><div class="p-4 rounded-2xl bg-white shadow-sm text-[var(--brand-deep)] font-black flex items-center gap-4"><i class="fa-solid fa-chart-line"></i> <span>경쟁사 배너 분석</span></div></nav>
+    <nav class="space-y-4"><div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4"><i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC</span></div><div class="p-4 rounded-2xl bg-white shadow-sm text-[var(--brand-deep)] font-black flex items-center gap-4"><i class="fa-solid fa-chart-line"></i> <span>경쟁사 기획전 분석</span></div></nav>
   </aside>
   <main class="flex-1 px-5 py-8 md:px-8 xl:px-12 xl:py-10">
-    <header class="mb-8"><div class="glass-card p-7 lg:p-8"><div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6"><div class="max-w-3xl"><div class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black tracking-[0.18em] text-blue-700 uppercase">Hero Banner Monitor</div><h1 class="mt-4 text-4xl lg:text-5xl font-black tracking-tight text-slate-950">데이터 가시성과 콘텐츠 의도를 함께 보는 경쟁사 대시보드</h1><p class="mt-4 text-base lg:text-lg text-slate-600">리스트 중심 화면을 히트맵, 주간 증감, 키워드 클라우드, 이미지 OCR 태깅, 세그먼트 필터, 이례 변동 알림 중심 구조로 재구성했습니다.</p><p class="mt-4 text-sm text-slate-500">최근 {int(safe_changes.get('window_days', RECENT_CHANGE_DAYS) or RECENT_CHANGE_DAYS)}일 기준 경쟁사 메인 히어로 배너 변화 모니터링 · {_h(kst_now().strftime('%Y-%m-%d %H:%M'))} KST</p><p class="mt-2 text-xs text-slate-400">이미지 경로 모드: {"ABS(file://)" if HTML_USE_ABSOLUTE_FILE_URL else "REL(assets/)"} · 날짜 추출: {"ON" if FETCH_CAMPAIGN_DATES else "OFF"} (rank1_only={"ON" if DATE_FETCH_RANK1_ONLY else "OFF"})</p></div><div class="soft-panel px-5 py-4 min-w-[240px]"><div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">이번 주 시장 테마</div><div class="mt-2 text-2xl font-black tracking-tight text-slate-900">{_h(theme_summary)}</div><div class="mt-4 text-sm text-slate-500">선택 브랜드 상세는 아래 탭에서 확인하세요.</div></div></div><div class="mt-7">{overview_cards_html}</div></div></header>
-    <section class="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.95fr)] gap-6 mb-6">{_render_heatmap_section(safe_changes)}<div class="flex flex-col gap-6"><section class="glass-card p-6 lg:p-7"><h2 class="section-title">이번 주 키워드 클라우드</h2><p class="section-sub">기획전 제목 반복어를 모아 아웃도어 시장의 주요 메시지를 빠르게 파악합니다.</p><div class="mt-5">{keyword_cloud_html}</div></section><section class="glass-card p-6 lg:p-7"><div class="flex items-center justify-between gap-3"><div><h2 class="section-title">이례 변동 알림</h2><p class="section-sub">브랜드별 일일 이벤트 {ALERT_EVENT_THRESHOLD}건 이상 또는 실제 교체 {ALERT_CHANGED_THRESHOLD}건 이상을 감지합니다.</p></div><div class="text-xs font-bold text-rose-600">{int(alerts_payload.get('count', 0) or 0)}건</div></div><div class="mt-4 space-y-3">{alert_list_html}</div></section></div></section>
-    <section class="mb-6"><div class="glass-card p-6 lg:p-7"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><h2 class="section-title">최근 변경 강도 상위 브랜드</h2><p class="section-sub">전주 대비 증감까지 함께 보여 경쟁사 공격도를 빠르게 읽을 수 있습니다.</p></div><div class="text-[11px] text-slate-500">세그먼트별 필터는 아래 브랜드 탭에 적용됩니다.</div></div><div class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">{changed_cards_html}</div></div></section>
-    <section><div class="glass-card p-6 lg:p-7"><div class="flex flex-col gap-4"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><h2 class="section-title">브랜드 상세 비교</h2><p class="section-sub">필터로 세그먼트를 좁히고, 탭에서 브랜드를 선택하면 메인 비주얼과 인사이트 패널이 함께 열립니다.</p></div><div class="flex flex-wrap gap-2">{filter_buttons_html}</div></div><div class="flex flex-wrap gap-2 pt-1">{tab_menu_html}</div></div></div><div class="mt-6 min-h-[720px] space-y-6">{content_area_html}</div></section>
+    <header class="mb-8"><div class="glass-card p-7 lg:p-8"><div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6"><div class="max-w-3xl"><div class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black tracking-[0.18em] text-blue-700 uppercase">Hero Banner Monitor</div><h1 class="mt-4 text-4xl lg:text-5xl font-black tracking-tight text-slate-950">경쟁사 기획전 대시보드</h1><p class="mt-4 text-base lg:text-lg text-slate-600">반복 키워드와 대표 배너를 중심으로 경쟁사 기획전 메시지와 구성을 빠르게 읽을 수 있게 정리했습니다.</p><p class="mt-4 text-sm text-slate-500">최근 {int(safe_changes.get('window_days', RECENT_CHANGE_DAYS) or RECENT_CHANGE_DAYS)}일 기준 경쟁사 메인 히어로 배너 변화 모니터링 · {_h(kst_now().strftime('%Y-%m-%d %H:%M'))} KST</p><p class="mt-2 text-xs text-slate-400">이미지 경로 모드: {"ABS(file://)" if HTML_USE_ABSOLUTE_FILE_URL else "REL(assets/)"} · 날짜 추출: {"ON" if FETCH_CAMPAIGN_DATES else "OFF"} (rank1_only={"ON" if DATE_FETCH_RANK1_ONLY else "OFF"})</p></div><div class="soft-panel px-5 py-4 min-w-[240px]"><div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">이번 주 시장 테마</div><div class="mt-2 text-2xl font-black tracking-tight text-slate-900">{_h(theme_summary)}</div><div class="mt-4 text-sm text-slate-500">선택 브랜드 상세는 아래 탭에서 확인하세요.</div></div></div><div class="mt-7">{overview_cards_html}</div></div></header>
+    <section class="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.95fr)] gap-6 mb-6">{_render_heatmap_section(safe_changes)}<div class="flex flex-col gap-6"><section class="glass-card p-6 lg:p-7"><h2 class="section-title">이번 주 키워드 클라우드</h2><p class="section-sub">기획전 제목 반복어를 모아 시장의 주요 메시지를 빠르게 파악합니다.</p><div class="mt-5">{keyword_cloud_html}</div></section></div></section>
+    <section><div class="glass-card p-6 lg:p-7"><div class="flex flex-col gap-4"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><h2 class="section-title">브랜드 상세 비교</h2><p class="section-sub">필터로 세그먼트를 좁히고 아래에서 브랜드를 선택하면 메인 비주얼과 인사이트 요약을 바로 비교할 수 있습니다.</p></div><div class="flex flex-wrap gap-2">{filter_buttons_html}</div></div><div class="flex flex-wrap gap-2 pt-1">{tab_menu_html}</div></div></div><div class="mt-6 min-h-[720px] space-y-6">{content_area_html}</div></section>
   </main>
   <script>
     function switchTab(brandKey) {{
@@ -4153,7 +4129,7 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
     }}
     function setBrandFilter(filterKey) {{
       document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-      const activeFilter = document.querySelector('.filter-btn[data-filter=\"' + filterKey + '\"]');
+      const activeFilter = document.querySelector('.filter-btn[data-filter="' + filterKey + '"]');
       if (activeFilter) activeFilter.classList.add('active');
       let firstVisible = null;
       document.querySelectorAll('.tab-btn').forEach(btn => {{
@@ -4172,12 +4148,12 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
       }} catch (e) {{
         document.body.classList.add("embedded");
       }}
-      setBrandFilter('all');
     }})();
   </script>
 </body>
 </html>
 """
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(full_html)
 
