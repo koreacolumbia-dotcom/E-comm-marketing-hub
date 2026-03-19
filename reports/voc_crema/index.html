@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VOC Dashboard | Official + Naver Reviews</title>
+  <title>VOC Dashboard | Official + Naver Brand Reviews</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -174,7 +174,7 @@
           </div>
           <div>
             <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
-            <div class="text-xs font-bold text-slate-500">Official + Naver</div>
+            <div class="text-xs font-bold text-slate-500">Official + Naver Brand</div>
           </div>
         </div>
 
@@ -201,7 +201,7 @@
           <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
             <div>
               <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-                Official몰 & Naver 리뷰 VOC 대시보드
+                Official몰 & Naver Brand 리뷰 VOC 대시보드
               </h1>
               <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
             </div>
@@ -214,7 +214,7 @@
                 <i class="fa-solid fa-store mr-2"></i>Official
               </button>
               <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
-                <i class="fa-brands fa-naver mr-2"></i>Naver
+                <i class="fa-brands fa-naver mr-2"></i>Naver Brand
               </button>
             </div>
           </header>
@@ -428,9 +428,9 @@
       const candidates = Array.isArray(urls) ? urls.slice() : [urls];
       if (typeof src === "string"){
         if (src.endsWith("/data/meta.json") || src === "./data/meta.json"){
-          candidates.push("./data/meta.json", "./reports/voc_crema/data/meta.json", "../data/meta.json");
+          candidates.push("./site/data/meta.json", "./reports/voc_crema/data/meta.json", "../data/meta.json");
         }else if (src.endsWith("/data/reviews.json") || src === "./data/reviews.json"){
-          candidates.push("./data/reviews.json", "./reports/voc_crema/data/reviews.json", "../data/reviews.json");
+          candidates.push("./site/data/reviews.json", "./reports/voc_crema/data/reviews.json", "../data/reviews.json");
         }
       }
       const uniq = [...new Set(candidates.filter(Boolean))];
@@ -973,13 +973,13 @@
           const [meta, reviews] = await Promise.all([
             fetchJsonOrThrow([
               "./data/meta.json",
-              "./data/meta.json",
+              "./site/data/meta.json",
               "./reports/voc_crema/data/meta.json",
               "../data/meta.json",
             ]),
             fetchJsonOrThrow([
               "./data/reviews.json",
-              "./data/reviews.json",
+              "./site/data/reviews.json",
               "./reports/voc_crema/data/reviews.json",
               "../data/reviews.json",
             ]),
