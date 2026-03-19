@@ -116,6 +116,8 @@ permissions:
 
 jobs:
   run:
+    # Keep github-hosted by default. Before enabling Naver Commerce review sync in production,
+    # move this job to a fixed-IP self-hosted runner if the Commerce app enforces IP allowlisting.
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -493,6 +495,13 @@ jobs:
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
+          NAVER_COMMERCE_CLIENT_ID: ${{ secrets.NAVER_COMMERCE_CLIENT_ID }}
+          NAVER_COMMERCE_CLIENT_SECRET: ${{ secrets.NAVER_COMMERCE_CLIENT_SECRET }}
+          NAVER_COMMERCE_REVIEWS_ENABLED: ${{ vars.NAVER_COMMERCE_REVIEWS_ENABLED }}
+          NAVER_COMMERCE_REVIEW_ENDPOINT: ${{ vars.NAVER_COMMERCE_REVIEW_ENDPOINT }}
+          NAVER_COMMERCE_BRAND_CHANNEL_NO: ${{ vars.NAVER_COMMERCE_BRAND_CHANNEL_NO }}
+          NAVER_COMMERCE_PAGE_SIZE: ${{ vars.NAVER_COMMERCE_PAGE_SIZE }}
+          NAVER_COMMERCE_MAX_PAGES: ${{ vars.NAVER_COMMERCE_MAX_PAGES }}
           OUTPUT_TZ: Asia/Seoul
           PROJECT_ROOT: ${{ github.workspace }}
           TARGET_DAYS: "7"
@@ -516,7 +525,8 @@ jobs:
             site/assets/text_images \
             reports/crema_raw \
             reports/crema_raw/daily \
-            reports/crema_raw/health
+            reports/crema_raw/health \
+            reports/naver_commerce
 
           FLAG="reports/crema_raw/backfill_done.flag"
           START_3M="$(TZ=Asia/Seoul date -d '90 days ago' '+%Y-%m-%d')"
@@ -568,6 +578,29 @@ jobs:
             ls -lah site/data || true
             ls -lah site/assets || true
             exit 1
+          fi
+
+          NAVER_START="$(TZ=Asia/Seoul date -d '30 days ago' '+%Y-%m-%d')"
+          if [ "${FORCE_CREMA_3M}" = "true" ] || [ ! -f "${FLAG}" ]; then
+            NAVER_START="${START_3M}"
+          fi
+
+          NAVER_SCRIPT="naver_commerce_reviews.py"
+          MERGED_INPUT="reports/crema_raw/reviews_merged.json"
+          NAVER_REVIEW_JSON="reports/naver_commerce/reviews.json"
+          if [ -f "${NAVER_SCRIPT}" ]; then
+            echo "[INFO] (2) Merge Naver Commerce reviews when configured"
+            python -u "${NAVER_SCRIPT}" \
+              --base-input "${INPUT_JSON}" \
+              --output "${MERGED_INPUT}" \
+              --naver-output "${NAVER_REVIEW_JSON}" \
+              --start "${NAVER_START}" \
+              --end "${YMD}" \
+              --brand-channel-no "${NAVER_COMMERCE_BRAND_CHANNEL_NO:-}" \
+              --product-url "https://brand.naver.com/columbia"
+            INPUT_JSON="${MERGED_INPUT}"
+          else
+            echo "[WARN] ${NAVER_SCRIPT} not found. Build continues with Crema-only reviews."
           fi
 
           if [ ! -f "${FLAG}" ]; then
