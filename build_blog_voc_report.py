@@ -887,7 +887,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VOC Dashboard | Official + Naver Reviews</title>
+  <title>VOC Dashboard | Official + Naver Brand Reviews</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -1049,34 +1049,6 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
 
-  <header class="topbar sticky top-0 z-50">
-    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
-            <i class="fa-solid fa-chart-line text-slate-700"></i>
-          </div>
-          <div>
-            <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
-            <div class="text-xs font-bold text-slate-500">Official + Naver</div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-3 w-full lg:w-auto">
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">RUN</div>
-            <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
-        * 데이터: data/meta.json, data/reviews.json &nbsp;·&nbsp; * 빌드: crema_voc v6
-      </div>
-    </div>
-  </header>
-
   <main class="p-6 md:p-10 w-full">
     <div class="mx-auto w-full max-w-[1280px]">
       <div class="max-w-[1320px] mx-auto">
@@ -1085,7 +1057,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
           <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
             <div>
               <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-                Official몰 & Naver 리뷰 VOC 대시보드
+                Official몰 & Naver Brand 리뷰 VOC 대시보드
               </h1>
               <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
             </div>
@@ -1098,7 +1070,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
                 <i class="fa-solid fa-store mr-2"></i>Official
               </button>
               <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
-                <i class="fa-brands fa-naver mr-2"></i>Naver
+                <i class="fa-brands fa-naver mr-2"></i>Naver Brand
               </button>
             </div>
           </header>
@@ -1223,7 +1195,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
             <div id="mlNoData" class="hidden review-card text-center">
               <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
-              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver)을 조정해보세요.</div>
+              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver Brand)을 조정해보세요.</div>
             </div>
           </div>
         </section>
@@ -1435,12 +1407,8 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     function renderHeader(){
       const runDate = META?.updated_at || "-";
       const periodText = META?.period_text || "-";
-      const sideRun = document.getElementById("runDateSide");
-      const sidePeriod = document.getElementById("periodTextSide");
       const headerMeta = document.getElementById("headerMeta");
 
-      if (sideRun) sideRun.textContent = String(runDate).slice(0,10).replaceAll("-",".");
-      if (sidePeriod) sidePeriod.textContent = periodText;
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
@@ -1939,6 +1907,12 @@ def normalize_template_paths(html: str) -> str:
     # Some templates used absolute-like /site/data (rare)
     html = html.replace("/site/data/", "data/")
     html = html.replace("/site/data", "data")
+    html = html.replace("VOC Dashboard | Official + Naver Reviews", "VOC Dashboard | Official + Naver Brand Reviews")
+    html = html.replace("Official + Naver", "Official + Naver Brand")
+    html = html.replace("Official + Naver Brand Brand", "Official + Naver Brand")
+    html = html.replace("Official몰 & Naver 리뷰 VOC 대시보드", "Official몰 & Naver Brand 리뷰 VOC 대시보드")
+    html = html.replace('<i class="fa-brands fa-naver mr-2"></i>Naver', '<i class="fa-brands fa-naver mr-2"></i>Naver Brand')
+    html = html.replace("탭(Official/Naver)", "탭(Official/Naver Brand)")
     # Older templates fetched only ./data/*.json, which breaks when the page is
     # opened from site/, reports/voc_crema/, or a copied standalone HTML file.
     new_fetch = """async function fetchJsonOrThrow(urls){
