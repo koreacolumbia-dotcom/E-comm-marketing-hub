@@ -102,11 +102,14 @@ on:
           - "true"
 
   schedule:
+    # 06:00 KST daily -> Daily Digest + email only
+    - cron: "0 21 * * *"
+    # 06:30 KST daily -> all remaining reports
     - cron: "30 21 * * *"
 
 concurrency:
   group: daily-update-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -140,6 +143,9 @@ jobs:
           set -euo pipefail
 
           EVENT="${{ github.event_name }}"
+          SCHEDULE_CRON="${{ github.event.schedule }}"
+          MORNING_DAILY_CRON="0 21 * * *"
+          MORNING_REST_CRON="30 21 * * *"
 
           DAILY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}"
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
@@ -174,6 +180,31 @@ jobs:
           RUN_BLOG=true
           RUN_SUMMARY=true
           RUN_OWNED=true
+          SEND_DAILY_EMAIL=true
+
+          if [ "$EVENT" = "schedule" ] && [ "$SCHEDULE_CRON" = "$MORNING_DAILY_CRON" ]; then
+            RUN_DAILY=true
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+            SEND_DAILY_EMAIL=true
+          fi
+
+          if [ "$EVENT" = "schedule" ] && [ "$SCHEDULE_CRON" = "$MORNING_REST_CRON" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=true
+            RUN_HERO=true
+            RUN_EXTSIG=true
+            RUN_CREMA=true
+            RUN_BLOG=true
+            RUN_SUMMARY=true
+            RUN_OWNED=true
+            SEND_DAILY_EMAIL=false
+          fi
 
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
             RUN_DAILY=false
@@ -260,6 +291,7 @@ jobs:
           echo "run_blog=$RUN_BLOG" >> "$GITHUB_OUTPUT"
           echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
           echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
+          echo "send_daily_email=$SEND_DAILY_EMAIL" >> "$GITHUB_OUTPUT"
 
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
           if [ "$EVENT" = "workflow_dispatch" ]; then
@@ -949,7 +981,7 @@ jobs:
           exit 1
 
       - name: Send daily email (yesterday daily report PNG)
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
         continue-on-error: true
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
@@ -958,25 +990,4 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
           HUB_URL: ${{ vars.HUB_URL }}
-          KST_STAMP: ${{ steps.set_time.outputs.kst }}
-          MODE_DAILY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}
-          MODE_VOC_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
-          MODE_BLOG_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
-          REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
-          DAILY_DIGEST_PNG_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.png
-          DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "[DEBUG] REPORT_DATE=${REPORT_DATE}"
-          echo "[DEBUG] DAILY_DIGEST_PNG_PATH=${DAILY_DIGEST_PNG_PATH}"
-          echo "[DEBUG] DAILY_DIGEST_HTML_PATH=${DAILY_DIGEST_HTML_PATH}"
-
-          if [ ! -f "${DAILY_DIGEST_PNG_PATH}" ]; then
-            echo "[WARN] PNG not found. Listing daily dir:"
-            ls -la reports/daily_digest/daily || true
-          fi
-
-          python -u scripts/send_daily_email.py || true
-
+          KST_
