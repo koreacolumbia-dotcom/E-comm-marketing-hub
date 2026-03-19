@@ -147,6 +147,34 @@
       font-weight: 900;
       color:#0f172a;
     }
+    .ytd-wrap{
+      position: relative;
+      margin-top: 16px;
+    }
+    .ytd-loading-overlay{
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      pointer-events: none;
+      padding: 24px;
+    }
+    .ytd-loading-card{
+      min-width: 240px;
+      max-width: 360px;
+      border: 1px solid rgba(148,163,184,0.18);
+      background: rgba(255,255,255,0.95);
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(0,45,114,0.12);
+      padding: 18px 22px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:10px;
+      text-align:center;
+    }
     @keyframes spin{
       to{ transform: rotate(360deg); }
     }
@@ -361,7 +389,37 @@
       </div>
 
       <!-- YTD (✅ 디폴트: 항상 표시 / 올해누적 기준으로 계산) -->
-      <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+      <div id="ytdWrap" class="ytd-wrap">
+        <div id="ytdLoadingOverlay" class="ytd-loading-overlay">
+          <div class="ytd-loading-card">
+            <div class="loading-spinner"></div>
+            <div class="loading-title">Loading</div>
+            <div id="ytdLoadingText" class="loading-text">YTD loading...</div>
+          </div>
+        </div>
+        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div class="kpi-card">
+            <div class="kpi-title">ALL Sessions</div>
+            <div id="allSessions" class="kpi-value">-</div>
+            <div id="allSessionsSub" class="kpi-sub">YTD all channels</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">ALL Revenue</div>
+            <div id="allRevenue" class="kpi-value">-</div>
+            <div id="allRevenueSub" class="kpi-sub">YTD all channels</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">ALL Send count</div>
+            <div id="allSendCount" class="kpi-value">-</div>
+            <div id="allSendCountSub" class="kpi-sub">YTD all channels</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">ALL Avg leverage</div>
+            <div id="allLeverage" class="kpi-value">-</div>
+            <div id="allLeverageSub" class="kpi-sub">YTD all channels</div>
+          </div>
+        </div>
+        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -402,6 +460,7 @@
           <div id="ytdLyLeverage" class="kpi-value">-</div>
           <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
         </div>
+      </div>
       </div>
 
       <!-- KPI (selection) -->
@@ -593,15 +652,30 @@
   const noticeClose = document.getElementById('noticeClose');
   const loadingOverlay = document.getElementById('loadingOverlay');
   const loadingText = document.getElementById('loadingText');
+  const ytdLoadingOverlay = document.getElementById('ytdLoadingOverlay');
+  const ytdLoadingText = document.getElementById('ytdLoadingText');
   function showNotice(msg){ noticeText.textContent = msg; notice.style.display='flex'; }
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
   function showLoading(msg){
+    if(String(msg || '').indexOf('YTD') === 0 || String(msg || '').indexOf('TY YTD') === 0 || String(msg || '').indexOf('LY YTD') === 0){
+      if(loadingOverlay) loadingOverlay.style.display = 'none';
+      showYtdLoading(msg);
+      return;
+    }
     if(loadingText) loadingText.textContent = msg || '데이터 불러오는 중…';
     if(loadingOverlay) loadingOverlay.style.display = 'flex';
   }
   function hideLoading(){
     if(loadingOverlay) loadingOverlay.style.display = 'none';
     if(loadingText) loadingText.textContent = '데이터 불러오는 중…';
+  }
+  function showYtdLoading(msg){
+    if(ytdLoadingText) ytdLoadingText.textContent = msg || 'YTD loading...';
+    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'flex';
+  }
+  function hideYtdLoading(){
+    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
+    if(ytdLoadingText) ytdLoadingText.textContent = 'YTD loading...';
   }
   noticeClose.addEventListener('click', hideNotice);
 
@@ -644,6 +718,14 @@
 
   const periodText = document.getElementById('periodText');
   const ytdCards = document.getElementById('ytdCards');
+  const allSessions = document.getElementById('allSessions');
+  const allRevenue = document.getElementById('allRevenue');
+  const allSendCount = document.getElementById('allSendCount');
+  const allLeverage = document.getElementById('allLeverage');
+  const allSessionsSub = document.getElementById('allSessionsSub');
+  const allRevenueSub = document.getElementById('allRevenueSub');
+  const allSendCountSub = document.getElementById('allSendCountSub');
+  const allLeverageSub = document.getElementById('allLeverageSub');
   const ytdTySessions = document.getElementById('ytdTySessions');
   const ytdTyRevenue  = document.getElementById('ytdTyRevenue');
   const ytdTySendCount = document.getElementById('ytdTySendCount');
@@ -955,6 +1037,52 @@
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
 
+  function getCumulativeSendCount(channel, endDate){
+    const expectedYear = String(endDate || '').slice(0,4);
+    const sourceRows = ((GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []))
+      .filter(r => r.channel === channel);
+    const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
+      ? GROUP_SOURCE_MESSAGE_LOG
+      : (((RAW && RAW.message_log) || []));
+    const scheduledRows = getScheduledMessageRowsUpTo(sourceMessageLog, channel, endDate);
+    return scheduledRows.length ? scheduledRows.length : countDistinctSends(sourceRows, expectedYear, endDate);
+  }
+
+  function getAllChannelsSummary(rows, endDate, messageLog){
+    const sourceRows = rows || [];
+    const agg = aggregateRow(sourceRows);
+    const channels = ['EDM', 'LMS', 'KAKAO'];
+    const sendCount = channels.reduce((sum, channel) => {
+      const channelRows = sourceRows.filter(r => r.channel === channel);
+      const scheduledRows = getScheduledMessageRowsUpTo(messageLog || [], channel, endDate);
+      const channelSendCount = scheduledRows.length
+        ? scheduledRows.length
+        : countDistinctSends(channelRows, String(endDate || '').slice(0,4), endDate);
+      return sum + channelSendCount;
+    }, 0);
+    return {
+      ...agg,
+      send_count: sendCount,
+      avg_leverage: sendCount ? (agg.sessions / sendCount) : 0,
+    };
+  }
+
+  function renderAllSummary(summary){
+    if(!summary){
+      [allSessions, allRevenue, allSendCount, allLeverage].forEach(el => { if(el) el.textContent = '-'; });
+      [allSessionsSub, allRevenueSub, allSendCountSub, allLeverageSub].forEach(el => { if(el) el.textContent = 'YTD all channels'; });
+      return;
+    }
+    allSessions.textContent = fmt(summary.sessions);
+    allRevenue.textContent = fmtMoney(summary.revenue);
+    allSendCount.textContent = fmt(summary.send_count);
+    allLeverage.textContent = fmtRatio(summary.avg_leverage);
+    allSessionsSub.textContent = 'YTD all channels';
+    allRevenueSub.textContent = 'YTD all channels';
+    allSendCountSub.textContent = 'YTD all channels';
+    allLeverageSub.textContent = 'YTD all channels';
+  }
+
   function getMessageMeta(rows){
     const arr = rows || [];
     const withMeta = arr.find(r => (r.message_title || r.title || r.message_body || r.content));
@@ -1204,6 +1332,13 @@
     const lms = getChannelSummary(RAW.kpi.filter(r=>r.channel==='LMS'), 'LMS', endDate, messageLog);
     const kakao = getChannelSummary(RAW.kpi.filter(r=>r.channel==='KAKAO'), 'KAKAO', endDate, messageLog);
 
+    edm.send_count = getCumulativeSendCount('EDM', endDate);
+    edm.avg_leverage = edm.send_count ? (edm.sessions / edm.send_count) : 0;
+    lms.send_count = getCumulativeSendCount('LMS', endDate);
+    lms.avg_leverage = lms.send_count ? (lms.sessions / lms.send_count) : 0;
+    kakao.send_count = getCumulativeSendCount('KAKAO', endDate);
+    kakao.avg_leverage = kakao.send_count ? (kakao.sessions / kakao.send_count) : 0;
+
     totEdmSessions.textContent = fmt(edm.sessions);
     totEdmRevenue.textContent = fmtMoney(edm.revenue);
     totEdmSendCount.textContent = fmt(edm.send_count);
@@ -1273,14 +1408,21 @@
         const a = aggregateRow(rows);
         const p = parseGroupKey(gk);
         return {gk, year:p.year, mmdd:p.mmdd, rows, agg:a};
-      }).sort((a,b)=> (b.agg.sessions||0)-(a.agg.sessions||0));
+      }).sort((a,b)=> {
+        const byYear = String(b.year).localeCompare(String(a.year));
+        if(byYear !== 0) return byYear;
+        return String(b.mmdd).localeCompare(String(a.mmdd));
+      });
 
       const byYear = new Map();
       for(const g of groups){
         if(!byYear.has(g.year)) byYear.set(g.year, []);
         byYear.get(g.year).push(g);
       }
-      const years = Array.from(byYear.keys()).sort((a,b)=> b.localeCompare(a));
+      const currentYear = String(currentPeriodEndDate() || '').slice(0,4);
+      const years = Array.from(byYear.keys())
+        .filter(yr => !currentYear || String(yr) === currentYear)
+        .sort((a,b)=> b.localeCompare(a));
 
       let html = '';
       for(const yr of years){
@@ -2183,10 +2325,12 @@
     const key = `${CHANNEL}||${thisStart}||${thisEnd}||${prevStart}||${prevEnd}`;
     if(YTD_CACHE.has(key)){
       const v = YTD_CACHE.get(key);
+      const ALL = v.all;
       const TY = v.this;
       const LY = v.prev;
       GROUP_SOURCE_ROWS = v.group_rows || [];
       GROUP_SOURCE_MESSAGE_LOG = v.group_message_log || [];
+      renderAllSummary(ALL);
       ytdTySessions.textContent = fmt(TY.sessions);
       ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
       ytdTySendCount.textContent = fmt(TY.send_count);
@@ -2208,11 +2352,13 @@
       ytdLyRevenueSub.textContent  = `LY (same period)`;
       ytdLySendCountSub.textContent = `LY (same period)`;
       ytdLyLeverageSub.textContent = `LY (same period)`;
+      hideYtdLoading();
+      updateChannelTotals();
       renderCampaignButtons();
       return;
     }
 
-    async function loadAgg(startStr, endStr){
+    async function loadAgg(startStr, endStr, label){
       const dates = listDatesBetween(startStr, endStr);
       if(!dates.length) return {kpi:[]};
 
@@ -2225,18 +2371,18 @@
         const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
-      hideLoading();
 
       // ✅ normalizeBundle 적용 (기존 schema(campaigns/products)도 YTD에서 누락 없이 합산)
       return buildAggregated(all);
     }
 
-    const thisAgg = await loadAgg(thisStart, thisEnd);
-    const prevAgg = await loadAgg(prevStart, prevEnd);
+    const thisAgg = await loadAgg(thisStart, thisEnd, 'TY');
+    const prevAgg = await loadAgg(prevStart, prevEnd, 'LY');
 
     const thisRows = (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
     const prevRows = (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
 
+    const allSum = getAllChannelsSummary(thisAgg.kpi || [], thisEnd, thisAgg.message_log || []);
     const thisSum = getChannelSummary(thisRows, CHANNEL, thisEnd, thisAgg.message_log || []);
     const prevSum = getChannelSummary(prevRows, CHANNEL, prevEnd, prevAgg.message_log || []);
 
@@ -2244,12 +2390,14 @@
     GROUP_SOURCE_MESSAGE_LOG = normalizeMessageLogRows([...(thisAgg.message_log || []), ...(prevAgg.message_log || [])]);
 
     YTD_CACHE.set(key, {
+      all:allSum,
       this:thisSum,
       prev:prevSum,
       group_rows: GROUP_SOURCE_ROWS,
       group_message_log: GROUP_SOURCE_MESSAGE_LOG,
     });
 
+    renderAllSummary(allSum);
     ytdTySessions.textContent = fmt(thisSum.sessions);
     ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
     ytdTySendCount.textContent = fmt(thisSum.send_count);
@@ -2271,6 +2419,8 @@
     ytdLyRevenueSub.textContent  = `LY (same period)`;
     ytdLySendCountSub.textContent = `LY (same period)`;
     ytdLyLeverageSub.textContent = `LY (same period)`;
+    hideYtdLoading();
+    updateChannelTotals();
     renderCampaignButtons();
   }
 
