@@ -507,7 +507,7 @@ jobs:
           TARGET_DAYS: "7"
           DEBUG: ${{ steps.modes.outputs.debug == 'true' }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
-          FORCE_CREMA_3M: ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
+          FORCE_CREMA_1Y: ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -529,30 +529,30 @@ jobs:
             reports/naver_commerce
 
           FLAG="reports/crema_raw/backfill_done.flag"
-          START_3M="$(TZ=Asia/Seoul date -d '90 days ago' '+%Y-%m-%d')"
+          START_1Y="$(TZ=Asia/Seoul date -d '365 days ago' '+%Y-%m-%d')"
 
           echo "[INFO] Crema flag: ${FLAG}"
           echo "[INFO] Yesterday (YMD): ${YMD}"
-          echo "[INFO] FORCE_CREMA_3M=${FORCE_CREMA_3M}"
+          echo "[INFO] FORCE_CREMA_1Y=${FORCE_CREMA_1Y}"
 
-          if [ "${FORCE_CREMA_3M}" = "true" ]; then
-            echo "[INFO] Manual voc_only detected -> crawl recent 3 months: ${START_3M} ~ ${YMD}"
+          if [ "${FORCE_CREMA_1Y}" = "true" ]; then
+            echo "[INFO] Manual voc_only detected -> crawl recent 1 year: ${START_1Y} ~ ${YMD}"
 
             rm -f "${FLAG}" || true
 
             python -u crema_voc.py \
               --mode backfill \
-              --start "${START_3M}" \
+              --start "${START_1Y}" \
               --end "${YMD}" \
               --chunk-days 31 \
               --keep-site-output
 
           else
             if [ ! -f "${FLAG}" ]; then
-              echo "[INFO] (1) FIRST RUN backfill: ${START_3M} ~ ${YMD} (recent ~3 months)"
+              echo "[INFO] (1) FIRST RUN backfill: ${START_1Y} ~ ${YMD} (recent 1 year)"
               python -u crema_voc.py \
                 --mode backfill \
-                --start "${START_3M}" \
+                --start "${START_1Y}" \
                 --end "${YMD}" \
                 --chunk-days 31 \
                 --keep-site-output
@@ -580,18 +580,20 @@ jobs:
             exit 1
           fi
 
-          NAVER_START="$(TZ=Asia/Seoul date -d '30 days ago' '+%Y-%m-%d')"
-          if [ "${FORCE_CREMA_3M}" = "true" ] || [ ! -f "${FLAG}" ]; then
-            NAVER_START="${START_3M}"
+          NAVER_MASTER_JSON="reports/naver_commerce/master_reviews.json"
+          NAVER_START="${YMD}"
+          if [ "${FORCE_CREMA_1Y}" = "true" ] || [ ! -f "${NAVER_MASTER_JSON}" ]; then
+            NAVER_START="${START_1Y}"
           fi
 
           NAVER_SCRIPT="naver_commerce_reviews.py"
           MERGED_INPUT="reports/crema_raw/reviews_merged.json"
-          NAVER_REVIEW_JSON="reports/naver_commerce/reviews.json"
+          NAVER_REVIEW_JSON="${NAVER_MASTER_JSON}"
           if [ -f "${NAVER_SCRIPT}" ]; then
             echo "[INFO] (2) Merge Naver Commerce reviews when configured"
             python -u "${NAVER_SCRIPT}" \
               --base-input "${INPUT_JSON}" \
+              --existing-naver-input "${NAVER_MASTER_JSON}" \
               --output "${MERGED_INPUT}" \
               --naver-output "${NAVER_REVIEW_JSON}" \
               --start "${NAVER_START}" \
