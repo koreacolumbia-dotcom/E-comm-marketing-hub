@@ -18,7 +18,7 @@ on:
           - "true"
 
       voc_only:
-        description: "Run Crema VOC only?"
+        description: "Run Crema + Naver VOC only?"
         required: true
         default: "false"
         type: choice
@@ -491,7 +491,7 @@ jobs:
           echo "[INFO] Output files:"
           ls -la reports/external_signal.html || true
 
-      - name: Run Crema VOC (collect -> build -> archive)
+      - name: Run Crema + Naver VOC (collect -> merge -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
