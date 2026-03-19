@@ -165,33 +165,6 @@
     </div>
   </div>
 
-  <header class="topbar sticky top-0 z-50">
-    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
-            <i class="fa-solid fa-chart-line text-slate-700"></i>
-          </div>
-          <div>
-            <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
-            <div class="text-xs font-bold text-slate-500">Official + Naver Brand</div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-3 w-full lg:w-auto">
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">RUN</div>
-            <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
-        * 데이터: data/meta.json, data/reviews.json &nbsp;·&nbsp; * 빌드: crema_voc v6
-      </div>
-    </div>
-  </header>
 
   <main class="p-6 md:p-10 w-full">
     <div class="mx-auto w-full max-w-[1280px]">
@@ -560,12 +533,8 @@
     function renderHeader(){
       const runDate = META?.updated_at || "-";
       const periodText = META?.period_text || "-";
-      const sideRun = document.getElementById("runDateSide");
-      const sidePeriod = document.getElementById("periodTextSide");
       const headerMeta = document.getElementById("headerMeta");
 
-      if (sideRun) sideRun.textContent = String(runDate).slice(0,10).replaceAll("-",".");
-      if (sidePeriod) sidePeriod.textContent = periodText;
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 

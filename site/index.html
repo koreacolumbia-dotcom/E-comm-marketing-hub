@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VOC Dashboard | Official + Naver Reviews</title>
+  <title>VOC Dashboard | Official + Naver Brand Reviews</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -165,33 +165,6 @@
     </div>
   </div>
 
-  <header class="topbar sticky top-0 z-50">
-    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
-            <i class="fa-solid fa-chart-line text-slate-700"></i>
-          </div>
-          <div>
-            <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
-            <div class="text-xs font-bold text-slate-500">Official + Naver</div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-3 w-full lg:w-auto">
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">RUN</div>
-            <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
-        * 데이터: data/meta.json, data/reviews.json &nbsp;·&nbsp; * 빌드: crema_voc v6
-      </div>
-    </div>
-  </header>
 
   <main class="p-6 md:p-10 w-full">
     <div class="mx-auto w-full max-w-[1280px]">
@@ -201,7 +174,7 @@
           <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
             <div>
               <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-                Official몰 & Naver 리뷰 VOC 대시보드
+                Official몰 & Naver Brand 리뷰 VOC 대시보드
               </h1>
               <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
             </div>
@@ -214,7 +187,7 @@
                 <i class="fa-solid fa-store mr-2"></i>Official
               </button>
               <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
-                <i class="fa-brands fa-naver mr-2"></i>Naver
+                <i class="fa-brands fa-naver mr-2"></i>Naver Brand Brand
               </button>
             </div>
           </header>
@@ -226,20 +199,21 @@
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">0. ML Signals</div>
-                <div class="text-2xl font-black text-slate-900">어제 리뷰 핵심 문장</div>
-                <div class="text-sm font-bold text-slate-500 mt-2">기본: 어제(KST) 기준 긍정/부정 문장 각 2개</div>
+                <div class="text-2xl font-black text-slate-900" id="signalsTitle">일간 리뷰 핵심 문장</div>
+                <div class="text-sm font-bold text-slate-500 mt-2" id="signalsSubtitle">기본: 선택한 날짜 기준 긍정/부정 문장 각 2개</div>
               </div>
               <div class="flex gap-2 flex-wrap">
                 <button class="chip active" id="chip-daily" onclick="toggleChip('daily')">Daily</button>
+                <button class="chip" id="chip-7d" onclick="toggleChip('7d')">7D</button>
                 <button class="chip" id="chip-low" onclick="toggleChip('low')">Low</button>
               </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div class="summary-card">
-                <div class="small-label text-blue-600 mb-2">YESTERDAY</div>
+                <div class="small-label text-blue-600 mb-2" id="windowLabel">DAILY</div>
                 <div class="text-3xl font-black"><span id="yCount">-</span> reviews</div>
-                <div class="text-xs font-bold text-slate-500 mt-2">어제 업로드된 리뷰 수 (현재 필터 기준)</div>
+                <div class="text-xs font-bold text-slate-500 mt-2" id="windowCountSub">선택한 날짜 리뷰 수 (현재 필터 기준)</div>
                 <div class="text-xs font-bold text-slate-500 mt-3" id="yLowHint">-</div>
               </div>
 
@@ -267,8 +241,8 @@
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">1. Daily Feed</div>
-                <div class="text-2xl font-black text-slate-900">그날 올라온 리뷰 (업로드 순)</div>
-                <div class="text-sm font-bold text-slate-500 mt-2">기본 날짜: 어제(KST) · 최근 7일 범위 내 선택</div>
+                <div class="text-2xl font-black text-slate-900" id="feedTitle">그날 올라온 리뷰 (업로드 순)</div>
+                <div class="text-sm font-bold text-slate-500 mt-2" id="feedSubtitle">기본 날짜: 선택한 날짜 · 최근 7일 범위 내 선택</div>
               </div>
             </div>
 
@@ -358,7 +332,8 @@
     let REVIEWS = [];
     const uiState = {
       sourceTab: "combined",
-      chips: { daily: true, low: false },
+      viewMode: "daily",
+      chips: { low: false },
     };
 
     function esc(s){
@@ -463,10 +438,48 @@
       renderAll();
     }
 
+    function currentDayValue(){
+      return (document.getElementById("daySelect")?.value || META?.dashboard_default_day || META?.period_end || kstDateStr(-1)).trim();
+    }
+
+    function syncWindowUI(){
+      const is7d = uiState.viewMode === "7d";
+      document.getElementById("chip-daily")?.classList.toggle("active", !is7d);
+      document.getElementById("chip-7d")?.classList.toggle("active", is7d);
+      document.getElementById("chip-low")?.classList.toggle("active", !!uiState.chips.low);
+
+      const dayInput = document.getElementById("daySelect");
+      if (dayInput){
+        dayInput.disabled = is7d;
+        dayInput.classList.toggle("opacity-50", is7d);
+        dayInput.classList.toggle("cursor-not-allowed", is7d);
+      }
+    }
+
+    function updateWindowCopy(){
+      const is7d = uiState.viewMode === "7d";
+      const signalsTitle = document.getElementById("signalsTitle");
+      const signalsSubtitle = document.getElementById("signalsSubtitle");
+      const windowLabel = document.getElementById("windowLabel");
+      const windowCountSub = document.getElementById("windowCountSub");
+      const feedTitle = document.getElementById("feedTitle");
+      const feedSubtitle = document.getElementById("feedSubtitle");
+
+      if (signalsTitle) signalsTitle.textContent = is7d ? "최근 7일 리뷰 핵심 문장" : "일간 리뷰 핵심 문장";
+      if (signalsSubtitle) signalsSubtitle.textContent = is7d ? "기본: 최근 7일 누적 기준 긍정/부정 문장 각 2개" : "기본: 선택한 날짜 기준 긍정/부정 문장 각 2개";
+      if (windowLabel) windowLabel.textContent = is7d ? "7 DAYS" : "DAILY";
+      if (windowCountSub) windowCountSub.textContent = is7d ? "최근 7일 누적 리뷰 수 (현재 필터 기준)" : "선택한 날짜 리뷰 수 (현재 필터 기준)";
+      if (feedTitle) feedTitle.textContent = is7d ? "최근 7일 누적 리뷰" : "그날 올라온 리뷰 (업로드 순)";
+      if (feedSubtitle) feedSubtitle.textContent = is7d ? "기본: 최근 7일 누적 · 제품/옵션/텍스트 필터 적용" : "기본 날짜: 선택한 날짜 · 최근 7일 범위 내 선택";
+    }
+
     function toggleChip(name){
-      uiState.chips[name] = !uiState.chips[name];
-      const el = document.getElementById(`chip-${name}`);
-      if (el) el.classList.toggle("active", uiState.chips[name]);
+      if (name === "daily" || name === "7d"){
+        uiState.viewMode = name;
+      }else if (name === "low"){
+        uiState.chips.low = !uiState.chips.low;
+      }
+      syncWindowUI();
       renderAll();
     }
 
@@ -489,8 +502,8 @@
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
 
-      const day = (document.getElementById("daySelect")?.value || "").trim();
-      if (uiState.chips.daily && day){
+      const day = currentDayValue();
+      if (uiState.viewMode === "daily" && day){
         rows = rows.filter(r => String(r.created_at || "").slice(0,10) === day);
       }
 
@@ -560,12 +573,8 @@
     function renderHeader(){
       const runDate = META?.updated_at || "-";
       const periodText = META?.period_text || "-";
-      const sideRun = document.getElementById("runDateSide");
-      const sidePeriod = document.getElementById("periodTextSide");
       const headerMeta = document.getElementById("headerMeta");
 
-      if (sideRun) sideRun.textContent = String(runDate).slice(0,10).replaceAll("-",".");
-      if (sidePeriod) sidePeriod.textContent = periodText;
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
@@ -630,7 +639,7 @@
       const no = document.getElementById("noResults");
       if (!container || !no) return;
 
-      const rows = reviews.slice(0, 60);
+      const rows = uiState.viewMode === "7d" ? reviews.slice() : reviews.slice(0, 60);
       if (!rows.length){
         container.innerHTML = "";
         no.classList.remove("hidden");
@@ -719,25 +728,39 @@
     }
 
     function renderMLSignals(allFiltered){
-      const yday = kstDateStr(-1);
-      const yRows = allFiltered
-        .filter(r => String(r.created_at||"").slice(0,10) === yday)
+      const is7d = uiState.viewMode === "7d";
+      const day = currentDayValue();
+      const baseRows = allFiltered
+        .slice()
         .sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
-      const yCnt = yRows.length;
+      const windowRows = is7d
+        ? baseRows
+        : baseRows.filter(r => String(r.created_at||"").slice(0,10) === day);
+      const count = windowRows.length;
 
       const yCountEl = document.getElementById("yCount");
-      if (yCountEl) yCountEl.textContent = yCnt;
+      if (yCountEl) yCountEl.textContent = count;
 
-      const lowCnt = yRows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low")).length;
+      const lowCnt = windowRows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low")).length;
       const hint = document.getElementById("yLowHint");
       if (hint){
-        hint.textContent = (yCnt ? `Low/리스크 추정: ${lowCnt}건` : "어제 데이터가 없습니다.");
+        hint.textContent = count
+          ? `Low/리스크 추정: ${lowCnt}건`
+          : (is7d ? "최근 7일 데이터가 없습니다." : "선택한 날짜 데이터가 없습니다.");
       }
 
       const negEl = document.getElementById("yNegSentences");
       const posEl = document.getElementById("yPosSentences");
-      if (negEl) negEl.innerHTML = sentenceListHTML(pickTopSentences(yRows, "neg"), "neg", "어제 부정 문장이 없습니다.");
-      if (posEl) posEl.innerHTML = sentenceListHTML(pickTopSentences(yRows, "pos"), "pos", "어제 긍정 문장이 없습니다.");
+      if (negEl) negEl.innerHTML = sentenceListHTML(
+        pickTopSentences(windowRows, "neg"),
+        "neg",
+        is7d ? "최근 7일 부정 문장이 없습니다." : "선택한 날짜 부정 문장이 없습니다.",
+      );
+      if (posEl) posEl.innerHTML = sentenceListHTML(
+        pickTopSentences(windowRows, "pos"),
+        "pos",
+        is7d ? "최근 7일 긍정 문장이 없습니다." : "선택한 날짜 긍정 문장이 없습니다.",
+      );
     }
 
     // -----------------------------
@@ -954,6 +977,8 @@
     }
 
     function renderAll(){
+      syncWindowUI();
+      updateWindowCopy();
       renderHeader();
       renderProductSelect();
       renderSizeSelect();
@@ -963,7 +988,7 @@
       renderMLSignals(filtered);
       renderDailyFeed(filtered);
 
-      // Product ML is cumulative (independent of daily date)
+      // Product ML is cumulative (independent of daily/date mode)
       renderProductML();
     }
 
