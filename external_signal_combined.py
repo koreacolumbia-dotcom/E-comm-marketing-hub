@@ -76,6 +76,18 @@ NAVER_ALLOWED_CAFE_URLS = [
     "https://cafe.naver.com/fitthesize",
     "https://cafe.naver.com/tnvdla",
 ]
+NAVER_CAFE_DISPLAY_NAMES = {
+    "windstopper": "고윈클럽",
+    "hikingf": "하이킹F",
+    "firstmountain": "퍼스트마운틴",
+    "onefineday7080": "원파인데이7080",
+    "awrara": "아우라라",
+    "dieselmania": "디젤매니아",
+    "casuallydressed": "고아캐드",
+    "nyblog": "딜공",
+    "fitthesize": "핏더사이즈",
+    "tnvdla": "티엔브이디엘에이",
+}
 NAVER_BLOCKED_MENU_URLS = [
     "https://cafe.naver.com/f-e/cafes/31116705/menus/9?viewType=L",
 ]
@@ -158,6 +170,8 @@ class Post:
     platform: str = "dcinside"
     source: str = ""
     query: str = ""
+    cafe_key: str = ""
+    cafe_name: str = ""
 
 
 # =================================================================
@@ -231,6 +245,7 @@ def crawl_dc_engine(days: int) -> List[Post]:
                     [c.get_text(strip=True) for c in d_soup.select(".comment_list .usertxt")]
                 )
 
+                cafe_key, cafe_name = _resolve_naver_cafe_fields(link, cafeurl, cafename, query)
                 posts.append(
                     Post(
                         title=a_tag.get_text(strip=True),
@@ -606,6 +621,18 @@ def _is_allowed_naver_cafe(link: str, cafeurl: str) -> bool:
     return bool(cafe_id and cafe_id in _NAVER_ALLOWED_CAFE_IDS)
 
 
+def _resolve_naver_cafe_fields(link: str, cafeurl: str, cafename: str, query: str) -> tuple[str, str]:
+    meta = _extract_naver_article_meta(link)
+    cafe_key = (
+        _extract_naver_cafe_id(cafeurl)
+        or meta.get("cafe_id")
+        or _extract_naver_cafe_id(link)
+        or ""
+    ).strip()
+    cafe_name = (cafename or NAVER_CAFE_DISPLAY_NAMES.get(cafe_key, "") or cafe_key or query or "").strip()
+    return cafe_key, cafe_name
+
+
 def _naver_item_keep(item: dict, brand: str, query: str) -> tuple[bool, str, datetime, str, str, str, str, str]:
     title = _clean_naver_html_text(item.get("title", ""))
     content = _clean_naver_html_text(item.get("description", ""))
@@ -734,6 +761,8 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                         platform="naver_cafe",
                         source="naver_cafe",
                         query=cafename or query,
+                        cafe_key=cafe_key,
+                        cafe_name=cafe_name,
                     )
                 )
                 page_kept += 1
@@ -831,6 +860,8 @@ def process_data(posts: List[Post]):
                             "source": "title",
                             "platform": p.platform,
                             "query": p.query,
+                            "cafe_key": p.cafe_key,
+                            "cafe_name": p.cafe_name,
                             "date": p.created_at.strftime("%Y-%m-%d"),
                         }
                     )
@@ -847,6 +878,8 @@ def process_data(posts: List[Post]):
                             "source": "content",
                             "platform": p.platform,
                             "query": p.query,
+                            "cafe_key": p.cafe_key,
+                            "cafe_name": p.cafe_name,
                             "date": p.created_at.strftime("%Y-%m-%d"),
                         }
                     )
@@ -863,6 +896,8 @@ def process_data(posts: List[Post]):
                             "source": "comment",
                             "platform": p.platform,
                             "query": p.query,
+                            "cafe_key": p.cafe_key,
+                            "cafe_name": p.cafe_name,
                             "date": p.created_at.strftime("%Y-%m-%d"),
                         }
                     )
@@ -881,6 +916,8 @@ def process_data(posts: List[Post]):
                                 "source": "comment(boosted_by_title)",
                                 "platform": p.platform,
                                 "query": p.query,
+                                "cafe_key": p.cafe_key,
+                                "cafe_name": p.cafe_name,
                                 "date": p.created_at.strftime("%Y-%m-%d"),
                             }
                         )
@@ -1074,6 +1111,100 @@ def _weekly_html(meta: dict, source_label: str) -> str:
     '''
 
 
+def _naver_allowed_cafe_catalog() -> List[dict]:
+    cafes: List[dict] = []
+    seen = set()
+    for url in NAVER_ALLOWED_CAFE_URLS:
+        cafe_key = _extract_naver_cafe_id(url)
+        if not cafe_key or cafe_key in seen:
+            continue
+        seen.add(cafe_key)
+        cafes.append(
+            {
+                "key": cafe_key,
+                "label": NAVER_CAFE_DISPLAY_NAMES.get(cafe_key, cafe_key),
+                "url": f"https://cafe.naver.com/{cafe_key}",
+            }
+        )
+    return cafes
+
+
+def _naver_active_cafe_catalog(brand_map: Dict[str, List[dict]]) -> List[dict]:
+    active_keys = set()
+    for items in brand_map.values():
+        for item in items:
+            if item.get("platform") != "naver_cafe":
+                continue
+            cafe_key = str(item.get("cafe_key") or "").strip()
+            if cafe_key:
+                active_keys.add(cafe_key)
+
+    if not active_keys:
+        return []
+
+    ordered = []
+    seen = set()
+    for cafe in _naver_allowed_cafe_catalog():
+        if cafe["key"] in active_keys:
+            ordered.append(cafe)
+            seen.add(cafe["key"])
+
+    for cafe_key in sorted(active_keys):
+        if cafe_key in seen:
+            continue
+        ordered.append(
+            {
+                "key": cafe_key,
+                "label": NAVER_CAFE_DISPLAY_NAMES.get(cafe_key, cafe_key),
+                "url": f"https://cafe.naver.com/{cafe_key}",
+            }
+        )
+    return ordered
+
+
+def _naver_scope_html() -> str:
+    cafes = _naver_allowed_cafe_catalog()
+    if not cafes:
+        return ""
+    chips = []
+    for cafe in cafes:
+        chips.append(
+            f'<a class="px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700 transition" '
+            f'href="{html.escape(cafe["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(cafe["label"])}</a>'
+        )
+    return (
+        '<div class="mt-5 p-4 rounded-2xl bg-slate-50 border border-slate-200">'
+        '<div class="text-[11px] font-extrabold tracking-wide text-slate-500">NAVER CAFE SCOPE</div>'
+        f'<div class="mt-1 text-sm font-bold text-slate-700">현재 크롤링 카페 {len(cafes)}곳</div>'
+        '<div class="mt-3 flex flex-wrap gap-2 text-xs">'
+        + "".join(chips)
+        + '</div></div>'
+    )
+
+
+def _naver_cafe_filter_html(brand_map: Dict[str, List[dict]]) -> str:
+    cafes = _naver_active_cafe_catalog(brand_map)
+    if not cafes:
+        return ""
+    buttons = [
+        '<button class="cafe-filter-btn active px-3 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" '
+        'data-platform="naver_cafe" data-cafe="all">전체</button>'
+    ]
+    for cafe in cafes:
+        buttons.append(
+            f'<button class="cafe-filter-btn px-3 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" '
+            f'data-platform="naver_cafe" data-cafe="{html.escape(cafe["key"])}">{html.escape(cafe["label"])}</button>'
+        )
+    return (
+        '<div class="mt-4 p-4 rounded-2xl bg-white/70 border border-slate-200">'
+        '<div class="text-[11px] font-extrabold tracking-wide text-slate-500">OPTIONAL CAFE FILTER</div>'
+        '<div class="mt-1 text-sm font-bold text-slate-700">메인은 브랜드 기준으로 두고, 필요할 때만 카페별로 좁혀보기</div>'
+        '<div class="mt-3 flex flex-wrap gap-2">'
+        + "".join(buttons)
+        + '</div></div>'
+    )
+
+
 def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str:
     sections = []
     for brand in BRAND_LIST:
@@ -1088,13 +1219,17 @@ def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str
             src = html.escape(it.get("source") or "")
             date = html.escape(it.get("date") or "")
             query = html.escape(it.get("query") or "")
-            query_badge = f'<span class="px-2 py-1 rounded-full bg-slate-100">cafe: {query}</span>' if query else ''
+            cafe_key = html.escape((it.get("cafe_key") or "").strip() or "unknown")
+            cafe_name = html.escape((it.get("cafe_name") or "").strip())
+            cafe_badge = cafe_name or query or cafe_key
+            query_badge = f'<span class="px-2 py-1 rounded-full bg-slate-100">query: {query}</span>' if query and query != cafe_badge else ''
             cards.append(
                 f'''
-                <div class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition">
+                <div class="mention-card p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition" data-platform="{html.escape(platform)}" data-cafe="{cafe_key}">
                   <div class="flex flex-wrap gap-2 text-[11px] text-slate-500 font-bold mb-1">
                     <span class="px-2 py-1 rounded-full bg-slate-100">{src}</span>
                     <span class="px-2 py-1 rounded-full bg-slate-100">{date}</span>
+                    <span class="px-2 py-1 rounded-full bg-slate-100">cafe: {cafe_badge}</span>
                     {query_badge}
                   </div>
                   <a class="text-sm font-extrabold text-blue-700 hover:underline" href="{url}" target="_blank" rel="noopener noreferrer">{title}</a>
@@ -1104,10 +1239,10 @@ def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str
             )
         sections.append(
             f'''
-            <section class="mt-6">
+            <section class="mt-6 brand-section" data-platform="{html.escape(platform)}">
               <div class="flex items-baseline justify-between">
                 <h3 class="text-lg font-extrabold text-slate-800">{html.escape(brand)}</h3>
-                <div class="text-xs text-slate-500 font-bold tabular-nums">{len(items)} mentions</div>
+                <div class="text-xs text-slate-500 font-bold tabular-nums" data-role="mention-count">{len(items)} mentions</div>
               </div>
               <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{''.join(cards)}</div>
             </section>
@@ -1115,10 +1250,10 @@ def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str
         )
     if not sections:
         return "<div class='mt-6 text-slate-500 font-bold'>브랜드 언급이 없습니다.</div>"
-    return "\n".join(sections)
+    return "\n".join(sections) + f'\n<div class="cafe-filter-empty hidden mt-6 text-slate-500 font-bold" data-platform="{html.escape(platform)}">선택한 카페에 해당하는 브랜드 언급이 없습니다.</div>'
 
 
-def _source_panel_html(panel_id: str, title: str, subtitle: str, summary_html: str, weekly_html: str, sections_html: str, warning: str = "") -> str:
+def _source_panel_html(panel_id: str, title: str, subtitle: str, summary_html: str, weekly_html: str, sections_html: str, warning: str = "", extra_html: str = "") -> str:
     warning_html = ""
     if warning:
         warning_html = f'''
@@ -1134,6 +1269,7 @@ def _source_panel_html(panel_id: str, title: str, subtitle: str, summary_html: s
         </div>
       </div>
       {warning_html}
+      {extra_html}
       <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div class="glass rounded-3xl p-5">{summary_html}</div>
         <div class="glass rounded-3xl p-5">{weekly_html}</div>
@@ -1223,6 +1359,7 @@ def export_portal(
         weekly_html=_weekly_html(naver_meta, "NAVER Cafe Search API (수집시각 기준)"),
         sections_html=_brand_sections_html(naver_brand_map, "naver_cafe"),
         warning=naver_warning or "",
+        extra_html=_naver_scope_html() + _naver_cafe_filter_html(naver_brand_map),
     )
 
     full_html = f'''<!DOCTYPE html>
@@ -1248,7 +1385,7 @@ def export_portal(
       box-shadow: 0 10px 30px rgba(2,6,23,.08);
       backdrop-filter: blur(10px);
     }}
-    .tab-btn.active {{ background:#0f172a; color:#fff; border-color:#0f172a; }}
+    .tab-btn.active, .cafe-filter-btn.active {{ background:#0f172a; color:#fff; border-color:#0f172a; }}
     .embedded body {{ background: transparent !important; }}
   </style>
 </head>
@@ -1285,12 +1422,36 @@ def export_portal(
     (function () {{
       const buttons = Array.from(document.querySelectorAll('.tab-btn'));
       const panels = Array.from(document.querySelectorAll('.tab-panel'));
+      const cafeButtons = Array.from(document.querySelectorAll('.cafe-filter-btn'));
       function activate(targetId) {{
         buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
         panels.forEach(panel => panel.classList.toggle('hidden', panel.id !== targetId));
       }}
+      function applyCafeFilter(platform, cafeKey) {{
+        const scopedButtons = cafeButtons.filter(btn => btn.dataset.platform === platform);
+        const sections = Array.from(document.querySelectorAll(`.brand-section[data-platform="${{platform}}"]`));
+        const emptyBox = document.querySelector(`.cafe-filter-empty[data-platform="${{platform}}"]`);
+        scopedButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.cafe === cafeKey));
+        let visibleSections = 0;
+        sections.forEach(section => {{
+          const cards = Array.from(section.querySelectorAll(`.mention-card[data-platform="${{platform}}"]`));
+          let visibleCount = 0;
+          cards.forEach(card => {{
+            const show = cafeKey === 'all' || card.dataset.cafe === cafeKey;
+            card.classList.toggle('hidden', !show);
+            if (show) visibleCount += 1;
+          }});
+          section.classList.toggle('hidden', visibleCount === 0);
+          if (visibleCount > 0) visibleSections += 1;
+          const countNode = section.querySelector('[data-role="mention-count"]');
+          if (countNode) countNode.textContent = `${{visibleCount}} mentions`;
+        }});
+        if (emptyBox) emptyBox.classList.toggle('hidden', visibleSections > 0);
+      }}
       buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.target)));
+      cafeButtons.forEach(btn => btn.addEventListener('click', () => applyCafeFilter(btn.dataset.platform, btn.dataset.cafe)));
       activate('panel-dcinside');
+      applyCafeFilter('naver_cafe', 'all');
       try {{
         if (window.self !== window.top) document.body.classList.add('embedded');
       }} catch (e) {{
