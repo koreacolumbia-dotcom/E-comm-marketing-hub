@@ -561,6 +561,28 @@
       <div class="muted font-semibold text-xs mt-3">
         데이터: GA4 BigQuery Export · JSON: owned_YYYY-MM-DD.json 누적 · WEEK/RANGE는 클라이언트 합산
       </div>
+      <div class="flex items-center gap-2 mt-6 mb-2">
+        <div class="small-label">Data analysis</div>
+        <button id="btnExportAnalysisCsv" class="btn ml-auto" type="button">CSV 추출</button>
+      </div>
+
+      <div class="overflow-x-auto overflow-y-visible rounded-[18px]">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:120px">Date</th>
+              <th style="min-width:220px">Item name</th>
+              <th style="min-width:140px">Item id</th>
+              <th style="min-width:220px">User id</th>
+              <th style="min-width:100px">Items</th>
+              <th style="min-width:140px">Revenue</th>
+            </tr>
+          </thead>
+          <tbody id="analysisTb">
+            <tr><td colspan="6" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 구매자 분석이 표시돼.</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -669,6 +691,8 @@
   const termTb = document.getElementById('termTb');
 
   const tb = document.getElementById('tb');
+  const analysisTb = document.getElementById('analysisTb');
+  const btnExportAnalysisCsv = document.getElementById('btnExportAnalysisCsv');
 
   const kSessions = document.getElementById('kSessions');
   const kUsers = document.getElementById('kUsers');
@@ -847,6 +871,65 @@
     return (rows || []).filter(r => scheduledDates.has(getRowGroupDate(r)));
   }
 
+  function getCampaignChipSourceRows(){
+    const qq = (q.value||'').trim().toLowerCase();
+    const cutoffDate = currentPeriodEndDate();
+    const baseRows = (GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []);
+    const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
+      ? GROUP_SOURCE_MESSAGE_LOG
+      : (((RAW && RAW.message_log) || []));
+
+    const out = [];
+    const seen = new Set();
+
+    function matchesSearch(r){
+      if(!qq) return true;
+      const c = String(r.campaign||'').toLowerCase();
+      const t = String(r.term||'').toLowerCase();
+      const mmdd = String(r.mmdd || getRowMmdd(r) || '');
+      const yr = String(r.year || getRowYear(r) || '');
+      return c.includes(qq) || t.includes(qq) || mmdd.includes(qq) || yr.includes(qq);
+    }
+
+    for(const r of (baseRows || [])){
+      if(r.channel !== CHANNEL) continue;
+      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, sourceMessageLog)) continue;
+      if(!matchesSearch(r)) continue;
+      const key = `${r.channel}||${getRowYear(r)}||${getRowMmdd(r)}||${r.campaign||''}||${r.term||''}`;
+      if(seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+    }
+
+    for(const m of normalizeMessageLogRows(sourceMessageLog)){
+      if(m.channel !== CHANNEL) continue;
+      const year = String(m.date || '').slice(0,4);
+      const mmdd = String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10);
+      const pseudo = {
+        date: m.date,
+        year,
+        mmdd,
+        has_group_mmdd: true,
+        channel: m.channel,
+        campaign: m.message_title || '',
+        term: '',
+        sessions: 0,
+        users: 0,
+        purchases: 0,
+        revenue: 0,
+        items_purchased: 0,
+      };
+      if(!isRowEligibleForYearCutoff(pseudo, pseudo.channel, cutoffDate, sourceMessageLog)) continue;
+      if(!matchesSearch(pseudo)) continue;
+      const key = `${pseudo.channel}||${pseudo.year}||${pseudo.mmdd}||${pseudo.campaign}||`;
+      if(seen.has(key)) continue;
+      seen.add(key);
+      out.push(pseudo);
+    }
+
+    return out;
+  }
+
   function countCumulativeMessages(messageLog, channel, endDate){
     const year = String(endDate || '').slice(0,4);
     if(!/^\d{4}$/.test(year)) return null;
@@ -990,10 +1073,13 @@
   let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
   let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
 
-  let RAW = null;         // {kpi:[], prod:[]}
+  let RAW = null;         // {kpi:[], prod:[], analysis:[]}
   let KPI = [];
   let SELECTED = null;    // {type:'single', ...} or {type:'group', ...}
   let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
+  let GROUP_SOURCE_ROWS = [];
+  let GROUP_SOURCE_MESSAGE_LOG = [];
+  let CURRENT_ANALYSIS_ROWS = [];
 
   // ✅ MMDD 클릭은 "디폴트: 날짜 이동 + 7일 누적" 이므로 기본 ON
   let GROUP_JUMP_MODE = false;
@@ -1142,8 +1228,9 @@
     wrapLMSOther.innerHTML = '';
     wrapKakaoOther.innerHTML = '';
     wrapOtherChannels.innerHTML = '';
+    const chipSourceRows = getCampaignChipSourceRows();
 
-    if(!KPI.length){
+    if(!chipSourceRows.length){
       const empty = `<div class="muted font-semibold text-sm">결과가 없어. (필터가 너무 좁거나, 해당 기간에 데이터가 없을 수 있어)</div>`;
       wrapEDMDate.innerHTML = empty;
       wrapLMSDate.innerHTML = empty;
@@ -1160,9 +1247,9 @@
     const otherByChannel = {EDM:[], LMS:[], KAKAO:[]};
     const otherChannels = [];
     const cutoffDate = currentPeriodEndDate();
-    const messageLog = (RAW && RAW.message_log) || [];
+    const messageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length) ? GROUP_SOURCE_MESSAGE_LOG : (((RAW && RAW.message_log) || []));
 
-    for(const r of KPI){
+    for(const r of chipSourceRows){
       if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
         const mmdd = mmddOfRow(r);
         const year = getRowYear(r);
@@ -1197,7 +1284,7 @@
 
       let html = '';
       for(const yr of years){
-        const arr = byYear.get(yr).slice(0, limit);
+        const arr = byYear.get(yr);
         html += `<div class="year-title"><span>${yr}</span><div class="bar"></div></div>`;
         html += `<div class="flex flex-wrap gap-3">` + arr.map(g=>{
           const active = (SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd);
@@ -1441,6 +1528,32 @@
     return [];
   }
 
+  function getSelectedAnalysisRows(sel){
+    if(!sel || !RAW) return [];
+    if(sel.type === 'single'){
+      return (RAW.analysis||[]).filter(r =>
+        r.channel===sel.channel &&
+        (r.campaign||'')===(sel.campaign||'') &&
+        (r.term||'')===(sel.term||'')
+      );
+    }
+    if(sel.type === 'group'){
+      return (RAW.analysis||[]).filter(r =>
+        r.channel===sel.channel &&
+        getRowYear(r)===sel.year &&
+        getRowMmdd(r)===sel.mmdd
+      );
+    }
+    if(sel.type === 'other-group'){
+      return (RAW.analysis||[]).filter(r => {
+        if(r.channel !== sel.channel) return false;
+        const parsed = getOtherCampaignDateGroup(r);
+        return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
+      });
+    }
+    return [];
+  }
+
   function getSelectedSendCount(sel, rows){
     const messageRows = getSelectionMessageRows(sel, rows);
     if(messageRows !== null) return messageRows.length;
@@ -1675,6 +1788,96 @@
     }
   }
 
+  function renderDataAnalysis(sel){
+    if(!analysisTb) return;
+    const rows = getSelectedAnalysisRows(sel);
+    CURRENT_ANALYSIS_ROWS = rows.slice().sort((a,b)=>{
+      const byDate = String(a.date||'').localeCompare(String(b.date||''));
+      if(byDate !== 0) return byDate;
+      const byItem = String(a.item_name||'').localeCompare(String(b.item_name||''));
+      if(byItem !== 0) return byItem;
+      return String(a.user_id||'').localeCompare(String(b.user_id||''));
+    });
+
+    if(!CURRENT_ANALYSIS_ROWS.length){
+      analysisTb.innerHTML = `<tr><td colspan="6" class="muted font-semibold">구매한 user_id 데이터가 없어.</td></tr>`;
+      return;
+    }
+
+    analysisTb.innerHTML = CURRENT_ANALYSIS_ROWS.map(r=>`
+      <tr>
+        <td class="mono">${(r.date||'-')}</td>
+        <td>${(r.item_name||'-')}</td>
+        <td class="mono">${(r.item_id||'-')}</td>
+        <td class="mono">${(r.user_id||'-')}</td>
+        <td>${fmt(r.analysis_items||0)}</td>
+        <td>${fmtMoney(r.analysis_revenue||0)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function exportCurrentAnalysisCsv(){
+    if(!CURRENT_ANALYSIS_ROWS.length){
+      showNotice('추출할 구매자 분석 데이터가 없어.');
+      return;
+    }
+
+    const headers = ['date','channel','campaign','term','item_name','item_id','user_id','items','revenue'];
+    const lines = [
+      headers.join(','),
+      ...CURRENT_ANALYSIS_ROWS.map(r => [
+        r.date || '',
+        r.channel || '',
+        r.campaign || '',
+        r.term || '',
+        r.item_name || '',
+        r.item_id || '',
+        r.user_id || '',
+        Number(r.analysis_items || 0),
+        Number(r.analysis_revenue || 0),
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    ];
+
+    const blob = new Blob(["\ufeff" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const scope = !SELECTED ? 'analysis' : (
+      SELECTED.type === 'single'
+        ? `${SELECTED.channel}_${SELECTED.campaign || 'single'}`
+        : `${SELECTED.channel}_${SELECTED.year || ''}${SELECTED.mmdd || ''}`
+    );
+    a.href = url;
+    a.download = `${scope}_user_analysis.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function renderProducts(){
+    if(!SELECTED || !RAW){
+      tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM ?먮뒗 ?좎쭨洹몃９???좏깮?섎㈃ ?곹뭹 由ъ뒪?멸? ?쒖떆??</td></tr>`;
+      if(analysisTb) analysisTb.innerHTML = `<tr><td colspan="6" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 구매자 분석이 표시돼.</td></tr>`;
+      CURRENT_ANALYSIS_ROWS = [];
+      return;
+    }
+    if(SELECTED.type==='single'){
+      renderProductsForSingle(SELECTED);
+      renderDataAnalysis(SELECTED);
+      return;
+    }
+    if(SELECTED.type==='group'){
+      renderProductsForGroup(SELECTED);
+      renderDataAnalysis(SELECTED);
+      return;
+    }
+    if(SELECTED.type==='other-group'){
+      renderProductsForGroup(SELECTED);
+      renderDataAnalysis(SELECTED);
+      return;
+    }
+  }
+
   function selectSingle(channel, campaign, term){
     SELECTED = {type:'single', channel, campaign, term};
     renderCampaignButtons();
@@ -1698,13 +1901,14 @@
   }
 
   function normalizeBundle(j){
-    if(!j) return { kpi: [], prod: [], message_log: [] };
+    if(!j) return { kpi: [], prod: [], analysis: [], message_log: [] };
 
     // already new schema?
     if(Array.isArray(j.kpi) || Array.isArray(j.prod)){
       return {
         kpi: Array.isArray(j.kpi) ? j.kpi : [],
         prod: Array.isArray(j.prod) ? j.prod : [],
+        analysis: Array.isArray(j.analysis) ? j.analysis : [],
         message_log: normalizeMessageLogRows(Array.isArray(j.message_log) ? j.message_log : []),
       };
     }
@@ -1745,7 +1949,22 @@
       prod_revenue: Number(p.revenue || 0),
     }));
 
-    return { kpi, prod, message_log: normalizeMessageLogRows(j.message_log || []) };
+    const analysis = (j.product_users || []).map(a => ({
+      date: a.date,
+      year: a.year || String(a.date || '').slice(0,4),
+      mmdd: a.mmdd || (String(a.date || '').slice(5,7) + String(a.date || '').slice(8,10)),
+      channel: a.channel,
+      send_id: a.send_id || '',
+      campaign: a.campaign,
+      term: a.term,
+      item_id: a.item_id,
+      item_name: a.item_name,
+      user_id: a.user_id || '',
+      analysis_items: Number(a.items || 0),
+      analysis_revenue: Number(a.revenue || 0),
+    }));
+
+    return { kpi, prod, analysis, message_log: normalizeMessageLogRows(j.message_log || []) };
   }
 
   function listDatesBetween(startStr, endStr){
@@ -1769,6 +1988,7 @@
   function buildAggregated(dailyJsonList) {
     const kpiMap = new Map();
     const prodMap = new Map();
+    const analysisMap = new Map();
     const messageLog = [];
 
     for (const raw of dailyJsonList) {
@@ -1784,10 +2004,20 @@
         sumInto(prodMap, key, p, ['prod_items', 'prod_revenue']);
       }
 
+      for (const a of (j.analysis || [])) {
+        const key = `${a.date || ''}||${a.channel || ''}||${a.campaign || ''}||${a.term || ''}||${a.item_id || ''}||${a.user_id || ''}`;
+        sumInto(analysisMap, key, a, ['analysis_items', 'analysis_revenue']);
+      }
+
       messageLog.push(...(j.message_log || []));
     }
 
-    return { kpi: Array.from(kpiMap.values()), prod: Array.from(prodMap.values()), message_log: normalizeMessageLogRows(messageLog) };
+    return {
+      kpi: Array.from(kpiMap.values()),
+      prod: Array.from(prodMap.values()),
+      analysis: Array.from(analysisMap.values()),
+      message_log: normalizeMessageLogRows(messageLog)
+    };
   }
 
   async function loadDaily(dStr){
@@ -1955,6 +2185,8 @@
       const v = YTD_CACHE.get(key);
       const TY = v.this;
       const LY = v.prev;
+      GROUP_SOURCE_ROWS = v.group_rows || [];
+      GROUP_SOURCE_MESSAGE_LOG = v.group_message_log || [];
       ytdTySessions.textContent = fmt(TY.sessions);
       ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
       ytdTySendCount.textContent = fmt(TY.send_count);
@@ -1976,6 +2208,7 @@
       ytdLyRevenueSub.textContent  = `LY (same period)`;
       ytdLySendCountSub.textContent = `LY (same period)`;
       ytdLyLeverageSub.textContent = `LY (same period)`;
+      renderCampaignButtons();
       return;
     }
 
@@ -2007,7 +2240,15 @@
     const thisSum = getChannelSummary(thisRows, CHANNEL, thisEnd, thisAgg.message_log || []);
     const prevSum = getChannelSummary(prevRows, CHANNEL, prevEnd, prevAgg.message_log || []);
 
-    YTD_CACHE.set(key, {this:thisSum, prev:prevSum});
+    GROUP_SOURCE_ROWS = [...(thisAgg.kpi || []), ...(prevAgg.kpi || [])];
+    GROUP_SOURCE_MESSAGE_LOG = normalizeMessageLogRows([...(thisAgg.message_log || []), ...(prevAgg.message_log || [])]);
+
+    YTD_CACHE.set(key, {
+      this:thisSum,
+      prev:prevSum,
+      group_rows: GROUP_SOURCE_ROWS,
+      group_message_log: GROUP_SOURCE_MESSAGE_LOG,
+    });
 
     ytdTySessions.textContent = fmt(thisSum.sessions);
     ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
@@ -2030,6 +2271,7 @@
     ytdLyRevenueSub.textContent  = `LY (same period)`;
     ytdLySendCountSub.textContent = `LY (same period)`;
     ytdLyLeverageSub.textContent = `LY (same period)`;
+    renderCampaignButtons();
   }
 
   function bindToggle(btn, wrap){
@@ -2235,6 +2477,9 @@
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
+  if(btnExportAnalysisCsv){
+    btnExportAnalysisCsv.addEventListener('click', exportCurrentAnalysisCsv);
+  }
 
   // ✅ 버튼은 유지하되: 이제 "숨김/표시"가 아니라 "재계산" 트리거로 사용
   btnYTD.addEventListener('click', async ()=>{
