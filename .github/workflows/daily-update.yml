@@ -984,10 +984,10 @@ jobs:
         if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
         continue-on-error: true
         env:
-          SMTP_HOST: ${{ vars.SMTP_HOST }}
-          SMTP_PORT: ${{ vars.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
-          HUB_URL: ${{ vars.HUB_URL }}
-          KST_
+          SMTP_HOST: "${{ vars.SMTP_HOST }}"
+          SMTP_PORT: "${{ vars.SMTP_PORT }}"
+          SMTP_USER: "${{ secrets.SMTP_USER }}"
+          SMTP_PASS: "${{ secrets.SMTP_PASS }}"
+          DAILY_RECIPIENTS: "${{ vars.DAILY_RECIPIENTS }}"
+          HUB_URL: "${{ vars.HUB_URL }}"
+  
