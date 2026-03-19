@@ -358,7 +358,7 @@
       </div>
 
       <!-- Channel Totals -->
-      <div class="mb-6">
+      <div class="hidden mb-6">
         <div class="flex items-center gap-2 mb-3">
           <div class="small-label">Channel totals</div>
           <div class="muted font-semibold text-sm" id="periodText">-</div>
@@ -630,6 +630,7 @@
       </div>
       <div class="flex items-center gap-2 mt-6 mb-2">
         <div class="small-label">Data analysis</div>
+        <button id="btnExportCumulativeUsersCsv" class="btn" type="button">누적 USER ID 추출</button>
         <button id="btnExportAnalysisCsv" class="btn ml-auto" type="button">CSV 추출</button>
       </div>
 
@@ -786,6 +787,7 @@
 
   const tb = document.getElementById('tb');
   const analysisTb = document.getElementById('analysisTb');
+  const btnExportCumulativeUsersCsv = document.getElementById('btnExportCumulativeUsersCsv');
   const btnExportAnalysisCsv = document.getElementById('btnExportAnalysisCsv');
 
   const kSessions = document.getElementById('kSessions');
@@ -1301,6 +1303,7 @@
   let GROUP_SOURCE_ROWS = [];
   let GROUP_SOURCE_MESSAGE_LOG = [];
   let CURRENT_ANALYSIS_ROWS = [];
+  const CUMULATIVE_ANALYSIS_CACHE = new Map();
 
   // ✅ MMDD 클릭은 "디폴트: 날짜 이동 + 7일 누적" 이므로 기본 ON
   let GROUP_JUMP_MODE = false;
@@ -2089,6 +2092,108 @@
     URL.revokeObjectURL(url);
   }
 
+  async function loadCumulativeAnalysisRows(channel, endDate){
+    const year = String(endDate || '').slice(0,4);
+    if(!/^\d{4}$/.test(year)) return [];
+
+    const safeEndDate = clampToAvailable(endDate);
+    const cacheKey = `${channel}||${safeEndDate}`;
+    if(CUMULATIVE_ANALYSIS_CACHE.has(cacheKey)){
+      return CUMULATIVE_ANALYSIS_CACHE.get(cacheKey);
+    }
+
+    const dates = listDatesBetween(`${year}-01-01`, safeEndDate);
+    if(!dates.length){
+      CUMULATIVE_ANALYSIS_CACHE.set(cacheKey, []);
+      return [];
+    }
+
+    const all = [];
+    const chunkSize = 10;
+    for(let i=0;i<dates.length;i+=chunkSize){
+      const chunk = dates.slice(i, i+chunkSize);
+      showLoading(`누적 USER ID 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+      const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
+      const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
+      res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
+    }
+    hideLoading();
+
+    const aggregated = buildAggregated(all);
+    const rows = (aggregated.analysis || []).filter(r =>
+      r.channel === channel &&
+      String(r.date || '') <= safeEndDate &&
+      String(r.user_id || '').trim()
+    );
+    CUMULATIVE_ANALYSIS_CACHE.set(cacheKey, rows);
+    return rows;
+  }
+
+  async function exportCumulativeUsersCsv(){
+    const endDate = currentPeriodEndDate();
+    const channel = CHANNEL;
+    const rows = await loadCumulativeAnalysisRows(channel, endDate);
+
+    if(!rows.length){
+      showNotice(`누적 USER ID 데이터가 없어. (${channel} / ${endDate})`);
+      return;
+    }
+
+    const grouped = new Map();
+    for(const r of rows){
+      const userId = String(r.user_id || '').trim();
+      if(!userId) continue;
+      if(!grouped.has(userId)){
+        grouped.set(userId, {
+          channel,
+          user_id: userId,
+          first_date: r.date || '',
+          last_date: r.date || '',
+          purchase_rows: 0,
+          total_items: 0,
+          total_revenue: 0,
+        });
+      }
+      const cur = grouped.get(userId);
+      const rowDate = String(r.date || '');
+      if(rowDate && (!cur.first_date || rowDate < cur.first_date)) cur.first_date = rowDate;
+      if(rowDate && (!cur.last_date || rowDate > cur.last_date)) cur.last_date = rowDate;
+      cur.purchase_rows += 1;
+      cur.total_items += Number(r.analysis_items || 0);
+      cur.total_revenue += Number(r.analysis_revenue || 0);
+    }
+
+    const out = Array.from(grouped.values()).sort((a,b)=>{
+      const byRevenue = Number(b.total_revenue || 0) - Number(a.total_revenue || 0);
+      if(byRevenue !== 0) return byRevenue;
+      return String(a.user_id || '').localeCompare(String(b.user_id || ''));
+    });
+
+    const headers = ['channel','user_id','first_date','last_date','purchase_rows','total_items','total_revenue'];
+    const lines = [
+      headers.join(','),
+      ...out.map(r => [
+        r.channel || '',
+        r.user_id || '',
+        r.first_date || '',
+        r.last_date || '',
+        Number(r.purchase_rows || 0),
+        Number(r.total_items || 0),
+        Number(r.total_revenue || 0),
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    ];
+
+    const blob = new Blob(["\ufeff" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${channel}_${endDate}_cumulative_user_ids.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function renderProducts(){
     if(!SELECTED || !RAW){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM ?먮뒗 ?좎쭨洹몃９???좏깮?섎㈃ ?곹뭹 由ъ뒪?멸? ?쒖떆??</td></tr>`;
@@ -2723,6 +2828,9 @@
   btnReload.addEventListener('click', ()=> location.reload());
   if(btnExportAnalysisCsv){
     btnExportAnalysisCsv.addEventListener('click', exportCurrentAnalysisCsv);
+  }
+  if(btnExportCumulativeUsersCsv){
+    btnExportCumulativeUsersCsv.addEventListener('click', ()=>{ exportCumulativeUsersCsv(); });
   }
 
   // ✅ 버튼은 유지하되: 이제 "숨김/표시"가 아니라 "재계산" 트리거로 사용
