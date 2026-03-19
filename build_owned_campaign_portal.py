@@ -277,6 +277,10 @@ WITH base AS (
     PARSE_DATE('%Y%m%d', event_date) AS event_dt,
     event_timestamp,
     user_pseudo_id,
+    COALESCE(
+      NULLIF(CAST(user_id AS STRING), ''),
+      NULLIF((SELECT value.string_value FROM UNNEST(event_params) WHERE key='user_id'), '')
+    ) AS user_id,
     (SELECT value.int_value FROM UNNEST(event_params) WHERE key='ga_session_id') AS ga_session_id,
 
     collected_traffic_source.manual_source        AS cts_source,
@@ -311,6 +315,7 @@ base2 AS (
     event_dt,
     event_timestamp,
     user_pseudo_id,
+    user_id,
     ga_session_id,
     CONCAT(user_pseudo_id, '-', CAST(ga_session_id AS STRING)) AS session_key,
 
@@ -470,7 +475,10 @@ prod_user_rows AS (
     s.term,
     CAST(it.item_id AS STRING) AS item_id,
     ANY_VALUE(it.item_name) AS item_name,
-    CAST(s.user_pseudo_id AS STRING) AS user_id,
+    COALESCE(
+      NULLIF(ANY_VALUE(b.user_id), ''),
+      CAST(ANY_VALUE(s.user_pseudo_id) AS STRING)
+    ) AS user_id,
     SUM(IFNULL(it.quantity,0)) AS items,
     SUM(IFNULL(it.item_revenue,0)) AS revenue
   FROM owned_labeled s
