@@ -955,7 +955,7 @@
 
   function getCampaignChipSourceRows(){
     const qq = (q.value||'').trim().toLowerCase();
-    const cutoffDate = currentPeriodEndDate();
+    const cutoffDate = getCampaignChipCutoffDate();
     const baseRows = (GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []);
     const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
       ? GROUP_SOURCE_MESSAGE_LOG
@@ -1181,6 +1181,15 @@
     return `${targetYear}-${base.slice(5)}`;
   }
 
+  function getCampaignChipCutoffDate(){
+    const latestAvailable = (AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length - 1] : '';
+    const yesterday = ymd(addDays(new Date(), -1));
+    if(/^\d{4}-\d{2}-\d{2}$/.test(latestAvailable) && /^\d{4}-\d{2}-\d{2}$/.test(yesterday)){
+      return latestAvailable < yesterday ? latestAvailable : clampToAvailable(yesterday);
+    }
+    return latestAvailable || clampToAvailable(yesterday) || currentPeriodEndDate();
+  }
+
   function isRowEligibleForYearCutoff(r, channel, endDate, messageLog){
     const rowDate = getRowGroupDate(r);
     const rowYear = getRowYear(r);
@@ -1381,7 +1390,7 @@
     const by = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
     const otherByChannel = {EDM:[], LMS:[], KAKAO:[]};
     const otherChannels = [];
-    const cutoffDate = currentPeriodEndDate();
+    const cutoffDate = getCampaignChipCutoffDate();
     const messageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length) ? GROUP_SOURCE_MESSAGE_LOG : (((RAW && RAW.message_log) || []));
 
     for(const r of chipSourceRows){
@@ -1419,7 +1428,7 @@
         if(!byYear.has(g.year)) byYear.set(g.year, []);
         byYear.get(g.year).push(g);
       }
-      const currentYear = String(currentPeriodEndDate() || '').slice(0,4);
+      const currentYear = String(getCampaignChipCutoffDate() || '').slice(0,4);
       const years = Array.from(byYear.keys())
         .filter(yr => !currentYear || String(yr) === currentYear)
         .sort((a,b)=> b.localeCompare(a));
