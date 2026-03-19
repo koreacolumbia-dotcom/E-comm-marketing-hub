@@ -1035,7 +1035,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 </head>
 
 <body>
-  <div id="errorBanner" class="hidden mx-auto mt-6 max-w-[1280px] px-4 md:px-8">
+  <div id="errorBanner" class="hidden mx-auto mt-6 max-w-[1680px] px-4 md:px-6 xl:px-8">
     <div class="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700 shadow-sm">
       <div class="text-xs tracking-[0.28em] uppercase font-black mb-1">Data Error</div>
       <div id="errorBannerText">VOC 데이터를 불러오지 못했습니다.</div>
@@ -1049,37 +1049,9 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
 
-  <header class="topbar sticky top-0 z-50">
-    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
-            <i class="fa-solid fa-chart-line text-slate-700"></i>
-          </div>
-          <div>
-            <div class="text-sm font-black text-slate-900">VOC Dashboard</div>
-            <div class="text-xs font-bold text-slate-500">Official + Naver Brand</div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-3 w-full lg:w-auto">
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">RUN</div>
-            <div class="text-sm font-black text-slate-900" id="runDateSide">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-1" id="periodTextSide">-</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
-        * 데이터: data/meta.json, data/reviews.json &nbsp;·&nbsp; * 빌드: crema_voc v6
-      </div>
-    </div>
-  </header>
-
-  <main class="p-6 md:p-10 w-full">
-    <div class="mx-auto w-full max-w-[1280px]">
-      <div class="max-w-[1320px] mx-auto">
+  <main class="w-full px-4 py-6 md:px-6 md:py-8 xl:px-8">
+    <div class="mx-auto w-full max-w-[1680px]">
+      <div class="w-full">
 
         <div class="layout-header">
           <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
@@ -1435,12 +1407,8 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     function renderHeader(){
       const runDate = META?.updated_at || "-";
       const periodText = META?.period_text || "-";
-      const sideRun = document.getElementById("runDateSide");
-      const sidePeriod = document.getElementById("periodTextSide");
       const headerMeta = document.getElementById("headerMeta");
 
-      if (sideRun) sideRun.textContent = String(runDate).slice(0,10).replaceAll("-",".");
-      if (sidePeriod) sidePeriod.textContent = periodText;
       if (headerMeta) headerMeta.textContent = `${runDate} · ${periodText}`;
     }
 
@@ -1945,6 +1913,10 @@ def normalize_template_paths(html: str) -> str:
     html = html.replace("Official몰 & Naver 리뷰 VOC 대시보드", "Official몰 & Naver Brand 리뷰 VOC 대시보드")
     html = html.replace('<i class="fa-brands fa-naver mr-2"></i>Naver', '<i class="fa-brands fa-naver mr-2"></i>Naver Brand')
     html = html.replace("탭(Official/Naver)", "탭(Official/Naver Brand)")
+    html = html.replace('max-w-[1280px] px-4 md:px-8', 'max-w-[1680px] px-4 md:px-6 xl:px-8')
+    html = html.replace('<main class="p-6 md:p-10 w-full">', '<main class="w-full px-4 py-6 md:px-6 md:py-8 xl:px-8">')
+    html = html.replace('<div class="mx-auto w-full max-w-[1280px]">', '<div class="mx-auto w-full max-w-[1680px]">')
+    html = html.replace('<div class="max-w-[1320px] mx-auto">', '<div class="w-full">')
     # Older templates fetched only ./data/*.json, which breaks when the page is
     # opened from site/, reports/voc_crema/, or a copied standalone HTML file.
     new_fetch = """async function fetchJsonOrThrow(urls){
