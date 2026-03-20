@@ -62,6 +62,15 @@ on:
           - "false"
           - "true"
 
+      funnel_only:
+        description: "Run Funnel Analysis tab only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
       owned_backfill:
         description: "Backfill OWNED portal from 2025-01-01 to yesterday? (warning: can be heavy)"
         required: true
@@ -152,6 +161,7 @@ jobs:
           BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
           HERO_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.hero_only == 'true' }}"
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
+          FUNNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.funnel_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
           EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
           SUMMARY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.summary_only == 'true' }}"
@@ -163,11 +173,12 @@ jobs:
             [ "$BLOG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$HERO_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$FUNNEL_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of daily_only/voc_only/blog_only/hero_only/owned_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of daily_only/voc_only/blog_only/hero_only/owned_only/funnel_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -180,6 +191,7 @@ jobs:
           RUN_BLOG=true
           RUN_SUMMARY=true
           RUN_OWNED=true
+          RUN_FUNNEL=false
           SEND_DAILY_EMAIL=true
 
           if [ "$EVENT" = "schedule" ] && [ "$SCHEDULE_CRON" = "$MORNING_DAILY_CRON" ]; then
@@ -215,6 +227,18 @@ jobs:
             RUN_BLOG=false
             RUN_SUMMARY=false
             RUN_OWNED=true
+          fi
+
+          if [ "$FUNNEL_ONLY" = "true" ]; then
+            RUN_DAILY=false
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+            RUN_FUNNEL=true
           fi
 
           if [ "$EXTSIG_ONLY" = "true" ]; then
@@ -291,6 +315,7 @@ jobs:
           echo "run_blog=$RUN_BLOG" >> "$GITHUB_OUTPUT"
           echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
           echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
+          echo "run_funnel=$RUN_FUNNEL" >> "$GITHUB_OUTPUT"
           echo "send_daily_email=$SEND_DAILY_EMAIL" >> "$GITHUB_OUTPUT"
 
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
@@ -912,6 +937,44 @@ jobs:
           ls -lah site/data/owned | head -n 60 || true
           echo "[CHECK] site/owned:"
           ls -lah site/owned | head -n 60 || true
+
+      - name: Build Funnel Analysis tab
+        if: ${{ steps.modes.outputs.run_owned == 'true' || steps.modes.outputs.run_funnel == 'true' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "build_owned_funnel_tab.py" ]; then
+            echo "[WARN] build_owned_funnel_tab.py not found. Skipping funnel tab build."
+            exit 0
+          fi
+
+          if [ ! -f "owned_funnel_tab.html" ]; then
+            echo "[WARN] owned_funnel_tab.html not found. Skipping funnel tab build."
+            exit 0
+          fi
+
+          mkdir -p reports/daily_digest/data/owned
+
+          if [ -d "reports/owned_portal/data/owned" ]; then
+            echo "[INFO] Syncing funnel data from reports/owned_portal/data/owned"
+            rsync -a --delete reports/owned_portal/data/owned/ reports/daily_digest/data/owned/
+          elif [ -d "site/data/owned" ]; then
+            echo "[INFO] Syncing funnel data from site/data/owned"
+            rsync -a --delete site/data/owned/ reports/daily_digest/data/owned/
+          else
+            echo "[WARN] No OWNED data source found. Funnel tab will be generated without refreshed data."
+          fi
+
+          python -u build_owned_funnel_tab.py \
+            --out reports/daily_digest/owned_funnel_tab.html \
+            --data-base data/owned
+
+          echo "[CHECK] reports/daily_digest:"
+          ls -lah reports/daily_digest | head -n 60 || true
+          echo "[CHECK] reports/daily_digest/data/owned:"
+          ls -lah reports/daily_digest/data/owned | head -n 60 || true
 
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ steps.modes.outputs.run_summary == 'true' }}
