@@ -819,6 +819,7 @@ def fetch_naver_product_detail_rows_with_playwright(
         elif isinstance(payload, list):
             response_payloads.append({"items": payload})
 
+    rows: list[dict[str, Any]] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(
