@@ -118,6 +118,8 @@ def normalize_source(x: Any) -> str:
     if not s:
         return "Official"
     low = s.lower()
+    if "musinsa" in low:
+        return "Musinsa"
     if "naver" in low:
         return "Naver"
     if "official" in low:
@@ -887,7 +889,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VOC Dashboard | Official + Naver Brand Reviews</title>
+  <title>VOC Dashboard | Official + Naver Brand + Musinsa Reviews</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -1057,7 +1059,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
           <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
             <div>
               <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-                Official몰 & Naver Brand 리뷰 VOC 대시보드
+                Official몰 & Naver Brand · Musinsa 리뷰 VOC 대시보드
               </h1>
               <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
             </div>
@@ -1071,6 +1073,9 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
               </button>
               <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
                 <i class="fa-brands fa-naver mr-2"></i>Naver Brand
+              </button>
+              <button class="tab-btn" data-tab="musinsa" onclick="switchSourceTab('musinsa')">
+                <i class="fa-solid fa-shirt mr-2"></i>Musinsa
               </button>
             </div>
           </header>
@@ -1146,6 +1151,9 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
             </div>
 
             <div id="dailyFeed" class="review-grid"></div>
+            <div class="mt-4 flex justify-center">
+              <button id="feedMoreBtn" class="chip hidden" onclick="loadMoreFeed()">리뷰 더 보기</button>
+            </div>
 
             <div class="hidden review-card text-center" id="noResults">
               <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
@@ -1161,15 +1169,15 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
                 <div class="small-label text-blue-600 mb-2">2. Product ML (Cumulative)</div>
                 <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석</div>
                 <div class="text-sm font-bold text-slate-500 mt-2">
-                  NEG 기준: ★1~2 (저평점) · POS 기준: ★4~5
+                  기본 범위: 최근 1년 누적 · NEG 기준: ★1~2 (저평점) · POS 기준: ★4~5
                 </div>
               </div>
 
               <div class="flex gap-2 flex-wrap items-center">
                 <select id="mlWindow" class="input-glass" onchange="renderAll()">
-                  <option value="90" selected>최근 3개월</option>
+                  <option value="365" selected>최근 1년 (기본)</option>
+                  <option value="90">최근 3개월</option>
                   <option value="180">최근 6개월</option>
-                  <option value="365">최근 12개월</option>
                   <option value="0">전체</option>
                 </select>
                 <select id="mlMinReviews" class="input-glass" onchange="renderAll()">
@@ -1195,7 +1203,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
             <div id="mlNoData" class="hidden review-card text-center">
               <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
-              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver Brand)을 조정해보세요.</div>
+              <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver Brand/Musinsa)을 조정해보세요.</div>
             </div>
           </div>
         </section>
@@ -1203,7 +1211,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         <footer class="text-xs font-bold text-slate-500 pb-8">
           * 데이터 소스: data/reviews.json / data/meta.json<br/>
-          * 기본 동작: 어제(KST) 기준 Daily Feed 표시
+          * 기본 동작: 어제(KST) 기준 Daily Feed 표시, 날짜 선택 범위는 누적 리뷰 전체 기준
         </footer>
       </div>
     </div>
@@ -1214,7 +1222,9 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     let REVIEWS = [];
     const uiState = {
       sourceTab: "combined",
-      chips: { daily: true, low: false },
+      viewMode: "daily",
+      feedLimit: 60,
+      chips: { low: false },
     };
 
     function esc(s){
@@ -1310,10 +1320,58 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       renderAll();
     }
 
+    function resetFeedLimit(){
+      uiState.feedLimit = (uiState.viewMode === "7d") ? 120 : 60;
+    }
+
+    function loadMoreFeed(){
+      uiState.feedLimit += (uiState.viewMode === "7d") ? 120 : 60;
+      renderDailyFeed(getFilteredReviews());
+    }
+
+    function currentDayValue(){
+      return (document.getElementById("daySelect")?.value || META?.dashboard_default_day || META?.period_end || kstDateStr(-1)).trim();
+    }
+
+    function syncWindowUI(){
+      const is7d = uiState.viewMode === "7d";
+      document.getElementById("chip-daily")?.classList.toggle("active", !is7d);
+      document.getElementById("chip-7d")?.classList.toggle("active", is7d);
+      document.getElementById("chip-low")?.classList.toggle("active", !!uiState.chips.low);
+
+      const dayInput = document.getElementById("daySelect");
+      if (dayInput){
+        dayInput.disabled = is7d;
+        dayInput.classList.toggle("opacity-50", is7d);
+        dayInput.classList.toggle("cursor-not-allowed", is7d);
+      }
+    }
+
+    function updateWindowCopy(){
+      const is7d = uiState.viewMode === "7d";
+      const signalsTitle = document.getElementById("signalsTitle");
+      const signalsSubtitle = document.getElementById("signalsSubtitle");
+      const windowLabel = document.getElementById("windowLabel");
+      const windowCountSub = document.getElementById("windowCountSub");
+      const feedTitle = document.getElementById("feedTitle");
+      const feedSubtitle = document.getElementById("feedSubtitle");
+
+      if (signalsTitle) signalsTitle.textContent = is7d ? "최근 7일 리뷰 핵심 문장" : "일간 리뷰 핵심 문장";
+      if (signalsSubtitle) signalsSubtitle.textContent = is7d ? "기본: 최근 7일 누적 기준 긍정/부정 문장 각 2개" : "기본: 선택한 날짜 기준 긍정/부정 문장 각 2개";
+      if (windowLabel) windowLabel.textContent = is7d ? "7 DAYS" : "DAILY";
+      if (windowCountSub) windowCountSub.textContent = is7d ? "최근 7일 누적 리뷰 수 (현재 필터 기준)" : "선택한 날짜 리뷰 수 (현재 필터 기준)";
+      if (feedTitle) feedTitle.textContent = is7d ? "최근 7일 누적 리뷰" : "그날 올라온 리뷰 (업로드 순)";
+      if (feedSubtitle) feedSubtitle.textContent = is7d ? "기본: 최근 7일 누적 · 제품/옵션/텍스트 필터 적용" : "기본 날짜: 전체 누적 리뷰 기간에서 선택";
+    }
+
     function toggleChip(name){
-      uiState.chips[name] = !uiState.chips[name];
-      const el = document.getElementById(`chip-${name}`);
-      if (el) el.classList.toggle("active", uiState.chips[name]);
+      if (name === "daily" || name === "7d"){
+        uiState.viewMode = name;
+        resetFeedLimit();
+      } else if (name === "low"){
+        uiState.chips.low = !uiState.chips.low;
+      }
+      syncWindowUI();
       renderAll();
     }
 
@@ -1335,9 +1393,10 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
+      if (uiState.sourceTab === "musinsa") rows = rows.filter(r => r.source === "Musinsa");
 
-      const day = (document.getElementById("daySelect")?.value || "").trim();
-      if (uiState.chips.daily && day){
+      const day = currentDayValue();
+      if (uiState.viewMode === "daily" && day){
         rows = rows.filter(r => String(r.created_at || "").slice(0,10) === day);
       }
 
@@ -1471,17 +1530,38 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     function renderDailyFeed(reviews){
       const container = document.getElementById("dailyFeed");
       const no = document.getElementById("noResults");
+      const moreBtn = document.getElementById("feedMoreBtn");
       if (!container || !no) return;
 
-      const rows = reviews.slice(0, 60);
+      const baseLimit = uiState.viewMode === "7d" ? 120 : 60;
+      if (!Number.isFinite(uiState.feedLimit) || uiState.feedLimit < baseLimit){
+        uiState.feedLimit = baseLimit;
+      }
+
+      const rows = reviews.slice(0, uiState.feedLimit);
       if (!rows.length){
         container.innerHTML = "";
         no.classList.remove("hidden");
+        if (moreBtn){
+          moreBtn.classList.add("hidden");
+          moreBtn.textContent = "리뷰 더 보기";
+        }
         return;
       }
 
       no.classList.add("hidden");
       container.innerHTML = rows.map(reviewCardHTML).join("");
+
+      if (moreBtn){
+        const remaining = Math.max(0, reviews.length - rows.length);
+        if (remaining > 0){
+          moreBtn.classList.remove("hidden");
+          moreBtn.textContent = `리뷰 더 보기 (${remaining}개 남음)`;
+        } else {
+          moreBtn.classList.add("hidden");
+          moreBtn.textContent = "리뷰 더 보기";
+        }
+      }
     }
 
     function renderProductSelect(){
@@ -1635,7 +1715,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     function buildProductMLRows(){
       const winSel = document.getElementById("mlWindow");
       const minSel = document.getElementById("mlMinReviews");
-      const winDays = Number(winSel?.value || 90);
+      const winDays = Number(winSel?.value || 365);
       const minReviews = Number(minSel?.value || 3);
 
       const now = kstNow();
@@ -1645,6 +1725,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       let base = REVIEWS.slice();
       if (uiState.sourceTab === "official") base = base.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") base = base.filter(r => r.source === "Naver");
+      if (uiState.sourceTab === "musinsa") base = base.filter(r => r.source === "Musinsa");
 
       // 기간 컷(누적 분석은 Daily chip의 날짜 선택과 분리)
       if (cutoff){
@@ -1792,11 +1873,12 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       no.classList.add("hidden");
       // 너무 길어지면 상위 20개만
-      const top = rows.slice(0, 20);
-      grid.innerHTML = top.map(mlCardHTML).join("");
+      grid.innerHTML = rows.map(mlCardHTML).join("");
     }
 
     function renderAll(){
+      syncWindowUI();
+      updateWindowCopy();
       renderHeader();
       renderProductSelect();
       renderSizeSelect();
@@ -1840,15 +1922,21 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         const dayInput = document.getElementById("daySelect");
         if (dayInput){
-          if (META?.period_start) dayInput.min = META.period_start;
-          if (META?.period_end) dayInput.max = META.period_end;
+          const reviewDays = REVIEWS
+            .map(r => String(r.created_at || "").slice(0, 10))
+            .filter(v => /^\d{4}-\d{2}-\d{2}$/.test(v))
+            .sort();
+          const minDay = reviewDays[0] || META?.period_start || "";
+          const maxDay = reviewDays[reviewDays.length - 1] || META?.period_end || kstDateStr(-1);
+          if (minDay) dayInput.min = minDay;
+          if (maxDay) dayInput.max = maxDay;
 
           // ✅ default = yesterday(KST)
-          if (!dayInput.value){
-            dayInput.value = kstDateStr(-1);
-          }
+          const preferredDay = META?.dashboard_default_day || maxDay;
+          dayInput.value = (preferredDay >= minDay && preferredDay <= maxDay) ? preferredDay : maxDay;
         }
 
+        resetFeedLimit();
         renderAll();
         }catch(e){
           console.error(e);
@@ -1907,12 +1995,42 @@ def normalize_template_paths(html: str) -> str:
     # Some templates used absolute-like /site/data (rare)
     html = html.replace("/site/data/", "data/")
     html = html.replace("/site/data", "data")
-    html = html.replace("VOC Dashboard | Official + Naver Reviews", "VOC Dashboard | Official + Naver Brand Reviews")
+    html = html.replace("VOC Dashboard | Official + Naver Reviews", "VOC Dashboard | Official + Naver Brand + Musinsa Reviews")
+    html = html.replace("VOC Dashboard | Official + Naver Brand Reviews", "VOC Dashboard | Official + Naver Brand + Musinsa Reviews")
     html = html.replace("Official + Naver", "Official + Naver Brand")
     html = html.replace("Official + Naver Brand Brand", "Official + Naver Brand")
-    html = html.replace("Official몰 & Naver 리뷰 VOC 대시보드", "Official몰 & Naver Brand 리뷰 VOC 대시보드")
+    html = html.replace("Official몰 & Naver 리뷰 VOC 대시보드", "Official몰 & Naver Brand · Musinsa 리뷰 VOC 대시보드")
+    html = html.replace("Official몰 & Naver Brand 리뷰 VOC 대시보드", "Official몰 & Naver Brand · Musinsa 리뷰 VOC 대시보드")
     html = html.replace('<i class="fa-brands fa-naver mr-2"></i>Naver', '<i class="fa-brands fa-naver mr-2"></i>Naver Brand')
-    html = html.replace("탭(Official/Naver)", "탭(Official/Naver Brand)")
+    html = html.replace("탭(Official/Naver)", "탭(Official/Naver Brand/Musinsa)")
+    html = html.replace("탭(Official/Naver Brand)", "탭(Official/Naver Brand/Musinsa)")
+    html = html.replace(
+        """<div class="flex items-center gap-2 flex-wrap">
+              <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
+                <i class="fa-solid fa-layer-group mr-2"></i>Combined
+              </button>
+              <button class="tab-btn" data-tab="official" onclick="switchSourceTab('official')">
+                <i class="fa-solid fa-store mr-2"></i>Official
+              </button>
+              <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
+                <i class="fa-brands fa-naver mr-2"></i>Naver Brand
+              </button>
+            </div>""",
+        """<div class="flex items-center gap-2 flex-wrap">
+              <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
+                <i class="fa-solid fa-layer-group mr-2"></i>Combined
+              </button>
+              <button class="tab-btn" data-tab="official" onclick="switchSourceTab('official')">
+                <i class="fa-solid fa-store mr-2"></i>Official
+              </button>
+              <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
+                <i class="fa-brands fa-naver mr-2"></i>Naver Brand
+              </button>
+              <button class="tab-btn" data-tab="musinsa" onclick="switchSourceTab('musinsa')">
+                <i class="fa-solid fa-shirt mr-2"></i>Musinsa
+              </button>
+            </div>""",
+    )
     html = html.replace('max-w-[1280px] px-4 md:px-8', 'max-w-[1680px] px-4 md:px-6 xl:px-8')
     html = html.replace('<main class="p-6 md:p-10 w-full">', '<main class="w-full px-4 py-6 md:px-6 md:py-8 xl:px-8">')
     html = html.replace('<div class="mx-auto w-full max-w-[1280px]">', '<div class="mx-auto w-full max-w-[1680px]">')
@@ -2068,6 +2186,7 @@ def normalize_template_paths(html: str) -> str:
 
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
+      if (uiState.sourceTab === "musinsa") rows = rows.filter(r => r.source === "Musinsa");
 
       const day = currentDayValue();
       if (uiState.viewMode === "daily" && day){
@@ -2187,6 +2306,112 @@ def normalize_template_paths(html: str) -> str:
         html,
         count=1,
         flags=re.S,
+    )
+    html = html.replace(
+        'if (uiState.sourceTab === "naver") base = base.filter(r => r.source === "Naver");',
+        'if (uiState.sourceTab === "naver") base = base.filter(r => r.source === "Naver");\n      if (uiState.sourceTab === "musinsa") base = base.filter(r => r.source === "Musinsa");',
+    )
+    html = html.replace(
+        '<div id="dailyFeed" class="review-grid"></div>',
+        '<div id="dailyFeed" class="review-grid"></div>\n            <div class="mt-4 flex justify-center">\n              <button id="feedMoreBtn" class="chip hidden" onclick="loadMoreFeed()">리뷰 더 보기</button>\n            </div>',
+    )
+    html = re.sub(
+        r'<select id="mlWindow" class="input-glass" onchange="renderAll\(\)">.*?</select>',
+        """<select id="mlWindow" class="input-glass" onchange="renderAll()">
+                  <option value="365" selected>최근 1년 (기본)</option>
+                  <option value="90">최근 3개월</option>
+                  <option value="180">최근 6개월</option>
+                  <option value="0">전체</option>
+                </select>""",
+        html,
+        count=1,
+        flags=re.S,
+    )
+    html = html.replace(
+        'viewMode: "daily",\n      chips: { low: false },',
+        'viewMode: "daily",\n      feedLimit: 60,\n      chips: { low: false },',
+        1,
+    )
+    html = html.replace(
+        'function currentDayValue(){',
+        """function resetFeedLimit(){
+      uiState.feedLimit = (uiState.viewMode === "7d") ? 120 : 60;
+    }
+
+    function loadMoreFeed(){
+      uiState.feedLimit += (uiState.viewMode === "7d") ? 120 : 60;
+      renderDailyFeed(getFilteredReviews());
+    }
+
+    function currentDayValue(){""",
+        1,
+    )
+    html = html.replace(
+        'if (name === "daily" || name === "7d"){\n        uiState.viewMode = name;\n      }else if (name === "low"){',
+        'if (name === "daily" || name === "7d"){\n        uiState.viewMode = name;\n        resetFeedLimit();\n      }else if (name === "low"){',
+        1,
+    )
+    html = re.sub(
+        r"""function renderDailyFeed\(reviews\)\s*\{.*?\n    \}""",
+        """function renderDailyFeed(reviews){
+      const container = document.getElementById("dailyFeed");
+      const no = document.getElementById("noResults");
+      const moreBtn = document.getElementById("feedMoreBtn");
+      if (!container || !no) return;
+
+      const baseLimit = uiState.viewMode === "7d" ? 120 : 60;
+      if (!Number.isFinite(uiState.feedLimit) || uiState.feedLimit < baseLimit){
+        uiState.feedLimit = baseLimit;
+      }
+
+      const rows = reviews.slice(0, uiState.feedLimit);
+      if (!rows.length){
+        container.innerHTML = "";
+        no.classList.remove("hidden");
+        if (moreBtn){
+          moreBtn.classList.add("hidden");
+          moreBtn.textContent = "리뷰 더 보기";
+        }
+        return;
+      }
+
+      no.classList.add("hidden");
+      container.innerHTML = rows.map(reviewCardHTML).join("");
+
+      if (moreBtn){
+        const remaining = Math.max(0, reviews.length - rows.length);
+        if (remaining > 0){
+          moreBtn.classList.remove("hidden");
+          moreBtn.textContent = `리뷰 더 보기 (${remaining}개 남음)`;
+        } else {
+          moreBtn.classList.add("hidden");
+          moreBtn.textContent = "리뷰 더 보기";
+        }
+      }
+    }""",
+        html,
+        count=1,
+        flags=re.S,
+    )
+    html = html.replace(
+        'const winDays = Number(winSel?.value || 90);',
+        'const winDays = Number(winSel?.value || 365);',
+        1,
+    )
+    html = html.replace(
+        'const top = rows.slice(0, 20);\n      grid.innerHTML = top.map(mlCardHTML).join("");',
+        'grid.innerHTML = rows.map(mlCardHTML).join("");',
+        1,
+    )
+    html = html.replace(
+        'if (META?.period_start) dayInput.min = META.period_start;\n          if (META?.period_end) dayInput.max = META.period_end;',
+        'const reviewDays = REVIEWS\n            .map(r => String(r.created_at || "").slice(0, 10))\n            .filter(v => /^\\d{4}-\\d{2}-\\d{2}$/.test(v))\n            .sort();\n          const minDay = reviewDays[0] || META?.period_start || "";\n          const maxDay = reviewDays[reviewDays.length - 1] || META?.period_end || kstDateStr(-1);\n          if (minDay) dayInput.min = minDay;\n          if (maxDay) dayInput.max = maxDay;',
+        1,
+    )
+    html = html.replace(
+        'dayInput.value = (META?.dashboard_default_day || META?.period_end || kstDateStr(-1));',
+        'const preferredDay = META?.dashboard_default_day || maxDay;\n          dayInput.value = (preferredDay >= minDay && preferredDay <= maxDay) ? preferredDay : maxDay;',
+        1,
     )
     return html
 
@@ -2393,6 +2618,13 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     if "rating" in dfN.columns:
         dfN["rating"] = pd.to_numeric(dfN.get("rating"), errors="coerce").fillna(0).astype(int)
 
+    feed_rows = rows1y if rows1y else rowsN
+    dfFeed = pd.DataFrame(feed_rows).copy() if feed_rows else pd.DataFrame(
+        columns=["id", "product_code", "product_name", "rating", "created_at", "text", "source", "tags", "option_size", "option_color", "size_direction"]
+    )
+    if "rating" in dfFeed.columns:
+        dfFeed["rating"] = pd.to_numeric(dfFeed.get("rating"), errors="coerce").fillna(0).astype(int)
+
     auto_sw = learn_auto_stopwords(rowsN) if rowsN else {"global": [], "by_category": {}}
 
     pos_top = top_terms(rowsN, TOPK_POS, auto_sw, which="pos") if rowsN else []
@@ -2474,6 +2706,9 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
         "period_end": endN.isoformat(),
         "target_days": int(target_days),
         "total_reviews": int(len(dfN)),
+        "feed_total_reviews": int(len(dfFeed)),
+        "feed_period_start": start1y.isoformat() if rows1y else startN.isoformat(),
+        "feed_period_end": end1y.isoformat() if rows1y else endN.isoformat(),
         "input_total_reviews": int(len(all_rows)),
         "latest_input_created_at": latest_input_dt.isoformat() if latest_input_dt else None,
         "latest_window_created_at": latest_window_dt.isoformat() if latest_window_dt else None,
@@ -2509,8 +2744,8 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
         }
 
     out_reviews: List[Dict[str, Any]] = []
-    if not dfN.empty:
-        for r in dfN.to_dict(orient="records"):
+    if not dfFeed.empty:
+        for r in dfFeed.to_dict(orient="records"):
             tags = r.get("tags", [])
             if not isinstance(tags, list):
                 tags = []
@@ -2554,6 +2789,7 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     print(f"- Dashboard default day: {endN.isoformat()}")
     print(f"- Period: {period_text}")
     print(f"- Window rows: {len(rowsN)} / Input rows: {len(all_rows)}")
+    print(f"- Feed rows written: {len(out_reviews)}")
     print(f"- Latest input created_at: {latest_input_dt.isoformat() if latest_input_dt else 'None'}")
     print(f"- Latest window created_at: {latest_window_dt.isoformat() if latest_window_dt else 'None'}")
     if empty_reason:
