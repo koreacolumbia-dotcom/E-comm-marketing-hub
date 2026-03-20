@@ -462,11 +462,18 @@
       document.getElementById("chip-low")?.classList.toggle("active", !!uiState.chips.low);
 
       const dayInput = document.getElementById("daySelect");
-      if (dayInput){
-        dayInput.disabled = is7d;
-        dayInput.classList.toggle("opacity-50", is7d);
-        dayInput.classList.toggle("cursor-not-allowed", is7d);
-      }
+        if (dayInput){
+          const reviewDays = REVIEWS
+            .map(r => String(r.created_at || "").slice(0, 10))
+            .filter(v => /^\d{4}-\d{2}-\d{2}$/.test(v))
+            .sort();
+          const minDay = reviewDays[0] || META?.period_start || "";
+          const maxDay = reviewDays[reviewDays.length - 1] || META?.period_end || kstDateStr(-1);
+          if (minDay) dayInput.min = minDay;
+          if (maxDay) dayInput.max = maxDay;
+          const preferredDay = META?.dashboard_default_day || maxDay;
+          dayInput.value = (preferredDay >= minDay && preferredDay <= maxDay) ? preferredDay : maxDay;
+        }
     }
 
     function updateWindowCopy(){
@@ -1063,8 +1070,7 @@
 
             // default = yesterday(KST)
             if (!dayInput.value){
-              const preferredDay = META?.dashboard_default_day || maxDay;
-          dayInput.value = (preferredDay >= minDay && preferredDay <= maxDay) ? preferredDay : maxDay;
+              dayInput.value = (META?.dashboard_default_day || META?.period_end || kstDateStr(-1));
             }
           }
 
