@@ -715,173 +715,87 @@ def collect_naver_reviews_from_payloads(payloads: list[dict[str, Any]], brand_ur
     return merge_rows([], out)
 
 
-def extract_naver_reviews_from_dom(page: Any, product: dict[str, Any], brand_url: str) -> list[dict[str, Any]]:
-    selectors = [
-        '[data-shp-area="review"] li',
-        '[class*="review"] li',
-        '[data-shp-area="purchaseReview"] li',
-        'li[class*="review"]',
-    ]
-    handles: list[Any] = []
-    for selector in selectors:
-        try:
-            handles = page.query_selector_all(selector)
-        except Exception:
-            handles = []
-        if handles:
-            break
-    rows: list[dict[str, Any]] = []
-    for idx, handle in enumerate(handles[: env_int("NAVER_DOM_REVIEW_LIMIT", 80)]):
-        try:
-            text = normalize_space(handle.inner_text())
-        except Exception:
-            text = ""
-        if len(text) < 12:
+def build_naver_existing_product_success(existing_rows: list[dict[str, Any]] | None) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in existing_rows or []:
+        if normalize_source(row.get("source")) != "Naver":
             continue
-        date_match = re.search(r"(20\d{2}[.-]\d{1,2}[.-]\d{1,2})", text)
-        created_at = normalize_created_at(date_match.group(1).replace('.', '-') if date_match else "")
-        if not created_at:
+        product_no = str(row.get("product_code") or "").strip()
+        if not product_no:
+            product_url = str(row.get("product_url") or "").strip()
+            m = re.search(r"/products/(\d+)", product_url)
+            if m:
+                product_no = m.group(1)
+        if not product_no:
             continue
-        rating = 0
-        star_match = re.search(r"([1-5](?:\.0)?)\s*/\s*5", text)
-        if star_match:
-            try:
-                rating = int(float(star_match.group(1)))
-            except Exception:
-                rating = 0
-        content = text
-        content = re.sub(r"20\d{2}[.-]\d{1,2}[.-]\d{1,2}", " ", content)
-        content = re.sub(r"\b[1-5](?:\.0)?\s*/\s*5\b", " ", content)
-        content = normalize_space(content)
-        if len(content) < 8:
-            continue
-        rows.append({
-            "id": f"dom:{product.get('product_no') or 'na'}:{idx}:{created_at}",
-            "product_code": str(product.get("product_no") or "").strip(),
-            "product_name": str(product.get("product_name") or product.get("product_no") or "").strip(),
-            "product_url": str(product.get("product_url") or brand_url).strip(),
-            "rating": rating,
-            "created_at": created_at,
-            "text": content,
-            "source": "Naver",
-            "option_size": "",
-            "option_color": "",
-            "tags": make_tags(content, rating),
-            "local_product_image": "",
-            "local_review_thumb": "",
-        })
-    return merge_rows([], rows)
+        counts[product_no] = counts.get(product_no, 0) + 1
+    return counts
 
 
-def fetch_naver_product_detail_rows_with_playwright(
+def inspect_naver_product_detail(
+    session: requests.Session,
     product: dict[str, Any],
     *,
     brand_url: str,
     start_date: date,
     end_date: date,
-) -> list[dict[str, Any]]:
+    timeout: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     product_url = str(product.get("product_url") or "").strip()
+    stats: dict[str, Any] = {
+        "payloads": 0,
+        "raw_reviews": 0,
+        "normalized": 0,
+        "with_text": 0,
+        "with_created_at": 0,
+        "in_window": 0,
+        "skip_reason": "",
+    }
     if not product_url:
-        return []
-    try:
-        from playwright.sync_api import sync_playwright
-    except Exception:
-        return []
+        stats["skip_reason"] = "product_url_missing"
+        return [], stats
 
-    nav_timeout_ms = env_int("NAVER_RENDER_TIMEOUT_MS", 45000)
-    selector_timeout_ms = env_int("NAVER_RENDER_SELECTOR_TIMEOUT_MS", 12000)
-    settle_ms = env_int("NAVER_REVIEW_RENDER_WAIT_MS", env_int("NAVER_RENDER_WAIT_MS", 3500) + 1500)
-    click_more_rounds = env_int("NAVER_REVIEW_MORE_CLICKS", 4)
-    response_payloads: list[dict[str, Any]] = []
-    review_tab_selectors = [
-        'a:has-text("리뷰")', 'button:has-text("리뷰")',
-        'a:has-text("상품리뷰")', 'button:has-text("상품리뷰")',
-        '[role="tab"]:has-text("리뷰")',
-    ]
-    more_selectors = [
-        'button:has-text("더보기")', 'a:has-text("더보기")',
-        'button:has-text("펼쳐보기")', 'button:has-text("리뷰 더보기")',
-    ]
+    html = fetch_naver_html(
+        session,
+        product_url,
+        timeout=timeout,
+        label=f"Naver product page {product.get('product_no') or product_url}",
+        wait_selector='script',
+    )
+    payloads = gather_naver_payload_candidates(html)
+    stats["payloads"] = len(payloads)
+    raw_review_count = 0
+    for payload in payloads:
+        raw_review_count += len(extract_review_dicts(payload))
+    stats["raw_reviews"] = raw_review_count
 
-    def on_response(resp: Any) -> None:
-        try:
-            ctype = (resp.headers or {}).get("content-type", "")
-            url = str(resp.url or "")
-            if "json" not in ctype and not any(tok in url.lower() for tok in ["review", "purchase", "product"]):
-                return
-            if resp.status != 200:
-                return
-            payload = resp.json()
-        except Exception:
-            return
-        if isinstance(payload, dict):
-            response_payloads.append(payload)
-        elif isinstance(payload, list):
-            response_payloads.append({"items": payload})
+    normalized_rows = collect_naver_reviews_from_payloads(payloads, brand_url=brand_url, product_hint=product)
+    stats["normalized"] = len(normalized_rows)
+    stats["with_text"] = sum(1 for row in normalized_rows if str(row.get("text") or "").strip())
+    stats["with_created_at"] = sum(1 for row in normalized_rows if str(row.get("created_at") or "").strip())
 
-    rows: list[dict[str, Any]] = []
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        context = browser.new_context(
-            user_agent=DEFAULT_HEADERS["User-Agent"],
-            locale="ko-KR",
-            timezone_id="Asia/Seoul",
-            viewport={"width": 1440, "height": 2400},
-            extra_http_headers={
-                "Accept-Language": DEFAULT_HEADERS["Accept-Language"],
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache",
-            },
-        )
-        page = context.new_page()
-        page.on("response", on_response)
-        try:
-            page.goto(product_url, wait_until="domcontentloaded", timeout=nav_timeout_ms)
-            page.wait_for_timeout(1200 + random.randint(0, 800))
-            for selector in review_tab_selectors:
-                try:
-                    page.locator(selector).first.click(timeout=2500)
-                    page.wait_for_timeout(1200 + random.randint(0, 600))
-                    break
-                except Exception:
-                    continue
-            try:
-                page.wait_for_load_state("networkidle", timeout=selector_timeout_ms)
-            except Exception:
-                pass
-            for _ in range(max(2, env_int("NAVER_REVIEW_SCROLL_ROUNDS", 6))):
-                try:
-                    page.mouse.wheel(0, 2200)
-                except Exception:
-                    pass
-                page.wait_for_timeout(700 + random.randint(0, 400))
-            for _ in range(max(0, click_more_rounds)):
-                clicked = False
-                for selector in more_selectors:
-                    try:
-                        locator = page.locator(selector).first
-                        if locator.count() > 0:
-                            locator.click(timeout=1800)
-                            page.wait_for_timeout(1000 + random.randint(0, 500))
-                            clicked = True
-                            break
-                    except Exception:
-                        continue
-                if not clicked:
-                    break
-            page.wait_for_timeout(settle_ms + random.randint(0, 1000))
-            html = page.content()
-            payloads = gather_naver_payload_candidates(html) + response_payloads
-            rows = collect_naver_reviews_from_payloads(payloads, brand_url=brand_url, product_hint=product)
-            if not rows:
-                rows = extract_naver_reviews_from_dom(page, product, brand_url)
-        finally:
-            browser.close()
-
-    return [
-        row for row in merge_rows([], rows)
+    in_window_rows = [
+        row for row in normalized_rows
         if row.get("created_at") and in_window(str(row.get("created_at") or ""), start_date, end_date)
     ]
+    stats["in_window"] = len(in_window_rows)
+
+    if in_window_rows:
+        return in_window_rows, stats
+
+    if not payloads:
+        stats["skip_reason"] = "payload_missing"
+    elif raw_review_count == 0 and not normalized_rows:
+        stats["skip_reason"] = "raw_reviews_empty"
+    elif normalized_rows and stats["with_created_at"] == 0:
+        stats["skip_reason"] = "created_at_missing"
+    elif normalized_rows and stats["with_text"] == 0:
+        stats["skip_reason"] = "text_empty"
+    elif normalized_rows and not in_window_rows:
+        stats["skip_reason"] = "date_out_of_range"
+    else:
+        stats["skip_reason"] = "normalized_empty"
+    return [], stats
 
 
 def fetch_naver_product_detail_rows(
@@ -893,31 +807,15 @@ def fetch_naver_product_detail_rows(
     end_date: date,
     timeout: int,
 ) -> list[dict[str, Any]]:
-    product_url = str(product.get("product_url") or "").strip()
-    if not product_url:
-        return []
-    html = fetch_naver_html(
+    rows, _stats = inspect_naver_product_detail(
         session,
-        product_url,
-        timeout=timeout,
-        label=f"Naver product page {product.get('product_no') or product_url}",
-        wait_selector='script',
-    )
-    payloads = gather_naver_payload_candidates(html)
-    rows = collect_naver_reviews_from_payloads(payloads, brand_url=brand_url, product_hint=product)
-    filtered = [
-        row for row in rows
-        if row.get("created_at") and in_window(str(row.get("created_at") or ""), start_date, end_date)
-    ]
-    if filtered:
-        return merge_rows([], filtered)
-    browser_rows = fetch_naver_product_detail_rows_with_playwright(
         product,
         brand_url=brand_url,
         start_date=start_date,
         end_date=end_date,
+        timeout=timeout,
     )
-    return merge_rows([], browser_rows)
+    return rows
 
 
 def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bool) -> list[dict[str, Any]]:
@@ -1124,7 +1022,7 @@ def normalize_naver_review(review: dict[str, Any], product: dict[str, Any], bran
     }
 
 
-def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: int) -> list[dict[str, Any]]:
+def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: int, existing_naver_rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     session = make_session()
     home_html = fetch_naver_html(
         session,
@@ -1166,15 +1064,22 @@ def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: 
                         listed_products.append(normalize_naver_listed_product({"productNo": match.group(1), "productUrl": product_url}, brand_url=brand_url))
                 except Exception as exc:
                     log(f"[WARN] Naver direct Playwright product discovery failed: {type(exc).__name__}: {exc}")
+            success_counts = build_naver_existing_product_success(existing_naver_rows)
             listed_products = sorted(
                 listed_products,
-                key=lambda item: (int(item.get("review_count") or 0), str(item.get("product_no") or "")),
+                key=lambda item: (
+                    1 if success_counts.get(str(item.get("product_no") or ""), 0) > 0 else 0,
+                    success_counts.get(str(item.get("product_no") or ""), 0),
+                    int(item.get("review_count") or 0),
+                    str(item.get("product_no") or ""),
+                ),
                 reverse=True,
             )
             products_with_reviews = sum(1 for item in listed_products if int(item.get("review_count") or 0) > 0)
+            prioritized_success = sum(1 for item in listed_products[:detail_limit] if success_counts.get(str(item.get("product_no") or ""), 0) > 0)
             log(
                 f"[INFO] Naver listed products discovered={len(listed_products)} "
-                f"products_with_visible_review_count={products_with_reviews}"
+                f"products_with_visible_review_count={products_with_reviews} prioritized_known_success={prioritized_success}"
             )
 
             target_products = listed_products[:detail_limit]
@@ -1185,7 +1090,7 @@ def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: 
                     break
                 safe_sleep(delay_ms, jitter_ms)
                 try:
-                    rows = fetch_naver_product_detail_rows(
+                    rows, stats = inspect_naver_product_detail(
                         session,
                         product,
                         brand_url=brand_url,
@@ -1193,11 +1098,16 @@ def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: 
                         end_date=end_date,
                         timeout=timeout,
                     )
+                    before_count = len(out)
                     if rows:
                         out = merge_rows(out, rows)
+                    added_count = max(0, len(out) - before_count)
                     log(
                         f"[INFO] Naver product detail {idx}/{len(target_products)} product_no={product.get('product_no') or '-'} "
-                        f"review_count_hint={int(product.get('review_count') or 0)} added={len(rows)} cumulative={len(out)}"
+                        f"review_count_hint={int(product.get('review_count') or 0)} payloads={int(stats.get('payloads') or 0)} "
+                        f"raw_reviews={int(stats.get('raw_reviews') or 0)} normalized={int(stats.get('normalized') or 0)} "
+                        f"in_window={int(stats.get('in_window') or 0)} added={added_count} cumulative={len(out)} "
+                        f"skip_reason={stats.get('skip_reason') or '-'}"
                     )
                 except CrawlStop as exc:
                     log(f"[WARN] {exc}")
@@ -1582,11 +1492,13 @@ def main() -> int:
     if enabled:
         timeout = env_int("MARKETPLACE_TIMEOUT_SEC", 30)
         try:
+            naver_existing_rows = [row for row in existing_marketplace_rows if normalize_source(row.get("source")) == "Naver"]
             naver_rows = fetch_naver_rows(
                 start_date=start_date,
                 end_date=end_date,
                 brand_url=str(args.product_url or os.getenv("NAVER_BRAND_URL", "https://brand.naver.com/columbia")).strip(),
                 timeout=timeout,
+                existing_naver_rows=naver_existing_rows,
             )
         except Exception as exc:
             log(f"[WARN] Naver crawl failed -> continue without Naver rows: {type(exc).__name__}: {exc}")
