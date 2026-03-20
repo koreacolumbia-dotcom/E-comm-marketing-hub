@@ -26,23 +26,19 @@
     .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
     .funnel-wrap{position:relative;padding:8px 0 2px}
     .funnel-axis{position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(180deg,rgba(148,163,184,.12),rgba(148,163,184,.28),rgba(148,163,184,.08));transform:translateX(-50%)}
-    .funnel-stage{position:relative;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);min-height:118px;border-radius:18px;overflow:hidden;clip-path:polygon(9% 0,91% 0,100% 100%,0 100%)}
-    .funnel-stage-inner{min-height:118px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:18px 24px 20px}
-    .funnel-stage.narrow .funnel-stage-inner{grid-template-columns:1fr;justify-items:center;text-align:center;padding:16px 18px 18px}
-    .funnel-stage.narrow .stage-value{text-align:center}
-    .funnel-stage.tiny .funnel-stage-inner{padding:14px 12px 16px}
-    .stage-kicker{font-size:10px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;opacity:.72}
-    .stage-title{margin-top:8px;font-size:clamp(20px,2.2vw,38px);line-height:1.05;font-weight:900;word-break:keep-all;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-note{margin-top:6px;font-size:13px;line-height:1.35;font-weight:700;opacity:.95;word-break:keep-all;overflow-wrap:anywhere}
-    .stage-value .num{font-size:clamp(28px,3vw,54px);line-height:1;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-value .sub{margin-top:8px;font-size:13px;line-height:1.2;font-weight:700;opacity:.95}
-    .funnel-stage.narrow .stage-title{font-size:clamp(18px,1.9vw,28px)}
-    .funnel-stage.narrow .stage-note{font-size:12px}
-    .funnel-stage.narrow .stage-value .num{font-size:clamp(24px,2.2vw,36px)}
-    .funnel-stage.tiny .stage-title{font-size:clamp(16px,1.6vw,22px)}
-    .funnel-stage.tiny .stage-note{font-size:11px}
-    .funnel-stage.tiny .stage-value .num{font-size:clamp(20px,1.9vw,28px)}
-    .funnel-stage.tiny .stage-value .sub{font-size:11px}
+    .funnel-flow{display:flex;flex-direction:column;gap:14px}
+    .funnel-step-line{text-align:center;font-size:13px;line-height:1.35;font-weight:700;color:#475569}
+    .funnel-stage{position:relative;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);min-height:112px;border-radius:18px;overflow:hidden}
+    .funnel-stage-inner{min-height:112px;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px 24px}
+    .stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%}
+    .stage-title{font-size:clamp(18px,2vw,34px);line-height:1.08;font-weight:900;word-break:keep-all;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-value .num{font-size:clamp(28px,3vw,52px);line-height:1;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-sub{font-size:13px;line-height:1.25;font-weight:800;opacity:.96}
+    .funnel-stage.narrow .stage-title{font-size:clamp(17px,1.8vw,26px)}
+    .funnel-stage.narrow .stage-value .num{font-size:clamp(24px,2.1vw,34px)}
+    .funnel-stage.tiny .stage-title{font-size:clamp(15px,1.5vw,21px)}
+    .funnel-stage.tiny .stage-value .num{font-size:clamp(20px,1.8vw,28px)}
+    .funnel-stage.tiny .stage-sub{font-size:11px}
     .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
     .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
@@ -256,10 +252,10 @@
     </div>
   </div>
 
-  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'data/funnel';</script>
+  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel';</script>
   <script>
     (() => {
-      const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'data/funnel').replace(/\/$/, '');
+      const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel').replace(/\/$/, '');
       const OWNED_SEGMENTS = ['OWNED', 'EDM', 'LMS', 'KAKAO'];
       const FILTER_SEGMENTS = ['ALL','PAID','ORGANIC','OWNED','EDM','LMS','KAKAO'];
       const SEGMENT_LABELS = {
@@ -487,47 +483,32 @@
       }
 
       function buildBehaviorStages(agg){
-        const fields = [];
-        const notes = [];
-        const hasNativePdp = agg.pdpViews > 0;
-        const hasNativeCart = agg.addToCart > 0;
-        const hasNativeCheckout = agg.beginCheckout > 0;
-        const hasNativePurchaseSessions = agg.purchaseSessions > 0;
-
-        fields.push({ key:'sessions', label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions, source:'native' });
-
-        if (hasNativePdp) {
-          fields.push({ key:'pdpViews', label:'PDP Views', note:'Product detail views', value:agg.pdpViews, source:'native' });
-        } else if (agg.users > 0) {
-          fields.push({ key:'users', label:'PDP Views (Proxy)', note:'Fallback to users because PDP field is missing', value:agg.users, source:'proxy' });
-          notes.push('PDP stage is using Users as a proxy because pdp_views is not present in the source JSON.');
-        }
-
-        if (hasNativeCart) {
-          fields.push({ key:'addToCart', label:'Add to Cart', note:'Add-to-cart actions/users in scope', value:agg.addToCart, source:'native' });
-        }
-        if (hasNativeCheckout) {
-          fields.push({ key:'beginCheckout', label:'Checkout', note:'Checkout starts in scope', value:agg.beginCheckout, source:'native' });
-        }
-
-        if (hasNativePurchaseSessions) {
-          fields.push({ key:'purchaseSessions', label:'Purchase Sessions', note:'Sessions that reached purchase', value:agg.purchaseSessions, source:'native' });
-        } else if (agg.buyerUsers > 0) {
-          fields.push({ key:'buyerUsers', label:'Purchase Users (Proxy)', note:'Fallback to buyer users because purchase_sessions is missing', value:agg.buyerUsers, source:'proxy' });
-          notes.push('Purchase stage is using Buyer Users as a proxy because purchase_sessions is not present in the source JSON.');
-        }
+        const fields = [
+          { key:'sessions', label:'Sessions', value:Number(agg.sessions || 0) },
+          { key:'pdpViews', label:'PDP Views', value:Number(agg.pdpViews || 0) },
+          { key:'addToCart', label:'Add to Cart', value:Number(agg.addToCart || 0) },
+          { key:'beginCheckout', label:'Checkout', value:Number(agg.beginCheckout || 0) },
+          { key:'purchaseSessions', label:'Purchase Sessions', value:Number(agg.purchaseSessions || 0) },
+        ];
 
         const max = Math.max(...fields.map((s) => s.value), 0);
-        const easing = (ratio) => Math.pow(Math.max(0, ratio), 0.82);
         const stages = fields.map((stage, idx) => {
-          const rawRatio = max ? stage.value / max : 0;
-          const width = idx === 0 ? 96 : Math.max(14, easing(rawRatio) * 96);
           const prevValue = idx === 0 ? 0 : fields[idx - 1].value;
           const kept = idx === 0 ? 100 : (prevValue ? (stage.value / prevValue) * 100 : 0);
           const drop = idx === 0 ? 0 : Math.max(0, 100 - kept);
-          return { ...stage, width, kept, drop, share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 };
+          const ratioToMax = max ? (stage.value / max) : 0;
+          const width = idx === 0 ? 100 : Math.max(18, ratioToMax * 100);
+          return {
+            ...stage,
+            width,
+            kept,
+            drop,
+            share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0,
+            subLabel: idx === 0 ? '기준 단계' : `이탈 ${fmtPct(drop, 1)}`,
+          };
         });
 
+        const notes = ['All funnel stages are rendered on the same session-based definition as the Daily Digest base.'];
         const steps = [];
         for (let i = 1; i < stages.length; i += 1) {
           steps.push({
@@ -572,14 +553,16 @@
           `<div class="funnel-flow">`,
           ...stages.map((stage, i) => {
             const width = Math.max(stage.width || 0, i === 0 ? 100 : 18);
+            const sizeClass = width <= 28 ? 'tiny' : (width <= 42 ? 'narrow' : '');
             return `
-            ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
+            ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.drop,1)} 이탈</div>`}
             <div class="flex justify-center">
-              <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%">
+              <div class="funnel-stage ${className} ${sizeClass}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%">
                 <div class="funnel-stage-inner">
                   <div class="stage-copy">
                     <div class="stage-title">${esc(stage.label)}</div>
                     <div class="stage-value"><div class="num">${fmt(stage.value)}</div></div>
+                    <div class="stage-sub">${esc(stage.subLabel || '')}</div>
                   </div>
                 </div>
               </div>
@@ -616,7 +599,7 @@
         renderFunnel(els.funnelCanvas, currentModel.behavior);
         els.funnelNotice.innerHTML = currentModel.behavior.notes.length
           ? currentModel.behavior.notes.map((n) => `<div class="warn">${esc(n)}</div>`).join('')
-          : `<div>Behavior funnel is using native stage fields.</div>`;
+          : `<div>Funnel bars are scaled by the actual stage counts.</div>`;
 
         els.selectionMeta.innerHTML = [
           `Segment | ${segmentLabel()}`,
