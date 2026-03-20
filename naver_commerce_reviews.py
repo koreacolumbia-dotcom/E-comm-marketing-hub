@@ -3,15 +3,32 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
+import random
+import re
+import time
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urljoin
 
 import requests
 
 
 TRUE_VALUES = {"1", "true", "yes", "y", "on"}
+KST = timezone(timedelta(hours=9))
+
+DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/135.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+
+
+class CrawlStop(RuntimeError):
+    pass
 
 
 def env_flag(name: str, default: bool = False) -> bool:
@@ -21,12 +38,22 @@ def env_flag(name: str, default: bool = False) -> bool:
     return raw in TRUE_VALUES
 
 
+def env_int(name: str, default: int) -> int:
+    raw = str(os.getenv(name, "")).strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except Exception:
+        return default
+
+
 def log(msg: str) -> None:
     print(msg, flush=True)
 
 
-def load_rows(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
+def load_rows(path: Path | None) -> list[dict[str, Any]]:
+    if path is None or not path.exists():
         return []
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict):
@@ -40,16 +67,27 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
 
 def dump_reviews(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"reviews": rows}
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(json.dumps({"reviews": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def normalize_space(value: Any) -> str:
     return " ".join(str(value or "").split())
 
 
+def normalize_source(value: Any) -> str:
+    text = str(value or "").strip()
+    low = text.lower()
+    if "musinsa" in low:
+        return "Musinsa"
+    if "naver" in low:
+        return "Naver"
+    if "official" in low:
+        return "Official"
+    return text or "Unknown"
+
+
 def unique_key(row: dict[str, Any]) -> tuple[str, ...]:
-    source = str(row.get("source") or "").strip() or "Unknown"
+    source = normalize_source(row.get("source"))
     rid = str(row.get("id") or "").strip()
     if rid:
         return (source, rid)
@@ -76,124 +114,6 @@ def merge_rows(base_rows: list[dict[str, Any]], extra_rows: list[dict[str, Any]]
     return out
 
 
-def deep_get(payload: Any, path: tuple[str, ...]) -> Any:
-    cur = payload
-    for key in path:
-        if not isinstance(cur, dict):
-            return None
-        cur = cur.get(key)
-    return cur
-
-
-def find_first(payload: dict[str, Any], *paths: tuple[str, ...]) -> Any:
-    for path in paths:
-        value = deep_get(payload, path)
-        if value not in (None, "", [], {}):
-            return value
-    return None
-
-
-def parse_access_token(payload: Any) -> str:
-    if not isinstance(payload, dict):
-        return ""
-    candidates = [
-        ("access_token",),
-        ("accessToken",),
-        ("data", "access_token"),
-        ("data", "accessToken"),
-        ("result", "access_token"),
-        ("result", "accessToken"),
-    ]
-    for path in candidates:
-        value = deep_get(payload, path)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return ""
-
-
-def add_query_params(url: str, params: dict[str, Any]) -> str:
-    parts = urlsplit(url)
-    query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    for key, value in params.items():
-        if value in (None, ""):
-            continue
-        query[str(key)] = str(value)
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
-
-
-def extract_items(payload: Any) -> list[dict[str, Any]]:
-    if isinstance(payload, list):
-        return [item for item in payload if isinstance(item, dict)]
-    if not isinstance(payload, dict):
-        return []
-    for key in ("reviews", "items", "content", "list", "results"):
-        value = payload.get(key)
-        if isinstance(value, list):
-            return [item for item in value if isinstance(item, dict)]
-    for key in ("data", "result", "payload"):
-        nested = payload.get(key)
-        items = extract_items(nested)
-        if items:
-            return items
-    return []
-
-
-def infer_has_more(payload: Any, page_size: int, item_count: int) -> bool:
-    if isinstance(payload, dict):
-        for key in ("hasNext", "hasMore", "more"):
-            value = payload.get(key)
-            if isinstance(value, bool):
-                return value
-        next_page = payload.get("nextPage") or payload.get("next")
-        if next_page not in (None, "", False):
-            return True
-    return item_count >= page_size
-
-
-def request_access_token(
-    session: requests.Session,
-    oauth_url: str,
-    client_id: str,
-    client_secret: str,
-    timeout: int,
-) -> str:
-    attempts: list[dict[str, Any]] = [
-        {
-            "data": {
-                "grant_type": "client_credentials",
-                "client_id": client_id,
-                "client_secret": client_secret,
-            }
-        },
-        {
-            "auth": (client_id, client_secret),
-            "data": {"grant_type": "client_credentials"},
-        },
-        {
-            "json": {
-                "grantType": "client_credentials",
-                "clientId": client_id,
-                "clientSecret": client_secret,
-            }
-        },
-    ]
-    last_error = ""
-    for idx, kwargs in enumerate(attempts, start=1):
-        try:
-            response = session.post(oauth_url, timeout=timeout, **kwargs)
-            body = response.text[:500]
-            response.raise_for_status()
-            payload = response.json()
-            token = parse_access_token(payload)
-            if token:
-                log(f"[INFO] Naver Commerce token acquired via attempt {idx}")
-                return token
-            last_error = f"token field not found in response: {body}"
-        except Exception as exc:  # pragma: no cover - network/runtime branch
-            last_error = f"{type(exc).__name__}: {exc}"
-    raise RuntimeError(f"Failed to acquire Naver Commerce token: {last_error}")
-
-
 def normalize_rating(value: Any) -> int:
     try:
         return int(float(str(value).strip()))
@@ -205,256 +125,784 @@ def normalize_created_at(value: Any) -> str:
     text = str(value or "").strip()
     if not text:
         return ""
+    text = text.replace("Z", "+00:00")
     if " " in text and "T" not in text:
         text = text.replace(" ", "T", 1)
-    if text.endswith("Z"):
-        return text
-    if "+" in text or text.count("-") > 2:
-        return text
-    if "T" in text and len(text) <= 19:
-        return f"{text}+09:00"
     if len(text) == 10:
-        return f"{text}T00:00:00+09:00"
+        text = f"{text}T00:00:00+09:00"
+    try:
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=KST)
+        else:
+            dt = dt.astimezone(KST)
+        return dt.isoformat(timespec="seconds")
+    except Exception:
+        return text
+
+
+def parse_date_from_created_at(value: Any) -> date | None:
+    text = normalize_created_at(value)
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text).astimezone(KST).date()
+    except Exception:
+        return None
+
+
+def parse_date_only(value: str) -> date:
+    return date.fromisoformat(str(value).strip()[:10])
+
+
+def in_window(created_at: str, start_date: date, end_date: date) -> bool:
+    created = parse_date_from_created_at(created_at)
+    if created is None:
+        return False
+    return start_date <= created <= end_date
+
+
+def make_session() -> requests.Session:
+    session = requests.Session()
+    session.headers.update(DEFAULT_HEADERS)
+    # Ignore broken local proxy env vars; the CI runner should talk directly.
+    session.trust_env = False
+    return session
+
+
+def clamp_non_negative(value: int) -> int:
+    return max(0, int(value))
+
+
+def safe_sleep(base_ms: int, jitter_ms: int) -> None:
+    delay = clamp_non_negative(base_ms) + random.uniform(0, clamp_non_negative(jitter_ms))
+    if delay > 0:
+        time.sleep(delay / 1000.0)
+
+
+def absolute_url(base_url: str, raw_url: Any) -> str:
+    text = str(raw_url or "").strip()
+    if not text:
+        return ""
+    if text.startswith("//"):
+        return f"https:{text}"
+    if text.startswith("http://") or text.startswith("https://"):
+        return text
+    return urljoin(base_url, text)
+
+
+def musinsa_image_url(raw_url: Any) -> str:
+    text = str(raw_url or "").strip()
+    if not text:
+        return ""
+    if text.startswith("http://") or text.startswith("https://"):
+        return text
+    if text.startswith("//"):
+        return f"https:{text}"
+    if text.startswith("/"):
+        return f"https://image.msscdn.net{text}"
     return text
 
 
-def normalize_options(raw: dict[str, Any]) -> tuple[str, str]:
+def find_first(payload: Any, *paths: tuple[str, ...]) -> Any:
+    for path in paths:
+        cur = payload
+        ok = True
+        for key in path:
+            if not isinstance(cur, dict):
+                ok = False
+                break
+            cur = cur.get(key)
+        if ok and cur not in (None, "", [], {}):
+            return cur
+    return None
+
+
+def parse_option_string(text: Any) -> tuple[str, str]:
+    raw = normalize_space(text)
+    if not raw:
+        return "", ""
     option_size = ""
     option_color = ""
-    simple_size = find_first(
-        raw,
-        ("optionSize",),
-        ("size",),
-        ("option", "size"),
-    )
-    simple_color = find_first(
-        raw,
-        ("optionColor",),
-        ("color",),
-        ("option", "color"),
-    )
-    if isinstance(simple_size, str):
-        option_size = simple_size.strip()
-    if isinstance(simple_color, str):
-        option_color = simple_color.strip()
-
-    if option_size or option_color:
-        return option_size, option_color
-
-    purchased = raw.get("purchasedOptions") or raw.get("options") or []
-    if isinstance(purchased, list):
-        parts = [normalize_space(v.get("name") or v.get("value") or "") for v in purchased if isinstance(v, dict)]
+    size_match = re.search(r"(?:size|사이즈)\s*[:：]\s*([^/|,]+)", raw, flags=re.I)
+    color_match = re.search(r"(?:color|컬러|색상)\s*[:：]\s*([^/|,]+)", raw, flags=re.I)
+    if size_match:
+        option_size = normalize_space(size_match.group(1))
+    if color_match:
+        option_color = normalize_space(color_match.group(1))
+    if not option_size:
+        parts = [normalize_space(part) for part in re.split(r"[/|,]", raw) if normalize_space(part)]
         if parts:
             option_size = parts[0]
-            if len(parts) > 1:
-                option_color = parts[1]
-    elif isinstance(purchased, dict):
-        option_size = normalize_space(purchased.get("size") or purchased.get("name") or "")
-        option_color = normalize_space(purchased.get("color") or purchased.get("value") or "")
-    elif isinstance(purchased, str):
-        option_size = normalize_space(purchased)
+        if len(parts) > 1 and not option_color:
+            option_color = parts[1]
     return option_size, option_color
 
 
-def normalize_review(raw: dict[str, Any], fallback_product_url: str) -> dict[str, Any]:
-    review_id = find_first(raw, ("reviewId",), ("id",), ("reviewNo",), ("claimId",))
-    product_code = find_first(
-        raw,
-        ("channelProductNo",),
-        ("productNo",),
-        ("originProductNo",),
-        ("productId",),
-        ("product", "channelProductNo"),
-    )
-    product_name = find_first(
-        raw,
-        ("productName",),
-        ("originProductName",),
-        ("channelProductName",),
-        ("product", "name"),
-    )
-    product_url = find_first(raw, ("productUrl",), ("product", "url")) or fallback_product_url
-    rating = normalize_rating(find_first(raw, ("rating",), ("score",), ("reviewScore",)) or 0)
-    created_at = normalize_created_at(
-        find_first(
-            raw,
-            ("createdAt",),
-            ("registeredAt",),
-            ("reviewDate",),
-            ("createDate",),
-            ("writtenAt",),
-        )
-    )
-    text = normalize_space(
-        find_first(
-            raw,
-            ("content",),
-            ("reviewContent",),
-            ("reviewText",),
-            ("text",),
-            ("body",),
-            ("review", "content"),
-        )
-        or ""
-    )
-    option_size, option_color = normalize_options(raw)
+def make_tags(text: str, rating: int) -> list[str]:
     tags: list[str] = []
     if rating >= 4:
         tags.append("pos")
     if rating and rating <= 2:
         tags.extend(["neg", "low"])
+    low_text = str(text or "").lower()
+    if "작" in low_text or "크" in low_text or "사이즈" in low_text or "size" in low_text:
+        if "size" not in tags:
+            tags.append("size")
+    return tags
+
+
+def sanitize_js_object(raw: str) -> str:
+    text = raw
+    text = re.sub(r":\s*undefined\b", ": null", text)
+    text = re.sub(r"\[\s*undefined\s*\]", "[null]", text)
+    text = re.sub(r",\s*undefined\b", ", null", text)
+    text = re.sub(r"\bundefined\s*,", "null,", text)
+    return text
+
+
+def extract_preloaded_state(html: str) -> dict[str, Any]:
+    match = re.search(r"window\.__PRELOADED_STATE__\s*=\s*(\{.*?\})\s*</script>", html, flags=re.S)
+    if not match:
+        return {}
+    raw = sanitize_js_object(match.group(1))
+    try:
+        payload = json.loads(raw)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def iter_key_values(node: Any, target_key: str) -> list[Any]:
+    found: list[Any] = []
+    stack = [node]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            for key, value in cur.items():
+                if key == target_key:
+                    found.append(value)
+                if isinstance(value, (dict, list)):
+                    stack.append(value)
+        elif isinstance(cur, list):
+            for item in cur:
+                if isinstance(item, (dict, list)):
+                    stack.append(item)
+    return found
+
+
+def dedupe_keep_order(values: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+def collect_leaf_category_ids(node: Any) -> list[str]:
+    found: list[str] = []
+
+    def walk(cur: Any) -> None:
+        if not isinstance(cur, dict):
+            return
+        raw_id = str(cur.get("id") or "").strip()
+        sub_categories = cur.get("subCategories")
+        if isinstance(sub_categories, list) and sub_categories:
+            for child in sub_categories:
+                if isinstance(child, dict):
+                    walk(child)
+            return
+        if raw_id and raw_id != "0":
+            found.append(raw_id)
+
+    walk(node)
+    return dedupe_keep_order(found)
+
+
+def extract_naver_category_ids(payload: dict[str, Any], html: str) -> list[str]:
+    category_ids: list[str] = []
+
+    store_tree = payload.get("storeCategoryTree")
+    if isinstance(store_tree, dict):
+        category_ids.extend(collect_leaf_category_ids(store_tree))
+
+    for entry in payload.get("storeCategories") or []:
+        if not isinstance(entry, dict):
+            continue
+        raw_id = str(entry.get("id") or "").strip()
+        if raw_id and raw_id != "0":
+            category_ids.append(raw_id)
+
+    category_ids.extend(re.findall(r"/category/([0-9a-f]{32})", html))
+    category_ids.extend(re.findall(r'"key":"([0-9a-f]{32})"', html))
+
+    # Crawl leaf categories first, but always include the all-products category as a fallback.
+    category_ids = dedupe_keep_order(category_ids)
+    preferred = [cid for cid in category_ids if cid == "251598e702a64123a2292f40e6681943"]
+    others = [cid for cid in category_ids if cid != "251598e702a64123a2292f40e6681943"]
+    return preferred + others
+
+
+def extract_category_products(payload: dict[str, Any]) -> dict[str, Any]:
+    candidates = iter_key_values(payload, "categoryProducts")
+    for item in candidates:
+        if isinstance(item, dict):
+            return item
+    return {}
+
+
+def normalize_naver_listed_product(product: dict[str, Any], brand_url: str) -> dict[str, Any]:
+    product_no = str(
+        find_first(product, ("productNo",), ("id",), ("channelProductNo",), ("originProductNo",)) or ""
+    ).strip()
+    product_url = absolute_url(
+        brand_url,
+        find_first(product, ("productUrl",), ("url",), ("detailUrl",)) or (f"/columbia/products/{product_no}" if product_no else ""),
+    )
+    review_count = 0
+    for candidate in (
+        find_first(product, ("reviewCount",)),
+        find_first(product, ("reviewAmount", "totalReviewCount")),
+        find_first(product, ("reviewQuantity",)),
+    ):
+        try:
+            review_count = max(review_count, int(candidate))
+        except Exception:
+            pass
+    return {
+        "product_no": product_no,
+        "product_name": str(find_first(product, ("productName",), ("name",), ("dispName",)) or product_no).strip(),
+        "product_url": product_url,
+        "image_url": absolute_url(
+            brand_url,
+            find_first(product, ("representativeImageUrl",), ("imageUrl",), ("image", "url")) or "",
+        ),
+        "review_count": review_count,
+    }
+
+
+def build_naver_category_url(brand_url: str, category_id: str) -> str:
+    base = brand_url.rstrip("/")
+    return f"{base}/category/{category_id}?cp=1"
+
+
+def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bool) -> list[dict[str, Any]]:
+    session = make_session()
+    response = session.get(brand_url, timeout=timeout)
+    if response.status_code in (403, 429):
+        raise CrawlStop(f"Naver brand page returned HTTP {response.status_code}")
+    response.raise_for_status()
+
+    home_html = response.text
+    home_payload = extract_preloaded_state(home_html)
+    category_ids = extract_naver_category_ids(home_payload, home_html)
+    if not category_ids:
+        log("[WARN] Naver category ids not found")
+        return []
+
+    max_categories = (
+        env_int("NAVER_MAX_CATEGORIES_BACKFILL", 120)
+        if is_backfill
+        else env_int("NAVER_MAX_CATEGORIES_DAILY", 36)
+    )
+    delay_ms = env_int("NAVER_CATEGORY_DELAY_MS", env_int("MARKETPLACE_REQUEST_DELAY_MS", 1200))
+    jitter_ms = env_int("NAVER_CATEGORY_JITTER_MS", env_int("MARKETPLACE_REQUEST_JITTER_MS", 500))
+
+    discovered: list[dict[str, Any]] = []
+    seen_products: set[str] = set()
+    truncated_categories = 0
+    target_category_ids = category_ids[:max_categories]
+    log(f"[INFO] Naver category discovery targets={len(target_category_ids)}")
+
+    for idx, category_id in enumerate(target_category_ids, start=1):
+        category_url = build_naver_category_url(brand_url, category_id)
+        safe_sleep(delay_ms, jitter_ms)
+        try:
+            category_response = session.get(category_url, timeout=timeout)
+            if category_response.status_code in (403, 429):
+                raise CrawlStop(f"Naver category page returned HTTP {category_response.status_code} for {category_id}")
+            category_response.raise_for_status()
+            category_payload = extract_preloaded_state(category_response.text)
+            category_products = extract_category_products(category_payload)
+            simple_products = category_products.get("simpleProducts") if isinstance(category_products.get("simpleProducts"), list) else []
+            total_count = int(category_products.get("totalCount") or 0)
+            page_size = int(category_products.get("pageSize") or len(simple_products) or 0)
+            if total_count and page_size and total_count > page_size:
+                truncated_categories += 1
+            for item in simple_products:
+                if not isinstance(item, dict):
+                    continue
+                normalized = normalize_naver_listed_product(item, brand_url=brand_url)
+                product_no = normalized.get("product_no") or ""
+                if not product_no or product_no in seen_products:
+                    continue
+                seen_products.add(product_no)
+                discovered.append(normalized)
+            log(
+                f"[INFO] Naver category {idx}/{len(target_category_ids)} id={category_id} "
+                f"items={len(simple_products)} total={total_count or len(simple_products)} cumulative={len(discovered)}"
+            )
+        except CrawlStop:
+            raise
+        except Exception as exc:
+            log(f"[WARN] Naver category {category_id} failed: {type(exc).__name__}: {exc}")
+            continue
+
+    if truncated_categories:
+        log(
+            f"[WARN] Naver categories with more than one page detected={truncated_categories}; "
+            "current crawler stays on first page of each category to remain conservative."
+        )
+    log(f"[INFO] Naver listed products discovered={len(discovered)}")
+    return discovered
+
+
+def iter_review_product_groups(node: Any) -> list[list[dict[str, Any]]]:
+    groups: list[list[dict[str, Any]]] = []
+    stack = [node]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            for key, value in cur.items():
+                if key == "reviewProducts" and isinstance(value, list):
+                    group = [item for item in value if isinstance(item, dict)]
+                    if group:
+                        groups.append(group)
+                elif isinstance(value, (dict, list)):
+                    stack.append(value)
+        elif isinstance(cur, list):
+            for item in cur:
+                if isinstance(item, (dict, list)):
+                    stack.append(item)
+    return groups
+
+
+def normalize_naver_review(review: dict[str, Any], product: dict[str, Any], brand_url: str) -> dict[str, Any]:
+    product_code = str(
+        find_first(review, ("productNo",), ("knowledgeShoppingMallProductId",))
+        or find_first(product, ("productNo",), ("id",))
+        or ""
+    ).strip()
+    product_name = str(
+        find_first(review, ("productName",))
+        or find_first(product, ("productName",), ("name",), ("dispName",))
+        or product_code
+    ).strip()
+    product_url = absolute_url(
+        brand_url,
+        find_first(review, ("productUrl",)) or find_first(product, ("productUrl",), ("url",)) or brand_url,
+    )
+    rating = normalize_rating(find_first(review, ("reviewScore",), ("rating",), ("score",)) or 0)
+    created_at = normalize_created_at(find_first(review, ("createDate",), ("createdAt",), ("reviewDate",)))
+    text = normalize_space(find_first(review, ("reviewContent",), ("content",), ("text",)) or "")
+    option_size, option_color = parse_option_string(find_first(review, ("productOptionContent",), ("optionContent",)))
+    image_url = absolute_url(
+        brand_url,
+        find_first(product, ("representativeImageUrl",), ("imageUrl",))
+        or find_first(review, ("repThumbnailAttach", "attachUrl")),
+    )
+    review_thumb = absolute_url(
+        brand_url,
+        find_first(review, ("repThumbnailAttach", "attachUrl"))
+        or find_first(review, ("reviewAttaches",))
+        or "",
+    )
+    if isinstance(review.get("reviewAttaches"), list) and review.get("reviewAttaches"):
+        first_attach = review["reviewAttaches"][0]
+        if isinstance(first_attach, dict):
+            review_thumb = absolute_url(brand_url, first_attach.get("attachUrl") or first_attach.get("attachPath"))
 
     return {
-        "id": str(review_id or "").strip(),
-        "product_code": str(product_code or "").strip(),
-        "product_name": str(product_name or "").strip(),
-        "product_url": str(product_url or "").strip(),
+        "id": str(find_first(review, ("id",), ("reviewId",)) or "").strip(),
+        "product_code": product_code,
+        "product_name": product_name,
+        "product_url": product_url,
+        "review_original_url": product_url,
         "rating": rating,
         "created_at": created_at,
         "text": text,
         "source": "Naver",
         "option_size": option_size,
         "option_color": option_color,
-        "tags": tags,
+        "tags": make_tags(text, rating),
         "size_direction": "",
-        "local_product_image": "",
-        "local_review_thumb": "",
+        "local_product_image": image_url,
+        "local_review_thumb": review_thumb,
         "text_image_path": "",
     }
 
 
-def fetch_naver_reviews(
-    start_date: str,
-    end_date: str,
-    brand_channel_no: str,
-    product_url: str,
-) -> list[dict[str, Any]]:
-    client_id = str(os.getenv("NAVER_COMMERCE_CLIENT_ID", "")).strip()
-    client_secret = str(os.getenv("NAVER_COMMERCE_CLIENT_SECRET", "")).strip()
-    endpoint = str(os.getenv("NAVER_COMMERCE_REVIEW_ENDPOINT", "")).strip()
-    oauth_url = str(
-        os.getenv(
-            "NAVER_COMMERCE_OAUTH_URL",
-            "https://api.commerce.naver.com/external/v1/oauth2/token",
+def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: int) -> list[dict[str, Any]]:
+    session = make_session()
+    response = session.get(brand_url, timeout=timeout)
+    if response.status_code in (403, 429):
+        raise CrawlStop(f"Naver brand page returned HTTP {response.status_code}")
+    response.raise_for_status()
+    payload = extract_preloaded_state(response.text)
+    if not payload:
+        log("[WARN] Naver preloaded state not found -> skip")
+        return []
+
+    review_limit = env_int("NAVER_HOME_REVIEW_LIMIT", 40)
+    out: list[dict[str, Any]] = []
+    for group in iter_review_product_groups(payload):
+        for product in group:
+            reviews = product.get("reviews") or []
+            if not isinstance(reviews, list):
+                continue
+            for review in reviews:
+                if not isinstance(review, dict):
+                    continue
+                row = normalize_naver_review(review, product, brand_url=brand_url)
+                if not row["id"] and not row["text"]:
+                    continue
+                if row["created_at"] and in_window(row["created_at"], start_date, end_date):
+                    out.append(row)
+                if len(out) >= review_limit:
+                    break
+            if len(out) >= review_limit:
+                break
+        if len(out) >= review_limit:
+            break
+
+    out = merge_rows([], out)
+    try:
+        listed_products = discover_naver_listed_products(
+            brand_url=brand_url,
+            timeout=timeout,
+            is_backfill=(end_date - start_date).days > 31,
         )
-    ).strip()
-    timeout = int(str(os.getenv("NAVER_COMMERCE_TIMEOUT_SEC", "30")).strip() or "30")
-    page_param = str(os.getenv("NAVER_COMMERCE_PAGE_PARAM", "page")).strip()
-    size_param = str(os.getenv("NAVER_COMMERCE_SIZE_PARAM", "size")).strip()
-    start_param = str(os.getenv("NAVER_COMMERCE_START_PARAM", "startDate")).strip()
-    end_param = str(os.getenv("NAVER_COMMERCE_END_PARAM", "endDate")).strip()
-    brand_param = str(os.getenv("NAVER_COMMERCE_BRAND_PARAM", "brandChannelNo")).strip()
-    page_size = int(str(os.getenv("NAVER_COMMERCE_PAGE_SIZE", "100")).strip() or "100")
-    max_pages = int(str(os.getenv("NAVER_COMMERCE_MAX_PAGES", "20")).strip() or "20")
-    page_start = int(str(os.getenv("NAVER_COMMERCE_PAGE_START", "1")).strip() or "1")
+        products_with_reviews = sum(1 for item in listed_products if int(item.get("review_count") or 0) > 0)
+        log(
+            f"[INFO] Naver listed products discovered={len(listed_products)} "
+            f"products_with_visible_review_count={products_with_reviews}"
+        )
+    except CrawlStop as exc:
+        log(f"[WARN] {exc}")
+    except Exception as exc:
+        log(f"[WARN] Naver product discovery failed: {type(exc).__name__}: {exc}")
+    log(f"[INFO] Naver brand-home reviews in window={len(out)}")
+    return out
 
-    if not client_id or not client_secret:
-        log("[WARN] NAVER_COMMERCE_CLIENT_ID/SECRET missing -> pass-through mode")
+
+def extract_musinsa_product_ids(html: str) -> list[str]:
+    ids = re.findall(r"/products/(\d+)", html)
+    unique: list[str] = []
+    seen: set[str] = set()
+    for goods_no in ids:
+        if goods_no in seen:
+            continue
+        seen.add(goods_no)
+        unique.append(goods_no)
+    return unique
+
+
+def discover_musinsa_product_ids(brand_url: str, timeout: int) -> list[str]:
+    session = make_session()
+    try:
+        response = session.get(brand_url, timeout=timeout)
+        if response.ok:
+            ids = extract_musinsa_product_ids(response.text)
+            if len(ids) >= 5:
+                log(f"[INFO] Musinsa product discovery via HTTP: {len(ids)} ids")
+                return ids
+    except Exception as exc:
+        log(f"[WARN] Musinsa brand HTTP discovery failed: {type(exc).__name__}: {exc}")
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:
+        log(f"[WARN] Playwright unavailable for Musinsa discovery: {type(exc).__name__}: {exc}")
         return []
-    if not endpoint:
-        log("[WARN] NAVER_COMMERCE_REVIEW_ENDPOINT missing -> pass-through mode")
+
+    render_timeout_ms = env_int("MUSINSA_RENDER_TIMEOUT_MS", 45000)
+    render_wait_ms = env_int("MUSINSA_RENDER_WAIT_MS", 3500)
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(user_agent=DEFAULT_HEADERS["User-Agent"])
+        page.goto(brand_url, wait_until="domcontentloaded", timeout=render_timeout_ms)
+        page.wait_for_timeout(render_wait_ms)
+        html = page.content()
+        browser.close()
+
+    ids = extract_musinsa_product_ids(html)
+    log(f"[INFO] Musinsa product discovery via Playwright: {len(ids)} ids")
+    return ids
+
+
+def choose_musinsa_product_ids(
+    discovered_ids: list[str],
+    existing_rows: list[dict[str, Any]],
+    max_products: int,
+) -> list[str]:
+    seen_ids = {
+        str(row.get("product_code") or "").strip()
+        for row in existing_rows
+        if normalize_source(row.get("source")) == "Musinsa"
+    }
+    fresh = [goods_no for goods_no in discovered_ids if goods_no not in seen_ids]
+    chosen = fresh[:max_products]
+    if len(chosen) < max_products:
+        for goods_no in discovered_ids:
+            if goods_no in chosen:
+                continue
+            chosen.append(goods_no)
+            if len(chosen) >= max_products:
+                break
+    return chosen
+
+
+def normalize_musinsa_review(item: dict[str, Any]) -> dict[str, Any]:
+    goods = item.get("goods") if isinstance(item.get("goods"), dict) else {}
+    goods_no = str(find_first(goods, ("goodsNo",)) or find_first(item, ("goodsNo",)) or "").strip()
+    goods_name = str(find_first(goods, ("goodsName",)) or goods_no).strip()
+    product_url = f"https://www.musinsa.com/products/{goods_no}" if goods_no else "https://www.musinsa.com/brand/columbia"
+    rating = normalize_rating(find_first(item, ("grade",), ("rating",), ("score",)) or 0)
+    created_at = normalize_created_at(find_first(item, ("createDate",), ("createdAt",)))
+    text = normalize_space(find_first(item, ("content",), ("reviewContent",)) or "")
+    option_size, option_color = parse_option_string(find_first(item, ("goodsOption",), ("optionName",)) or "")
+    thumb = ""
+    images = item.get("images")
+    if isinstance(images, list) and images:
+        first = images[0]
+        if isinstance(first, dict):
+            thumb = musinsa_image_url(
+                first.get("imageUrl") or first.get("thumbnailUrl") or first.get("originUrl") or first.get("url")
+            )
+    product_image = musinsa_image_url(
+        item.get("goodsThumbnailImageUrl")
+        or find_first(goods, ("goodsThumbnailImageUrl",))
+        or find_first(goods, ("goodsImageFile",))
+    )
+    review_id = find_first(item, ("no",), ("reviewNo",)) or ""
+    return {
+        "id": str(review_id).strip(),
+        "product_code": goods_no,
+        "product_name": goods_name,
+        "product_url": product_url,
+        "review_original_url": f"{product_url}?source=review&reviewId={review_id}",
+        "rating": rating,
+        "created_at": created_at,
+        "text": text,
+        "source": "Musinsa",
+        "option_size": option_size,
+        "option_color": option_color,
+        "tags": make_tags(text, rating),
+        "size_direction": "",
+        "local_product_image": product_image,
+        "local_review_thumb": thumb,
+        "text_image_path": "",
+    }
+
+
+def fetch_musinsa_page(
+    session: requests.Session,
+    goods_no: str,
+    page: int,
+    page_size: int,
+    timeout: int,
+) -> dict[str, Any]:
+    url = "https://api.musinsa.com/api2/review/v1/view/list"
+    params = {
+        "goodsNo": goods_no,
+        "page": page,
+        "pageSize": page_size,
+        "sort": "new",
+        "selectedSimilarNo": 0,
+    }
+    headers = {
+        "Referer": f"https://www.musinsa.com/products/{goods_no}",
+        "Accept": "application/json, text/plain, */*",
+    }
+    response = session.get(url, params=params, headers=headers, timeout=timeout)
+    if response.status_code in (403, 429):
+        raise CrawlStop(f"Musinsa review API returned HTTP {response.status_code} for goodsNo={goods_no}")
+    response.raise_for_status()
+    payload = response.json()
+    return payload if isinstance(payload, dict) else {}
+
+
+def fetch_musinsa_rows(
+    start_date: date,
+    end_date: date,
+    brand_url: str,
+    existing_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    timeout = env_int("MARKETPLACE_TIMEOUT_SEC", 30)
+    delay_ms = env_int("MARKETPLACE_REQUEST_DELAY_MS", 1200)
+    jitter_ms = env_int("MARKETPLACE_REQUEST_JITTER_MS", 500)
+    page_size = env_int("MUSINSA_PAGE_SIZE", 10)
+    is_backfill = (end_date - start_date).days > 31 or not any(
+        normalize_source(row.get("source")) == "Musinsa" for row in existing_rows
+    )
+    max_products = env_int("MUSINSA_MAX_PRODUCTS_BACKFILL", 24) if is_backfill else env_int("MUSINSA_MAX_PRODUCTS_DAILY", 8)
+    max_pages = env_int("MUSINSA_MAX_PAGES_BACKFILL", 4) if is_backfill else env_int("MUSINSA_MAX_PAGES_DAILY", 2)
+
+    discovered_ids = discover_musinsa_product_ids(brand_url=brand_url, timeout=timeout)
+    if not discovered_ids:
+        log("[WARN] Musinsa product discovery returned no ids -> skip")
         return []
 
-    session = requests.Session()
-    token = request_access_token(session, oauth_url, client_id, client_secret, timeout)
-    session.headers.update({"Authorization": f"Bearer {token}", "Accept": "application/json"})
+    target_ids = choose_musinsa_product_ids(discovered_ids, existing_rows=existing_rows, max_products=max_products)
+    log(f"[INFO] Musinsa crawl target products={len(target_ids)} max_pages_per_product={max_pages}")
 
-    all_items: list[dict[str, Any]] = []
-    page = page_start
-    for _ in range(max_pages):
-        params = {
-            page_param: page,
-            size_param: page_size,
-            start_param: start_date,
-            end_param: end_date,
-        }
-        if brand_channel_no:
-            params[brand_param] = brand_channel_no
-        url = add_query_params(endpoint, params)
-        log(f"[INFO] Fetch Naver Commerce reviews page={page}")
-        response = session.get(url, timeout=timeout)
-        response.raise_for_status()
-        payload = response.json()
-        items = extract_items(payload)
-        if not items:
-            break
-        all_items.extend(items)
-        if not infer_has_more(payload, page_size=page_size, item_count=len(items)):
-            break
-        page += 1
+    session = make_session()
+    collected: list[dict[str, Any]] = []
+    fail_count = 0
+    for idx, goods_no in enumerate(target_ids, start=1):
+        log(f"[INFO] Musinsa reviews goodsNo={goods_no} ({idx}/{len(target_ids)})")
+        safe_sleep(delay_ms, jitter_ms)
+        try:
+            for page in range(max_pages):
+                payload = fetch_musinsa_page(session, goods_no=goods_no, page=page, page_size=page_size, timeout=timeout)
+                data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+                items = data.get("list") if isinstance(data.get("list"), list) else []
+                if not items:
+                    break
 
-    normalized = []
-    for item in all_items:
-        row = normalize_review(item, fallback_product_url=product_url)
-        if row["text"] or row["product_name"] or row["id"]:
-            normalized.append(row)
-    log(f"[INFO] Naver Commerce normalized reviews={len(normalized)}")
-    return normalized
+                page_rows: list[dict[str, Any]] = []
+                page_dates: list[date] = []
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    row = normalize_musinsa_review(item)
+                    created = parse_date_from_created_at(row["created_at"])
+                    if created is not None:
+                        page_dates.append(created)
+                    if row["created_at"] and in_window(row["created_at"], start_date, end_date):
+                        page_rows.append(row)
+                collected.extend(page_rows)
+
+                total_pages = 0
+                page_meta = data.get("page") if isinstance(data.get("page"), dict) else {}
+                if isinstance(page_meta.get("totalPages"), int):
+                    total_pages = int(page_meta["totalPages"])
+
+                if page_dates and min(page_dates) < start_date:
+                    break
+                if total_pages and page + 1 >= total_pages:
+                    break
+
+                safe_sleep(delay_ms, jitter_ms)
+        except CrawlStop as exc:
+            log(f"[WARN] {exc}")
+            break
+        except Exception as exc:
+            fail_count += 1
+            log(f"[WARN] Musinsa goodsNo={goods_no} failed: {type(exc).__name__}: {exc}")
+            if fail_count >= 3:
+                log("[WARN] Musinsa repeated failures -> stop current run")
+                break
+            continue
+
+    collected = merge_rows([], collected)
+    log(f"[INFO] Musinsa normalized reviews in window={len(collected)}")
+    return collected
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Merge Naver Commerce reviews into VOC dashboard input.")
+    parser = argparse.ArgumentParser(description="Merge marketplace reviews into VOC dashboard input.")
     parser.add_argument("--base-input", required=True, help="Existing review JSON from Crema or site/data.")
     parser.add_argument(
         "--existing-naver-input",
         default="",
-        help="Existing cumulative Naver-only review JSON. When present, newly fetched rows are merged into it.",
+        help="Existing cumulative marketplace review JSON. Legacy argument name kept for workflow compatibility.",
     )
     parser.add_argument("--output", required=True, help="Merged review JSON output path.")
-    parser.add_argument("--naver-output", required=True, help="Normalized Naver-only review JSON output path.")
-    parser.add_argument("--start", required=True, help="Review fetch start date (YYYY-MM-DD).")
-    parser.add_argument("--end", required=True, help="Review fetch end date (YYYY-MM-DD).")
-    parser.add_argument("--brand-channel-no", default="", help="Optional brand channel number for the Commerce API.")
+    parser.add_argument("--naver-output", required=True, help="Marketplace-only review JSON output path.")
+    parser.add_argument("--start", required=True, help="Fetch start date (YYYY-MM-DD).")
+    parser.add_argument("--end", required=True, help="Fetch end date (YYYY-MM-DD).")
+    parser.add_argument("--brand-channel-no", default="", help="Unused legacy argument kept for compatibility.")
     parser.add_argument(
         "--product-url",
         default="https://brand.naver.com/columbia",
-        help="Fallback product/store URL used when the API payload does not include a product URL.",
+        help="Naver brand/store URL used as the Naver crawl entrypoint.",
+    )
+    parser.add_argument(
+        "--musinsa-brand-url",
+        default="https://www.musinsa.com/brand/columbia",
+        help="Musinsa brand URL used for conservative product discovery.",
     )
     args = parser.parse_args()
 
+    start_date = parse_date_only(args.start)
+    end_date = parse_date_only(args.end)
+
     base_path = Path(args.base_input)
-    existing_naver_path = Path(args.existing_naver_input).expanduser() if str(args.existing_naver_input).strip() else None
+    existing_marketplace_path = Path(args.existing_naver_input).expanduser() if str(args.existing_naver_input).strip() else None
     output_path = Path(args.output)
-    naver_output_path = Path(args.naver_output)
+    marketplace_output_path = Path(args.naver_output)
 
     base_rows = load_rows(base_path)
-    existing_naver_rows = load_rows(existing_naver_path) if existing_naver_path else []
+    existing_marketplace_rows = [
+        row for row in load_rows(existing_marketplace_path) if normalize_source(row.get("source")) in {"Naver", "Musinsa"}
+    ]
     log(f"[INFO] Base review rows={len(base_rows)} from {base_path}")
-    if existing_naver_path:
-        log(f"[INFO] Existing Naver rows={len(existing_naver_rows)} from {existing_naver_path}")
+    if existing_marketplace_path:
+        log(f"[INFO] Existing marketplace rows={len(existing_marketplace_rows)} from {existing_marketplace_path}")
 
-    enabled = env_flag("NAVER_COMMERCE_REVIEWS_ENABLED", default=False)
-    fetched_naver_rows: list[dict[str, Any]] = []
+    enabled = env_flag("MARKETPLACE_REVIEWS_ENABLED", default=True)
+    fetched_rows: list[dict[str, Any]] = []
+    naver_rows: list[dict[str, Any]] = []
+    musinsa_rows: list[dict[str, Any]] = []
+
     if enabled:
+        timeout = env_int("MARKETPLACE_TIMEOUT_SEC", 30)
         try:
-            fetched_naver_rows = fetch_naver_reviews(
-                start_date=args.start,
-                end_date=args.end,
-                brand_channel_no=str(args.brand_channel_no or os.getenv("NAVER_COMMERCE_BRAND_CHANNEL_NO", "")).strip(),
-                product_url=args.product_url,
+            naver_rows = fetch_naver_rows(
+                start_date=start_date,
+                end_date=end_date,
+                brand_url=str(args.product_url or os.getenv("NAVER_BRAND_URL", "https://brand.naver.com/columbia")).strip(),
+                timeout=timeout,
             )
-        except Exception as exc:  # pragma: no cover - runtime/network branch
-            log(f"[WARN] Naver Commerce fetch failed -> keeping base reviews only: {type(exc).__name__}: {exc}")
-            fetched_naver_rows = []
-    else:
-        log("[INFO] NAVER_COMMERCE_REVIEWS_ENABLED=false -> pass-through mode")
+        except Exception as exc:
+            log(f"[WARN] Naver crawl failed -> continue without Naver rows: {type(exc).__name__}: {exc}")
+            naver_rows = []
 
-    cumulative_naver_rows = merge_rows(existing_naver_rows, fetched_naver_rows)
-    merged = merge_rows(base_rows, cumulative_naver_rows)
+        try:
+            musinsa_rows = fetch_musinsa_rows(
+                start_date=start_date,
+                end_date=end_date,
+                brand_url=str(args.musinsa_brand_url or os.getenv("MUSINSA_BRAND_URL", "https://www.musinsa.com/brand/columbia")).strip(),
+                existing_rows=existing_marketplace_rows,
+            )
+        except Exception as exc:
+            log(f"[WARN] Musinsa crawl failed -> continue without Musinsa rows: {type(exc).__name__}: {exc}")
+            musinsa_rows = []
+
+        fetched_rows = merge_rows(naver_rows, musinsa_rows)
+    else:
+        log("[INFO] MARKETPLACE_REVIEWS_ENABLED=false -> pass-through mode")
+
+    cumulative_marketplace_rows = merge_rows(existing_marketplace_rows, fetched_rows)
+    merged = merge_rows(base_rows, cumulative_marketplace_rows)
+
     dump_reviews(output_path, merged)
-    dump_reviews(naver_output_path, cumulative_naver_rows)
+    dump_reviews(marketplace_output_path, cumulative_marketplace_rows)
 
     source_counts: dict[str, int] = {}
     for row in merged:
-        src = str(row.get("source") or "Unknown").strip() or "Unknown"
-        source_counts[src] = source_counts.get(src, 0) + 1
+        source = normalize_source(row.get("source"))
+        source_counts[source] = source_counts.get(source, 0) + 1
+
+    fetched_source_counts: dict[str, int] = {}
+    for row in fetched_rows:
+        source = normalize_source(row.get("source"))
+        fetched_source_counts[source] = fetched_source_counts.get(source, 0) + 1
 
     log(f"[CHECK] merged_review_count={len(merged)}")
-    log(f"[CHECK] naver_fetched_review_count={len(fetched_naver_rows)}")
-    log(f"[CHECK] naver_cumulative_review_count={len(cumulative_naver_rows)}")
+    log(f"[CHECK] marketplace_fetched_review_count={len(fetched_rows)}")
+    log(f"[CHECK] naver_fetched_review_count={len(naver_rows)}")
+    log(f"[CHECK] musinsa_fetched_review_count={len(musinsa_rows)}")
+    log(f"[CHECK] marketplace_cumulative_review_count={len(cumulative_marketplace_rows)}")
     log(f"[CHECK] source_counts={json.dumps(source_counts, ensure_ascii=False, sort_keys=True)}")
+    log(f"[CHECK] fetched_source_counts={json.dumps(fetched_source_counts, ensure_ascii=False, sort_keys=True)}")
     log(f"[CHECK] merged_output={output_path}")
-    log(f"[CHECK] naver_output={naver_output_path}")
+    log(f"[CHECK] marketplace_output={marketplace_output_path}")
     return 0
 
 
