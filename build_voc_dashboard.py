@@ -2403,15 +2403,24 @@ def normalize_template_paths(html: str) -> str:
         'grid.innerHTML = rows.map(mlCardHTML).join("");',
         1,
     )
-    html = html.replace(
-        'if (META?.period_start) dayInput.min = META.period_start;\n          if (META?.period_end) dayInput.max = META.period_end;',
-        'const reviewDays = REVIEWS\n            .map(r => String(r.created_at || "").slice(0, 10))\n            .filter(v => /^\\d{4}-\\d{2}-\\d{2}$/.test(v))\n            .sort();\n          const minDay = reviewDays[0] || META?.period_start || "";\n          const maxDay = reviewDays[reviewDays.length - 1] || META?.period_end || kstDateStr(-1);\n          if (minDay) dayInput.min = minDay;\n          if (maxDay) dayInput.max = maxDay;',
-        1,
-    )
-    html = html.replace(
-        'dayInput.value = (META?.dashboard_default_day || META?.period_end || kstDateStr(-1));',
-        'const preferredDay = META?.dashboard_default_day || maxDay;\n          dayInput.value = (preferredDay >= minDay && preferredDay <= maxDay) ? preferredDay : maxDay;',
-        1,
+    html = re.sub(
+        r"""const dayInput = document\.getElementById\("daySelect"\);\s*if \(dayInput\)\{.*?\n\s*\}""",
+        """const dayInput = document.getElementById("daySelect");
+        if (dayInput){
+          const reviewDays = REVIEWS
+            .map(r => String(r.created_at || "").slice(0, 10))
+            .filter(v => /^\\d{4}-\\d{2}-\\d{2}$/.test(v))
+            .sort();
+          const minDay = reviewDays[0] || META?.period_start || "";
+          const maxDay = reviewDays[reviewDays.length - 1] || META?.period_end || kstDateStr(-1);
+          if (minDay) dayInput.min = minDay;
+          if (maxDay) dayInput.max = maxDay;
+          const preferredDay = META?.dashboard_default_day || maxDay;
+          dayInput.value = (preferredDay >= minDay && preferredDay <= maxDay) ? preferredDay : maxDay;
+        }""",
+        html,
+        count=1,
+        flags=re.S,
     )
     return html
 
