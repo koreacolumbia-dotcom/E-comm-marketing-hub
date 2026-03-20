@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OWNED Funnel Analysis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+    body{font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;background:linear-gradient(180deg,#f6f8fb,#eef3f8);color:#0f172a}
+    .glass{background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:28px;box-shadow:0 24px 60px rgba(15,23,42,.08)}
+    .chip,.btn,.field{border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.92);transition:all .15s ease;font-weight:800}
+    .chip:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+    .chip.active{background:linear-gradient(135deg,#002d72,#1d4ed8);color:#fff;border-color:rgba(0,45,114,.22)}
+    .card{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.9);border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.06)}
+    .kicker{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:#94a3b8}
+    .metric{font-size:28px;font-weight:900;line-height:1.05}
+    .muted{color:#64748b}
+    .funnel-stage{clip-path:polygon(9% 0,91% 0,100% 100%,0 100%);color:#fff;box-shadow:0 20px 40px rgba(15,23,42,.12)}
+    .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
+    .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+    .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#b45309,#f59e0b)}
+    .funnel-stage[data-stage="4"]{background:linear-gradient(135deg,#9f1239,#ec4899)}
+    .group-chip{border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.94);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;min-width:124px;text-align:left}
+    .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
+    .table-wrap{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.86);border-radius:22px;overflow:hidden;box-shadow:0 14px 30px rgba(15,23,42,.06)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:14px 16px;border-bottom:1px solid rgba(148,163,184,.14);font-size:13px}
+    th{text-align:left;background:rgba(248,250,252,.94);font-size:11px;font-weight:900;color:#64748b;letter-spacing:.12em;text-transform:uppercase}
+    tbody tr:hover td{background:rgba(0,45,114,.03)}
+    .empty{border:1px dashed rgba(148,163,184,.3);background:rgba(255,255,255,.72);border-radius:24px;padding:28px;text-align:center;color:#64748b;font-weight:700}
+  </style>
+</head>
+<body class="p-5 md:p-8">
+  <div class="mx-auto max-w-7xl space-y-6">
+    <section class="glass p-6 md:p-7">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div class="kicker">Owned Tab</div>
+          <h1 class="mt-2 text-3xl font-black tracking-tight md:text-4xl">OWNED Funnel Analysis</h1>
+          <p class="mt-2 text-sm font-semibold muted">Standalone funnel page for the owned send dataset.</p>
+        </div>
+        <div id="periodLabel" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-extrabold muted">Period | -</div>
+      </div>
+      <div class="mt-6 flex flex-wrap items-center gap-2">
+        <div class="kicker">View</div>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-view="daily" type="button">Daily</button>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-view="week" type="button">Week</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-view="range" type="button">Range</button>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <div class="kicker">Date</div>
+        <input id="datePicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
+        <div id="rangeBox" class="hidden flex flex-wrap items-center gap-2">
+          <input id="startPicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
+          <span class="text-sm font-bold text-slate-400">to</span>
+          <input id="endPicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
+        </div>
+        <button id="btnApply" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Apply</button>
+        <button id="btnPrev" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Prev</button>
+        <button id="btnNext" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Next</button>
+        <button id="btnResetSelection" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Reset Group</button>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <div class="kicker">Channel</div>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-channel="EDM" type="button">EDM</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-channel="LMS" type="button">LMS</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-channel="KAKAO" type="button">KAKAO</button>
+      </div>
+    </section>
+
+    <div id="loadingState" class="empty hidden">Loading funnel data...</div>
+    <div id="errorState" class="empty hidden"></div>
+
+    <div id="contentArea" class="space-y-6">
+      <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5" id="summaryCards"></section>
+
+      <section class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.85fr)]">
+        <div class="card p-5 md:p-6">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div class="kicker">Funnel</div>
+              <h2 class="mt-2 text-2xl font-black tracking-tight">Conversion Flow</h2>
+              <p id="scopeLabel" class="mt-2 text-sm font-semibold muted">Current channel summary</p>
+            </div>
+            <div id="selectionPill" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-extrabold muted">Scope | Total</div>
+          </div>
+          <div id="funnelCanvas" class="mt-6 space-y-2"></div>
+        </div>
+        <div class="space-y-4">
+          <div class="card p-5">
+            <div class="kicker">Selection Notes</div>
+            <div id="selectionMeta" class="mt-4 space-y-3 text-sm font-semibold muted"></div>
+          </div>
+          <div class="card p-5">
+            <div class="kicker">Step Detail</div>
+            <div id="stepDetail" class="mt-4 space-y-3"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="kicker">Send Groups</div>
+            <h2 class="mt-2 text-xl font-black tracking-tight">MMDD Groups In Scope</h2>
+          </div>
+          <div id="groupSummary" class="text-sm font-semibold muted">No group selected</div>
+        </div>
+        <div id="groupChips" class="mt-4 flex flex-wrap gap-3"></div>
+      </section>
+
+      <section class="card p-5">
+        <div class="kicker">Group Breakdown</div>
+        <h2 class="mt-2 text-xl font-black tracking-tight">Top Groups</h2>
+        <div class="mt-4 table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Group</th><th>Title</th><th>Sessions</th><th>Users</th><th>Buyer Users</th><th>Purchases</th><th>Revenue</th><th>CVR</th>
+              </tr>
+            </thead>
+            <tbody id="groupTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>window.OWNED_DATA_BASE = window.OWNED_DATA_BASE || 'reports/daily_digest/data/owned';</script>
+  <script>
+    (() => {
+      const DATA_BASE = String(window.OWNED_DATA_BASE || 'reports/daily_digest/data/owned').replace(/\/$/, '');
+      const state = { view: 'week', channel: 'EDM', available: [], selectedGroup: '', current: null };
+      const els = {
+        periodLabel: document.getElementById('periodLabel'),
+        datePicker: document.getElementById('datePicker'),
+        startPicker: document.getElementById('startPicker'),
+        endPicker: document.getElementById('endPicker'),
+        rangeBox: document.getElementById('rangeBox'),
+        btnApply: document.getElementById('btnApply'),
+        btnPrev: document.getElementById('btnPrev'),
+        btnNext: document.getElementById('btnNext'),
+        btnResetSelection: document.getElementById('btnResetSelection'),
+        loadingState: document.getElementById('loadingState'),
+        errorState: document.getElementById('errorState'),
+        contentArea: document.getElementById('contentArea'),
+        summaryCards: document.getElementById('summaryCards'),
+        scopeLabel: document.getElementById('scopeLabel'),
+        selectionPill: document.getElementById('selectionPill'),
+        selectionMeta: document.getElementById('selectionMeta'),
+        funnelCanvas: document.getElementById('funnelCanvas'),
+        stepDetail: document.getElementById('stepDetail'),
+        groupSummary: document.getElementById('groupSummary'),
+        groupChips: document.getElementById('groupChips'),
+        groupTableBody: document.getElementById('groupTableBody'),
+      };
+      const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+      const fmtMoney = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+      const fmtPct = (n, d = 1) => `${Number(n || 0).toFixed(d)}%`;
+      const ymd = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      const parseYmd = (v) => { const [y,m,d] = String(v || '').split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
+      const addDays = (dt, diff) => { const out = new Date(dt); out.setDate(out.getDate() + diff); return out; };
+      const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
+      const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      const aggregate = (rows) => (rows || []).reduce((a, r) => ({ sessions: a.sessions + Number(r.sessions || 0), users: a.users + Number(r.users || 0), purchases: a.purchases + Number(r.purchases || 0), revenue: a.revenue + Number(r.revenue || 0), items: a.items + Number(r.items_purchased || 0) }), { sessions: 0, users: 0, purchases: 0, revenue: 0, items: 0 });
+      const groupKey = (r) => { const y = String(r.year || String(r.date || '').slice(0,4)); const mmdd = String(r.mmdd || (String(r.date || '').slice(5,7) + String(r.date || '').slice(8,10))); return y && mmdd ? `${y}-${mmdd}` : ''; };
+      async function fetchJson(url){ const res = await fetch(url, { cache: 'no-store' }); if(!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); }
+      const clamp = (v) => { if (!state.available.length) return v; if (state.available.includes(v)) return v; for (let i = state.available.length - 1; i >= 0; i -= 1) if (state.available[i] <= v) return state.available[i]; return state.available[0]; };
+      const between = (s, e) => state.available.filter((day) => day >= s && day <= e);
+      function normalizeBundle(json){
+        return {
+          kpi: (json.campaigns || []).map((r) => ({ date:r.date, year:r.year || String(r.date || '').slice(0,4), mmdd:r.mmdd || (String(r.date || '').slice(5,7) + String(r.date || '').slice(8,10)), channel:r.channel, sessions:Number(r.sessions || 0), users:Number(r.users || 0), purchases:Number(r.purchases || 0), revenue:Number(r.revenue || 0), items_purchased:Number(r.items_purchased || 0), message_title:r.message_title || '' })),
+          analysis: (json.product_users || []).map((r) => ({ date:r.date, year:r.year || String(r.date || '').slice(0,4), mmdd:r.mmdd || (String(r.date || '').slice(5,7) + String(r.date || '').slice(8,10)), channel:r.channel, user_id:String(r.user_id || '').trim() })),
+        };
+      }
+      function currentRange(){
+        if(state.view === 'daily'){ const d = clamp(els.datePicker.value || state.available[state.available.length - 1]); return { start:d, end:d }; }
+        if(state.view === 'week'){ const end = clamp(els.datePicker.value || state.available[state.available.length - 1]); const start = clamp(ymd(startOfWeekMon(parseYmd(end)))); return { start, end: clamp(ymd(addDays(parseYmd(start), 6))) }; }
+        const start = clamp(els.startPicker.value || state.available[Math.max(0, state.available.length - 7)]); const end = clamp(els.endPicker.value || state.available[state.available.length - 1]); return start <= end ? { start, end } : { start:end, end:start };
+      }
+      function previousRange(start, end){ const span = Math.round((parseYmd(end) - parseYmd(start)) / 86400000) + 1; const prevEnd = clamp(ymd(addDays(parseYmd(start), -1))); const prevStart = clamp(ymd(addDays(parseYmd(prevEnd), -(span - 1)))); return { start:prevStart, end:prevEnd }; }
+      async function loadRange(start, end){ const raw = await Promise.all(between(start, end).map((day) => fetchJson(`${DATA_BASE}/owned_${day}.json?t=${Date.now()}`))); return raw.map(normalizeBundle).reduce((acc, bundle) => { acc.kpi.push(...bundle.kpi); acc.analysis.push(...bundle.analysis); return acc; }, { kpi: [], analysis: [] }); }
+      function summarizeGroups(bundle){
+        const buyerSets = new Map();
+        bundle.analysis.filter((r) => r.channel === state.channel).forEach((r) => { const key = groupKey(r); if(!buyerSets.has(key)) buyerSets.set(key, new Set()); if(r.user_id) buyerSets.get(key).add(r.user_id); });
+        const grouped = new Map();
+        bundle.kpi.filter((r) => r.channel === state.channel).forEach((r) => { const key = groupKey(r); if(!key) return; if(!grouped.has(key)) grouped.set(key, { key, year:String(r.year || ''), mmdd:String(r.mmdd || ''), sessions:0, users:0, purchases:0, revenue:0, title:'' }); const cur = grouped.get(key); cur.sessions += Number(r.sessions || 0); cur.users += Number(r.users || 0); cur.purchases += Number(r.purchases || 0); cur.revenue += Number(r.revenue || 0); if(!cur.title && r.message_title) cur.title = r.message_title; });
+        return Array.from(grouped.values()).map((g) => ({ ...g, buyerUsers: buyerSets.has(g.key) ? buyerSets.get(g.key).size : 0, cvr: g.sessions ? (g.purchases / g.sessions) * 100 : 0 })).sort((a,b) => String(b.key).localeCompare(String(a.key)));
+      }
+      function selectRows(bundle){ const rows = bundle.kpi.filter((r) => r.channel === state.channel); return state.selectedGroup ? rows.filter((r) => groupKey(r) === state.selectedGroup) : rows; }
+      function selectAnalysis(bundle){ const rows = bundle.analysis.filter((r) => r.channel === state.channel); return state.selectedGroup ? rows.filter((r) => groupKey(r) === state.selectedGroup) : rows; }
+      function buildStages(agg, buyerUsers){ const base = [{ label:'Sessions', note:'Traffic from owned sends', value:agg.sessions }, { label:'Users', note:'Unique users in scope', value:agg.users }]; if(buyerUsers > 0) base.push({ label:'Buyer Users', note:'Distinct buyers from purchase rows', value:buyerUsers }); base.push({ label:'Purchases', note:'Completed orders', value:agg.purchases }); const max = Math.max(...base.map((s) => s.value), 0); let prevWidth = 100; return base.map((stage, i) => { const raw = max ? (stage.value / max) * 100 : 0; let width = stage.value ? Math.max(raw, 26) : 18; width = i === 0 ? Math.max(width, 92) : Math.max(Math.min(width, prevWidth - 8), stage.value ? 24 : 18); prevWidth = width; const prev = i === 0 ? 0 : Number(base[i-1].value || 0); const kept = i === 0 ? 100 : (prev ? (stage.value / prev) * 100 : 0); return { ...stage, width, kept, drop:i === 0 ? 0 : Math.max(0, 100 - kept), share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 }; }); }
+      function model(){ const rows = selectRows(state.current.current); const analysis = selectAnalysis(state.current.current); const prevRows = selectRows(state.current.previous); const agg = aggregate(rows); const prevAgg = aggregate(prevRows); const buyerUsers = new Set(analysis.map((r) => r.user_id).filter(Boolean)).size; return { agg, prevAgg, buyerUsers, cvr: agg.sessions ? (agg.purchases / agg.sessions) * 100 : 0, prevCvr: prevAgg.sessions ? (prevAgg.purchases / prevAgg.sessions) * 100 : 0, aov: agg.purchases ? (agg.revenue / agg.purchases) : 0, stages: buildStages(agg, buyerUsers) }; }
+      const delta = (cur, prev) => prev ? `${cur >= prev ? '+' : ''}${(((cur - prev) / prev) * 100).toFixed(1)}%` : (cur ? '+100.0%' : '0.0%');
+      function render(){
+        const range = state.current.range;
+        const m = model();
+        els.periodLabel.textContent = `Period | ${range.start === range.end ? range.start : `${range.start} to ${range.end}`}`;
+        els.scopeLabel.textContent = `${state.channel} | ${state.selectedGroup || 'Total period'}`;
+        els.selectionPill.textContent = `Scope | ${state.selectedGroup || 'Total'}`;
+        els.summaryCards.innerHTML = [
+          ['Sessions', fmt(m.agg.sessions), `Prev ${fmt(m.prevAgg.sessions)} | ${delta(m.agg.sessions, m.prevAgg.sessions)}`],
+          ['Users', fmt(m.agg.users), `Buyer users ${fmt(m.buyerUsers)}`],
+          ['Purchases', fmt(m.agg.purchases), `Prev ${fmt(m.prevAgg.purchases)} | ${delta(m.agg.purchases, m.prevAgg.purchases)}`],
+          ['Revenue', fmtMoney(m.agg.revenue), `Prev ${fmtMoney(m.prevAgg.revenue)} | ${delta(m.agg.revenue, m.prevAgg.revenue)}`],
+          ['CVR', fmtPct(m.cvr, 2), `Prev ${fmtPct(m.prevCvr, 2)} | ${(m.cvr - m.prevCvr >= 0 ? '+' : '') + (m.cvr - m.prevCvr).toFixed(2)}%p`],
+        ].map(([label, value, sub]) => `<article class="card p-5"><div class="kicker">${esc(label)}</div><div class="metric mt-3">${esc(value)}</div><div class="mt-2 text-xs font-semibold muted">${esc(sub)}</div></article>`).join('');
+        els.funnelCanvas.innerHTML = m.stages.map((stage, i) => `${i === 0 ? '' : `<div class="flex items-center justify-center gap-3 py-2 text-xs font-bold muted"><span>${esc(m.stages[i-1].label)} -> ${esc(stage.label)}</span><span>${fmtPct(stage.kept,1)} kept</span><span>${fmtPct(stage.drop,1)} drop</span></div>`}<div class="flex justify-center"><div class="funnel-stage" data-stage="${i+1}" style="width:${stage.width.toFixed(1)}%"><div class="flex items-center justify-between gap-4 px-5 py-5 md:px-6"><div><div class="text-[10px] font-black uppercase tracking-[.22em] opacity-70">Stage ${String(i+1).padStart(2,'0')}</div><div class="mt-2 text-xl font-black md:text-2xl">${esc(stage.label)}</div><div class="mt-1 text-xs font-semibold opacity-90">${esc(stage.note)}</div></div><div class="text-right"><div class="text-2xl font-black md:text-3xl">${fmt(stage.value)}</div><div class="mt-1 text-xs font-semibold opacity-90">${i === 0 ? 'Base 100%' : `${fmtPct(stage.kept,1)} from previous`}</div></div></div></div></div>`).join('');
+        const selectedGroup = state.current.groups.find((g) => g.key === state.selectedGroup);
+        els.selectionMeta.innerHTML = [`Channel | ${state.channel}`, `Selection | ${state.selectedGroup || 'Total period'}`, `Revenue | ${fmtMoney(m.agg.revenue)}`, `AOV | ${fmtMoney(m.aov)}`, selectedGroup && selectedGroup.title ? `Message title | ${selectedGroup.title}` : ''].filter(Boolean).map((line) => `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">${esc(line)}</div>`).join('');
+        els.stepDetail.innerHTML = m.stages.map((stage, i) => `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4"><div class="kicker">Stage ${String(i+1).padStart(2,'0')}</div><div class="mt-2 flex items-center justify-between gap-4"><div><div class="text-base font-black">${esc(stage.label)}</div><div class="mt-1 text-xs font-semibold muted">${esc(stage.note)}</div></div><div class="text-right"><div class="text-xl font-black">${fmt(stage.value)}</div><div class="mt-1 text-xs font-semibold muted">${fmtPct(stage.share,1)} of sessions</div></div></div></div>`).join('');
+        els.groupSummary.textContent = state.selectedGroup ? `Selected | ${state.selectedGroup}` : `Total groups | ${state.current.groups.length}`;
+        els.groupChips.innerHTML = state.current.groups.length ? state.current.groups.slice(0, 18).map((g) => `<button class="group-chip ${state.selectedGroup === g.key ? 'active' : ''}" data-group="${g.key}" type="button"><div>${esc(g.mmdd)}</div><div class="mt-1 text-[11px] font-bold text-slate-500">${fmt(g.sessions)} sessions</div></button>`).join('') : `<div class="empty w-full">No MMDD groups found for this channel and period.</div>`;
+        Array.from(els.groupChips.querySelectorAll('[data-group]')).forEach((button) => button.addEventListener('click', () => { state.selectedGroup = button.getAttribute('data-group') || ''; render(); }));
+        els.groupTableBody.innerHTML = state.current.groups.length ? state.current.groups.slice(0, 20).map((g) => `<tr class="cursor-pointer" data-row-group="${g.key}"><td class="font-black">${esc(g.key)}</td><td>${esc(g.title || '-')}</td><td>${fmt(g.sessions)}</td><td>${fmt(g.users)}</td><td>${fmt(g.buyerUsers)}</td><td>${fmt(g.purchases)}</td><td>${fmtMoney(g.revenue)}</td><td>${fmtPct(g.cvr,2)}</td></tr>`).join('') : `<tr><td colspan="8" class="text-center text-slate-400">No groups</td></tr>`;
+        Array.from(els.groupTableBody.querySelectorAll('[data-row-group]')).forEach((row) => row.addEventListener('click', () => { state.selectedGroup = row.getAttribute('data-row-group') || ''; render(); }));
+      }
+      async function refresh(){
+        els.errorState.classList.add('hidden'); els.loadingState.classList.remove('hidden'); els.contentArea.classList.add('hidden');
+        try {
+          const range = currentRange(); const prev = previousRange(range.start, range.end);
+          els.rangeBox.classList.toggle('hidden', state.view !== 'range');
+          document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-view') === state.view));
+          document.querySelectorAll('[data-channel]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-channel') === state.channel));
+          const [currentBundle, previousBundle] = await Promise.all([loadRange(range.start, range.end), loadRange(prev.start, prev.end)]);
+          state.current = { range, previousRange: prev, current: currentBundle, previous: previousBundle, groups: summarizeGroups(currentBundle) };
+          if(state.selectedGroup && !state.current.groups.some((g) => g.key === state.selectedGroup)) state.selectedGroup = '';
+          els.loadingState.classList.add('hidden'); els.contentArea.classList.remove('hidden'); render();
+        } catch (error) {
+          els.loadingState.classList.add('hidden'); els.errorState.classList.remove('hidden'); els.errorState.textContent = `Failed to load funnel data. ${error.message || error}`;
+        }
+      }
+      function shift(direction){ const range = currentRange(); if(state.view === 'daily'){ els.datePicker.value = clamp(ymd(addDays(parseYmd(range.end), direction))); return; } if(state.view === 'week'){ els.datePicker.value = clamp(ymd(addDays(parseYmd(range.end), direction * 7))); return; } const span = Math.round((parseYmd(range.end) - parseYmd(range.start)) / 86400000) + 1; const start = clamp(ymd(addDays(parseYmd(range.start), direction * span))); els.startPicker.value = start; els.endPicker.value = clamp(ymd(addDays(parseYmd(start), span - 1))); }
+      async function init(){
+        const available = await fetchJson(`${DATA_BASE}/available_dates.json?t=${Date.now()}`); state.available = (Array.isArray(available) ? available : (available.available_dates || [])).slice().sort();
+        if(!state.available.length){ els.errorState.classList.remove('hidden'); els.errorState.textContent = `No available_dates.json found under ${DATA_BASE}.`; return; }
+        const latest = state.available[state.available.length - 1];
+        els.datePicker.value = latest; els.startPicker.value = state.available[Math.max(0, state.available.length - 7)]; els.endPicker.value = latest;
+        [els.datePicker, els.startPicker, els.endPicker].forEach((field) => { field.min = state.available[0]; field.max = latest; });
+        document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', async () => { state.view = b.getAttribute('data-view') || 'week'; state.selectedGroup = ''; await refresh(); }));
+        document.querySelectorAll('[data-channel]').forEach((b) => b.addEventListener('click', async () => { state.channel = b.getAttribute('data-channel') || 'EDM'; state.selectedGroup = ''; await refresh(); }));
+        els.btnApply.addEventListener('click', async () => { state.selectedGroup = ''; await refresh(); });
+        els.btnPrev.addEventListener('click', async () => { shift(-1); state.selectedGroup = ''; await refresh(); });
+        els.btnNext.addEventListener('click', async () => { shift(1); state.selectedGroup = ''; await refresh(); });
+        els.btnResetSelection.addEventListener('click', () => { state.selectedGroup = ''; if(state.current) render(); });
+        await refresh();
+      }
+      init();
+    })();
+  </script>
+</body>
+</html>
