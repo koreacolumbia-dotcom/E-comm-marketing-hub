@@ -245,7 +245,6 @@ def crawl_dc_engine(days: int) -> List[Post]:
                     [c.get_text(strip=True) for c in d_soup.select(".comment_list .usertxt")]
                 )
 
-                cafe_key, cafe_name = _resolve_naver_cafe_fields(link, cafeurl, cafename, query)
                 posts.append(
                     Post(
                         title=a_tag.get_text(strip=True),
@@ -761,8 +760,8 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                         platform="naver_cafe",
                         source="naver_cafe",
                         query=cafename or query,
-                        cafe_key=cafe_key,
-                        cafe_name=cafe_name,
+                        cafe_key=_resolve_naver_cafe_fields(link, cafeurl, cafename, query)[0],
+                        cafe_name=_resolve_naver_cafe_fields(link, cafeurl, cafename, query)[1],
                     )
                 )
                 page_kept += 1
@@ -1389,9 +1388,9 @@ def export_portal(
     .embedded body {{ background: transparent !important; }}
   </style>
 </head>
-<body class="p-5 md:p-8">
-  <div class="max-w-6xl mx-auto">
-    <div class="glass rounded-3xl p-5 md:p-7">
+<body class="p-3 md:p-3">
+  <div class="w-full">
+    <div class="glass rounded-[32px] p-5 md:p-7 w-full">
       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div>
           <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL HUB</div>
