@@ -234,6 +234,16 @@ session_dim AS (
   FROM base2
   GROUP BY user_pseudo_id, ga_session_id, session_key
 ),
+session_event_flags AS (
+  SELECT
+    session_key,
+    MAX(IF(event_name = 'view_item', 1, 0)) AS has_pdp_view,
+    MAX(IF(event_name = 'add_to_cart', 1, 0)) AS has_add_to_cart,
+    MAX(IF(event_name = 'begin_checkout', 1, 0)) AS has_begin_checkout,
+    MAX(IF(event_name = 'purchase', 1, 0)) AS has_purchase
+  FROM base2
+  GROUP BY session_key
+),
 purchase_evt AS (
   SELECT
     session_key,
@@ -278,9 +288,14 @@ session_classified AS (
     END AS owned_channel,
     REGEXP_CONTAINS(LOWER(IFNULL(s.utm_medium, '')), r'cpc|ppc|paid|display|banner|affiliate|retarget|programmatic|cpv|cpm|cpp') AS is_paid,
     REGEXP_CONTAINS(LOWER(IFNULL(s.utm_medium, '')), r'organic|seo') AS is_organic,
+    IFNULL(f.has_pdp_view, 0) AS pdp_views,
+    IFNULL(f.has_add_to_cart, 0) AS add_to_cart,
+    IFNULL(f.has_begin_checkout, 0) AS begin_checkout,
+    IFNULL(f.has_purchase, 0) AS purchase_sessions,
     CASE WHEN IFNULL(e.txns, 0) > 0 THEN IFNULL(e.txns, 0) ELSE IFNULL(e.purchase_events, 0) END AS purchases,
     CASE WHEN IFNULL(i.revenue_items, 0) > 0 THEN IFNULL(i.revenue_items, 0) ELSE IFNULL(e.revenue_evt, 0) END AS revenue
   FROM session_dim s
+  LEFT JOIN session_event_flags f USING (session_key)
   LEFT JOIN purchase_evt e USING (session_key)
   LEFT JOIN purchase_items i USING (session_key)
 ),
@@ -295,6 +310,14 @@ summary_rows AS (
     '' AS session_key,
     COUNT(DISTINCT session_key) AS sessions,
     COUNT(DISTINCT user_pseudo_id) AS users,
+    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
+    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
+    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
+    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
+    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
+    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
+    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
+    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
     COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
     SUM(purchases) AS purchases,
     SUM(revenue) AS revenue
@@ -313,6 +336,14 @@ summary_rows AS (
     '' AS session_key,
     COUNT(DISTINCT session_key) AS sessions,
     COUNT(DISTINCT user_pseudo_id) AS users,
+    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
+    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
+    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
+    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
+    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
+    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
+    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
+    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
     COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
     SUM(purchases) AS purchases,
     SUM(revenue) AS revenue
@@ -332,6 +363,14 @@ summary_rows AS (
     '' AS session_key,
     COUNT(DISTINCT session_key) AS sessions,
     COUNT(DISTINCT user_pseudo_id) AS users,
+    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
+    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
+    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
+    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
+    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
+    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
+    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
+    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
     COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
     SUM(purchases) AS purchases,
     SUM(revenue) AS revenue
@@ -351,6 +390,14 @@ summary_rows AS (
     '' AS session_key,
     COUNT(DISTINCT session_key) AS sessions,
     COUNT(DISTINCT user_pseudo_id) AS users,
+    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
+    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
+    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
+    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
+    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
+    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
+    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
+    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
     COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
     SUM(purchases) AS purchases,
     SUM(revenue) AS revenue
@@ -370,6 +417,14 @@ summary_rows AS (
     '' AS session_key,
     COUNT(DISTINCT session_key) AS sessions,
     COUNT(DISTINCT user_pseudo_id) AS users,
+    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
+    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
+    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
+    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
+    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
+    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
+    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
+    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
     COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
     SUM(purchases) AS purchases,
     SUM(revenue) AS revenue
@@ -388,6 +443,14 @@ owned_session_rows AS (
     session_key,
     1 AS sessions,
     1 AS users,
+    pdp_views,
+    add_to_cart,
+    begin_checkout,
+    purchase_sessions,
+    CASE WHEN pdp_views > 0 THEN 1 ELSE 0 END AS pdp_users,
+    CASE WHEN add_to_cart > 0 THEN 1 ELSE 0 END AS add_to_cart_users,
+    CASE WHEN begin_checkout > 0 THEN 1 ELSE 0 END AS begin_checkout_users,
+    CASE WHEN purchase_sessions > 0 THEN 1 ELSE 0 END AS purchase_users,
     CASE WHEN purchases > 0 THEN 1 ELSE 0 END AS buyer_users,
     purchases,
     revenue
@@ -407,24 +470,46 @@ def run_bq_query(client: bigquery.Client, query: str) -> pd.DataFrame:
 
 def build_daily_summary_rows(day_df: pd.DataFrame, day: str) -> List[Dict[str, Any]]:
     keys = ["SITE", "PAID", "ORGANIC", "OWNED", "EDM", "LMS", "KAKAO"]
+    metric_defaults = {
+        "sessions": 0,
+        "users": 0,
+        "pdp_views": 0,
+        "add_to_cart": 0,
+        "begin_checkout": 0,
+        "purchase_sessions": 0,
+        "pdp_users": 0,
+        "add_to_cart_users": 0,
+        "begin_checkout_users": 0,
+        "purchase_users": 0,
+        "buyer_users": 0,
+        "purchases": 0,
+        "revenue": 0,
+    }
     rows: List[Dict[str, Any]] = []
     for key in keys:
         match = day_df[day_df["detail"] == key]
-        if match.empty:
-            rows.append({"date": day, "detail": key, "sessions": 0, "users": 0, "buyer_users": 0, "purchases": 0, "revenue": 0})
-            continue
-        row = match.iloc[0]
-        rows.append(
-            {
-                "date": clean_text(row.get("date", "")),
-                "detail": key,
-                "sessions": int(row.get("sessions", 0) or 0),
-                "users": int(row.get("users", 0) or 0),
-                "buyer_users": int(row.get("buyer_users", 0) or 0),
-                "purchases": int(row.get("purchases", 0) or 0),
-                "revenue": float(row.get("revenue", 0) or 0),
-            }
-        )
+        payload = {"date": day, "detail": key, **metric_defaults}
+        if not match.empty:
+            row = match.iloc[0]
+            payload.update(
+                {
+                    "date": clean_text(row.get("date", "")),
+                    "sessions": int(row.get("sessions", 0) or 0),
+                    "users": int(row.get("users", 0) or 0),
+                    "pdp_views": int(row.get("pdp_views", 0) or 0),
+                    "add_to_cart": int(row.get("add_to_cart", 0) or 0),
+                    "begin_checkout": int(row.get("begin_checkout", 0) or 0),
+                    "purchase_sessions": int(row.get("purchase_sessions", 0) or 0),
+                    "pdp_users": int(row.get("pdp_users", 0) or 0),
+                    "add_to_cart_users": int(row.get("add_to_cart_users", 0) or 0),
+                    "begin_checkout_users": int(row.get("begin_checkout_users", 0) or 0),
+                    "purchase_users": int(row.get("purchase_users", 0) or 0),
+                    "buyer_users": int(row.get("buyer_users", 0) or 0),
+                    "purchases": int(row.get("purchases", 0) or 0),
+                    "revenue": float(row.get("revenue", 0) or 0),
+                }
+            )
+        rows.append(payload)
     return rows
 
 
@@ -445,7 +530,14 @@ def build_owned_groups(day_df: pd.DataFrame, title_lookup: Dict[Tuple[str, str],
     for (group_date, detail, year, mmdd), group in working.groupby(["date", "detail", "year", "mmdd"], dropna=False):
         if not clean_text(year) or not clean_text(mmdd):
             continue
-        buyers = group[group["purchases"].fillna(0) > 0]["user_key"].astype(str).str.strip()
+        group = group.copy()
+        user_key_series = group["user_key"].astype(str).str.strip()
+        pdp_user_keys = user_key_series[group["pdp_views"].fillna(0) > 0]
+        cart_user_keys = user_key_series[group["add_to_cart"].fillna(0) > 0]
+        checkout_user_keys = user_key_series[group["begin_checkout"].fillna(0) > 0]
+        purchase_user_keys = user_key_series[group["purchase_sessions"].fillna(0) > 0]
+        buyer_user_keys = user_key_series[group["purchases"].fillna(0) > 0]
+
         grouped_rows.append(
             {
                 "date": clean_text(group_date),
@@ -454,8 +546,16 @@ def build_owned_groups(day_df: pd.DataFrame, title_lookup: Dict[Tuple[str, str],
                 "mmdd": clean_text(mmdd),
                 "message_title": title_lookup.get((clean_text(group_date), clean_text(detail)), ""),
                 "sessions": int(group["session_key"].astype(str).nunique()),
-                "users": int(group["user_key"].astype(str).nunique()),
-                "buyer_users": int(buyers[buyers != ""].nunique()),
+                "users": int(user_key_series[user_key_series != ""].nunique()),
+                "pdp_views": int(group["pdp_views"].fillna(0).sum()),
+                "add_to_cart": int(group["add_to_cart"].fillna(0).sum()),
+                "begin_checkout": int(group["begin_checkout"].fillna(0).sum()),
+                "purchase_sessions": int(group["purchase_sessions"].fillna(0).sum()),
+                "pdp_users": int(pdp_user_keys[pdp_user_keys != ""].nunique()),
+                "add_to_cart_users": int(cart_user_keys[cart_user_keys != ""].nunique()),
+                "begin_checkout_users": int(checkout_user_keys[checkout_user_keys != ""].nunique()),
+                "purchase_users": int(purchase_user_keys[purchase_user_keys != ""].nunique()),
+                "buyer_users": int(buyer_user_keys[buyer_user_keys != ""].nunique()),
                 "purchases": int(group["purchases"].fillna(0).sum()),
                 "revenue": float(group["revenue"].fillna(0).sum()),
             }
@@ -505,7 +605,7 @@ def build_range(
         write_json(funnel_dir / "available_dates.json", {"available_dates": list_funnel_dates(funnel_dir)})
         return funnel_dir
 
-    for col in ["sessions", "users", "buyer_users", "purchases", "revenue"]:
+    for col in ["sessions", "users", "pdp_views", "add_to_cart", "begin_checkout", "purchase_sessions", "pdp_users", "add_to_cart_users", "begin_checkout_users", "purchase_users", "buyer_users", "purchases", "revenue"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     for col in ["date", "detail", "utm_campaign", "utm_term", "user_key", "session_key"]:
