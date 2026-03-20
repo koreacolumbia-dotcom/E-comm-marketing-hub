@@ -181,12 +181,114 @@ class Post:
     cafe_name: str = ""
 
 
+CACHE_RETENTION_DAYS = max(TARGET_DAYS, int(os.getenv("EXTERNAL_SIGNAL_CACHE_RETENTION_DAYS", "30")))
+CACHE_DIR = os.path.join("reports", "external_signal_cache")
+
+
+def _cache_cutoff(days: int) -> datetime:
+    return datetime.now(KST) - timedelta(days=max(1, int(days)))
+
+
+def _cache_path(source: str) -> str:
+    return os.path.join(CACHE_DIR, f"{source}.json")
+
+
+def _post_cache_key(post: Post) -> tuple:
+    return (
+        (post.platform or "").strip(),
+        (post.url or "").strip(),
+        re.sub(r"\s+", " ", (post.title or "").strip()),
+        post.created_at.strftime("%Y-%m-%d"),
+    )
+
+
+def _post_to_cache_dict(post: Post) -> dict:
+    return {
+        "title": post.title,
+        "url": post.url,
+        "content": post.content,
+        "comments": post.comments,
+        "created_at": post.created_at.astimezone(KST).isoformat(),
+        "platform": post.platform,
+        "source": post.source,
+        "query": post.query,
+        "cafe_key": post.cafe_key,
+        "cafe_name": post.cafe_name,
+    }
+
+
+def _post_from_cache_dict(item: dict) -> Post | None:
+    try:
+        raw_dt = str(item.get("created_at") or "").strip()
+        if not raw_dt:
+            return None
+        dt = datetime.fromisoformat(raw_dt)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=KST)
+        else:
+            dt = dt.astimezone(KST)
+        return Post(
+            title=str(item.get("title") or ""),
+            url=str(item.get("url") or ""),
+            content=str(item.get("content") or ""),
+            comments=str(item.get("comments") or ""),
+            created_at=dt,
+            platform=str(item.get("platform") or ""),
+            source=str(item.get("source") or ""),
+            query=str(item.get("query") or ""),
+            cafe_key=str(item.get("cafe_key") or ""),
+            cafe_name=str(item.get("cafe_name") or ""),
+        )
+    except Exception:
+        return None
+
+
+def _load_cached_source_posts(source: str, days: int) -> List[Post]:
+    path = _cache_path(source)
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f) or []
+    except Exception:
+        return []
+
+    cutoff = _cache_cutoff(max(days, CACHE_RETENTION_DAYS))
+    posts: List[Post] = []
+    seen = set()
+    for item in raw:
+        post = _post_from_cache_dict(item)
+        if post is None or post.created_at < cutoff:
+            continue
+        key = _post_cache_key(post)
+        if key in seen:
+            continue
+        seen.add(key)
+        posts.append(post)
+    posts.sort(key=lambda p: p.created_at, reverse=True)
+    return [p for p in posts if p.created_at >= _cache_cutoff(days)]
+
+
+def _save_cached_source_posts(source: str, posts: List[Post]):
+    _safe_mkdir(CACHE_DIR)
+    cutoff = _cache_cutoff(CACHE_RETENTION_DAYS)
+    deduped: Dict[tuple, Post] = {}
+    for post in posts:
+        if post.created_at < cutoff:
+            continue
+        deduped[_post_cache_key(post)] = post
+    ordered = sorted(deduped.values(), key=lambda p: p.created_at, reverse=True)
+    with open(_cache_path(source), "w", encoding="utf-8") as f:
+        json.dump([_post_to_cache_dict(p) for p in ordered], f, ensure_ascii=False, indent=2)
+
+
 # =================================================================
 # 2. 크롤링 엔진
 # =================================================================
 def crawl_dc_engine(days: int) -> List[Post]:
     start_date = (datetime.now(KST) - timedelta(days=days)).date()
-    posts: List[Post] = []
+    posts: List[Post] = list(_load_cached_source_posts("dcinside", days))
+    seen_urls = {p.url for p in posts if p.url}
     stop_signal = False
 
     print(f"🚀 [M-OS SYSTEM] DCInside '{GALLERY_ID}' 갤러리 분석 시작 (최근 {days}일)")
@@ -227,6 +329,8 @@ def crawl_dc_engine(days: int) -> List[Post]:
                 continue
 
             link = urljoin(BASE_URL, a_tag.get("href"))
+            if link in seen_urls:
+                continue
 
             try:
                 d_resp = SESSION.get(link, timeout=10, verify=False)
@@ -263,6 +367,7 @@ def crawl_dc_engine(days: int) -> List[Post]:
                         source="dcinside",
                     )
                 )
+                seen_urls.add(link)
             except Exception as e:
                 if DEBUG:
                     print(f"[DEBUG] detail fetch failed: {link} | {e}")
@@ -270,7 +375,8 @@ def crawl_dc_engine(days: int) -> List[Post]:
 
         print(f"   - {page}페이지 완료 (누적 수집: {len(posts)})")
 
-    return posts
+    _save_cached_source_posts("dcinside", posts)
+    return sorted(posts, key=lambda p: p.created_at, reverse=True)
 
 
 def _clean_naver_html_text(s: str) -> str:
@@ -407,6 +513,15 @@ def _naver_dedupe_key(brand: str, link: str, title: str) -> tuple:
     if cafe_id and article_id:
         return (brand, cafe_id, article_id)
     return (brand, _canonicalize_link(link).rstrip("/"), re.sub(r"\s+", " ", title or "").strip())
+
+
+def _naver_post_cache_key(link: str, title: str = "") -> tuple:
+    meta = _extract_naver_article_meta(link)
+    cafe_id = meta.get("cafe_id") or ""
+    article_id = meta.get("article_id") or ""
+    if cafe_id and article_id:
+        return (cafe_id, article_id)
+    return (_canonicalize_link(link).rstrip("/"), re.sub(r"\s+", " ", title or "").strip())
 
 
 def _naver_log_reject(item: dict, brand: str, query: str, reason: str, title: str, content: str, link: str, cafename: str, cafeurl: str, dt: datetime | None = None):
@@ -752,18 +867,18 @@ def _naver_item_keep(item: dict, brand: str, query: str) -> tuple[bool, str, dat
 
 
 def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
+    posts: List[Post] = list(_load_cached_source_posts("naver_cafe", days))
     if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
         msg = "NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 미설정"
         print(f"[WARN] {msg}")
-        return [], msg
+        return sorted(posts, key=lambda p: p.created_at, reverse=True), msg
 
     headers = {
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
     }
 
-    seen = set()
-    posts: List[Post] = []
+    seen = {_naver_post_cache_key(p.url, p.title) for p in posts}
     raw_total = 0
     kept_total = 0
     reason_totals = {"blocked_menu": 0, "cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
@@ -805,6 +920,14 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
             page_kept = 0
             page_drop = {"blocked_menu": 0, "cafe_not_allowed": 0, "brand_miss": 0, "ambiguous_no_context": 0, "empty": 0, "dup": 0}
             for item in items:
+                item_link = _canonicalize_link(item.get("link", ""))
+                item_title = _clean_naver_html_text(item.get("title", ""))
+                if _naver_post_cache_key(item_link, item_title) in seen:
+                    page_drop["dup"] += 1
+                    query_drop["dup"] += 1
+                    reason_totals["dup"] += 1
+                    continue
+
                 keep, reason, dt, title, content, link, cafename, cafeurl = _naver_item_keep(item, brand, query)
                 if not keep:
                     page_drop[reason] = page_drop.get(reason, 0) + 1
@@ -812,7 +935,7 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
                     reason_totals[reason] = reason_totals.get(reason, 0) + 1
                     continue
 
-                key = (brand, link or title, title, content)
+                key = _naver_post_cache_key(link, title)
                 if key in seen:
                     page_drop["dup"] += 1
                     query_drop["dup"] += 1
@@ -853,14 +976,16 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
             f"(blocked_menu={query_drop.get('blocked_menu',0)}, cafe_not_allowed={query_drop.get('cafe_not_allowed',0)}, brand_miss={query_drop.get('brand_miss',0)}, ambiguous_no_context={query_drop.get('ambiguous_no_context',0)}, dup={query_drop.get('dup',0)})"
         )
 
-    if kept_total == 0:
+    if kept_total == 0 and not posts:
         msg = (
             f"NAVER Cafe 결과 0건 (raw={raw_total}, kept={kept_total}) · "
             f"blocked_menu={reason_totals.get('blocked_menu',0)}, cafe_not_allowed={reason_totals.get('cafe_not_allowed',0)}, brand_miss={reason_totals.get('brand_miss',0)}, ambiguous_no_context={reason_totals.get('ambiguous_no_context',0)}, dup={reason_totals.get('dup',0)}"
         )
+        _save_cached_source_posts("naver_cafe", posts)
         return posts, msg
 
-    return posts, None
+    _save_cached_source_posts("naver_cafe", posts)
+    return sorted(posts, key=lambda p: p.created_at, reverse=True), None
 
 
 # =================================================================
@@ -899,8 +1024,8 @@ def _extract_eomisae_detail(link: str, referer: str) -> tuple[str, datetime | No
 
 
 def crawl_eomisae_engine(days: int) -> Tuple[List[Post], str | None]:
-    posts: List[Post] = []
-    seen_links = set()
+    posts: List[Post] = list(_load_cached_source_posts("eomisae", days))
+    seen_links = {p.url for p in posts if p.url}
     start_date = (datetime.now(KST) - timedelta(days=max(1, int(days)))).date()
     errors: List[str] = []
 
@@ -976,7 +1101,8 @@ def crawl_eomisae_engine(days: int) -> Tuple[List[Post], str | None]:
             warning = f"{warning} | {'; '.join(errors[:3])}"
     elif errors:
         warning = "; ".join(errors[:3])
-    return posts, warning
+    _save_cached_source_posts("eomisae", posts)
+    return sorted(posts, key=lambda p: p.created_at, reverse=True), warning
 
 
 def _extract_ppomppu_detail(link: str) -> tuple[str, datetime | None, str]:
@@ -1005,8 +1131,8 @@ def _extract_ppomppu_detail(link: str) -> tuple[str, datetime | None, str]:
 
 
 def crawl_ppomppu_engine(days: int) -> Tuple[List[Post], str | None]:
-    posts: List[Post] = []
-    seen_links = set()
+    posts: List[Post] = list(_load_cached_source_posts("ppomppu", days))
+    seen_links = {p.url for p in posts if p.url}
     start_date = (datetime.now(KST) - timedelta(days=max(1, int(days)))).date()
     errors: List[str] = []
 
@@ -1074,7 +1200,8 @@ def crawl_ppomppu_engine(days: int) -> Tuple[List[Post], str | None]:
             warning = f"{warning} | {'; '.join(errors[:3])}"
     elif errors:
         warning = "; ".join(errors[:3])
-    return posts, warning
+    _save_cached_source_posts("ppomppu", posts)
+    return sorted(posts, key=lambda p: p.created_at, reverse=True), warning
 
 
 def normalize_text(s: str) -> str:
