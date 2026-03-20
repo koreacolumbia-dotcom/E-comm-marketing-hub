@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +16,7 @@ except Exception:
     TrendReq = None
 
 NAVER_API_URL = "https://openapi.naver.com/v1/datalab/search"
+KST = timezone(timedelta(hours=9))
 
 
 @dataclass
@@ -32,9 +32,9 @@ class Config:
     output_json: Path
     output_html: Path
     template: Path
+    meta_json: Path
 
 
-# ---------- utils ----------
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Build Columbia search trends dashboard (Naver + Google).")
     p.add_argument("--keywords", required=True, help="Comma-separated keyword list")
@@ -46,8 +46,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ages", default="all", help="Comma-separated ages for Naver DataLab. ex: all or 1,2,3")
     p.add_argument("--gender", default="", choices=["", "m", "f"])
     p.add_argument("--template", default="columbia_search_trends_hub_template.html")
-    p.add_argument("--output-json", default="search_trends_data.json")
-    p.add_argument("--output-html", default="columbia_search_trends.html")
+    p.add_argument("--output-json", default="reports/search_trends/data/search_trends_data.json")
+    p.add_argument("--output-html", default="reports/search_trends/index.html")
+    p.add_argument("--meta-json", default="reports/search_trends/data/meta.json")
+    p.add_argument("--skip-if-current", action="store_true", help="Skip build if existing meta.json already covers same end-date")
     p.add_argument("--naver-client-id", default=os.getenv("NAVER_CLIENT_ID", ""))
     p.add_argument("--naver-client-secret", default=os.getenv("NAVER_CLIENT_SECRET", ""))
     p.add_argument("--google-timezone", type=int, default=540, help="Pytrends timezone minutes. Korea=540")
@@ -73,10 +75,6 @@ def safe_float(v: Any) -> float:
         return 0.0
 
 
-def fmt_date(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%d")
-
-
 def pct_change(cur: float, prev: float) -> Optional[float]:
     cur = safe_float(cur)
     prev = safe_float(prev)
@@ -88,6 +86,20 @@ def pct_change(cur: float, prev: float) -> Optional[float]:
 def avg(values: List[float]) -> float:
     vals = [safe_float(v) for v in values if v is not None]
     return sum(vals) / len(vals) if vals else 0.0
+
+
+def fmt_kst(dt: datetime) -> str:
+    return dt.astimezone(KST).strftime("%Y.%m.%d %H:%M KST")
+
+
+def maybe_skip_current(meta_json: Path, target_end_date: str) -> bool:
+    if not meta_json.exists():
+        return False
+    try:
+        meta = json.loads(meta_json.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return str(meta.get("period_end", "")).strip() == target_end_date
 
 
 # ---------- fetch ----------
@@ -242,14 +254,20 @@ def build_payload(config: Config, raw: Dict[str, Dict[str, Dict[str, float]]]) -
     ranking_growth = [x for x in ranking_growth if x["value"] is not None]
     ranking_growth.sort(key=lambda x: x["value"], reverse=True)
 
+    generated = datetime.now(KST)
     meta = {
         "period": f"{config.start_date} → {config.end_date}",
+        "period_start": config.start_date,
+        "period_end": config.end_date,
         "time_unit": config.time_unit,
         "geo": config.geo,
         "device": config.device,
         "ages": config.ages,
         "gender": config.gender,
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_at": generated.strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_at_kst": fmt_kst(generated),
+        "period_text": f"최근 3개월 ({config.start_date} ~ {config.end_date})",
+        "updated_at_kst": fmt_kst(generated),
         "keywords": config.keywords,
     }
 
@@ -278,7 +296,6 @@ def build_payload(config: Config, raw: Dict[str, Dict[str, Dict[str, float]]]) -
     }
 
 
-# ---------- render ----------
 def render_html(template_path: Path, payload: Dict[str, Any], output_path: Path) -> None:
     html = template_path.read_text(encoding="utf-8")
     html = html.replace("__DATA__", json.dumps(payload, ensure_ascii=False))
@@ -291,6 +308,12 @@ def main() -> None:
     keywords = clean_keywords(args.keywords)
     ages = [x.strip() for x in args.ages.split(",") if x.strip()] or ["all"]
     platforms = {x.strip().lower() for x in args.platforms.split(",") if x.strip()}
+    meta_json = Path(args.meta_json)
+
+    if args.skip_if_current and maybe_skip_current(meta_json, args.end_date):
+        print(f"[SKIP] {meta_json} already covers period_end={args.end_date}")
+        return
+
     raw: Dict[str, Dict[str, Dict[str, float]]] = {"naver": {}, "google": {}}
 
     if "naver" in platforms:
@@ -328,14 +351,18 @@ def main() -> None:
         output_json=Path(args.output_json),
         output_html=Path(args.output_html),
         template=Path(args.template),
+        meta_json=meta_json,
     )
 
     payload = build_payload(cfg, raw)
     ensure_parent(cfg.output_json)
+    ensure_parent(cfg.meta_json)
     cfg.output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    cfg.meta_json.write_text(json.dumps(payload["meta"], ensure_ascii=False, indent=2), encoding="utf-8")
     render_html(cfg.template, payload, cfg.output_html)
 
     print(f"[OK] wrote {cfg.output_json}")
+    print(f"[OK] wrote {cfg.meta_json}")
     print(f"[OK] wrote {cfg.output_html}")
 
 
