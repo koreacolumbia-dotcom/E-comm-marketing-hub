@@ -1047,4 +1047,111 @@ def fetch_musinsa_rows(
             continue
 
     collected = merge_rows([], collected)
-    log(f"[INFO] Musinsa normalized reviews in window={len
+    log(f"[INFO] Musinsa normalized reviews in window={len(collected)}")
+    return collected
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Merge marketplace reviews into VOC dashboard input.")
+    parser.add_argument("--base-input", required=True, help="Existing review JSON from Crema or site/data.")
+    parser.add_argument(
+        "--existing-naver-input",
+        default="",
+        help="Existing cumulative marketplace review JSON. Legacy argument name kept for workflow compatibility.",
+    )
+    parser.add_argument("--output", required=True, help="Merged review JSON output path.")
+    parser.add_argument("--naver-output", required=True, help="Marketplace-only review JSON output path.")
+    parser.add_argument("--start", required=True, help="Fetch start date (YYYY-MM-DD).")
+    parser.add_argument("--end", required=True, help="Fetch end date (YYYY-MM-DD).")
+    parser.add_argument("--brand-channel-no", default="", help="Unused legacy argument kept for compatibility.")
+    parser.add_argument(
+        "--product-url",
+        default="https://brand.naver.com/columbia",
+        help="Naver brand/store URL used as the Naver crawl entrypoint.",
+    )
+    parser.add_argument(
+        "--musinsa-brand-url",
+        default="https://www.musinsa.com/brand/columbia",
+        help="Musinsa brand URL used for conservative product discovery.",
+    )
+    args = parser.parse_args()
+
+    start_date = parse_date_only(args.start)
+    end_date = parse_date_only(args.end)
+
+    base_path = Path(args.base_input)
+    existing_marketplace_path = Path(args.existing_naver_input).expanduser() if str(args.existing_naver_input).strip() else None
+    output_path = Path(args.output)
+    marketplace_output_path = Path(args.naver_output)
+
+    base_rows = load_rows(base_path)
+    existing_marketplace_rows = [
+        row for row in load_rows(existing_marketplace_path) if normalize_source(row.get("source")) in {"Naver", "Musinsa"}
+    ]
+    log(f"[INFO] Base review rows={len(base_rows)} from {base_path}")
+    if existing_marketplace_path:
+        log(f"[INFO] Existing marketplace rows={len(existing_marketplace_rows)} from {existing_marketplace_path}")
+
+    enabled = env_flag("MARKETPLACE_REVIEWS_ENABLED", default=True)
+    fetched_rows: list[dict[str, Any]] = []
+    naver_rows: list[dict[str, Any]] = []
+    musinsa_rows: list[dict[str, Any]] = []
+
+    if enabled:
+        timeout = env_int("MARKETPLACE_TIMEOUT_SEC", 30)
+        try:
+            naver_rows = fetch_naver_rows(
+                start_date=start_date,
+                end_date=end_date,
+                brand_url=str(args.product_url or os.getenv("NAVER_BRAND_URL", "https://brand.naver.com/columbia")).strip(),
+                timeout=timeout,
+            )
+        except Exception as exc:
+            log(f"[WARN] Naver crawl failed -> continue without Naver rows: {type(exc).__name__}: {exc}")
+            naver_rows = []
+
+        try:
+            musinsa_rows = fetch_musinsa_rows(
+                start_date=start_date,
+                end_date=end_date,
+                brand_url=str(args.musinsa_brand_url or os.getenv("MUSINSA_BRAND_URL", "https://www.musinsa.com/brand/columbia")).strip(),
+                existing_rows=existing_marketplace_rows,
+            )
+        except Exception as exc:
+            log(f"[WARN] Musinsa crawl failed -> continue without Musinsa rows: {type(exc).__name__}: {exc}")
+            musinsa_rows = []
+
+        fetched_rows = merge_rows(naver_rows, musinsa_rows)
+    else:
+        log("[INFO] MARKETPLACE_REVIEWS_ENABLED=false -> pass-through mode")
+
+    cumulative_marketplace_rows = merge_rows(existing_marketplace_rows, fetched_rows)
+    merged = merge_rows(base_rows, cumulative_marketplace_rows)
+
+    dump_reviews(output_path, merged)
+    dump_reviews(marketplace_output_path, cumulative_marketplace_rows)
+
+    source_counts: dict[str, int] = {}
+    for row in merged:
+        source = normalize_source(row.get("source"))
+        source_counts[source] = source_counts.get(source, 0) + 1
+
+    fetched_source_counts: dict[str, int] = {}
+    for row in fetched_rows:
+        source = normalize_source(row.get("source"))
+        fetched_source_counts[source] = fetched_source_counts.get(source, 0) + 1
+
+    log(f"[CHECK] merged_review_count={len(merged)}")
+    log(f"[CHECK] marketplace_fetched_review_count={len(fetched_rows)}")
+    log(f"[CHECK] naver_fetched_review_count={len(naver_rows)}")
+    log(f"[CHECK] musinsa_fetched_review_count={len(musinsa_rows)}")
+    log(f"[CHECK] marketplace_cumulative_review_count={len(cumulative_marketplace_rows)}")
+    log(f"[CHECK] source_counts={json.dumps(source_counts, ensure_ascii=False, sort_keys=True)}")
+    log(f"[CHECK] fetched_source_counts={json.dumps(fetched_source_counts, ensure_ascii=False, sort_keys=True)}")
+    log(f"[CHECK] merged_output={output_path}")
+    log(f"[CHECK] marketplace_output={marketplace_output_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
