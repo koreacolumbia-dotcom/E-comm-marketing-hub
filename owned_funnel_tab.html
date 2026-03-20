@@ -25,27 +25,39 @@
     .group-chip{border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.94);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;min-width:124px;text-align:left}
     .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
     .funnel-wrap{position:relative;padding:8px 0 2px}
-    .funnel-axis{position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(180deg,rgba(148,163,184,.12),rgba(148,163,184,.28),rgba(148,163,184,.08));transform:translateX(-50%)}
     .funnel-flow{display:flex;flex-direction:column;gap:14px}
-    .funnel-step-line{text-align:center;font-size:13px;line-height:1.35;font-weight:700;color:#475569}
-    .funnel-stage{position:relative;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);min-height:112px;border-radius:18px;overflow:hidden}
-    .funnel-stage-inner{min-height:112px;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px 24px}
-    .stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%}
-    .stage-title{font-size:clamp(18px,2vw,34px);line-height:1.08;font-weight:900;word-break:keep-all;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-value .num{font-size:clamp(28px,3vw,52px);line-height:1;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-sub{font-size:13px;line-height:1.25;font-weight:800;opacity:.96}
-    .funnel-stage.narrow .stage-title{font-size:clamp(17px,1.8vw,26px)}
-    .funnel-stage.narrow .stage-value .num{font-size:clamp(24px,2.1vw,34px)}
-    .funnel-stage.tiny .stage-title{font-size:clamp(15px,1.5vw,21px)}
-    .funnel-stage.tiny .stage-value .num{font-size:clamp(20px,1.8vw,28px)}
-    .funnel-stage.tiny .stage-sub{font-size:11px}
-    .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
-    .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
-    .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
-    .funnel-stage[data-stage="4"]{background:linear-gradient(135deg,#b45309,#f59e0b)}
-    .funnel-stage[data-stage="5"]{background:linear-gradient(135deg,#9f1239,#ec4899)}
-    .funnel-stage.compare-a{background:linear-gradient(135deg,#002d72,#1d4ed8)}
-    .funnel-stage.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(116px,.24fr);gap:12px;align-items:stretch}
+    .funnel-main-track,.funnel-drop-track{position:relative;border-radius:24px;overflow:hidden;background:rgba(226,232,240,.56);border:1px solid rgba(148,163,184,.16)}
+    .funnel-main-track{min-height:88px;display:flex;align-items:stretch;justify-content:flex-start;padding:0}
+    .funnel-drop-track{min-height:88px;display:flex;align-items:stretch;justify-content:flex-start}
+    .funnel-bar,.funnel-drop-bar{position:relative;display:flex;align-items:center;border-radius:22px;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);transform-origin:left center;opacity:0;animation:funnelRise .65s cubic-bezier(.2,.8,.2,1) forwards}
+    .funnel-bar{min-height:88px;padding:16px 22px;justify-content:center;text-align:center}
+    .funnel-drop-bar{min-height:88px;padding:12px 14px;justify-content:center;text-align:center;background:linear-gradient(135deg,#c084fc,#ec4899)}
+    .funnel-stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%}
+    .stage-title{font-size:clamp(20px,2.1vw,34px);line-height:1.04;font-weight:900;word-break:keep-all;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-value .num{margin-top:8px;font-size:clamp(30px,3vw,52px);line-height:1;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-meta{margin-top:8px;font-size:13px;line-height:1.2;font-weight:800;opacity:.96}
+    .drop-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%}
+    .drop-label{font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;opacity:.78}
+    .drop-value{font-size:clamp(18px,1.8vw,28px);line-height:1;font-weight:900}
+    .drop-sub{font-size:12px;line-height:1.2;font-weight:800;opacity:.96}
+    .funnel-step-line{padding:0 4px 2px;text-align:center;font-size:12px;line-height:1.4;font-weight:800;color:#475569}
+    .funnel-bar[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
+    .funnel-bar[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+    .funnel-bar[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
+    .funnel-bar[data-stage="4"]{background:linear-gradient(135deg,#b45309,#f59e0b)}
+    .funnel-bar[data-stage="5"]{background:linear-gradient(135deg,#9f1239,#ec4899)}
+    .funnel-bar.compare-a{background:linear-gradient(135deg,#002d72,#1d4ed8)}
+    .funnel-bar.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+    .funnel-bar::after,.funnel-drop-bar::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0));pointer-events:none}
+    @keyframes funnelRise{0%{opacity:0;transform:translateY(10px) scaleX(.86)}100%{opacity:1;transform:translateY(0) scaleX(1)}}
+    @media (max-width: 760px){
+      .funnel-row{grid-template-columns:1fr;gap:8px}
+      .funnel-main-track,.funnel-drop-track,.funnel-bar,.funnel-drop-bar{min-height:78px}
+      .funnel-bar{padding:14px 16px}
+      .stage-title{font-size:clamp(18px,5vw,28px)}
+      .stage-value .num{font-size:clamp(26px,7vw,40px)}
+    }
     .tab-panel{display:none}
     .tab-panel.active{display:block}
     .rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:rgba(0,45,114,.08);color:#002d72;font-weight:900;font-size:12px}
@@ -483,32 +495,47 @@
       }
 
       function buildBehaviorStages(agg){
-        const fields = [
-          { key:'sessions', label:'Sessions', value:Number(agg.sessions || 0) },
-          { key:'pdpViews', label:'PDP Views', value:Number(agg.pdpViews || 0) },
-          { key:'addToCart', label:'Add to Cart', value:Number(agg.addToCart || 0) },
-          { key:'beginCheckout', label:'Checkout', value:Number(agg.beginCheckout || 0) },
-          { key:'purchaseSessions', label:'Purchase Sessions', value:Number(agg.purchaseSessions || 0) },
-        ];
+        const fields = [];
+        const notes = [];
+        const hasNativePdp = agg.pdpViews > 0;
+        const hasNativeCart = agg.addToCart > 0;
+        const hasNativeCheckout = agg.beginCheckout > 0;
+        const hasNativePurchaseSessions = agg.purchaseSessions > 0;
+
+        fields.push({ key:'sessions', label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions, source:'native' });
+
+        if (hasNativePdp) {
+          fields.push({ key:'pdpViews', label:'PDP Views', note:'Product detail views', value:agg.pdpViews, source:'native' });
+        } else if (agg.users > 0) {
+          fields.push({ key:'users', label:'PDP Views (Proxy)', note:'Fallback to users because PDP field is missing', value:agg.users, source:'proxy' });
+          notes.push('PDP stage is using Users as a proxy because pdp_views is not present in the source JSON.');
+        }
+
+        if (hasNativeCart) {
+          fields.push({ key:'addToCart', label:'Add to Cart', note:'Add-to-cart actions/users in scope', value:agg.addToCart, source:'native' });
+        }
+        if (hasNativeCheckout) {
+          fields.push({ key:'beginCheckout', label:'Checkout', note:'Checkout starts in scope', value:agg.beginCheckout, source:'native' });
+        }
+
+        if (hasNativePurchaseSessions) {
+          fields.push({ key:'purchaseSessions', label:'Purchase Sessions', note:'Sessions that reached purchase', value:agg.purchaseSessions, source:'native' });
+        } else if (agg.buyerUsers > 0) {
+          fields.push({ key:'buyerUsers', label:'Purchase Users (Proxy)', note:'Fallback to buyer users because purchase_sessions is missing', value:agg.buyerUsers, source:'proxy' });
+          notes.push('Purchase stage is using Buyer Users as a proxy because purchase_sessions is not present in the source JSON.');
+        }
 
         const max = Math.max(...fields.map((s) => s.value), 0);
+        const easing = (ratio) => Math.pow(Math.max(0, ratio), 0.82);
         const stages = fields.map((stage, idx) => {
+          const rawRatio = max ? stage.value / max : 0;
+          const width = idx === 0 ? 96 : Math.max(14, easing(rawRatio) * 96);
           const prevValue = idx === 0 ? 0 : fields[idx - 1].value;
           const kept = idx === 0 ? 100 : (prevValue ? (stage.value / prevValue) * 100 : 0);
           const drop = idx === 0 ? 0 : Math.max(0, 100 - kept);
-          const ratioToMax = max ? (stage.value / max) : 0;
-          const width = idx === 0 ? 100 : Math.max(18, ratioToMax * 100);
-          return {
-            ...stage,
-            width,
-            kept,
-            drop,
-            share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0,
-            subLabel: idx === 0 ? '기준 단계' : `이탈 ${fmtPct(drop, 1)}`,
-          };
+          return { ...stage, width, kept, drop, share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 };
         });
 
-        const notes = ['All funnel stages are rendered on the same session-based definition as the Daily Digest base.'];
         const steps = [];
         for (let i = 1; i < stages.length; i += 1) {
           steps.push({
@@ -549,22 +576,42 @@
           canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
           return;
         }
+        const widthScale = (w, minW=18, maxW=100) => `${Math.max(minW, Math.min(maxW, Number(w || 0))).toFixed(1)}%`;
+        const dropScale = (pct) => {
+          const ratio = Math.max(0, Math.min(1, Number(pct || 0) / 100));
+          return `${Math.max(20, 20 + (Math.pow(ratio, 0.82) * 80)).toFixed(1)}%`;
+        };
         const html = [
           `<div class="funnel-flow">`,
           ...stages.map((stage, i) => {
-            const width = Math.max(stage.width || 0, i === 0 ? 100 : 18);
-            const sizeClass = width <= 28 ? 'tiny' : (width <= 42 ? 'narrow' : '');
+            const mainWidth = widthScale(stage.width || (i === 0 ? 100 : 18), i === 0 ? 100 : 18, 100);
+            const hasDrop = i > 0;
+            const dropWidth = hasDrop ? dropScale(stage.drop) : '0%';
+            const dropCount = hasDrop ? Math.max(0, (stages[i-1].value || 0) - (stage.value || 0)) : 0;
             return `
-            ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.drop,1)} 이탈</div>`}
-            <div class="flex justify-center">
-              <div class="funnel-stage ${className} ${sizeClass}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%">
-                <div class="funnel-stage-inner">
-                  <div class="stage-copy">
+            ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
+            <div class="funnel-row">
+              <div class="funnel-main-track">
+                <div class="funnel-bar ${className}" data-stage="${Math.min(i+1,5)}" style="width:${mainWidth};animation-delay:${(i * 80)}ms">
+                  <div class="funnel-stage-copy">
                     <div class="stage-title">${esc(stage.label)}</div>
                     <div class="stage-value"><div class="num">${fmt(stage.value)}</div></div>
-                    <div class="stage-sub">${esc(stage.subLabel || '')}</div>
+                    <div class="stage-meta">${i === 0 ? '기준 단계' : `이탈 ${fmtPct(stage.drop,1)}`}</div>
                   </div>
                 </div>
+              </div>
+              <div class="funnel-drop-track">
+                ${hasDrop ? `
+                <div class="funnel-drop-bar" style="width:${dropWidth};animation-delay:${(i * 80) + 120}ms">
+                  <div class="drop-copy">
+                    <div class="drop-label">Drop-off</div>
+                    <div class="drop-value">${fmtPct(stage.drop,1)}</div>
+                    <div class="drop-sub">${fmt(dropCount)}</div>
+                  </div>
+                </div>` : `
+                <div class="rounded-[22px] border border-dashed border-slate-200 bg-white/70 px-4 py-5 text-center text-xs font-extrabold text-slate-400 w-full">
+                  Baseline
+                </div>`}
               </div>
             </div>`;
           }).join(''),
@@ -599,7 +646,7 @@
         renderFunnel(els.funnelCanvas, currentModel.behavior);
         els.funnelNotice.innerHTML = currentModel.behavior.notes.length
           ? currentModel.behavior.notes.map((n) => `<div class="warn">${esc(n)}</div>`).join('')
-          : `<div>Funnel bars are scaled by the actual stage counts.</div>`;
+          : `<div>Behavior funnel is using native stage fields.</div>`;
 
         els.selectionMeta.innerHTML = [
           `Segment | ${segmentLabel()}`,
