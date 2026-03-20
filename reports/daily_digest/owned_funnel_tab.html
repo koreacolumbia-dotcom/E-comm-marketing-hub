@@ -26,7 +26,23 @@
     .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
     .funnel-wrap{position:relative;padding:8px 0 2px}
     .funnel-axis{position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(180deg,rgba(148,163,184,.12),rgba(148,163,184,.28),rgba(148,163,184,.08));transform:translateX(-50%)}
-    .funnel-stage{position:relative;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);min-height:110px;border-radius:18px;overflow:hidden;clip-path:polygon(7% 0,93% 0,100% 100%,0 100%)}
+    .funnel-stage{position:relative;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);min-height:118px;border-radius:18px;overflow:hidden;clip-path:polygon(9% 0,91% 0,100% 100%,0 100%)}
+    .funnel-stage-inner{min-height:118px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:18px 24px 20px}
+    .funnel-stage.narrow .funnel-stage-inner{grid-template-columns:1fr;justify-items:center;text-align:center;padding:16px 18px 18px}
+    .funnel-stage.narrow .stage-value{text-align:center}
+    .funnel-stage.tiny .funnel-stage-inner{padding:14px 12px 16px}
+    .stage-kicker{font-size:10px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;opacity:.72}
+    .stage-title{margin-top:8px;font-size:clamp(20px,2.2vw,38px);line-height:1.05;font-weight:900;word-break:keep-all;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-note{margin-top:6px;font-size:13px;line-height:1.35;font-weight:700;opacity:.95;word-break:keep-all;overflow-wrap:anywhere}
+    .stage-value .num{font-size:clamp(28px,3vw,54px);line-height:1;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-value .sub{margin-top:8px;font-size:13px;line-height:1.2;font-weight:700;opacity:.95}
+    .funnel-stage.narrow .stage-title{font-size:clamp(18px,1.9vw,28px)}
+    .funnel-stage.narrow .stage-note{font-size:12px}
+    .funnel-stage.narrow .stage-value .num{font-size:clamp(24px,2.2vw,36px)}
+    .funnel-stage.tiny .stage-title{font-size:clamp(16px,1.6vw,22px)}
+    .funnel-stage.tiny .stage-note{font-size:11px}
+    .funnel-stage.tiny .stage-value .num{font-size:clamp(20px,1.9vw,28px)}
+    .funnel-stage.tiny .stage-value .sub{font-size:11px}
     .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
     .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
@@ -552,26 +568,29 @@
           canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
           return;
         }
+        const stageClass = (w) => w <= 26 ? 'tiny' : (w <= 42 ? 'narrow' : '');
         const html = [
           `<div class="funnel-axis"></div>`,
-          ...stages.map((stage, i) => `
+          ...stages.map((stage, i) => {
+            const width = Math.max(stage.width || 0, i === 0 ? 100 : (i <= 1 ? 54 : i === 2 ? 28 : 22));
+            return `
             ${i === 0 ? '' : `<div class="flex items-center justify-center gap-3 py-2 text-xs font-bold muted"><span>${esc(stages[i-1].label)} → ${esc(stage.label)}</span><span>${fmtPct(stage.kept,1)} kept</span><span>${fmtPct(stage.drop,1)} drop</span></div>`}
             <div class="flex justify-center">
-              <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${stage.width.toFixed(1)}%">
-                <div class="flex min-h-[110px] items-center justify-between gap-4 px-5 py-5 md:px-6">
-                  <div>
-                    <div class="text-[10px] font-black uppercase tracking-[.22em] opacity-70">Stage ${String(i+1).padStart(2,'0')}</div>
-                    <div class="mt-2 text-xl font-black md:text-2xl">${esc(stage.label)}</div>
-                    <div class="mt-1 text-xs font-semibold opacity-90">${esc(stage.note)}</div>
+              <div class="funnel-stage ${className} ${stageClass(width)}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%">
+                <div class="funnel-stage-inner">
+                  <div class="stage-copy">
+                    <div class="stage-kicker">Stage ${String(i+1).padStart(2,'0')}</div>
+                    <div class="stage-title">${esc(stage.label)}</div>
+                    <div class="stage-note">${esc(stage.note)}</div>
                   </div>
-                  <div class="text-right">
-                    <div class="text-2xl font-black md:text-3xl">${fmt(stage.value)}</div>
-                    <div class="mt-1 text-xs font-semibold opacity-90">${i === 0 ? 'Base 100%' : `${fmtPct(stage.kept,1)} from previous`}</div>
+                  <div class="stage-value text-right">
+                    <div class="num">${fmt(stage.value)}</div>
+                    <div class="sub">${i === 0 ? 'Base 100%' : `${fmtPct(stage.kept,1)} from previous`}</div>
                   </div>
                 </div>
               </div>
             </div>
-          `)
+          `}).join('')
         ].join('');
         canvas.innerHTML = html;
       }
