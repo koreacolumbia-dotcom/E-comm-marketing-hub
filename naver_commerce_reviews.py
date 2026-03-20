@@ -180,6 +180,60 @@ def safe_sleep(base_ms: int, jitter_ms: int) -> None:
         time.sleep(delay / 1000.0)
 
 
+def parse_retry_after_seconds(value: Any) -> int:
+    raw = str(value or "").strip()
+    if not raw:
+        return 0
+    try:
+        return max(0, int(float(raw)))
+    except Exception:
+        return 0
+
+
+def get_with_backoff(
+    session: requests.Session,
+    url: str,
+    *,
+    timeout: int,
+    label: str,
+    headers: dict[str, str] | None = None,
+    max_attempts: int = 2,
+) -> requests.Response:
+    backoff_sec = env_int("MARKETPLACE_BACKOFF_SEC", 12)
+    jitter_ms = env_int("MARKETPLACE_REQUEST_JITTER_MS", 500)
+    last_response: requests.Response | None = None
+    last_error: Exception | None = None
+
+    for attempt in range(1, max(1, max_attempts) + 1):
+        try:
+            response = session.get(url, headers=headers, timeout=timeout)
+            last_response = response
+            if response.status_code not in (429, 500, 502, 503, 504):
+                return response
+            retry_after = parse_retry_after_seconds(response.headers.get("Retry-After"))
+            if attempt >= max_attempts:
+                break
+            wait_sec = retry_after or backoff_sec * attempt
+            log(f"[WARN] {label} HTTP {response.status_code} -> retry in {wait_sec}s (attempt {attempt}/{max_attempts})")
+            safe_sleep(wait_sec * 1000, jitter_ms)
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt >= max_attempts:
+                break
+            wait_sec = max(2, backoff_sec // 2) * attempt
+            log(f"[WARN] {label} request error -> retry in {wait_sec}s: {type(exc).__name__}: {exc}")
+            safe_sleep(wait_sec * 1000, jitter_ms)
+
+    if last_response is not None and last_response.status_code in (403, 429):
+        raise CrawlStop(f"{label} returned HTTP {last_response.status_code}")
+    if last_response is not None:
+        last_response.raise_for_status()
+        return last_response
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError(f"{label} request failed without response")
+
+
 def absolute_url(base_url: str, raw_url: Any) -> str:
     text = str(raw_url or "").strip()
     if not text:
@@ -392,10 +446,13 @@ def build_naver_category_url(brand_url: str, category_id: str) -> str:
 
 def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bool) -> list[dict[str, Any]]:
     session = make_session()
-    response = session.get(brand_url, timeout=timeout)
-    if response.status_code in (403, 429):
-        raise CrawlStop(f"Naver brand page returned HTTP {response.status_code}")
-    response.raise_for_status()
+    response = get_with_backoff(
+        session,
+        brand_url,
+        timeout=timeout,
+        label="Naver brand page",
+        max_attempts=env_int("NAVER_MAX_ATTEMPTS", 2),
+    )
 
     home_html = response.text
     home_payload = extract_preloaded_state(home_html)
@@ -422,10 +479,13 @@ def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bo
         category_url = build_naver_category_url(brand_url, category_id)
         safe_sleep(delay_ms, jitter_ms)
         try:
-            category_response = session.get(category_url, timeout=timeout)
-            if category_response.status_code in (403, 429):
-                raise CrawlStop(f"Naver category page returned HTTP {category_response.status_code} for {category_id}")
-            category_response.raise_for_status()
+            category_response = get_with_backoff(
+                session,
+                category_url,
+                timeout=timeout,
+                label=f"Naver category page {category_id}",
+                max_attempts=env_int("NAVER_MAX_ATTEMPTS", 2),
+            )
             category_payload = extract_preloaded_state(category_response.text)
             category_products = extract_category_products(category_payload)
             simple_products = category_products.get("simpleProducts") if isinstance(category_products.get("simpleProducts"), list) else []
@@ -538,10 +598,13 @@ def normalize_naver_review(review: dict[str, Any], product: dict[str, Any], bran
 
 def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: int) -> list[dict[str, Any]]:
     session = make_session()
-    response = session.get(brand_url, timeout=timeout)
-    if response.status_code in (403, 429):
-        raise CrawlStop(f"Naver brand page returned HTTP {response.status_code}")
-    response.raise_for_status()
+    response = get_with_backoff(
+        session,
+        brand_url,
+        timeout=timeout,
+        label="Naver brand page",
+        max_attempts=env_int("NAVER_MAX_ATTEMPTS", 2),
+    )
     payload = extract_preloaded_state(response.text)
     if not payload:
         log("[WARN] Naver preloaded state not found -> skip")
@@ -601,12 +664,50 @@ def extract_musinsa_product_ids(html: str) -> list[str]:
     return unique
 
 
+def extract_next_data_json(html: str) -> dict[str, Any]:
+    match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html, flags=re.S)
+    if not match:
+        return {}
+    try:
+        payload = json.loads(match.group(1))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def extract_musinsa_product_ids_from_next_data(html: str) -> list[str]:
+    payload = extract_next_data_json(html)
+    text = json.dumps(payload, ensure_ascii=False)
+    ids = re.findall(r'"goodsNo"\s*:\s*(\d+)', text)
+    return dedupe_keep_order(ids)
+
+
+def query_musinsa_product_ids_from_page(page: Any) -> list[str]:
+    try:
+        hrefs = page.eval_on_selector_all(
+            "a[href*='/products/']",
+            "els => els.map(el => el.getAttribute('href') || '')",
+        )
+    except Exception:
+        hrefs = []
+    ids = re.findall(r"/products/(\d+)", "\n".join(str(item) for item in (hrefs or [])))
+    return dedupe_keep_order(ids)
+
+
 def discover_musinsa_product_ids(brand_url: str, timeout: int) -> list[str]:
     session = make_session()
     try:
-        response = session.get(brand_url, timeout=timeout)
+        response = get_with_backoff(
+            session,
+            brand_url,
+            timeout=timeout,
+            label="Musinsa brand page",
+            max_attempts=env_int("MUSINSA_MAX_ATTEMPTS", 2),
+        )
         if response.ok:
             ids = extract_musinsa_product_ids(response.text)
+            if not ids:
+                ids = extract_musinsa_product_ids_from_next_data(response.text)
             if len(ids) >= 5:
                 log(f"[INFO] Musinsa product discovery via HTTP: {len(ids)} ids")
                 return ids
@@ -620,16 +721,29 @@ def discover_musinsa_product_ids(brand_url: str, timeout: int) -> list[str]:
         return []
 
     render_timeout_ms = env_int("MUSINSA_RENDER_TIMEOUT_MS", 45000)
-    render_wait_ms = env_int("MUSINSA_RENDER_WAIT_MS", 3500)
+    render_wait_ms = env_int("MUSINSA_RENDER_WAIT_MS", 6500)
+    render_selector_timeout_ms = env_int("MUSINSA_RENDER_SELECTOR_TIMEOUT_MS", 15000)
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(user_agent=DEFAULT_HEADERS["User-Agent"])
-        page.goto(brand_url, wait_until="domcontentloaded", timeout=render_timeout_ms)
+        page.goto(brand_url, wait_until="networkidle", timeout=render_timeout_ms)
+        try:
+            page.wait_for_selector("a[href*='/products/']", timeout=render_selector_timeout_ms)
+        except Exception:
+            pass
+        try:
+            page.mouse.wheel(0, 2400)
+        except Exception:
+            pass
         page.wait_for_timeout(render_wait_ms)
         html = page.content()
+        ids = query_musinsa_product_ids_from_page(page)
         browser.close()
 
-    ids = extract_musinsa_product_ids(html)
+    if not ids:
+        ids = extract_musinsa_product_ids(html)
+    if not ids:
+        ids = extract_musinsa_product_ids_from_next_data(html)
     log(f"[INFO] Musinsa product discovery via Playwright: {len(ids)} ids")
     return ids
 
