@@ -64,6 +64,28 @@
       box-shadow: 0 10px 30px rgba(0,45,114,0.15);
     }
 
+
+    .period-tabs{ display:flex; flex-wrap:wrap; gap:10px; }
+    .period-tab{
+      position:relative;
+      padding:10px 16px; border-radius:9999px; font-size:13px; font-weight:900;
+      border:1px solid rgba(255,255,255,0.9); background:rgba(255,255,255,0.62); color:#334155;
+      box-shadow: 0 10px 24px rgba(15,23,42,0.04);
+      backdrop-filter: blur(10px); cursor:pointer; user-select:none;
+      transition: transform .22s ease, box-shadow .22s ease, background .22s ease, color .22s ease, border-color .22s ease;
+      overflow:hidden;
+    }
+    .period-tab:hover{ transform: translateY(-1px); box-shadow: 0 16px 30px rgba(0,45,114,0.10); }
+    .period-tab.active{ background:rgba(0,45,114,0.96); color:#fff; border-color:rgba(0,45,114,1); box-shadow:0 14px 32px rgba(0,45,114,0.18); }
+    .period-tab::after{
+      content:''; position:absolute; inset:0; background:linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0) 70%);
+      transform: translateX(-140%); transition: transform .6s ease;
+    }
+    .period-tab:hover::after, .period-tab.active::after{ transform: translateX(140%); }
+
+    .fade-up{ animation: fadeUp .45s ease both; }
+    @keyframes fadeUp{ from{ opacity:0; transform:translateY(10px);} to{ opacity:1; transform:translateY(0);} }
+
     .tbl{
       width:100%; border-collapse: separate; border-spacing: 0; overflow:hidden; border-radius: 22px;
       border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.55);
@@ -160,6 +182,26 @@
         </header>
       </div>
 
+      <section class="mb-6 fade-up">
+        <div class="glass-card p-5 md:p-6">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <div class="small-label text-blue-600 mb-2">View Range</div>
+              <div class="text-xl font-black text-slate-900">기간별 검색량 추이 보기</div>
+              <div class="text-sm font-bold text-slate-500 mt-1" id="activeRangeText">최근 3개월 기준</div>
+            </div>
+            <div class="period-tabs" id="periodTabs">
+              <button class="period-tab" data-period="540">1년 6개월</button>
+              <button class="period-tab" data-period="365">1년</button>
+              <button class="period-tab" data-period="180">6개월</button>
+              <button class="period-tab active" data-period="90">3개월</button>
+              <button class="period-tab" data-period="30">1개월</button>
+              <button class="period-tab" data-period="7">1주</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="mb-10">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div class="summary-card">
@@ -186,7 +228,7 @@
             <div>
               <div class="small-label text-blue-600 mb-2">1. Overview</div>
               <div class="text-2xl font-black text-slate-900">네이버 vs 구글 전체 추이</div>
-              <div class="text-sm font-bold text-slate-500 mt-2">키워드군 평균 상대지수 기준</div>
+              <div class="text-sm font-bold text-slate-500 mt-2">선택한 기간 내 키워드군 평균 상대지수 기준</div>
             </div>
           </div>
           <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
@@ -219,7 +261,7 @@
           <div class="glass-card p-8">
             <div class="small-label text-blue-600 mb-2">4. Growth Rank</div>
             <div class="text-2xl font-black text-slate-900 mb-2">직전 대비 상승 키워드</div>
-            <div class="text-sm font-bold text-slate-500 mb-5">마지막 포인트 기준 증감률</div>
+            <div class="text-sm font-bold text-slate-500 mb-5">선택 기간 첫 포인트 대비 증감률</div>
             <div class="rank-list" id="growthRankList"></div>
           </div>
         </div>
@@ -261,28 +303,162 @@
 
   <script>
     const DATA = __DATA__;
+    const PERIOD_OPTIONS = [
+      { days: 540, label: '최근 1년 6개월' },
+      { days: 365, label: '최근 1년' },
+      { days: 180, label: '최근 6개월' },
+      { days: 90, label: '최근 3개월' },
+      { days: 30, label: '최근 1개월' },
+      { days: 7, label: '최근 1주' },
+    ];
+
     let overviewChart = null;
     let keywordChart = null;
+    let CURRENT_DAYS = 90;
+    let CURRENT_KEYWORD = null;
+    let FILTERED = null;
 
     function num(v){ return Number(v ?? 0); }
     function fmt(v){ return Number.isFinite(v) ? (Math.round(v * 10) / 10).toFixed(1) : '-'; }
     function fmtPct(v){ return Number.isFinite(v) ? `${v > 0 ? '+' : ''}${(Math.round(v * 10) / 10).toFixed(1)}%` : '-'; }
     function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    function toDate(s){ return new Date(`${s}T00:00:00`); }
+    function periodLabel(days){ return (PERIOD_OPTIONS.find(x => x.days === days) || {}).label || `최근 ${days}일`; }
+
+    function getAvailableDays(){
+      const allDates = (DATA.overview || []).map(r => r.date).sort();
+      if (!allDates.length) return 0;
+      const first = toDate(allDates[0]);
+      const last = toDate(allDates[allDates.length - 1]);
+      return Math.max(1, Math.floor((last - first) / 86400000) + 1);
+    }
+
+    function filterRowsByDays(rows, days){
+      if (!rows || !rows.length) return [];
+      const sorted = [...rows].sort((a,b) => String(a.date).localeCompare(String(b.date)));
+      const last = toDate(sorted[sorted.length - 1].date);
+      const cutoff = new Date(last);
+      cutoff.setDate(cutoff.getDate() - (days - 1));
+      const filtered = sorted.filter(r => toDate(r.date) >= cutoff);
+      return filtered.length ? filtered : sorted;
+    }
+
+    function computeRanks(seriesMap){
+      const latest = [];
+      const growth = [];
+      const snapshot = [];
+      Object.entries(seriesMap).forEach(([keyword, rows]) => {
+        if (!rows.length) return;
+        const first = rows[0];
+        const last = rows[rows.length - 1];
+        let naverPeak = { value: -Infinity, date: '-' };
+        let googlePeak = { value: -Infinity, date: '-' };
+        rows.forEach(r => {
+          if (num(r.naver) > naverPeak.value) naverPeak = { value: num(r.naver), date: r.date };
+          if (num(r.google) > googlePeak.value) googlePeak = { value: num(r.google), date: r.date };
+        });
+        const latestBlended = (num(last.naver) + num(last.google)) / 2;
+        const firstBlended = (num(first.naver) + num(first.google)) / 2;
+        const growthPct = firstBlended > 0 ? ((latestBlended - firstBlended) / firstBlended) * 100 : null;
+        latest.push({ keyword, value: latestBlended });
+        if (growthPct !== null) growth.push({ keyword, value: growthPct });
+        snapshot.push({
+          keyword,
+          naver_latest: num(last.naver),
+          google_latest: num(last.google),
+          gap_latest: num(last.gap),
+          latest_blended: latestBlended,
+          growth_pct: growthPct,
+          naver_peak_date: naverPeak.date,
+          naver_peak_value: Number.isFinite(naverPeak.value) ? naverPeak.value : 0,
+          google_peak_date: googlePeak.date,
+          google_peak_value: Number.isFinite(googlePeak.value) ? googlePeak.value : 0,
+        });
+      });
+      latest.sort((a,b) => b.value - a.value);
+      growth.sort((a,b) => b.value - a.value);
+      return { latest, growth, snapshot };
+    }
+
+    function buildFilteredState(days){
+      const overview = filterRowsByDays(DATA.overview || [], days);
+      const series_by_keyword = {};
+      (DATA.meta.keywords || []).forEach(keyword => {
+        series_by_keyword[keyword] = filterRowsByDays((DATA.series_by_keyword || {})[keyword] || [], days);
+      });
+      const latestRow = overview[overview.length - 1] || { date:'-', naver_avg:0, google_avg:0, gap:0 };
+      const firstRow = overview[0] || latestRow;
+      const prevRow = overview.length >= 2 ? overview[overview.length - 2] : null;
+      let platform_peaks = {
+        naver: { date:'-', value:0 },
+        google: { date:'-', value:0 },
+      };
+      overview.forEach(r => {
+        if (num(r.naver_avg) >= num(platform_peaks.naver.value)) platform_peaks.naver = { date:r.date, value:num(r.naver_avg) };
+        if (num(r.google_avg) >= num(platform_peaks.google.value)) platform_peaks.google = { date:r.date, value:num(r.google_avg) };
+      });
+      const ranks = computeRanks(series_by_keyword);
+      return {
+        days,
+        overview,
+        series_by_keyword,
+        rankings: { latest: ranks.latest.slice(0,10), growth: ranks.growth.slice(0,10) },
+        snapshot: ranks.snapshot,
+        platform_peaks,
+        latest_summary: {
+          date: latestRow.date,
+          naver_avg_latest: num(latestRow.naver_avg),
+          google_avg_latest: num(latestRow.google_avg),
+          gap_latest: num(latestRow.gap),
+          naver_vs_prev_pct: prevRow ? ((num(latestRow.naver_avg) - num(prevRow.naver_avg)) / (num(prevRow.naver_avg) || 1)) * 100 : null,
+          google_vs_prev_pct: prevRow ? ((num(latestRow.google_avg) - num(prevRow.google_avg)) / (num(prevRow.google_avg) || 1)) * 100 : null,
+          naver_vs_first_pct: num(firstRow.naver_avg) > 0 ? ((num(latestRow.naver_avg) - num(firstRow.naver_avg)) / num(firstRow.naver_avg)) * 100 : null,
+          google_vs_first_pct: num(firstRow.google_avg) > 0 ? ((num(latestRow.google_avg) - num(firstRow.google_avg)) / num(firstRow.google_avg)) * 100 : null,
+        },
+        meta: {
+          ...DATA.meta,
+          period_text: `${periodLabel(days)} 기준`,
+        }
+      };
+    }
+
+    function animateSection(selector){
+      const el = document.querySelector(selector);
+      if (!el) return;
+      el.classList.remove('fade-up');
+      void el.offsetWidth;
+      el.classList.add('fade-up');
+    }
 
     function buildChips(){
       const wrap = document.getElementById('keywordChips');
-      wrap.innerHTML = DATA.meta.keywords.map((k, idx) => `
+      wrap.innerHTML = (DATA.meta.keywords || []).map((k, idx) => `
         <button class="chip ${idx===0?'active':''}" data-keyword="${esc(k)}" onclick="selectKeywordChip('${String(k).replace(/'/g, "\\'")}')">${esc(k)}</button>
       `).join('');
     }
 
     function buildKeywordSelect(){
       const sel = document.getElementById('keywordSelect');
-      sel.innerHTML = DATA.meta.keywords.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+      sel.innerHTML = (DATA.meta.keywords || []).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
       sel.addEventListener('change', (e) => selectKeywordChip(e.target.value));
     }
 
+    function renderPeriodTabs(){
+      const availableDays = getAvailableDays();
+      document.querySelectorAll('#periodTabs .period-tab').forEach(btn => {
+        const days = Number(btn.dataset.period);
+        btn.disabled = false;
+        btn.classList.toggle('active', days === CURRENT_DAYS);
+        if (days > availableDays) {
+          btn.title = `현재 누적 데이터는 ${availableDays}일치입니다.`;
+        } else {
+          btn.removeAttribute('title');
+        }
+      });
+    }
+
     function selectKeywordChip(keyword){
+      CURRENT_KEYWORD = keyword;
       document.querySelectorAll('#keywordChips .chip').forEach(el => {
         el.classList.toggle('active', el.dataset.keyword === keyword);
       });
@@ -295,13 +471,13 @@
       const datasets = [
         {
           label: 'Naver Avg',
-          data: DATA.overview.map(r => ({ x: r.date, y: num(r.naver_avg) })),
-          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.25, pointRadius: 0,
+          data: FILTERED.overview.map(r => ({ x: r.date, y: num(r.naver_avg) })),
+          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
         },
         {
           label: 'Google Avg',
-          data: DATA.overview.map(r => ({ x: r.date, y: num(r.google_avg) })),
-          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.25, pointRadius: 0,
+          data: FILTERED.overview.map(r => ({ x: r.date, y: num(r.google_avg) })),
+          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
         }
       ];
       if (overviewChart) overviewChart.destroy();
@@ -309,6 +485,7 @@
         type: 'line',
         data: { datasets },
         options: {
+          animation: { duration: 700, easing: 'easeOutQuart' },
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
@@ -325,23 +502,23 @@
     }
 
     function renderKeywordChart(keyword){
-      const rows = DATA.series_by_keyword[keyword] || [];
+      const rows = FILTERED.series_by_keyword[keyword] || [];
       const ctx = document.getElementById('keywordChart').getContext('2d');
       const datasets = [
         {
           label: 'Naver',
           data: rows.map(r => ({ x: r.date, y: num(r.naver) })),
-          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.25, pointRadius: 0,
+          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
         },
         {
           label: 'Google',
           data: rows.map(r => ({ x: r.date, y: num(r.google) })),
-          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.25, pointRadius: 0,
+          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
         },
         {
           label: 'Gap',
           data: rows.map(r => ({ x: r.date, y: num(r.gap) })),
-          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2, tension: 0.25, pointRadius: 0,
+          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2, tension: 0.28, pointRadius: 0,
           borderDash: [7,5],
         }
       ];
@@ -350,6 +527,7 @@
         type: 'line',
         data: { datasets },
         options: {
+          animation: { duration: 700, easing: 'easeOutQuart' },
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
@@ -367,7 +545,7 @@
 
     function renderSnapshot(){
       const body = document.getElementById('snapshotBody');
-      body.innerHTML = DATA.snapshot.map(r => `
+      body.innerHTML = FILTERED.snapshot.map(r => `
         <tr>
           <td>${esc(r.keyword)}</td>
           <td><span class="badge naver">${fmt(r.naver_latest)}</span></td>
@@ -381,7 +559,7 @@
     }
 
     function renderRanks(){
-      document.getElementById('latestRankList').innerHTML = (DATA.rankings.latest || []).slice(0, 8).map((r, idx) => `
+      document.getElementById('latestRankList').innerHTML = (FILTERED.rankings.latest || []).slice(0, 8).map((r, idx) => `
         <div class="rank-item">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
@@ -394,13 +572,13 @@
         </div>
       `).join('');
 
-      document.getElementById('growthRankList').innerHTML = (DATA.rankings.growth || []).slice(0, 8).map((r, idx) => `
+      document.getElementById('growthRankList').innerHTML = (FILTERED.rankings.growth || []).slice(0, 8).map((r, idx) => `
         <div class="rank-item">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
             <div>
               <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
-              <div class="text-xs font-bold text-slate-500">vs previous point</div>
+              <div class="text-xs font-bold text-slate-500">vs first point in selected range</div>
             </div>
           </div>
           <div class="text-lg font-black text-slate-900">${fmtPct(r.value)}</div>
@@ -411,27 +589,48 @@
     function fillSummary(){
       document.getElementById('periodText').textContent = DATA.meta.period;
       document.getElementById('timeUnitText').textContent = `${DATA.meta.time_unit.toUpperCase()} · ${DATA.meta.geo} · ${DATA.meta.device.toUpperCase()}`;
-      document.getElementById('latestDateText').textContent = DATA.latest_summary.date || '-';
-      document.getElementById('naverPeakText').textContent = `${DATA.platform_peaks.naver.date} · ${fmt(DATA.platform_peaks.naver.value)}`;
-      document.getElementById('googlePeakText').textContent = `${DATA.platform_peaks.google.date} · ${fmt(DATA.platform_peaks.google.value)}`;
-      document.getElementById('latestNaverValue').textContent = fmt(DATA.latest_summary.naver_avg_latest);
-      document.getElementById('latestGoogleValue').textContent = fmt(DATA.latest_summary.google_avg_latest);
-      document.getElementById('latestGapValue').textContent = fmt(DATA.latest_summary.gap_latest);
-      document.getElementById('latestNaverDelta').textContent = `직전 대비 ${fmtPct(DATA.latest_summary.naver_vs_prev_pct)}`;
-      document.getElementById('latestGoogleDelta').textContent = `직전 대비 ${fmtPct(DATA.latest_summary.google_vs_prev_pct)}`;
-      document.getElementById('headerMeta').textContent = `${DATA.meta.keywords.length}개 키워드 · ${DATA.meta.period} · Generated ${DATA.meta.generated_at}`;
+      document.getElementById('latestDateText').textContent = FILTERED.latest_summary.date || '-';
+      document.getElementById('naverPeakText').textContent = `${FILTERED.platform_peaks.naver.date} · ${fmt(FILTERED.platform_peaks.naver.value)}`;
+      document.getElementById('googlePeakText').textContent = `${FILTERED.platform_peaks.google.date} · ${fmt(FILTERED.platform_peaks.google.value)}`;
+      document.getElementById('latestNaverValue').textContent = fmt(FILTERED.latest_summary.naver_avg_latest);
+      document.getElementById('latestGoogleValue').textContent = fmt(FILTERED.latest_summary.google_avg_latest);
+      document.getElementById('latestGapValue').textContent = fmt(FILTERED.latest_summary.gap_latest);
+      document.getElementById('latestNaverDelta').textContent = `선택 기간 첫 포인트 대비 ${fmtPct(FILTERED.latest_summary.naver_vs_first_pct)}`;
+      document.getElementById('latestGoogleDelta').textContent = `선택 기간 첫 포인트 대비 ${fmtPct(FILTERED.latest_summary.google_vs_first_pct)}`;
+      document.getElementById('headerMeta').textContent = `${DATA.meta.keywords.length}개 키워드 · ${periodLabel(CURRENT_DAYS)} · Generated ${DATA.meta.generated_at}`;
+      document.getElementById('activeRangeText').textContent = `${periodLabel(CURRENT_DAYS)} 기준`;
     }
 
-    function init(){
+    function applyPeriod(days){
+      CURRENT_DAYS = days;
+      FILTERED = buildFilteredState(days);
+      renderPeriodTabs();
       fillSummary();
-      buildChips();
-      buildKeywordSelect();
       renderOverviewChart();
       renderSnapshot();
       renderRanks();
-      if (DATA.meta.keywords.length) {
-        selectKeywordChip(DATA.meta.keywords[0]);
-      }
+      renderKeywordChart(CURRENT_KEYWORD || (DATA.meta.keywords || [])[0]);
+      animateSection('.layout-header');
+      animateSection('#latestRankList');
+      animateSection('#growthRankList');
+      animateSection('#snapshotBody');
+    }
+
+    function bindPeriodTabs(){
+      document.querySelectorAll('#periodTabs .period-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          applyPeriod(Number(btn.dataset.period));
+        });
+      });
+    }
+
+    function init(){
+      buildChips();
+      buildKeywordSelect();
+      bindPeriodTabs();
+      CURRENT_KEYWORD = (DATA.meta.keywords || [])[0] || null;
+      applyPeriod(CURRENT_DAYS);
+      if (CURRENT_KEYWORD) selectKeywordChip(CURRENT_KEYWORD);
     }
     init();
   </script>
