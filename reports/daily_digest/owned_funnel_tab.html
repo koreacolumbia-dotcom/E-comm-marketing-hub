@@ -256,10 +256,10 @@
     </div>
   </div>
 
-  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'data/funnel';</script>
+  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel';</script>
   <script>
     (() => {
-      const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'data/funnel').replace(/\/$/, '');
+      const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel').replace(/\/$/, '');
       const OWNED_SEGMENTS = ['OWNED', 'EDM', 'LMS', 'KAKAO'];
       const FILTER_SEGMENTS = ['ALL','PAID','ORGANIC','OWNED','EDM','LMS','KAKAO'];
       const SEGMENT_LABELS = {
@@ -562,48 +562,30 @@
         return `${sign}${isMoney ? fmtMoney(d) : d.toLocaleString('en-US')}`;
       };
 
-      function shortStageLabel(label){
-        const map = {
-          'Sessions':'세션',
-          'PDP Views':'PDP',
-          'Add to Cart':'장바구니',
-          'Checkout':'체크아웃',
-          'Purchase Sessions':'구매세션',
-          'Users':'유저',
-          'PDP Users':'PDP 유저',
-          'Cart Users':'장바구니 유저',
-          'Checkout Users':'체크아웃 유저',
-          'Purchase Users':'구매 유저',
-          'Buyer Users':'구매자'
-        };
-        return map[label] || label;
-      }
-
       function renderFunnel(canvas, behavior, className=''){
         const stages = behavior.stages;
         if (!stages.length) {
-          canvas.innerHTML = `<div class="empty">퍼널 데이터가 없습니다.</div>`;
+          canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
           return;
         }
         const html = [
-          `<div class="funnel-axis"></div>`,
+          `<div class="funnel-flow">`,
           ...stages.map((stage, i) => {
-            const baseMin = i === 0 ? 100 : (i === 1 ? 58 : i === 2 ? 34 : i === 3 ? 26 : 22);
-            const width = Math.max(stage.width || 0, baseMin);
+            const width = Math.max(stage.width || 0, i === 0 ? 100 : 18);
             return `
-            ${i === 0 ? '' : `<div class="flow-meta"><strong>${esc(shortStageLabel(stages[i-1].label))} → ${esc(shortStageLabel(stage.label))}</strong> · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
+            ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
             <div class="flex justify-center">
               <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%">
                 <div class="funnel-stage-inner">
-                  <div class="stage-title">${esc(shortStageLabel(stage.label))}</div>
-                  <div class="stage-value">
-                    <div class="num">${fmt(stage.value)}</div>
-                    <div class="sub">${i === 0 ? '기준 100%' : `이전 대비 ${fmtPct(stage.kept,1)}`}</div>
+                  <div class="stage-copy">
+                    <div class="stage-title">${esc(stage.label)}</div>
+                    <div class="stage-value"><div class="num">${fmt(stage.value)}</div></div>
                   </div>
                 </div>
               </div>
-            </div>
-          `}).join('')
+            </div>`;
+          }).join(''),
+          `</div>`
         ].join('');
         canvas.innerHTML = html;
       }
