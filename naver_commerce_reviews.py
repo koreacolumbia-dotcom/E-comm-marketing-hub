@@ -9,7 +9,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -378,15 +378,57 @@ def sanitize_js_object(raw: str) -> str:
 
 
 def extract_preloaded_state(html: str) -> dict[str, Any]:
-    match = re.search(r"window\.__PRELOADED_STATE__\s*=\s*(\{.*?\})\s*</script>", html, flags=re.S)
-    if not match:
-        return {}
-    raw = sanitize_js_object(match.group(1))
-    try:
-        payload = json.loads(raw)
-        return payload if isinstance(payload, dict) else {}
-    except Exception:
-        return {}
+    patterns = [
+        r"window\.__PRELOADED_STATE__\s*=\s*(\{.*?\})\s*</script>",
+        r"window\.__INITIAL_STATE__\s*=\s*(\{.*?\})\s*</script>",
+        r"window\.__APOLLO_STATE__\s*=\s*(\{.*?\})\s*</script>",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, html, flags=re.S)
+        if not match:
+            continue
+        raw = sanitize_js_object(match.group(1))
+        try:
+            payload = json.loads(raw)
+            if isinstance(payload, dict):
+                return payload
+        except Exception:
+            continue
+    return {}
+
+
+def extract_json_scripts(html: str) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    patterns = [
+        r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>',
+        r'<script[^>]+type="application/json"[^>]*>(.*?)</script>',
+        r'<script[^>]+type="application/ld\+json"[^>]*>(.*?)</script>',
+    ]
+    for pattern in patterns:
+        for raw in re.findall(pattern, html, flags=re.S | re.I):
+            text = sanitize_js_object(str(raw or '').strip())
+            if not text or len(text) < 2:
+                continue
+            try:
+                payload = json.loads(text)
+            except Exception:
+                continue
+            if isinstance(payload, dict):
+                payloads.append(payload)
+            elif isinstance(payload, list):
+                payloads.append({"items": payload})
+    return payloads
+
+
+def gather_naver_payload_candidates(html: str) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    primary = extract_preloaded_state(html)
+    if primary:
+        out.append(primary)
+    for payload in extract_json_scripts(html):
+        if payload:
+            out.append(payload)
+    return out
 
 
 def iter_key_values(node: Any, target_key: str) -> list[Any]:
@@ -532,9 +574,103 @@ def normalize_naver_listed_product(product: dict[str, Any], brand_url: str) -> d
     }
 
 
-def build_naver_category_url(brand_url: str, category_id: str) -> str:
+def build_naver_category_url(brand_url: str, category_id: str, page: int = 1) -> str:
     base = brand_url.rstrip("/")
-    return f"{base}/category/{category_id}?cp=1"
+    page_no = max(1, int(page or 1))
+    return f"{base}/category/{category_id}?cp={page_no}"
+
+
+def looks_like_naver_review(node: Any) -> bool:
+    if not isinstance(node, dict):
+        return False
+    text = normalize_space(
+        find_first(node, ("reviewContent",), ("content",), ("text",), ("reviewText",)) or ""
+    )
+    score = find_first(node, ("reviewScore",), ("rating",), ("score",), ("grade",))
+    created = find_first(node, ("createDate",), ("createdAt",), ("reviewDate",), ("registerDate",))
+    review_id = find_first(node, ("id",), ("reviewId",), ("no",))
+    if text and (score not in (None, "") or created or review_id):
+        return True
+    return False
+
+
+def extract_review_dicts(node: Any) -> list[dict[str, Any]]:
+    reviews: list[dict[str, Any]] = []
+    stack = [node]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            if looks_like_naver_review(cur):
+                reviews.append(cur)
+            for value in cur.values():
+                if isinstance(value, (dict, list)):
+                    stack.append(value)
+        elif isinstance(cur, list):
+            for item in cur:
+                if isinstance(item, (dict, list)):
+                    stack.append(item)
+    return reviews
+
+
+def extract_naver_product_urls_from_html(html: str, brand_url: str) -> list[str]:
+    urls: list[str] = []
+    for href in re.findall(r"href=[\"']([^\"']+/products/[^\"'?#]+(?:\?[^\"']*)?)", html, flags=re.I):
+        urls.append(absolute_url(brand_url, href))
+    product_nos = dedupe_keep_order(re.findall(r'/products/(\d+)', html))
+    parsed = urlparse(brand_url)
+    base = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else brand_url.rstrip('/')
+    for product_no in product_nos:
+        urls.append(f"{base}/columbia/products/{product_no}")
+        urls.append(f"{base}/products/{product_no}")
+    return dedupe_keep_order(urls)
+
+
+def collect_naver_reviews_from_payloads(payloads: list[dict[str, Any]], brand_url: str, product_hint: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for payload in payloads:
+        for group in iter_review_product_groups(payload):
+            for product in group:
+                reviews = product.get("reviews") or []
+                if not isinstance(reviews, list):
+                    continue
+                for review in reviews:
+                    if isinstance(review, dict):
+                        out.append(normalize_naver_review(review, product, brand_url=brand_url))
+        raw_reviews = extract_review_dicts(payload)
+        for review in raw_reviews:
+            row = normalize_naver_review(review, product_hint or {}, brand_url=brand_url)
+            if row.get("id") or row.get("text"):
+                out.append(row)
+    return merge_rows([], out)
+
+
+def fetch_naver_product_detail_rows(
+    session: requests.Session,
+    product: dict[str, Any],
+    *,
+    brand_url: str,
+    start_date: date,
+    end_date: date,
+    timeout: int,
+) -> list[dict[str, Any]]:
+    product_url = str(product.get("product_url") or "").strip()
+    if not product_url:
+        return []
+    html = fetch_naver_html(
+        session,
+        product_url,
+        timeout=timeout,
+        label=f"Naver product page {product.get('product_no') or product_url}",
+        wait_selector='script',
+    )
+    payloads = gather_naver_payload_candidates(html)
+    rows = collect_naver_reviews_from_payloads(payloads, brand_url=brand_url, product_hint=product)
+    if not rows:
+        return []
+    return [
+        row for row in rows
+        if row.get("created_at") and in_window(str(row.get("created_at") or ""), start_date, end_date)
+    ]
 
 
 def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bool) -> list[dict[str, Any]]:
@@ -546,68 +682,110 @@ def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bo
         label="Naver brand page",
         wait_selector='script',
     )
-    home_payload = extract_preloaded_state(home_html)
+    payload_candidates = gather_naver_payload_candidates(home_html)
+    home_payload = payload_candidates[0] if payload_candidates else {}
     category_ids = extract_naver_category_ids(home_payload, home_html)
-    if not category_ids:
-        log("[WARN] Naver category ids not found")
-        return []
 
     max_categories = (
         env_int("NAVER_MAX_CATEGORIES_BACKFILL", 120)
         if is_backfill
         else env_int("NAVER_MAX_CATEGORIES_DAILY", 36)
     )
+    max_pages_per_category = env_int("NAVER_MAX_CATEGORY_PAGES_BACKFILL", 3) if is_backfill else env_int("NAVER_MAX_CATEGORY_PAGES_DAILY", 2)
     delay_ms = env_int("NAVER_CATEGORY_DELAY_MS", env_int("MARKETPLACE_REQUEST_DELAY_MS", 1200))
     jitter_ms = env_int("NAVER_CATEGORY_JITTER_MS", env_int("MARKETPLACE_REQUEST_JITTER_MS", 500))
 
     discovered: list[dict[str, Any]] = []
     seen_products: set[str] = set()
-    truncated_categories = 0
+
+    def add_product(item: dict[str, Any]) -> None:
+        normalized = normalize_naver_listed_product(item, brand_url=brand_url)
+        product_no = normalized.get("product_no") or ""
+        if not product_no or product_no in seen_products:
+            return
+        seen_products.add(product_no)
+        discovered.append(normalized)
+
+    # Seed products from any payload already present on the home page.
+    for payload in payload_candidates:
+        for key in ("simpleProducts", "products", "productList"):
+            for items in iter_key_values(payload, key):
+                if isinstance(items, list):
+                    for item in items:
+                        if isinstance(item, dict):
+                            add_product(item)
+
+    # HTML anchor fallback when state payload is missing or partial.
+    for product_url in extract_naver_product_urls_from_html(home_html, brand_url=brand_url):
+        product_no = re.search(r"/products/(\d+)", product_url)
+        if not product_no:
+            continue
+        item = {"productNo": product_no.group(1), "productUrl": product_url}
+        add_product(item)
+
+    if not category_ids:
+        log(f"[WARN] Naver category ids not found; using html/product fallback only. products={len(discovered)}")
+        return discovered
+
     target_category_ids = category_ids[:max_categories]
     log(f"[INFO] Naver category discovery targets={len(target_category_ids)}")
 
     for idx, category_id in enumerate(target_category_ids, start=1):
-        category_url = build_naver_category_url(brand_url, category_id)
-        safe_sleep(delay_ms, jitter_ms)
-        try:
-            category_html = fetch_naver_html(
-                session,
-                category_url,
-                timeout=timeout,
-                label=f"Naver category page {category_id}",
-                wait_selector='script',
-            )
-            category_payload = extract_preloaded_state(category_html)
-            category_products = extract_category_products(category_payload)
-            simple_products = category_products.get("simpleProducts") if isinstance(category_products.get("simpleProducts"), list) else []
-            total_count = int(category_products.get("totalCount") or 0)
-            page_size = int(category_products.get("pageSize") or len(simple_products) or 0)
-            if total_count and page_size and total_count > page_size:
-                truncated_categories += 1
-            for item in simple_products:
-                if not isinstance(item, dict):
-                    continue
-                normalized = normalize_naver_listed_product(item, brand_url=brand_url)
-                product_no = normalized.get("product_no") or ""
-                if not product_no or product_no in seen_products:
-                    continue
-                seen_products.add(product_no)
-                discovered.append(normalized)
-            log(
-                f"[INFO] Naver category {idx}/{len(target_category_ids)} id={category_id} "
-                f"items={len(simple_products)} total={total_count or len(simple_products)} cumulative={len(discovered)}"
-            )
-        except CrawlStop:
-            raise
-        except Exception as exc:
-            log(f"[WARN] Naver category {category_id} failed: {type(exc).__name__}: {exc}")
+        category_total_before = len(discovered)
+        for page_no in range(1, max_pages_per_category + 1):
+            category_url = build_naver_category_url(brand_url, category_id, page=page_no)
+            safe_sleep(delay_ms, jitter_ms)
+            try:
+                category_html = fetch_naver_html(
+                    session,
+                    category_url,
+                    timeout=timeout,
+                    label=f"Naver category page {category_id} p{page_no}",
+                    wait_selector='script',
+                )
+                payloads = gather_naver_payload_candidates(category_html)
+                category_payload = payloads[0] if payloads else {}
+                category_products = extract_category_products(category_payload)
+                simple_products = category_products.get("simpleProducts") if isinstance(category_products.get("simpleProducts"), list) else []
+
+                if not simple_products:
+                    for payload in payloads:
+                        for items in iter_key_values(payload, "simpleProducts") + iter_key_values(payload, "products"):
+                            if isinstance(items, list):
+                                for item in items:
+                                    if isinstance(item, dict):
+                                        simple_products.append(item)
+                    if not simple_products:
+                        for product_url in extract_naver_product_urls_from_html(category_html, brand_url=brand_url):
+                            match = re.search(r"/products/(\d+)", product_url)
+                            if not match:
+                                continue
+                            simple_products.append({"productNo": match.group(1), "productUrl": product_url})
+
+                for item in simple_products:
+                    if isinstance(item, dict):
+                        add_product(item)
+
+                total_count = int(category_products.get("totalCount") or 0)
+                page_size = int(category_products.get("pageSize") or len(simple_products) or 0)
+                log(
+                    f"[INFO] Naver category {idx}/{len(target_category_ids)} id={category_id} page={page_no} "
+                    f"items={len(simple_products)} total={total_count or len(simple_products)} cumulative={len(discovered)}"
+                )
+                if not simple_products:
+                    break
+                if total_count and page_size and page_no * page_size >= total_count:
+                    break
+            except CrawlStop:
+                raise
+            except Exception as exc:
+                log(f"[WARN] Naver category {category_id} page={page_no} failed: {type(exc).__name__}: {exc}")
+                break
+
+        added = len(discovered) - category_total_before
+        if added <= 0:
             continue
 
-    if truncated_categories:
-        log(
-            f"[WARN] Naver categories with more than one page detected={truncated_categories}; "
-            "current crawler stays on first page of each category to remain conservative."
-        )
     log(f"[INFO] Naver listed products discovered={len(discovered)}")
     return discovered
 
@@ -696,50 +874,76 @@ def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: 
         label="Naver brand page",
         wait_selector='script',
     )
-    payload = extract_preloaded_state(home_html)
-    if not payload:
-        log("[WARN] Naver preloaded state not found after browser fallback -> skip")
-        return []
-
+    payloads = gather_naver_payload_candidates(home_html)
     review_limit = env_int("NAVER_HOME_REVIEW_LIMIT", 40)
     out: list[dict[str, Any]] = []
-    for group in iter_review_product_groups(payload):
-        for product in group:
-            reviews = product.get("reviews") or []
-            if not isinstance(reviews, list):
-                continue
-            for review in reviews:
-                if not isinstance(review, dict):
-                    continue
-                row = normalize_naver_review(review, product, brand_url=brand_url)
-                if not row["id"] and not row["text"]:
-                    continue
-                if row["created_at"] and in_window(row["created_at"], start_date, end_date):
-                    out.append(row)
-                if len(out) >= review_limit:
-                    break
+
+    seed_rows = collect_naver_reviews_from_payloads(payloads, brand_url=brand_url)
+    for row in seed_rows:
+        if row.get("created_at") and in_window(str(row.get("created_at") or ""), start_date, end_date):
+            out.append(row)
             if len(out) >= review_limit:
                 break
-        if len(out) >= review_limit:
-            break
+
+    if payloads:
+        log(f"[INFO] Naver home payloads={len(payloads)} seed_reviews_in_window={len(out)}")
+    else:
+        log("[WARN] Naver payloads not found on brand page; switching to product-detail fallback")
+
+    detail_limit = env_int("NAVER_PRODUCT_DETAIL_LIMIT_BACKFILL", 36) if (end_date - start_date).days > 31 else env_int("NAVER_PRODUCT_DETAIL_LIMIT_DAILY", 18)
+    if len(out) < review_limit:
+        try:
+            listed_products = discover_naver_listed_products(
+                brand_url=brand_url,
+                timeout=timeout,
+                is_backfill=(end_date - start_date).days > 31,
+            )
+            listed_products = sorted(
+                listed_products,
+                key=lambda item: (int(item.get("review_count") or 0), str(item.get("product_no") or "")),
+                reverse=True,
+            )
+            products_with_reviews = sum(1 for item in listed_products if int(item.get("review_count") or 0) > 0)
+            log(
+                f"[INFO] Naver listed products discovered={len(listed_products)} "
+                f"products_with_visible_review_count={products_with_reviews}"
+            )
+
+            target_products = listed_products[:detail_limit]
+            delay_ms = env_int("NAVER_PRODUCT_DELAY_MS", env_int("MARKETPLACE_REQUEST_DELAY_MS", 1200))
+            jitter_ms = env_int("NAVER_PRODUCT_JITTER_MS", env_int("MARKETPLACE_REQUEST_JITTER_MS", 500))
+            for idx, product in enumerate(target_products, start=1):
+                if len(out) >= max(review_limit, detail_limit * 4):
+                    break
+                safe_sleep(delay_ms, jitter_ms)
+                try:
+                    rows = fetch_naver_product_detail_rows(
+                        session,
+                        product,
+                        brand_url=brand_url,
+                        start_date=start_date,
+                        end_date=end_date,
+                        timeout=timeout,
+                    )
+                    if rows:
+                        out = merge_rows(out, rows)
+                    log(
+                        f"[INFO] Naver product detail {idx}/{len(target_products)} product_no={product.get('product_no') or '-'} "
+                        f"review_count_hint={int(product.get('review_count') or 0)} added={len(rows)} cumulative={len(out)}"
+                    )
+                except CrawlStop as exc:
+                    log(f"[WARN] {exc}")
+                    continue
+                except Exception as exc:
+                    log(f"[WARN] Naver product detail failed product_no={product.get('product_no') or '-'}: {type(exc).__name__}: {exc}")
+                    continue
+        except CrawlStop as exc:
+            log(f"[WARN] {exc}")
+        except Exception as exc:
+            log(f"[WARN] Naver product discovery failed: {type(exc).__name__}: {exc}")
 
     out = merge_rows([], out)
-    try:
-        listed_products = discover_naver_listed_products(
-            brand_url=brand_url,
-            timeout=timeout,
-            is_backfill=(end_date - start_date).days > 31,
-        )
-        products_with_reviews = sum(1 for item in listed_products if int(item.get("review_count") or 0) > 0)
-        log(
-            f"[INFO] Naver listed products discovered={len(listed_products)} "
-            f"products_with_visible_review_count={products_with_reviews}"
-        )
-    except CrawlStop as exc:
-        log(f"[WARN] {exc}")
-    except Exception as exc:
-        log(f"[WARN] Naver product discovery failed: {type(exc).__name__}: {exc}")
-    log(f"[INFO] Naver brand-home reviews in window={len(out)}")
+    log(f"[INFO] Naver normalized reviews in window={len(out)}")
     return out
 
 
@@ -892,14 +1096,16 @@ def choose_musinsa_product_ids(
         if normalize_source(row.get("source")) == "Musinsa"
     }
     fresh = [goods_no for goods_no in discovered_ids if goods_no not in seen_ids]
-    chosen = fresh[:max_products]
-    if len(chosen) < max_products:
-        for goods_no in discovered_ids:
+    revisit = [goods_no for goods_no in discovered_ids if goods_no in seen_ids]
+    chosen: list[str] = []
+    # Alternate fresh + revisit so daily runs still revisit known hot products with new reviews.
+    for bucket in (fresh, revisit, discovered_ids):
+        for goods_no in bucket:
             if goods_no in chosen:
                 continue
             chosen.append(goods_no)
             if len(chosen) >= max_products:
-                break
+                return chosen
     return chosen
 
 
@@ -952,13 +1158,15 @@ def fetch_musinsa_page(
     page: int,
     page_size: int,
     timeout: int,
+    *,
+    sort: str = "new",
 ) -> dict[str, Any]:
     url = "https://api.musinsa.com/api2/review/v1/view/list"
     params = {
         "goodsNo": goods_no,
         "page": page,
         "pageSize": page_size,
-        "sort": "new",
+        "sort": sort or "new",
         "selectedSimilarNo": 0,
     }
     headers = {
@@ -986,8 +1194,8 @@ def fetch_musinsa_rows(
     is_backfill = (end_date - start_date).days > 31 or not any(
         normalize_source(row.get("source")) == "Musinsa" for row in existing_rows
     )
-    max_products = env_int("MUSINSA_MAX_PRODUCTS_BACKFILL", 24) if is_backfill else env_int("MUSINSA_MAX_PRODUCTS_DAILY", 8)
-    max_pages = env_int("MUSINSA_MAX_PAGES_BACKFILL", 4) if is_backfill else env_int("MUSINSA_MAX_PAGES_DAILY", 2)
+    max_products = env_int("MUSINSA_MAX_PRODUCTS_BACKFILL", 36) if is_backfill else env_int("MUSINSA_MAX_PRODUCTS_DAILY", 16)
+    max_pages = env_int("MUSINSA_MAX_PAGES_BACKFILL", 6) if is_backfill else env_int("MUSINSA_MAX_PAGES_DAILY", 3)
 
     discovered_ids = discover_musinsa_product_ids(brand_url=brand_url, timeout=timeout)
     if not discovered_ids:
@@ -1004,37 +1212,43 @@ def fetch_musinsa_rows(
         log(f"[INFO] Musinsa reviews goodsNo={goods_no} ({idx}/{len(target_ids)})")
         safe_sleep(delay_ms, jitter_ms)
         try:
-            for page in range(max_pages):
-                payload = fetch_musinsa_page(session, goods_no=goods_no, page=page, page_size=page_size, timeout=timeout)
-                data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-                items = data.get("list") if isinstance(data.get("list"), list) else []
-                if not items:
-                    break
+            for sort_name in ("new", "up", "photo"):
+                for page in range(1, max_pages + 1):
+                    payload = fetch_musinsa_page(session, goods_no=goods_no, page=page, page_size=page_size, timeout=timeout, sort=sort_name)
+                    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+                    items = data.get("list") if isinstance(data.get("list"), list) else []
+                    if not items:
+                        break
 
-                page_rows: list[dict[str, Any]] = []
-                page_dates: list[date] = []
-                for item in items:
-                    if not isinstance(item, dict):
-                        continue
-                    row = normalize_musinsa_review(item)
-                    created = parse_date_from_created_at(row["created_at"])
-                    if created is not None:
-                        page_dates.append(created)
-                    if row["created_at"] and in_window(row["created_at"], start_date, end_date):
-                        page_rows.append(row)
-                collected.extend(page_rows)
+                    page_rows: list[dict[str, Any]] = []
+                    page_dates: list[date] = []
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                        row = normalize_musinsa_review(item)
+                        created = parse_date_from_created_at(row["created_at"])
+                        if created is not None:
+                            page_dates.append(created)
+                        if row["created_at"] and in_window(row["created_at"], start_date, end_date):
+                            page_rows.append(row)
+                    if page_rows:
+                        collected.extend(page_rows)
 
-                total_pages = 0
-                page_meta = data.get("page") if isinstance(data.get("page"), dict) else {}
-                if isinstance(page_meta.get("totalPages"), int):
-                    total_pages = int(page_meta["totalPages"])
+                    total_pages = 0
+                    page_meta = data.get("page") if isinstance(data.get("page"), dict) else {}
+                    if isinstance(page_meta.get("totalPages"), int):
+                        total_pages = int(page_meta["totalPages"])
 
-                if page_dates and min(page_dates) < start_date:
-                    break
-                if total_pages and page + 1 >= total_pages:
-                    break
+                    log(
+                        f"[INFO] Musinsa goodsNo={goods_no} sort={sort_name} page={page} raw_items={len(items)} in_window={len(page_rows)} cumulative={len(collected)}"
+                    )
 
-                safe_sleep(delay_ms, jitter_ms)
+                    if page_dates and min(page_dates) < start_date and sort_name == "new":
+                        break
+                    if total_pages and page >= total_pages:
+                        break
+
+                    safe_sleep(delay_ms, jitter_ms)
         except CrawlStop as exc:
             log(f"[WARN] {exc}")
             break
