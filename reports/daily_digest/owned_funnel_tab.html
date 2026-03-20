@@ -9,37 +9,35 @@
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
     body{font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;background:linear-gradient(180deg,#f6f8fb,#eef3f8);color:#0f172a}
     .glass{background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:28px;box-shadow:0 24px 60px rgba(15,23,42,.08)}
-    .chip,.btn,.field,.tab-btn,.select{border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.92);transition:all .15s ease;font-weight:800}
-    .chip:hover,.btn:hover,.tab-btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
-    .chip.active,.tab-btn.active{background:linear-gradient(135deg,#002d72,#1d4ed8);color:#fff;border-color:rgba(0,45,114,.22)}
+    .chip,.btn,.field{border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.92);transition:all .15s ease;font-weight:800}
+    .chip:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+    .chip.active{background:linear-gradient(135deg,#002d72,#1d4ed8);color:#fff;border-color:rgba(0,45,114,.22)}
     .card{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.9);border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.06)}
     .kicker{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:#94a3b8}
     .metric{font-size:28px;font-weight:900;line-height:1.05}
     .muted{color:#64748b}
-    .funnel-stage{
-      clip-path:polygon(16% 0,84% 0,100% 100%,0 100%);
-      color:#fff;box-shadow:0 20px 40px rgba(15,23,42,.12);
-      min-height:88px;
-    }
-    .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
-    .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
-    .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#b45309,#f59e0b)}
-    .funnel-stage[data-stage="4"]{background:linear-gradient(135deg,#9f1239,#ec4899)}
-    .funnel-shell{display:flex;flex-direction:column;gap:14px}
-    .compare-funnel .funnel-stage{min-height:74px}
-    .group-chip{border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.94);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;min-width:124px;text-align:left}
-    .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
-    .table-wrap{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.86);border-radius:22px;overflow:auto;box-shadow:0 14px 30px rgba(15,23,42,.06)}
+    .table-wrap{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.86);border-radius:22px;overflow:hidden;box-shadow:0 14px 30px rgba(15,23,42,.06)}
     table{width:100%;border-collapse:collapse}
     th,td{padding:14px 16px;border-bottom:1px solid rgba(148,163,184,.14);font-size:13px;vertical-align:top}
     th{text-align:left;background:rgba(248,250,252,.94);font-size:11px;font-weight:900;color:#64748b;letter-spacing:.12em;text-transform:uppercase}
     tbody tr:hover td{background:rgba(0,45,114,.03)}
     .empty{border:1px dashed rgba(148,163,184,.3);background:rgba(255,255,255,.72);border-radius:24px;padding:28px;text-align:center;color:#64748b;font-weight:700}
-    .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:999px;background:#e2e8f0;color:#0f172a;font-size:11px;font-weight:900}
-    .delta-pos{color:#166534}.delta-neg{color:#b91c1c}.delta-flat{color:#64748b}
-    .stage-bar{height:10px;border-radius:999px;background:rgba(226,232,240,.9);overflow:hidden}
-    .stage-bar > span{display:block;height:100%;border-radius:999px;background:linear-gradient(135deg,#002d72,#1d4ed8)}
-    .hidden-section{display:none}
+    .group-chip{border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.94);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;min-width:124px;text-align:left}
+    .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
+    .funnel-wrap{position:relative;padding:8px 0 2px}
+    .funnel-axis{position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(180deg,rgba(148,163,184,.12),rgba(148,163,184,.28),rgba(148,163,184,.08));transform:translateX(-50%)}
+    .funnel-stage{position:relative;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);min-height:110px;border-radius:18px;overflow:hidden;clip-path:polygon(7% 0,93% 0,100% 100%,0 100%)}
+    .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
+    .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+    .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
+    .funnel-stage[data-stage="4"]{background:linear-gradient(135deg,#b45309,#f59e0b)}
+    .funnel-stage[data-stage="5"]{background:linear-gradient(135deg,#9f1239,#ec4899)}
+    .funnel-stage.compare-a{background:linear-gradient(135deg,#002d72,#1d4ed8)}
+    .funnel-stage.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+    .rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:rgba(0,45,114,.08);color:#002d72;font-weight:900;font-size:12px}
+    .warn{color:#b45309}
   </style>
 </head>
 <body class="p-5 md:p-8">
@@ -47,20 +45,18 @@
     <section class="glass p-6 md:p-7">
       <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div class="kicker">Funnel Tab</div>
+          <div class="kicker">Owned Funnel</div>
           <h1 class="mt-2 text-3xl font-black tracking-tight md:text-4xl">Funnel Analysis</h1>
-          <p class="mt-2 text-sm font-semibold muted">Site-wide funnel view with SITE, PAID, ORGANIC and OWNED segments.</p>
+          <p class="mt-2 text-sm font-semibold muted">Behavior-first funnel view with overview, compare, and drop-off ranking.</p>
         </div>
         <div id="periodLabel" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-extrabold muted">Period | -</div>
       </div>
-
       <div class="mt-6 flex flex-wrap items-center gap-2">
         <div class="kicker">View</div>
         <button class="chip rounded-full px-4 py-2 text-xs" data-view="daily" type="button">Daily</button>
         <button class="chip rounded-full px-4 py-2 text-xs active" data-view="week" type="button">Week</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-view="range" type="button">Range</button>
       </div>
-
       <div class="mt-4 flex flex-wrap items-center gap-3">
         <div class="kicker">Date</div>
         <input id="datePicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
@@ -74,10 +70,9 @@
         <button id="btnNext" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Next</button>
         <button id="btnResetSelection" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Reset Group</button>
       </div>
-
       <div class="mt-4 flex flex-wrap items-center gap-2">
         <div class="kicker">Segment</div>
-        <button class="chip rounded-full px-4 py-2 text-xs active" data-segment="SITE" type="button">SITE</button>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-segment="ALL" type="button">ALL</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-segment="PAID" type="button">PAID</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-segment="ORGANIC" type="button">ORGANIC</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-segment="OWNED" type="button">OWNED</button>
@@ -85,12 +80,11 @@
         <button class="chip rounded-full px-4 py-2 text-xs" data-segment="LMS" type="button">LMS</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-segment="KAKAO" type="button">KAKAO</button>
       </div>
-
-      <div class="mt-5 flex flex-wrap items-center gap-2">
+      <div class="mt-6 flex flex-wrap items-center gap-2">
         <div class="kicker">Tab</div>
-        <button class="tab-btn rounded-full px-4 py-2 text-xs active" data-tab="overview" type="button">Overview</button>
-        <button class="tab-btn rounded-full px-4 py-2 text-xs" data-tab="compare" type="button">Compare</button>
-        <button class="tab-btn rounded-full px-4 py-2 text-xs" data-tab="dropoff" type="button">Drop-off</button>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-tab="overview" type="button">Overview</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-tab="compare" type="button">Compare</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-tab="dropoff" type="button">Drop-off</button>
       </div>
     </section>
 
@@ -100,7 +94,7 @@
     <div id="contentArea" class="space-y-6">
       <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="summaryCards"></section>
 
-      <section id="tabOverview" class="space-y-6">
+      <section id="panel-overview" class="tab-panel active space-y-6">
         <section class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.85fr)]">
           <div class="card p-5 md:p-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
@@ -111,9 +105,9 @@
               </div>
               <div id="selectionPill" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-extrabold muted">Scope | Total</div>
             </div>
-            <div id="funnelCanvas" class="mt-6 funnel-shell"></div>
+            <div id="funnelNotice" class="mt-4 text-xs font-semibold muted"></div>
+            <div id="funnelCanvas" class="funnel-wrap mt-6"></div>
           </div>
-
           <div class="space-y-4">
             <div class="card p-5">
               <div class="kicker">Selection Notes</div>
@@ -144,7 +138,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Group</th><th>Title</th><th>Sessions</th><th>Users</th><th>Buyer Users</th><th>Purchases</th><th>Revenue</th><th>CVR</th>
+                  <th>Group</th><th>Title</th><th>Sessions</th><th>PDP</th><th>Cart</th><th>Checkout</th><th>Purchase Session</th><th>Orders</th><th>Revenue</th><th>Session CVR</th>
                 </tr>
               </thead>
               <tbody id="groupTableBody"></tbody>
@@ -153,89 +147,92 @@
         </section>
       </section>
 
-      <section id="tabCompare" class="space-y-6 hidden-section">
-        <section class="card p-5 md:p-6">
-          <div class="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div class="kicker">A/B Compare</div>
-              <h2 class="mt-2 text-2xl font-black tracking-tight">Group Funnel Comparison</h2>
-              <p class="mt-2 text-sm font-semibold muted">각 그룹의 퍼널을 나란히 비교할 수 있습니다.</p>
-            </div>
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <div class="kicker">Compare A</div>
-                <select id="compareA" class="select mt-2 w-full rounded-2xl px-3 py-3 text-sm"></select>
-              </div>
-              <div>
-                <div class="kicker">Compare B</div>
-                <select id="compareB" class="select mt-2 w-full rounded-2xl px-3 py-3 text-sm"></select>
-              </div>
-            </div>
-          </div>
-        </section>
-
+      <section id="panel-compare" class="tab-panel space-y-6">
         <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <div class="card p-5 md:p-6">
-            <div class="flex items-center justify-between gap-4">
+          <div class="card p-5">
+            <div class="flex items-center justify-between gap-3">
               <div>
                 <div class="kicker">Compare A</div>
-                <h3 id="compareATitle" class="mt-2 text-xl font-black tracking-tight">-</h3>
+                <h2 class="mt-2 text-xl font-black tracking-tight">Left Funnel</h2>
               </div>
-              <div id="compareABadge" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-extrabold muted">-</div>
             </div>
-            <div id="compareAMetrics" class="mt-4 grid grid-cols-2 gap-3"></div>
-            <div id="compareAFunnel" class="mt-5 funnel-shell compare-funnel"></div>
+            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <div class="kicker">Segment</div>
+                <select id="cmpASegment" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
+              </div>
+              <div>
+                <div class="kicker">Group</div>
+                <select id="cmpAGroup" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
+              </div>
+            </div>
+            <div id="compareMetaA" class="mt-4 text-sm font-semibold muted"></div>
+            <div id="compareCanvasA" class="funnel-wrap mt-6"></div>
           </div>
 
-          <div class="card p-5 md:p-6">
-            <div class="flex items-center justify-between gap-4">
+          <div class="card p-5">
+            <div class="flex items-center justify-between gap-3">
               <div>
                 <div class="kicker">Compare B</div>
-                <h3 id="compareBTitle" class="mt-2 text-xl font-black tracking-tight">-</h3>
+                <h2 class="mt-2 text-xl font-black tracking-tight">Right Funnel</h2>
               </div>
-              <div id="compareBBadge" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-extrabold muted">-</div>
             </div>
-            <div id="compareBMetrics" class="mt-4 grid grid-cols-2 gap-3"></div>
-            <div id="compareBFunnel" class="mt-5 funnel-shell compare-funnel"></div>
+            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <div class="kicker">Segment</div>
+                <select id="cmpBSegment" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
+              </div>
+              <div>
+                <div class="kicker">Group</div>
+                <select id="cmpBGroup" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
+              </div>
+            </div>
+            <div id="compareMetaB" class="mt-4 text-sm font-semibold muted"></div>
+            <div id="compareCanvasB" class="funnel-wrap mt-6"></div>
           </div>
         </section>
 
         <section class="card p-5">
-          <div class="kicker">Delta Summary</div>
+          <div class="kicker">Compare Summary</div>
           <h2 class="mt-2 text-xl font-black tracking-tight">A vs B</h2>
           <div class="mt-4 table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Metric</th><th>A</th><th>B</th><th>Delta</th><th>Winner</th>
+                  <th>Metric</th><th>A</th><th>B</th><th>Delta</th>
                 </tr>
               </thead>
-              <tbody id="compareDeltaBody"></tbody>
+              <tbody id="compareTableBody"></tbody>
             </table>
           </div>
         </section>
       </section>
 
-      <section id="tabDropoff" class="space-y-6 hidden-section">
-        <section class="card p-5 md:p-6">
-          <div class="kicker">Drop-off Ranking</div>
-          <h2 class="mt-2 text-2xl font-black tracking-tight">Highest Drop-off Point by Funnel</h2>
-          <p class="mt-2 text-sm font-semibold muted">현재 선택한 기간/세그먼트 기준으로 각 그룹에서 어디서 가장 많이 이탈했는지 한 번에 볼 수 있습니다.</p>
+      <section id="panel-dropoff" class="tab-panel space-y-6">
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div class="card p-5">
+            <div class="kicker">Overall Top 3</div>
+            <h2 class="mt-2 text-xl font-black tracking-tight">Highest Drop-off Segments</h2>
+            <div id="dropOverall" class="mt-4 space-y-3"></div>
+          </div>
+          <div class="card p-5">
+            <div class="kicker">Stage Ranking</div>
+            <h2 class="mt-2 text-xl font-black tracking-tight">Step-wise Top 3</h2>
+            <div id="dropStageRankings" class="mt-4 space-y-4"></div>
+          </div>
         </section>
 
-        <section class="grid grid-cols-1 gap-4 xl:grid-cols-3" id="dropoffHighlights"></section>
-
         <section class="card p-5">
-          <div class="kicker">Detail</div>
-          <h2 class="mt-2 text-xl font-black tracking-tight">Drop-off Detail by Group</h2>
+          <div class="kicker">Segment Drop-off</div>
+          <h2 class="mt-2 text-xl font-black tracking-tight">Worst Step By Segment</h2>
           <div class="mt-4 table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Rank</th><th>Group</th><th>Title</th><th>Worst Step</th><th>Drop-off</th><th>Keep Rate</th><th>Sessions</th><th>Purchases</th><th>CVR</th>
+                  <th>Segment</th><th>#1 Worst</th><th>#2</th><th>#3</th>
                 </tr>
               </thead>
-              <tbody id="dropoffTableBody"></tbody>
+              <tbody id="dropSegmentTableBody"></tbody>
             </table>
           </div>
         </section>
@@ -248,19 +245,29 @@
     (() => {
       const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'data/funnel').replace(/\/$/, '');
       const OWNED_SEGMENTS = ['OWNED', 'EDM', 'LMS', 'KAKAO'];
-      const SEGMENT_LABELS = { SITE:'Site Total', PAID:'Paid', ORGANIC:'Organic', OWNED:'Owned Total', EDM:'EDM', LMS:'LMS', KAKAO:'Kakao' };
-      const STAGE_LABELS = ['Sessions', 'Users', 'Buyer Users', 'Purchases'];
+      const FILTER_SEGMENTS = ['ALL','PAID','ORGANIC','OWNED','EDM','LMS','KAKAO'];
+      const SEGMENT_LABELS = {
+        ALL: 'All',
+        SITE: 'All',
+        PAID: 'Paid',
+        ORGANIC: 'Organic',
+        OWNED: 'Owned Total',
+        EDM: 'EDM',
+        LMS: 'LMS',
+        KAKAO: 'Kakao',
+      };
       const state = {
         view: 'week',
-        segment: 'SITE',
         tab: 'overview',
+        segment: 'ALL',
         available: [],
         selectedGroup: '',
-        compareA: '',
-        compareB: '',
-        current: null
+        current: null,
+        compare: {
+          A: { segment: 'ALL', group: '' },
+          B: { segment: 'OWNED', group: '' },
+        }
       };
-
       const els = {
         periodLabel: document.getElementById('periodLabel'),
         datePicker: document.getElementById('datePicker'),
@@ -279,48 +286,42 @@
         selectionPill: document.getElementById('selectionPill'),
         selectionMeta: document.getElementById('selectionMeta'),
         funnelCanvas: document.getElementById('funnelCanvas'),
+        funnelNotice: document.getElementById('funnelNotice'),
         stepDetail: document.getElementById('stepDetail'),
         groupKicker: document.getElementById('groupKicker'),
         groupHeading: document.getElementById('groupHeading'),
         groupSummary: document.getElementById('groupSummary'),
         groupChips: document.getElementById('groupChips'),
         groupTableBody: document.getElementById('groupTableBody'),
-        tabOverview: document.getElementById('tabOverview'),
-        tabCompare: document.getElementById('tabCompare'),
-        tabDropoff: document.getElementById('tabDropoff'),
-        compareA: document.getElementById('compareA'),
-        compareB: document.getElementById('compareB'),
-        compareATitle: document.getElementById('compareATitle'),
-        compareBTitle: document.getElementById('compareBTitle'),
-        compareABadge: document.getElementById('compareABadge'),
-        compareBBadge: document.getElementById('compareBBadge'),
-        compareAMetrics: document.getElementById('compareAMetrics'),
-        compareBMetrics: document.getElementById('compareBMetrics'),
-        compareAFunnel: document.getElementById('compareAFunnel'),
-        compareBFunnel: document.getElementById('compareBFunnel'),
-        compareDeltaBody: document.getElementById('compareDeltaBody'),
-        dropoffHighlights: document.getElementById('dropoffHighlights'),
-        dropoffTableBody: document.getElementById('dropoffTableBody'),
+        cmpASegment: document.getElementById('cmpASegment'),
+        cmpAGroup: document.getElementById('cmpAGroup'),
+        cmpBSegment: document.getElementById('cmpBSegment'),
+        cmpBGroup: document.getElementById('cmpBGroup'),
+        compareMetaA: document.getElementById('compareMetaA'),
+        compareMetaB: document.getElementById('compareMetaB'),
+        compareCanvasA: document.getElementById('compareCanvasA'),
+        compareCanvasB: document.getElementById('compareCanvasB'),
+        compareTableBody: document.getElementById('compareTableBody'),
+        dropOverall: document.getElementById('dropOverall'),
+        dropStageRankings: document.getElementById('dropStageRankings'),
+        dropSegmentTableBody: document.getElementById('dropSegmentTableBody'),
       };
-
       const fmt = (n) => Number(n || 0).toLocaleString('en-US');
       const fmtMoney = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
       const fmtPct = (n, d = 1) => `${Number(n || 0).toFixed(d)}%`;
+      const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
       const ymd = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
       const parseYmd = (v) => { const [y,m,d] = String(v || '').split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
       const addDays = (dt, diff) => { const out = new Date(dt); out.setDate(out.getDate() + diff); return out; };
       const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
-      const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      const isOwnedSegment = () => OWNED_SEGMENTS.includes(state.segment);
-      const segmentLabel = () => SEGMENT_LABELS[state.segment] || state.segment;
-      const aggregate = (rows) => (rows || []).reduce((a, r) => ({
-        sessions: a.sessions + Number(r.sessions || 0),
-        users: a.users + Number(r.users || 0),
-        buyerUsers: a.buyerUsers + Number(r.buyerUsers || 0),
-        purchases: a.purchases + Number(r.purchases || 0),
-        revenue: a.revenue + Number(r.revenue || 0),
-      }), { sessions: 0, users: 0, buyerUsers: 0, purchases: 0, revenue: 0 });
-      async function fetchJson(url){ const res = await fetch(url, { cache: 'no-store' }); if(!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); }
+      const segmentLabel = (seg = state.segment) => SEGMENT_LABELS[seg] || seg;
+      const ownedChildSegments = () => OWNED_SEGMENTS.slice(1);
+
+      async function fetchJson(url){
+        const res = await fetch(url, { cache: 'no-store' });
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      }
       const clamp = (v) => {
         if (!state.available.length) return v;
         if (state.available.includes(v)) return v;
@@ -329,29 +330,29 @@
       };
       const between = (s, e) => state.available.filter((day) => day >= s && day <= e);
 
+      function normalizeRow(detail, base){
+        return {
+          date: String(base.date || ''),
+          detail: String(detail || base.detail || ''),
+          year: String(base.year || ''),
+          mmdd: String(base.mmdd || ''),
+          messageTitle: String(base.message_title || base.messageTitle || ''),
+          sessions: Number(base.sessions || 0),
+          users: Number(base.users || 0),
+          buyerUsers: Number(base.buyer_users || base.buyerUsers || 0),
+          purchases: Number(base.purchases || 0),
+          revenue: Number(base.revenue || 0),
+          pdpViews: Number(base.pdp_views || base.pdpViews || 0),
+          addToCart: Number(base.add_to_cart || base.addToCart || 0),
+          beginCheckout: Number(base.begin_checkout || base.beginCheckout || 0),
+          purchaseSessions: Number(base.purchase_sessions || base.purchaseSessions || 0),
+        };
+      }
+
       function normalizeBundle(json){
         return {
-          summary: (json.summary_rows || []).map((r) => ({
-            date: String(r.date || ''),
-            detail: String(r.detail || ''),
-            sessions: Number(r.sessions || 0),
-            users: Number(r.users || 0),
-            buyerUsers: Number(r.buyer_users || 0),
-            purchases: Number(r.purchases || 0),
-            revenue: Number(r.revenue || 0),
-          })),
-          ownedGroups: (json.owned_groups || []).map((r) => ({
-            date: String(r.date || ''),
-            year: String(r.year || ''),
-            mmdd: String(r.mmdd || ''),
-            detail: String(r.detail || ''),
-            messageTitle: String(r.message_title || ''),
-            sessions: Number(r.sessions || 0),
-            users: Number(r.users || 0),
-            buyerUsers: Number(r.buyer_users || 0),
-            purchases: Number(r.purchases || 0),
-            revenue: Number(r.revenue || 0),
-          })),
+          summary: (json.summary_rows || []).map((r) => normalizeRow(r.detail || '', r)),
+          ownedGroups: (json.owned_groups || []).map((r) => normalizeRow(r.detail || '', r)),
         };
       }
 
@@ -378,8 +379,7 @@
       }
 
       async function loadRange(start, end){
-        const days = between(start, end);
-        const raw = await Promise.all(days.map((day) => fetchJson(`${DATA_BASE}/funnel_${day}.json?t=${Date.now()}`)));
+        const raw = await Promise.all(between(start, end).map((day) => fetchJson(`${DATA_BASE}/funnel_${day}.json?t=${Date.now()}`)));
         return raw.map(normalizeBundle).reduce((acc, bundle) => {
           acc.summary.push(...bundle.summary);
           acc.ownedGroups.push(...bundle.ownedGroups);
@@ -387,233 +387,235 @@
         }, { summary: [], ownedGroups: [] });
       }
 
-      function selectSummaryRows(bundle){
-        return (bundle.summary || []).filter((row) => row.detail === state.segment);
-      }
-
-      function summarizeGroups(bundle){
-        if (isOwnedSegment()) {
-          const rows = (bundle.ownedGroups || []).filter((row) => state.segment === 'OWNED' ? OWNED_SEGMENTS.slice(1).includes(row.detail) : row.detail === state.segment);
+      function summarizeGroupsForSegment(bundle, segment){
+        if (['OWNED','EDM','LMS','KAKAO'].includes(segment)) {
+          const rows = (bundle.ownedGroups || []).filter((row) => segment === 'OWNED' ? ownedChildSegments().includes(row.detail) : row.detail === segment);
           const grouped = new Map();
           rows.forEach((row) => {
             const key = `${row.year}-${row.mmdd}`;
-            if (!grouped.has(key)) grouped.set(key, { key, label: row.mmdd, title: row.messageTitle || '', sessions: 0, users: 0, buyerUsers: 0, purchases: 0, revenue: 0 });
+            if (!grouped.has(key)) grouped.set(key, {
+              key,
+              label: row.mmdd,
+              title: row.messageTitle || '',
+              rows: [],
+            });
             const cur = grouped.get(key);
-            cur.sessions += row.sessions;
-            cur.users += row.users;
-            cur.buyerUsers += row.buyerUsers;
-            cur.purchases += row.purchases;
-            cur.revenue += row.revenue;
+            cur.rows.push(row);
             if (!cur.title && row.messageTitle) cur.title = row.messageTitle;
           });
-          return Array.from(grouped.values())
-            .map((row) => ({ ...row, cvr: row.sessions ? (row.purchases / row.sessions) * 100 : 0 }))
-            .sort((a, b) => String(b.key).localeCompare(String(a.key)));
+          return Array.from(grouped.values()).map((g) => {
+            const agg = aggregateRows(g.rows);
+            return {
+              key: g.key,
+              label: g.label,
+              title: g.title || '',
+              segment,
+              agg,
+              cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+            };
+          }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
         }
-        return selectSummaryRows(bundle).map((row) => ({
-          key: row.date,
-          label: row.date,
-          title: segmentLabel(),
-          sessions: row.sessions,
-          users: row.users,
-          buyerUsers: row.buyerUsers,
-          purchases: row.purchases,
-          revenue: row.revenue,
-          cvr: row.sessions ? (row.purchases / row.sessions) * 100 : 0,
-        })).sort((a, b) => String(b.key).localeCompare(String(a.key)));
+
+        if (segment === 'ALL') {
+          return (bundle.summary || []).filter((row) => row.detail === 'SITE' || row.detail === 'ALL').map((row) => {
+            const agg = aggregateRows([row]);
+            return {
+              key: row.date,
+              label: row.date,
+              title: 'All',
+              segment: 'ALL',
+              agg,
+              cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+            };
+          }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
+        }
+
+        return (bundle.summary || []).filter((row) => row.detail === segment).map((row) => {
+          const agg = aggregateRows([row]);
+          return {
+            key: row.date,
+            label: row.date,
+            title: segmentLabel(segment),
+            segment,
+            agg,
+            cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+          };
+        }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
       }
 
-      function rowsForGroup(bundle, key){
-        if (isOwnedSegment()) {
-          return (bundle.ownedGroups || []).filter((row) => {
-            const rowKey = `${row.year}-${row.mmdd}`;
-            const inSegment = state.segment === 'OWNED' ? OWNED_SEGMENTS.slice(1).includes(row.detail) : row.detail === state.segment;
-            return inSegment && (!key || rowKey === key);
+      function rowsForSegment(bundle, segment, selectedGroup=''){
+        if (['OWNED','EDM','LMS','KAKAO'].includes(segment)) {
+          const rows = (bundle.ownedGroups || []).filter((row) => segment === 'OWNED' ? ownedChildSegments().includes(row.detail) : row.detail === segment);
+          if (!selectedGroup) return rows;
+          return rows.filter((row) => `${row.year}-${row.mmdd}` === selectedGroup);
+        }
+        const details = segment === 'ALL' ? ['SITE','ALL'] : [segment];
+        const rows = (bundle.summary || []).filter((row) => details.includes(row.detail));
+        if (!selectedGroup) return rows;
+        return rows.filter((row) => row.date === selectedGroup);
+      }
+
+      function aggregateRows(rows){
+        const base = (rows || []).reduce((a, r) => ({
+          sessions: a.sessions + Number(r.sessions || 0),
+          pdpViews: a.pdpViews + Number(r.pdpViews || 0),
+          addToCart: a.addToCart + Number(r.addToCart || 0),
+          beginCheckout: a.beginCheckout + Number(r.beginCheckout || 0),
+          purchaseSessions: a.purchaseSessions + Number(r.purchaseSessions || 0),
+          users: a.users + Number(r.users || 0),
+          buyerUsers: a.buyerUsers + Number(r.buyerUsers || 0),
+          orders: a.orders + Number(r.purchases || 0),
+          revenue: a.revenue + Number(r.revenue || 0),
+        }), { sessions:0,pdpViews:0,addToCart:0,beginCheckout:0,purchaseSessions:0,users:0,buyerUsers:0,orders:0,revenue:0 });
+        return base;
+      }
+
+      function buildBehaviorStages(agg){
+        const fields = [];
+        const notes = [];
+        const hasNativePdp = agg.pdpViews > 0;
+        const hasNativeCart = agg.addToCart > 0;
+        const hasNativeCheckout = agg.beginCheckout > 0;
+        const hasNativePurchaseSessions = agg.purchaseSessions > 0;
+
+        fields.push({ key:'sessions', label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions, source:'native' });
+
+        if (hasNativePdp) {
+          fields.push({ key:'pdpViews', label:'PDP Views', note:'Product detail views', value:agg.pdpViews, source:'native' });
+        } else if (agg.users > 0) {
+          fields.push({ key:'users', label:'PDP Views (Proxy)', note:'Fallback to users because PDP field is missing', value:agg.users, source:'proxy' });
+          notes.push('PDP stage is using Users as a proxy because pdp_views is not present in the source JSON.');
+        }
+
+        if (hasNativeCart) {
+          fields.push({ key:'addToCart', label:'Add to Cart', note:'Add-to-cart actions/users in scope', value:agg.addToCart, source:'native' });
+        }
+        if (hasNativeCheckout) {
+          fields.push({ key:'beginCheckout', label:'Checkout', note:'Checkout starts in scope', value:agg.beginCheckout, source:'native' });
+        }
+
+        if (hasNativePurchaseSessions) {
+          fields.push({ key:'purchaseSessions', label:'Purchase Sessions', note:'Sessions that reached purchase', value:agg.purchaseSessions, source:'native' });
+        } else if (agg.buyerUsers > 0) {
+          fields.push({ key:'buyerUsers', label:'Purchase Users (Proxy)', note:'Fallback to buyer users because purchase_sessions is missing', value:agg.buyerUsers, source:'proxy' });
+          notes.push('Purchase stage is using Buyer Users as a proxy because purchase_sessions is not present in the source JSON.');
+        }
+
+        const max = Math.max(...fields.map((s) => s.value), 0);
+        const easing = (ratio) => Math.pow(Math.max(0, ratio), 0.82);
+        const stages = fields.map((stage, idx) => {
+          const rawRatio = max ? stage.value / max : 0;
+          const width = idx === 0 ? 96 : Math.max(14, easing(rawRatio) * 96);
+          const prevValue = idx === 0 ? 0 : fields[idx - 1].value;
+          const kept = idx === 0 ? 100 : (prevValue ? (stage.value / prevValue) * 100 : 0);
+          const drop = idx === 0 ? 0 : Math.max(0, 100 - kept);
+          return { ...stage, width, kept, drop, share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 };
+        });
+
+        const steps = [];
+        for (let i = 1; i < stages.length; i += 1) {
+          steps.push({
+            from: stages[i-1].label,
+            to: stages[i].label,
+            kept: stages[i].kept,
+            drop: stages[i].drop,
           });
         }
-        return selectSummaryRows(bundle).filter((row) => !key || row.date === key);
+
+        return { stages, notes, steps };
       }
 
-      function selectedRows(bundle){
-        return rowsForGroup(bundle, state.selectedGroup);
-      }
-
-      function buildStages(agg){
-        const base = [
-          { label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions },
-          { label:'Users', note:'Unique users in scope', value:agg.users },
-          { label:'Buyer Users', note:'Distinct users with purchase', value:agg.buyerUsers },
-          { label:'Purchases', note:'Completed orders', value:agg.purchases },
-        ];
-        const max = Math.max(...base.map((s) => s.value), 0);
-        let prevWidth = 100;
-        return base.map((stage, i) => {
-          const raw = max ? (stage.value / max) * 100 : 0;
-          let width = stage.value ? Math.max(raw, 18) : 12;
-          width = i === 0 ? 100 : Math.max(Math.min(width, prevWidth - 10), stage.value ? 20 : 12);
-          prevWidth = width;
-          const prev = i === 0 ? 0 : Number(base[i-1].value || 0);
-          const kept = i === 0 ? 100 : (prev ? (stage.value / prev) * 100 : 0);
-          return {
-            ...stage,
-            width,
-            kept,
-            drop:i === 0 ? 0 : Math.max(0, 100 - kept),
-            share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0
-          };
-        });
-      }
-
-      function summarizeAgg(rows){
-        const agg = aggregate(rows);
+      function modelFor(bundle, segment, group=''){
+        const agg = aggregateRows(rowsForSegment(bundle, segment, group));
+        const behavior = buildBehaviorStages(agg);
         return {
-          ...agg,
-          cvr: agg.sessions ? (agg.purchases / agg.sessions) * 100 : 0,
-          aov: agg.purchases ? (agg.revenue / agg.purchases) : 0,
-          stages: buildStages(agg),
-        };
-      }
-
-      function model(){
-        const agg = summarizeAgg(selectedRows(state.current.current));
-        const prevAgg = summarizeAgg(selectedRows(state.current.previous));
-        return {
+          segment,
+          group,
           agg,
-          prevAgg,
-          cvr: agg.cvr,
-          prevCvr: prevAgg.cvr,
-          aov: agg.aov,
-          stages: agg.stages,
+          behavior,
+          sessionCvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+          aov: agg.orders ? (agg.revenue / agg.orders) : 0,
         };
       }
 
       const delta = (cur, prev) => prev ? `${cur >= prev ? '+' : ''}${(((cur - prev) / prev) * 100).toFixed(1)}%` : (cur ? '+100.0%' : '0.0%');
+      const fmtDeltaNum = (a, b, isMoney=false) => {
+        const d = Number(a || 0) - Number(b || 0);
+        const sign = d >= 0 ? '+' : '';
+        const out = isMoney ? fmtMoney(Math.abs(d)) : fmt(Math.abs(d));
+        return `${sign}${isMoney ? fmtMoney(d) : d.toLocaleString('en-US')}`;
+      };
 
-      function formatDeltaClass(v){
-        if (v > 0) return 'delta-pos';
-        if (v < 0) return 'delta-neg';
-        return 'delta-flat';
-      }
-
-      function stageTransitionLabel(index){
-        return `${STAGE_LABELS[index - 1]} → ${STAGE_LABELS[index]}`;
-      }
-
-      function renderFunnelHtml(stages, compact = false){
-        return stages.map((stage, i) => `
-          ${i === 0 ? '' : `<div class="flex items-center justify-center gap-3 ${compact ? 'py-1' : 'py-2'} text-xs font-bold muted"><span>${esc(stageTransitionLabel(i))}</span><span>${fmtPct(stage.kept,1)} kept</span><span>${fmtPct(stage.drop,1)} drop</span></div>`}
-          <div class="flex justify-center">
-            <div class="funnel-stage" data-stage="${i+1}" style="width:${stage.width.toFixed(1)}%">
-              <div class="flex items-center justify-between gap-4 px-5 ${compact ? 'py-4' : 'py-5'} md:px-6">
-                <div>
-                  <div class="text-[10px] font-black uppercase tracking-[.22em] opacity-70">Stage ${String(i+1).padStart(2,'0')}</div>
-                  <div class="mt-2 ${compact ? 'text-lg md:text-xl' : 'text-xl md:text-2xl'} font-black">${esc(stage.label)}</div>
-                  <div class="mt-1 text-xs font-semibold opacity-90">${esc(stage.note)}</div>
-                </div>
-                <div class="text-right">
-                  <div class="${compact ? 'text-xl md:text-2xl' : 'text-2xl md:text-3xl'} font-black">${fmt(stage.value)}</div>
-                  <div class="mt-1 text-xs font-semibold opacity-90">${i === 0 ? 'Base 100%' : `${fmtPct(stage.kept,1)} from previous`}</div>
+      function renderFunnel(canvas, behavior, className=''){
+        const stages = behavior.stages;
+        if (!stages.length) {
+          canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
+          return;
+        }
+        const html = [
+          `<div class="funnel-axis"></div>`,
+          ...stages.map((stage, i) => `
+            ${i === 0 ? '' : `<div class="flex items-center justify-center gap-3 py-2 text-xs font-bold muted"><span>${esc(stages[i-1].label)} → ${esc(stage.label)}</span><span>${fmtPct(stage.kept,1)} kept</span><span>${fmtPct(stage.drop,1)} drop</span></div>`}
+            <div class="flex justify-center">
+              <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${stage.width.toFixed(1)}%">
+                <div class="flex min-h-[110px] items-center justify-between gap-4 px-5 py-5 md:px-6">
+                  <div>
+                    <div class="text-[10px] font-black uppercase tracking-[.22em] opacity-70">Stage ${String(i+1).padStart(2,'0')}</div>
+                    <div class="mt-2 text-xl font-black md:text-2xl">${esc(stage.label)}</div>
+                    <div class="mt-1 text-xs font-semibold opacity-90">${esc(stage.note)}</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-2xl font-black md:text-3xl">${fmt(stage.value)}</div>
+                    <div class="mt-1 text-xs font-semibold opacity-90">${i === 0 ? 'Base 100%' : `${fmtPct(stage.kept,1)} from previous`}</div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        `).join('');
+          `)
+        ].join('');
+        canvas.innerHTML = html;
       }
 
-      function metricMiniCard(label, value, sub = ''){
-        return `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4"><div class="kicker">${esc(label)}</div><div class="mt-2 text-lg font-black">${esc(value)}</div><div class="mt-1 text-xs font-semibold muted">${esc(sub)}</div></div>`;
-      }
-
-      function resolveGroupLabel(groups, key){
-        const found = groups.find((row) => row.key === key);
-        return found ? found.label : '-';
-      }
-
-      function populateCompareSelects(groups){
-        const options = groups.map((row) => `<option value="${esc(row.key)}">${esc(row.label)}${row.title ? ` | ${esc(row.title)}` : ''}</option>`).join('');
-        els.compareA.innerHTML = options || '<option value="">No groups</option>';
-        els.compareB.innerHTML = options || '<option value="">No groups</option>';
-
-        if (!groups.length) {
-          state.compareA = '';
-          state.compareB = '';
-          return;
-        }
-        const keys = groups.map((g) => g.key);
-        if (!state.compareA || !keys.includes(state.compareA)) state.compareA = state.selectedGroup || keys[0];
-        if (!state.compareB || !keys.includes(state.compareB) || state.compareB === state.compareA) state.compareB = keys.find((k) => k !== state.compareA) || state.compareA;
-        els.compareA.value = state.compareA;
-        els.compareB.value = state.compareB;
-      }
-
-      function compareModel(groups){
-        const aRows = rowsForGroup(state.current.current, state.compareA);
-        const bRows = rowsForGroup(state.current.current, state.compareB);
-        return {
-          groups,
-          a: summarizeAgg(aRows),
-          b: summarizeAgg(bRows),
-          aGroup: groups.find((row) => row.key === state.compareA),
-          bGroup: groups.find((row) => row.key === state.compareB),
-        };
-      }
-
-      function dropoffForStages(stages){
-        const transitions = stages.slice(1).map((stage, idx) => ({
-          step: `${stages[idx].label} → ${stage.label}`,
-          drop: stage.drop,
-          kept: stage.kept,
-        }));
-        if (!transitions.length) return { step:'-', drop:0, kept:0 };
-        return transitions.sort((a, b) => b.drop - a.drop)[0];
-      }
-
-      function dropoffRows(groups){
-        return groups.map((group) => {
-          const summary = summarizeAgg(rowsForGroup(state.current.current, group.key));
-          const worst = dropoffForStages(summary.stages);
-          return {
-            ...group,
-            worstStep: worst.step,
-            drop: worst.drop,
-            kept: worst.kept,
-            summary
-          };
-        }).sort((a, b) => b.drop - a.drop);
-      }
-
-      function renderOverview(groups){
+      function render(){
         const range = state.current.range;
-        const m = model();
+        const prevRange = state.current.previousRange;
+        const groups = summarizeGroupsForSegment(state.current.current, state.segment);
+        const currentModel = modelFor(state.current.current, state.segment, state.selectedGroup);
+        const previousModel = modelFor(state.current.previous, state.segment, '');
         const selectedGroup = groups.find((row) => row.key === state.selectedGroup);
 
         els.periodLabel.textContent = `Period | ${range.start === range.end ? range.start : `${range.start} to ${range.end}`}`;
         els.scopeLabel.textContent = `${segmentLabel()} | ${selectedGroup ? selectedGroup.label : 'Total period'}`;
         els.selectionPill.textContent = `Scope | ${selectedGroup ? selectedGroup.label : segmentLabel()}`;
-        els.groupKicker.textContent = isOwnedSegment() ? 'Send Groups' : 'Date Groups';
-        els.groupHeading.textContent = isOwnedSegment() ? 'MMDD Groups In Scope' : 'Dates In Scope';
+        els.groupKicker.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'Send Groups' : 'Date Groups';
+        els.groupHeading.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'MMDD Groups In Scope' : 'Dates In Scope';
 
         els.summaryCards.innerHTML = [
-          ['Sessions', fmt(m.agg.sessions), `Prev ${fmt(m.prevAgg.sessions)} | ${delta(m.agg.sessions, m.prevAgg.sessions)}`],
-          ['Users', fmt(m.agg.users), `Prev ${fmt(m.prevAgg.users)} | ${delta(m.agg.users, m.prevAgg.users)}`],
-          ['Buyer Users', fmt(m.agg.buyerUsers), `Share ${fmtPct(m.agg.users ? (m.agg.buyerUsers / m.agg.users) * 100 : 0, 1)}`],
-          ['Purchases', fmt(m.agg.purchases), `Prev ${fmt(m.prevAgg.purchases)} | ${delta(m.agg.purchases, m.prevAgg.purchases)}`],
-          ['Revenue', fmtMoney(m.agg.revenue), `Prev ${fmtMoney(m.prevAgg.revenue)} | ${delta(m.agg.revenue, m.prevAgg.revenue)}`],
-          ['CVR', fmtPct(m.cvr, 2), `Prev ${fmtPct(m.prevCvr, 2)} | ${(m.cvr - m.prevCvr >= 0 ? '+' : '') + (m.cvr - m.prevCvr).toFixed(2)}%p`],
+          ['Sessions', fmt(currentModel.agg.sessions), `Prev ${fmt(previousModel.agg.sessions)} | ${delta(currentModel.agg.sessions, previousModel.agg.sessions)}`],
+          ['PDP Views', fmt(currentModel.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0), 'Behavior stage'],
+          ['Cart', fmt(currentModel.behavior.stages.find(s => s.key === 'addToCart')?.value || 0), 'Behavior stage'],
+          ['Checkout', fmt(currentModel.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), 'Behavior stage'],
+          ['Orders', fmt(currentModel.agg.orders), `Prev ${fmt(previousModel.agg.orders)} | ${delta(currentModel.agg.orders, previousModel.agg.orders)}`],
+          ['Session CVR', fmtPct(currentModel.sessionCvr, 2), `Prev ${fmtPct(previousModel.sessionCvr, 2)} | ${(currentModel.sessionCvr - previousModel.sessionCvr >= 0 ? '+' : '') + (currentModel.sessionCvr - previousModel.sessionCvr).toFixed(2)}%p`],
         ].map(([label, value, sub]) => `<article class="card p-5"><div class="kicker">${esc(label)}</div><div class="metric mt-3">${esc(value)}</div><div class="mt-2 text-xs font-semibold muted">${esc(sub)}</div></article>`).join('');
 
-        els.funnelCanvas.innerHTML = renderFunnelHtml(m.stages, false);
+        renderFunnel(els.funnelCanvas, currentModel.behavior);
+        els.funnelNotice.innerHTML = currentModel.behavior.notes.length
+          ? currentModel.behavior.notes.map((n) => `<div class="warn">${esc(n)}</div>`).join('')
+          : `<div>Behavior funnel is using native stage fields.</div>`;
 
         els.selectionMeta.innerHTML = [
           `Segment | ${segmentLabel()}`,
           `Selection | ${selectedGroup ? selectedGroup.label : 'Total period'}`,
-          `Revenue | ${fmtMoney(m.agg.revenue)}`,
-          `AOV | ${fmtMoney(m.aov)}`,
-          `CVR | ${fmtPct(m.cvr, 2)}`,
+          `Comparison baseline | ${prevRange.start} to ${prevRange.end}`,
+          `Orders | ${fmt(currentModel.agg.orders)}`,
+          `Revenue | ${fmtMoney(currentModel.agg.revenue)}`,
+          `AOV | ${fmtMoney(currentModel.aov)}`,
+          `Session CVR | ${fmtPct(currentModel.sessionCvr, 2)}`,
           selectedGroup && selectedGroup.title ? `Title | ${selectedGroup.title}` : '',
         ].filter(Boolean).map((line) => `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">${esc(line)}</div>`).join('');
 
-        els.stepDetail.innerHTML = m.stages.map((stage, i) => `
+        els.stepDetail.innerHTML = currentModel.behavior.stages.map((stage, i) => `
           <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
             <div class="kicker">Stage ${String(i+1).padStart(2,'0')}</div>
             <div class="mt-2 flex items-center justify-between gap-4">
@@ -626,151 +628,157 @@
                 <div class="mt-1 text-xs font-semibold muted">${fmtPct(stage.share,1)} of sessions</div>
               </div>
             </div>
-            ${i === 0 ? '' : `<div class="mt-3 grid grid-cols-2 gap-3 text-xs font-semibold muted"><div>Keep Rate | ${fmtPct(stage.kept,1)}</div><div>Drop-off | ${fmtPct(stage.drop,1)}</div></div>`}
           </div>
         `).join('');
 
         els.groupSummary.textContent = selectedGroup ? `Selected | ${selectedGroup.label}` : `Total groups | ${groups.length}`;
-        els.groupChips.innerHTML = groups.length ? groups.slice(0, 18).map((row) => `
+        els.groupChips.innerHTML = groups.length ? groups.slice(0, 24).map((row) => `
           <button class="group-chip ${state.selectedGroup === row.key ? 'active' : ''}" data-group="${row.key}" type="button">
             <div>${esc(row.label)}</div>
-            <div class="mt-1 text-[11px] font-bold text-slate-500">${fmt(row.sessions)} sessions</div>
+            <div class="mt-1 text-[11px] font-bold text-slate-500">${fmt(row.agg.sessions)} sessions</div>
           </button>
         `).join('') : `<div class="empty w-full">No groups found for this segment and period.</div>`;
-
         Array.from(els.groupChips.querySelectorAll('[data-group]')).forEach((button) => button.addEventListener('click', () => {
           state.selectedGroup = button.getAttribute('data-group') || '';
-          if (!state.compareA) state.compareA = state.selectedGroup;
           render();
         }));
 
-        els.groupTableBody.innerHTML = groups.length ? groups.slice(0, 20).map((row) => `
-          <tr class="cursor-pointer" data-row-group="${row.key}">
-            <td class="font-black">${esc(row.key)}</td>
-            <td>${esc(row.title || '-')}</td>
-            <td>${fmt(row.sessions)}</td>
-            <td>${fmt(row.users)}</td>
-            <td>${fmt(row.buyerUsers)}</td>
-            <td>${fmt(row.purchases)}</td>
-            <td>${fmtMoney(row.revenue)}</td>
-            <td>${fmtPct(row.cvr,2)}</td>
-          </tr>
-        `).join('') : `<tr><td colspan="8" class="text-center text-slate-400">No groups</td></tr>`;
-
-        Array.from(els.groupTableBody.querySelectorAll('[data-row-group]')).forEach((row) => row.addEventListener('click', () => {
-          state.selectedGroup = row.getAttribute('data-row-group') || '';
-          if (!state.compareA) state.compareA = state.selectedGroup;
-          render();
-        }));
-      }
-
-      function renderCompare(groups){
-        populateCompareSelects(groups);
-        const c = compareModel(groups);
-        const aLabel = c.aGroup ? c.aGroup.label : '-';
-        const bLabel = c.bGroup ? c.bGroup.label : '-';
-
-        els.compareATitle.textContent = aLabel;
-        els.compareBTitle.textContent = bLabel;
-        els.compareABadge.textContent = c.aGroup && c.aGroup.title ? c.aGroup.title : segmentLabel();
-        els.compareBBadge.textContent = c.bGroup && c.bGroup.title ? c.bGroup.title : segmentLabel();
-
-        els.compareAMetrics.innerHTML = [
-          metricMiniCard('Sessions', fmt(c.a.sessions)),
-          metricMiniCard('Purchases', fmt(c.a.purchases)),
-          metricMiniCard('Revenue', fmtMoney(c.a.revenue)),
-          metricMiniCard('CVR', fmtPct(c.a.cvr, 2)),
-        ].join('');
-        els.compareBMetrics.innerHTML = [
-          metricMiniCard('Sessions', fmt(c.b.sessions)),
-          metricMiniCard('Purchases', fmt(c.b.purchases)),
-          metricMiniCard('Revenue', fmtMoney(c.b.revenue)),
-          metricMiniCard('CVR', fmtPct(c.b.cvr, 2)),
-        ].join('');
-
-        els.compareAFunnel.innerHTML = renderFunnelHtml(c.a.stages, true);
-        els.compareBFunnel.innerHTML = renderFunnelHtml(c.b.stages, true);
-
-        const rows = [
-          ['Sessions', c.a.sessions, c.b.sessions, 'higher'],
-          ['Users', c.a.users, c.b.users, 'higher'],
-          ['Buyer Users', c.a.buyerUsers, c.b.buyerUsers, 'higher'],
-          ['Purchases', c.a.purchases, c.b.purchases, 'higher'],
-          ['Revenue', c.a.revenue, c.b.revenue, 'higher'],
-          ['CVR', c.a.cvr, c.b.cvr, 'higher'],
-          ['AOV', c.a.aov, c.b.aov, 'higher'],
-        ];
-        els.compareDeltaBody.innerHTML = rows.map(([label, av, bv]) => {
-          const diff = Number(av || 0) - Number(bv || 0);
-          const winner = diff === 0 ? 'Tie' : (diff > 0 ? 'A' : 'B');
-          const isMoney = ['Revenue', 'AOV'].includes(label);
-          const isPct = label === 'CVR';
-          const fmtValue = (v) => isMoney ? fmtMoney(v) : (isPct ? fmtPct(v, 2) : fmt(v));
-          const diffLabel = isPct ? `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%p` : `${diff >= 0 ? '+' : ''}${isMoney ? fmtMoney(diff) : fmt(diff)}`;
+        els.groupTableBody.innerHTML = groups.length ? groups.slice(0, 20).map((row) => {
+          const behavior = buildBehaviorStages(row.agg);
           return `
-            <tr>
-              <td class="font-black">${esc(label)}</td>
-              <td>${esc(fmtValue(av))}</td>
-              <td>${esc(fmtValue(bv))}</td>
-              <td class="${formatDeltaClass(diff)} font-black">${esc(diffLabel)}</td>
-              <td>${esc(winner)}</td>
+            <tr class="cursor-pointer" data-row-group="${row.key}">
+              <td class="font-black">${esc(row.key)}</td>
+              <td>${esc(row.title || '-')}</td>
+              <td>${fmt(row.agg.sessions)}</td>
+              <td>${fmt(behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0)}</td>
+              <td>${fmt(behavior.stages.find(s => s.key === 'addToCart')?.value || 0)}</td>
+              <td>${fmt(behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0)}</td>
+              <td>${fmt(behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0)}</td>
+              <td>${fmt(row.agg.orders)}</td>
+              <td>${fmtMoney(row.agg.revenue)}</td>
+              <td>${fmtPct(row.cvr,2)}</td>
             </tr>
           `;
-        }).join('');
+        }).join('') : `<tr><td colspan="10" class="text-center text-slate-400">No groups</td></tr>`;
+        Array.from(els.groupTableBody.querySelectorAll('[data-row-group]')).forEach((row) => row.addEventListener('click', () => {
+          state.selectedGroup = row.getAttribute('data-row-group') || '';
+          render();
+        }));
+
+        renderCompare();
+        renderDropoff();
       }
 
-      function renderDropoff(groups){
-        const rows = dropoffRows(groups);
+      function compareOptionsForSegment(segment){
+        return summarizeGroupsForSegment(state.current.current, segment);
+      }
 
-        const topByDrop = rows.slice(0, 3);
-        els.dropoffHighlights.innerHTML = topByDrop.length ? topByDrop.map((row, idx) => `
-          <article class="card p-5">
-            <div class="flex items-center justify-between gap-3">
-              <div class="kicker">Top ${idx + 1}</div>
-              <span class="rank-badge">${idx + 1}</span>
-            </div>
-            <div class="mt-3 text-lg font-black">${esc(row.label)}</div>
-            <div class="mt-1 text-sm font-semibold muted">${esc(row.title || segmentLabel())}</div>
-            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/90 p-4">
-              <div class="text-xs font-black uppercase tracking-[.16em] text-slate-400">Worst Step</div>
-              <div class="mt-2 text-base font-black">${esc(row.worstStep)}</div>
-              <div class="mt-3 grid grid-cols-2 gap-3 text-sm font-semibold">
-                <div>Drop-off | <span class="text-rose-600">${fmtPct(row.drop,1)}</span></div>
-                <div>Keep Rate | <span class="text-emerald-700">${fmtPct(row.kept,1)}</span></div>
+      function hydrateCompareControls(){
+        [els.cmpASegment, els.cmpBSegment].forEach((select, idx) => {
+          const key = idx === 0 ? 'A' : 'B';
+          select.innerHTML = FILTER_SEGMENTS.map((seg) => `<option value="${seg}" ${state.compare[key].segment === seg ? 'selected' : ''}>${esc(segmentLabel(seg))}</option>`).join('');
+        });
+        ['A','B'].forEach((key) => {
+          const seg = state.compare[key].segment;
+          const groupSelect = key === 'A' ? els.cmpAGroup : els.cmpBGroup;
+          const options = compareOptionsForSegment(seg);
+          if (state.compare[key].group && !options.some((o) => o.key === state.compare[key].group)) state.compare[key].group = '';
+          groupSelect.innerHTML = [`<option value="">Total period</option>`, ...options.map((o) => `<option value="${o.key}" ${state.compare[key].group === o.key ? 'selected' : ''}>${esc(o.label)}</option>`)].join('');
+        });
+      }
+
+      function renderCompare(){
+        hydrateCompareControls();
+        const a = modelFor(state.current.current, state.compare.A.segment, state.compare.A.group);
+        const b = modelFor(state.current.current, state.compare.B.segment, state.compare.B.group);
+        const allStageValues = [...a.behavior.stages.map(s => s.value), ...b.behavior.stages.map(s => s.value)];
+        const globalMax = Math.max(...allStageValues, 0) || 1;
+
+        const rescale = (behavior) => ({
+          ...behavior,
+          stages: behavior.stages.map((s, idx) => ({ ...s, width: idx === 0 ? 96 * Math.pow(s.value / globalMax, 0.82) || 14 : Math.max(14, Math.pow((s.value / globalMax), 0.82) * 96) }))
+        });
+
+        renderFunnel(els.compareCanvasA, rescale(a.behavior), 'compare-a');
+        renderFunnel(els.compareCanvasB, rescale(b.behavior), 'compare-b');
+
+        const aLabel = `${segmentLabel(a.segment)} | ${state.compare.A.group || 'Total period'}`;
+        const bLabel = `${segmentLabel(b.segment)} | ${state.compare.B.group || 'Total period'}`;
+        els.compareMetaA.innerHTML = `<div>${esc(aLabel)}</div><div class="mt-1">Orders ${fmt(a.agg.orders)} · Revenue ${fmtMoney(a.agg.revenue)} · Session CVR ${fmtPct(a.sessionCvr,2)}</div>`;
+        els.compareMetaB.innerHTML = `<div>${esc(bLabel)}</div><div class="mt-1">Orders ${fmt(b.agg.orders)} · Revenue ${fmtMoney(b.agg.revenue)} · Session CVR ${fmtPct(b.sessionCvr,2)}</div>`;
+
+        const rows = [
+          ['Sessions', a.agg.sessions, b.agg.sessions, fmtDeltaNum(a.agg.sessions, b.agg.sessions)],
+          ['PDP Views', a.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0, b.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0), (b.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0))],
+          ['Cart', a.behavior.stages.find(s => s.key === 'addToCart')?.value || 0, b.behavior.stages.find(s => s.key === 'addToCart')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'addToCart')?.value || 0), (b.behavior.stages.find(s => s.key === 'addToCart')?.value || 0))],
+          ['Checkout', a.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0, b.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), (b.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0))],
+          ['Purchase Sessions', a.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0, b.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0), (b.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0))],
+          ['Orders', a.agg.orders, b.agg.orders, fmtDeltaNum(a.agg.orders, b.agg.orders)],
+          ['Revenue', fmtMoney(a.agg.revenue), fmtMoney(b.agg.revenue), `${a.agg.revenue - b.agg.revenue >= 0 ? '+' : ''}${fmtMoney(a.agg.revenue - b.agg.revenue)}`],
+          ['Session CVR', fmtPct(a.sessionCvr,2), fmtPct(b.sessionCvr,2), `${(a.sessionCvr - b.sessionCvr >= 0 ? '+' : '')}${(a.sessionCvr - b.sessionCvr).toFixed(2)}%p`],
+        ];
+        els.compareTableBody.innerHTML = rows.map((r) => `<tr><td class="font-black">${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join('');
+      }
+
+      function buildDropoffData(){
+        const segments = FILTER_SEGMENTS;
+        const entries = segments.map((segment) => {
+          const m = modelFor(state.current.current, segment, '');
+          const ranked = m.behavior.steps.slice().sort((a,b) => b.drop - a.drop).slice(0,3);
+          return { segment, label: segmentLabel(segment), ranked, model: m };
+        });
+        return entries;
+      }
+
+      function renderDropoff(){
+        const entries = buildDropoffData();
+        const overall = entries.map((entry) => ({
+          segment: entry.label,
+          top: entry.ranked[0] || { from:'-', to:'-', drop:0, kept:0 },
+        })).sort((a,b) => b.top.drop - a.top.drop).slice(0,3);
+
+        els.dropOverall.innerHTML = overall.length ? overall.map((row, idx) => `
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
+            <div class="flex items-start gap-3">
+              <span class="rank-badge">#${idx+1}</span>
+              <div>
+                <div class="text-sm font-black">${esc(row.segment)}</div>
+                <div class="mt-1 text-sm font-semibold muted">${esc(row.top.from)} → ${esc(row.top.to)}</div>
+                <div class="mt-1 text-sm font-black text-rose-600">${fmtPct(row.top.drop,1)} drop</div>
               </div>
             </div>
-          </article>
-        `).join('') : '<div class="empty xl:col-span-3">No groups available for drop-off view.</div>';
+          </div>
+        `).join('') : `<div class="empty">No drop-off data available.</div>`;
 
-        els.dropoffTableBody.innerHTML = rows.length ? rows.map((row, idx) => `
+        const stepBuckets = {};
+        entries.forEach((entry) => {
+          entry.ranked.forEach((step) => {
+            const key = `${step.from} → ${step.to}`;
+            if (!stepBuckets[key]) stepBuckets[key] = [];
+            stepBuckets[key].push({ segment: entry.label, drop: step.drop, kept: step.kept });
+          });
+        });
+        const stageCards = Object.entries(stepBuckets).map(([label, rows]) => ({
+          label,
+          rows: rows.sort((a,b) => b.drop - a.drop).slice(0,3)
+        })).sort((a,b) => (b.rows[0]?.drop || 0) - (a.rows[0]?.drop || 0));
+        els.dropStageRankings.innerHTML = stageCards.length ? stageCards.map((card) => `
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
+            <div class="text-sm font-black">${esc(card.label)}</div>
+            <div class="mt-3 space-y-2">
+              ${card.rows.map((row, idx) => `<div class="flex items-center justify-between gap-3 text-sm"><div><span class="rank-badge mr-2">#${idx+1}</span>${esc(row.segment)}</div><div class="font-black text-rose-600">${fmtPct(row.drop,1)}</div></div>`).join('')}
+            </div>
+          </div>
+        `).join('') : `<div class="empty">No stage ranking data.</div>`;
+
+        els.dropSegmentTableBody.innerHTML = entries.map((entry) => `
           <tr>
-            <td><span class="rank-badge">${idx + 1}</span></td>
-            <td class="font-black">${esc(row.label)}</td>
-            <td>${esc(row.title || '-')}</td>
-            <td>${esc(row.worstStep)}</td>
-            <td class="font-black text-rose-600">${fmtPct(row.drop,1)}</td>
-            <td class="font-black text-emerald-700">${fmtPct(row.kept,1)}</td>
-            <td>${fmt(row.summary.sessions)}</td>
-            <td>${fmt(row.summary.purchases)}</td>
-            <td>${fmtPct(row.summary.cvr,2)}</td>
+            <td class="font-black">${esc(entry.label)}</td>
+            <td>${entry.ranked[0] ? `${esc(entry.ranked[0].from)} → ${esc(entry.ranked[0].to)} · ${fmtPct(entry.ranked[0].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[1] ? `${esc(entry.ranked[1].from)} → ${esc(entry.ranked[1].to)} · ${fmtPct(entry.ranked[1].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[2] ? `${esc(entry.ranked[2].from)} → ${esc(entry.ranked[2].to)} · ${fmtPct(entry.ranked[2].drop,1)}` : '-'}</td>
           </tr>
-        `).join('') : `<tr><td colspan="9" class="text-center text-slate-400">No groups</td></tr>`;
-      }
-
-      function renderActiveTab(){
-        els.tabOverview.classList.toggle('hidden-section', state.tab !== 'overview');
-        els.tabCompare.classList.toggle('hidden-section', state.tab !== 'compare');
-        els.tabDropoff.classList.toggle('hidden-section', state.tab !== 'dropoff');
-        document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === state.tab));
-      }
-
-      function render(){
-        const groups = summarizeGroups(state.current.current);
-        if (state.selectedGroup && !groups.some((row) => row.key === state.selectedGroup)) state.selectedGroup = '';
-        renderOverview(groups);
-        renderCompare(groups);
-        renderDropoff(groups);
-        renderActiveTab();
+        `).join('');
       }
 
       async function refresh(){
@@ -783,20 +791,14 @@
           els.rangeBox.classList.toggle('hidden', state.view !== 'range');
           document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-view') === state.view));
           document.querySelectorAll('[data-segment]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-segment') === state.segment));
+          document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === state.tab));
+          document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `panel-${state.tab}`));
 
-          const [currentBundle, previousBundle] = await Promise.all([
-            loadRange(range.start, range.end),
-            loadRange(prev.start, prev.end)
-          ]);
-
+          const [currentBundle, previousBundle] = await Promise.all([loadRange(range.start, range.end), loadRange(prev.start, prev.end)]);
           state.current = { range, previousRange: prev, current: currentBundle, previous: previousBundle };
-          const currentGroups = summarizeGroups(currentBundle);
-          if (!currentGroups.length) {
-            state.selectedGroup = '';
-            state.compareA = '';
-            state.compareB = '';
-          }
 
+          const currentGroups = summarizeGroupsForSegment(currentBundle, state.segment);
+          if (state.selectedGroup && !currentGroups.some((row) => row.key === state.selectedGroup)) state.selectedGroup = '';
           els.loadingState.classList.add('hidden');
           els.contentArea.classList.remove('hidden');
           render();
@@ -831,7 +833,6 @@
           els.errorState.textContent = `No available_dates.json found under ${DATA_BASE}.`;
           return;
         }
-
         const latest = state.available[state.available.length - 1];
         els.datePicker.value = latest;
         els.startPicker.value = state.available[Math.max(0, state.available.length - 7)];
@@ -843,18 +844,14 @@
           state.selectedGroup = '';
           await refresh();
         }));
-
         document.querySelectorAll('[data-segment]').forEach((b) => b.addEventListener('click', async () => {
-          state.segment = b.getAttribute('data-segment') || 'SITE';
+          state.segment = b.getAttribute('data-segment') || 'ALL';
           state.selectedGroup = '';
-          state.compareA = '';
-          state.compareB = '';
           await refresh();
         }));
-
-        document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => {
+        document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', async () => {
           state.tab = b.getAttribute('data-tab') || 'overview';
-          renderActiveTab();
+          await refresh();
         }));
 
         els.btnApply.addEventListener('click', async () => { state.selectedGroup = ''; await refresh(); });
@@ -862,8 +859,10 @@
         els.btnNext.addEventListener('click', async () => { shift(1); state.selectedGroup = ''; await refresh(); });
         els.btnResetSelection.addEventListener('click', () => { state.selectedGroup = ''; if(state.current) render(); });
 
-        els.compareA.addEventListener('change', () => { state.compareA = els.compareA.value || ''; render(); });
-        els.compareB.addEventListener('change', () => { state.compareB = els.compareB.value || ''; render(); });
+        els.cmpASegment.addEventListener('change', () => { state.compare.A.segment = els.cmpASegment.value; state.compare.A.group = ''; renderCompare(); });
+        els.cmpBSegment.addEventListener('change', () => { state.compare.B.segment = els.cmpBSegment.value; state.compare.B.group = ''; renderCompare(); });
+        els.cmpAGroup.addEventListener('change', () => { state.compare.A.group = els.cmpAGroup.value; renderCompare(); });
+        els.cmpBGroup.addEventListener('change', () => { state.compare.B.group = els.cmpBGroup.value; renderCompare(); });
 
         await refresh();
       }
