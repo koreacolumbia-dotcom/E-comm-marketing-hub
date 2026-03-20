@@ -177,6 +177,59 @@ def fetch_google_trends(
     return out
 
 
+
+
+def fetch_google_related_queries(
+    keywords: List[str],
+    start_date: str,
+    end_date: str,
+    geo: str,
+    hl: str,
+    tz: int,
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    if TrendReq is None:
+        return []
+
+    pytrends = TrendReq(hl=hl, tz=tz)
+    seen: Dict[str, Dict[str, Any]] = {}
+    base_keywords = {k.strip().lower() for k in keywords}
+    timeframe = f"{start_date} {end_date}"
+
+    for kw in keywords:
+        try:
+            pytrends.build_payload([kw], timeframe=timeframe, geo=geo)
+            related = pytrends.related_queries() or {}
+            rising_df = (related.get(kw) or {}).get("rising")
+            if rising_df is None or rising_df.empty:
+                continue
+            for _, row in rising_df.iterrows():
+                query = str(row.get("query", "")).strip()
+                value_raw = row.get("value")
+                if not query:
+                    continue
+                qnorm = query.lower()
+                if qnorm in base_keywords:
+                    continue
+                is_breakout = str(value_raw).strip().lower() == "breakout"
+                score = 10000.0 if is_breakout else safe_float(value_raw)
+                item = seen.get(qnorm)
+                if item is None or score > item["score"]:
+                    seen[qnorm] = {
+                        "keyword": query,
+                        "score": score,
+                        "source_keyword": kw,
+                        "is_breakout": is_breakout,
+                        "value_label": "Breakout" if is_breakout else str(int(score) if float(score).is_integer() else round(score, 1)),
+                    }
+        except Exception:
+            continue
+
+    ranked = sorted(seen.values(), key=lambda x: (x["score"], x["keyword"]), reverse=True)
+    for i, item in enumerate(ranked[:limit], start=1):
+        item["rank"] = i
+    return ranked[:limit]
+
 # ---------- transform ----------
 def align_series(platform_data: Dict[str, Dict[str, Dict[str, float]]], keywords: List[str]) -> List[str]:
     dates = set()
@@ -185,7 +238,7 @@ def align_series(platform_data: Dict[str, Dict[str, Dict[str, float]]], keywords
     return sorted(dates)
 
 
-def build_payload(config: Config, raw: Dict[str, Dict[str, Dict[str, float]]]) -> Dict[str, Any]:
+def build_payload(config: Config, raw: Dict[str, Dict[str, Dict[str, float]]], related_rising: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     dates = align_series(raw, config.keywords)
     overview: List[Dict[str, Any]] = []
     keyword_series: Dict[str, List[Dict[str, Any]]] = {}
@@ -280,6 +333,7 @@ def build_payload(config: Config, raw: Dict[str, Dict[str, Dict[str, float]]]) -
         "rankings": {
             "latest": ranking_latest[:10],
             "growth": ranking_growth[:10],
+            "related_rising": (related_rising or [])[:10],
         },
         "platform_peaks": {
             "naver": {"date": peak_naver["date"], "value": round(max(peak_naver["value"], 0), 4)},
@@ -316,6 +370,7 @@ def main() -> None:
         return
 
     raw: Dict[str, Dict[str, Dict[str, float]]] = {"naver": {}, "google": {}}
+    related_rising: List[Dict[str, Any]] = []
 
     if "naver" in platforms:
         raw["naver"] = fetch_naver_datalab(
@@ -339,6 +394,15 @@ def main() -> None:
             hl=args.google_language,
             tz=args.google_timezone,
         )
+        related_rising = fetch_google_related_queries(
+            keywords=keywords,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            geo=args.geo,
+            hl=args.google_language,
+            tz=args.google_timezone,
+            limit=10,
+        )
 
     cfg = Config(
         keywords=keywords,
@@ -355,7 +419,7 @@ def main() -> None:
         meta_json=meta_json,
     )
 
-    payload = build_payload(cfg, raw)
+    payload = build_payload(cfg, raw, related_rising=related_rising)
     ensure_parent(cfg.output_json)
     ensure_parent(cfg.meta_json)
     cfg.output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
