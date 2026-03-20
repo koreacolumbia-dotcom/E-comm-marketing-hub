@@ -266,9 +266,10 @@ def build_payload(config: Config, raw: Dict[str, Dict[str, Dict[str, float]]]) -
         "gender": config.gender,
         "generated_at": generated.strftime("%Y-%m-%d %H:%M:%S"),
         "generated_at_kst": fmt_kst(generated),
-        "period_text": f"최근 3개월 ({config.start_date} ~ {config.end_date})",
+        "period_text": f"전체 누적 데이터 ({config.start_date} ~ {config.end_date})",
         "updated_at_kst": fmt_kst(generated),
         "keywords": config.keywords,
+        "data_available_days": (datetime.strptime(config.end_date, "%Y-%m-%d") - datetime.strptime(config.start_date, "%Y-%m-%d")).days + 1,
     }
 
     return {
