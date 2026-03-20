@@ -121,13 +121,50 @@
     .kpi-value{ font-size: 2rem; font-weight: 900; line-height: 1; }
     .muted{ color:#64748b; }
 
+    .bg-orb{
+      position:fixed; border-radius:9999px; filter: blur(50px); opacity:.26; pointer-events:none; z-index:0;
+      animation: floatOrb 12s ease-in-out infinite;
+    }
+    .bg-orb.orb-1{ width:280px; height:280px; background:rgba(59,130,246,.18); top:60px; right:4%; }
+    .bg-orb.orb-2{ width:240px; height:240px; background:rgba(16,185,129,.16); top:46%; left:2%; animation-delay:-4s; }
+    .bg-orb.orb-3{ width:220px; height:220px; background:rgba(245,158,11,.14); bottom:4%; right:14%; animation-delay:-8s; }
+    @keyframes floatOrb{
+      0%,100%{ transform: translate3d(0,0,0) scale(1); }
+      50%{ transform: translate3d(0,-14px,0) scale(1.04); }
+    }
+
+    .reveal{
+      opacity:0; transform: translateY(18px) scale(.985);
+      transition: opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1);
+      transition-delay: var(--reveal-delay, 0ms);
+      will-change: transform, opacity;
+    }
+    .reveal.in-view{ opacity:1; transform: translateY(0) scale(1); }
+
+    .rank-item, .summary-card, .glass-card, .chip{
+      transition: transform .26s ease, box-shadow .26s ease, background .26s ease, border-color .26s ease;
+    }
+    .summary-card:hover, .glass-card:hover{
+      transform: translateY(-3px);
+      box-shadow: 0 26px 60px rgba(0,45,114,0.08);
+    }
+    .rank-item{
+      opacity:0; transform: translateY(10px);
+      animation: rankIn .5s ease forwards;
+      animation-delay: calc(var(--idx, 0) * 55ms);
+    }
+    @keyframes rankIn{ to{ opacity:1; transform: translateY(0); } }
+
     body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
   </style>
 </head>
 
 <body>
-  <header class="topbar sticky top-0 z-50">
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+  <header class="topbar sticky top-0 z-50 relative">
     <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
       <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div class="flex items-center gap-3">
@@ -170,7 +207,7 @@
     </div>
   </header>
 
-  <main class="p-6 md:p-10 w-full">
+  <main class="p-6 md:p-10 w-full relative z-10">
     <div class="mx-auto w-full max-w-[1280px]">
       <div class="layout-header mb-8">
         <header class="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -182,27 +219,26 @@
         </header>
       </div>
 
-      <section class="mb-6 fade-up">
+      <section class="mb-6 fade-up reveal">
         <div class="glass-card p-5 md:p-6">
           <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <div class="small-label text-blue-600 mb-2">View Range</div>
               <div class="text-xl font-black text-slate-900">기간별 검색량 추이 보기</div>
-              <div class="text-sm font-bold text-slate-500 mt-1" id="activeRangeText">최근 3개월 기준</div>
+              <div class="text-sm font-bold text-slate-500 mt-1" id="activeRangeText">최근 1개월 기준</div>
             </div>
             <div class="period-tabs" id="periodTabs">
-              <button class="period-tab" data-period="540">1년 6개월</button>
-              <button class="period-tab" data-period="365">1년</button>
-              <button class="period-tab" data-period="180">6개월</button>
-              <button class="period-tab active" data-period="90">3개월</button>
-              <button class="period-tab" data-period="30">1개월</button>
-              <button class="period-tab" data-period="7">1주</button>
+              <button class="period-tab" data-period="7">7D</button>
+              <button class="period-tab active" data-period="30">1Month</button>
+              <button class="period-tab" data-period="90">3Month</button>
+              <button class="period-tab" data-period="180">6Month</button>
+              <button class="period-tab" data-period="365">1Year</button>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="mb-10">
+      <section class="mb-10 reveal">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div class="summary-card">
             <div class="small-label text-blue-600 mb-2">Latest Naver</div>
@@ -222,7 +258,7 @@
         </div>
       </section>
 
-      <section class="mb-10">
+      <section class="mb-10 reveal">
         <div class="glass-card p-8">
           <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
             <div>
@@ -235,8 +271,8 @@
         </div>
       </section>
 
-      <section class="mb-10">
-        <div class="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr_1fr] gap-4">
+      <section class="mb-10 reveal">
+        <div class="grid grid-cols-1 xl:grid-cols-[1.15fr_0.9fr_0.9fr_0.95fr] gap-4">
           <div class="glass-card p-8">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
@@ -252,14 +288,21 @@
           </div>
 
           <div class="glass-card p-8">
-            <div class="small-label text-blue-600 mb-2">3. Latest Rank</div>
+            <div class="small-label text-blue-600 mb-2">3. Rising Related Queries</div>
+            <div class="text-2xl font-black text-slate-900 mb-2">컬럼비아 연관 급상승 검색어 TOP 10</div>
+            <div class="text-sm font-bold text-slate-500 mb-5">Google Trends rising queries 기준</div>
+            <div class="rank-list" id="relatedRisingList"></div>
+          </div>
+
+          <div class="glass-card p-8">
+            <div class="small-label text-blue-600 mb-2">4. Latest Rank</div>
             <div class="text-2xl font-black text-slate-900 mb-2">최신 시점 상위 키워드</div>
             <div class="text-sm font-bold text-slate-500 mb-5">Naver/Google 평균값 기준</div>
             <div class="rank-list" id="latestRankList"></div>
           </div>
 
           <div class="glass-card p-8">
-            <div class="small-label text-blue-600 mb-2">4. Growth Rank</div>
+            <div class="small-label text-blue-600 mb-2">5. Growth Rank</div>
             <div class="text-2xl font-black text-slate-900 mb-2">직전 대비 상승 키워드</div>
             <div class="text-sm font-bold text-slate-500 mb-5">선택 기간 첫 포인트 대비 증감률</div>
             <div class="rank-list" id="growthRankList"></div>
@@ -267,11 +310,11 @@
         </div>
       </section>
 
-      <section class="mb-10">
+      <section class="mb-10 reveal">
         <div class="glass-card p-8">
           <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
             <div>
-              <div class="small-label text-blue-600 mb-2">5. Latest Snapshot</div>
+              <div class="small-label text-blue-600 mb-2">6. Latest Snapshot</div>
               <div class="text-2xl font-black text-slate-900">최신 시점 키워드 스냅샷</div>
               <div class="text-sm font-bold text-slate-500 mt-2">플랫폼별 최신값, 갭, 피크 시점 정리</div>
             </div>
@@ -304,17 +347,16 @@
   <script>
     const DATA = __DATA__;
     const PERIOD_OPTIONS = [
-      { days: 540, label: '최근 1년 6개월' },
-      { days: 365, label: '최근 1년' },
-      { days: 180, label: '최근 6개월' },
-      { days: 90, label: '최근 3개월' },
+      { days: 7, label: '최근 7일' },
       { days: 30, label: '최근 1개월' },
-      { days: 7, label: '최근 1주' },
+      { days: 90, label: '최근 3개월' },
+      { days: 180, label: '최근 6개월' },
+      { days: 365, label: '최근 1년' },
     ];
 
     let overviewChart = null;
     let keywordChart = null;
-    let CURRENT_DAYS = 90;
+    let CURRENT_DAYS = 30;
     let CURRENT_KEYWORD = null;
     let FILTERED = null;
 
@@ -324,6 +366,35 @@
     function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
     function toDate(s){ return new Date(`${s}T00:00:00`); }
     function periodLabel(days){ return (PERIOD_OPTIONS.find(x => x.days === days) || {}).label || `최근 ${days}일`; }
+    function animateCount(el, target, decimals = 1){
+      if (!el) return;
+      const end = Number(target);
+      if (!Number.isFinite(end)) { el.textContent = '-'; return; }
+      const start = Number(el.dataset.prevValue || 0);
+      const duration = 700;
+      const t0 = performance.now();
+      const formatValue = (v) => (Math.round(v * (10 ** decimals)) / (10 ** decimals)).toFixed(decimals);
+      function frame(now){
+        const p = Math.min(1, (now - t0) / duration);
+        const eased = 1 - Math.pow(1 - p, 3);
+        const value = start + (end - start) * eased;
+        el.textContent = formatValue(value);
+        if (p < 1) requestAnimationFrame(frame);
+        else el.dataset.prevValue = String(end);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function initReveal(){
+      const nodes = [...document.querySelectorAll('.reveal')];
+      nodes.forEach((el, idx) => el.style.setProperty('--reveal-delay', `${Math.min(idx * 70, 280)}ms`));
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) entry.target.classList.add('in-view');
+        });
+      }, { threshold: 0.12 });
+      nodes.forEach(el => io.observe(el));
+    }
 
     function getAvailableDays(){
       const allDates = (DATA.overview || []).map(r => r.date).sort();
@@ -559,8 +630,24 @@
     }
 
     function renderRanks(){
-      document.getElementById('latestRankList').innerHTML = (FILTERED.rankings.latest || []).slice(0, 8).map((r, idx) => `
-        <div class="rank-item">
+      document.getElementById('relatedRisingList').innerHTML = (DATA.rankings.related_rising || []).slice(0, 10).map((r, idx) => `
+        <div class="rank-item" style="--idx:${idx};">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
+            <div>
+              <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
+              <div class="text-xs font-bold text-slate-500">seed: ${esc(r.source_keyword || '-')}</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-lg font-black text-slate-900">${esc(r.value_label || '-')}</div>
+            <div class="text-[11px] font-bold text-slate-500">${r.is_breakout ? '급증' : '상승률 지수'}</div>
+          </div>
+        </div>
+      `).join('') || `<div class="text-sm font-bold text-slate-500">연관 급상승 검색어 데이터가 없습니다.</div>`;
+
+      document.getElementById('latestRankList').innerHTML = (FILTERED.rankings.latest || []).slice(0, 10).map((r, idx) => `
+        <div class="rank-item" style="--idx:${idx};">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
             <div>
@@ -572,8 +659,8 @@
         </div>
       `).join('');
 
-      document.getElementById('growthRankList').innerHTML = (FILTERED.rankings.growth || []).slice(0, 8).map((r, idx) => `
-        <div class="rank-item">
+      document.getElementById('growthRankList').innerHTML = (FILTERED.rankings.growth || []).slice(0, 10).map((r, idx) => `
+        <div class="rank-item" style="--idx:${idx};">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
             <div>
@@ -592,9 +679,9 @@
       document.getElementById('latestDateText').textContent = FILTERED.latest_summary.date || '-';
       document.getElementById('naverPeakText').textContent = `${FILTERED.platform_peaks.naver.date} · ${fmt(FILTERED.platform_peaks.naver.value)}`;
       document.getElementById('googlePeakText').textContent = `${FILTERED.platform_peaks.google.date} · ${fmt(FILTERED.platform_peaks.google.value)}`;
-      document.getElementById('latestNaverValue').textContent = fmt(FILTERED.latest_summary.naver_avg_latest);
-      document.getElementById('latestGoogleValue').textContent = fmt(FILTERED.latest_summary.google_avg_latest);
-      document.getElementById('latestGapValue').textContent = fmt(FILTERED.latest_summary.gap_latest);
+      animateCount(document.getElementById('latestNaverValue'), FILTERED.latest_summary.naver_avg_latest, 1);
+      animateCount(document.getElementById('latestGoogleValue'), FILTERED.latest_summary.google_avg_latest, 1);
+      animateCount(document.getElementById('latestGapValue'), FILTERED.latest_summary.gap_latest, 1);
       document.getElementById('latestNaverDelta').textContent = `선택 기간 첫 포인트 대비 ${fmtPct(FILTERED.latest_summary.naver_vs_first_pct)}`;
       document.getElementById('latestGoogleDelta').textContent = `선택 기간 첫 포인트 대비 ${fmtPct(FILTERED.latest_summary.google_vs_first_pct)}`;
       document.getElementById('headerMeta').textContent = `${DATA.meta.keywords.length}개 키워드 · ${periodLabel(CURRENT_DAYS)} · Generated ${DATA.meta.generated_at}`;
@@ -625,6 +712,7 @@
     }
 
     function init(){
+      initReveal();
       buildChips();
       buildKeywordSelect();
       bindPeriodTabs();
