@@ -183,7 +183,11 @@
 
         <!-- ✅ NEW: OWNED Portal (EDM/LMS/KAKAO) -->
         <div class="nav-item" data-key="funnel" data-target="reports/daily_digest/owned_funnel_tab.html" data-label="Funnel Analysis">
-          <i class="fa-solid fa-filter"></i><span>funnel 분석</span>
+          <i class="fa-solid fa-filter"></i><span>Funnel 분석</span>
+        </div>
+
+        <div class="nav-item" data-key="searchtrends" data-target="reports/search_trends/index.html" data-label="검색량 추이">
+          <i class="fa-solid fa-magnifying-glass-chart"></i><span>검색량 추이</span>
         </div>
 
         <div class="nav-item" data-key="owned" data-target="reports/owned_portal/index.html" data-label="OWNED Portal">
@@ -276,7 +280,7 @@
 <!-- ================= Mobile Bottom Tabbar (MO) ================= -->
 <nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
   <!-- ✅ 7 -> 8 columns -->
-  <div class="max-w-2xl mx-auto grid grid-cols-8 gap-2">
+  <div class="max-w-2xl mx-auto grid grid-cols-9 gap-2">
     <div class="mo-tab active" data-key="summary" data-target="reports/index.html" data-label="Summary">
       <i class="fa-solid fa-chart-simple text-base"></i>
       <div class="text-[10px]">요약</div>
@@ -291,6 +295,11 @@
     <div class="mo-tab" data-key="funnel" data-target="reports/daily_digest/owned_funnel_tab.html" data-label="Funnel Analysis">
       <i class="fa-solid fa-filter text-base"></i>
       <div class="text-[10px]">Funnel</div>
+    </div>
+
+    <div class="mo-tab" data-key="searchtrends" data-target="reports/search_trends/index.html" data-label="검색량 추이">
+      <i class="fa-solid fa-magnifying-glass-chart text-base"></i>
+      <div class="text-[10px]">검색량</div>
     </div>
 
     <div class="mo-tab" data-key="owned" data-target="reports/owned_portal/index.html" data-label="OWNED Portal">
@@ -335,6 +344,7 @@
       summary: "reports/meta.json",
       daily:   "reports/meta.json",
       owned:   "reports/owned_portal/data/meta.json",   // ✅ NEW
+      searchtrends: "reports/search_trends/data/meta.json",
       price:   "reports/meta.json",
       hero:    "reports/meta.json",
       voc:     "reports/meta.json",
