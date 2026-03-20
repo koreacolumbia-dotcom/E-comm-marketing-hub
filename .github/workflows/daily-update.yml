@@ -1073,8 +1073,12 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
           HUB_URL: ${{ vars.HUB_URL }}
-          KST_STAMP: ${{ steps.set_time.outputs.kst }}
-          MODE_DAILY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}
-          MODE_VOC_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}
-          MODE_BLOG_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}
-          REPORT_DATE: ${{ steps.set_time.outputs.yeste
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export KST_STAMP="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S KST')"
+          export REPORT_DATE="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
+          export DAILY_DIGEST_PNG_PATH="reports/daily_digest/daily/${REPORT_DATE}.png"
+          export DAILY_DIGEST_HTML_PATH="reports/daily_digest/daily/${REPORT_DATE}.html"
+          export MODE_DAIL
