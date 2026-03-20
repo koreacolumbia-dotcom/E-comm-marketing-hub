@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search Trends Dashboard | Columbia</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+    html, body { height: 100%; }
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a; min-height:100vh;
+    }
+
+    .glass-card{
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.75);
+      border-radius: 30px;
+      box-shadow: 0 20px 50px rgba(0,45,114,0.05);
+    }
+
+    .topbar{
+      background: rgba(255,255,255,0.70);
+      backdrop-filter: blur(15px);
+      border-bottom: 1px solid rgba(255,255,255,0.80);
+    }
+
+    .summary-card{
+      border-radius: 26px; background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.75); backdrop-filter: blur(18px);
+      box-shadow: 0 20px 50px rgba(0,45,114,0.05);
+      padding: 18px 20px;
+    }
+
+    .small-label{
+      font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 900;
+    }
+
+    .input-glass{
+      background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.80);
+      border-radius: 18px; padding: 12px 14px; outline: none; font-weight: 800; color:#0f172a;
+    }
+    .input-glass:focus{
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.10);
+      border-color: rgba(0,45,114,0.25);
+    }
+
+    .chip{
+      border-radius: 9999px; padding: 10px 14px; font-weight: 900; font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.60);
+      color:#334155; cursor:pointer; user-select:none;
+    }
+    .chip.active{
+      background: rgba(0,45,114,0.95); color:#fff; border-color: rgba(0,45,114,1);
+      box-shadow: 0 10px 30px rgba(0,45,114,0.15);
+    }
+
+    .tbl{
+      width:100%; border-collapse: separate; border-spacing: 0; overflow:hidden; border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.55);
+    }
+    .tbl th{
+      font-size: 11px; letter-spacing: .22em; text-transform: uppercase; font-weight: 900;
+      color:#475569; background: rgba(255,255,255,0.75); padding: 14px 14px;
+      position: sticky; top: 0; z-index: 1;
+    }
+    .tbl td{
+      padding: 14px 14px; border-top: 1px solid rgba(255,255,255,0.75); font-weight: 800;
+      color:#0f172a; font-size: 13px; vertical-align: top;
+    }
+
+    .badge{
+      display:inline-flex; align-items:center; gap:6px; padding: 6px 10px; border-radius: 9999px;
+      font-size: 11px; font-weight: 900; border: 1px solid rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.65); color:#334155;
+    }
+    .badge.naver{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
+    .badge.google{ background: rgba(59,130,246,0.10); color:#1d4ed8; border-color: rgba(59,130,246,0.18); }
+    .badge.growth{ background: rgba(234,179,8,0.12); color:#a16207; border-color: rgba(234,179,8,0.18); }
+
+    .rank-list{ display:grid; grid-template-columns:1fr; gap:10px; }
+    .rank-item{
+      padding: 14px 16px; border-radius: 20px; background: rgba(255,255,255,0.58);
+      border: 1px solid rgba(255,255,255,0.82);
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+    }
+
+    .chart-wrap{ position:relative; width:100%; height:380px; }
+    .chart-wrap-tall{ position:relative; width:100%; height:430px; }
+    .kpi-value{ font-size: 2rem; font-weight: 900; line-height: 1; }
+    .muted{ color:#64748b; }
+
+    body.embedded .topbar, body.embedded .layout-header { display:none !important; }
+    body.embedded main{ padding: 24px !important; }
+  </style>
+</head>
+
+<body>
+  <header class="topbar sticky top-0 z-50">
+    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
+            <i class="fa-solid fa-magnifying-glass-chart text-slate-700"></i>
+          </div>
+          <div>
+            <div class="text-sm font-black text-slate-900">Search Trends Dashboard</div>
+            <div class="text-xs font-bold text-slate-500">Naver + Google | Columbia</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 w-full lg:w-auto">
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Period</div>
+            <div class="text-sm font-black text-slate-900" id="periodText">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1" id="timeUnitText">-</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Latest Point</div>
+            <div class="text-sm font-black text-slate-900" id="latestDateText">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1">최종 수집 시점</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Naver Peak</div>
+            <div class="text-sm font-black text-slate-900" id="naverPeakText">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1">평균 상대지수 최고점</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Google Peak</div>
+            <div class="text-sm font-black text-slate-900" id="googlePeakText">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1">평균 상대지수 최고점</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
+        * Columbia 관련 키워드 검색량 추이 대시보드 · Naver DataLab + Google Trends 기반
+      </div>
+    </div>
+  </header>
+
+  <main class="p-6 md:p-10 w-full">
+    <div class="mx-auto w-full max-w-[1280px]">
+      <div class="layout-header mb-8">
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">컬럼비아 검색량 추이</h1>
+            <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap" id="keywordChips"></div>
+        </header>
+      </div>
+
+      <section class="mb-10">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Latest Naver</div>
+            <div class="kpi-value text-slate-900" id="latestNaverValue">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-2" id="latestNaverDelta">-</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Latest Google</div>
+            <div class="kpi-value text-slate-900" id="latestGoogleValue">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-2" id="latestGoogleDelta">-</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Gap</div>
+            <div class="kpi-value text-slate-900" id="latestGapValue">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-2">Naver - Google</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">1. Overview</div>
+              <div class="text-2xl font-black text-slate-900">네이버 vs 구글 전체 추이</div>
+              <div class="text-sm font-bold text-slate-500 mt-2">키워드군 평균 상대지수 기준</div>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr_1fr] gap-4">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">2. Keyword Trend</div>
+                <div class="text-2xl font-black text-slate-900">키워드별 플랫폼 추이</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">선택 키워드의 Naver vs Google 비교</div>
+              </div>
+              <div>
+                <select id="keywordSelect" class="input-glass"></select>
+              </div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="keywordChart"></canvas></div>
+          </div>
+
+          <div class="glass-card p-8">
+            <div class="small-label text-blue-600 mb-2">3. Latest Rank</div>
+            <div class="text-2xl font-black text-slate-900 mb-2">최신 시점 상위 키워드</div>
+            <div class="text-sm font-bold text-slate-500 mb-5">Naver/Google 평균값 기준</div>
+            <div class="rank-list" id="latestRankList"></div>
+          </div>
+
+          <div class="glass-card p-8">
+            <div class="small-label text-blue-600 mb-2">4. Growth Rank</div>
+            <div class="text-2xl font-black text-slate-900 mb-2">직전 대비 상승 키워드</div>
+            <div class="text-sm font-bold text-slate-500 mb-5">마지막 포인트 기준 증감률</div>
+            <div class="rank-list" id="growthRankList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">5. Latest Snapshot</div>
+              <div class="text-2xl font-black text-slate-900">최신 시점 키워드 스냅샷</div>
+              <div class="text-sm font-bold text-slate-500 mt-2">플랫폼별 최신값, 갭, 피크 시점 정리</div>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Keyword</th>
+                  <th>Naver</th>
+                  <th>Google</th>
+                  <th>Gap</th>
+                  <th>Growth</th>
+                  <th>Naver Peak</th>
+                  <th>Google Peak</th>
+                </tr>
+              </thead>
+              <tbody id="snapshotBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <footer class="text-xs font-bold text-slate-500 pb-8">
+        * 플랫폼별 값은 상대지수라 절대 검색량 비교가 아니라 추세 비교용으로 보는 게 맞습니다.
+      </footer>
+    </div>
+  </main>
+
+  <script>
+    const DATA = __DATA__;
+    let overviewChart = null;
+    let keywordChart = null;
+
+    function num(v){ return Number(v ?? 0); }
+    function fmt(v){ return Number.isFinite(v) ? (Math.round(v * 10) / 10).toFixed(1) : '-'; }
+    function fmtPct(v){ return Number.isFinite(v) ? `${v > 0 ? '+' : ''}${(Math.round(v * 10) / 10).toFixed(1)}%` : '-'; }
+    function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+    function buildChips(){
+      const wrap = document.getElementById('keywordChips');
+      wrap.innerHTML = DATA.meta.keywords.map((k, idx) => `
+        <button class="chip ${idx===0?'active':''}" data-keyword="${esc(k)}" onclick="selectKeywordChip('${String(k).replace(/'/g, "\\'")}')">${esc(k)}</button>
+      `).join('');
+    }
+
+    function buildKeywordSelect(){
+      const sel = document.getElementById('keywordSelect');
+      sel.innerHTML = DATA.meta.keywords.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+      sel.addEventListener('change', (e) => selectKeywordChip(e.target.value));
+    }
+
+    function selectKeywordChip(keyword){
+      document.querySelectorAll('#keywordChips .chip').forEach(el => {
+        el.classList.toggle('active', el.dataset.keyword === keyword);
+      });
+      document.getElementById('keywordSelect').value = keyword;
+      renderKeywordChart(keyword);
+    }
+
+    function renderOverviewChart(){
+      const ctx = document.getElementById('overviewChart').getContext('2d');
+      const datasets = [
+        {
+          label: 'Naver Avg',
+          data: DATA.overview.map(r => ({ x: r.date, y: num(r.naver_avg) })),
+          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.25, pointRadius: 0,
+        },
+        {
+          label: 'Google Avg',
+          data: DATA.overview.map(r => ({ x: r.date, y: num(r.google_avg) })),
+          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.25, pointRadius: 0,
+        }
+      ];
+      if (overviewChart) overviewChart.destroy();
+      overviewChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { weight: '700' } } },
+            tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } },
+          },
+          scales: {
+            x: { type: 'time', time: { unit: DATA.meta.time_unit === 'date' ? 'day' : (DATA.meta.time_unit === 'month' ? 'month' : 'week') }, grid: { display: false }, ticks: { color: '#64748b', font: { weight: '700' } } },
+            y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.15)' }, ticks: { color: '#64748b', font: { weight: '700' } } },
+          },
+        }
+      });
+    }
+
+    function renderKeywordChart(keyword){
+      const rows = DATA.series_by_keyword[keyword] || [];
+      const ctx = document.getElementById('keywordChart').getContext('2d');
+      const datasets = [
+        {
+          label: 'Naver',
+          data: rows.map(r => ({ x: r.date, y: num(r.naver) })),
+          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.25, pointRadius: 0,
+        },
+        {
+          label: 'Google',
+          data: rows.map(r => ({ x: r.date, y: num(r.google) })),
+          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.25, pointRadius: 0,
+        },
+        {
+          label: 'Gap',
+          data: rows.map(r => ({ x: r.date, y: num(r.gap) })),
+          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2, tension: 0.25, pointRadius: 0,
+          borderDash: [7,5],
+        }
+      ];
+      if (keywordChart) keywordChart.destroy();
+      keywordChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { weight: '700' } } },
+            tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } },
+          },
+          scales: {
+            x: { type: 'time', time: { unit: DATA.meta.time_unit === 'date' ? 'day' : (DATA.meta.time_unit === 'month' ? 'month' : 'week') }, grid: { display: false }, ticks: { color: '#64748b', font: { weight: '700' } } },
+            y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.15)' }, ticks: { color: '#64748b', font: { weight: '700' } } },
+          },
+        }
+      });
+    }
+
+    function renderSnapshot(){
+      const body = document.getElementById('snapshotBody');
+      body.innerHTML = DATA.snapshot.map(r => `
+        <tr>
+          <td>${esc(r.keyword)}</td>
+          <td><span class="badge naver">${fmt(r.naver_latest)}</span></td>
+          <td><span class="badge google">${fmt(r.google_latest)}</span></td>
+          <td>${fmt(r.gap_latest)}</td>
+          <td><span class="badge growth">${fmtPct(r.growth_pct)}</span></td>
+          <td>${esc(r.naver_peak_date)} <span class="muted">(${fmt(r.naver_peak_value)})</span></td>
+          <td>${esc(r.google_peak_date)} <span class="muted">(${fmt(r.google_peak_value)})</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderRanks(){
+      document.getElementById('latestRankList').innerHTML = (DATA.rankings.latest || []).slice(0, 8).map((r, idx) => `
+        <div class="rank-item">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
+            <div>
+              <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
+              <div class="text-xs font-bold text-slate-500">latest blended score</div>
+            </div>
+          </div>
+          <div class="text-lg font-black text-slate-900">${fmt(r.value)}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('growthRankList').innerHTML = (DATA.rankings.growth || []).slice(0, 8).map((r, idx) => `
+        <div class="rank-item">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
+            <div>
+              <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
+              <div class="text-xs font-bold text-slate-500">vs previous point</div>
+            </div>
+          </div>
+          <div class="text-lg font-black text-slate-900">${fmtPct(r.value)}</div>
+        </div>
+      `).join('');
+    }
+
+    function fillSummary(){
+      document.getElementById('periodText').textContent = DATA.meta.period;
+      document.getElementById('timeUnitText').textContent = `${DATA.meta.time_unit.toUpperCase()} · ${DATA.meta.geo} · ${DATA.meta.device.toUpperCase()}`;
+      document.getElementById('latestDateText').textContent = DATA.latest_summary.date || '-';
+      document.getElementById('naverPeakText').textContent = `${DATA.platform_peaks.naver.date} · ${fmt(DATA.platform_peaks.naver.value)}`;
+      document.getElementById('googlePeakText').textContent = `${DATA.platform_peaks.google.date} · ${fmt(DATA.platform_peaks.google.value)}`;
+      document.getElementById('latestNaverValue').textContent = fmt(DATA.latest_summary.naver_avg_latest);
+      document.getElementById('latestGoogleValue').textContent = fmt(DATA.latest_summary.google_avg_latest);
+      document.getElementById('latestGapValue').textContent = fmt(DATA.latest_summary.gap_latest);
+      document.getElementById('latestNaverDelta').textContent = `직전 대비 ${fmtPct(DATA.latest_summary.naver_vs_prev_pct)}`;
+      document.getElementById('latestGoogleDelta').textContent = `직전 대비 ${fmtPct(DATA.latest_summary.google_vs_prev_pct)}`;
+      document.getElementById('headerMeta').textContent = `${DATA.meta.keywords.length}개 키워드 · ${DATA.meta.period} · Generated ${DATA.meta.generated_at}`;
+    }
+
+    function init(){
+      fillSummary();
+      buildChips();
+      buildKeywordSelect();
+      renderOverviewChart();
+      renderSnapshot();
+      renderRanks();
+      if (DATA.meta.keywords.length) {
+        selectKeywordChip(DATA.meta.keywords[0]);
+      }
+    }
+    init();
+  </script>
+</body>
+</html>
