@@ -63,6 +63,13 @@ NAVER_CONTEXT_TERMS = [
 ]
 NAVER_QUERY_SUFFIXES = ["", " 등산", " 등산화", " 바람막이", " 플리스", " 자켓"]
 NAVER_PAGES = max(1, int(os.getenv("NAVER_PAGES", "4")))
+EOMISAE_PAGES = max(1, int(os.getenv("EOMISAE_PAGES", "2")))
+PPOMPPU_PAGES = max(1, int(os.getenv("PPOMPPU_PAGES", "1")))
+EOMISAE_BOARD_SPECS = [
+    ("fe", "어미새 자유게시판", "https://eomisae.co.kr/fe"),
+    ("fh", "어미새 패션게시판", "https://eomisae.co.kr/fh"),
+]
+PPOMPPU_CLIMB_URL = "https://www.ppomppu.co.kr/zboard/zboard.php?id=climb"
 NAVER_ALLOWED_CAFE_URLS = [
     "https://cafe.naver.com/windstopper",
     "https://cafe.naver.com/hikingf",
@@ -314,6 +321,73 @@ def _get_with_retry(url: str, *, headers=None, params=None, timeout=20, retries=
     if last_exc:
         raise last_exc
     raise RuntimeError(f"request failed: {url}")
+
+
+def _infer_kst_year(month: int, day: int) -> int:
+    now = datetime.now(KST)
+    year = now.year
+    try:
+        candidate = datetime(year, month, day, tzinfo=KST)
+        if candidate > now + timedelta(days=2):
+            year -= 1
+    except Exception:
+        return year
+    return year
+
+
+def _parse_source_datetime(text: str) -> datetime | None:
+    raw = (text or "").strip()
+    if not raw:
+        return None
+
+    iso_match = re.search(r"(20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2})?)", raw)
+    if iso_match:
+        try:
+            dt = datetime.fromisoformat(iso_match.group(1))
+            return dt.astimezone(KST) if dt.tzinfo else dt.replace(tzinfo=KST)
+        except Exception:
+            pass
+
+    normalized = raw.replace("/", "-").replace(".", "-").replace("T", " ")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(normalized, fmt).replace(tzinfo=KST)
+        except Exception:
+            continue
+
+    md_match = re.search(r"(?<!\d)(\d{1,2})[-/.](\d{1,2})(?!\d)", raw)
+    if md_match:
+        month = int(md_match.group(1))
+        day = int(md_match.group(2))
+        try:
+            return datetime(_infer_kst_year(month, day), month, day, tzinfo=KST)
+        except Exception:
+            return None
+    return None
+
+
+def _extract_longest_text(soup: BeautifulSoup, selectors: List[str]) -> str:
+    candidates: List[str] = []
+    for sel in selectors:
+        for node in soup.select(sel):
+            txt = node.get_text("\n", strip=True)
+            if txt:
+                candidates.append(txt)
+    return max(candidates, key=len) if candidates else ""
+
+
+def _extract_first_text(soup: BeautifulSoup, selectors: List[str]) -> str:
+    for sel in selectors:
+        node = soup.select_one(sel)
+        if not node:
+            continue
+        if node.name == "meta":
+            txt = (node.get("content") or "").strip()
+        else:
+            txt = node.get_text(" ", strip=True)
+        if txt:
+            return txt
+    return ""
 
 
 def _extract_naver_article_detail_cached(link: str, cafeurl: str = "", cafename: str = "") -> tuple[str, datetime | None, str, str, str]:
@@ -792,6 +866,217 @@ def crawl_naver_cafe_engine(days: int) -> Tuple[List[Post], str | None]:
 # =================================================================
 # 3. 텍스트 분석 유틸
 # =================================================================
+def _extract_eomisae_detail(link: str, referer: str) -> tuple[str, datetime | None, str]:
+    try:
+        resp = _get_with_retry(
+            link,
+            headers={"Referer": referer, "User-Agent": SESSION.headers.get("User-Agent", "Mozilla/5.0")},
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            return "", None, ""
+    except Exception:
+        return "", None, ""
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    title = _extract_first_text(
+        soup,
+        ["meta[property='og:title']", "h1", "h2", ".np_18px_span", ".document-title"],
+    )
+    content = _extract_longest_text(
+        soup,
+        [".xe_content", ".rhymix_content", ".document-content", ".rd_body", ".board_read .xe_content"],
+    )
+
+    dt = None
+    meta_time = soup.select_one("meta[property='article:published_time']")
+    if meta_time and meta_time.get("content"):
+        dt = _parse_source_datetime(meta_time.get("content") or "")
+    if dt is None:
+        dt = _parse_source_datetime(resp.text)
+
+    return _clean_naver_html_text(content), dt, _clean_naver_html_text(title)
+
+
+def crawl_eomisae_engine(days: int) -> Tuple[List[Post], str | None]:
+    posts: List[Post] = []
+    seen_links = set()
+    start_date = (datetime.now(KST) - timedelta(days=max(1, int(days)))).date()
+    errors: List[str] = []
+
+    print(f"[M-OS SYSTEM] Eomisae 분석 시작 (boards={len(EOMISAE_BOARD_SPECS)}, pages={EOMISAE_PAGES}, window={days}d)")
+
+    for _, board_name, board_url in EOMISAE_BOARD_SPECS:
+        for page in range(1, EOMISAE_PAGES + 1):
+            page_url = board_url if page == 1 else f"{board_url}?page={page}"
+            try:
+                resp = _get_with_retry(page_url, timeout=20)
+                if resp.status_code != 200:
+                    errors.append(f"{board_name} page {page}: HTTP {resp.status_code}")
+                    break
+            except Exception as e:
+                errors.append(f"{board_name} page {page}: {e}")
+                break
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+            page_kept = 0
+            for row in soup.select("tr"):
+                row_classes = row.get("class") or []
+                if "notice" in row_classes:
+                    continue
+
+                title_cell = row.select_one("td.title")
+                if not title_cell:
+                    continue
+
+                link_tag = None
+                for cand in title_cell.select("a[href]"):
+                    href = cand.get("href") or ""
+                    if "#C_" in href or "adlink_" in href:
+                        continue
+                    if href.startswith("/fe/") or href.startswith("/fh/") or re.fullmatch(r"/\d+", href):
+                        link_tag = cand
+                        break
+                if link_tag is None:
+                    continue
+
+                link = urljoin(board_url, html.unescape(link_tag.get("href") or ""))
+                title = _clean_naver_html_text(link_tag.get_text(" ", strip=True))
+                if not link or not title or link in seen_links:
+                    continue
+
+                tds = row.select("td")
+                list_dt = _parse_source_datetime(tds[3].get_text(" ", strip=True)) if len(tds) >= 4 else None
+                content, detail_dt, detail_title = _extract_eomisae_detail(link, board_url)
+                stamped_dt = detail_dt or list_dt
+                if stamped_dt is None or stamped_dt.date() < start_date:
+                    continue
+
+                seen_links.add(link)
+                posts.append(
+                    Post(
+                        title=detail_title or title,
+                        url=link,
+                        content=content,
+                        comments="",
+                        created_at=stamped_dt,
+                        platform="eomisae",
+                        source="eomisae",
+                        query=board_name,
+                    )
+                )
+                page_kept += 1
+
+            print(f"   - board='{board_name}' page={page} kept={page_kept} total={len(posts)}")
+
+    warning = None
+    if not posts:
+        warning = "Eomisae 결과 0건"
+        if errors:
+            warning = f"{warning} | {'; '.join(errors[:3])}"
+    elif errors:
+        warning = "; ".join(errors[:3])
+    return posts, warning
+
+
+def _extract_ppomppu_detail(link: str) -> tuple[str, datetime | None, str]:
+    try:
+        resp = _get_with_retry(
+            link,
+            headers={"Referer": PPOMPPU_CLIMB_URL, "User-Agent": SESSION.headers.get("User-Agent", "Mozilla/5.0")},
+            timeout=25,
+        )
+        if resp.status_code != 200:
+            return "", None, ""
+    except Exception:
+        return "", None, ""
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    title = _extract_first_text(
+        soup,
+        ["meta[property='og:title']", ".view_title2", ".board_title", "font.view_title2", "title"],
+    )
+    content = _extract_longest_text(
+        soup,
+        ["#realArticleContents", ".board-contents", "td.board-contents", "#bbs_contents", ".han"],
+    )
+    dt = _parse_source_datetime(resp.text)
+    return _clean_naver_html_text(content), dt, _clean_naver_html_text(title)
+
+
+def crawl_ppomppu_engine(days: int) -> Tuple[List[Post], str | None]:
+    posts: List[Post] = []
+    seen_links = set()
+    start_date = (datetime.now(KST) - timedelta(days=max(1, int(days)))).date()
+    errors: List[str] = []
+
+    print(f"[M-OS SYSTEM] Ppomppu climb 분석 시작 (pages={PPOMPPU_PAGES}, window={days}d)")
+
+    for page in range(1, PPOMPPU_PAGES + 1):
+        page_url = PPOMPPU_CLIMB_URL if page == 1 else f"{PPOMPPU_CLIMB_URL}&page={page}"
+        try:
+            resp = _get_with_retry(
+                page_url,
+                headers={"Referer": PPOMPPU_CLIMB_URL, "User-Agent": SESSION.headers.get("User-Agent", "Mozilla/5.0")},
+                timeout=25,
+            )
+            if resp.status_code != 200:
+                errors.append(f"page {page}: HTTP {resp.status_code}")
+                break
+        except Exception as e:
+            errors.append(f"page {page}: {e}")
+            break
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        page_kept = 0
+        for link_tag in soup.select("a[href*='view.php?id=climb&no=']"):
+            href = html.unescape(link_tag.get("href") or "")
+            title = _clean_naver_html_text(link_tag.get_text(" ", strip=True))
+            if not href or not title:
+                continue
+
+            link = urljoin(page_url, href)
+            if link in seen_links:
+                continue
+
+            row = link_tag.find_parent("tr")
+            row_text = row.get_text(" ", strip=True) if row else title
+            if "공지" in row_text[:20]:
+                continue
+
+            list_dt = _parse_source_datetime(row_text)
+            content, detail_dt, detail_title = _extract_ppomppu_detail(link)
+            stamped_dt = detail_dt or list_dt
+            if stamped_dt is None or stamped_dt.date() < start_date:
+                continue
+
+            seen_links.add(link)
+            posts.append(
+                Post(
+                    title=detail_title or title,
+                    url=link,
+                    content=content,
+                    comments="",
+                    created_at=stamped_dt,
+                    platform="ppomppu",
+                    source="ppomppu",
+                    query="뽐뿌 등산포럼",
+                )
+            )
+            page_kept += 1
+
+        print(f"   - page={page} kept={page_kept} total={len(posts)}")
+
+    warning = None
+    if not posts:
+        warning = "Ppomppu 결과 0건"
+        if errors:
+            warning = f"{warning} | {'; '.join(errors[:3])}"
+    elif errors:
+        warning = "; ".join(errors[:3])
+    return posts, warning
+
+
 def normalize_text(s: str) -> str:
     return (s or "").strip()
 
@@ -1288,13 +1573,23 @@ def export_portal(
     naver_posts: List[Post],
     naver_brand_map: Dict[str, List[dict]],
     naver_summary_df: pd.DataFrame,
+    eomisae_posts: List[Post],
+    eomisae_brand_map: Dict[str, List[dict]],
+    eomisae_summary_df: pd.DataFrame,
+    ppomppu_posts: List[Post],
+    ppomppu_brand_map: Dict[str, List[dict]],
+    ppomppu_summary_df: pd.DataFrame,
     naver_warning: str | None = None,
+    eomisae_warning: str | None = None,
+    ppomppu_warning: str | None = None,
     out_path: str = "reports/external_signal.html",
 ):
     updated = _now_kst_str()
 
     dc_meta = summarize_source(dc_posts, dc_brand_map, dc_summary_df, "DCInside")
     naver_meta = summarize_source(naver_posts, naver_brand_map, naver_summary_df, "NAVER Cafe")
+    eomisae_meta = summarize_source(eomisae_posts, eomisae_brand_map, eomisae_summary_df, "Eomisae")
+    ppomppu_meta = summarize_source(ppomppu_posts, ppomppu_brand_map, ppomppu_summary_df, "Ppomppu")
 
     try:
         payload = {
@@ -1316,6 +1611,24 @@ def export_portal(
                 "week_mentions": int(naver_meta["week_mentions"]),
                 "top5": naver_summary_df.head(5).to_dict(orient="records") if not naver_summary_df.empty else [],
                 "warning": naver_warning or "",
+            },
+            "eomisae": {
+                "posts_collected": int(len(eomisae_posts)),
+                "brands_active": int(len(eomisae_meta["active_brands"])),
+                "total_mentions": int(eomisae_meta["total_mentions"]),
+                "week_posts": int(eomisae_meta["week_posts"]),
+                "week_mentions": int(eomisae_meta["week_mentions"]),
+                "top5": eomisae_summary_df.head(5).to_dict(orient="records") if not eomisae_summary_df.empty else [],
+                "warning": eomisae_warning or "",
+            },
+            "ppomppu": {
+                "posts_collected": int(len(ppomppu_posts)),
+                "brands_active": int(len(ppomppu_meta["active_brands"])),
+                "total_mentions": int(ppomppu_meta["total_mentions"]),
+                "week_posts": int(ppomppu_meta["week_posts"]),
+                "week_mentions": int(ppomppu_meta["week_mentions"]),
+                "top5": ppomppu_summary_df.head(5).to_dict(orient="records") if not ppomppu_summary_df.empty else [],
+                "warning": ppomppu_warning or "",
             },
         }
         _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
@@ -1361,12 +1674,32 @@ def export_portal(
         extra_html=_naver_scope_html() + _naver_cafe_filter_html(naver_brand_map),
     )
 
+    eomisae_panel = _source_panel_html(
+        panel_id="panel-eomisae",
+        title="어미새 · 자유게시판 + 패션게시판",
+        subtitle=f"Updated: {updated} · Posts collected: {len(eomisae_posts):,} · Active brands: {len(eomisae_meta['active_brands']):,}",
+        summary_html=_summary_table_html(eomisae_summary_df),
+        weekly_html=_weekly_html(eomisae_meta, "Eomisae"),
+        sections_html=_brand_sections_html(eomisae_brand_map, "eomisae"),
+        warning=eomisae_warning or "",
+    )
+
+    ppomppu_panel = _source_panel_html(
+        panel_id="panel-ppomppu",
+        title="뽐뿌 · 등산포럼",
+        subtitle=f"Updated: {updated} · Posts collected: {len(ppomppu_posts):,} · Active brands: {len(ppomppu_meta['active_brands']):,}",
+        summary_html=_summary_table_html(ppomppu_summary_df),
+        weekly_html=_weekly_html(ppomppu_meta, "Ppomppu climb"),
+        sections_html=_brand_sections_html(ppomppu_brand_map, "ppomppu"),
+        warning=ppomppu_warning or "",
+    )
+
     full_html = f'''<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>External Signal | DCInside + NAVER Cafe</title>
+  <title>External Signal | DCInside + NAVER Cafe + Eomisae + Ppomppu</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
@@ -1394,8 +1727,8 @@ def export_portal(
       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div>
           <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL HUB</div>
-          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside + 네이버 카페 브랜드 언급 모니터링</h1>
-          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · DCInside: 최근 {int(TARGET_DAYS)}일 / NAVER Cafe: Search API 결과</div>
+          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside + NAVER Cafe + Eomisae + Ppomppu</h1>
+          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · 최근 {int(TARGET_DAYS)}일 기준 소스별 브랜드 언급 모니터링</div>
         </div>
         <div class="text-xs text-slate-600 font-bold">브랜드 수: {len(BRAND_LIST)} · 탭별로 소스 분리 확인</div>
       </div>
@@ -1403,10 +1736,14 @@ def export_portal(
       <div class="mt-6 flex flex-wrap gap-2">
         <button class="tab-btn active px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-dcinside">DCInside</button>
         <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-naver">네이버 카페</button>
+        <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-eomisae">어미새</button>
+        <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-ppomppu">뽐뿌</button>
       </div>
 
       {dc_panel}
       {naver_panel}
+      {eomisae_panel}
+      {ppomppu_panel}
     </div>
   </div>
 
@@ -1479,6 +1816,12 @@ if __name__ == "__main__":
     naver_posts, naver_warning = crawl_naver_cafe_engine(days=TARGET_DAYS)
     naver_brand_map, naver_summary_df = process_data(naver_posts) if naver_posts else ({b: [] for b in BRAND_LIST}, pd.DataFrame())
 
+    eomisae_posts, eomisae_warning = crawl_eomisae_engine(days=TARGET_DAYS)
+    eomisae_brand_map, eomisae_summary_df = process_data(eomisae_posts) if eomisae_posts else ({b: [] for b in BRAND_LIST}, pd.DataFrame())
+
+    ppomppu_posts, ppomppu_warning = crawl_ppomppu_engine(days=TARGET_DAYS)
+    ppomppu_brand_map, ppomppu_summary_df = process_data(ppomppu_posts) if ppomppu_posts else ({b: [] for b in BRAND_LIST}, pd.DataFrame())
+
     export_portal(
         dc_posts=dc_posts,
         dc_brand_map=dc_brand_map,
@@ -1486,13 +1829,26 @@ if __name__ == "__main__":
         naver_posts=naver_posts,
         naver_brand_map=naver_brand_map,
         naver_summary_df=naver_summary_df,
+        eomisae_posts=eomisae_posts,
+        eomisae_brand_map=eomisae_brand_map,
+        eomisae_summary_df=eomisae_summary_df,
+        ppomppu_posts=ppomppu_posts,
+        ppomppu_brand_map=ppomppu_brand_map,
+        ppomppu_summary_df=ppomppu_summary_df,
         naver_warning=naver_warning,
+        eomisae_warning=eomisae_warning,
+        ppomppu_warning=ppomppu_warning,
     )
 
     if not dc_posts:
         print("⚠️ DCInside 수집 데이터 0건")
     if not naver_posts:
         print("⚠️ NAVER Cafe 수집 데이터 0건")
+
+    if not eomisae_posts:
+        print("[WARN] Eomisae 수집 데이터 0건")
+    if not ppomppu_posts:
+        print("[WARN] Ppomppu 수집 데이터 0건")
 
 # ================= PATCH: full-width + weakly-supervised ML sentiment + brand filters =================
 from collections import Counter
