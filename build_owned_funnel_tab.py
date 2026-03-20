@@ -28,6 +28,9 @@ YYYYMMDD_RE = re.compile(r"(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(
 YYMMDD_RE = re.compile(r"(?<!\d)(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)")
 
 
+SUMMARY_KEYS = ["ALL", "PAID", "ORGANIC", "OWNED", "EDM", "LMS", "KAKAO", "ETC"]
+
+
 def clean_text(value: Any) -> str:
     return str(value or "").strip()
 
@@ -273,21 +276,92 @@ session_classified AS (
     IFNULL(s.utm_medium, '') AS utm_medium,
     IFNULL(s.utm_campaign, '') AS utm_campaign,
     IFNULL(s.utm_term, '') AS utm_term,
+    LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))) AS session_source_medium,
+    LOWER(IFNULL(s.utm_campaign, '')) AS session_campaign,
     CASE
-      WHEN REGEXP_CONTAINS(LOWER(IFNULL(s.utm_medium, '')), r'kakao|kko')
-        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'kakao|kko')
-        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_term, '')), r'kakao|kko') THEN 'KAKAO'
-      WHEN LOWER(IFNULL(s.utm_medium, '')) = 'lms'
-        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_medium, '')), r'lms')
-        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'lms')
-        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_term, '')), r'lms') THEN 'LMS'
-      WHEN REGEXP_CONTAINS(LOWER(IFNULL(s.utm_medium, '')), r'edm|email')
-        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'edm|email')
-        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_term, '')), r'edm|email') THEN 'EDM'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(instagram).*')
+       AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(story).*') THEN '4. Official SNS'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(benz).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(nap).*')
+       AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(da).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(toss).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(blind).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(kakaobs).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(inhouse).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(lms).*')
+        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'.*(lms).*') THEN '5. Owned Channel'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(email|edm).*') THEN '5. Owned Channel'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(kakao_fridnstalk).*') THEN '5. Owned Channel'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(mkt|_bd).*')
+        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'.*(mkt|\\[bd).*') THEN '1. Awareness'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(igshopping).*') THEN '4. Official SNS'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(facebook).*')
+        AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(referral).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(instagram).*')
+        AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(referral).*') THEN '4. Official SNS'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(meta|facebook|instagram|ig|fb).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(google / cpc).*')
+        AND REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'.*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen).*') THEN '1. Awareness'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(google / cpc).*')
+        AND REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'.*(pmax).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(google / cpc).*')
+        AND REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'.*(유튜브|yt|youtube|instream|vac|vvc).*') THEN '1. Awareness'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(google / cpc).*')
+        AND REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'.*(discovery).*') THEN '1. Awareness'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(google / cpc).*')
+        AND REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'.*(sa|ss|검색).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(google / cpc).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(google / organic).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(google).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(youtube).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(naver).*')
+        AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(da).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(gfa).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(naverbs).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(naver).*')
+        AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(cpc).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(shopping_ad).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(naver).*')
+        AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(shopping).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(naver).*')
+        AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(organic).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(naver).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(daum / organic).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(daum).*')
+        AND REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(referral).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(kakao_ch).*')
+        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'.*(kakao_ch).*') THEN '5. Owned Channel'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(kakao_alimtalk).*') THEN '5. Owned Channel'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(kakao_coupon).*') THEN '5. Owned Channel'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(kakao_chatbot).*') THEN '5. Owned Channel'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(kakao).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(\\(direct\\) / \\(none\\)).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(signalplay|signal play|signal_play|sg_|signal|manplus).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(buzzvill).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(criteo).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(mobon).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(snow).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(smr).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(tg).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(t_cafe).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(blind).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(cpc).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(organic).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(banner|da).*') THEN '2. Paid Ad'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(referral).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(shopping).*') THEN '3. Organic Traffic'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'.*(social).*') THEN '3. Organic Traffic'
+      ELSE '6. etc'
+    END AS traffic_bucket,
+    CASE
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'kakao_ch|kakao_alimtalk|kakao_coupon|kakao_chatbot|kakao_fridnstalk')
+        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'kakao_ch') THEN 'KAKAO'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'lms')
+        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'lms') THEN 'LMS'
+      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(s.utm_source, ''), ' / ', IFNULL(s.utm_medium, ''))), r'email|edm')
+        OR REGEXP_CONTAINS(LOWER(IFNULL(s.utm_campaign, '')), r'email|edm') THEN 'EDM'
       ELSE 'OTHER'
     END AS owned_channel,
-    REGEXP_CONTAINS(LOWER(IFNULL(s.utm_medium, '')), r'cpc|ppc|paid|display|banner|affiliate|retarget|programmatic|cpv|cpm|cpp') AS is_paid,
-    REGEXP_CONTAINS(LOWER(IFNULL(s.utm_medium, '')), r'organic|seo') AS is_organic,
     IFNULL(f.has_pdp_view, 0) AS pdp_views,
     IFNULL(f.has_add_to_cart, 0) AS add_to_cart,
     IFNULL(f.has_begin_checkout, 0) AS begin_checkout,
@@ -299,11 +373,22 @@ session_classified AS (
   LEFT JOIN purchase_evt e USING (session_key)
   LEFT JOIN purchase_items i USING (session_key)
 ),
+session_enriched AS (
+  SELECT
+    *,
+    CASE
+      WHEN traffic_bucket = '5. Owned Channel' THEN 'OWNED'
+      WHEN traffic_bucket IN ('1. Awareness', '2. Paid Ad') THEN 'PAID'
+      WHEN traffic_bucket IN ('3. Organic Traffic', '4. Official SNS') THEN 'ORGANIC'
+      ELSE 'ETC'
+    END AS segment_bucket
+  FROM session_classified
+),
 summary_rows AS (
   SELECT
     'SUMMARY' AS row_type,
     CAST(date AS STRING) AS date,
-    'SITE' AS detail,
+    'ALL' AS detail,
     '' AS utm_campaign,
     '' AS utm_term,
     '' AS user_key,
@@ -321,116 +406,49 @@ summary_rows AS (
     COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
     SUM(purchases) AS purchases,
     SUM(revenue) AS revenue
-  FROM session_classified
+  FROM session_enriched
   GROUP BY date
 
   UNION ALL
 
   SELECT
-    'SUMMARY' AS row_type,
-    CAST(date AS STRING) AS date,
-    'OWNED' AS detail,
-    '' AS utm_campaign,
-    '' AS utm_term,
-    '' AS user_key,
-    '' AS session_key,
-    COUNT(DISTINCT session_key) AS sessions,
-    COUNT(DISTINCT user_pseudo_id) AS users,
-    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
-    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
-    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
-    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
-    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
-    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
-    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
-    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
-    COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
-    SUM(purchases) AS purchases,
-    SUM(revenue) AS revenue
-  FROM session_classified
+    'SUMMARY', CAST(date AS STRING), segment_bucket, '', '', '', '',
+    COUNT(DISTINCT session_key),
+    COUNT(DISTINCT user_pseudo_id),
+    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)),
+    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)),
+    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)),
+    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)),
+    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)),
+    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)),
+    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)),
+    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)),
+    COUNT(DISTINCT IF(purchases > 0, user_key, NULL)),
+    SUM(purchases),
+    SUM(revenue)
+  FROM session_enriched
+  GROUP BY date, segment_bucket
+
+  UNION ALL
+
+  SELECT
+    'SUMMARY', CAST(date AS STRING), owned_channel, '', '', '', '',
+    COUNT(DISTINCT session_key),
+    COUNT(DISTINCT user_pseudo_id),
+    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)),
+    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)),
+    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)),
+    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)),
+    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)),
+    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)),
+    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)),
+    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)),
+    COUNT(DISTINCT IF(purchases > 0, user_key, NULL)),
+    SUM(purchases),
+    SUM(revenue)
+  FROM session_enriched
   WHERE owned_channel IN ('EDM', 'LMS', 'KAKAO')
-  GROUP BY date
-
-  UNION ALL
-
-  SELECT
-    'SUMMARY' AS row_type,
-    CAST(date AS STRING) AS date,
-    owned_channel AS detail,
-    '' AS utm_campaign,
-    '' AS utm_term,
-    '' AS user_key,
-    '' AS session_key,
-    COUNT(DISTINCT session_key) AS sessions,
-    COUNT(DISTINCT user_pseudo_id) AS users,
-    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
-    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
-    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
-    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
-    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
-    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
-    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
-    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
-    COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
-    SUM(purchases) AS purchases,
-    SUM(revenue) AS revenue
-  FROM session_classified
-  WHERE owned_channel IN ('EDM', 'LMS', 'KAKAO')
-  GROUP BY date, detail
-
-  UNION ALL
-
-  SELECT
-    'SUMMARY' AS row_type,
-    CAST(date AS STRING) AS date,
-    'PAID' AS detail,
-    '' AS utm_campaign,
-    '' AS utm_term,
-    '' AS user_key,
-    '' AS session_key,
-    COUNT(DISTINCT session_key) AS sessions,
-    COUNT(DISTINCT user_pseudo_id) AS users,
-    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
-    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
-    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
-    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
-    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
-    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
-    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
-    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
-    COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
-    SUM(purchases) AS purchases,
-    SUM(revenue) AS revenue
-  FROM session_classified
-  WHERE owned_channel = 'OTHER' AND is_paid
-  GROUP BY date
-
-  UNION ALL
-
-  SELECT
-    'SUMMARY' AS row_type,
-    CAST(date AS STRING) AS date,
-    'ORGANIC' AS detail,
-    '' AS utm_campaign,
-    '' AS utm_term,
-    '' AS user_key,
-    '' AS session_key,
-    COUNT(DISTINCT session_key) AS sessions,
-    COUNT(DISTINCT user_pseudo_id) AS users,
-    COUNT(DISTINCT IF(pdp_views > 0, session_key, NULL)) AS pdp_views,
-    COUNT(DISTINCT IF(add_to_cart > 0, session_key, NULL)) AS add_to_cart,
-    COUNT(DISTINCT IF(begin_checkout > 0, session_key, NULL)) AS begin_checkout,
-    COUNT(DISTINCT IF(purchase_sessions > 0, session_key, NULL)) AS purchase_sessions,
-    COUNT(DISTINCT IF(pdp_views > 0, user_key, NULL)) AS pdp_users,
-    COUNT(DISTINCT IF(add_to_cart > 0, user_key, NULL)) AS add_to_cart_users,
-    COUNT(DISTINCT IF(begin_checkout > 0, user_key, NULL)) AS begin_checkout_users,
-    COUNT(DISTINCT IF(purchase_sessions > 0, user_key, NULL)) AS purchase_users,
-    COUNT(DISTINCT IF(purchases > 0, user_key, NULL)) AS buyer_users,
-    SUM(purchases) AS purchases,
-    SUM(revenue) AS revenue
-  FROM session_classified
-  WHERE owned_channel = 'OTHER' AND is_organic
-  GROUP BY date
+  GROUP BY date, owned_channel
 ),
 owned_session_rows AS (
   SELECT
@@ -454,7 +472,7 @@ owned_session_rows AS (
     CASE WHEN purchases > 0 THEN 1 ELSE 0 END AS buyer_users,
     purchases,
     revenue
-  FROM session_classified
+  FROM session_enriched
   WHERE owned_channel IN ('EDM', 'LMS', 'KAKAO')
 )
 SELECT * FROM summary_rows
@@ -469,8 +487,8 @@ def run_bq_query(client: bigquery.Client, query: str) -> pd.DataFrame:
 
 
 def build_daily_summary_rows(day_df: pd.DataFrame, day: str) -> List[Dict[str, Any]]:
-    keys = ["SITE", "PAID", "ORGANIC", "OWNED", "EDM", "LMS", "KAKAO"]
-    metric_defaults = {
+    defaults = {
+        "date": day,
         "sessions": 0,
         "users": 0,
         "pdp_views": 0,
@@ -483,33 +501,34 @@ def build_daily_summary_rows(day_df: pd.DataFrame, day: str) -> List[Dict[str, A
         "purchase_users": 0,
         "buyer_users": 0,
         "purchases": 0,
-        "revenue": 0,
+        "revenue": 0.0,
     }
     rows: List[Dict[str, Any]] = []
-    for key in keys:
+    for key in SUMMARY_KEYS:
         match = day_df[day_df["detail"] == key]
-        payload = {"date": day, "detail": key, **metric_defaults}
-        if not match.empty:
-            row = match.iloc[0]
-            payload.update(
-                {
-                    "date": clean_text(row.get("date", "")),
-                    "sessions": int(row.get("sessions", 0) or 0),
-                    "users": int(row.get("users", 0) or 0),
-                    "pdp_views": int(row.get("pdp_views", 0) or 0),
-                    "add_to_cart": int(row.get("add_to_cart", 0) or 0),
-                    "begin_checkout": int(row.get("begin_checkout", 0) or 0),
-                    "purchase_sessions": int(row.get("purchase_sessions", 0) or 0),
-                    "pdp_users": int(row.get("pdp_users", 0) or 0),
-                    "add_to_cart_users": int(row.get("add_to_cart_users", 0) or 0),
-                    "begin_checkout_users": int(row.get("begin_checkout_users", 0) or 0),
-                    "purchase_users": int(row.get("purchase_users", 0) or 0),
-                    "buyer_users": int(row.get("buyer_users", 0) or 0),
-                    "purchases": int(row.get("purchases", 0) or 0),
-                    "revenue": float(row.get("revenue", 0) or 0),
-                }
-            )
-        rows.append(payload)
+        if match.empty:
+            rows.append({"detail": key, **defaults})
+            continue
+        row = match.iloc[0]
+        rows.append(
+            {
+                "date": clean_text(row.get("date", "")),
+                "detail": key,
+                "sessions": int(row.get("sessions", 0) or 0),
+                "users": int(row.get("users", 0) or 0),
+                "pdp_views": int(row.get("pdp_views", 0) or 0),
+                "add_to_cart": int(row.get("add_to_cart", 0) or 0),
+                "begin_checkout": int(row.get("begin_checkout", 0) or 0),
+                "purchase_sessions": int(row.get("purchase_sessions", 0) or 0),
+                "pdp_users": int(row.get("pdp_users", 0) or 0),
+                "add_to_cart_users": int(row.get("add_to_cart_users", 0) or 0),
+                "begin_checkout_users": int(row.get("begin_checkout_users", 0) or 0),
+                "purchase_users": int(row.get("purchase_users", 0) or 0),
+                "buyer_users": int(row.get("buyer_users", 0) or 0),
+                "purchases": int(row.get("purchases", 0) or 0),
+                "revenue": float(row.get("revenue", 0) or 0),
+            }
+        )
     return rows
 
 
@@ -530,14 +549,7 @@ def build_owned_groups(day_df: pd.DataFrame, title_lookup: Dict[Tuple[str, str],
     for (group_date, detail, year, mmdd), group in working.groupby(["date", "detail", "year", "mmdd"], dropna=False):
         if not clean_text(year) or not clean_text(mmdd):
             continue
-        group = group.copy()
-        user_key_series = group["user_key"].astype(str).str.strip()
-        pdp_user_keys = user_key_series[group["pdp_views"].fillna(0) > 0]
-        cart_user_keys = user_key_series[group["add_to_cart"].fillna(0) > 0]
-        checkout_user_keys = user_key_series[group["begin_checkout"].fillna(0) > 0]
-        purchase_user_keys = user_key_series[group["purchase_sessions"].fillna(0) > 0]
-        buyer_user_keys = user_key_series[group["purchases"].fillna(0) > 0]
-
+        user_series = group["user_key"].astype(str).str.strip()
         grouped_rows.append(
             {
                 "date": clean_text(group_date),
@@ -546,16 +558,16 @@ def build_owned_groups(day_df: pd.DataFrame, title_lookup: Dict[Tuple[str, str],
                 "mmdd": clean_text(mmdd),
                 "message_title": title_lookup.get((clean_text(group_date), clean_text(detail)), ""),
                 "sessions": int(group["session_key"].astype(str).nunique()),
-                "users": int(user_key_series[user_key_series != ""].nunique()),
+                "users": int(user_series[user_series != ""].nunique()),
                 "pdp_views": int(group["pdp_views"].fillna(0).sum()),
                 "add_to_cart": int(group["add_to_cart"].fillna(0).sum()),
                 "begin_checkout": int(group["begin_checkout"].fillna(0).sum()),
                 "purchase_sessions": int(group["purchase_sessions"].fillna(0).sum()),
-                "pdp_users": int(pdp_user_keys[pdp_user_keys != ""].nunique()),
-                "add_to_cart_users": int(cart_user_keys[cart_user_keys != ""].nunique()),
-                "begin_checkout_users": int(checkout_user_keys[checkout_user_keys != ""].nunique()),
-                "purchase_users": int(purchase_user_keys[purchase_user_keys != ""].nunique()),
-                "buyer_users": int(buyer_user_keys[buyer_user_keys != ""].nunique()),
+                "pdp_users": int(user_series[group["pdp_views"].fillna(0) > 0][lambda s: s != ""].nunique()),
+                "add_to_cart_users": int(user_series[group["add_to_cart"].fillna(0) > 0][lambda s: s != ""].nunique()),
+                "begin_checkout_users": int(user_series[group["begin_checkout"].fillna(0) > 0][lambda s: s != ""].nunique()),
+                "purchase_users": int(user_series[group["purchase_sessions"].fillna(0) > 0][lambda s: s != ""].nunique()),
+                "buyer_users": int(user_series[group["purchases"].fillna(0) > 0][lambda s: s != ""].nunique()),
                 "purchases": int(group["purchases"].fillna(0).sum()),
                 "revenue": float(group["revenue"].fillna(0).sum()),
             }
@@ -605,7 +617,12 @@ def build_range(
         write_json(funnel_dir / "available_dates.json", {"available_dates": list_funnel_dates(funnel_dir)})
         return funnel_dir
 
-    for col in ["sessions", "users", "pdp_views", "add_to_cart", "begin_checkout", "purchase_sessions", "pdp_users", "add_to_cart_users", "begin_checkout_users", "purchase_users", "buyer_users", "purchases", "revenue"]:
+    numeric_cols = [
+        "sessions", "users", "pdp_views", "add_to_cart", "begin_checkout", "purchase_sessions",
+        "pdp_users", "add_to_cart_users", "begin_checkout_users", "purchase_users",
+        "buyer_users", "purchases", "revenue",
+    ]
+    for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     for col in ["date", "detail", "utm_campaign", "utm_term", "user_key", "session_key"]:
