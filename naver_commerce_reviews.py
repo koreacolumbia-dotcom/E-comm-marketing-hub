@@ -254,6 +254,8 @@ def fetch_html_with_playwright(
     nav_settle_ms = settle_ms or env_int("NAVER_RENDER_WAIT_MS", 3500)
     selector_timeout_ms = env_int("NAVER_RENDER_SELECTOR_TIMEOUT_MS", 12000)
     warmup_url = str(os.getenv("NAVER_WARMUP_URL", "https://brand.naver.com")).strip() or "https://brand.naver.com"
+    scroll_rounds = env_int("NAVER_RENDER_SCROLL_ROUNDS", 5)
+    scroll_wait_ms = env_int("NAVER_RENDER_SCROLL_WAIT_MS", 900)
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
@@ -284,9 +286,15 @@ def fetch_html_with_playwright(
                 except Exception:
                     pass
             try:
-                page.mouse.wheel(0, 800)
+                page.mouse.move(200, 280)
             except Exception:
                 pass
+            for _ in range(max(1, scroll_rounds)):
+                try:
+                    page.mouse.wheel(0, 1800)
+                except Exception:
+                    pass
+                page.wait_for_timeout(scroll_wait_ms + random.randint(0, 500))
             page.wait_for_timeout(nav_settle_ms + random.randint(0, 1200))
             html = page.content()
         finally:
@@ -431,6 +439,26 @@ def gather_naver_payload_candidates(html: str) -> list[dict[str, Any]]:
     return out
 
 
+def extract_naver_brand_slug(brand_url: str) -> str:
+    parsed = urlparse(str(brand_url or '').strip())
+    path_parts = [part for part in parsed.path.split('/') if part]
+    return path_parts[0] if path_parts else 'columbia'
+
+
+def extract_naver_product_nos_from_html(html: str) -> list[str]:
+    patterns = [
+        r'/products/(\d+)',
+        r'"productNo"\s*:\s*"?(\d+)"?',
+        r'"channelProductNo"\s*:\s*"?(\d+)"?',
+        r"data-product-no=[\"']?(\d+)",
+        r'data-nclick="[^"]*i:(\d+)',
+    ]
+    out: list[str] = []
+    for pattern in patterns:
+        out.extend(re.findall(pattern, html, flags=re.I))
+    return dedupe_keep_order(out)
+
+
 def iter_key_values(node: Any, target_key: str) -> list[Any]:
     found: list[Any] = []
     stack = [node]
@@ -503,6 +531,49 @@ def extract_naver_category_ids(payload: dict[str, Any], html: str) -> list[str]:
     preferred = [cid for cid in category_ids if cid == "251598e702a64123a2292f40e6681943"]
     others = [cid for cid in category_ids if cid != "251598e702a64123a2292f40e6681943"]
     return preferred + others
+
+
+def query_naver_product_urls_from_page(url: str) -> list[str]:
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return []
+    nav_timeout_ms = env_int("NAVER_RENDER_TIMEOUT_MS", 45000)
+    selector_timeout_ms = env_int("NAVER_RENDER_SELECTOR_TIMEOUT_MS", 12000)
+    scroll_rounds = env_int("NAVER_RENDER_SCROLL_ROUNDS", 5)
+    scroll_wait_ms = env_int("NAVER_RENDER_SCROLL_WAIT_MS", 900)
+    out: list[str] = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            locale="ko-KR",
+            timezone_id="Asia/Seoul",
+            viewport={"width": 1440, "height": 2200},
+        )
+        page = context.new_page()
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=nav_timeout_ms)
+            try:
+                page.wait_for_selector("a[href*='/products/']", timeout=selector_timeout_ms)
+            except Exception:
+                pass
+            for _ in range(max(1, scroll_rounds)):
+                try:
+                    page.mouse.wheel(0, 1800)
+                except Exception:
+                    pass
+                page.wait_for_timeout(scroll_wait_ms + random.randint(0, 500))
+            hrefs = page.eval_on_selector_all(
+                "a[href*='/products/']",
+                "els => els.map(el => el.getAttribute('href') || '')",
+            )
+            out.extend([absolute_url(url, h) for h in (hrefs or []) if h])
+            html = page.content()
+            out.extend(extract_naver_product_urls_from_html(html, brand_url=url))
+        finally:
+            browser.close()
+    return dedupe_keep_order(out)
 
 
 def fetch_naver_html(
@@ -683,8 +754,10 @@ def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bo
         wait_selector='script',
     )
     payload_candidates = gather_naver_payload_candidates(home_html)
-    home_payload = payload_candidates[0] if payload_candidates else {}
-    category_ids = extract_naver_category_ids(home_payload, home_html)
+    category_ids: list[str] = []
+    for payload in payload_candidates:
+        category_ids.extend(extract_naver_category_ids(payload, home_html))
+    category_ids = dedupe_keep_order(category_ids)
 
     max_categories = (
         env_int("NAVER_MAX_CATEGORIES_BACKFILL", 120)
@@ -715,13 +788,23 @@ def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bo
                         if isinstance(item, dict):
                             add_product(item)
 
-    # HTML anchor fallback when state payload is missing or partial.
+    # HTML anchor / raw JSON fallback when state payload is missing or partial.
     for product_url in extract_naver_product_urls_from_html(home_html, brand_url=brand_url):
         product_no = re.search(r"/products/(\d+)", product_url)
         if not product_no:
             continue
         item = {"productNo": product_no.group(1), "productUrl": product_url}
         add_product(item)
+
+    if not category_ids and not discovered:
+        try:
+            for product_url in query_naver_product_urls_from_page(brand_url):
+                match = re.search(r"/products/(\d+)", product_url)
+                if not match:
+                    continue
+                add_product({"productNo": match.group(1), "productUrl": product_url})
+        except Exception as exc:
+            log(f"[WARN] Naver Playwright product-url fallback failed: {type(exc).__name__}: {exc}")
 
     if not category_ids:
         log(f"[WARN] Naver category ids not found; using html/product fallback only. products={len(discovered)}")
@@ -898,6 +981,15 @@ def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: 
                 timeout=timeout,
                 is_backfill=(end_date - start_date).days > 31,
             )
+            if not listed_products:
+                try:
+                    for product_url in query_naver_product_urls_from_page(brand_url):
+                        match = re.search(r"/products/(\d+)", product_url)
+                        if not match:
+                            continue
+                        listed_products.append(normalize_naver_listed_product({"productNo": match.group(1), "productUrl": product_url}, brand_url=brand_url))
+                except Exception as exc:
+                    log(f"[WARN] Naver direct Playwright product discovery failed: {type(exc).__name__}: {exc}")
             listed_products = sorted(
                 listed_products,
                 key=lambda item: (int(item.get("review_count") or 0), str(item.get("product_no") or "")),
