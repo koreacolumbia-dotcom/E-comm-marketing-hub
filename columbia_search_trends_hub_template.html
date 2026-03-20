@@ -366,6 +366,76 @@
     function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
     function toDate(s){ return new Date(`${s}T00:00:00`); }
     function periodLabel(days){ return (PERIOD_OPTIONS.find(x => x.days === days) || {}).label || `최근 ${days}일`; }
+
+    const glowLinePlugin = {
+      id: 'glowLinePlugin',
+      beforeDatasetDraw(chart, args, pluginOptions) {
+        const { ctx } = chart;
+        const dataset = chart.data.datasets?.[args.index] || {};
+        if (!dataset || dataset.hidden) return;
+        ctx.save();
+        ctx.shadowColor = dataset.borderColor || 'rgba(59,130,246,0.35)';
+        ctx.shadowBlur = pluginOptions?.blur ?? 14;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 10;
+      },
+      afterDatasetDraw(chart) {
+        chart.ctx.restore();
+      }
+    };
+
+    function buildLineDrawAnimations(){
+      let delayed = false;
+      return {
+        x: {
+          type: 'number',
+          easing: 'easeOutCubic',
+          duration: 560,
+          from: NaN,
+          delay(ctx) {
+            if (ctx.type !== 'data' || ctx.xStarted) return 0;
+            ctx.xStarted = true;
+            return ctx.index * 42 + ctx.datasetIndex * 110;
+          }
+        },
+        y: {
+          type: 'number',
+          easing: 'easeOutQuart',
+          duration: 620,
+          from(ctx) {
+            if (ctx.type !== 'data') return 0;
+            const meta = ctx.chart.getDatasetMeta(ctx.datasetIndex);
+            if (ctx.index === 0) return ctx.chart.scales.y.getPixelForValue(0);
+            const prev = meta.data[ctx.index - 1];
+            return prev ? prev.getProps(['y'], true).y : ctx.chart.scales.y.getPixelForValue(0);
+          },
+          delay(ctx) {
+            if (ctx.type !== 'data' || ctx.yStarted) return 0;
+            ctx.yStarted = true;
+            return ctx.index * 42 + ctx.datasetIndex * 110;
+          }
+        },
+        radius: {
+          type: 'number',
+          easing: 'easeOutQuad',
+          duration: 220,
+          from: 0,
+          delay(ctx) {
+            if (ctx.type !== 'data') return 0;
+            return 260 + ctx.index * 28 + ctx.datasetIndex * 90;
+          }
+        }
+      };
+    }
+
+    function createLineAreaGradient(ctx, chartArea, rgb, alphaTop = 0.18, alphaBottom = 0.02){
+      if (!chartArea) return `rgba(${rgb},${alphaTop})`;
+      const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+      gradient.addColorStop(0, `rgba(${rgb},${alphaTop})`);
+      gradient.addColorStop(1, `rgba(${rgb},${alphaBottom})`);
+      return gradient;
+    }
+
     function animateCount(el, target, decimals = 1){
       if (!el) return;
       const end = Number(target);
@@ -538,31 +608,60 @@
     }
 
     function renderOverviewChart(){
-      const ctx = document.getElementById('overviewChart').getContext('2d');
+      const canvas = document.getElementById('overviewChart');
+      const ctx = canvas.getContext('2d');
+      const chartArea = overviewChart?.chartArea;
       const datasets = [
         {
           label: 'Naver Avg',
           data: FILTERED.overview.map(r => ({ x: r.date, y: num(r.naver_avg) })),
-          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
+          borderColor: '#10b981',
+          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '16,185,129', 0.16, 0.01),
+          fill: true,
+          borderWidth: 3,
+          tension: 0.34,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHitRadius: 20,
+          pointBackgroundColor: '#10b981',
+          pointBorderWidth: 0,
         },
         {
           label: 'Google Avg',
           data: FILTERED.overview.map(r => ({ x: r.date, y: num(r.google_avg) })),
-          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
+          borderColor: '#3b82f6',
+          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '59,130,246', 0.15, 0.01),
+          fill: true,
+          borderWidth: 3,
+          tension: 0.34,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHitRadius: 20,
+          pointBackgroundColor: '#3b82f6',
+          pointBorderWidth: 0,
         }
       ];
       if (overviewChart) overviewChart.destroy();
       overviewChart = new Chart(ctx, {
         type: 'line',
         data: { datasets },
+        plugins: [glowLinePlugin],
         options: {
-          animation: { duration: 700, easing: 'easeOutQuart' },
+          animations: buildLineDrawAnimations(),
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
+            glowLinePlugin: { blur: 14 },
             legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { weight: '700' } } },
-            tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } },
+            tooltip: {
+              backgroundColor: 'rgba(15,23,42,0.92)',
+              titleFont: { weight: '800' },
+              bodyFont: { weight: '700' },
+              padding: 12,
+              displayColors: true,
+              callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` }
+            },
           },
           scales: {
             x: { type: 'time', time: { unit: DATA.meta.time_unit === 'date' ? 'day' : (DATA.meta.time_unit === 'month' ? 'month' : 'week') }, grid: { display: false }, ticks: { color: '#64748b', font: { weight: '700' } } },
@@ -579,17 +678,44 @@
         {
           label: 'Naver',
           data: rows.map(r => ({ x: r.date, y: num(r.naver) })),
-          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
+          borderColor: '#10b981',
+          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '16,185,129', 0.14, 0.01),
+          fill: true,
+          borderWidth: 3,
+          tension: 0.34,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHitRadius: 18,
+          pointBackgroundColor: '#10b981',
+          pointBorderWidth: 0,
         },
         {
           label: 'Google',
           data: rows.map(r => ({ x: r.date, y: num(r.google) })),
-          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
+          borderColor: '#3b82f6',
+          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '59,130,246', 0.13, 0.01),
+          fill: true,
+          borderWidth: 3,
+          tension: 0.34,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHitRadius: 18,
+          pointBackgroundColor: '#3b82f6',
+          pointBorderWidth: 0,
         },
         {
           label: 'Gap',
           data: rows.map(r => ({ x: r.date, y: num(r.gap) })),
-          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2, tension: 0.28, pointRadius: 0,
+          borderColor: '#f59e0b',
+          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '245,158,11', 0.09, 0.005),
+          fill: true,
+          borderWidth: 2.5,
+          tension: 0.34,
+          pointRadius: 0,
+          pointHoverRadius: 3,
+          pointHitRadius: 16,
+          pointBackgroundColor: '#f59e0b',
+          pointBorderWidth: 0,
           borderDash: [7,5],
         }
       ];
@@ -597,14 +723,23 @@
       keywordChart = new Chart(ctx, {
         type: 'line',
         data: { datasets },
+        plugins: [glowLinePlugin],
         options: {
-          animation: { duration: 700, easing: 'easeOutQuart' },
+          animations: buildLineDrawAnimations(),
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
+            glowLinePlugin: { blur: 12 },
             legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { weight: '700' } } },
-            tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } },
+            tooltip: {
+              backgroundColor: 'rgba(15,23,42,0.92)',
+              titleFont: { weight: '800' },
+              bodyFont: { weight: '700' },
+              padding: 12,
+              displayColors: true,
+              callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` }
+            },
           },
           scales: {
             x: { type: 'time', time: { unit: DATA.meta.time_unit === 'date' ? 'day' : (DATA.meta.time_unit === 'month' ? 'month' : 'week') }, grid: { display: false }, ticks: { color: '#64748b', font: { weight: '700' } } },
