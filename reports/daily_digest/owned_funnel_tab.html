@@ -7,37 +7,212 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-    body{font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;background:linear-gradient(180deg,#f6f8fb,#eef3f8);color:#0f172a}
-    .glass{background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:28px;box-shadow:0 24px 60px rgba(15,23,42,.08)}
-    .chip,.btn,.field,.analysis-tab{border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.92);transition:all .15s ease;font-weight:800}
-    .chip:hover,.btn:hover,.analysis-tab:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
-    .chip.active,.analysis-tab.active{background:linear-gradient(135deg,#002d72,#1d4ed8);color:#fff;border-color:rgba(0,45,114,.22)}
-    .card{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.9);border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.06)}
-    .kicker{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:#94a3b8}
-    .metric{font-size:28px;font-weight:900;line-height:1.05}
-    .muted{color:#64748b}
-    .group-chip{border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.94);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;min-width:124px;text-align:left}
-    .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
-    .table-wrap{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.86);border-radius:22px;overflow:hidden;box-shadow:0 14px 30px rgba(15,23,42,.06)}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:14px 16px;border-bottom:1px solid rgba(148,163,184,.14);font-size:13px}
-    th{text-align:left;background:rgba(248,250,252,.94);font-size:11px;font-weight:900;color:#64748b;letter-spacing:.12em;text-transform:uppercase}
-    tbody tr:hover td{background:rgba(0,45,114,.03)}
-    .empty{border:1px dashed rgba(148,163,184,.3);background:rgba(255,255,255,.72);border-radius:24px;padding:28px;text-align:center;color:#64748b;font-weight:700}
-    .panel.hidden{display:none}
-    .cone-stack{display:flex;flex-direction:column;align-items:center;gap:10px}
-    .cone-step{width:100%;display:flex;flex-direction:column;align-items:center;gap:10px}
-    .cone-bridge{font-size:11px;font-weight:800;color:#64748b;text-align:center}
-    .cone-shell{width:100%;display:flex;justify-content:center}
-    .cone-stage{position:relative;clip-path:polygon(17% 0,83% 0,100% 100%,0 100%);color:#fff;box-shadow:0 20px 40px rgba(15,23,42,.14)}
-    .cone-stage::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,0));pointer-events:none}
-    .cone-stage[data-stage="1"]{background:linear-gradient(135deg,#082f8a,#2753d7)}
-    .cone-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#20b6aa)}
-    .cone-stage[data-stage="3"]{background:linear-gradient(135deg,#c26a00,#ffaf02)}
-    .cone-stage[data-stage="4"]{background:linear-gradient(135deg,#b1155f,#ec4899)}
-    .mini-cone{height:10px;border-radius:999px;background:linear-gradient(90deg,rgba(12,74,170,.95),rgba(34,197,94,.85));box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
-    .drop-bar{height:10px;border-radius:999px;background:rgba(226,232,240,.9);overflow:hidden}
-    .drop-fill{height:100%;background:linear-gradient(90deg,#ef4444,#f97316)}
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Noto Sans KR', system-ui, sans-serif;
+      background: linear-gradient(180deg, #f6f8fb, #eef3f8);
+      color: #0f172a;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.84);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-radius: 28px;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+    }
+
+    .chip,
+    .btn,
+    .field,
+    .analysis-tab {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: rgba(255, 255, 255, 0.92);
+      transition: all 0.15s ease;
+      font-weight: 800;
+    }
+
+    .chip:hover,
+    .btn:hover,
+    .analysis-tab:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    .chip.active,
+    .analysis-tab.active {
+      background: linear-gradient(135deg, #002d72, #1d4ed8);
+      color: #fff;
+      border-color: rgba(0, 45, 114, 0.22);
+    }
+
+    .card {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 24px;
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+    }
+
+    .kicker {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: #94a3b8;
+    }
+
+    .metric {
+      font-size: 28px;
+      font-weight: 900;
+      line-height: 1.05;
+    }
+
+    .muted {
+      color: #64748b;
+    }
+
+    .group-chip {
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(255, 255, 255, 0.94);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      min-width: 124px;
+      text-align: left;
+    }
+
+    .group-chip.active {
+      background: rgba(0, 45, 114, 0.07);
+      border-color: rgba(0, 45, 114, 0.18);
+      color: #002d72;
+    }
+
+    .table-wrap {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.86);
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      background: rgba(248, 250, 252, 0.94);
+      font-size: 11px;
+      font-weight: 900;
+      color: #64748b;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    tbody tr:hover td {
+      background: rgba(0, 45, 114, 0.03);
+    }
+
+    .empty {
+      border: 1px dashed rgba(148, 163, 184, 0.3);
+      background: rgba(255, 255, 255, 0.72);
+      border-radius: 24px;
+      padding: 28px;
+      text-align: center;
+      color: #64748b;
+      font-weight: 700;
+    }
+
+    .panel.hidden {
+      display: none;
+    }
+
+    .cone-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cone-step {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cone-bridge {
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      text-align: center;
+    }
+
+    .cone-shell {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .cone-stage {
+      position: relative;
+      clip-path: polygon(17% 0, 83% 0, 100% 100%, 0 100%);
+      color: #fff;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+    }
+
+    .cone-stage::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0));
+      pointer-events: none;
+    }
+
+    .cone-stage[data-stage="1"] {
+      background: linear-gradient(135deg, #082f8a, #2753d7);
+    }
+
+    .cone-stage[data-stage="2"] {
+      background: linear-gradient(135deg, #0f766e, #20b6aa);
+    }
+
+    .cone-stage[data-stage="3"] {
+      background: linear-gradient(135deg, #c26a00, #ffaf02);
+    }
+
+    .cone-stage[data-stage="4"] {
+      background: linear-gradient(135deg, #b1155f, #ec4899);
+    }
+
+    .mini-cone {
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(12, 74, 170, 0.95), rgba(34, 197, 94, 0.85));
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    }
+
+    .drop-bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(226, 232, 240, 0.9);
+      overflow: hidden;
+    }
+
+    .drop-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ef4444, #f97316);
+    }
   </style>
 </head>
 <body class="p-5 md:p-8">
@@ -51,12 +226,14 @@
         </div>
         <div id="periodLabel" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-extrabold muted">Period | -</div>
       </div>
+
       <div class="mt-6 flex flex-wrap items-center gap-2">
         <div class="kicker">View</div>
         <button class="chip rounded-full px-4 py-2 text-xs" data-view="daily" type="button">Daily</button>
         <button class="chip rounded-full px-4 py-2 text-xs active" data-view="week" type="button">Week</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-view="range" type="button">Range</button>
       </div>
+
       <div class="mt-4 flex flex-wrap items-center gap-3">
         <div class="kicker">Date</div>
         <input id="datePicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
@@ -70,6 +247,7 @@
         <button id="btnNext" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Next</button>
         <button id="btnResetSelection" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Reset Group</button>
       </div>
+
       <div class="mt-4 flex flex-wrap items-center gap-2">
         <div class="kicker">Segment</div>
         <button class="chip rounded-full px-4 py-2 text-xs active" data-segment="SITE" type="button">SITE</button>
@@ -87,6 +265,7 @@
 
     <div id="contentArea" class="space-y-6">
       <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="summaryCards"></section>
+
       <section class="card p-4 md:p-5">
         <div class="flex flex-wrap items-center gap-2">
           <button class="analysis-tab rounded-full px-4 py-2 text-xs active" data-analysis-tab="funnel" type="button">Funnel View</button>
@@ -94,6 +273,7 @@
           <button class="analysis-tab rounded-full px-4 py-2 text-xs" data-analysis-tab="hotspot" type="button">Drop-off Hotspots</button>
         </div>
       </section>
+
       <div id="panelFunnel" class="panel space-y-6">
         <section class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.85fr)]">
           <div class="card p-5 md:p-6">
@@ -107,194 +287,80 @@
             </div>
             <div id="funnelCanvas" class="mt-6"></div>
           </div>
+
           <div class="space-y-4">
-            <div class="card p-5"><div class="kicker">Selection Notes</div><div id="selectionMeta" class="mt-4 space-y-3 text-sm font-semibold muted"></div></div>
-            <div class="card p-5"><div class="kicker">Step Detail</div><div id="stepDetail" class="mt-4 space-y-3"></div></div>
+            <div class="card p-5">
+              <div class="kicker">Selection Notes</div>
+              <div id="selectionMeta" class="mt-4 space-y-3 text-sm font-semibold muted"></div>
+            </div>
+
+            <div class="card p-5">
+              <div class="kicker">Step Detail</div>
+              <div id="stepDetail" class="mt-4 space-y-3"></div>
+            </div>
           </div>
         </section>
+
         <section class="card p-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <div><div class="kicker" id="groupKicker">Groups</div><h2 class="mt-2 text-xl font-black tracking-tight" id="groupHeading">Groups In Scope</h2></div>
+            <div>
+              <div class="kicker" id="groupKicker">Groups</div>
+              <h2 class="mt-2 text-xl font-black tracking-tight" id="groupHeading">Groups In Scope</h2>
+            </div>
             <div id="groupSummary" class="text-sm font-semibold muted">No group selected</div>
           </div>
           <div id="groupChips" class="mt-4 flex flex-wrap gap-3"></div>
         </section>
+
         <section class="card p-5">
           <div class="kicker">Group Breakdown</div>
           <h2 class="mt-2 text-xl font-black tracking-tight">Top Groups</h2>
-          <div class="mt-4 table-wrap"><table><thead><tr><th>Group</th><th>Title</th><th>Sessions</th><th>Users</th><th>Buyer Users</th><th>Purchases</th><th>Revenue</th><th>CVR</th></tr></thead><tbody id="groupTableBody"></tbody></table></div>
+          <div class="mt-4 table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Group</th>
+                  <th>Title</th>
+                  <th>Sessions</th>
+                  <th>Users</th>
+                  <th>Buyer Users</th>
+                  <th>Purchases</th>
+                  <th>Revenue</th>
+                  <th>CVR</th>
+                </tr>
+              </thead>
+              <tbody id="groupTableBody"></tbody>
+            </table>
+          </div>
         </section>
       </div>
-      <div id="panelCompare" class="panel hidden space-y-6"><section class="card p-5 md:p-6"><div><div class="kicker">Comparison</div><h2 class="mt-2 text-2xl font-black tracking-tight">All Funnels Side By Side</h2><p class="mt-2 text-sm font-semibold muted">Current period segment comparison with mini cone views and quick metrics.</p></div><div id="compareGrid" class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3"></div></section></div>
-      <div id="panelHotspot" class="panel hidden space-y-6"><section class="card p-5 md:p-6"><div><div class="kicker">Drop-off</div><h2 class="mt-2 text-2xl font-black tracking-tight">Highest Drop-off By Funnel</h2><p class="mt-2 text-sm font-semibold muted">Shows where each funnel is leaking the most in the selected period.</p></div><div id="hotspotGrid" class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2"></div></section></div>
+
+      <div id="panelCompare" class="panel hidden space-y-6">
+        <section class="card p-5 md:p-6">
+          <div>
+            <div class="kicker">Comparison</div>
+            <h2 class="mt-2 text-2xl font-black tracking-tight">All Funnels Side By Side</h2>
+            <p class="mt-2 text-sm font-semibold muted">Current period segment comparison with mini cone views and quick metrics.</p>
+          </div>
+          <div id="compareGrid" class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3"></div>
+        </section>
+      </div>
+
+      <div id="panelHotspot" class="panel hidden space-y-6">
+        <section class="card p-5 md:p-6">
+          <div>
+            <div class="kicker">Drop-off</div>
+            <h2 class="mt-2 text-2xl font-black tracking-tight">Highest Drop-off By Funnel</h2>
+            <p class="mt-2 text-sm font-semibold muted">Shows where each funnel is leaking the most in the selected period.</p>
+          </div>
+          <div id="hotspotGrid" class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2"></div>
+        </section>
+      </div>
     </div>
   </div>
-  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'data/funnel';</script>
+
+  <script>
+    window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'data/funnel';
+  </script>
   <script>
     (() => {
-      const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'data/funnel').replace(/\/$/, '');
-      const OWNED_SEGMENTS = ['OWNED', 'EDM', 'LMS', 'KAKAO'];
-      const ALL_SEGMENTS = ['SITE', 'PAID', 'ORGANIC', 'OWNED', 'EDM', 'LMS', 'KAKAO'];
-      const SEGMENT_LABELS = { SITE:'Site Total', PAID:'Paid', ORGANIC:'Organic', OWNED:'Owned Total', EDM:'EDM', LMS:'LMS', KAKAO:'Kakao' };
-      const state = { view:'week', segment:'SITE', analysisTab:'funnel', available:[], selectedGroup:'', current:null };
-      const els = {
-        periodLabel: document.getElementById('periodLabel'),
-        datePicker: document.getElementById('datePicker'),
-        startPicker: document.getElementById('startPicker'),
-        endPicker: document.getElementById('endPicker'),
-        rangeBox: document.getElementById('rangeBox'),
-        btnApply: document.getElementById('btnApply'),
-        btnPrev: document.getElementById('btnPrev'),
-        btnNext: document.getElementById('btnNext'),
-        btnResetSelection: document.getElementById('btnResetSelection'),
-        loadingState: document.getElementById('loadingState'),
-        errorState: document.getElementById('errorState'),
-        contentArea: document.getElementById('contentArea'),
-        summaryCards: document.getElementById('summaryCards'),
-        scopeLabel: document.getElementById('scopeLabel'),
-        selectionPill: document.getElementById('selectionPill'),
-        selectionMeta: document.getElementById('selectionMeta'),
-        funnelCanvas: document.getElementById('funnelCanvas'),
-        stepDetail: document.getElementById('stepDetail'),
-        groupKicker: document.getElementById('groupKicker'),
-        groupHeading: document.getElementById('groupHeading'),
-        groupSummary: document.getElementById('groupSummary'),
-        groupChips: document.getElementById('groupChips'),
-        groupTableBody: document.getElementById('groupTableBody'),
-        compareGrid: document.getElementById('compareGrid'),
-        hotspotGrid: document.getElementById('hotspotGrid'),
-        panelFunnel: document.getElementById('panelFunnel'),
-        panelCompare: document.getElementById('panelCompare'),
-        panelHotspot: document.getElementById('panelHotspot'),
-      };
-      const fmt = (n) => Number(n || 0).toLocaleString('en-US');
-      const fmtMoney = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
-      const fmtPct = (n, d = 1) => `${Number(n || 0).toFixed(d)}%`;
-      const ymd = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-      const parseYmd = (v) => { const [y,m,d] = String(v || '').split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
-      const addDays = (dt, diff) => { const out = new Date(dt); out.setDate(out.getDate() + diff); return out; };
-      const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
-      const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      async function fetchJson(url){ const res = await fetch(url, { cache:'no-store' }); if(!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); }
-      function normalizeBundle(json){
-        return { summary:(json.summary_rows || []).map((r) => ({ date:String(r.date || ''), detail:String(r.detail || ''), sessions:Number(r.sessions || 0), users:Number(r.users || 0), buyerUsers:Number(r.buyer_users || 0), purchases:Number(r.purchases || 0), revenue:Number(r.revenue || 0) })), ownedGroups:(json.owned_groups || []).map((r) => ({ date:String(r.date || ''), year:String(r.year || ''), mmdd:String(r.mmdd || ''), detail:String(r.detail || ''), messageTitle:String(r.message_title || ''), sessions:Number(r.sessions || 0), users:Number(r.users || 0), buyerUsers:Number(r.buyer_users || 0), purchases:Number(r.purchases || 0), revenue:Number(r.revenue || 0) })) };
-      }
-      const clamp = (v) => { if (!state.available.length) return v; if (state.available.includes(v)) return v; for (let i = state.available.length - 1; i >= 0; i -= 1) if (state.available[i] <= v) return state.available[i]; return state.available[0]; };
-      const between = (s, e) => state.available.filter((day) => day >= s && day <= e);
-      function currentRange(){
-        if (state.view === 'daily') { const d = clamp(els.datePicker.value || state.available[state.available.length - 1]); return { start:d, end:d }; }
-        if (state.view === 'week') { const end = clamp(els.datePicker.value || state.available[state.available.length - 1]); const start = clamp(ymd(startOfWeekMon(parseYmd(end)))); return { start, end:clamp(ymd(addDays(parseYmd(start), 6))) }; }
-        const start = clamp(els.startPicker.value || state.available[Math.max(0, state.available.length - 7)]);
-        const end = clamp(els.endPicker.value || state.available[state.available.length - 1]);
-        return start <= end ? { start, end } : { start:end, end:start };
-      }
-      function previousRange(start, end){
-        const span = Math.round((parseYmd(end) - parseYmd(start)) / 86400000) + 1;
-        const prevEnd = clamp(ymd(addDays(parseYmd(start), -1)));
-        const prevStart = clamp(ymd(addDays(parseYmd(prevEnd), -(span - 1))));
-        return { start:prevStart, end:prevEnd };
-      }
-      async function loadRange(start, end){
-        const raw = await Promise.all(between(start, end).map((day) => fetchJson(`${DATA_BASE}/funnel_${day}.json?t=${Date.now()}`)));
-        return raw.map(normalizeBundle).reduce((acc, bundle) => { acc.summary.push(...bundle.summary); acc.ownedGroups.push(...bundle.ownedGroups); return acc; }, { summary:[], ownedGroups:[] });
-      }
-      const isOwnedSegment = (segment = state.segment) => OWNED_SEGMENTS.includes(segment);
-      const segmentLabel = (segment = state.segment) => SEGMENT_LABELS[segment] || segment;
-      const aggregate = (rows) => (rows || []).reduce((a, r) => ({ sessions:a.sessions + Number(r.sessions || 0), users:a.users + Number(r.users || 0), buyerUsers:a.buyerUsers + Number(r.buyerUsers || 0), purchases:a.purchases + Number(r.purchases || 0), revenue:a.revenue + Number(r.revenue || 0) }), { sessions:0, users:0, buyerUsers:0, purchases:0, revenue:0 });
-      function summaryRowsFor(bundle, segment){ return (bundle.summary || []).filter((row) => row.detail === segment); }
-      function summarizeGroups(bundle, segment){
-        if (isOwnedSegment(segment)) {
-          const rows = (bundle.ownedGroups || []).filter((row) => segment === 'OWNED' ? OWNED_SEGMENTS.slice(1).includes(row.detail) : row.detail === segment);
-          const grouped = new Map();
-          rows.forEach((row) => {
-            const key = `${row.year}-${row.mmdd}`;
-            if (!grouped.has(key)) grouped.set(key, { key, label:row.mmdd, title:row.messageTitle || '', sessions:0, users:0, buyerUsers:0, purchases:0, revenue:0 });
-            const cur = grouped.get(key);
-            cur.sessions += row.sessions;
-            cur.users += row.users;
-            cur.buyerUsers += row.buyerUsers;
-            cur.purchases += row.purchases;
-            cur.revenue += row.revenue;
-            if (!cur.title && row.messageTitle) cur.title = row.messageTitle;
-          });
-          return Array.from(grouped.values()).map((row) => ({ ...row, cvr: row.sessions ? (row.purchases / row.sessions) * 100 : 0 })).sort((a, b) => String(b.key).localeCompare(String(a.key)));
-        }
-        return summaryRowsFor(bundle, segment).map((row) => ({ key:row.date, label:row.date, title:segmentLabel(segment), sessions:row.sessions, users:row.users, buyerUsers:row.buyerUsers, purchases:row.purchases, revenue:row.revenue, cvr: row.sessions ? (row.purchases / row.sessions) * 100 : 0 })).sort((a, b) => String(b.key).localeCompare(String(a.key)));
-      }
-      function rowsFor(bundle, segment, selectedGroup = ''){
-        if (isOwnedSegment(segment) && selectedGroup) {
-          return (bundle.ownedGroups || []).filter((row) => {
-            const key = `${row.year}-${row.mmdd}`;
-            const inSegment = segment === 'OWNED' ? OWNED_SEGMENTS.slice(1).includes(row.detail) : row.detail === segment;
-            return inSegment && key === selectedGroup;
-          });
-        }
-        const rows = summaryRowsFor(bundle, segment);
-        return selectedGroup ? rows.filter((row) => row.date === selectedGroup) : rows;
-      }
-      function buildStages(agg){
-        const base = [
-          { label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions },
-          { label:'Users', note:'Unique users in scope', value:agg.users },
-          { label:'Buyer Users', note:'Distinct users with purchase', value:agg.buyerUsers },
-          { label:'Purchases', note:'Completed orders', value:agg.purchases },
-        ];
-        const max = Math.max(...base.map((stage) => stage.value), 0);
-        let prevWidth = 96;
-        return base.map((stage, index) => {
-          const raw = max ? (stage.value / max) * 100 : 0;
-          let width = stage.value ? Math.max(raw, 20) : 14;
-          width = index === 0 ? 96 : Math.max(Math.min(width, prevWidth - 14), stage.value ? 18 : 12);
-          prevWidth = width;
-          const previous = index === 0 ? 0 : Number(base[index - 1].value || 0);
-          const kept = index === 0 ? 100 : (previous ? (stage.value / previous) * 100 : 0);
-          return { ...stage, width, kept, drop:index === 0 ? 0 : Math.max(0, 100 - kept), lost: Math.max(previous - stage.value, 0), share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0, minHeight: Math.max(116 - (index * 8), 86) };
-        });
-      }
-      function findHotspot(stages){
-        const candidates = stages.slice(1);
-        if (!candidates.length) return null;
-        return candidates.reduce((best, stage, index) => {
-          const candidate = { ...stage, fromLabel: stages[index].label, toLabel: stage.label };
-          return !best || candidate.drop > best.drop ? candidate : best;
-        }, null);
-      }
-      function buildModel(segment, selectedGroup = ''){
-        const agg = aggregate(rowsFor(state.current.current, segment, selectedGroup));
-        const prevAgg = aggregate(rowsFor(state.current.previous, segment, selectedGroup));
-        const stages = buildStages(agg);
-        return { segment, agg, prevAgg, aov: agg.purchases ? (agg.revenue / agg.purchases) : 0, cvr: agg.sessions ? (agg.purchases / agg.sessions) * 100 : 0, prevCvr: prevAgg.sessions ? (prevAgg.purchases / prevAgg.sessions) * 100 : 0, stages, hotspot: findHotspot(stages) };
-      }
-      const delta = (cur, prev) => prev ? `${cur >= prev ? '+' : ''}${(((cur - prev) / prev) * 100).toFixed(1)}%` : (cur ? '+100.0%' : '0.0%');
-      function renderCone(stages, compact = false){
-        return `<div class="cone-stack">${stages.map((stage, index) => `<div class="cone-step">${index === 0 ? '' : `<div class="cone-bridge">${esc(stages[index - 1].label)} -> ${esc(stage.label)} | ${fmtPct(stage.kept, 1)} kept | ${fmtPct(stage.drop, 1)} drop</div>`}<div class="cone-shell"><div class="cone-stage" data-stage="${index + 1}" style="width:${stage.width.toFixed(1)}%;min-height:${compact ? Math.max(stage.minHeight - 28, 66) : stage.minHeight}px"><div class="relative z-[1] flex h-full items-center justify-between gap-4 px-5 py-5 ${compact ? 'text-sm' : 'md:px-6'}"><div><div class="text-[10px] font-black uppercase tracking-[.22em] opacity-70">Stage ${String(index + 1).padStart(2, '0')}</div><div class="mt-2 ${compact ? 'text-lg' : 'text-xl md:text-2xl'} font-black leading-tight">${esc(stage.label)}</div><div class="mt-1 text-xs font-semibold opacity-90">${esc(stage.note)}</div></div><div class="text-right"><div class="${compact ? 'text-xl' : 'text-2xl md:text-3xl'} font-black">${fmt(stage.value)}</div><div class="mt-1 text-xs font-semibold opacity-90">${index === 0 ? 'Base 100%' : `${fmtPct(stage.kept, 1)} from previous`}</div></div></div></div></div></div>`).join('')}</div>`;
-      }
-      function renderFunnelPanel(model, groups){
-        const selectedGroup = groups.find((row) => row.key === state.selectedGroup);
-        els.scopeLabel.textContent = `${segmentLabel(model.segment)} | ${selectedGroup ? selectedGroup.label : 'Total period'}`;
-        els.selectionPill.textContent = `Scope | ${selectedGroup ? selectedGroup.label : segmentLabel(model.segment)}`;
-        els.groupKicker.textContent = isOwnedSegment(model.segment) ? 'Send Groups' : 'Date Groups';
-        els.groupHeading.textContent = isOwnedSegment(model.segment) ? 'MMDD Groups In Scope' : 'Dates In Scope';
-        els.funnelCanvas.innerHTML = renderCone(model.stages, false);
-        els.selectionMeta.innerHTML = [
-          `Segment | ${segmentLabel(model.segment)}`,
-          `Selection | ${selectedGroup ? selectedGroup.label : 'Total period'}`,
-          `Revenue | ${fmtMoney(model.agg.revenue)}`,
-          `AOV | ${fmtMoney(model.aov)}`,
-          `CVR | ${fmtPct(model.cvr, 2)}`,
-          model.hotspot ? `Biggest drop | ${model.hotspot.fromLabel} -> ${model.hotspot.toLabel} (${fmtPct(model.hotspot.drop, 1)})` : '',
-          selectedGroup && selectedGroup.title ? `Title | ${selectedGroup.title}` : '',
-        ].filter(Boolean).map((line) => `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">${esc(line)}</div>`).join('');
-        els.stepDetail.innerHTML = model.stages.map((stage, index) => `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4"><div class="kicker">Stage ${String(index + 1).padStart(2, '0')}</div><div class="mt-2 flex items-center justify-between gap-4"><div><div class="text-base font-black">${esc(stage.label)}</div><div class="mt-1 text-xs font-semibold muted">${esc(stage.note)}</div></div><div class="text-right"><div class="text-xl font-black">${fmt(stage.value)}</div><div class="mt-1 text-xs font-semibold muted">${fmtPct(stage.share, 1)} of sessions</div></div></div>${index === 0 ? '' : `<div class="mt-3 text-xs font-semibold muted">${esc(model.stages[index - 1].label)} -> ${esc(stage.label)} | ${fmtPct(stage.kept, 1)} kept | ${fmtPct(stage.drop, 1)} drop</div>`}</div>`).join('');
-        els.groupSummary.textContent = state.selectedGroup ? `Selected | ${selectedGroup ? selectedGroup.label : state.selectedGroup}` : `Total groups | ${groups.length}`;
-        els.groupChips.innerHTML = groups.length ? groups.slice(0, 18).map((row) => `<button class="group-chip ${state.selectedGroup === row.key ? 'active' : ''}" data-group="${row.key}" type="button"><div>${esc(row.label)}</div><div class="mt-1 text-[11px] font-bold text-slate-500">${fmt(row.sessions)} sessions</div></button>`).join('') : `<div class="empty w-full">No groups found for this segment and period.</div>`;
-        Array.from(els.groupChips.querySelectorAll('[data-group]')).forEach((button) => button.addEventListener('click', () => { state.selectedGroup = button.getAttribute('data-group') || ''; render(); }));
-        els.groupTableBody.innerHTML = groups.length ? groups.slice(0, 20).map((row) => `<tr class="cursor-pointer" data-row-group="${row.key}"><td class="font-black">${esc(row.key)}</td><td>${esc(row.title || '-')}</td><td>${fmt(row.sessions)}</td><td>${fmt(row.users)}</td><td>${fmt(row.buyerUsers)}</td><td>${fmt(row.purchases)}</td><td>${fmtMoney(row.revenue)}</td><td>${fmtPct(row.cvr, 2)}</td></tr>`).join('') : `<tr><td colspan="8" class="text-center text-slate-400">No groups</td></tr>`;
-        Array.from(els.groupTableBody.querySelectorAll('[data-row-group]')).forEach((row) => row.addEventListener('click', () => { state.selectedGroup = row.getAttribute('data-row-group') || ''; render(); }));
-      }
-      function renderComparePanel(){
-        els.compareGrid.innerHTML = ALL_SEGMENTS.map((segment) => {
-          const model = buildModel(segment, '');
-          return `<article class="card p-5"><div class="flex items-start justify-between gap-3"><div><div class="kicker">${esc(segment)}</div><h3 class="mt-2 text-xl font-black">${esc(segmentLabel(segment))}</h3></div><button class="btn rounded-full px-3 py-2 text-xs" data-focus-segment="${segment}" type="button">Open</button></div><div class="mt-4 space-y-3">${model.stages.map((stage) => `<div><div class="mb-1 flex items-center justify-between text-[11px] font-bold text-slate-500"><span>${esc(stage.label)}</span><span>${fmt(stage.value)}</span></div><div class="mini-cone" style="width:${Math.max(stage.width, 12).toFixed(1)}%"></div></div>`).join('')}</div><div class="mt-4 grid grid-cols-2 gap-3 text-sm font-semibold muted"><div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-3">CVR | ${fmtPct(model.cvr, 2)}</div><div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-3">Revenue | ${fmtMoney(model.agg.revenue)}</div><div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-3">Buyer Users | ${fmt(model.agg.buyerUsers)}</div><div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-3 py-3">Biggest Drop | ${model.hotspot ? fmtPct(model.hotspot.drop, 1) : '-'}</div></div></article>`;
-        }).join('');
-        Array.from(els.compareGrid.querySelectorAll('[data-focus-segment]')).forEach((button) => button.addEventListener('click', () => { state.segment = button.getAttribute('data-focus-segment') || 'SITE'; state.analysisTab = 'funnel'; state.s
