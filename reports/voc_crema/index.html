@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VOC Dashboard | Official + Naver Brand Reviews</title>
+  <title>VOC Dashboard | Official + Naver Brand + Musinsa Reviews</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -174,7 +174,7 @@
           <header class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-6">
             <div>
               <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">
-                Official몰 & Naver Brand 리뷰 VOC 대시보드
+                Official몰 & Naver Brand · Musinsa 리뷰 VOC 대시보드
               </h1>
               <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
             </div>
@@ -264,6 +264,9 @@
             </div>
 
             <div id="dailyFeed" class="review-grid"></div>
+            <div class="mt-4 flex justify-center">
+              <button id="feedMoreBtn" class="chip hidden" onclick="loadMoreFeed()">리뷰 더 보기</button>
+            </div>
 
             <div class="hidden review-card text-center" id="noResults">
               <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
@@ -285,9 +288,9 @@
 
               <div class="flex gap-2 flex-wrap items-center">
                 <select id="mlWindow" class="input-glass" onchange="renderAll()">
-                  <option value="90" selected>최근 3개월</option>
+                  <option value="365" selected>최근 1년 (기본)</option>
+                  <option value="90">최근 3개월</option>
                   <option value="180">최근 6개월</option>
-                  <option value="365">최근 12개월</option>
                   <option value="0">전체</option>
                 </select>
                 <select id="mlMinReviews" class="input-glass" onchange="renderAll()">
@@ -333,6 +336,7 @@
     const uiState = {
       sourceTab: "combined",
       viewMode: "daily",
+      feedLimit: 60,
       chips: { low: false },
     };
 
@@ -438,6 +442,15 @@
       renderAll();
     }
 
+    function resetFeedLimit(){
+      uiState.feedLimit = (uiState.viewMode === "7d") ? 120 : 60;
+    }
+
+    function loadMoreFeed(){
+      uiState.feedLimit += (uiState.viewMode === "7d") ? 120 : 60;
+      renderDailyFeed(getFilteredReviews());
+    }
+
     function currentDayValue(){
       return (document.getElementById("daySelect")?.value || META?.dashboard_default_day || META?.period_end || kstDateStr(-1)).trim();
     }
@@ -476,6 +489,7 @@
     function toggleChip(name){
       if (name === "daily" || name === "7d"){
         uiState.viewMode = name;
+        resetFeedLimit();
       }else if (name === "low"){
         uiState.chips.low = !uiState.chips.low;
       }
@@ -501,6 +515,7 @@
 
       if (uiState.sourceTab === "official") rows = rows.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") rows = rows.filter(r => r.source === "Naver");
+      if (uiState.sourceTab === "musinsa") rows = rows.filter(r => r.source === "Musinsa");
 
       const day = currentDayValue();
       if (uiState.viewMode === "daily" && day){
@@ -637,17 +652,38 @@
     function renderDailyFeed(reviews){
       const container = document.getElementById("dailyFeed");
       const no = document.getElementById("noResults");
+      const moreBtn = document.getElementById("feedMoreBtn");
       if (!container || !no) return;
 
-      const rows = uiState.viewMode === "7d" ? reviews.slice() : reviews.slice(0, 60);
+      const baseLimit = uiState.viewMode === "7d" ? 120 : 60;
+      if (!Number.isFinite(uiState.feedLimit) || uiState.feedLimit < baseLimit){
+        uiState.feedLimit = baseLimit;
+      }
+
+      const rows = reviews.slice(0, uiState.feedLimit);
       if (!rows.length){
         container.innerHTML = "";
         no.classList.remove("hidden");
+        if (moreBtn){
+          moreBtn.classList.add("hidden");
+          moreBtn.textContent = "리뷰 더 보기";
+        }
         return;
       }
 
       no.classList.add("hidden");
       container.innerHTML = rows.map(reviewCardHTML).join("");
+
+      if (moreBtn){
+        const remaining = Math.max(0, reviews.length - rows.length);
+        if (remaining > 0){
+          moreBtn.classList.remove("hidden");
+          moreBtn.textContent = `리뷰 더 보기 (${remaining}개 남음)`;
+        } else {
+          moreBtn.classList.add("hidden");
+          moreBtn.textContent = "리뷰 더 보기";
+        }
+      }
     }
 
     function renderProductSelect(){
@@ -815,7 +851,7 @@
     function buildProductMLRows(){
       const winSel = document.getElementById("mlWindow");
       const minSel = document.getElementById("mlMinReviews");
-      const winDays = Number(winSel?.value || 90);
+      const winDays = Number(winSel?.value || 365);
       const minReviews = Number(minSel?.value || 3);
 
       const now = kstNow();
@@ -825,6 +861,7 @@
       let base = REVIEWS.slice();
       if (uiState.sourceTab === "official") base = base.filter(r => r.source === "Official");
       if (uiState.sourceTab === "naver") base = base.filter(r => r.source === "Naver");
+      if (uiState.sourceTab === "musinsa") base = base.filter(r => r.source === "Musinsa");
 
       // 기간 기반 누적 분석으로 Daily chip/날짜 선택과 분리
       if (cutoff){
@@ -972,8 +1009,7 @@
 
       no.classList.add("hidden");
       // 너무 길어지면 상위 20개만
-      const top = rows.slice(0, 20);
-      grid.innerHTML = top.map(mlCardHTML).join("");
+      grid.innerHTML = rows.map(mlCardHTML).join("");
     }
 
     function renderAll(){
@@ -1027,7 +1063,8 @@
 
             // default = yesterday(KST)
             if (!dayInput.value){
-              dayInput.value = (META?.dashboard_default_day || META?.period_end || kstDateStr(-1));
+              const preferredDay = META?.dashboard_default_day || maxDay;
+          dayInput.value = (preferredDay >= minDay && preferredDay <= maxDay) ? preferredDay : maxDay;
             }
           }
 
