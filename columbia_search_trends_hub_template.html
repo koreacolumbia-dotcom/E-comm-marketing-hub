@@ -1,888 +1,638 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Funnel Analysis</title>
+  <title>Search Trends Dashboard | Columbia</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-    body{font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;background:linear-gradient(180deg,#f6f8fb,#eef3f8);color:#0f172a}
-    .glass{background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:28px;box-shadow:0 24px 60px rgba(15,23,42,.08)}
-    .chip,.btn,.field{border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.92);transition:all .15s ease;font-weight:800}
-    .chip:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
-    .chip.active{background:linear-gradient(135deg,#002d72,#1d4ed8);color:#fff;border-color:rgba(0,45,114,.22)}
-    .card{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.9);border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.06)}
-    .kicker{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:#94a3b8}
-    .metric{font-size:28px;font-weight:900;line-height:1.05}
-    .muted{color:#64748b}
-    .table-wrap{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.86);border-radius:22px;overflow:hidden;box-shadow:0 14px 30px rgba(15,23,42,.06)}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:14px 16px;border-bottom:1px solid rgba(148,163,184,.14);font-size:13px;vertical-align:top}
-    th{text-align:left;background:rgba(248,250,252,.94);font-size:11px;font-weight:900;color:#64748b;letter-spacing:.12em;text-transform:uppercase}
-    tbody tr:hover td{background:rgba(0,45,114,.03)}
-    .empty{border:1px dashed rgba(148,163,184,.3);background:rgba(255,255,255,.72);border-radius:24px;padding:28px;text-align:center;color:#64748b;font-weight:700}
-    .group-chip{border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.94);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;min-width:124px;text-align:left}
-    .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
-    .funnel-wrap{position:relative;padding:8px 0 2px}
-    .funnel-axis{position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(180deg,rgba(148,163,184,.12),rgba(148,163,184,.28),rgba(148,163,184,.08));transform:translateX(-50%)}
-    .funnel-stage{position:relative;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);min-height:118px;border-radius:18px;overflow:hidden;clip-path:polygon(9% 0,91% 0,100% 100%,0 100%)}
-    .funnel-stage-inner{min-height:118px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:18px 24px 20px}
-    .funnel-stage.narrow .funnel-stage-inner{grid-template-columns:1fr;justify-items:center;text-align:center;padding:16px 18px 18px}
-    .funnel-stage.narrow .stage-value{text-align:center}
-    .funnel-stage.tiny .funnel-stage-inner{padding:14px 12px 16px}
-    .stage-kicker{font-size:10px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;opacity:.72}
-    .stage-title{margin-top:8px;font-size:clamp(20px,2.2vw,38px);line-height:1.05;font-weight:900;word-break:keep-all;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-note{margin-top:6px;font-size:13px;line-height:1.35;font-weight:700;opacity:.95;word-break:keep-all;overflow-wrap:anywhere}
-    .stage-value .num{font-size:clamp(28px,3vw,54px);line-height:1;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-value .sub{margin-top:8px;font-size:13px;line-height:1.2;font-weight:700;opacity:.95}
-    .funnel-stage.narrow .stage-title{font-size:clamp(18px,1.9vw,28px)}
-    .funnel-stage.narrow .stage-note{font-size:12px}
-    .funnel-stage.narrow .stage-value .num{font-size:clamp(24px,2.2vw,36px)}
-    .funnel-stage.tiny .stage-title{font-size:clamp(16px,1.6vw,22px)}
-    .funnel-stage.tiny .stage-note{font-size:11px}
-    .funnel-stage.tiny .stage-value .num{font-size:clamp(20px,1.9vw,28px)}
-    .funnel-stage.tiny .stage-value .sub{font-size:11px}
-    .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
-    .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
-    .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
-    .funnel-stage[data-stage="4"]{background:linear-gradient(135deg,#b45309,#f59e0b)}
-    .funnel-stage[data-stage="5"]{background:linear-gradient(135deg,#9f1239,#ec4899)}
-    .funnel-stage.compare-a{background:linear-gradient(135deg,#002d72,#1d4ed8)}
-    .funnel-stage.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
-    .tab-panel{display:none}
-    .tab-panel.active{display:block}
-    .rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:rgba(0,45,114,.08);color:#002d72;font-weight:900;font-size:12px}
-    .warn{color:#b45309}
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+    html, body { height: 100%; }
+    body{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a; min-height:100vh;
+    }
+
+    .glass-card{
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.75);
+      border-radius: 30px;
+      box-shadow: 0 20px 50px rgba(0,45,114,0.05);
+    }
+
+    .topbar{
+      background: rgba(255,255,255,0.70);
+      backdrop-filter: blur(15px);
+      border-bottom: 1px solid rgba(255,255,255,0.80);
+    }
+
+    .summary-card{
+      border-radius: 26px; background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.75); backdrop-filter: blur(18px);
+      box-shadow: 0 20px 50px rgba(0,45,114,0.05);
+      padding: 18px 20px;
+    }
+
+    .small-label{
+      font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 900;
+    }
+
+    .input-glass{
+      background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.80);
+      border-radius: 18px; padding: 12px 14px; outline: none; font-weight: 800; color:#0f172a;
+    }
+    .input-glass:focus{
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.10);
+      border-color: rgba(0,45,114,0.25);
+    }
+
+    .chip{
+      border-radius: 9999px; padding: 10px 14px; font-weight: 900; font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.60);
+      color:#334155; cursor:pointer; user-select:none;
+    }
+    .chip.active{
+      background: rgba(0,45,114,0.95); color:#fff; border-color: rgba(0,45,114,1);
+      box-shadow: 0 10px 30px rgba(0,45,114,0.15);
+    }
+
+
+    .period-tabs{ display:flex; flex-wrap:wrap; gap:10px; }
+    .period-tab{
+      position:relative;
+      padding:10px 16px; border-radius:9999px; font-size:13px; font-weight:900;
+      border:1px solid rgba(255,255,255,0.9); background:rgba(255,255,255,0.62); color:#334155;
+      box-shadow: 0 10px 24px rgba(15,23,42,0.04);
+      backdrop-filter: blur(10px); cursor:pointer; user-select:none;
+      transition: transform .22s ease, box-shadow .22s ease, background .22s ease, color .22s ease, border-color .22s ease;
+      overflow:hidden;
+    }
+    .period-tab:hover{ transform: translateY(-1px); box-shadow: 0 16px 30px rgba(0,45,114,0.10); }
+    .period-tab.active{ background:rgba(0,45,114,0.96); color:#fff; border-color:rgba(0,45,114,1); box-shadow:0 14px 32px rgba(0,45,114,0.18); }
+    .period-tab::after{
+      content:''; position:absolute; inset:0; background:linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0) 70%);
+      transform: translateX(-140%); transition: transform .6s ease;
+    }
+    .period-tab:hover::after, .period-tab.active::after{ transform: translateX(140%); }
+
+    .fade-up{ animation: fadeUp .45s ease both; }
+    @keyframes fadeUp{ from{ opacity:0; transform:translateY(10px);} to{ opacity:1; transform:translateY(0);} }
+
+    .tbl{
+      width:100%; border-collapse: separate; border-spacing: 0; overflow:hidden; border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.55);
+    }
+    .tbl th{
+      font-size: 11px; letter-spacing: .22em; text-transform: uppercase; font-weight: 900;
+      color:#475569; background: rgba(255,255,255,0.75); padding: 14px 14px;
+      position: sticky; top: 0; z-index: 1;
+    }
+    .tbl td{
+      padding: 14px 14px; border-top: 1px solid rgba(255,255,255,0.75); font-weight: 800;
+      color:#0f172a; font-size: 13px; vertical-align: top;
+    }
+
+    .badge{
+      display:inline-flex; align-items:center; gap:6px; padding: 6px 10px; border-radius: 9999px;
+      font-size: 11px; font-weight: 900; border: 1px solid rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.65); color:#334155;
+    }
+    .badge.naver{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
+    .badge.google{ background: rgba(59,130,246,0.10); color:#1d4ed8; border-color: rgba(59,130,246,0.18); }
+    .badge.growth{ background: rgba(234,179,8,0.12); color:#a16207; border-color: rgba(234,179,8,0.18); }
+
+    .rank-list{ display:grid; grid-template-columns:1fr; gap:10px; }
+    .rank-item{
+      padding: 14px 16px; border-radius: 20px; background: rgba(255,255,255,0.58);
+      border: 1px solid rgba(255,255,255,0.82);
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+    }
+
+    .chart-wrap{ position:relative; width:100%; height:380px; }
+    .chart-wrap-tall{ position:relative; width:100%; height:430px; }
+    .kpi-value{ font-size: 2rem; font-weight: 900; line-height: 1; }
+    .muted{ color:#64748b; }
+
+    body.embedded .topbar, body.embedded .layout-header { display:none !important; }
+    body.embedded main{ padding: 24px !important; }
   </style>
 </head>
-<body class="p-5 md:p-8">
-  <div class="mx-auto max-w-7xl space-y-6">
-    <section class="glass p-6 md:p-7">
-      <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div class="kicker">Owned Funnel</div>
-          <h1 class="mt-2 text-3xl font-black tracking-tight md:text-4xl">Funnel Analysis</h1>
-          <p class="mt-2 text-sm font-semibold muted">Behavior-first funnel view with overview, compare, and drop-off ranking.</p>
+
+<body>
+  <header class="topbar sticky top-0 z-50">
+    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
+            <i class="fa-solid fa-magnifying-glass-chart text-slate-700"></i>
+          </div>
+          <div>
+            <div class="text-sm font-black text-slate-900">Search Trends Dashboard</div>
+            <div class="text-xs font-bold text-slate-500">Naver + Google | Columbia</div>
+          </div>
         </div>
-        <div id="periodLabel" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-extrabold muted">Period | -</div>
-      </div>
-      <div class="mt-6 flex flex-wrap items-center gap-2">
-        <div class="kicker">View</div>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-view="daily" type="button">Daily</button>
-        <button class="chip rounded-full px-4 py-2 text-xs active" data-view="week" type="button">Week</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-view="range" type="button">Range</button>
-      </div>
-      <div class="mt-4 flex flex-wrap items-center gap-3">
-        <div class="kicker">Date</div>
-        <input id="datePicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
-        <div id="rangeBox" class="hidden flex flex-wrap items-center gap-2">
-          <input id="startPicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
-          <span class="text-sm font-bold text-slate-400">to</span>
-          <input id="endPicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 w-full lg:w-auto">
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Period</div>
+            <div class="text-sm font-black text-slate-900" id="periodText">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1" id="timeUnitText">-</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Latest Point</div>
+            <div class="text-sm font-black text-slate-900" id="latestDateText">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1">최종 수집 시점</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Naver Peak</div>
+            <div class="text-sm font-black text-slate-900" id="naverPeakText">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1">평균 상대지수 최고점</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Google Peak</div>
+            <div class="text-sm font-black text-slate-900" id="googlePeakText">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-1">평균 상대지수 최고점</div>
+          </div>
         </div>
-        <button id="btnApply" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Apply</button>
-        <button id="btnPrev" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Prev</button>
-        <button id="btnNext" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Next</button>
-        <button id="btnResetSelection" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Reset Group</button>
       </div>
-      <div class="mt-4 flex flex-wrap items-center gap-2">
-        <div class="kicker">Segment</div>
-        <button class="chip rounded-full px-4 py-2 text-xs active" data-segment="ALL" type="button">ALL</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="PAID" type="button">PAID</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="ORGANIC" type="button">ORGANIC</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="OWNED" type="button">OWNED</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="EDM" type="button">EDM</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="LMS" type="button">LMS</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="KAKAO" type="button">KAKAO</button>
+
+      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
+        * Columbia 관련 키워드 검색량 추이 대시보드 · Naver DataLab + Google Trends 기반
       </div>
-      <div class="mt-6 flex flex-wrap items-center gap-2">
-        <div class="kicker">Tab</div>
-        <button class="chip rounded-full px-4 py-2 text-xs active" data-tab="overview" type="button">Overview</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-tab="compare" type="button">Compare</button>
-        <button class="chip rounded-full px-4 py-2 text-xs" data-tab="dropoff" type="button">Drop-off</button>
-      </div>
-    </section>
-
-    <div id="loadingState" class="empty hidden">Loading funnel data...</div>
-    <div id="errorState" class="empty hidden"></div>
-
-    <div id="contentArea" class="space-y-6">
-      <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="summaryCards"></section>
-
-      <section id="panel-overview" class="tab-panel active space-y-6">
-        <section class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.85fr)]">
-          <div class="card p-5 md:p-6">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div class="kicker">Funnel</div>
-                <h2 class="mt-2 text-2xl font-black tracking-tight">Conversion Flow</h2>
-                <p id="scopeLabel" class="mt-2 text-sm font-semibold muted">Current segment summary</p>
-              </div>
-              <div id="selectionPill" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-extrabold muted">Scope | Total</div>
-            </div>
-            <div id="funnelNotice" class="mt-4 text-xs font-semibold muted"></div>
-            <div id="funnelCanvas" class="funnel-wrap mt-6"></div>
-          </div>
-          <div class="space-y-4">
-            <div class="card p-5">
-              <div class="kicker">Selection Notes</div>
-              <div id="selectionMeta" class="mt-4 space-y-3 text-sm font-semibold muted"></div>
-            </div>
-            <div class="card p-5">
-              <div class="kicker">Step Detail</div>
-              <div id="stepDetail" class="mt-4 space-y-3"></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="card p-5">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div class="kicker" id="groupKicker">Groups</div>
-              <h2 class="mt-2 text-xl font-black tracking-tight" id="groupHeading">Groups In Scope</h2>
-            </div>
-            <div id="groupSummary" class="text-sm font-semibold muted">No group selected</div>
-          </div>
-          <div id="groupChips" class="mt-4 flex flex-wrap gap-3"></div>
-        </section>
-
-        <section class="card p-5">
-          <div class="kicker">Group Breakdown</div>
-          <h2 class="mt-2 text-xl font-black tracking-tight">Top Groups</h2>
-          <div class="mt-4 table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Group</th><th>Title</th><th>Sessions</th><th>PDP</th><th>Cart</th><th>Checkout</th><th>Purchase Session</th><th>Orders</th><th>Revenue</th><th>Session CVR</th>
-                </tr>
-              </thead>
-              <tbody id="groupTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <section id="panel-compare" class="tab-panel space-y-6">
-        <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <div class="card p-5">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <div class="kicker">Compare A</div>
-                <h2 class="mt-2 text-xl font-black tracking-tight">Left Funnel</h2>
-              </div>
-            </div>
-            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div>
-                <div class="kicker">Segment</div>
-                <select id="cmpASegment" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
-              </div>
-              <div>
-                <div class="kicker">Group</div>
-                <select id="cmpAGroup" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
-              </div>
-            </div>
-            <div id="compareMetaA" class="mt-4 text-sm font-semibold muted"></div>
-            <div id="compareCanvasA" class="funnel-wrap mt-6"></div>
-          </div>
-
-          <div class="card p-5">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <div class="kicker">Compare B</div>
-                <h2 class="mt-2 text-xl font-black tracking-tight">Right Funnel</h2>
-              </div>
-            </div>
-            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div>
-                <div class="kicker">Segment</div>
-                <select id="cmpBSegment" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
-              </div>
-              <div>
-                <div class="kicker">Group</div>
-                <select id="cmpBGroup" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
-              </div>
-            </div>
-            <div id="compareMetaB" class="mt-4 text-sm font-semibold muted"></div>
-            <div id="compareCanvasB" class="funnel-wrap mt-6"></div>
-          </div>
-        </section>
-
-        <section class="card p-5">
-          <div class="kicker">Compare Summary</div>
-          <h2 class="mt-2 text-xl font-black tracking-tight">A vs B</h2>
-          <div class="mt-4 table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Metric</th><th>A</th><th>B</th><th>Delta</th>
-                </tr>
-              </thead>
-              <tbody id="compareTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <section id="panel-dropoff" class="tab-panel space-y-6">
-        <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <div class="card p-5">
-            <div class="kicker">Overall Top 3</div>
-            <h2 class="mt-2 text-xl font-black tracking-tight">Highest Drop-off Segments</h2>
-            <div id="dropOverall" class="mt-4 space-y-3"></div>
-          </div>
-          <div class="card p-5">
-            <div class="kicker">Stage Ranking</div>
-            <h2 class="mt-2 text-xl font-black tracking-tight">Step-wise Top 3</h2>
-            <div id="dropStageRankings" class="mt-4 space-y-4"></div>
-          </div>
-        </section>
-
-        <section class="card p-5">
-          <div class="kicker">Segment Drop-off</div>
-          <h2 class="mt-2 text-xl font-black tracking-tight">Worst Step By Segment</h2>
-          <div class="mt-4 table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Segment</th><th>#1 Worst</th><th>#2</th><th>#3</th>
-                </tr>
-              </thead>
-              <tbody id="dropSegmentTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
     </div>
-  </div>
+  </header>
 
-  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel';</script>
+  <main class="p-6 md:p-10 w-full">
+    <div class="mx-auto w-full max-w-[1280px]">
+      <div class="layout-header mb-8">
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">컬럼비아 검색량 추이</h1>
+            <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap" id="keywordChips"></div>
+        </header>
+      </div>
+
+      <section class="mb-6 fade-up">
+        <div class="glass-card p-5 md:p-6">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <div class="small-label text-blue-600 mb-2">View Range</div>
+              <div class="text-xl font-black text-slate-900">기간별 검색량 추이 보기</div>
+              <div class="text-sm font-bold text-slate-500 mt-1" id="activeRangeText">최근 3개월 기준</div>
+            </div>
+            <div class="period-tabs" id="periodTabs">
+              <button class="period-tab" data-period="540">1년 6개월</button>
+              <button class="period-tab" data-period="365">1년</button>
+              <button class="period-tab" data-period="180">6개월</button>
+              <button class="period-tab active" data-period="90">3개월</button>
+              <button class="period-tab" data-period="30">1개월</button>
+              <button class="period-tab" data-period="7">1주</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Latest Naver</div>
+            <div class="kpi-value text-slate-900" id="latestNaverValue">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-2" id="latestNaverDelta">-</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Latest Google</div>
+            <div class="kpi-value text-slate-900" id="latestGoogleValue">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-2" id="latestGoogleDelta">-</div>
+          </div>
+          <div class="summary-card">
+            <div class="small-label text-blue-600 mb-2">Gap</div>
+            <div class="kpi-value text-slate-900" id="latestGapValue">-</div>
+            <div class="text-xs font-bold text-slate-500 mt-2">Naver - Google</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">1. Overview</div>
+              <div class="text-2xl font-black text-slate-900">네이버 vs 구글 전체 추이</div>
+              <div class="text-sm font-bold text-slate-500 mt-2">선택한 기간 내 키워드군 평균 상대지수 기준</div>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr_1fr] gap-4">
+          <div class="glass-card p-8">
+            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+              <div>
+                <div class="small-label text-blue-600 mb-2">2. Keyword Trend</div>
+                <div class="text-2xl font-black text-slate-900">키워드별 플랫폼 추이</div>
+                <div class="text-sm font-bold text-slate-500 mt-2">선택 키워드의 Naver vs Google 비교</div>
+              </div>
+              <div>
+                <select id="keywordSelect" class="input-glass"></select>
+              </div>
+            </div>
+            <div class="chart-wrap-tall"><canvas id="keywordChart"></canvas></div>
+          </div>
+
+          <div class="glass-card p-8">
+            <div class="small-label text-blue-600 mb-2">3. Latest Rank</div>
+            <div class="text-2xl font-black text-slate-900 mb-2">최신 시점 상위 키워드</div>
+            <div class="text-sm font-bold text-slate-500 mb-5">Naver/Google 평균값 기준</div>
+            <div class="rank-list" id="latestRankList"></div>
+          </div>
+
+          <div class="glass-card p-8">
+            <div class="small-label text-blue-600 mb-2">4. Growth Rank</div>
+            <div class="text-2xl font-black text-slate-900 mb-2">직전 대비 상승 키워드</div>
+            <div class="text-sm font-bold text-slate-500 mb-5">선택 기간 첫 포인트 대비 증감률</div>
+            <div class="rank-list" id="growthRankList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <div class="glass-card p-8">
+          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
+            <div>
+              <div class="small-label text-blue-600 mb-2">5. Latest Snapshot</div>
+              <div class="text-2xl font-black text-slate-900">최신 시점 키워드 스냅샷</div>
+              <div class="text-sm font-bold text-slate-500 mt-2">플랫폼별 최신값, 갭, 피크 시점 정리</div>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Keyword</th>
+                  <th>Naver</th>
+                  <th>Google</th>
+                  <th>Gap</th>
+                  <th>Growth</th>
+                  <th>Naver Peak</th>
+                  <th>Google Peak</th>
+                </tr>
+              </thead>
+              <tbody id="snapshotBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <footer class="text-xs font-bold text-slate-500 pb-8">
+        * 플랫폼별 값은 상대지수라 절대 검색량 비교가 아니라 추세 비교용으로 보는 게 맞습니다.
+      </footer>
+    </div>
+  </main>
+
   <script>
-    (() => {
-      const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel').replace(/\/$/, '');
-      const OWNED_SEGMENTS = ['OWNED', 'EDM', 'LMS', 'KAKAO'];
-      const FILTER_SEGMENTS = ['ALL','PAID','ORGANIC','OWNED','EDM','LMS','KAKAO'];
-      const SEGMENT_LABELS = {
-        ALL: 'All',
-        SITE: 'All',
-        PAID: 'Paid',
-        ORGANIC: 'Organic',
-        OWNED: 'Owned Total',
-        EDM: 'EDM',
-        LMS: 'LMS',
-        KAKAO: 'Kakao',
-      };
-      const state = {
-        view: 'week',
-        tab: 'overview',
-        segment: 'ALL',
-        available: [],
-        selectedGroup: '',
-        current: null,
-        compare: {
-          A: { segment: 'ALL', group: '' },
-          B: { segment: 'OWNED', group: '' },
-        }
-      };
-      const els = {
-        periodLabel: document.getElementById('periodLabel'),
-        datePicker: document.getElementById('datePicker'),
-        startPicker: document.getElementById('startPicker'),
-        endPicker: document.getElementById('endPicker'),
-        rangeBox: document.getElementById('rangeBox'),
-        btnApply: document.getElementById('btnApply'),
-        btnPrev: document.getElementById('btnPrev'),
-        btnNext: document.getElementById('btnNext'),
-        btnResetSelection: document.getElementById('btnResetSelection'),
-        loadingState: document.getElementById('loadingState'),
-        errorState: document.getElementById('errorState'),
-        contentArea: document.getElementById('contentArea'),
-        summaryCards: document.getElementById('summaryCards'),
-        scopeLabel: document.getElementById('scopeLabel'),
-        selectionPill: document.getElementById('selectionPill'),
-        selectionMeta: document.getElementById('selectionMeta'),
-        funnelCanvas: document.getElementById('funnelCanvas'),
-        funnelNotice: document.getElementById('funnelNotice'),
-        stepDetail: document.getElementById('stepDetail'),
-        groupKicker: document.getElementById('groupKicker'),
-        groupHeading: document.getElementById('groupHeading'),
-        groupSummary: document.getElementById('groupSummary'),
-        groupChips: document.getElementById('groupChips'),
-        groupTableBody: document.getElementById('groupTableBody'),
-        cmpASegment: document.getElementById('cmpASegment'),
-        cmpAGroup: document.getElementById('cmpAGroup'),
-        cmpBSegment: document.getElementById('cmpBSegment'),
-        cmpBGroup: document.getElementById('cmpBGroup'),
-        compareMetaA: document.getElementById('compareMetaA'),
-        compareMetaB: document.getElementById('compareMetaB'),
-        compareCanvasA: document.getElementById('compareCanvasA'),
-        compareCanvasB: document.getElementById('compareCanvasB'),
-        compareTableBody: document.getElementById('compareTableBody'),
-        dropOverall: document.getElementById('dropOverall'),
-        dropStageRankings: document.getElementById('dropStageRankings'),
-        dropSegmentTableBody: document.getElementById('dropSegmentTableBody'),
-      };
-      const fmt = (n) => Number(n || 0).toLocaleString('en-US');
-      const fmtMoney = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
-      const fmtPct = (n, d = 1) => `${Number(n || 0).toFixed(d)}%`;
-      const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      const ymd = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-      const parseYmd = (v) => { const [y,m,d] = String(v || '').split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
-      const addDays = (dt, diff) => { const out = new Date(dt); out.setDate(out.getDate() + diff); return out; };
-      const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
-      const segmentLabel = (seg = state.segment) => SEGMENT_LABELS[seg] || seg;
-      const ownedChildSegments = () => OWNED_SEGMENTS.slice(1);
+    const DATA = __DATA__;
+    const PERIOD_OPTIONS = [
+      { days: 540, label: '최근 1년 6개월' },
+      { days: 365, label: '최근 1년' },
+      { days: 180, label: '최근 6개월' },
+      { days: 90, label: '최근 3개월' },
+      { days: 30, label: '최근 1개월' },
+      { days: 7, label: '최근 1주' },
+    ];
 
-      async function fetchJson(url){
-        const res = await fetch(url, { cache: 'no-store' });
-        if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      }
-      const clamp = (v) => {
-        if (!state.available.length) return v;
-        if (state.available.includes(v)) return v;
-        for (let i = state.available.length - 1; i >= 0; i -= 1) if (state.available[i] <= v) return state.available[i];
-        return state.available[0];
-      };
-      const between = (s, e) => state.available.filter((day) => day >= s && day <= e);
+    let overviewChart = null;
+    let keywordChart = null;
+    let CURRENT_DAYS = 90;
+    let CURRENT_KEYWORD = null;
+    let FILTERED = null;
 
-      function normalizeRow(detail, base){
-        return {
-          date: String(base.date || ''),
-          detail: String(detail || base.detail || ''),
-          year: String(base.year || ''),
-          mmdd: String(base.mmdd || ''),
-          messageTitle: String(base.message_title || base.messageTitle || ''),
-          sessions: Number(base.sessions || 0),
-          users: Number(base.users || 0),
-          buyerUsers: Number(base.buyer_users || base.buyerUsers || 0),
-          purchases: Number(base.purchases || 0),
-          revenue: Number(base.revenue || 0),
-          pdpViews: Number(base.pdp_views || base.pdpViews || 0),
-          addToCart: Number(base.add_to_cart || base.addToCart || 0),
-          beginCheckout: Number(base.begin_checkout || base.beginCheckout || 0),
-          purchaseSessions: Number(base.purchase_sessions || base.purchaseSessions || 0),
-        };
-      }
+    function num(v){ return Number(v ?? 0); }
+    function fmt(v){ return Number.isFinite(v) ? (Math.round(v * 10) / 10).toFixed(1) : '-'; }
+    function fmtPct(v){ return Number.isFinite(v) ? `${v > 0 ? '+' : ''}${(Math.round(v * 10) / 10).toFixed(1)}%` : '-'; }
+    function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    function toDate(s){ return new Date(`${s}T00:00:00`); }
+    function periodLabel(days){ return (PERIOD_OPTIONS.find(x => x.days === days) || {}).label || `최근 ${days}일`; }
 
-      function normalizeBundle(json){
-        return {
-          summary: (json.summary_rows || []).map((r) => normalizeRow(r.detail || '', r)),
-          ownedGroups: (json.owned_groups || []).map((r) => normalizeRow(r.detail || '', r)),
-        };
-      }
+    function getAvailableDays(){
+      const allDates = (DATA.overview || []).map(r => r.date).sort();
+      if (!allDates.length) return 0;
+      const first = toDate(allDates[0]);
+      const last = toDate(allDates[allDates.length - 1]);
+      return Math.max(1, Math.floor((last - first) / 86400000) + 1);
+    }
 
-      function currentRange(){
-        if(state.view === 'daily'){
-          const d = clamp(els.datePicker.value || state.available[state.available.length - 1]);
-          return { start:d, end:d };
-        }
-        if(state.view === 'week'){
-          const end = clamp(els.datePicker.value || state.available[state.available.length - 1]);
-          const start = clamp(ymd(startOfWeekMon(parseYmd(end))));
-          return { start, end: clamp(ymd(addDays(parseYmd(start), 6))) };
-        }
-        const start = clamp(els.startPicker.value || state.available[Math.max(0, state.available.length - 7)]);
-        const end = clamp(els.endPicker.value || state.available[state.available.length - 1]);
-        return start <= end ? { start, end } : { start:end, end:start };
-      }
+    function filterRowsByDays(rows, days){
+      if (!rows || !rows.length) return [];
+      const sorted = [...rows].sort((a,b) => String(a.date).localeCompare(String(b.date)));
+      const last = toDate(sorted[sorted.length - 1].date);
+      const cutoff = new Date(last);
+      cutoff.setDate(cutoff.getDate() - (days - 1));
+      const filtered = sorted.filter(r => toDate(r.date) >= cutoff);
+      return filtered.length ? filtered : sorted;
+    }
 
-      function previousRange(start, end){
-        const span = Math.round((parseYmd(end) - parseYmd(start)) / 86400000) + 1;
-        const prevEnd = clamp(ymd(addDays(parseYmd(start), -1)));
-        const prevStart = clamp(ymd(addDays(parseYmd(prevEnd), -(span - 1))));
-        return { start:prevStart, end:prevEnd };
-      }
-
-      async function loadRange(start, end){
-        const raw = await Promise.all(between(start, end).map((day) => fetchJson(`${DATA_BASE}/funnel_${day}.json?t=${Date.now()}`)));
-        return raw.map(normalizeBundle).reduce((acc, bundle) => {
-          acc.summary.push(...bundle.summary);
-          acc.ownedGroups.push(...bundle.ownedGroups);
-          return acc;
-        }, { summary: [], ownedGroups: [] });
-      }
-
-      function summarizeGroupsForSegment(bundle, segment){
-        if (['OWNED','EDM','LMS','KAKAO'].includes(segment)) {
-          const rows = (bundle.ownedGroups || []).filter((row) => segment === 'OWNED' ? ownedChildSegments().includes(row.detail) : row.detail === segment);
-          const grouped = new Map();
-          rows.forEach((row) => {
-            const key = `${row.year}-${row.mmdd}`;
-            if (!grouped.has(key)) grouped.set(key, {
-              key,
-              label: row.mmdd,
-              title: row.messageTitle || '',
-              rows: [],
-            });
-            const cur = grouped.get(key);
-            cur.rows.push(row);
-            if (!cur.title && row.messageTitle) cur.title = row.messageTitle;
-          });
-          return Array.from(grouped.values()).map((g) => {
-            const agg = aggregateRows(g.rows);
-            return {
-              key: g.key,
-              label: g.label,
-              title: g.title || '',
-              segment,
-              agg,
-              cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
-            };
-          }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
-        }
-
-        if (segment === 'ALL') {
-          return (bundle.summary || []).filter((row) => row.detail === 'SITE' || row.detail === 'ALL').map((row) => {
-            const agg = aggregateRows([row]);
-            return {
-              key: row.date,
-              label: row.date,
-              title: 'All',
-              segment: 'ALL',
-              agg,
-              cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
-            };
-          }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
-        }
-
-        return (bundle.summary || []).filter((row) => row.detail === segment).map((row) => {
-          const agg = aggregateRows([row]);
-          return {
-            key: row.date,
-            label: row.date,
-            title: segmentLabel(segment),
-            segment,
-            agg,
-            cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
-          };
-        }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
-      }
-
-      function rowsForSegment(bundle, segment, selectedGroup=''){
-        if (['OWNED','EDM','LMS','KAKAO'].includes(segment)) {
-          const rows = (bundle.ownedGroups || []).filter((row) => segment === 'OWNED' ? ownedChildSegments().includes(row.detail) : row.detail === segment);
-          if (!selectedGroup) return rows;
-          return rows.filter((row) => `${row.year}-${row.mmdd}` === selectedGroup);
-        }
-        const details = segment === 'ALL' ? ['SITE','ALL'] : [segment];
-        const rows = (bundle.summary || []).filter((row) => details.includes(row.detail));
-        if (!selectedGroup) return rows;
-        return rows.filter((row) => row.date === selectedGroup);
-      }
-
-      function aggregateRows(rows){
-        const base = (rows || []).reduce((a, r) => ({
-          sessions: a.sessions + Number(r.sessions || 0),
-          pdpViews: a.pdpViews + Number(r.pdpViews || 0),
-          addToCart: a.addToCart + Number(r.addToCart || 0),
-          beginCheckout: a.beginCheckout + Number(r.beginCheckout || 0),
-          purchaseSessions: a.purchaseSessions + Number(r.purchaseSessions || 0),
-          users: a.users + Number(r.users || 0),
-          buyerUsers: a.buyerUsers + Number(r.buyerUsers || 0),
-          orders: a.orders + Number(r.purchases || 0),
-          revenue: a.revenue + Number(r.revenue || 0),
-        }), { sessions:0,pdpViews:0,addToCart:0,beginCheckout:0,purchaseSessions:0,users:0,buyerUsers:0,orders:0,revenue:0 });
-        return base;
-      }
-
-      function buildBehaviorStages(agg){
-        const fields = [];
-        const notes = [];
-        const hasNativePdp = agg.pdpViews > 0;
-        const hasNativeCart = agg.addToCart > 0;
-        const hasNativeCheckout = agg.beginCheckout > 0;
-        const hasNativePurchaseSessions = agg.purchaseSessions > 0;
-
-        fields.push({ key:'sessions', label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions, source:'native' });
-
-        if (hasNativePdp) {
-          fields.push({ key:'pdpViews', label:'PDP Views', note:'Product detail views', value:agg.pdpViews, source:'native' });
-        } else if (agg.users > 0) {
-          fields.push({ key:'users', label:'PDP Views (Proxy)', note:'Fallback to users because PDP field is missing', value:agg.users, source:'proxy' });
-          notes.push('PDP stage is using Users as a proxy because pdp_views is not present in the source JSON.');
-        }
-
-        if (hasNativeCart) {
-          fields.push({ key:'addToCart', label:'Add to Cart', note:'Add-to-cart actions/users in scope', value:agg.addToCart, source:'native' });
-        }
-        if (hasNativeCheckout) {
-          fields.push({ key:'beginCheckout', label:'Checkout', note:'Checkout starts in scope', value:agg.beginCheckout, source:'native' });
-        }
-
-        if (hasNativePurchaseSessions) {
-          fields.push({ key:'purchaseSessions', label:'Purchase Sessions', note:'Sessions that reached purchase', value:agg.purchaseSessions, source:'native' });
-        } else if (agg.buyerUsers > 0) {
-          fields.push({ key:'buyerUsers', label:'Purchase Users (Proxy)', note:'Fallback to buyer users because purchase_sessions is missing', value:agg.buyerUsers, source:'proxy' });
-          notes.push('Purchase stage is using Buyer Users as a proxy because purchase_sessions is not present in the source JSON.');
-        }
-
-        const max = Math.max(...fields.map((s) => s.value), 0);
-        const easing = (ratio) => Math.pow(Math.max(0, ratio), 0.82);
-        const stages = fields.map((stage, idx) => {
-          const rawRatio = max ? stage.value / max : 0;
-          const width = idx === 0 ? 96 : Math.max(14, easing(rawRatio) * 96);
-          const prevValue = idx === 0 ? 0 : fields[idx - 1].value;
-          const kept = idx === 0 ? 100 : (prevValue ? (stage.value / prevValue) * 100 : 0);
-          const drop = idx === 0 ? 0 : Math.max(0, 100 - kept);
-          return { ...stage, width, kept, drop, share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 };
+    function computeRanks(seriesMap){
+      const latest = [];
+      const growth = [];
+      const snapshot = [];
+      Object.entries(seriesMap).forEach(([keyword, rows]) => {
+        if (!rows.length) return;
+        const first = rows[0];
+        const last = rows[rows.length - 1];
+        let naverPeak = { value: -Infinity, date: '-' };
+        let googlePeak = { value: -Infinity, date: '-' };
+        rows.forEach(r => {
+          if (num(r.naver) > naverPeak.value) naverPeak = { value: num(r.naver), date: r.date };
+          if (num(r.google) > googlePeak.value) googlePeak = { value: num(r.google), date: r.date };
         });
+        const latestBlended = (num(last.naver) + num(last.google)) / 2;
+        const firstBlended = (num(first.naver) + num(first.google)) / 2;
+        const growthPct = firstBlended > 0 ? ((latestBlended - firstBlended) / firstBlended) * 100 : null;
+        latest.push({ keyword, value: latestBlended });
+        if (growthPct !== null) growth.push({ keyword, value: growthPct });
+        snapshot.push({
+          keyword,
+          naver_latest: num(last.naver),
+          google_latest: num(last.google),
+          gap_latest: num(last.gap),
+          latest_blended: latestBlended,
+          growth_pct: growthPct,
+          naver_peak_date: naverPeak.date,
+          naver_peak_value: Number.isFinite(naverPeak.value) ? naverPeak.value : 0,
+          google_peak_date: googlePeak.date,
+          google_peak_value: Number.isFinite(googlePeak.value) ? googlePeak.value : 0,
+        });
+      });
+      latest.sort((a,b) => b.value - a.value);
+      growth.sort((a,b) => b.value - a.value);
+      return { latest, growth, snapshot };
+    }
 
-        const steps = [];
-        for (let i = 1; i < stages.length; i += 1) {
-          steps.push({
-            from: stages[i-1].label,
-            to: stages[i].label,
-            kept: stages[i].kept,
-            drop: stages[i].drop,
-          });
-        }
-
-        return { stages, notes, steps };
-      }
-
-      function modelFor(bundle, segment, group=''){
-        const agg = aggregateRows(rowsForSegment(bundle, segment, group));
-        const behavior = buildBehaviorStages(agg);
-        return {
-          segment,
-          group,
-          agg,
-          behavior,
-          sessionCvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
-          aov: agg.orders ? (agg.revenue / agg.orders) : 0,
-        };
-      }
-
-      const delta = (cur, prev) => prev ? `${cur >= prev ? '+' : ''}${(((cur - prev) / prev) * 100).toFixed(1)}%` : (cur ? '+100.0%' : '0.0%');
-      const fmtDeltaNum = (a, b, isMoney=false) => {
-        const d = Number(a || 0) - Number(b || 0);
-        const sign = d >= 0 ? '+' : '';
-        const out = isMoney ? fmtMoney(Math.abs(d)) : fmt(Math.abs(d));
-        return `${sign}${isMoney ? fmtMoney(d) : d.toLocaleString('en-US')}`;
+    function buildFilteredState(days){
+      const overview = filterRowsByDays(DATA.overview || [], days);
+      const series_by_keyword = {};
+      (DATA.meta.keywords || []).forEach(keyword => {
+        series_by_keyword[keyword] = filterRowsByDays((DATA.series_by_keyword || {})[keyword] || [], days);
+      });
+      const latestRow = overview[overview.length - 1] || { date:'-', naver_avg:0, google_avg:0, gap:0 };
+      const firstRow = overview[0] || latestRow;
+      const prevRow = overview.length >= 2 ? overview[overview.length - 2] : null;
+      let platform_peaks = {
+        naver: { date:'-', value:0 },
+        google: { date:'-', value:0 },
       };
-
-      function renderFunnel(canvas, behavior, className=''){
-        const stages = behavior.stages;
-        if (!stages.length) {
-          canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
-          return;
+      overview.forEach(r => {
+        if (num(r.naver_avg) >= num(platform_peaks.naver.value)) platform_peaks.naver = { date:r.date, value:num(r.naver_avg) };
+        if (num(r.google_avg) >= num(platform_peaks.google.value)) platform_peaks.google = { date:r.date, value:num(r.google_avg) };
+      });
+      const ranks = computeRanks(series_by_keyword);
+      return {
+        days,
+        overview,
+        series_by_keyword,
+        rankings: { latest: ranks.latest.slice(0,10), growth: ranks.growth.slice(0,10) },
+        snapshot: ranks.snapshot,
+        platform_peaks,
+        latest_summary: {
+          date: latestRow.date,
+          naver_avg_latest: num(latestRow.naver_avg),
+          google_avg_latest: num(latestRow.google_avg),
+          gap_latest: num(latestRow.gap),
+          naver_vs_prev_pct: prevRow ? ((num(latestRow.naver_avg) - num(prevRow.naver_avg)) / (num(prevRow.naver_avg) || 1)) * 100 : null,
+          google_vs_prev_pct: prevRow ? ((num(latestRow.google_avg) - num(prevRow.google_avg)) / (num(prevRow.google_avg) || 1)) * 100 : null,
+          naver_vs_first_pct: num(firstRow.naver_avg) > 0 ? ((num(latestRow.naver_avg) - num(firstRow.naver_avg)) / num(firstRow.naver_avg)) * 100 : null,
+          google_vs_first_pct: num(firstRow.google_avg) > 0 ? ((num(latestRow.google_avg) - num(firstRow.google_avg)) / num(firstRow.google_avg)) * 100 : null,
+        },
+        meta: {
+          ...DATA.meta,
+          period_text: `${periodLabel(days)} 기준`,
         }
-        const html = [
-          `<div class="funnel-flow">`,
-          ...stages.map((stage, i) => {
-            const width = Math.max(stage.width || 0, i === 0 ? 100 : 18);
-            return `
-            ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
-            <div class="flex justify-center">
-              <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%">
-                <div class="funnel-stage-inner">
-                  <div class="stage-copy">
-                    <div class="stage-title">${esc(stage.label)}</div>
-                    <div class="stage-value"><div class="num">${fmt(stage.value)}</div></div>
-                  </div>
-                </div>
-              </div>
-            </div>`;
-          }).join(''),
-          `</div>`
-        ].join('');
-        canvas.innerHTML = html;
-      }
+      };
+    }
 
-      function render(){
-        const range = state.current.range;
-        const prevRange = state.current.previousRange;
-        const groups = summarizeGroupsForSegment(state.current.current, state.segment);
-        const currentModel = modelFor(state.current.current, state.segment, state.selectedGroup);
-        const previousModel = modelFor(state.current.previous, state.segment, '');
-        const selectedGroup = groups.find((row) => row.key === state.selectedGroup);
+    function animateSection(selector){
+      const el = document.querySelector(selector);
+      if (!el) return;
+      el.classList.remove('fade-up');
+      void el.offsetWidth;
+      el.classList.add('fade-up');
+    }
 
-        els.periodLabel.textContent = `Period | ${range.start === range.end ? range.start : `${range.start} to ${range.end}`}`;
-        els.scopeLabel.textContent = `${segmentLabel()} | ${selectedGroup ? selectedGroup.label : 'Total period'}`;
-        els.selectionPill.textContent = `Scope | ${selectedGroup ? selectedGroup.label : segmentLabel()}`;
-        els.groupKicker.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'Send Groups' : 'Date Groups';
-        els.groupHeading.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'MMDD Groups In Scope' : 'Dates In Scope';
+    function buildChips(){
+      const wrap = document.getElementById('keywordChips');
+      wrap.innerHTML = (DATA.meta.keywords || []).map((k, idx) => `
+        <button class="chip ${idx===0?'active':''}" data-keyword="${esc(k)}" onclick="selectKeywordChip('${String(k).replace(/'/g, "\\'")}')">${esc(k)}</button>
+      `).join('');
+    }
 
-        els.summaryCards.innerHTML = [
-          ['Sessions', fmt(currentModel.agg.sessions), `Prev ${fmt(previousModel.agg.sessions)} | ${delta(currentModel.agg.sessions, previousModel.agg.sessions)}`],
-          ['PDP Views', fmt(currentModel.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0), 'Behavior stage'],
-          ['Cart', fmt(currentModel.behavior.stages.find(s => s.key === 'addToCart')?.value || 0), 'Behavior stage'],
-          ['Checkout', fmt(currentModel.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), 'Behavior stage'],
-          ['Orders', fmt(currentModel.agg.orders), `Prev ${fmt(previousModel.agg.orders)} | ${delta(currentModel.agg.orders, previousModel.agg.orders)}`],
-          ['Session CVR', fmtPct(currentModel.sessionCvr, 2), `Prev ${fmtPct(previousModel.sessionCvr, 2)} | ${(currentModel.sessionCvr - previousModel.sessionCvr >= 0 ? '+' : '') + (currentModel.sessionCvr - previousModel.sessionCvr).toFixed(2)}%p`],
-        ].map(([label, value, sub]) => `<article class="card p-5"><div class="kicker">${esc(label)}</div><div class="metric mt-3">${esc(value)}</div><div class="mt-2 text-xs font-semibold muted">${esc(sub)}</div></article>`).join('');
+    function buildKeywordSelect(){
+      const sel = document.getElementById('keywordSelect');
+      sel.innerHTML = (DATA.meta.keywords || []).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+      sel.addEventListener('change', (e) => selectKeywordChip(e.target.value));
+    }
 
-        renderFunnel(els.funnelCanvas, currentModel.behavior);
-        els.funnelNotice.innerHTML = currentModel.behavior.notes.length
-          ? currentModel.behavior.notes.map((n) => `<div class="warn">${esc(n)}</div>`).join('')
-          : `<div>Behavior funnel is using native stage fields.</div>`;
+    function renderPeriodTabs(){
+      const availableDays = getAvailableDays();
+      document.querySelectorAll('#periodTabs .period-tab').forEach(btn => {
+        const days = Number(btn.dataset.period);
+        btn.disabled = false;
+        btn.classList.toggle('active', days === CURRENT_DAYS);
+        if (days > availableDays) {
+          btn.title = `현재 누적 데이터는 ${availableDays}일치입니다.`;
+        } else {
+          btn.removeAttribute('title');
+        }
+      });
+    }
 
-        els.selectionMeta.innerHTML = [
-          `Segment | ${segmentLabel()}`,
-          `Selection | ${selectedGroup ? selectedGroup.label : 'Total period'}`,
-          `Comparison baseline | ${prevRange.start} to ${prevRange.end}`,
-          `Orders | ${fmt(currentModel.agg.orders)}`,
-          `Revenue | ${fmtMoney(currentModel.agg.revenue)}`,
-          `AOV | ${fmtMoney(currentModel.aov)}`,
-          `Session CVR | ${fmtPct(currentModel.sessionCvr, 2)}`,
-          selectedGroup && selectedGroup.title ? `Title | ${selectedGroup.title}` : '',
-        ].filter(Boolean).map((line) => `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">${esc(line)}</div>`).join('');
+    function selectKeywordChip(keyword){
+      CURRENT_KEYWORD = keyword;
+      document.querySelectorAll('#keywordChips .chip').forEach(el => {
+        el.classList.toggle('active', el.dataset.keyword === keyword);
+      });
+      document.getElementById('keywordSelect').value = keyword;
+      renderKeywordChart(keyword);
+    }
 
-        els.stepDetail.innerHTML = currentModel.behavior.stages.map((stage, i) => `
-          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
-            <div class="kicker">Stage ${String(i+1).padStart(2,'0')}</div>
-            <div class="mt-2 flex items-center justify-between gap-4">
-              <div>
-                <div class="text-base font-black">${esc(stage.label)}</div>
-                <div class="mt-1 text-xs font-semibold muted">${esc(stage.note)}</div>
-              </div>
-              <div class="text-right">
-                <div class="text-xl font-black">${fmt(stage.value)}</div>
-                <div class="mt-1 text-xs font-semibold muted">${fmtPct(stage.share,1)} of sessions</div>
-              </div>
+    function renderOverviewChart(){
+      const ctx = document.getElementById('overviewChart').getContext('2d');
+      const datasets = [
+        {
+          label: 'Naver Avg',
+          data: FILTERED.overview.map(r => ({ x: r.date, y: num(r.naver_avg) })),
+          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
+        },
+        {
+          label: 'Google Avg',
+          data: FILTERED.overview.map(r => ({ x: r.date, y: num(r.google_avg) })),
+          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
+        }
+      ];
+      if (overviewChart) overviewChart.destroy();
+      overviewChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          animation: { duration: 700, easing: 'easeOutQuart' },
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { weight: '700' } } },
+            tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } },
+          },
+          scales: {
+            x: { type: 'time', time: { unit: DATA.meta.time_unit === 'date' ? 'day' : (DATA.meta.time_unit === 'month' ? 'month' : 'week') }, grid: { display: false }, ticks: { color: '#64748b', font: { weight: '700' } } },
+            y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.15)' }, ticks: { color: '#64748b', font: { weight: '700' } } },
+          },
+        }
+      });
+    }
+
+    function renderKeywordChart(keyword){
+      const rows = FILTERED.series_by_keyword[keyword] || [];
+      const ctx = document.getElementById('keywordChart').getContext('2d');
+      const datasets = [
+        {
+          label: 'Naver',
+          data: rows.map(r => ({ x: r.date, y: num(r.naver) })),
+          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
+        },
+        {
+          label: 'Google',
+          data: rows.map(r => ({ x: r.date, y: num(r.google) })),
+          borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 3, tension: 0.28, pointRadius: 0,
+        },
+        {
+          label: 'Gap',
+          data: rows.map(r => ({ x: r.date, y: num(r.gap) })),
+          borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2, tension: 0.28, pointRadius: 0,
+          borderDash: [7,5],
+        }
+      ];
+      if (keywordChart) keywordChart.destroy();
+      keywordChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          animation: { duration: 700, easing: 'easeOutQuart' },
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { weight: '700' } } },
+            tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } },
+          },
+          scales: {
+            x: { type: 'time', time: { unit: DATA.meta.time_unit === 'date' ? 'day' : (DATA.meta.time_unit === 'month' ? 'month' : 'week') }, grid: { display: false }, ticks: { color: '#64748b', font: { weight: '700' } } },
+            y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.15)' }, ticks: { color: '#64748b', font: { weight: '700' } } },
+          },
+        }
+      });
+    }
+
+    function renderSnapshot(){
+      const body = document.getElementById('snapshotBody');
+      body.innerHTML = FILTERED.snapshot.map(r => `
+        <tr>
+          <td>${esc(r.keyword)}</td>
+          <td><span class="badge naver">${fmt(r.naver_latest)}</span></td>
+          <td><span class="badge google">${fmt(r.google_latest)}</span></td>
+          <td>${fmt(r.gap_latest)}</td>
+          <td><span class="badge growth">${fmtPct(r.growth_pct)}</span></td>
+          <td>${esc(r.naver_peak_date)} <span class="muted">(${fmt(r.naver_peak_value)})</span></td>
+          <td>${esc(r.google_peak_date)} <span class="muted">(${fmt(r.google_peak_value)})</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderRanks(){
+      document.getElementById('latestRankList').innerHTML = (FILTERED.rankings.latest || []).slice(0, 8).map((r, idx) => `
+        <div class="rank-item">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
+            <div>
+              <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
+              <div class="text-xs font-bold text-slate-500">latest blended score</div>
             </div>
           </div>
-        `).join('');
+          <div class="text-lg font-black text-slate-900">${fmt(r.value)}</div>
+        </div>
+      `).join('');
 
-        els.groupSummary.textContent = selectedGroup ? `Selected | ${selectedGroup.label}` : `Total groups | ${groups.length}`;
-        els.groupChips.innerHTML = groups.length ? groups.slice(0, 24).map((row) => `
-          <button class="group-chip ${state.selectedGroup === row.key ? 'active' : ''}" data-group="${row.key}" type="button">
-            <div>${esc(row.label)}</div>
-            <div class="mt-1 text-[11px] font-bold text-slate-500">${fmt(row.agg.sessions)} sessions</div>
-          </button>
-        `).join('') : `<div class="empty w-full">No groups found for this segment and period.</div>`;
-        Array.from(els.groupChips.querySelectorAll('[data-group]')).forEach((button) => button.addEventListener('click', () => {
-          state.selectedGroup = button.getAttribute('data-group') || '';
-          render();
-        }));
-
-        els.groupTableBody.innerHTML = groups.length ? groups.slice(0, 20).map((row) => {
-          const behavior = buildBehaviorStages(row.agg);
-          return `
-            <tr class="cursor-pointer" data-row-group="${row.key}">
-              <td class="font-black">${esc(row.key)}</td>
-              <td>${esc(row.title || '-')}</td>
-              <td>${fmt(row.agg.sessions)}</td>
-              <td>${fmt(behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0)}</td>
-              <td>${fmt(behavior.stages.find(s => s.key === 'addToCart')?.value || 0)}</td>
-              <td>${fmt(behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0)}</td>
-              <td>${fmt(behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0)}</td>
-              <td>${fmt(row.agg.orders)}</td>
-              <td>${fmtMoney(row.agg.revenue)}</td>
-              <td>${fmtPct(row.cvr,2)}</td>
-            </tr>
-          `;
-        }).join('') : `<tr><td colspan="10" class="text-center text-slate-400">No groups</td></tr>`;
-        Array.from(els.groupTableBody.querySelectorAll('[data-row-group]')).forEach((row) => row.addEventListener('click', () => {
-          state.selectedGroup = row.getAttribute('data-row-group') || '';
-          render();
-        }));
-
-        renderCompare();
-        renderDropoff();
-      }
-
-      function compareOptionsForSegment(segment){
-        return summarizeGroupsForSegment(state.current.current, segment);
-      }
-
-      function hydrateCompareControls(){
-        [els.cmpASegment, els.cmpBSegment].forEach((select, idx) => {
-          const key = idx === 0 ? 'A' : 'B';
-          select.innerHTML = FILTER_SEGMENTS.map((seg) => `<option value="${seg}" ${state.compare[key].segment === seg ? 'selected' : ''}>${esc(segmentLabel(seg))}</option>`).join('');
-        });
-        ['A','B'].forEach((key) => {
-          const seg = state.compare[key].segment;
-          const groupSelect = key === 'A' ? els.cmpAGroup : els.cmpBGroup;
-          const options = compareOptionsForSegment(seg);
-          if (state.compare[key].group && !options.some((o) => o.key === state.compare[key].group)) state.compare[key].group = '';
-          groupSelect.innerHTML = [`<option value="">Total period</option>`, ...options.map((o) => `<option value="${o.key}" ${state.compare[key].group === o.key ? 'selected' : ''}>${esc(o.label)}</option>`)].join('');
-        });
-      }
-
-      function renderCompare(){
-        hydrateCompareControls();
-        const a = modelFor(state.current.current, state.compare.A.segment, state.compare.A.group);
-        const b = modelFor(state.current.current, state.compare.B.segment, state.compare.B.group);
-        const allStageValues = [...a.behavior.stages.map(s => s.value), ...b.behavior.stages.map(s => s.value)];
-        const globalMax = Math.max(...allStageValues, 0) || 1;
-
-        const rescale = (behavior) => ({
-          ...behavior,
-          stages: behavior.stages.map((s, idx) => ({ ...s, width: idx === 0 ? 96 * Math.pow(s.value / globalMax, 0.82) || 14 : Math.max(14, Math.pow((s.value / globalMax), 0.82) * 96) }))
-        });
-
-        renderFunnel(els.compareCanvasA, rescale(a.behavior), 'compare-a');
-        renderFunnel(els.compareCanvasB, rescale(b.behavior), 'compare-b');
-
-        const aLabel = `${segmentLabel(a.segment)} | ${state.compare.A.group || 'Total period'}`;
-        const bLabel = `${segmentLabel(b.segment)} | ${state.compare.B.group || 'Total period'}`;
-        els.compareMetaA.innerHTML = `<div>${esc(aLabel)}</div><div class="mt-1">Orders ${fmt(a.agg.orders)} · Revenue ${fmtMoney(a.agg.revenue)} · Session CVR ${fmtPct(a.sessionCvr,2)}</div>`;
-        els.compareMetaB.innerHTML = `<div>${esc(bLabel)}</div><div class="mt-1">Orders ${fmt(b.agg.orders)} · Revenue ${fmtMoney(b.agg.revenue)} · Session CVR ${fmtPct(b.sessionCvr,2)}</div>`;
-
-        const rows = [
-          ['Sessions', a.agg.sessions, b.agg.sessions, fmtDeltaNum(a.agg.sessions, b.agg.sessions)],
-          ['PDP Views', a.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0, b.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0), (b.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0))],
-          ['Cart', a.behavior.stages.find(s => s.key === 'addToCart')?.value || 0, b.behavior.stages.find(s => s.key === 'addToCart')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'addToCart')?.value || 0), (b.behavior.stages.find(s => s.key === 'addToCart')?.value || 0))],
-          ['Checkout', a.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0, b.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), (b.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0))],
-          ['Purchase Sessions', a.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0, b.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0), (b.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0))],
-          ['Orders', a.agg.orders, b.agg.orders, fmtDeltaNum(a.agg.orders, b.agg.orders)],
-          ['Revenue', fmtMoney(a.agg.revenue), fmtMoney(b.agg.revenue), `${a.agg.revenue - b.agg.revenue >= 0 ? '+' : ''}${fmtMoney(a.agg.revenue - b.agg.revenue)}`],
-          ['Session CVR', fmtPct(a.sessionCvr,2), fmtPct(b.sessionCvr,2), `${(a.sessionCvr - b.sessionCvr >= 0 ? '+' : '')}${(a.sessionCvr - b.sessionCvr).toFixed(2)}%p`],
-        ];
-        els.compareTableBody.innerHTML = rows.map((r) => `<tr><td class="font-black">${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join('');
-      }
-
-      function buildDropoffData(){
-        const segments = FILTER_SEGMENTS;
-        const entries = segments.map((segment) => {
-          const m = modelFor(state.current.current, segment, '');
-          const ranked = m.behavior.steps.slice().sort((a,b) => b.drop - a.drop).slice(0,3);
-          return { segment, label: segmentLabel(segment), ranked, model: m };
-        });
-        return entries;
-      }
-
-      function renderDropoff(){
-        const entries = buildDropoffData();
-        const overall = entries.map((entry) => ({
-          segment: entry.label,
-          top: entry.ranked[0] || { from:'-', to:'-', drop:0, kept:0 },
-        })).sort((a,b) => b.top.drop - a.top.drop).slice(0,3);
-
-        els.dropOverall.innerHTML = overall.length ? overall.map((row, idx) => `
-          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
-            <div class="flex items-start gap-3">
-              <span class="rank-badge">#${idx+1}</span>
-              <div>
-                <div class="text-sm font-black">${esc(row.segment)}</div>
-                <div class="mt-1 text-sm font-semibold muted">${esc(row.top.from)} → ${esc(row.top.to)}</div>
-                <div class="mt-1 text-sm font-black text-rose-600">${fmtPct(row.top.drop,1)} drop</div>
-              </div>
+      document.getElementById('growthRankList').innerHTML = (FILTERED.rankings.growth || []).slice(0, 8).map((r, idx) => `
+        <div class="rank-item">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
+            <div>
+              <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
+              <div class="text-xs font-bold text-slate-500">vs first point in selected range</div>
             </div>
           </div>
-        `).join('') : `<div class="empty">No drop-off data available.</div>`;
+          <div class="text-lg font-black text-slate-900">${fmtPct(r.value)}</div>
+        </div>
+      `).join('');
+    }
 
-        const stepBuckets = {};
-        entries.forEach((entry) => {
-          entry.ranked.forEach((step) => {
-            const key = `${step.from} → ${step.to}`;
-            if (!stepBuckets[key]) stepBuckets[key] = [];
-            stepBuckets[key].push({ segment: entry.label, drop: step.drop, kept: step.kept });
-          });
+    function fillSummary(){
+      document.getElementById('periodText').textContent = DATA.meta.period;
+      document.getElementById('timeUnitText').textContent = `${DATA.meta.time_unit.toUpperCase()} · ${DATA.meta.geo} · ${DATA.meta.device.toUpperCase()}`;
+      document.getElementById('latestDateText').textContent = FILTERED.latest_summary.date || '-';
+      document.getElementById('naverPeakText').textContent = `${FILTERED.platform_peaks.naver.date} · ${fmt(FILTERED.platform_peaks.naver.value)}`;
+      document.getElementById('googlePeakText').textContent = `${FILTERED.platform_peaks.google.date} · ${fmt(FILTERED.platform_peaks.google.value)}`;
+      document.getElementById('latestNaverValue').textContent = fmt(FILTERED.latest_summary.naver_avg_latest);
+      document.getElementById('latestGoogleValue').textContent = fmt(FILTERED.latest_summary.google_avg_latest);
+      document.getElementById('latestGapValue').textContent = fmt(FILTERED.latest_summary.gap_latest);
+      document.getElementById('latestNaverDelta').textContent = `선택 기간 첫 포인트 대비 ${fmtPct(FILTERED.latest_summary.naver_vs_first_pct)}`;
+      document.getElementById('latestGoogleDelta').textContent = `선택 기간 첫 포인트 대비 ${fmtPct(FILTERED.latest_summary.google_vs_first_pct)}`;
+      document.getElementById('headerMeta').textContent = `${DATA.meta.keywords.length}개 키워드 · ${periodLabel(CURRENT_DAYS)} · Generated ${DATA.meta.generated_at}`;
+      document.getElementById('activeRangeText').textContent = `${periodLabel(CURRENT_DAYS)} 기준`;
+    }
+
+    function applyPeriod(days){
+      CURRENT_DAYS = days;
+      FILTERED = buildFilteredState(days);
+      renderPeriodTabs();
+      fillSummary();
+      renderOverviewChart();
+      renderSnapshot();
+      renderRanks();
+      renderKeywordChart(CURRENT_KEYWORD || (DATA.meta.keywords || [])[0]);
+      animateSection('.layout-header');
+      animateSection('#latestRankList');
+      animateSection('#growthRankList');
+      animateSection('#snapshotBody');
+    }
+
+    function bindPeriodTabs(){
+      document.querySelectorAll('#periodTabs .period-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          applyPeriod(Number(btn.dataset.period));
         });
-        const stageCards = Object.entries(stepBuckets).map(([label, rows]) => ({
-          label,
-          rows: rows.sort((a,b) => b.drop - a.drop).slice(0,3)
-        })).sort((a,b) => (b.rows[0]?.drop || 0) - (a.rows[0]?.drop || 0));
-        els.dropStageRankings.innerHTML = stageCards.length ? stageCards.map((card) => `
-          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
-            <div class="text-sm font-black">${esc(card.label)}</div>
-            <div class="mt-3 space-y-2">
-              ${card.rows.map((row, idx) => `<div class="flex items-center justify-between gap-3 text-sm"><div><span class="rank-badge mr-2">#${idx+1}</span>${esc(row.segment)}</div><div class="font-black text-rose-600">${fmtPct(row.drop,1)}</div></div>`).join('')}
-            </div>
-          </div>
-        `).join('') : `<div class="empty">No stage ranking data.</div>`;
+      });
+    }
 
-        els.dropSegmentTableBody.innerHTML = entries.map((entry) => `
-          <tr>
-            <td class="font-black">${esc(entry.label)}</td>
-            <td>${entry.ranked[0] ? `${esc(entry.ranked[0].from)} → ${esc(entry.ranked[0].to)} · ${fmtPct(entry.ranked[0].drop,1)}` : '-'}</td>
-            <td>${entry.ranked[1] ? `${esc(entry.ranked[1].from)} → ${esc(entry.ranked[1].to)} · ${fmtPct(entry.ranked[1].drop,1)}` : '-'}</td>
-            <td>${entry.ranked[2] ? `${esc(entry.ranked[2].from)} → ${esc(entry.ranked[2].to)} · ${fmtPct(entry.ranked[2].drop,1)}` : '-'}</td>
-          </tr>
-        `).join('');
-      }
-
-      async function refresh(){
-        els.errorState.classList.add('hidden');
-        els.loadingState.classList.remove('hidden');
-        els.contentArea.classList.add('hidden');
-        try {
-          const range = currentRange();
-          const prev = previousRange(range.start, range.end);
-          els.rangeBox.classList.toggle('hidden', state.view !== 'range');
-          document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-view') === state.view));
-          document.querySelectorAll('[data-segment]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-segment') === state.segment));
-          document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === state.tab));
-          document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `panel-${state.tab}`));
-
-          const [currentBundle, previousBundle] = await Promise.all([loadRange(range.start, range.end), loadRange(prev.start, prev.end)]);
-          state.current = { range, previousRange: prev, current: currentBundle, previous: previousBundle };
-
-          const currentGroups = summarizeGroupsForSegment(currentBundle, state.segment);
-          if (state.selectedGroup && !currentGroups.some((row) => row.key === state.selectedGroup)) state.selectedGroup = '';
-          els.loadingState.classList.add('hidden');
-          els.contentArea.classList.remove('hidden');
-          render();
-        } catch (error) {
-          els.loadingState.classList.add('hidden');
-          els.errorState.classList.remove('hidden');
-          els.errorState.textContent = `Failed to load funnel data. ${error.message || error}`;
-        }
-      }
-
-      function shift(direction){
-        const range = currentRange();
-        if(state.view === 'daily'){
-          els.datePicker.value = clamp(ymd(addDays(parseYmd(range.end), direction)));
-          return;
-        }
-        if(state.view === 'week'){
-          els.datePicker.value = clamp(ymd(addDays(parseYmd(range.end), direction * 7)));
-          return;
-        }
-        const span = Math.round((parseYmd(range.end) - parseYmd(range.start)) / 86400000) + 1;
-        const start = clamp(ymd(addDays(parseYmd(range.start), direction * span)));
-        els.startPicker.value = start;
-        els.endPicker.value = clamp(ymd(addDays(parseYmd(start), span - 1)));
-      }
-
-      async function init(){
-        const available = await fetchJson(`${DATA_BASE}/available_dates.json?t=${Date.now()}`);
-        state.available = (Array.isArray(available) ? available : (available.available_dates || [])).slice().sort();
-        if(!state.available.length){
-          els.errorState.classList.remove('hidden');
-          els.errorState.textContent = `No available_dates.json found under ${DATA_BASE}.`;
-          return;
-        }
-        const latest = state.available[state.available.length - 1];
-        els.datePicker.value = latest;
-        els.startPicker.value = state.available[Math.max(0, state.available.length - 7)];
-        els.endPicker.value = latest;
-        [els.datePicker, els.startPicker, els.endPicker].forEach((field) => { field.min = state.available[0]; field.max = latest; });
-
-        document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', async () => {
-          state.view = b.getAttribute('data-view') || 'week';
-          state.selectedGroup = '';
-          await refresh();
-        }));
-        document.querySelectorAll('[data-segment]').forEach((b) => b.addEventListener('click', async () => {
-          state.segment = b.getAttribute('data-segment') || 'ALL';
-          state.selectedGroup = '';
-          await refresh();
-        }));
-        document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', async () => {
-          state.tab = b.getAttribute('data-tab') || 'overview';
-          await refresh();
-        }));
-
-        els.btnApply.addEventListener('click', async () => { state.selectedGroup = ''; await refresh(); });
-        els.btnPrev.addEventListener('click', async () => { shift(-1); state.selectedGroup = ''; await refresh(); });
-        els.btnNext.addEventListener('click', async () => { shift(1); state.selectedGroup = ''; await refresh(); });
-        els.btnResetSelection.addEventListener('click', () => { state.selectedGroup = ''; if(state.current) render(); });
-
-        els.cmpASegment.addEventListener('change', () => { state.compare.A.segment = els.cmpASegment.value; state.compare.A.group = ''; renderCompare(); });
-        els.cmpBSegment.addEventListener('change', () => { state.compare.B.segment = els.cmpBSegment.value; state.compare.B.group = ''; renderCompare(); });
-        els.cmpAGroup.addEventListener('change', () => { state.compare.A.group = els.cmpAGroup.value; renderCompare(); });
-        els.cmpBGroup.addEventListener('change', () => { state.compare.B.group = els.cmpBGroup.value; renderCompare(); });
-
-        await refresh();
-      }
-
-      init();
-    })();
+    function init(){
+      buildChips();
+      buildKeywordSelect();
+      bindPeriodTabs();
+      CURRENT_KEYWORD = (DATA.meta.keywords || [])[0] || null;
+      applyPeriod(CURRENT_DAYS);
+      if (CURRENT_KEYWORD) selectKeywordChip(CURRENT_KEYWORD);
+    }
+    init();
   </script>
 </body>
 </html>
