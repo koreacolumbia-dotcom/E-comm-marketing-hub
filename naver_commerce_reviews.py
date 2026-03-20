@@ -24,6 +24,9 @@ DEFAULT_HEADERS = {
         "Chrome/135.0.0.0 Safari/537.36"
     ),
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
 }
 
 
@@ -234,6 +237,65 @@ def get_with_backoff(
     raise RuntimeError(f"{label} request failed without response")
 
 
+def fetch_html_with_playwright(
+    url: str,
+    *,
+    label: str,
+    wait_selector: str = "",
+    timeout_ms: int | None = None,
+    settle_ms: int | None = None,
+) -> str:
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:
+        raise CrawlStop(f"{label} Playwright unavailable: {type(exc).__name__}: {exc}") from exc
+
+    nav_timeout_ms = timeout_ms or env_int("NAVER_RENDER_TIMEOUT_MS", 45000)
+    nav_settle_ms = settle_ms or env_int("NAVER_RENDER_WAIT_MS", 3500)
+    selector_timeout_ms = env_int("NAVER_RENDER_SELECTOR_TIMEOUT_MS", 12000)
+    warmup_url = str(os.getenv("NAVER_WARMUP_URL", "https://brand.naver.com")).strip() or "https://brand.naver.com"
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent=DEFAULT_HEADERS["User-Agent"],
+            locale="ko-KR",
+            timezone_id="Asia/Seoul",
+            viewport={"width": 1440, "height": 2200},
+            extra_http_headers={
+                "Accept-Language": DEFAULT_HEADERS["Accept-Language"],
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+            },
+        )
+        page = context.new_page()
+        try:
+            if warmup_url and warmup_url != url:
+                try:
+                    page.goto(warmup_url, wait_until="domcontentloaded", timeout=nav_timeout_ms)
+                    page.wait_for_timeout(1200 + random.randint(0, 800))
+                except Exception:
+                    pass
+
+            page.goto(url, wait_until="domcontentloaded", timeout=nav_timeout_ms)
+            if wait_selector:
+                try:
+                    page.wait_for_selector(wait_selector, timeout=selector_timeout_ms)
+                except Exception:
+                    pass
+            try:
+                page.mouse.wheel(0, 800)
+            except Exception:
+                pass
+            page.wait_for_timeout(nav_settle_ms + random.randint(0, 1200))
+            html = page.content()
+        finally:
+            browser.close()
+    if not html:
+        raise CrawlStop(f"{label} Playwright returned empty HTML")
+    return html
+
+
 def absolute_url(base_url: str, raw_url: Any) -> str:
     text = str(raw_url or "").strip()
     if not text:
@@ -401,6 +463,37 @@ def extract_naver_category_ids(payload: dict[str, Any], html: str) -> list[str]:
     return preferred + others
 
 
+def fetch_naver_html(
+    session: requests.Session,
+    url: str,
+    *,
+    timeout: int,
+    label: str,
+    wait_selector: str = "",
+) -> str:
+    max_attempts = env_int("NAVER_MAX_ATTEMPTS", 3)
+    try:
+        response = get_with_backoff(
+            session,
+            url,
+            timeout=timeout,
+            label=label,
+            max_attempts=max_attempts,
+        )
+        return response.text
+    except CrawlStop as exc:
+        log(f"[WARN] {exc} -> fallback to Playwright for {label}")
+    except Exception as exc:
+        log(f"[WARN] {label} HTTP fetch failed -> fallback to Playwright: {type(exc).__name__}: {exc}")
+    return fetch_html_with_playwright(
+        url,
+        label=label,
+        wait_selector=wait_selector,
+        timeout_ms=env_int("NAVER_RENDER_TIMEOUT_MS", 45000),
+        settle_ms=env_int("NAVER_RENDER_WAIT_MS", 3500),
+    )
+
+
 def extract_category_products(payload: dict[str, Any]) -> dict[str, Any]:
     candidates = iter_key_values(payload, "categoryProducts")
     for item in candidates:
@@ -446,15 +539,13 @@ def build_naver_category_url(brand_url: str, category_id: str) -> str:
 
 def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bool) -> list[dict[str, Any]]:
     session = make_session()
-    response = get_with_backoff(
+    home_html = fetch_naver_html(
         session,
         brand_url,
         timeout=timeout,
         label="Naver brand page",
-        max_attempts=env_int("NAVER_MAX_ATTEMPTS", 2),
+        wait_selector='script',
     )
-
-    home_html = response.text
     home_payload = extract_preloaded_state(home_html)
     category_ids = extract_naver_category_ids(home_payload, home_html)
     if not category_ids:
@@ -479,14 +570,14 @@ def discover_naver_listed_products(brand_url: str, timeout: int, is_backfill: bo
         category_url = build_naver_category_url(brand_url, category_id)
         safe_sleep(delay_ms, jitter_ms)
         try:
-            category_response = get_with_backoff(
+            category_html = fetch_naver_html(
                 session,
                 category_url,
                 timeout=timeout,
                 label=f"Naver category page {category_id}",
-                max_attempts=env_int("NAVER_MAX_ATTEMPTS", 2),
+                wait_selector='script',
             )
-            category_payload = extract_preloaded_state(category_response.text)
+            category_payload = extract_preloaded_state(category_html)
             category_products = extract_category_products(category_payload)
             simple_products = category_products.get("simpleProducts") if isinstance(category_products.get("simpleProducts"), list) else []
             total_count = int(category_products.get("totalCount") or 0)
@@ -598,16 +689,16 @@ def normalize_naver_review(review: dict[str, Any], product: dict[str, Any], bran
 
 def fetch_naver_rows(start_date: date, end_date: date, brand_url: str, timeout: int) -> list[dict[str, Any]]:
     session = make_session()
-    response = get_with_backoff(
+    home_html = fetch_naver_html(
         session,
         brand_url,
         timeout=timeout,
         label="Naver brand page",
-        max_attempts=env_int("NAVER_MAX_ATTEMPTS", 2),
+        wait_selector='script',
     )
-    payload = extract_preloaded_state(response.text)
+    payload = extract_preloaded_state(home_html)
     if not payload:
-        log("[WARN] Naver preloaded state not found -> skip")
+        log("[WARN] Naver preloaded state not found after browser fallback -> skip")
         return []
 
     review_limit = env_int("NAVER_HOME_REVIEW_LIMIT", 40)
@@ -682,6 +773,42 @@ def extract_musinsa_product_ids_from_next_data(html: str) -> list[str]:
     return dedupe_keep_order(ids)
 
 
+def extract_musinsa_product_ids_from_payload(payload: Any) -> list[str]:
+    text = json.dumps(payload, ensure_ascii=False)
+    ids = re.findall(r'"goodsNo"\s*:\s*(\d+)', text)
+    return dedupe_keep_order(ids)
+
+
+def discover_musinsa_product_ids_via_api(brand_slug: str, timeout: int) -> list[str]:
+    session = make_session()
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Referer": f"https://www.musinsa.com/brand/{brand_slug}",
+    }
+    api_urls = [
+        f"https://api.musinsa.com/api2/dp/v3/brand/flagship/{brand_slug}/main?&gf=A",
+        f"https://api.musinsa.com/api2/dp/v2/plp/goods?brand={brand_slug}&sortCode=POPULAR&size=30&caller=FLAGSHIP&gf=A",
+        f"https://api.musinsa.com/api2/dp/v1/brand/flagship/{brand_slug}/ranking-goods?sortCode=REALTIME&size=30&gf=A",
+    ]
+    ids: list[str] = []
+    for url in api_urls:
+        try:
+            response = get_with_backoff(
+                session,
+                url,
+                timeout=timeout,
+                label=f"Musinsa discovery API {brand_slug}",
+                headers=headers,
+                max_attempts=env_int("MUSINSA_MAX_ATTEMPTS", 2),
+            )
+            payload = response.json()
+            ids.extend(extract_musinsa_product_ids_from_payload(payload))
+        except Exception as exc:
+            log(f"[WARN] Musinsa discovery API failed: {type(exc).__name__}: {exc}")
+            continue
+    return dedupe_keep_order(ids)
+
+
 def query_musinsa_product_ids_from_page(page: Any) -> list[str]:
     try:
         hrefs = page.eval_on_selector_all(
@@ -695,6 +822,12 @@ def query_musinsa_product_ids_from_page(page: Any) -> list[str]:
 
 
 def discover_musinsa_product_ids(brand_url: str, timeout: int) -> list[str]:
+    brand_slug = brand_url.rstrip("/").split("/")[-1].strip() or "columbia"
+    api_ids = discover_musinsa_product_ids_via_api(brand_slug=brand_slug, timeout=timeout)
+    if len(api_ids) >= 5:
+        log(f"[INFO] Musinsa product discovery via API: {len(api_ids)} ids")
+        return api_ids
+
     session = make_session()
     try:
         response = get_with_backoff(
@@ -914,111 +1047,4 @@ def fetch_musinsa_rows(
             continue
 
     collected = merge_rows([], collected)
-    log(f"[INFO] Musinsa normalized reviews in window={len(collected)}")
-    return collected
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Merge marketplace reviews into VOC dashboard input.")
-    parser.add_argument("--base-input", required=True, help="Existing review JSON from Crema or site/data.")
-    parser.add_argument(
-        "--existing-naver-input",
-        default="",
-        help="Existing cumulative marketplace review JSON. Legacy argument name kept for workflow compatibility.",
-    )
-    parser.add_argument("--output", required=True, help="Merged review JSON output path.")
-    parser.add_argument("--naver-output", required=True, help="Marketplace-only review JSON output path.")
-    parser.add_argument("--start", required=True, help="Fetch start date (YYYY-MM-DD).")
-    parser.add_argument("--end", required=True, help="Fetch end date (YYYY-MM-DD).")
-    parser.add_argument("--brand-channel-no", default="", help="Unused legacy argument kept for compatibility.")
-    parser.add_argument(
-        "--product-url",
-        default="https://brand.naver.com/columbia",
-        help="Naver brand/store URL used as the Naver crawl entrypoint.",
-    )
-    parser.add_argument(
-        "--musinsa-brand-url",
-        default="https://www.musinsa.com/brand/columbia",
-        help="Musinsa brand URL used for conservative product discovery.",
-    )
-    args = parser.parse_args()
-
-    start_date = parse_date_only(args.start)
-    end_date = parse_date_only(args.end)
-
-    base_path = Path(args.base_input)
-    existing_marketplace_path = Path(args.existing_naver_input).expanduser() if str(args.existing_naver_input).strip() else None
-    output_path = Path(args.output)
-    marketplace_output_path = Path(args.naver_output)
-
-    base_rows = load_rows(base_path)
-    existing_marketplace_rows = [
-        row for row in load_rows(existing_marketplace_path) if normalize_source(row.get("source")) in {"Naver", "Musinsa"}
-    ]
-    log(f"[INFO] Base review rows={len(base_rows)} from {base_path}")
-    if existing_marketplace_path:
-        log(f"[INFO] Existing marketplace rows={len(existing_marketplace_rows)} from {existing_marketplace_path}")
-
-    enabled = env_flag("MARKETPLACE_REVIEWS_ENABLED", default=True)
-    fetched_rows: list[dict[str, Any]] = []
-    naver_rows: list[dict[str, Any]] = []
-    musinsa_rows: list[dict[str, Any]] = []
-
-    if enabled:
-        timeout = env_int("MARKETPLACE_TIMEOUT_SEC", 30)
-        try:
-            naver_rows = fetch_naver_rows(
-                start_date=start_date,
-                end_date=end_date,
-                brand_url=str(args.product_url or os.getenv("NAVER_BRAND_URL", "https://brand.naver.com/columbia")).strip(),
-                timeout=timeout,
-            )
-        except Exception as exc:
-            log(f"[WARN] Naver crawl failed -> continue without Naver rows: {type(exc).__name__}: {exc}")
-            naver_rows = []
-
-        try:
-            musinsa_rows = fetch_musinsa_rows(
-                start_date=start_date,
-                end_date=end_date,
-                brand_url=str(args.musinsa_brand_url or os.getenv("MUSINSA_BRAND_URL", "https://www.musinsa.com/brand/columbia")).strip(),
-                existing_rows=existing_marketplace_rows,
-            )
-        except Exception as exc:
-            log(f"[WARN] Musinsa crawl failed -> continue without Musinsa rows: {type(exc).__name__}: {exc}")
-            musinsa_rows = []
-
-        fetched_rows = merge_rows(naver_rows, musinsa_rows)
-    else:
-        log("[INFO] MARKETPLACE_REVIEWS_ENABLED=false -> pass-through mode")
-
-    cumulative_marketplace_rows = merge_rows(existing_marketplace_rows, fetched_rows)
-    merged = merge_rows(base_rows, cumulative_marketplace_rows)
-
-    dump_reviews(output_path, merged)
-    dump_reviews(marketplace_output_path, cumulative_marketplace_rows)
-
-    source_counts: dict[str, int] = {}
-    for row in merged:
-        source = normalize_source(row.get("source"))
-        source_counts[source] = source_counts.get(source, 0) + 1
-
-    fetched_source_counts: dict[str, int] = {}
-    for row in fetched_rows:
-        source = normalize_source(row.get("source"))
-        fetched_source_counts[source] = fetched_source_counts.get(source, 0) + 1
-
-    log(f"[CHECK] merged_review_count={len(merged)}")
-    log(f"[CHECK] marketplace_fetched_review_count={len(fetched_rows)}")
-    log(f"[CHECK] naver_fetched_review_count={len(naver_rows)}")
-    log(f"[CHECK] musinsa_fetched_review_count={len(musinsa_rows)}")
-    log(f"[CHECK] marketplace_cumulative_review_count={len(cumulative_marketplace_rows)}")
-    log(f"[CHECK] source_counts={json.dumps(source_counts, ensure_ascii=False, sort_keys=True)}")
-    log(f"[CHECK] fetched_source_counts={json.dumps(fetched_source_counts, ensure_ascii=False, sort_keys=True)}")
-    log(f"[CHECK] merged_output={output_path}")
-    log(f"[CHECK] marketplace_output={marketplace_output_path}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    log(f"[INFO] Musinsa normalized reviews in window={len
