@@ -562,30 +562,43 @@
         return `${sign}${isMoney ? fmtMoney(d) : d.toLocaleString('en-US')}`;
       };
 
+      function shortStageLabel(label){
+        const map = {
+          'Sessions':'세션',
+          'PDP Views':'PDP',
+          'Add to Cart':'장바구니',
+          'Checkout':'체크아웃',
+          'Purchase Sessions':'구매세션',
+          'Users':'유저',
+          'PDP Users':'PDP 유저',
+          'Cart Users':'장바구니 유저',
+          'Checkout Users':'체크아웃 유저',
+          'Purchase Users':'구매 유저',
+          'Buyer Users':'구매자'
+        };
+        return map[label] || label;
+      }
+
       function renderFunnel(canvas, behavior, className=''){
         const stages = behavior.stages;
         if (!stages.length) {
-          canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
+          canvas.innerHTML = `<div class="empty">퍼널 데이터가 없습니다.</div>`;
           return;
         }
-        const stageClass = (w) => w <= 26 ? 'tiny' : (w <= 42 ? 'narrow' : '');
         const html = [
           `<div class="funnel-axis"></div>`,
           ...stages.map((stage, i) => {
-            const width = Math.max(stage.width || 0, i === 0 ? 100 : (i <= 1 ? 54 : i === 2 ? 28 : 22));
+            const baseMin = i === 0 ? 100 : (i === 1 ? 58 : i === 2 ? 34 : i === 3 ? 26 : 22);
+            const width = Math.max(stage.width || 0, baseMin);
             return `
-            ${i === 0 ? '' : `<div class="flex items-center justify-center gap-3 py-2 text-xs font-bold muted"><span>${esc(stages[i-1].label)} → ${esc(stage.label)}</span><span>${fmtPct(stage.kept,1)} kept</span><span>${fmtPct(stage.drop,1)} drop</span></div>`}
+            ${i === 0 ? '' : `<div class="flow-meta"><strong>${esc(shortStageLabel(stages[i-1].label))} → ${esc(shortStageLabel(stage.label))}</strong> · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
             <div class="flex justify-center">
-              <div class="funnel-stage ${className} ${stageClass(width)}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%">
+              <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%">
                 <div class="funnel-stage-inner">
-                  <div class="stage-copy">
-                    <div class="stage-kicker">Stage ${String(i+1).padStart(2,'0')}</div>
-                    <div class="stage-title">${esc(stage.label)}</div>
-                    <div class="stage-note">${esc(stage.note)}</div>
-                  </div>
-                  <div class="stage-value text-right">
+                  <div class="stage-title">${esc(shortStageLabel(stage.label))}</div>
+                  <div class="stage-value">
                     <div class="num">${fmt(stage.value)}</div>
-                    <div class="sub">${i === 0 ? 'Base 100%' : `${fmtPct(stage.kept,1)} from previous`}</div>
+                    <div class="sub">${i === 0 ? '기준 100%' : `이전 대비 ${fmtPct(stage.kept,1)}`}</div>
                   </div>
                 </div>
               </div>
