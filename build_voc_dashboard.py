@@ -1954,19 +1954,18 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
 
 def load_html_template(cli_template: Optional[str]) -> str:
+    """
+    Method 2: prefer the builder's built-in DEFAULT_HTML_TEMPLATE unless the caller
+    explicitly passes --html-template. This avoids old site/template.html files
+    hiding new UI tabs such as Musinsa.
+    """
     if cli_template:
         p = pathlib.Path(cli_template).expanduser()
         if p.exists():
             return p.read_text(encoding="utf-8")
 
-    for tpl in [
-        SITE_DIR / "template.html",
-        ROOT / "templates" / "voc_index.html",
-        ROOT / "templates" / "voc_dashboard.html",
-    ]:
-        if tpl.exists():
-            return tpl.read_text(encoding="utf-8")
-
+    # Intentionally ignore SITE_DIR / "template.html" and legacy templates by default.
+    # They may be older than the builder's embedded template and can hide new tabs/UI.
     return DEFAULT_HTML_TEMPLATE
 
 
