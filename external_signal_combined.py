@@ -122,11 +122,9 @@ NAVER_REJECT_LOGS: List[dict] = []
 NAVER_LAST_RUN_META: Dict[str, object] = {}
 
 BRAND_LIST = [
-    "컬럼비아", "노스페이스", "파타고니아", "아크테릭스", "블랙야크",
-    "K2", "캠프라인", "살로몬", "호카", "마무트",
-    "스노우피크", "내셔널지오그래픽", "디스커버리", "코오롱스포츠", "몬벨",
-    "네파", "아이더", "노스케이프", "밀레", "라푸마",
-    "헬리한센", "오스프리", "그레고리", "데상트", "나이키",
+    "컬럼비아", "노스페이스", "디스커버리", "내셔널지오그래픽", "코오롱스포츠", "스노우피크",
+    "파타고니아", "K2", "블랙야크",
+    "네파", "아이더", "밀레", "호카", "아크테릭스", "살로몬",
 ]
 
 BRAND_ALIASES: Dict[str, List[str]] = {
@@ -137,21 +135,12 @@ BRAND_ALIASES: Dict[str, List[str]] = {
     "스노우피크": ["Snow Peak", "SNOWPEAK", "Snowpeak"],
     "내셔널지오그래픽": ["National Geographic", "NATIONALGEOGRAPHIC", "NatGeo"],
     "코오롱스포츠": ["Kolon Sport", "KOLONSPORT", "Kolonsport"],
-    "몬벨": ["몽벨", "Montbell", "MONTBELL"],
     "디스커버리": ["Discovery", "DISCOVERY"],
     "컬럼비아": ["Columbia", "COLUMBIA", "콜롬비아"],
     "블랙야크": ["Black Yak", "BLACKYAK"],
     "네파": ["NEPA"],
     "아이더": ["EIDER"],
-    "데상트": ["Descente", "DESCENTE"],
-    "나이키": ["Nike", "NIKE"],
     "호카": ["HOKA", "Hoka"],
-    "마무트": ["Mammut", "MAMMUT"],
-    "캠프라인": ["CampLine", "CAMPLINE"],
-    "오스프리": ["Osprey", "OSPREY"],
-    "그레고리": ["Gregory", "GREGORY"],
-    "헬리한센": ["Helly Hansen", "HELLY HANSEN", "HELLYHANSEN"],
-    "라푸마": ["Lafuma", "LAFUMA"],
 }
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
