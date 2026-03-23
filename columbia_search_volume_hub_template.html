@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>검색량 Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; --ink:#0f172a; }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--bg0),var(--bg1));font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink)}
+    .shell{max-width:1480px;margin:0 auto;padding:28px 24px 56px}
+    .glass-card{background:rgba(255,255,255,.68);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:28px;box-shadow:0 20px 50px rgba(0,45,114,.06)}
+    .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:28px 30px;margin-bottom:22px}
+    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.24em;text-transform:uppercase;color:#64748b}
+    .headline{font-size:34px;line-height:1.08;font-weight:900;letter-spacing:-.03em;margin-top:10px}
+    .sub{font-size:14px;color:#64748b;font-weight:700;margin-top:8px}
+    .summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:22px}
+    .summary-card{padding:22px 22px 20px;position:relative;overflow:hidden;transform:translateY(0);transition:transform .22s ease, box-shadow .22s ease, opacity .35s ease}
+    .summary-card:hover{transform:translateY(-2px);box-shadow:0 24px 54px rgba(0,45,114,.08)}
+    .summary-k{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
+    .summary-v{font-size:30px;font-weight:900;letter-spacing:-.03em;margin-top:10px}
+    .summary-s{font-size:13px;color:#64748b;font-weight:700;margin-top:6px}
+    .section-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;margin-bottom:18px}
+    .card{padding:24px 24px 18px;opacity:0;transform:translateY(10px);animation:fadeUp .45s ease forwards}
+    .card h3{margin:0;font-size:18px;font-weight:900;letter-spacing:-.02em}
+    .card .desc{font-size:13px;color:#64748b;font-weight:700;margin-top:6px}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 18px}
+    .tab{border:1px solid rgba(15,23,42,.06);background:rgba(255,255,255,.72);padding:10px 15px;border-radius:999px;font-size:13px;font-weight:900;color:#64748b;cursor:pointer;transition:all .18s ease}
+    .tab:hover{transform:translateY(-1px);box-shadow:0 10px 18px rgba(0,45,114,.06);color:#334155}
+    .tab.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 12px 24px rgba(15,23,42,.12)}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.66);font-size:12px;font-weight:800;color:#475569;border:1px solid rgba(148,163,184,.16)}
+    .chart-wrap{position:relative;height:360px;margin-top:16px}
+    .table-wrap{overflow:auto;margin-top:14px;border-radius:20px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:13px 12px;border-bottom:1px solid rgba(148,163,184,.14);text-align:left;white-space:nowrap}
+    th{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#94a3b8;font-weight:900}
+    td{font-weight:700;color:#1e293b}
+    tbody tr{transition:background .15s ease, transform .18s ease}
+    tbody tr:hover{background:rgba(255,255,255,.5)}
+    .rank-list{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+    .rank-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border-radius:20px;background:rgba(255,255,255,.5);border:1px solid rgba(148,163,184,.12);transform:translateY(0);transition:all .18s ease}
+    .rank-item:hover{transform:translateY(-1px);box-shadow:0 14px 24px rgba(0,45,114,.06)}
+    .rank-left{display:flex;align-items:center;gap:12px;min-width:0}
+    .badge{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#0f172a;font-weight:900;font-size:12px;flex:0 0 auto}
+    .kw{font-size:14px;font-weight:900;color:#0f172a;overflow:hidden;text-overflow:ellipsis}
+    .meta{font-size:12px;color:#64748b;font-weight:700;margin-top:2px}
+    .val{font-size:15px;font-weight:900;color:#0f172a}
+    .mutedbox{margin-top:14px;padding:14px 16px;border-radius:18px;background:rgba(255,255,255,.42);border:1px dashed rgba(148,163,184,.35);font-size:12px;color:#64748b;font-weight:700;line-height:1.65}
+    .empty{padding:24px 18px;text-align:center;color:#64748b;font-size:13px;font-weight:700}
+    .footer-note{font-size:12px;color:#64748b;font-weight:700;margin-top:16px;line-height:1.7}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @media (max-width: 1180px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.section-grid{grid-template-columns:1fr}.chart-wrap{height:320px}}
+    @media (max-width: 768px){.shell{padding:18px 14px 32px}.topbar{padding:22px 18px}.headline{font-size:28px}.summary-grid{grid-template-columns:1fr}.card{padding:20px 16px 16px}.chart-wrap{height:280px}.tab{font-size:12px;padding:9px 12px}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="glass-card topbar">
+      <div>
+        <div class="eyebrow">Search Volume Monitor</div>
+        <div class="headline">컬럼비아 검색량</div>
+        <div class="sub">상대지수 없이 실제 검색수만 모아보는 모니터링 대시보드</div>
+      </div>
+      <div class="text-right">
+        <div class="pill" id="updatedAt">업데이트 -</div>
+        <div class="pill" style="margin-top:10px" id="periodLabel">기간 -</div>
+      </div>
+    </section>
+
+    <div class="tabs" id="periodTabs"></div>
+
+    <section class="summary-grid" id="summaryGrid"></section>
+
+    <section class="section-grid">
+      <div class="glass-card card">
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3>플랫폼별 검색량 추이</h3>
+            <div class="desc">선택 기간 기준. 네이버는 수집 시점의 월간 검색량 스냅샷, 구글은 Keyword Planner historical monthly volume.</div>
+          </div>
+          <div class="pill" id="availabilityPill">데이터 확인 중</div>
+        </div>
+        <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
+        <div class="mutedbox" id="availabilityNote"></div>
+      </div>
+      <div class="glass-card card">
+        <h3>Top Keywords</h3>
+        <div class="desc">선택 기간 마지막 시점 기준</div>
+        <div class="rank-list" id="latestRank"></div>
+      </div>
+    </section>
+
+    <section class="section-grid">
+      <div class="glass-card card">
+        <h3>키워드별 추이</h3>
+        <div class="desc">키워드 합산이 아닌 개별 검색수 흐름</div>
+        <div class="chart-wrap"><canvas id="keywordChart"></canvas></div>
+      </div>
+      <div class="glass-card card">
+        <h3>증감률 Ranking</h3>
+        <div class="desc">선택 기간 시작 vs 종료 기준</div>
+        <div class="rank-list" id="growthRank"></div>
+      </div>
+    </section>
+
+    <section class="glass-card card">
+      <h3>Latest Snapshot</h3>
+      <div class="desc">가장 최근 시점 기준 키워드별 상세</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Date</th>
+              <th>Keyword</th>
+              <th>PC</th>
+              <th>Mobile</th>
+              <th>Total</th>
+              <th>MoM / First vs Last</th>
+            </tr>
+          </thead>
+          <tbody id="snapshotTable"></tbody>
+        </table>
+      </div>
+      <div class="footer-note" id="footerNote"></div>
+    </section>
+  </div>
+
+<script>
+const DASHBOARD_DATA = __DASHBOARD_DATA__;
+
+const PERIODS = [
+  { key:'18m', label:'1년 6개월', days:548 },
+  { key:'12m', label:'1년', days:365 },
+  { key:'6m', label:'6개월', days:183 },
+  { key:'3m', label:'3개월', days:92 },
+  { key:'1m', label:'1개월', days:31 },
+  { key:'1w', label:'1주', days:7 },
+];
+
+let currentPeriod = '3m';
+let overviewChart = null;
+let keywordChart = null;
+
+function nf(v){
+  const n = Number(v || 0);
+  return n.toLocaleString('ko-KR');
+}
+function pct(v){
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return '-';
+  const n = Number(v);
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(1)}%`;
+}
+function parseDate(v){ return new Date(v + 'T00:00:00'); }
+function monthToDate(v){ return new Date(v + '-01T00:00:00'); }
+function isGoogleHistoryAvailable(){ return Array.isArray(DASHBOARD_DATA.google_history) && DASHBOARD_DATA.google_history.length > 0; }
+function isNaverSnapshotsAvailable(){ return Array.isArray(DASHBOARD_DATA.naver_snapshots) && DASHBOARD_DATA.naver_snapshots.length > 0; }
+
+function getPeriodObj(){ return PERIODS.find(x => x.key === currentPeriod) || PERIODS[3]; }
+
+function filterNaverSnapshots(){
+  const arr = DASHBOARD_DATA.naver_snapshots || [];
+  if (!arr.length) return [];
+  const maxDt = arr.map(x => parseDate(x.snapshot_date)).sort((a,b)=>a-b).pop();
+  const cutoff = new Date(maxDt);
+  cutoff.setDate(cutoff.getDate() - getPeriodObj().days + 1);
+  return arr.filter(x => parseDate(x.snapshot_date) >= cutoff);
+}
+
+function filterGoogleHistory(){
+  const arr = DASHBOARD_DATA.google_history || [];
+  if (!arr.length) return [];
+  const maxDt = arr.map(x => monthToDate(x.month)).sort((a,b)=>a-b).pop();
+  const cutoff = new Date(maxDt);
+  cutoff.setDate(cutoff.getDate() - getPeriodObj().days + 1);
+  return arr.filter(x => monthToDate(x.month) >= cutoff);
+}
+
+function buildTabs(){
+  const wrap = document.getElementById('periodTabs');
+  wrap.innerHTML = PERIODS.map(p => `<button class="tab ${p.key===currentPeriod?'active':''}" data-key="${p.key}">${p.label}</button>`).join('');
+  wrap.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentPeriod = btn.dataset.key;
+      buildTabs();
+      render();
+    });
+  });
+}
+
+function groupedTotals(records, mode){
+  const map = new Map();
+  records.forEach(row => {
+    const key = mode === 'naver' ? row.snapshot_date : row.month;
+    const cur = map.get(key) || 0;
+    map.set(key, cur + Number(row.total || row.monthly_searches || 0));
+  });
+  return Array.from(map.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([label,value])=>({label,value}));
+}
+
+function keywordSeries(records, mode){
+  const keywords = DASHBOARD_DATA.keywords || [];
+  const labels = Array.from(new Set(records.map(r => mode === 'naver' ? r.snapshot_date : r.month))).sort();
+  const datasetByKw = {};
+  keywords.forEach(kw => datasetByKw[kw] = labels.map(lb => 0));
+  records.forEach(row => {
+    const label = mode === 'naver' ? row.snapshot_date : row.month;
+    const idx = labels.indexOf(label);
+    if (idx >= 0) datasetByKw[row.keyword][idx] = Number(row.total || row.monthly_searches || 0);
+  });
+  return { labels, datasetByKw };
+}
+
+function latestRows(){
+  const naver = filterNaverSnapshots();
+  const google = filterGoogleHistory();
+  const latestNaverDate = naver.length ? naver.map(r => r.snapshot_date).sort().pop() : null;
+  const latestGoogleMonth = google.length ? google.map(r => r.month).sort().pop() : null;
+  return {
+    naver: latestNaverDate ? naver.filter(r => r.snapshot_date === latestNaverDate) : [],
+    google: latestGoogleMonth ? google.filter(r => r.month === latestGoogleMonth) : []
+  };
+}
+
+function growthByKeyword(records, mode){
+  const labels = Array.from(new Set(records.map(r => mode==='naver'?r.snapshot_date:r.month))).sort();
+  const out = [];
+  (DASHBOARD_DATA.keywords || []).forEach(kw => {
+    const rows = records.filter(r => r.keyword === kw).sort((a,b)=> String(mode==='naver'?a.snapshot_date:a.month).localeCompare(String(mode==='naver'?b.snapshot_date:b.month)));
+    if (!rows.length) return;
+    const first = Number(rows[0].total || rows[0].monthly_searches || 0);
+    const last = Number(rows[rows.length-1].total || rows[rows.length-1].monthly_searches || 0);
+    const growth = first > 0 ? ((last-first)/first)*100 : null;
+    out.push({ keyword: kw, first, last, growth, platform: mode==='naver'?'Naver':'Google' });
+  });
+  return out.sort((a,b)=>(Number(b.growth ?? -999999))-(Number(a.growth ?? -999999)));
+}
+
+function renderSummary(){
+  const naver = filterNaverSnapshots();
+  const google = filterGoogleHistory();
+  const latest = latestRows();
+  const latestNaverTotal = latest.naver.reduce((s,r)=>s+Number(r.total||0),0);
+  const latestGoogleTotal = latest.google.reduce((s,r)=>s+Number(r.monthly_searches||0),0);
+  const snapshotCount = Array.from(new Set(naver.map(r=>r.snapshot_date))).length;
+  const googleMonths = Array.from(new Set(google.map(r=>r.month))).length;
+  const growthNaver = growthByKeyword(naver,'naver')[0]?.growth ?? null;
+  const growthGoogle = growthByKeyword(google,'google')[0]?.growth ?? null;
+  const cards = [
+    {k:'NAVER 최신 총검색량',v:nf(latestNaverTotal),s:`스냅샷 ${snapshotCount}개 / 최근 ${getPeriodObj().label}`},
+    {k:'GOOGLE 최신 총검색량',v:nf(latestGoogleTotal),s:isGoogleHistoryAvailable()?`월 데이터 ${googleMonths}개월`:'Google Ads 미연동'},
+    {k:'NAVER 최고 상승률',v:pct(growthNaver),s:'선택 기간 시작 대비 종료'},
+    {k:'GOOGLE 최고 상승률',v:pct(growthGoogle),s:isGoogleHistoryAvailable()?'월간 historical metrics':'연동 후 표시'}
+  ];
+  document.getElementById('summaryGrid').innerHTML = cards.map(c => `
+    <div class="glass-card summary-card">
+      <div class="summary-k">${c.k}</div>
+      <div class="summary-v">${c.v}</div>
+      <div class="summary-s">${c.s}</div>
+    </div>
+  `).join('');
+}
+
+function buildOverviewChart(){
+  const naver = groupedTotals(filterNaverSnapshots(),'naver');
+  const google = groupedTotals(filterGoogleHistory(),'google');
+  const labels = Array.from(new Set([...naver.map(x=>x.label), ...google.map(x=>x.label)])).sort();
+  const nMap = Object.fromEntries(naver.map(x=>[x.label,x.value]));
+  const gMap = Object.fromEntries(google.map(x=>[x.label,x.value]));
+  const ctx = document.getElementById('overviewChart').getContext('2d');
+  if (overviewChart) overviewChart.destroy();
+  overviewChart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Naver actual monthly volume snapshot',data:labels.map(l=>nMap[l]||0),borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.12)',tension:.28,fill:true,pointRadius:3,borderWidth:2},
+        {label:'Google historical monthly volume',data:labels.map(l=>gMap[l]||0),borderColor:'#0f172a',backgroundColor:'rgba(15,23,42,.08)',tension:.28,fill:false,pointRadius:3,borderWidth:2}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:{duration:520,easing:'easeOutQuart'},
+      plugins:{legend:{labels:{usePointStyle:true,boxWidth:8,font:{family:'Plus Jakarta Sans',weight:'700'}}}},
+      scales:{x:{grid:{display:false},ticks:{font:{family:'Plus Jakarta Sans',weight:'700'}}},y:{beginAtZero:true,ticks:{callback:(v)=>Number(v).toLocaleString('ko-KR'),font:{family:'Plus Jakarta Sans',weight:'700'}},grid:{color:'rgba(148,163,184,.14)'}}}
+    }
+  });
+}
+
+function buildKeywordChart(){
+  const naver = keywordSeries(filterNaverSnapshots(),'naver');
+  const google = keywordSeries(filterGoogleHistory(),'google');
+  const ctx = document.getElementById('keywordChart').getContext('2d');
+  if (keywordChart) keywordChart.destroy();
+  const labels = naver.labels.length ? naver.labels : google.labels;
+  const keywords = DASHBOARD_DATA.keywords || [];
+  const palette = ['#2563eb','#10b981','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#84cc16','#64748b'];
+  const datasets = keywords.flatMap((kw, idx) => {
+    const arr = [];
+    if (naver.labels.length) arr.push({label:`Naver · ${kw}`,data:labels.map((_,i)=>naver.datasetByKw[kw]?.[i]||0),borderColor:palette[idx % palette.length],backgroundColor:'transparent',tension:.25,pointRadius:2,borderWidth:2});
+    if (google.labels.length && google.labels.join('|') === labels.join('|')) arr.push({label:`Google · ${kw}`,data:labels.map((_,i)=>google.datasetByKw[kw]?.[i]||0),borderColor:palette[(idx+3)%palette.length],backgroundColor:'transparent',borderDash:[6,4],tension:.25,pointRadius:2,borderWidth:2});
+    return arr;
+  });
+  keywordChart = new Chart(ctx, {
+    type:'line',
+    data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:520,easing:'easeOutQuart'},plugins:{legend:{labels:{usePointStyle:true,boxWidth:8,font:{family:'Plus Jakarta Sans',weight:'700'}}}},scales:{x:{grid:{display:false},ticks:{font:{family:'Plus Jakarta Sans',weight:'700'}}},y:{beginAtZero:true,ticks:{callback:(v)=>Number(v).toLocaleString('ko-KR'),font:{family:'Plus Jakarta Sans',weight:'700'}},grid:{color:'rgba(148,163,184,.14)'}}}}
+  });
+}
+
+function renderRank(elId, rows, type){
+  const el = document.getElementById(elId);
+  if (!rows.length){ el.innerHTML = `<div class="empty">표시할 데이터가 아직 없어요.</div>`; return; }
+  el.innerHTML = rows.slice(0,8).map((r,idx)=>`
+    <div class="rank-item">
+      <div class="rank-left">
+        <div class="badge">${idx+1}</div>
+        <div>
+          <div class="kw">${r.keyword}</div>
+          <div class="meta">${r.platform}</div>
+        </div>
+      </div>
+      <div class="val">${type==='latest' ? nf(r.value) : pct(r.growth)}</div>
+    </div>
+  `).join('');
+}
+
+function renderSnapshotTable(){
+  const rows = [];
+  const latest = latestRows();
+  const nGrowthMap = Object.fromEntries(growthByKeyword(filterNaverSnapshots(),'naver').map(x=>[x.keyword,x.growth]));
+  const gGrowthMap = Object.fromEntries(growthByKeyword(filterGoogleHistory(),'google').map(x=>[x.keyword,x.growth]));
+  latest.naver.forEach(r => rows.push({platform:'Naver',date:r.snapshot_date,keyword:r.keyword,pc:r.pc,mobile:r.mobile,total:r.total,delta:nGrowthMap[r.keyword]}));
+  latest.google.forEach(r => rows.push({platform:'Google',date:r.month,keyword:r.keyword,pc:'-',mobile:'-',total:r.monthly_searches,delta:gGrowthMap[r.keyword]}));
+  const body = document.getElementById('snapshotTable');
+  if (!rows.length){ body.innerHTML = `<tr><td colspan="7" class="empty">최신 스냅샷이 아직 없습니다.</td></tr>`; return; }
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.platform}</td>
+      <td>${r.date}</td>
+      <td>${r.keyword}</td>
+      <td>${typeof r.pc === 'number' ? nf(r.pc) : r.pc}</td>
+      <td>${typeof r.mobile === 'number' ? nf(r.mobile) : r.mobile}</td>
+      <td>${nf(r.total)}</td>
+      <td>${pct(r.delta)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderMeta(){
+  document.getElementById('updatedAt').textContent = `업데이트 ${DASHBOARD_DATA.generated_at || '-'}`;
+  document.getElementById('periodLabel').textContent = `기간 ${getPeriodObj().label}`;
+  const availability = [
+    isNaverSnapshotsAvailable() ? `Naver 스냅샷 ${Array.from(new Set((DASHBOARD_DATA.naver_snapshots||[]).map(r=>r.snapshot_date))).length}개` : 'Naver 스냅샷 없음',
+    isGoogleHistoryAvailable() ? `Google 월 데이터 ${Array.from(new Set((DASHBOARD_DATA.google_history||[]).map(r=>r.month))).length}개월` : 'Google 미연동'
+  ];
+  document.getElementById('availabilityPill').textContent = availability.join(' · ');
+  document.getElementById('availabilityNote').innerHTML = [
+    '네이버 SearchAd 키워드 도구는 월간 PC/모바일 검색수를 제공합니다. 이 대시보드의 네이버 라인은 <b>수집 시점의 월간 검색량 스냅샷</b>을 날짜별로 누적해서 보여줍니다.',
+    '구글은 Google Ads Keyword Planner Historical Metrics 연동 시 <b>월별 검색량</b>을 표시합니다. 미연동이면 네이버만 노출됩니다.',
+    '따라서 1주/1개월 탭은 수집 초기에는 데이터 포인트가 적을 수 있습니다.'
+  ].join('<br>');
+  document.getElementById('footerNote').innerHTML = `키워드: ${(DASHBOARD_DATA.keywords||[]).join(', ')}<br>구글 미연동 상태면 실제 검색수는 네이버 기준으로만 표시됩니다.`;
+}
+
+function render(){
+  renderMeta();
+  renderSummary();
+  buildOverviewChart();
+  buildKeywordChart();
+  const latest = latestRows();
+  const latestRank = [
+    ...latest.naver.map(r => ({keyword:r.keyword,platform:'Naver',value:r.total})),
+    ...latest.google.map(r => ({keyword:r.keyword,platform:'Google',value:r.monthly_searches}))
+  ].sort((a,b)=>b.value-a.value);
+  renderRank('latestRank', latestRank, 'latest');
+  const growthRank = [...growthByKeyword(filterNaverSnapshots(),'naver'), ...growthByKeyword(filterGoogleHistory(),'google')]
+    .sort((a,b)=>(Number(b.growth ?? -999999))-(Number(a.growth ?? -999999)));
+  renderRank('growthRank', growthRank, 'growth');
+  renderSnapshotTable();
+}
+
+buildTabs();
+render();
+</script>
+</body>
+</html>
