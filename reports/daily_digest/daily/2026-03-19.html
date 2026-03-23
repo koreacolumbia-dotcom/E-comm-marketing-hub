@@ -8,6 +8,48 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }
+      
+    @keyframes fadeUp {{
+      0% {{ opacity: 0; transform: translate3d(0, 20px, 0) scale(.985); }}
+      100% {{ opacity: 1; transform: translate3d(0, 0, 0) scale(1); }}
+    }}
+
+    @keyframes slideUpSoft {{
+      0% {{ opacity: 0; transform: translateY(18px); }}
+      100% {{ opacity: 1; transform: translateY(0); }}
+    }}
+
+    @keyframes softPulse {{
+      0% {{ box-shadow: 0 0 0 rgba(15,23,42,0); }}
+      100% {{ box-shadow: 0 18px 40px rgba(15,23,42,.08); }}
+    }}
+
+    body > .mx-auto.max-w-7xl.p-6 {{
+      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
+    }}
+
+    body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {{
+      animation: slideUpSoft .7s cubic-bezier(.2,.8,.2,1) both;
+    }}
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {{
+      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }}
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {{
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(15,23,42,.08);
+    }}
+    
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -111,7 +153,7 @@
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
             </tr>
           </thead>
-          <tbody><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naver brand search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.59%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naver search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.92%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>criteo</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.81%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>meta</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.40%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>google search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>1.10%</div></td></tr></tbody>
+          <tbody><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naver brand search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩306,667</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>260.9%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.59%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naver search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩282,978</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>52.4%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.92%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>criteo</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.81%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>meta</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩316,223</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>222.7%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.40%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>google demand gen</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩66,473</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.00%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>google search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩92,052</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>177.3%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>1.10%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>google</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩158,525</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.00%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naver</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩589,645</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right'>0.00%</div></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -417,7 +459,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Round T-shirt</div>
-                <div class="text-xs text-slate-500">D1 943 · 7D Avg 848</div>
+                <div class="text-xs text-slate-500">D1 806 · 7D Avg 717</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -426,10 +468,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,39.5 71.7,32.0 107.3,22.8 143.0,44.3 178.7,41.6 214.3,13.7 250.0,22.1 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,39.5 71.7,32.0 107.3,22.8 143.0,44.3 178.7,41.6 214.3,13.7 250.0,22.1"/>
-      <circle cx='36.0' cy='39.5' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='32.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='22.8' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='41.6' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='22.1' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1034</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>868</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>703</text>
+      <polygon points="36.0,48.0 36.0,40.3 71.7,32.3 107.3,23.4 143.0,44.3 178.7,41.8 214.3,13.7 250.0,21.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,40.3 71.7,32.3 107.3,23.4 143.0,44.3 178.7,41.8 214.3,13.7 250.0,21.3"/>
+      <circle cx='36.0' cy='40.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='32.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='23.4' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='41.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='21.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>876</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>736</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>595</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
@@ -438,7 +480,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Polo/Zip Up</div>
-                <div class="text-xs text-slate-500">D1 456 · 7D Avg 328</div>
+                <div class="text-xs text-slate-500">D1 384 · 7D Avg 269</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -447,10 +489,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,44.3 71.7,29.7 107.3,37.6 143.0,39.8 178.7,37.6 214.3,23.1 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,29.7 107.3,37.6 143.0,39.8 178.7,37.6 214.3,23.1 250.0,13.7"/>
-      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='29.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='37.6' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='39.8' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='37.6' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='23.1' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>456</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>350</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>245</text>
+      <polygon points="36.0,48.0 36.0,44.3 71.7,30.9 107.3,39.4 143.0,41.5 178.7,37.8 214.3,23.3 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,30.9 107.3,39.4 143.0,41.5 178.7,37.8 214.3,23.3 250.0,13.7"/>
+      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='30.9' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='39.4' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='41.5' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='37.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='23.3' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>384</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>293</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>202</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
@@ -459,7 +501,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">PANTS · Pants</div>
-                <div class="text-xs text-slate-500">D1 997 · 7D Avg 888</div>
+                <div class="text-xs text-slate-500">D1 982 · 7D Avg 876</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -468,10 +510,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,44.3 71.7,28.0 107.3,22.8 143.0,32.8 178.7,18.8 214.3,13.7 250.0,14.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,28.0 107.3,22.8 143.0,32.8 178.7,18.8 214.3,13.7 250.0,14.6"/>
-      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='28.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='22.8' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='32.8' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='18.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='14.6' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1007</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>846</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>684</text>
+      <polygon points="36.0,48.0 36.0,44.3 71.7,28.0 107.3,22.5 143.0,32.7 178.7,18.5 214.3,13.7 250.0,14.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,28.0 107.3,22.5 143.0,32.7 178.7,18.5 214.3,13.7 250.0,14.6"/>
+      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='28.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='22.5' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='32.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='18.5' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='14.6' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>992</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>834</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>676</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
@@ -543,7 +585,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Sneakers</div>
-                <div class="text-xs text-slate-500">D1 457 · 7D Avg 369</div>
+                <div class="text-xs text-slate-500">D1 402 · 7D Avg 322</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -552,10 +594,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,39.9 71.7,23.0 107.3,21.7 143.0,44.3 178.7,29.9 214.3,28.5 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,39.9 71.7,23.0 107.3,21.7 143.0,44.3 178.7,29.9 214.3,28.5 250.0,13.7"/>
-      <circle cx='36.0' cy='39.9' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='23.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='21.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='29.9' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='28.5' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>457</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>367</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>277</text>
+      <polygon points="36.0,48.0 36.0,39.7 71.7,20.9 107.3,23.8 143.0,44.3 178.7,27.5 214.3,29.6 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,39.7 71.7,20.9 107.3,23.8 143.0,44.3 178.7,27.5 214.3,29.6 250.0,13.7"/>
+      <circle cx='36.0' cy='39.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='20.9' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='23.8' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='27.5' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='29.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>402</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>319</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>236</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>

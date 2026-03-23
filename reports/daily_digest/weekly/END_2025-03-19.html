@@ -8,6 +8,48 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }
+      
+    @keyframes fadeUp {{
+      0% {{ opacity: 0; transform: translate3d(0, 20px, 0) scale(.985); }}
+      100% {{ opacity: 1; transform: translate3d(0, 0, 0) scale(1); }}
+    }}
+
+    @keyframes slideUpSoft {{
+      0% {{ opacity: 0; transform: translateY(18px); }}
+      100% {{ opacity: 1; transform: translateY(0); }}
+    }}
+
+    @keyframes softPulse {{
+      0% {{ box-shadow: 0 0 0 rgba(15,23,42,0); }}
+      100% {{ box-shadow: 0 18px 40px rgba(15,23,42,.08); }}
+    }}
+
+    body > .mx-auto.max-w-7xl.p-6 {{
+      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
+    }}
+
+    body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {{
+      animation: slideUpSoft .7s cubic-bezier(.2,.8,.2,1) both;
+    }}
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {{
+      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }}
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {{
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(15,23,42,.08);
+    }}
+    
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -297,7 +339,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Padding/Slim Down</div>
-                <div class="text-xs text-slate-500">D1 396 · 7D Avg 541</div>
+                <div class="text-xs text-slate-500">D1 393 · 7D Avg 533</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -306,10 +348,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,16.0 71.7,31.4 107.3,31.2 143.0,13.7 178.7,35.5 214.3,21.9 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,16.0 71.7,31.4 107.3,31.2 143.0,13.7 178.7,35.5 214.3,21.9 250.0,44.3"/>
-      <circle cx='36.0' cy='16.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='31.4' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='31.2' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='35.5' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='21.9' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>664</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>530</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>396</text>
+      <polygon points="36.0,48.0 36.0,15.8 71.7,32.1 107.3,31.2 143.0,13.7 178.7,35.6 214.3,21.2 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,15.8 71.7,32.1 107.3,31.2 143.0,13.7 178.7,35.6 214.3,21.2 250.0,44.3"/>
+      <circle cx='36.0' cy='15.8' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='32.1' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='31.2' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='35.6' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='21.2' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>652</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>522</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>393</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
@@ -381,7 +423,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FLEECE · Fleece Pullover</div>
-                <div class="text-xs text-slate-500">D1 21 · 7D Avg 18</div>
+                <div class="text-xs text-slate-500">D1 40 · 7D Avg 40</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -390,10 +432,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,34.9 71.7,42.0 107.3,44.3 143.0,13.7 178.7,42.0 214.3,33.7 250.0,31.4 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,34.9 71.7,42.0 107.3,44.3 143.0,13.7 178.7,42.0 214.3,33.7 250.0,31.4"/>
-      <circle cx='36.0' cy='34.9' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='42.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='42.0' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='33.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='31.4' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>36</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>23</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>10</text>
+      <polygon points="36.0,48.0 36.0,26.3 71.7,22.7 107.3,44.3 143.0,13.7 178.7,20.9 214.3,13.7 250.0,24.5 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,26.3 71.7,22.7 107.3,44.3 143.0,13.7 178.7,20.9 214.3,13.7 250.0,24.5"/>
+      <circle cx='36.0' cy='26.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='22.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='20.9' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='24.5' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>46</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>38</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>29</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
@@ -402,7 +444,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FLEECE · Jacket</div>
-                <div class="text-xs text-slate-500">D1 10 · 7D Avg 30</div>
+                <div class="text-xs text-slate-500">D1 12 · 7D Avg 33</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -411,10 +453,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,22.9 71.7,16.7 107.3,13.7 143.0,15.7 178.7,24.9 214.3,29.0 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,22.9 71.7,16.7 107.3,13.7 143.0,15.7 178.7,24.9 214.3,29.0 250.0,44.3"/>
-      <circle cx='36.0' cy='22.9' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='16.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='15.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='24.9' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='29.0' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>40</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>25</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>10</text>
+      <polygon points="36.0,48.0 36.0,23.9 71.7,18.3 107.3,13.7 143.0,14.6 178.7,27.6 214.3,28.5 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,23.9 71.7,18.3 107.3,13.7 143.0,14.6 178.7,27.6 214.3,28.5 250.0,44.3"/>
+      <circle cx='36.0' cy='23.9' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='18.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='14.6' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='27.6' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='28.5' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>45</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>28</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>12</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
@@ -474,10 +516,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,18.0 71.7,44.3 107.3,20.5 143.0,13.7 178.7,28.5 214.3,19.1 250.0,22.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,18.0 71.7,44.3 107.3,20.5 143.0,13.7 178.7,28.5 214.3,19.1 250.0,22.3"/>
-      <circle cx='36.0' cy='18.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='20.5' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='28.5' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='19.1' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='22.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>316</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>274</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>231</text>
+      <polygon points="36.0,48.0 36.0,18.0 71.7,44.3 107.3,20.4 143.0,13.7 178.7,28.3 214.3,19.0 250.0,22.2 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,18.0 71.7,44.3 107.3,20.4 143.0,13.7 178.7,28.3 214.3,19.0 250.0,22.2"/>
+      <circle cx='36.0' cy='18.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='20.4' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='28.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='19.0' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='22.2' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>316</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>273</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>230</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
@@ -486,7 +528,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">PANTS · Pants</div>
-                <div class="text-xs text-slate-500">D1 766 · 7D Avg 857</div>
+                <div class="text-xs text-slate-500">D1 656 · 7D Avg 666</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -495,10 +537,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,28.2 71.7,44.3 107.3,35.5 143.0,14.6 178.7,13.7 214.3,24.7 250.0,36.8 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,28.2 71.7,44.3 107.3,35.5 143.0,14.6 178.7,13.7 214.3,24.7 250.0,36.8"/>
-      <circle cx='36.0' cy='28.2' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='35.5' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='14.6' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='24.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='36.8' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1012</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>849</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>686</text>
+      <polygon points="36.0,48.0 36.0,24.6 71.7,44.3 107.3,34.2 143.0,17.6 178.7,13.8 214.3,13.7 250.0,26.4 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,24.6 71.7,44.3 107.3,34.2 143.0,17.6 178.7,13.8 214.3,13.7 250.0,26.4"/>
+      <circle cx='36.0' cy='24.6' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='34.2' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='17.6' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='13.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='26.4' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>746</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>638</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>529</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
@@ -570,7 +612,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Sneakers</div>
-                <div class="text-xs text-slate-500">D1 349 · 7D Avg 508</div>
+                <div class="text-xs text-slate-500">D1 344 · 7D Avg 502</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -579,10 +621,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,22.0 71.7,13.7 107.3,27.8 143.0,26.2 178.7,29.8 214.3,22.6 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,22.0 71.7,13.7 107.3,27.8 143.0,26.2 178.7,29.8 214.3,22.6 250.0,44.3"/>
-      <circle cx='36.0' cy='22.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='27.8' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='26.2' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='29.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='22.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>625</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>487</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>349</text>
+      <polygon points="36.0,48.0 36.0,21.5 71.7,13.7 107.3,27.4 143.0,25.6 178.7,29.8 214.3,21.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,21.5 71.7,13.7 107.3,27.4 143.0,25.6 178.7,29.8 214.3,21.7 250.0,44.3"/>
+      <circle cx='36.0' cy='21.5' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='27.4' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='25.6' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='29.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='21.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>612</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>478</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>344</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text>
     </svg>
     </div>
