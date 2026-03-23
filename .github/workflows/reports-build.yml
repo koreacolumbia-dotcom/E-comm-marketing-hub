@@ -112,7 +112,7 @@ on:
 
   schedule:
     # 06:45 KST daily -> Search Volume + all site reports
-    - cron: "0 19 * * *"
+    - cron: "45 21 * * *"
 
 concurrency:
   group: reports-build
@@ -893,7 +893,7 @@ jobs:
 
       - name: Build Search Volume dashboard
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         env:
           NAVER_AD_API_KEY: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
@@ -912,21 +912,21 @@ jobs:
           set -euo pipefail
 
           if [ -z "${NAVER_AD_API_KEY:-}" ] || [ -z "${NAVER_AD_SECRET_KEY:-}" ] || [ -z "${NAVER_AD_CUSTOMER_ID:-}" ]; then
-            echo "[WARN] NAVER_AD_API_KEY or NAVER_AD_SECRET_KEY or NAVER_AD_CUSTOMER_ID empty -> skip search volume"
-            exit 0
+            echo "[ERROR] NAVER_AD_API_KEY or NAVER_AD_SECRET_KEY or NAVER_AD_CUSTOMER_ID empty"
+            exit 1
           fi
 
           SCRIPT="columbia_search_volume_hub.py"
           TEMPLATE="columbia_search_volume_hub_template.html"
 
           if [ ! -f "$SCRIPT" ]; then
-            echo "[WARN] $SCRIPT not found. Skipping search volume build."
-            exit 0
+            echo "[ERROR] $SCRIPT not found."
+            exit 1
           fi
 
           if [ ! -f "$TEMPLATE" ]; then
-            echo "[WARN] $TEMPLATE not found. Skipping search volume build."
-            exit 0
+            echo "[ERROR] $TEMPLATE not found."
+            exit 1
           fi
 
           START_DATE="$(TZ=Asia/Seoul date -d "${YMD} -3 months" '+%Y-%m-%d')"
@@ -937,21 +937,87 @@ jobs:
           mkdir -p reports/search_volume/data
 
           echo "[INFO] Search Volume backfill window: ${START_DATE} ~ ${YMD}"
-          python -u "$SCRIPT" \
-            --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화" \
-            --start-date "$START_DATE" \
-            --end-date "$YMD" \
-            --geo KR \
-            --template "$TEMPLATE" \
-            --output-json "$OUT_JSON" \
-            --output-html "$OUT_HTML" \
-            --meta-json "$META_JSON" \
-            --skip-if-current
+          python -u "$SCRIPT"             --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화"             --start-date "$START_DATE"             --end-date "$YMD"             --geo KR             --template "$TEMPLATE"             --output-json "$OUT_JSON"             --output-html "$OUT_HTML"             --meta-json "$META_JSON"
 
           echo "[INFO] Search Volume outputs:"
-          ls -la reports/search_volume || true
-          ls -la reports/search_volume/data || true
+          ls -la reports/search_volume
+          ls -la reports/search_volume/data
 
+      - name: Validate Search Volume build
+        if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
+        continue-on-error: false
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "reports/search_volume/index.html" ]; then
+            echo "[ERROR] Search Volume HTML missing"
+            exit 1
+          fi
+
+          if grep -q "__DASHBOARD_DATA__" "reports/search_volume/index.html"; then
+            echo "[ERROR] Placeholder __DASHBOARD_DATA__ still exists in built HTML"
+            exit 1
+          fi
+
+          if [ ! -f "reports/search_volume/data/search_volume_data.json" ]; then
+            echo "[ERROR] search_volume_data.json missing"
+            exit 1
+          fi
+
+          python - <<'PY'
+import json
+import sys
+from pathlib import Path
+
+p = Path("reports/search_volume/data/search_volume_data.json")
+with p.open("r", encoding="utf-8") as f:
+    data = json.load(f)
+
+if not isinstance(data, dict):
+    print("[ERROR] search_volume_data.json is not a dict")
+    sys.exit(1)
+
+required_keys = ["keywords", "naver_snapshots", "google_history"]
+for key in required_keys:
+    if key not in data:
+        print(f"[ERROR] missing key: {key}")
+        sys.exit(1)
+
+print("[CHECK] keywords:", len(data.get("keywords", [])))
+print("[CHECK] naver_snapshots:", len(data.get("naver_snapshots", [])))
+print("[CHECK] google_history:", len(data.get("google_history", [])))
+PY
+
+      - name: Publish Search Volume dashboard to site/
+        if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
+        continue-on-error: false
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p site/search_volume
+          mkdir -p site/data/search_volume
+
+          if [ ! -f "reports/search_volume/index.html" ]; then
+            echo "[ERROR] reports/search_volume/index.html not found"
+            exit 1
+          fi
+
+          cp -f reports/search_volume/index.html site/search_volume/index.html
+
+          if [ -f "reports/search_volume/data/search_volume_data.json" ]; then
+            cp -f reports/search_volume/data/search_volume_data.json site/data/search_volume/search_volume_data.json
+          fi
+
+          if [ -f "reports/search_volume/data/meta.json" ]; then
+            cp -f reports/search_volume/data/meta.json site/data/search_volume/meta.json
+          fi
+
+          echo "[CHECK] site/search_volume:"
+          ls -lah site/search_volume
+          echo "[CHECK] site/data/search_volume:"
+          ls -lah site/data/search_volume
 
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ steps.modes.outputs.run_summary == 'true' }}
