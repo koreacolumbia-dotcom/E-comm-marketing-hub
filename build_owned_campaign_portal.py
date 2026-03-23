@@ -476,8 +476,8 @@ prod_user_rows AS (
     CAST(it.item_id AS STRING) AS item_id,
     ANY_VALUE(it.item_name) AS item_name,
     COALESCE(
-      NULLIF(ANY_VALUE(b.user_id), ''),
-      CAST(ANY_VALUE(s.user_pseudo_id) AS STRING)
+      NULLIF(CAST(b.user_id AS STRING), ''),
+      CAST(s.user_pseudo_id AS STRING)
     ) AS user_id,
     SUM(IFNULL(it.quantity,0)) AS items,
     SUM(IFNULL(it.item_revenue,0)) AS revenue
