@@ -2073,7 +2073,7 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
         media_rollups[media_key]['revenue'] += float(vals.get('revenue', 0) or 0)
 
     base_order = list(PAID_DETAIL_SOURCES)
-    top_level_media_order = ['naver', 'meta', 'google']
+    top_level_media_order = ['meta']
     keys = []
 
     for k in base_order + top_level_media_order:
@@ -2133,6 +2133,9 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
         (pd.to_numeric(out["cvr"], errors="coerce").fillna(0) != 0) |
         (pd.to_numeric(out["revenue"], errors="coerce").fillna(0) != 0)
     ].copy()
+
+    # Remove top-level rollup rows when detailed rows already exist to avoid double counting/confusing hierarchy.
+    out = out[~out["channel"].astype(str).str.strip().str.lower().isin(["naver", "google"])].copy()
 
     order_map = {k: i for i, k in enumerate(base_order + top_level_media_order)}
     out["__ord"] = out["channel"].astype(str).str.strip().str.lower().map(lambda x: order_map.get(x, 999))
