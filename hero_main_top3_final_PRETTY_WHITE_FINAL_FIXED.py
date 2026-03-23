@@ -312,6 +312,96 @@ DASHBOARD_KEYWORD_EXCLUDES = {
     "몬테라",
 }
 
+BRAND_KEYWORDS = {
+    "COLUMBIA",
+    "TNF",
+    "THE NORTH FACE",
+    "NORTH FACE",
+    "PATAGONIA",
+    "ARCTERYX",
+    "ARC'TERYX",
+    "SALOMON",
+    "SNOWPEAK",
+    "SNOW PEAK",
+    "BLACKYAK",
+    "BLACK YAK",
+    "DISCOVERY",
+    "DISCOVERY EXPEDITION",
+    "NEPA",
+    "NATIONAL GEOGRAPHIC",
+    "NATGEO",
+    "KOLON",
+    "KOLON SPORT",
+    "K2",
+    "MONTBELL",
+    "MONT-BELL",
+    "EIDER",
+    "MILLET",
+    "컬럼비아",
+    "노스페이스",
+    "파타고니아",
+    "아크테릭스",
+    "살로몬",
+    "스노우피크",
+    "블랙야크",
+    "디스커버리",
+    "네파",
+    "내셔널지오그래픽",
+    "코오롱스포츠",
+    "몽벨",
+    "아이더",
+    "밀레",
+}
+
+ALLOWED_CATEGORY_KEYWORDS = {
+    "자켓", "재킷", "아우터",
+    "바람막이", "윈드브레이커",
+    "팬츠", "바지",
+    "다운", "패딩",
+    "플리스", "후리스",
+    "티셔츠", "셔츠",
+    "베스트", "조끼",
+    "백팩", "가방",
+    "슈즈", "신발",
+    "샌들",
+    "기능성", "고기능성",
+}
+
+CATEGORY_MAP = {
+    "JACKET": "자켓",
+    "JACKETS": "자켓",
+    "SHELL": "자켓",
+    "WINDBREAKER": "바람막이",
+    "WIND": "바람막이",
+    "PANTS": "팬츠",
+    "PANT": "팬츠",
+    "TROUSERS": "팬츠",
+    "DOWN": "다운",
+    "PUFFER": "패딩",
+    "PADDING": "패딩",
+    "FLEECE": "플리스",
+    "HOODIE": "티셔츠",
+    "TEE": "티셔츠",
+    "TEE_SHIRT": "티셔츠",
+    "TSHIRT": "티셔츠",
+    "T-SHIRT": "티셔츠",
+    "SHIRT": "셔츠",
+    "VEST": "베스트",
+    "BAG": "가방",
+    "BACKPACK": "백팩",
+    "SHOES": "슈즈",
+    "SHOE": "슈즈",
+    "SNEAKER": "슈즈",
+    "SNEAKERS": "슈즈",
+    "SANDAL": "샌들",
+    "SANDALS": "샌들",
+    "TECH": "기능성",
+    "TECHNICAL": "고기능성",
+    "PERFORMANCE": "고기능성",
+    "FUNCTIONAL": "기능성",
+    "고기능": "고기능성",
+}
+
 VISUAL_TAG_RULES = [
     ("우천", [r"rain", r"storm", r"waterproof", r"우천", r"장마", r"방수"]),
     ("하이킹", [r"hike", r"hiking", r"trail", r"trek", r"mountain", r"등산", r"산행"]),
@@ -1098,19 +1188,75 @@ def _head_meta(page) -> Dict[str, str]:
         return {}
 
 
-def _landing_keywords_from_text(*parts: str, limit: int = 6) -> List[str]:
+def _normalize_keyword_token(raw: Any) -> str:
+    txt = norm_ws(str(raw or ""))
+    if not txt:
+        return ""
+
+    token = txt.upper() if re.search(r"[A-Za-z]", txt) else txt
+    token = token.strip("-_/ ")
+    token = re.sub(r"\s+", " ", token)
+    token = CATEGORY_MAP.get(token, token)
+
+    if token in {"WIND BREAKER", "WIND-BREAKER"}:
+        token = "바람막이"
+    elif token in {"TECH WEAR", "TECHWEAR", "FUNCTION"}:
+        token = "기능성"
+    elif token in {"OUTER", "OUTWEAR"}:
+        token = "아우터"
+
+    return token.strip()
+
+
+def extract_category_keywords_from_text(*parts: str, limit: int = 6) -> List[str]:
     counter: Counter = Counter()
     text = " ".join([norm_ws(x) for x in parts if norm_ws(x)])
-    english_tokens = re.findall(r"[A-Za-z][A-Za-z0-9'\-/&]{2,}", text)
+    english_tokens = re.findall(r"[A-Za-z][A-Za-z0-9'\-/&]{1,}", text)
     korean_tokens = re.findall(r"[가-힣]{2,}", text)
+
     for raw in english_tokens + korean_tokens:
-        token = raw.strip("-_/ ").upper() if re.search(r"[A-Za-z]", raw) else raw
-        if len(token) < 2:
+        token = _normalize_keyword_token(raw)
+        if not token or len(token) < 2:
+            continue
+        if token in BRAND_KEYWORDS:
             continue
         if token.lower() in KEYWORD_STOPWORDS or token in KEYWORD_STOPWORDS:
             continue
+        if token in DASHBOARD_KEYWORD_EXCLUDES:
+            continue
+        if token not in ALLOWED_CATEGORY_KEYWORDS:
+            continue
         counter[token] += 1
+
     return [k for k, _ in counter.most_common(limit)]
+
+
+def filter_category_keywords(keywords: List[str], limit: int = 6) -> List[str]:
+    out: List[str] = []
+    seen = set()
+
+    for raw in keywords or []:
+        token = _normalize_keyword_token(raw)
+        if not token:
+            continue
+        if token in BRAND_KEYWORDS:
+            continue
+        if token in DASHBOARD_KEYWORD_EXCLUDES:
+            continue
+        if token not in ALLOWED_CATEGORY_KEYWORDS:
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        out.append(token)
+        if len(out) >= limit:
+            break
+
+    return out
+
+
+def _landing_keywords_from_text(*parts: str, limit: int = 6) -> List[str]:
+    return extract_category_keywords_from_text(*parts, limit=limit)
 
 
 def _infer_landing_category(title: str, subtitle: str, summary: str, keywords: List[str]) -> str:
@@ -1476,7 +1622,8 @@ def enrich_campaign_meta_for_rows(context, rows: List[Banner]) -> None:
         b.landing_title = meta.get("landing_title", "") or ""
         b.landing_subtitle = meta.get("landing_subtitle", "") or ""
         b.landing_summary = meta.get("landing_summary", "") or ""
-        b.landing_keywords = ", ".join(meta.get("landing_keywords") or [])
+        filtered_keywords = filter_category_keywords(meta.get("landing_keywords") or [])
+        b.landing_keywords = ", ".join(filtered_keywords)
         b.landing_category = meta.get("landing_category", "") or ""
         b.landing_text_status = meta.get("landing_text_status", "") or ""
 
@@ -3009,17 +3156,16 @@ def send_email_alerts(alerts_payload: Dict[str, Any]) -> str:
 def analyze_title_keywords(rows: List[Banner], top_n: int = 12) -> List[Dict[str, Any]]:
     counter: Counter = Counter()
     for b in rows:
-        text = norm_ws(b.title or "")
+        text = " ".join([
+            norm_ws(b.landing_title or ""),
+            norm_ws(b.landing_subtitle or ""),
+            norm_ws(b.landing_summary or ""),
+            norm_ws(b.landing_keywords or ""),
+            norm_ws(b.title or ""),
+        ]).strip()
         if not text:
             continue
-        english_tokens = re.findall(r"[A-Za-z][A-Za-z0-9'\-/&]{2,}", text)
-        korean_tokens = re.findall(r"[가-힣]{2,}", text)
-        for raw in english_tokens + korean_tokens:
-            token = raw.strip("-_/ ").upper() if re.search(r"[A-Za-z]", raw) else raw
-            if len(token) < 2:
-                continue
-            if token.lower() in KEYWORD_STOPWORDS or token in KEYWORD_STOPWORDS:
-                continue
+        for token in extract_category_keywords_from_text(text, limit=top_n * 3):
             counter[token] += 1
     return [{"keyword": k, "count": v} for k, v in counter.most_common(top_n)]
 
@@ -3180,18 +3326,23 @@ def analyze_title_keywords(rows: List[Banner], top_n: int = 12) -> List[Dict[str
 
 
 def _normalize_dashboard_keyword(token: Any) -> str:
-    txt = norm_ws(str(token or ""))
-    if not txt:
-        return ""
-    return txt.upper() if re.search(r"[A-Za-z]", txt) else txt
+    return _normalize_keyword_token(token)
 
 
 def filter_dashboard_keywords(items: List[Dict[str, Any]], top_n: int = 14) -> List[Dict[str, Any]]:
     filtered: List[Dict[str, Any]] = []
+    seen = set()
     for item in items or []:
         keyword = _normalize_dashboard_keyword(item.get("keyword", ""))
-        if not keyword or keyword in DASHBOARD_KEYWORD_EXCLUDES:
+        if not keyword:
             continue
+        if keyword in BRAND_KEYWORDS or keyword in DASHBOARD_KEYWORD_EXCLUDES:
+            continue
+        if keyword not in ALLOWED_CATEGORY_KEYWORDS:
+            continue
+        if keyword in seen:
+            continue
+        seen.add(keyword)
         filtered.append({
             "keyword": keyword,
             "count": int(item.get("count", 0) or 0),
@@ -3655,16 +3806,16 @@ def write_html_legacy(path: str, rows: List[Banner], changes: Optional[Dict[str,
   
 
     /* === premium motion patch === */
-    @keyframes motionFadeUp{0%{opacity:0;transform:translate3d(0,20px,0) scale(.985)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}
-    @keyframes motionFadeLeft{0%{opacity:0;transform:translate3d(18px,0,0) scale(.985)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}
-    @keyframes motionPulseGlow{0%,100%{box-shadow:0 18px 38px rgba(15,23,42,.06)}50%{box-shadow:0 24px 48px rgba(0,45,114,.10)}}
+    @keyframes motionFadeUp{{0%{{opacity:0;transform:translate3d(0,20px,0) scale(.985)}}100%{{opacity:1;transform:translate3d(0,0,0) scale(1)}}}}
+    @keyframes motionFadeLeft{{0%{{opacity:0;transform:translate3d(18px,0,0) scale(.985)}}100%{{opacity:1;transform:translate3d(0,0,0) scale(1)}}}}
+    @keyframes motionPulseGlow{{0%,100%{{box-shadow:0 18px 38px rgba(15,23,42,.06)}}50%{{box-shadow:0 24px 48px rgba(0,45,114,.10)}}}}
     .motion-ready .motion-target,
-    .motion-ready .motion-target-left{opacity:0;will-change:transform,opacity}
-    .motion-ready .motion-in{animation:motionFadeUp .8s cubic-bezier(.22,.86,.22,1) both}
-    .motion-ready .motion-in-left{animation:motionFadeLeft .8s cubic-bezier(.22,.86,.22,1) both}
-    .motion-hover{transition:transform .22s ease, box-shadow .22s ease}
-    .motion-hover:hover{transform:translateY(-2px);box-shadow:0 18px 36px rgba(15,23,42,.10)}
-    .motion-glow{animation:motionPulseGlow 3.2s ease-in-out infinite}
+    .motion-ready .motion-target-left{{opacity:0;will-change:transform,opacity}}
+    .motion-ready .motion-in{{animation:motionFadeUp .8s cubic-bezier(.22,.86,.22,1) both}}
+    .motion-ready .motion-in-left{{animation:motionFadeLeft .8s cubic-bezier(.22,.86,.22,1) both}}
+    .motion-hover{{transition:transform .22s ease, box-shadow .22s ease}}
+    .motion-hover:hover{{transform:translateY(-2px);box-shadow:0 18px 36px rgba(15,23,42,.10)}}
+    .motion-glow{{animation:motionPulseGlow 3.2s ease-in-out infinite}}
 
   </style>
 </head>
@@ -3749,40 +3900,40 @@ def write_html_legacy(path: str, rows: List[Banner], changes: Optional[Dict[str,
 
 
 <script>
-(function(){
-  const initMotion = () => {
+(function(){{
+  const initMotion = () => {{
     document.body.classList.add('motion-ready');
     const selectors = [
       '.glass','.glass-card','.card','.summary-card','.review-card','.ml-card','.table-wrap',
       '.group-chip','.chip','.btn','.field','.topbar','.funnel-row','.summary-grid > *','section > .card'
     ];
     const nodes = Array.from(new Set(selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)))));
-    nodes.forEach((el, idx) => {
-      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {
+    nodes.forEach((el, idx) => {{
+      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {{
         el.classList.add('motion-target-left');
-      } else {
+      }} else {{
         el.classList.add('motion-target');
-      }
-      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {
+      }}
+      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {{
         el.classList.add('motion-hover');
-      }
-      el.style.animationDelay = `${Math.min(idx * 45, 520)}ms`;
-    });
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
+      }}
+      el.style.animationDelay = `${{Math.min(idx * 45, 520)}}ms`;
+    }});
+    const io = new IntersectionObserver((entries) => {{
+      entries.forEach(entry => {{
+        if (entry.isIntersecting) {{
           const el = entry.target;
           if (el.classList.contains('motion-target-left')) el.classList.add('motion-in-left');
           else el.classList.add('motion-in');
           io.unobserve(el);
-        }
-      });
-    }, {threshold:0.08, rootMargin:'0px 0px -8% 0px'});
+        }}
+      }});
+    }}, {{threshold:0.08, rootMargin:'0px 0px -8% 0px'}});
     nodes.forEach(el => io.observe(el));
-  };
+  }};
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMotion);
   else initMotion();
-})();
+}})();
 </script>
 
 </body>
@@ -4014,40 +4165,40 @@ def write_dashboard_html_legacy(path: str, rows: List[Banner], changes: Optional
   </script>
 
 <script>
-(function(){
-  const initMotion = () => {
+(function(){{
+  const initMotion = () => {{
     document.body.classList.add('motion-ready');
     const selectors = [
       '.glass','.glass-card','.card','.summary-card','.review-card','.ml-card','.table-wrap',
       '.group-chip','.chip','.btn','.field','.topbar','.funnel-row','.summary-grid > *','section > .card'
     ];
     const nodes = Array.from(new Set(selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)))));
-    nodes.forEach((el, idx) => {
-      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {
+    nodes.forEach((el, idx) => {{
+      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {{
         el.classList.add('motion-target-left');
-      } else {
+      }} else {{
         el.classList.add('motion-target');
-      }
-      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {
+      }}
+      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {{
         el.classList.add('motion-hover');
-      }
-      el.style.animationDelay = `${Math.min(idx * 45, 520)}ms`;
-    });
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
+      }}
+      el.style.animationDelay = `${{Math.min(idx * 45, 520)}}ms`;
+    }});
+    const io = new IntersectionObserver((entries) => {{
+      entries.forEach(entry => {{
+        if (entry.isIntersecting) {{
           const el = entry.target;
           if (el.classList.contains('motion-target-left')) el.classList.add('motion-in-left');
           else el.classList.add('motion-in');
           io.unobserve(el);
-        }
-      });
-    }, {threshold:0.08, rootMargin:'0px 0px -8% 0px'});
+        }}
+      }});
+    }}, {{threshold:0.08, rootMargin:'0px 0px -8% 0px'}});
     nodes.forEach(el => io.observe(el));
-  };
+  }};
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMotion);
   else initMotion();
-})();
+}})();
 </script>
 
 </body>
@@ -4242,40 +4393,40 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
   </script>
 
 <script>
-(function(){
-  const initMotion = () => {
+(function(){{
+  const initMotion = () => {{
     document.body.classList.add('motion-ready');
     const selectors = [
       '.glass','.glass-card','.card','.summary-card','.review-card','.ml-card','.table-wrap',
       '.group-chip','.chip','.btn','.field','.topbar','.funnel-row','.summary-grid > *','section > .card'
     ];
     const nodes = Array.from(new Set(selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)))));
-    nodes.forEach((el, idx) => {
-      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {
+    nodes.forEach((el, idx) => {{
+      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {{
         el.classList.add('motion-target-left');
-      } else {
+      }} else {{
         el.classList.add('motion-target');
-      }
-      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {
+      }}
+      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {{
         el.classList.add('motion-hover');
-      }
-      el.style.animationDelay = `${Math.min(idx * 45, 520)}ms`;
-    });
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
+      }}
+      el.style.animationDelay = `${{Math.min(idx * 45, 520)}}ms`;
+    }});
+    const io = new IntersectionObserver((entries) => {{
+      entries.forEach(entry => {{
+        if (entry.isIntersecting) {{
           const el = entry.target;
           if (el.classList.contains('motion-target-left')) el.classList.add('motion-in-left');
           else el.classList.add('motion-in');
           io.unobserve(el);
-        }
-      });
-    }, {threshold:0.08, rootMargin:'0px 0px -8% 0px'});
+        }}
+      }});
+    }}, {{threshold:0.08, rootMargin:'0px 0px -8% 0px'}});
     nodes.forEach(el => io.observe(el));
-  };
+  }};
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMotion);
   else initMotion();
-})();
+}})();
 </script>
 
 </body>
