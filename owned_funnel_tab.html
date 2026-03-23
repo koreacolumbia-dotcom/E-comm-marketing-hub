@@ -348,7 +348,7 @@
 
       async function fetchJson(url){
         const res = await fetch(url, { cache: 'no-store' });
-        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        if(!res.ok) throw new Error(`HTTP ${res.status} | ${url}`);
         return res.json();
       }
       const clamp = (v) => {
@@ -570,22 +570,8 @@
       const delta = (cur, prev) => prev ? `${cur >= prev ? '+' : ''}${(((cur - prev) / prev) * 100).toFixed(1)}%` : (cur ? '+100.0%' : '0.0%');
       const fmtDeltaNum = (a, b, isMoney=false) => {
         const d = Number(a || 0) - Number(b || 0);
-        const sign = d >= 0 ? '+' : '';
-        const out = isMoney ? fmtMoney(Math.abs(d)) : fmt(Math.abs(d));
-        return `${sign}${isMoney ? fmtMoney(d) : d.toLocaleString('en-US')}`;
+        return isMoney ? `${d >= 0 ? '+' : ''}${fmtMoney(d)}` : `${d >= 0 ? '+' : ''}${d.toLocaleString('en-US')}`;
       };
-
-      function fitTextToBox(el, opts={}){
-        if (!el || !el.parentElement) return;
-        const { max=40, min=8, widthRatio=.9, heightRatio=.9 } = opts;
-        const parent = el.parentElement;
-        let size = max;
-        el.style.fontSize = `${size}px`;
-        while (size > min && (el.scrollWidth > parent.clientWidth * widthRatio || el.scrollHeight > parent.clientHeight * heightRatio)) {
-          size -= 1;
-          el.style.fontSize = `${size}px`;
-        }
-      }
 
       function autoFitFunnelText(root){
         root.querySelectorAll('.funnel-stage').forEach((stage) => {
@@ -659,7 +645,6 @@
             guard -= 1;
           }
         });
-      });
       }
 
       function renderFunnel(canvas, behavior, className=''){
@@ -854,12 +839,11 @@
 
       function buildDropoffData(){
         const segments = FILTER_SEGMENTS;
-        const entries = segments.map((segment) => {
+        return segments.map((segment) => {
           const m = modelFor(state.current.current, segment, '');
           const ranked = m.behavior.steps.slice().sort((a,b) => b.drop - a.drop).slice(0,3);
           return { segment, label: segmentLabel(segment), ranked, model: m };
         });
-        return entries;
       }
 
       function renderDropoff(){
@@ -958,45 +942,51 @@
       }
 
       async function init(){
-        const available = await fetchJson(`${DATA_BASE}/available_dates.json?t=${Date.now()}`);
-        state.available = (Array.isArray(available) ? available : (available.available_dates || [])).slice().sort();
-        if(!state.available.length){
+        try {
+          const available = await fetchJson(`${DATA_BASE}/available_dates.json?t=${Date.now()}`);
+          state.available = (Array.isArray(available) ? available : (available.available_dates || [])).slice().sort();
+          if(!state.available.length){
+            els.errorState.classList.remove('hidden');
+            els.errorState.textContent = `No available_dates.json found under ${DATA_BASE}.`;
+            return;
+          }
+          const latest = state.available[state.available.length - 1];
+          els.datePicker.value = latest;
+          els.startPicker.value = state.available[Math.max(0, state.available.length - 7)];
+          els.endPicker.value = latest;
+          [els.datePicker, els.startPicker, els.endPicker].forEach((field) => { field.min = state.available[0]; field.max = latest; });
+
+          document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', async () => {
+            state.view = b.getAttribute('data-view') || 'week';
+            state.selectedGroup = '';
+            await refresh();
+          }));
+          document.querySelectorAll('[data-segment]').forEach((b) => b.addEventListener('click', async () => {
+            state.segment = b.getAttribute('data-segment') || 'ALL';
+            state.selectedGroup = '';
+            await refresh();
+          }));
+          document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', async () => {
+            state.tab = b.getAttribute('data-tab') || 'overview';
+            await refresh();
+          }));
+
+          els.btnApply.addEventListener('click', async () => { state.selectedGroup = ''; await refresh(); });
+          els.btnPrev.addEventListener('click', async () => { shift(-1); state.selectedGroup = ''; await refresh(); });
+          els.btnNext.addEventListener('click', async () => { shift(1); state.selectedGroup = ''; await refresh(); });
+          els.btnResetSelection.addEventListener('click', () => { state.selectedGroup = ''; if(state.current) render(); });
+
+          els.cmpASegment.addEventListener('change', () => { state.compare.A.segment = els.cmpASegment.value; state.compare.A.group = ''; renderCompare(); });
+          els.cmpBSegment.addEventListener('change', () => { state.compare.B.segment = els.cmpBSegment.value; state.compare.B.group = ''; renderCompare(); });
+          els.cmpAGroup.addEventListener('change', () => { state.compare.A.group = els.cmpAGroup.value; renderCompare(); });
+          els.cmpBGroup.addEventListener('change', () => { state.compare.B.group = els.cmpBGroup.value; renderCompare(); });
+
+          await refresh();
+        } catch (error) {
+          els.loadingState.classList.add('hidden');
           els.errorState.classList.remove('hidden');
-          els.errorState.textContent = `No available_dates.json found under ${DATA_BASE}.`;
-          return;
+          els.errorState.textContent = `Init failed. ${error.message || error}`;
         }
-        const latest = state.available[state.available.length - 1];
-        els.datePicker.value = latest;
-        els.startPicker.value = state.available[Math.max(0, state.available.length - 7)];
-        els.endPicker.value = latest;
-        [els.datePicker, els.startPicker, els.endPicker].forEach((field) => { field.min = state.available[0]; field.max = latest; });
-
-        document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', async () => {
-          state.view = b.getAttribute('data-view') || 'week';
-          state.selectedGroup = '';
-          await refresh();
-        }));
-        document.querySelectorAll('[data-segment]').forEach((b) => b.addEventListener('click', async () => {
-          state.segment = b.getAttribute('data-segment') || 'ALL';
-          state.selectedGroup = '';
-          await refresh();
-        }));
-        document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', async () => {
-          state.tab = b.getAttribute('data-tab') || 'overview';
-          await refresh();
-        }));
-
-        els.btnApply.addEventListener('click', async () => { state.selectedGroup = ''; await refresh(); });
-        els.btnPrev.addEventListener('click', async () => { shift(-1); state.selectedGroup = ''; await refresh(); });
-        els.btnNext.addEventListener('click', async () => { shift(1); state.selectedGroup = ''; await refresh(); });
-        els.btnResetSelection.addEventListener('click', () => { state.selectedGroup = ''; if(state.current) render(); });
-
-        els.cmpASegment.addEventListener('change', () => { state.compare.A.segment = els.cmpASegment.value; state.compare.A.group = ''; renderCompare(); });
-        els.cmpBSegment.addEventListener('change', () => { state.compare.B.segment = els.cmpBSegment.value; state.compare.B.group = ''; renderCompare(); });
-        els.cmpAGroup.addEventListener('change', () => { state.compare.A.group = els.cmpAGroup.value; renderCompare(); });
-        els.cmpBGroup.addEventListener('change', () => { state.compare.B.group = els.cmpBGroup.value; renderCompare(); });
-
-        await refresh();
       }
 
       init();
