@@ -115,6 +115,12 @@
         <button class="chip rounded-full px-4 py-2 text-xs" data-tab="compare" type="button">Compare</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-tab="dropoff" type="button">Drop-off</button>
       </div>
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <div class="kicker">Compare Base</div>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-compare="prev" type="button">Prev</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-compare="wow" type="button">WoW</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-compare="yoy" type="button">YoY</button>
+      </div>
     </section>
 
     <div id="loadingState" class="empty hidden">Loading funnel data...</div>
@@ -270,7 +276,7 @@
     </div>
   </div>
 
-  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'data/funnel';</script>
+  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel';</script>
   <script>
     (() => {
       const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'data/funnel').replace(/\/$/, '');
@@ -290,6 +296,7 @@
         view: 'week',
         tab: 'overview',
         segment: 'ALL',
+        compareMode: 'prev',
         available: [],
         selectedGroup: '',
         current: null,
@@ -345,6 +352,7 @@
       const addDays = (dt, diff) => { const out = new Date(dt); out.setDate(out.getDate() + diff); return out; };
       const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
       const segmentLabel = (seg = state.segment) => SEGMENT_LABELS[seg] || seg;
+      const compareLabel = () => state.compareMode === 'wow' ? 'WoW' : (state.compareMode === 'yoy' ? 'YoY' : 'Prev');
       const ownedChildSegments = () => OWNED_SEGMENTS.slice(1);
 
       async function fetchJson(url){
@@ -402,9 +410,26 @@
       }
 
       function previousRange(start, end){
+        const clampDate = (v) => clamp(v);
+        if(state.compareMode === 'wow'){
+          return {
+            start: clampDate(ymd(addDays(parseYmd(start), -7))),
+            end: clampDate(ymd(addDays(parseYmd(end), -7)))
+          };
+        }
+        if(state.compareMode === 'yoy'){
+          const shiftYear = (v) => {
+            const d = parseYmd(v);
+            return ymd(new Date(d.getFullYear() - 1, d.getMonth(), d.getDate()));
+          };
+          return {
+            start: clampDate(shiftYear(start)),
+            end: clampDate(shiftYear(end))
+          };
+        }
         const span = Math.round((parseYmd(end) - parseYmd(start)) / 86400000) + 1;
-        const prevEnd = clamp(ymd(addDays(parseYmd(start), -1)));
-        const prevStart = clamp(ymd(addDays(parseYmd(prevEnd), -(span - 1))));
+        const prevEnd = clampDate(ymd(addDays(parseYmd(start), -1)));
+        const prevStart = clampDate(ymd(addDays(parseYmd(prevEnd), -(span - 1))));
         return { start:prevStart, end:prevEnd };
       }
 
@@ -666,7 +691,6 @@
             guard -= 1;
           }
         });
-      });
       }
 
       function renderFunnel(canvas, behavior, className=''){
@@ -683,7 +707,7 @@
             return `
             <div class="funnel-row">
               <div class="funnel-lane">
-                ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
+                ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} â ${esc(stage.label)} Â· ${fmtPct(stage.kept,1)} ì ì§ Â· ${fmtPct(stage.drop,1)} ì´í</div>`}
                 <div class="funnel-track">
                   <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%;animation-delay:${i*90}ms">
                     <div class="funnel-stage-inner">
@@ -691,7 +715,7 @@
                         <div class="stage-title">${esc(stage.label)}</div>
                         <div class="stage-value">
                           <div class="num">${fmt(stage.value)}</div>
-                          <div class="sub">${i===0 ? '기준 단계' : `이탈 ${fmtPct(stage.drop,1)}`}</div>
+                          <div class="sub">${i===0 ? 'ê¸°ì¤ ë¨ê³' : `ì´í ${fmtPct(stage.drop,1)}`}</div>
                         </div>
                       </div>
                     </div>
@@ -730,12 +754,12 @@
         els.groupHeading.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'MMDD Groups In Scope' : 'Dates In Scope';
 
         els.summaryCards.innerHTML = [
-          ['Sessions', fmt(currentModel.agg.sessions), `Prev ${fmt(previousModel.agg.sessions)} | ${delta(currentModel.agg.sessions, previousModel.agg.sessions)}`],
+          ['Sessions', fmt(currentModel.agg.sessions), `${compareLabel()} ${fmt(previousModel.agg.sessions)} | ${delta(currentModel.agg.sessions, previousModel.agg.sessions)}`],
           ['PDP Views', fmt(currentModel.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0), 'Behavior stage'],
           ['Cart', fmt(currentModel.behavior.stages.find(s => s.key === 'addToCart')?.value || 0), 'Behavior stage'],
           ['Checkout', fmt(currentModel.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), 'Behavior stage'],
-          ['Orders', fmt(currentModel.agg.orders), `Prev ${fmt(previousModel.agg.orders)} | ${delta(currentModel.agg.orders, previousModel.agg.orders)}`],
-          ['Session CVR', fmtPct(currentModel.sessionCvr, 2), `Prev ${fmtPct(previousModel.sessionCvr, 2)} | ${(currentModel.sessionCvr - previousModel.sessionCvr >= 0 ? '+' : '') + (currentModel.sessionCvr - previousModel.sessionCvr).toFixed(2)}%p`],
+          ['Orders', fmt(currentModel.agg.orders), `${compareLabel()} ${fmt(previousModel.agg.orders)} | ${delta(currentModel.agg.orders, previousModel.agg.orders)}`],
+          ['Session CVR', fmtPct(currentModel.sessionCvr, 2), `${compareLabel()} ${fmtPct(previousModel.sessionCvr, 2)} | ${(currentModel.sessionCvr - previousModel.sessionCvr >= 0 ? '+' : '') + (currentModel.sessionCvr - previousModel.sessionCvr).toFixed(2)}%p`],
         ].map(([label, value, sub]) => `<article class="card p-5"><div class="kicker">${esc(label)}</div><div class="metric mt-3">${esc(value)}</div><div class="mt-2 text-xs font-semibold muted">${esc(sub)}</div></article>`).join('');
 
         renderFunnel(els.funnelCanvas, currentModel.behavior);
@@ -746,7 +770,7 @@
         els.selectionMeta.innerHTML = [
           `Segment | ${segmentLabel()}`,
           `Selection | ${selectedGroup ? selectedGroup.label : 'Total period'}`,
-          `Comparison baseline | ${prevRange.start} to ${prevRange.end}`,
+          `${compareLabel()} baseline | ${prevRange.start} to ${prevRange.end}`,
           `Orders | ${fmt(currentModel.agg.orders)}`,
           `Revenue | ${fmtMoney(currentModel.agg.revenue)}`,
           `AOV | ${fmtMoney(currentModel.aov)}`,
@@ -843,8 +867,8 @@
 
         const aLabel = `${segmentLabel(a.segment)} | ${state.compare.A.group || 'Total period'}`;
         const bLabel = `${segmentLabel(b.segment)} | ${state.compare.B.group || 'Total period'}`;
-        els.compareMetaA.innerHTML = `<div>${esc(aLabel)}</div><div class="mt-1">Orders ${fmt(a.agg.orders)} · Revenue ${fmtMoney(a.agg.revenue)} · Session CVR ${fmtPct(a.sessionCvr,2)}</div>`;
-        els.compareMetaB.innerHTML = `<div>${esc(bLabel)}</div><div class="mt-1">Orders ${fmt(b.agg.orders)} · Revenue ${fmtMoney(b.agg.revenue)} · Session CVR ${fmtPct(b.sessionCvr,2)}</div>`;
+        els.compareMetaA.innerHTML = `<div>${esc(aLabel)}</div><div class="mt-1">Orders ${fmt(a.agg.orders)} Â· Revenue ${fmtMoney(a.agg.revenue)} Â· Session CVR ${fmtPct(a.sessionCvr,2)}</div>`;
+        els.compareMetaB.innerHTML = `<div>${esc(bLabel)}</div><div class="mt-1">Orders ${fmt(b.agg.orders)} Â· Revenue ${fmtMoney(b.agg.revenue)} Â· Session CVR ${fmtPct(b.sessionCvr,2)}</div>`;
 
         const rows = [
           ['Sessions', a.agg.sessions, b.agg.sessions, fmtDeltaNum(a.agg.sessions, b.agg.sessions)],
@@ -882,7 +906,7 @@
               <span class="rank-badge">#${idx+1}</span>
               <div>
                 <div class="text-sm font-black">${esc(row.segment)}</div>
-                <div class="mt-1 text-sm font-semibold muted">${esc(row.top.from)} → ${esc(row.top.to)}</div>
+                <div class="mt-1 text-sm font-semibold muted">${esc(row.top.from)} â ${esc(row.top.to)}</div>
                 <div class="mt-1 text-sm font-black text-rose-600">${fmtPct(row.top.drop,1)} drop</div>
               </div>
             </div>
@@ -892,7 +916,7 @@
         const stepBuckets = {};
         entries.forEach((entry) => {
           entry.ranked.forEach((step) => {
-            const key = `${step.from} → ${step.to}`;
+            const key = `${step.from} â ${step.to}`;
             if (!stepBuckets[key]) stepBuckets[key] = [];
             stepBuckets[key].push({ segment: entry.label, drop: step.drop, kept: step.kept });
           });
@@ -913,9 +937,9 @@
         els.dropSegmentTableBody.innerHTML = entries.map((entry) => `
           <tr>
             <td class="font-black">${esc(entry.label)}</td>
-            <td>${entry.ranked[0] ? `${esc(entry.ranked[0].from)} → ${esc(entry.ranked[0].to)} · ${fmtPct(entry.ranked[0].drop,1)}` : '-'}</td>
-            <td>${entry.ranked[1] ? `${esc(entry.ranked[1].from)} → ${esc(entry.ranked[1].to)} · ${fmtPct(entry.ranked[1].drop,1)}` : '-'}</td>
-            <td>${entry.ranked[2] ? `${esc(entry.ranked[2].from)} → ${esc(entry.ranked[2].to)} · ${fmtPct(entry.ranked[2].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[0] ? `${esc(entry.ranked[0].from)} â ${esc(entry.ranked[0].to)} Â· ${fmtPct(entry.ranked[0].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[1] ? `${esc(entry.ranked[1].from)} â ${esc(entry.ranked[1].to)} Â· ${fmtPct(entry.ranked[1].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[2] ? `${esc(entry.ranked[2].from)} â ${esc(entry.ranked[2].to)} Â· ${fmtPct(entry.ranked[2].drop,1)}` : '-'}</td>
           </tr>
         `).join('');
       }
@@ -931,6 +955,7 @@
           document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-view') === state.view));
           document.querySelectorAll('[data-segment]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-segment') === state.segment));
           document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === state.tab));
+          document.querySelectorAll('[data-compare]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-compare') === state.compareMode));
           document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `panel-${state.tab}`));
 
           const [currentBundle, previousBundle] = await Promise.all([loadRange(range.start, range.end), loadRange(prev.start, prev.end)]);
@@ -991,6 +1016,11 @@
           }));
           document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', async () => {
             state.tab = b.getAttribute('data-tab') || 'overview';
+            await refresh();
+          }));
+          document.querySelectorAll('[data-compare]').forEach((b) => b.addEventListener('click', async () => {
+            state.compareMode = b.getAttribute('data-compare') || 'prev';
+            state.selectedGroup = '';
             await refresh();
           }));
 
