@@ -937,7 +937,15 @@ jobs:
           mkdir -p reports/search_volume/data
 
           echo "[INFO] Search Volume backfill window: ${START_DATE} ~ ${YMD}"
-          python -u "$SCRIPT"             --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화"             --start-date "$START_DATE"             --end-date "$YMD"             --geo KR             --template "$TEMPLATE"             --output-json "$OUT_JSON"             --output-html "$OUT_HTML"             --meta-json "$META_JSON"
+          python -u "$SCRIPT" \
+            --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화" \
+            --start-date "$START_DATE" \
+            --end-date "$YMD" \
+            --geo KR \
+            --template "$TEMPLATE" \
+            --output-json "$OUT_JSON" \
+            --output-html "$OUT_HTML" \
+            --meta-json "$META_JSON"
 
           echo "[INFO] Search Volume outputs:"
           ls -la reports/search_volume
@@ -965,29 +973,24 @@ jobs:
             exit 1
           fi
 
-          python - <<'PY'
-import json
-import sys
+          python -c '
+import json, sys
 from pathlib import Path
-
 p = Path("reports/search_volume/data/search_volume_data.json")
 with p.open("r", encoding="utf-8") as f:
     data = json.load(f)
-
 if not isinstance(data, dict):
     print("[ERROR] search_volume_data.json is not a dict")
     sys.exit(1)
-
 required_keys = ["keywords", "naver_snapshots", "google_history"]
 for key in required_keys:
     if key not in data:
         print(f"[ERROR] missing key: {key}")
         sys.exit(1)
-
 print("[CHECK] keywords:", len(data.get("keywords", [])))
 print("[CHECK] naver_snapshots:", len(data.get("naver_snapshots", [])))
 print("[CHECK] google_history:", len(data.get("google_history", [])))
-PY
+' 
 
       - name: Publish Search Volume dashboard to site/
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
