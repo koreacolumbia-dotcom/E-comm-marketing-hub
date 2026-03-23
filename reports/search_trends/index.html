@@ -1,861 +1,449 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Search Trends Dashboard | Columbia</title>
-
+  <title>검색량 Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
-    html, body { height: 100%; }
-    body{
-      background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      color:#0f172a; min-height:100vh;
-    }
-
-    .glass-card{
-      background: rgba(255,255,255,0.55);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.75);
-      border-radius: 30px;
-      box-shadow: 0 20px 50px rgba(0,45,114,0.05);
-    }
-
-    .topbar{
-      background: rgba(255,255,255,0.70);
-      backdrop-filter: blur(15px);
-      border-bottom: 1px solid rgba(255,255,255,0.80);
-    }
-
-    .summary-card{
-      border-radius: 26px; background: rgba(255,255,255,0.55);
-      border: 1px solid rgba(255,255,255,0.75); backdrop-filter: blur(18px);
-      box-shadow: 0 20px 50px rgba(0,45,114,0.05);
-      padding: 18px 20px;
-    }
-
-    .small-label{
-      font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 900;
-    }
-
-    .input-glass{
-      background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.80);
-      border-radius: 18px; padding: 12px 14px; outline: none; font-weight: 800; color:#0f172a;
-    }
-    .input-glass:focus{
-      box-shadow: 0 0 0 4px rgba(0,45,114,0.10);
-      border-color: rgba(0,45,114,0.25);
-    }
-
-    .chip{
-      border-radius: 9999px; padding: 10px 14px; font-weight: 900; font-size: 12px;
-      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.60);
-      color:#334155; cursor:pointer; user-select:none;
-    }
-    .chip.active{
-      background: rgba(0,45,114,0.95); color:#fff; border-color: rgba(0,45,114,1);
-      box-shadow: 0 10px 30px rgba(0,45,114,0.15);
-    }
-
-
-    .period-tabs{ display:flex; flex-wrap:wrap; gap:10px; }
-    .period-tab{
-      position:relative;
-      padding:10px 16px; border-radius:9999px; font-size:13px; font-weight:900;
-      border:1px solid rgba(255,255,255,0.9); background:rgba(255,255,255,0.62); color:#334155;
-      box-shadow: 0 10px 24px rgba(15,23,42,0.04);
-      backdrop-filter: blur(10px); cursor:pointer; user-select:none;
-      transition: transform .22s ease, box-shadow .22s ease, background .22s ease, color .22s ease, border-color .22s ease;
-      overflow:hidden;
-    }
-    .period-tab:hover{ transform: translateY(-1px); box-shadow: 0 16px 30px rgba(0,45,114,0.10); }
-    .period-tab.active{ background:rgba(0,45,114,0.96); color:#fff; border-color:rgba(0,45,114,1); box-shadow:0 14px 32px rgba(0,45,114,0.18); }
-    .period-tab::after{
-      content:''; position:absolute; inset:0; background:linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0) 70%);
-      transform: translateX(-140%); transition: transform .6s ease;
-    }
-    .period-tab:hover::after, .period-tab.active::after{ transform: translateX(140%); }
-
-    .fade-up{ animation: fadeUp .45s ease both; }
-    @keyframes fadeUp{ from{ opacity:0; transform:translateY(10px);} to{ opacity:1; transform:translateY(0);} }
-
-    .tbl{
-      width:100%; border-collapse: separate; border-spacing: 0; overflow:hidden; border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.55);
-    }
-    .tbl th{
-      font-size: 11px; letter-spacing: .22em; text-transform: uppercase; font-weight: 900;
-      color:#475569; background: rgba(255,255,255,0.75); padding: 14px 14px;
-      position: sticky; top: 0; z-index: 1;
-    }
-    .tbl td{
-      padding: 14px 14px; border-top: 1px solid rgba(255,255,255,0.75); font-weight: 800;
-      color:#0f172a; font-size: 13px; vertical-align: top;
-    }
-
-    .badge{
-      display:inline-flex; align-items:center; gap:6px; padding: 6px 10px; border-radius: 9999px;
-      font-size: 11px; font-weight: 900; border: 1px solid rgba(255,255,255,0.85);
-      background: rgba(255,255,255,0.65); color:#334155;
-    }
-    .badge.naver{ background: rgba(16,185,129,0.10); color:#047857; border-color: rgba(16,185,129,0.18); }
-    .badge.google{ background: rgba(59,130,246,0.10); color:#1d4ed8; border-color: rgba(59,130,246,0.18); }
-    .badge.growth{ background: rgba(234,179,8,0.12); color:#a16207; border-color: rgba(234,179,8,0.18); }
-
-    .rank-list{ display:grid; grid-template-columns:1fr; gap:10px; }
-    .rank-item{
-      padding: 14px 16px; border-radius: 20px; background: rgba(255,255,255,0.58);
-      border: 1px solid rgba(255,255,255,0.82);
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-    }
-
-    .chart-wrap{ position:relative; width:100%; height:380px; }
-    .chart-wrap-tall{ position:relative; width:100%; height:430px; }
-    .kpi-value{ font-size: 2rem; font-weight: 900; line-height: 1; }
-    .muted{ color:#64748b; }
-
-    .bg-orb{
-      position:fixed; border-radius:9999px; filter: blur(50px); opacity:.26; pointer-events:none; z-index:0;
-      animation: floatOrb 12s ease-in-out infinite;
-    }
-    .bg-orb.orb-1{ width:280px; height:280px; background:rgba(59,130,246,.18); top:60px; right:4%; }
-    .bg-orb.orb-2{ width:240px; height:240px; background:rgba(16,185,129,.16); top:46%; left:2%; animation-delay:-4s; }
-    .bg-orb.orb-3{ width:220px; height:220px; background:rgba(245,158,11,.14); bottom:4%; right:14%; animation-delay:-8s; }
-    @keyframes floatOrb{
-      0%,100%{ transform: translate3d(0,0,0) scale(1); }
-      50%{ transform: translate3d(0,-14px,0) scale(1.04); }
-    }
-
-    .reveal{
-      opacity:0; transform: translateY(18px) scale(.985);
-      transition: opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1);
-      transition-delay: var(--reveal-delay, 0ms);
-      will-change: transform, opacity;
-    }
-    .reveal.in-view{ opacity:1; transform: translateY(0) scale(1); }
-
-    .rank-item, .summary-card, .glass-card, .chip{
-      transition: transform .26s ease, box-shadow .26s ease, background .26s ease, border-color .26s ease;
-    }
-    .summary-card:hover, .glass-card:hover{
-      transform: translateY(-3px);
-      box-shadow: 0 26px 60px rgba(0,45,114,0.08);
-    }
-    .rank-item{
-      opacity:0; transform: translateY(10px);
-      animation: rankIn .5s ease forwards;
-      animation-delay: calc(var(--idx, 0) * 55ms);
-    }
-    @keyframes rankIn{ to{ opacity:1; transform: translateY(0); } }
-
-    body.embedded .topbar, body.embedded .layout-header { display:none !important; }
-    body.embedded main{ padding: 24px !important; }
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;700;800&display=swap');
+    :root { --brand:#143f8f; --bg0:#f6f8fb; --bg1:#eef3f9; --ink:#0f172a; --muted:#64748b; }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--bg0),var(--bg1));font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink)}
+    .shell{max-width:1480px;margin:0 auto;padding:28px 24px 56px}
+    .glass-card{background:rgba(255,255,255,.72);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.85);border-radius:28px;box-shadow:0 20px 50px rgba(0,45,114,.06)}
+    .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:28px 30px;margin-bottom:22px;animation:fadeUp .5s ease both}
+    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.24em;text-transform:uppercase;color:#64748b}
+    .headline{font-size:34px;line-height:1.08;font-weight:900;letter-spacing:-.03em;margin-top:10px}
+    .sub{font-size:14px;color:#64748b;font-weight:700;margin-top:8px}
+    .summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:22px}
+    .summary-card{padding:22px 22px 20px;position:relative;overflow:hidden;opacity:0;transform:translateY(12px);animation:fadeUp .55s ease forwards;transition:transform .22s ease, box-shadow .22s ease}
+    .summary-card:hover{transform:translateY(-2px);box-shadow:0 24px 54px rgba(0,45,114,.08)}
+    .summary-k{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
+    .summary-v{font-size:30px;font-weight:900;letter-spacing:-.03em;margin-top:10px}
+    .summary-s{font-size:13px;color:#64748b;font-weight:700;margin-top:6px}
+    .section-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;margin-bottom:18px}
+    .card{padding:24px 24px 18px;opacity:0;transform:translateY(10px);animation:fadeUp .55s ease forwards}
+    .card h3{margin:0;font-size:18px;font-weight:900;letter-spacing:-.02em}
+    .card .desc{font-size:13px;color:#64748b;font-weight:700;margin-top:6px}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 18px;animation:fadeUp .55s ease both .08s}
+    .tab{border:1px solid rgba(15,23,42,.06);background:rgba(255,255,255,.72);padding:10px 15px;border-radius:999px;font-size:13px;font-weight:900;color:#64748b;cursor:pointer;transition:all .18s ease}
+    .tab:hover{transform:translateY(-1px) scale(1.02);box-shadow:0 10px 18px rgba(0,45,114,.06);color:#334155}
+    .tab.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 12px 24px rgba(15,23,42,.12);transform:scale(1.04)}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.66);font-size:12px;font-weight:800;color:#475569;border:1px solid rgba(148,163,184,.16)}
+    .chart-wrap{position:relative;height:360px;margin-top:16px}
+    .table-wrap{overflow:auto;margin-top:14px;border-radius:20px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:13px 12px;border-bottom:1px solid rgba(148,163,184,.14);text-align:left;white-space:nowrap}
+    th{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#94a3b8;font-weight:900}
+    td{font-weight:700;color:#1e293b}
+    tbody tr{transition:background .15s ease, transform .18s ease;opacity:0;transform:translateY(8px);animation:fadeUp .4s ease forwards}
+    tbody tr:hover{background:rgba(255,255,255,.5)}
+    .rank-list{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+    .rank-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border-radius:20px;background:rgba(255,255,255,.5);border:1px solid rgba(148,163,184,.12);opacity:0;transform:translateY(8px);transition:transform .18s ease, box-shadow .18s ease;animation:fadeUp .42s ease forwards}
+    .rank-item:hover{transform:translateY(-1px);box-shadow:0 14px 24px rgba(0,45,114,.06)}
+    .rank-left{display:flex;align-items:center;gap:12px;min-width:0}
+    .badge{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#0f172a;font-weight:900;font-size:12px;flex:0 0 auto}
+    .kw{font-size:14px;font-weight:900;color:#0f172a;overflow:hidden;text-overflow:ellipsis}
+    .meta{font-size:12px;color:#64748b;font-weight:700;margin-top:2px}
+    .val{font-size:15px;font-weight:900;color:#0f172a}
+    .mutedbox{margin-top:14px;padding:14px 16px;border-radius:18px;background:rgba(255,255,255,.42);border:1px dashed rgba(148,163,184,.35);font-size:12px;color:#64748b;font-weight:700;line-height:1.65}
+    .empty{padding:24px 18px;text-align:center;color:#64748b;font-size:13px;font-weight:700}
+    .footer-note{font-size:12px;color:#64748b;font-weight:700;margin-top:16px;line-height:1.7}
+    .spark{position:absolute;inset:auto 0 0 auto;width:120px;height:120px;border-radius:999px;background:radial-gradient(circle at center, rgba(20,63,143,.08), rgba(20,63,143,0));pointer-events:none}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @media (max-width: 1180px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.section-grid{grid-template-columns:1fr}.chart-wrap{height:320px}}
+    @media (max-width: 768px){.shell{padding:18px 14px 32px}.topbar{padding:22px 18px}.headline{font-size:28px}.summary-grid{grid-template-columns:1fr}.card{padding:20px 16px 16px}.chart-wrap{height:280px}.tab{font-size:12px;padding:9px 12px}}
   </style>
 </head>
-
 <body>
-  <div class="bg-orb orb-1"></div>
-  <div class="bg-orb orb-2"></div>
-  <div class="bg-orb orb-3"></div>
-  <header class="topbar sticky top-0 z-50 relative">
-    <div class="mx-auto w-full max-w-[1320px] px-4 md:px-8 py-4">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-white/60 border border-white/80 flex items-center justify-center">
-            <i class="fa-solid fa-magnifying-glass-chart text-slate-700"></i>
-          </div>
+  <div class="shell">
+    <section class="glass-card topbar">
+      <div>
+        <div class="eyebrow">Search Volume Monitor</div>
+        <div class="headline">컬럼비아 검색량</div>
+        <div class="sub">실제 검색수 기준 대시보드 · 탭 전환, 숫자 카운팅, 차트 애니메이션 포함</div>
+      </div>
+      <div class="text-right">
+        <div class="pill" id="updatedAt">업데이트 -</div>
+        <div class="pill" style="margin-top:10px" id="periodLabel">기간 -</div>
+      </div>
+    </section>
+
+    <div class="tabs" id="periodTabs"></div>
+
+    <section class="summary-grid" id="summaryGrid"></section>
+
+    <section class="section-grid">
+      <div class="glass-card card">
+        <div class="spark"></div>
+        <div class="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <div class="text-sm font-black text-slate-900">Search Trends Dashboard</div>
-            <div class="text-xs font-bold text-slate-500">Naver + Google | Columbia</div>
+            <h3>플랫폼별 검색량 추이</h3>
+            <div class="desc">네이버·구글 실제 검색량 기준 그래프</div>
           </div>
+          <div class="pill" id="availabilityPill">데이터 확인 중</div>
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 w-full lg:w-auto">
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">Period</div>
-            <div class="text-sm font-black text-slate-900" id="periodText">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-1" id="timeUnitText">-</div>
-          </div>
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">Latest Point</div>
-            <div class="text-sm font-black text-slate-900" id="latestDateText">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-1">최종 수집 시점</div>
-          </div>
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">Naver Peak</div>
-            <div class="text-sm font-black text-slate-900" id="naverPeakText">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-1">평균 상대지수 최고점</div>
-          </div>
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">Google Peak</div>
-            <div class="text-sm font-black text-slate-900" id="googlePeakText">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-1">평균 상대지수 최고점</div>
-          </div>
-        </div>
+        <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
+        <div class="mutedbox" id="availabilityNote"></div>
       </div>
-
-      <div class="mt-3 text-[11px] font-bold text-slate-500 leading-relaxed">
-        * Columbia 관련 키워드 검색량 추이 대시보드 · Naver DataLab + Google Trends 기반
+      <div class="glass-card card">
+        <h3>최신 검색량 상위 키워드</h3>
+        <div class="desc">선택 기간의 마지막 시점 기준 총검색수</div>
+        <div class="rank-list" id="latestRank"></div>
       </div>
+    </section>
+
+    <section class="section-grid">
+      <div class="glass-card card">
+        <h3>키워드별 검색량 추이</h3>
+        <div class="desc">키워드별 실제 검색수 흐름</div>
+        <div class="chart-wrap"><canvas id="keywordChart"></canvas></div>
+      </div>
+      <div class="glass-card card">
+        <h3>증감률 Ranking</h3>
+        <div class="desc">선택 기간 시작 vs 종료 기준</div>
+        <div class="rank-list" id="growthRank"></div>
+      </div>
+    </section>
+
+    <section class="glass-card card">
+      <h3>최신 시점 키워드 스냅샷</h3>
+      <div class="desc">가장 최근 시점 기준 키워드별 실제 검색수 상세</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Date</th>
+              <th>Keyword</th>
+              <th>PC</th>
+              <th>Mobile</th>
+              <th>Total</th>
+              <th>증감률</th>
+            </tr>
+          </thead>
+          <tbody id="snapshotTable"></tbody>
+        </table>
+      </div>
+      <div class="footer-note" id="footerNote"></div>
+    </section>
+  </div>
+
+<script>
+const DASHBOARD_DATA = __DASHBOARD_DATA__;
+const PERIODS = [
+  { key:'18m', label:'1년 6개월', days:548 },
+  { key:'12m', label:'1년', days:365 },
+  { key:'6m', label:'6개월', days:183 },
+  { key:'3m', label:'3개월', days:92 },
+  { key:'1m', label:'1개월', days:31 },
+  { key:'1w', label:'1주', days:7 },
+];
+
+let currentPeriod = '3m';
+let overviewChart = null;
+let keywordChart = null;
+
+function nf(v){ return `${Number(v || 0).toLocaleString('ko-KR')}건`; }
+function pct(v){
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return '-';
+  const n = Number(v); const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(1)}%`;
+}
+function parseDate(v){ return new Date(v + 'T00:00:00'); }
+function monthToDate(v){ return new Date(v + '-01T00:00:00'); }
+function isGoogleHistoryAvailable(){ return Array.isArray(DASHBOARD_DATA.google_history) && DASHBOARD_DATA.google_history.length > 0; }
+function isNaverSnapshotsAvailable(){ return Array.isArray(DASHBOARD_DATA.naver_snapshots) && DASHBOARD_DATA.naver_snapshots.length > 0; }
+function getPeriodObj(){ return PERIODS.find(x => x.key === currentPeriod) || PERIODS[3]; }
+
+function animateNumber(el, rawTarget, duration=850){
+  if (!el) return;
+  const target = Number(rawTarget || 0);
+  const start = Number(el.dataset.currentValue || 0);
+  const startTs = performance.now();
+  function frame(ts){
+    const progress = Math.min(1, (ts - startTs) / duration);
+    const eased = 1 - Math.pow(1 - progress, 4);
+    const value = Math.round(start + (target - start) * eased);
+    el.textContent = nf(value);
+    if (progress < 1) requestAnimationFrame(frame); else el.dataset.currentValue = String(target);
+  }
+  requestAnimationFrame(frame);
+}
+
+function animateText(el, finalText){
+  if (!el) return;
+  el.style.opacity = 0;
+  el.style.transform = 'translateY(6px)';
+  requestAnimationFrame(() => {
+    el.textContent = finalText;
+    el.style.transition = 'opacity .28s ease, transform .28s ease';
+    el.style.opacity = 1;
+    el.style.transform = 'translateY(0)';
+  });
+}
+
+function staggerItems(selector){
+  document.querySelectorAll(selector).forEach((el, idx) => {
+    el.style.animationDelay = `${idx * 60}ms`;
+  });
+}
+
+function filterNaverSnapshots(){
+  const arr = DASHBOARD_DATA.naver_snapshots || [];
+  if (!arr.length) return [];
+  const maxDt = arr.map(x => parseDate(x.snapshot_date)).sort((a,b)=>a-b).pop();
+  const cutoff = new Date(maxDt); cutoff.setDate(cutoff.getDate() - getPeriodObj().days + 1);
+  return arr.filter(x => parseDate(x.snapshot_date) >= cutoff);
+}
+
+function filterGoogleHistory(){
+  const arr = DASHBOARD_DATA.google_history || [];
+  if (!arr.length) return [];
+  const maxDt = arr.map(x => monthToDate(x.month)).sort((a,b)=>a-b).pop();
+  const cutoff = new Date(maxDt); cutoff.setDate(cutoff.getDate() - getPeriodObj().days + 1);
+  return arr.filter(x => monthToDate(x.month) >= cutoff);
+}
+
+function buildTabs(){
+  const wrap = document.getElementById('periodTabs');
+  wrap.innerHTML = PERIODS.map(p => `<button class="tab ${p.key===currentPeriod?'active':''}" data-key="${p.key}">${p.label}</button>`).join('');
+  wrap.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentPeriod = btn.dataset.key;
+      buildTabs();
+      render();
+    });
+  });
+}
+
+function groupedTotals(records, mode){
+  const map = new Map();
+  records.forEach(row => {
+    const key = mode === 'naver' ? row.snapshot_date : row.month;
+    map.set(key, (map.get(key) || 0) + Number(row.total || row.monthly_searches || 0));
+  });
+  return Array.from(map.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([label,value])=>({label,value}));
+}
+
+function keywordSeries(records, mode){
+  const keywords = DASHBOARD_DATA.keywords || [];
+  const labels = Array.from(new Set(records.map(r => mode === 'naver' ? r.snapshot_date : r.month))).sort();
+  const datasetByKw = {};
+  keywords.forEach(kw => datasetByKw[kw] = labels.map(_ => 0));
+  records.forEach(row => {
+    const label = mode === 'naver' ? row.snapshot_date : row.month;
+    const idx = labels.indexOf(label);
+    if (idx >= 0 && datasetByKw[row.keyword]) datasetByKw[row.keyword][idx] = Number(row.total || row.monthly_searches || 0);
+  });
+  return { labels, datasetByKw };
+}
+
+function latestRows(){
+  const naver = filterNaverSnapshots();
+  const google = filterGoogleHistory();
+  const latestNaverDate = naver.length ? naver.map(r => r.snapshot_date).sort().pop() : null;
+  const latestGoogleMonth = google.length ? google.map(r => r.month).sort().pop() : null;
+  return {
+    naver: latestNaverDate ? naver.filter(r => r.snapshot_date === latestNaverDate) : [],
+    google: latestGoogleMonth ? google.filter(r => r.month === latestGoogleMonth) : []
+  };
+}
+
+function growthByKeyword(records, mode){
+  const out = [];
+  (DASHBOARD_DATA.keywords || []).forEach(kw => {
+    const rows = records.filter(r => r.keyword === kw).sort((a,b)=> String(mode==='naver'?a.snapshot_date:a.month).localeCompare(String(mode==='naver'?b.snapshot_date:b.month)));
+    if (!rows.length) return;
+    const first = Number(rows[0].total || rows[0].monthly_searches || 0);
+    const last = Number(rows[rows.length-1].total || rows[rows.length-1].monthly_searches || 0);
+    const growth = first > 0 ? ((last-first)/first)*100 : null;
+    out.push({ keyword: kw, first, last, growth, platform: mode==='naver'?'Naver':'Google' });
+  });
+  return out.sort((a,b)=>(Number(b.growth ?? -999999))-(Number(a.growth ?? -999999)));
+}
+
+function renderSummary(){
+  const latest = latestRows();
+  const latestNaverTotal = latest.naver.reduce((s,r)=>s+Number(r.total||0),0);
+  const latestGoogleTotal = latest.google.reduce((s,r)=>s+Number(r.monthly_searches||0),0);
+  const latestCombined = latestNaverTotal + latestGoogleTotal;
+  const latestTop = [
+    ...latest.naver.map(r => ({keyword:r.keyword, value:Number(r.total||0), platform:'Naver'})),
+    ...latest.google.map(r => ({keyword:r.keyword, value:Number(r.monthly_searches||0), platform:'Google'})),
+  ].sort((a,b)=>b.value-a.value)[0];
+
+  const cards = [
+    {k:'최신 총검색량',v:latestCombined,s:'네이버 + 구글 최신 시점 합산',num:true},
+    {k:'네이버 최신 검색량',v:latestNaverTotal,s:'가장 최근 수집 시점 기준',num:true},
+    {k:'구글 최신 검색량',v:latestGoogleTotal,s:isGoogleHistoryAvailable()?'가장 최근 월 기준':'Google Ads 미연동',num:true},
+    {k:'최고 검색량 키워드',v:latestTop ? `${latestTop.keyword}` : '-',s:latestTop ? `${latestTop.platform} · ${nf(latestTop.value)}` : '최신 데이터 없음',num:false},
+  ];
+  const wrap = document.getElementById('summaryGrid');
+  wrap.innerHTML = cards.map((c, idx) => `
+    <div class="glass-card summary-card" style="animation-delay:${idx * 70}ms">
+      <div class="summary-k">${c.k}</div>
+      <div class="summary-v" data-role="summary-value" data-num="${c.num ? 1 : 0}">${c.num ? '0건' : c.v}</div>
+      <div class="summary-s">${c.s}</div>
     </div>
-  </header>
+  `).join('');
+  wrap.querySelectorAll('[data-role="summary-value"]').forEach((el, idx) => {
+    if (cards[idx].num) animateNumber(el, cards[idx].v); else animateText(el, cards[idx].v);
+  });
+}
 
-  <main class="p-6 md:p-10 w-full relative z-10">
-    <div class="mx-auto w-full max-w-[1280px]">
-      <div class="layout-header mb-8">
-        <header class="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h1 class="text-4xl md:text-5xl font-black tracking-tight text-slate-900 mb-3">컬럼비아 검색량 추이</h1>
-            <div class="text-sm font-bold text-slate-500" id="headerMeta">-</div>
-          </div>
-          <div class="flex items-center gap-2 flex-wrap" id="keywordChips"></div>
-        </header>
+function makeChartOptions(yTitle){
+  return {
+    responsive:true,
+    maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    animation:{duration:900,easing:'easeOutQuart'},
+    transitions:{active:{animation:{duration:260}}},
+    plugins:{
+      legend:{labels:{usePointStyle:true,boxWidth:8,font:{family:'Plus Jakarta Sans',weight:'700'}}},
+      tooltip:{callbacks:{label:(ctx)=> `${ctx.dataset.label}: ${Number(ctx.raw||0).toLocaleString('ko-KR')}건`}}
+    },
+    scales:{
+      x:{grid:{display:false},ticks:{font:{family:'Plus Jakarta Sans',weight:'700'}}},
+      y:{beginAtZero:true,ticks:{callback:(v)=>Number(v).toLocaleString('ko-KR'),font:{family:'Plus Jakarta Sans',weight:'700'}},title:{display:true,text:yTitle,font:{family:'Plus Jakarta Sans',weight:'800'}},grid:{color:'rgba(148,163,184,.14)'}}
+    }
+  };
+}
+
+function peakRadius(data){
+  const max = Math.max(...data, 0);
+  return data.map(v => (v === max && v > 0 ? 4 : 0));
+}
+
+function upsertChart(chartRef, ctx, data, options){
+  if (!chartRef) return new Chart(ctx, {type:'line', data, options});
+  chartRef.data.labels = data.labels;
+  chartRef.data.datasets = data.datasets;
+  chartRef.options = options;
+  chartRef.update();
+  return chartRef;
+}
+
+function buildOverviewChart(){
+  const naver = groupedTotals(filterNaverSnapshots(),'naver');
+  const google = groupedTotals(filterGoogleHistory(),'google');
+  const labels = Array.from(new Set([...naver.map(x=>x.label), ...google.map(x=>x.label)])).sort();
+  const nMap = Object.fromEntries(naver.map(x=>[x.label,x.value]));
+  const gMap = Object.fromEntries(google.map(x=>[x.label,x.value]));
+  const nData = labels.map(l=>nMap[l]||0);
+  const gData = labels.map(l=>gMap[l]||0);
+  const data = {
+    labels,
+    datasets:[
+      {label:'Naver 검색량',data:nData,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.12)',tension:.28,fill:true,pointRadius:peakRadius(nData),pointHoverRadius:6,borderWidth:2},
+      {label:'Google 검색량',data:gData,borderColor:'#0f172a',backgroundColor:'rgba(15,23,42,.08)',tension:.28,fill:false,pointRadius:peakRadius(gData),pointHoverRadius:6,borderWidth:2}
+    ]
+  };
+  const ctx = document.getElementById('overviewChart').getContext('2d');
+  overviewChart = upsertChart(overviewChart, ctx, data, makeChartOptions('검색량'));
+}
+
+function buildKeywordChart(){
+  const naver = keywordSeries(filterNaverSnapshots(),'naver');
+  const google = keywordSeries(filterGoogleHistory(),'google');
+  const labels = Array.from(new Set([...(naver.labels||[]), ...(google.labels||[])])).sort();
+  const keywords = DASHBOARD_DATA.keywords || [];
+  const palette = ['#2563eb','#10b981','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#84cc16','#64748b'];
+  const datasets = keywords.flatMap((kw, idx) => {
+    const arr = [];
+    if (naver.labels.length) {
+      const nMap = Object.fromEntries(naver.labels.map((lb, i)=>[lb, naver.datasetByKw[kw]?.[i]||0]));
+      const series = labels.map(lb=>nMap[lb]||0);
+      arr.push({label:`Naver · ${kw}`,data:series,borderColor:palette[idx % palette.length],backgroundColor:'transparent',tension:.25,pointRadius:2,pointHoverRadius:5,borderWidth:2});
+    }
+    if (google.labels.length) {
+      const gMap = Object.fromEntries(google.labels.map((lb, i)=>[lb, google.datasetByKw[kw]?.[i]||0]));
+      const series = labels.map(lb=>gMap[lb]||0);
+      arr.push({label:`Google · ${kw}`,data:series,borderColor:palette[(idx+3)%palette.length],backgroundColor:'transparent',borderDash:[6,4],tension:.25,pointRadius:2,pointHoverRadius:5,borderWidth:2});
+    }
+    return arr;
+  });
+  const ctx = document.getElementById('keywordChart').getContext('2d');
+  keywordChart = upsertChart(keywordChart, ctx, {labels,datasets}, makeChartOptions('검색량'));
+}
+
+function renderRank(elId, rows, type){
+  const el = document.getElementById(elId);
+  if (!rows.length){ el.innerHTML = `<div class="empty">표시할 데이터가 아직 없어요.</div>`; return; }
+  el.innerHTML = rows.slice(0,8).map((r,idx)=>`
+    <div class="rank-item" style="animation-delay:${idx * 65}ms">
+      <div class="rank-left">
+        <div class="badge">${idx+1}</div>
+        <div>
+          <div class="kw">${r.keyword}</div>
+          <div class="meta">${r.platform}</div>
+        </div>
       </div>
-
-      <section class="mb-6 fade-up reveal">
-        <div class="glass-card p-5 md:p-6">
-          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <div class="small-label text-blue-600 mb-2">View Range</div>
-              <div class="text-xl font-black text-slate-900">기간별 검색량 추이 보기</div>
-              <div class="text-sm font-bold text-slate-500 mt-1" id="activeRangeText">최근 1개월 기준</div>
-            </div>
-            <div class="period-tabs" id="periodTabs">
-              <button class="period-tab" data-period="7">7D</button>
-              <button class="period-tab active" data-period="30">1Month</button>
-              <button class="period-tab" data-period="90">3Month</button>
-              <button class="period-tab" data-period="180">6Month</button>
-              <button class="period-tab" data-period="365">1Year</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="mb-10 reveal">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">Latest Naver</div>
-            <div class="kpi-value text-slate-900" id="latestNaverValue">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-2" id="latestNaverDelta">-</div>
-          </div>
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">Latest Google</div>
-            <div class="kpi-value text-slate-900" id="latestGoogleValue">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-2" id="latestGoogleDelta">-</div>
-          </div>
-          <div class="summary-card">
-            <div class="small-label text-blue-600 mb-2">Gap</div>
-            <div class="kpi-value text-slate-900" id="latestGapValue">-</div>
-            <div class="text-xs font-bold text-slate-500 mt-2">Naver - Google</div>
-          </div>
-        </div>
-      </section>
-
-      <section class="mb-10 reveal">
-        <div class="glass-card p-8">
-          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-            <div>
-              <div class="small-label text-blue-600 mb-2">1. Overview</div>
-              <div class="text-2xl font-black text-slate-900">네이버 vs 구글 전체 추이</div>
-              <div class="text-sm font-bold text-slate-500 mt-2">선택한 기간 내 키워드군 평균 상대지수 기준</div>
-            </div>
-          </div>
-          <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
-        </div>
-      </section>
-
-      <section class="mb-10 reveal">
-        <div class="grid grid-cols-1 xl:grid-cols-[1.15fr_0.9fr_0.9fr_0.95fr] gap-4">
-          <div class="glass-card p-8">
-            <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-              <div>
-                <div class="small-label text-blue-600 mb-2">2. Keyword Trend</div>
-                <div class="text-2xl font-black text-slate-900">키워드별 플랫폼 추이</div>
-                <div class="text-sm font-bold text-slate-500 mt-2">선택 키워드의 Naver vs Google 비교</div>
-              </div>
-              <div>
-                <select id="keywordSelect" class="input-glass"></select>
-              </div>
-            </div>
-            <div class="chart-wrap-tall"><canvas id="keywordChart"></canvas></div>
-          </div>
-
-          <div class="glass-card p-8">
-            <div class="small-label text-blue-600 mb-2">3. Rising Related Queries</div>
-            <div class="text-2xl font-black text-slate-900 mb-2">컬럼비아 연관 급상승 검색어 TOP 10</div>
-            <div class="text-sm font-bold text-slate-500 mb-5">Google Trends rising queries 기준</div>
-            <div class="rank-list" id="relatedRisingList"></div>
-          </div>
-
-          <div class="glass-card p-8">
-            <div class="small-label text-blue-600 mb-2">4. Latest Rank</div>
-            <div class="text-2xl font-black text-slate-900 mb-2">최신 시점 상위 키워드</div>
-            <div class="text-sm font-bold text-slate-500 mb-5">Naver/Google 평균값 기준</div>
-            <div class="rank-list" id="latestRankList"></div>
-          </div>
-
-          <div class="glass-card p-8">
-            <div class="small-label text-blue-600 mb-2">5. Growth Rank</div>
-            <div class="text-2xl font-black text-slate-900 mb-2">직전 대비 상승 키워드</div>
-            <div class="text-sm font-bold text-slate-500 mb-5">선택 기간 첫 포인트 대비 증감률</div>
-            <div class="rank-list" id="growthRankList"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="mb-10 reveal">
-        <div class="glass-card p-8">
-          <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
-            <div>
-              <div class="small-label text-blue-600 mb-2">6. Latest Snapshot</div>
-              <div class="text-2xl font-black text-slate-900">최신 시점 키워드 스냅샷</div>
-              <div class="text-sm font-bold text-slate-500 mt-2">플랫폼별 최신값, 갭, 피크 시점 정리</div>
-            </div>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="tbl">
-              <thead>
-                <tr>
-                  <th>Keyword</th>
-                  <th>Naver</th>
-                  <th>Google</th>
-                  <th>Gap</th>
-                  <th>Growth</th>
-                  <th>Naver Peak</th>
-                  <th>Google Peak</th>
-                </tr>
-              </thead>
-              <tbody id="snapshotBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <footer class="text-xs font-bold text-slate-500 pb-8">
-        * 플랫폼별 값은 상대지수라 절대 검색량 비교가 아니라 추세 비교용으로 보는 게 맞습니다.
-      </footer>
+      <div class="val">${type==='latest' ? nf(r.value) : pct(r.growth)}</div>
     </div>
-  </main>
+  `).join('');
+  staggerItems(`#${elId} .rank-item`);
+}
 
-  <script>
-    const DATA = {"meta": {"period": "2025-12-22 → 2026-03-22", "period_start": "2025-12-22", "period_end": "2026-03-22", "time_unit": "week", "geo": "KR", "device": "all", "ages": ["all"], "gender": "", "generated_at": "2026-03-23 05:19:52", "generated_at_kst": "2026.03.23 05:19 KST", "period_text": "전체 누적 데이터 (2025-12-22 ~ 2026-03-22)", "updated_at_kst": "2026.03.23 05:19 KST", "keywords": ["컬럼비아", "컬럼비아 스포츠웨어", "컬럼비아 후리스", "컬럼비아 바람막이", "컬럼비아 등산화"], "data_available_days": 91}, "overview": [{"date": "2025-12-22", "naver_avg": 23.6658, "google_avg": 0.0, "gap": 23.6658}, {"date": "2025-12-23", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2025-12-24", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2025-12-25", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2025-12-26", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2025-12-27", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2025-12-28", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2025-12-29", "naver_avg": 23.9451, "google_avg": 12.8, "gap": 11.1451}, {"date": "2025-12-30", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2025-12-31", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-01", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-02", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-03", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-04", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-05", "naver_avg": 21.3019, "google_avg": 0.0, "gap": 21.3019}, {"date": "2026-01-06", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-07", "naver_avg": 0.0, "google_avg": 20.0, "gap": -20.0}, {"date": "2026-01-08", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-09", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-10", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-11", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-12", "naver_avg": 19.4429, "google_avg": 0.0, "gap": 19.4429}, {"date": "2026-01-13", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-14", "naver_avg": 0.0, "google_avg": 14.2, "gap": -14.2}, {"date": "2026-01-15", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-16", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-17", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-18", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-19", "naver_avg": 19.2441, "google_avg": 0.0, "gap": 19.2441}, {"date": "2026-01-20", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-21", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-22", "naver_avg": 0.0, "google_avg": 12.4, "gap": -12.4}, {"date": "2026-01-23", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-24", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-25", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-26", "naver_avg": 17.3473, "google_avg": 18.4, "gap": -1.0527}, {"date": "2026-01-27", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-28", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-29", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-30", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-01-31", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-01", "naver_avg": 0.0, "google_avg": 13.0, "gap": -13.0}, {"date": "2026-02-02", "naver_avg": 14.6994, "google_avg": 0.0, "gap": 14.6994}, {"date": "2026-02-03", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-04", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-05", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-06", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-07", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-08", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-09", "naver_avg": 12.4917, "google_avg": 0.0, "gap": 12.4917}, {"date": "2026-02-10", "naver_avg": 0.0, "google_avg": 9.8, "gap": -9.8}, {"date": "2026-02-11", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-12", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-13", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-14", "naver_avg": 0.0, "google_avg": 13.0, "gap": -13.0}, {"date": "2026-02-15", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-16", "naver_avg": 14.9566, "google_avg": 13.6, "gap": 1.3566}, {"date": "2026-02-17", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-18", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-19", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-20", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-21", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-22", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-23", "naver_avg": 12.6195, "google_avg": 0.0, "gap": 12.6195}, {"date": "2026-02-24", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-25", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-26", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-27", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-02-28", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-03-01", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-03-02", "naver_avg": 12.6984, "google_avg": 0.0, "gap": 12.6984}, {"date": "2026-03-03", "naver_avg": 0.0, "google_avg": 12.0, "gap": -12.0}, {"date": "2026-03-04", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-03-05", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-03-06", "naver_avg": 0.0, "google_avg": 0.0, "gap": 0.0}, {"date": "2026-03-07", "naver_avg": 0.0, "google_avg": 13.0, "gap": -13.0}, {"date": "2026-03-08", "naver_avg": 0.0, "google_avg": 5.4, "gap": -5.4}, {"date": "2026-03-09", "naver_avg": 14.7104, "google_avg": 6.2, "gap": 8.5104}, {"date": "2026-03-10", "naver_avg": 0.0, "google_avg": 5.6, "gap": -5.6}, {"date": "2026-03-11", "naver_avg": 0.0, "google_avg": 6.0, "gap": -6.0}, {"date": "2026-03-12", "naver_avg": 0.0, "google_avg": 6.0, "gap": -6.0}, {"date": "2026-03-13", "naver_avg": 0.0, "google_avg": 5.8, "gap": -5.8}, {"date": "2026-03-14", "naver_avg": 0.0, "google_avg": 6.0, "gap": -6.0}, {"date": "2026-03-15", "naver_avg": 0.0, "google_avg": 7.0, "gap": -7.0}, {"date": "2026-03-16", "naver_avg": 11.4628, "google_avg": 5.4, "gap": 6.0628}, {"date": "2026-03-17", "naver_avg": 0.0, "google_avg": 5.2, "gap": -5.2}, {"date": "2026-03-18", "naver_avg": 0.0, "google_avg": 4.8, "gap": -4.8}, {"date": "2026-03-19", "naver_avg": 0.0, "google_avg": 4.8, "gap": -4.8}, {"date": "2026-03-20", "naver_avg": 0.0, "google_avg": 5.2, "gap": -5.2}, {"date": "2026-03-21", "naver_avg": 0.0, "google_avg": 5.4, "gap": -5.4}, {"date": "2026-03-22", "naver_avg": 0.0, "google_avg": 5.4, "gap": -5.4}], "series_by_keyword": {"컬럼비아": [{"date": "2025-12-22", "naver": 100.0, "google": 0.0, "gap": 100.0}, {"date": "2025-12-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-29", "naver": 99.0374, "google": 64.0, "gap": 35.0374}, {"date": "2025-12-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-02", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-05", "naver": 88.1253, "google": 0.0, "gap": 88.1253}, {"date": "2026-01-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-07", "naver": 0.0, "google": 100.0, "gap": -100.0}, {"date": "2026-01-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-09", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-12", "naver": 79.9195, "google": 0.0, "gap": 79.9195}, {"date": "2026-01-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-14", "naver": 0.0, "google": 71.0, "gap": -71.0}, {"date": "2026-01-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-16", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-19", "naver": 79.5802, "google": 0.0, "gap": 79.5802}, {"date": "2026-01-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-22", "naver": 0.0, "google": 62.0, "gap": -62.0}, {"date": "2026-01-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-26", "naver": 71.5244, "google": 92.0, "gap": -20.4756}, {"date": "2026-01-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-29", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-01", "naver": 0.0, "google": 65.0, "gap": -65.0}, {"date": "2026-02-02", "naver": 59.8469, "google": 0.0, "gap": 59.8469}, {"date": "2026-02-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-09", "naver": 51.9331, "google": 0.0, "gap": 51.9331}, {"date": "2026-02-10", "naver": 0.0, "google": 49.0, "gap": -49.0}, {"date": "2026-02-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-14", "naver": 0.0, "google": 65.0, "gap": -65.0}, {"date": "2026-02-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-16", "naver": 60.8095, "google": 68.0, "gap": -7.1905}, {"date": "2026-02-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-23", "naver": 47.9091, "google": 0.0, "gap": 47.9091}, {"date": "2026-02-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-02", "naver": 43.5537, "google": 0.0, "gap": 43.5537}, {"date": "2026-03-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-07", "naver": 0.0, "google": 65.0, "gap": -65.0}, {"date": "2026-03-08", "naver": 0.0, "google": 27.0, "gap": -27.0}, {"date": "2026-03-09", "naver": 47.8144, "google": 31.0, "gap": 16.8144}, {"date": "2026-03-10", "naver": 0.0, "google": 28.0, "gap": -28.0}, {"date": "2026-03-11", "naver": 0.0, "google": 30.0, "gap": -30.0}, {"date": "2026-03-12", "naver": 0.0, "google": 30.0, "gap": -30.0}, {"date": "2026-03-13", "naver": 0.0, "google": 29.0, "gap": -29.0}, {"date": "2026-03-14", "naver": 0.0, "google": 30.0, "gap": -30.0}, {"date": "2026-03-15", "naver": 0.0, "google": 35.0, "gap": -35.0}, {"date": "2026-03-16", "naver": 37.6756, "google": 27.0, "gap": 10.6756}, {"date": "2026-03-17", "naver": 0.0, "google": 26.0, "gap": -26.0}, {"date": "2026-03-18", "naver": 0.0, "google": 24.0, "gap": -24.0}, {"date": "2026-03-19", "naver": 0.0, "google": 24.0, "gap": -24.0}, {"date": "2026-03-20", "naver": 0.0, "google": 26.0, "gap": -26.0}, {"date": "2026-03-21", "naver": 0.0, "google": 27.0, "gap": -27.0}, {"date": "2026-03-22", "naver": 0.0, "google": 27.0, "gap": -27.0}], "컬럼비아 스포츠웨어": [{"date": "2025-12-22", "naver": 0.6549, "google": 0.0, "gap": 0.6549}, {"date": "2025-12-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-29", "naver": 0.5286, "google": 0.0, "gap": 0.5286}, {"date": "2025-12-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-02", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-05", "naver": 0.6943, "google": 0.0, "gap": 0.6943}, {"date": "2026-01-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-09", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-12", "naver": 0.3393, "google": 0.0, "gap": 0.3393}, {"date": "2026-01-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-16", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-19", "naver": 0.6154, "google": 0.0, "gap": 0.6154}, {"date": "2026-01-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-26", "naver": 0.5681, "google": 0.0, "gap": 0.5681}, {"date": "2026-01-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-29", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-02", "naver": 0.8127, "google": 0.0, "gap": 0.8127}, {"date": "2026-02-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-09", "naver": 0.647, "google": 0.0, "gap": 0.647}, {"date": "2026-02-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-16", "naver": 0.718, "google": 0.0, "gap": 0.718}, {"date": "2026-02-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-23", "naver": 0.7732, "google": 0.0, "gap": 0.7732}, {"date": "2026-02-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-02", "naver": 0.576, "google": 0.0, "gap": 0.576}, {"date": "2026-03-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-09", "naver": 0.9705, "google": 0.0, "gap": 0.9705}, {"date": "2026-03-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-16", "naver": 0.4497, "google": 0.0, "gap": 0.4497}, {"date": "2026-03-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-22", "naver": 0.0, "google": 0.0, "gap": 0.0}], "컬럼비아 후리스": [{"date": "2025-12-22", "naver": 10.0836, "google": 0.0, "gap": 10.0836}, {"date": "2025-12-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-29", "naver": 11.0936, "google": 0.0, "gap": 11.0936}, {"date": "2025-12-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-02", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-05", "naver": 8.8606, "google": 0.0, "gap": 8.8606}, {"date": "2026-01-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-09", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-12", "naver": 8.2689, "google": 0.0, "gap": 8.2689}, {"date": "2026-01-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-16", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-19", "naver": 7.5903, "google": 0.0, "gap": 7.5903}, {"date": "2026-01-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-26", "naver": 6.7777, "google": 0.0, "gap": 6.7777}, {"date": "2026-01-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-29", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-02", "naver": 5.0892, "google": 0.0, "gap": 5.0892}, {"date": "2026-02-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-09", "naver": 3.2586, "google": 0.0, "gap": 3.2586}, {"date": "2026-02-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-16", "naver": 3.3612, "google": 0.0, "gap": 3.3612}, {"date": "2026-02-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-23", "naver": 2.6037, "google": 0.0, "gap": 2.6037}, {"date": "2026-02-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-02", "naver": 2.5406, "google": 0.0, "gap": 2.5406}, {"date": "2026-03-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-09", "naver": 2.0672, "google": 0.0, "gap": 2.0672}, {"date": "2026-03-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-16", "naver": 1.3965, "google": 0.0, "gap": 1.3965}, {"date": "2026-03-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-22", "naver": 0.0, "google": 0.0, "gap": 0.0}], "컬럼비아 바람막이": [{"date": "2025-12-22", "naver": 1.3808, "google": 0.0, "gap": 1.3808}, {"date": "2025-12-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-29", "naver": 2.3749, "google": 0.0, "gap": 2.3749}, {"date": "2025-12-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-02", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-05", "naver": 2.1698, "google": 0.0, "gap": 2.1698}, {"date": "2026-01-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-09", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-12", "naver": 2.6905, "google": 0.0, "gap": 2.6905}, {"date": "2026-01-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-16", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-19", "naver": 2.012, "google": 0.0, "gap": 2.012}, {"date": "2026-01-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-26", "naver": 2.3513, "google": 0.0, "gap": 2.3513}, {"date": "2026-01-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-29", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-02", "naver": 2.3749, "google": 0.0, "gap": 2.3749}, {"date": "2026-02-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-09", "naver": 1.9331, "google": 0.0, "gap": 1.9331}, {"date": "2026-02-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-16", "naver": 3.4874, "google": 0.0, "gap": 3.4874}, {"date": "2026-02-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-23", "naver": 5.531, "google": 0.0, "gap": 5.531}, {"date": "2026-02-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-02", "naver": 6.8802, "google": 0.0, "gap": 6.8802}, {"date": "2026-03-03", "naver": 0.0, "google": 60.0, "gap": -60.0}, {"date": "2026-03-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-09", "naver": 10.6596, "google": 0.0, "gap": 10.6596}, {"date": "2026-03-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-16", "naver": 7.401, "google": 0.0, "gap": 7.401}, {"date": "2026-03-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-22", "naver": 0.0, "google": 0.0, "gap": 0.0}], "컬럼비아 등산화": [{"date": "2025-12-22", "naver": 6.2096, "google": 0.0, "gap": 6.2096}, {"date": "2025-12-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-29", "naver": 6.6909, "google": 0.0, "gap": 6.6909}, {"date": "2025-12-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2025-12-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-02", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-05", "naver": 6.6593, "google": 0.0, "gap": 6.6593}, {"date": "2026-01-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-09", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-12", "naver": 5.9965, "google": 0.0, "gap": 5.9965}, {"date": "2026-01-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-16", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-19", "naver": 6.4226, "google": 0.0, "gap": 6.4226}, {"date": "2026-01-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-23", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-26", "naver": 5.5152, "google": 0.0, "gap": 5.5152}, {"date": "2026-01-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-29", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-30", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-01-31", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-02", "naver": 5.3732, "google": 0.0, "gap": 5.3732}, {"date": "2026-02-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-09", "naver": 4.6868, "google": 0.0, "gap": 4.6868}, {"date": "2026-02-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-16", "naver": 6.4068, "google": 0.0, "gap": 6.4068}, {"date": "2026-02-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-22", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-23", "naver": 6.2806, "google": 0.0, "gap": 6.2806}, {"date": "2026-02-24", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-25", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-26", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-27", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-02-28", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-01", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-02", "naver": 9.9416, "google": 0.0, "gap": 9.9416}, {"date": "2026-03-03", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-04", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-05", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-06", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-07", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-08", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-09", "naver": 12.0404, "google": 0.0, "gap": 12.0404}, {"date": "2026-03-10", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-11", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-12", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-13", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-14", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-15", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-16", "naver": 10.3913, "google": 0.0, "gap": 10.3913}, {"date": "2026-03-17", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-18", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-19", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-20", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-21", "naver": 0.0, "google": 0.0, "gap": 0.0}, {"date": "2026-03-22", "naver": 0.0, "google": 0.0, "gap": 0.0}]}, "snapshot": [{"keyword": "컬럼비아", "naver_latest": 0.0, "google_latest": 27.0, "gap_latest": -27.0, "latest_blended": 13.5, "growth_pct": 0.0, "naver_peak_date": "2025-12-22", "naver_peak_value": 100.0, "google_peak_date": "2026-01-07", "google_peak_value": 100.0}, {"keyword": "컬럼비아 스포츠웨어", "naver_latest": 0.0, "google_latest": 0.0, "gap_latest": 0.0, "latest_blended": 0.0, "growth_pct": null, "naver_peak_date": "2026-03-09", "naver_peak_value": 0.9705, "google_peak_date": "2025-12-22", "google_peak_value": 0.0}, {"keyword": "컬럼비아 후리스", "naver_latest": 0.0, "google_latest": 0.0, "gap_latest": 0.0, "latest_blended": 0.0, "growth_pct": null, "naver_peak_date": "2025-12-29", "naver_peak_value": 11.0936, "google_peak_date": "2025-12-22", "google_peak_value": 0.0}, {"keyword": "컬럼비아 바람막이", "naver_latest": 0.0, "google_latest": 0.0, "gap_latest": 0.0, "latest_blended": 0.0, "growth_pct": null, "naver_peak_date": "2026-03-09", "naver_peak_value": 10.6596, "google_peak_date": "2026-03-03", "google_peak_value": 60.0}, {"keyword": "컬럼비아 등산화", "naver_latest": 0.0, "google_latest": 0.0, "gap_latest": 0.0, "latest_blended": 0.0, "growth_pct": null, "naver_peak_date": "2026-03-09", "naver_peak_value": 12.0404, "google_peak_date": "2025-12-22", "google_peak_value": 0.0}], "rankings": {"latest": [{"keyword": "컬럼비아", "value": 13.5}, {"keyword": "컬럼비아 스포츠웨어", "value": 0.0}, {"keyword": "컬럼비아 후리스", "value": 0.0}, {"keyword": "컬럼비아 바람막이", "value": 0.0}, {"keyword": "컬럼비아 등산화", "value": 0.0}], "growth": [{"keyword": "컬럼비아", "value": 0.0}], "related_rising": [{"keyword": "브리티시 컬럼비아 대학교", "score": 60.0, "source_keyword": "컬럼비아", "is_breakout": false, "value_label": "60", "rank": 1}]}, "platform_peaks": {"naver": {"date": "2025-12-29", "value": 23.9451}, "google": {"date": "2026-01-07", "value": 20.0}}, "latest_summary": {"date": "2026-03-22", "naver_avg_latest": 0.0, "google_avg_latest": 5.4, "gap_latest": -5.4, "naver_vs_prev_pct": 0, "google_vs_prev_pct": 0}, "raw": {"naver": {"2025-12-22": {"컬럼비아": 100.0, "컬럼비아 스포츠웨어": 0.65488, "컬럼비아 후리스": 10.08363, "컬럼비아 바람막이": 1.38077, "컬럼비아 등산화": 6.20956}, "2025-12-29": {"컬럼비아": 99.03739, "컬럼비아 스포츠웨어": 0.52864, "컬럼비아 후리스": 11.09357, "컬럼비아 바람막이": 2.37494, "컬럼비아 등산화": 6.69086}, "2026-01-05": {"컬럼비아": 88.12529, "컬럼비아 스포츠웨어": 0.69433, "컬럼비아 후리스": 8.86065, "컬럼비아 바람막이": 2.16979, "컬럼비아 등산화": 6.6593}, "2026-01-12": {"컬럼비아": 79.91952, "컬럼비아 스포츠웨어": 0.33927, "컬럼비아 후리스": 8.26889, "컬럼비아 바람막이": 2.69054, "컬럼비아 등산화": 5.99652}, "2026-01-19": {"컬럼비아": 79.58024, "컬럼비아 스포츠웨어": 0.61543, "컬럼비아 후리스": 7.59034, "컬럼비아 바람막이": 2.01199, "컬럼비아 등산화": 6.42259}, "2026-01-26": {"컬럼비아": 71.52438, "컬럼비아 스포츠웨어": 0.56809, "컬럼비아 후리스": 6.77765, "컬럼비아 바람막이": 2.35127, "컬럼비아 등산화": 5.51522}, "2026-02-02": {"컬럼비아": 59.84693, "컬럼비아 스포츠웨어": 0.81268, "컬럼비아 후리스": 5.08915, "컬럼비아 바람막이": 2.37494, "컬럼비아 등산화": 5.3732}, "2026-02-09": {"컬럼비아": 51.93309, "컬럼비아 스포츠웨어": 0.64699, "컬럼비아 후리스": 3.25863, "컬럼비아 바람막이": 1.93309, "컬럼비아 등산화": 4.68676}, "2026-02-16": {"컬럼비아": 60.80953, "컬럼비아 스포츠웨어": 0.718, "컬럼비아 후리스": 3.36121, "컬럼비아 바람막이": 3.48745, "컬럼비아 등산화": 6.40681}, "2026-02-23": {"컬럼비아": 47.9091, "컬럼비아 스포츠웨어": 0.77323, "컬럼비아 후리스": 2.60375, "컬럼비아 바람막이": 5.531, "컬럼비아 등산화": 6.28057}, "2026-03-02": {"컬럼비아": 43.55373, "컬럼비아 스포츠웨어": 0.57598, "컬럼비아 후리스": 2.54063, "컬럼비아 바람막이": 6.88022, "컬럼비아 등산화": 9.94161}, "2026-03-09": {"컬럼비아": 47.81442, "컬럼비아 스포츠웨어": 0.97049, "컬럼비아 후리스": 2.06722, "컬럼비아 바람막이": 10.65961, "컬럼비아 등산화": 12.04039}, "2026-03-16": {"컬럼비아": 37.67555, "컬럼비아 스포츠웨어": 0.44973, "컬럼비아 후리스": 1.39655, "컬럼비아 바람막이": 7.40097, "컬럼비아 등산화": 10.39135}}, "google": {"2025-12-22": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-23": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-24": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-25": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-26": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-27": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-28": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-29": {"컬럼비아": 64.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-30": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2025-12-31": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-01": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-02": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-03": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-04": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-05": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-06": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-07": {"컬럼비아": 100.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-08": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-09": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-10": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-11": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-12": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-13": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-14": {"컬럼비아": 71.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-15": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-16": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-17": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-18": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-19": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-20": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-21": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-22": {"컬럼비아": 62.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-23": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-24": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-25": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-26": {"컬럼비아": 92.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-27": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-28": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-29": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-30": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-01-31": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-01": {"컬럼비아": 65.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-02": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-03": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-04": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-05": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-06": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-07": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-08": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-09": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-10": {"컬럼비아": 49.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-11": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-12": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-13": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-14": {"컬럼비아": 65.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-15": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-16": {"컬럼비아": 68.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-17": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-18": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-19": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-20": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-21": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-22": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-23": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-24": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-25": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-26": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-27": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-02-28": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-01": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-02": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-03": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 60.0, "컬럼비아 등산화": 0.0}, "2026-03-04": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-05": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-06": {"컬럼비아": 0.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-07": {"컬럼비아": 65.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-08": {"컬럼비아": 27.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-09": {"컬럼비아": 31.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-10": {"컬럼비아": 28.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-11": {"컬럼비아": 30.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-12": {"컬럼비아": 30.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-13": {"컬럼비아": 29.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-14": {"컬럼비아": 30.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-15": {"컬럼비아": 35.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-16": {"컬럼비아": 27.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-17": {"컬럼비아": 26.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-18": {"컬럼비아": 24.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-19": {"컬럼비아": 24.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-20": {"컬럼비아": 26.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-21": {"컬럼비아": 27.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}, "2026-03-22": {"컬럼비아": 27.0, "컬럼비아 스포츠웨어": 0.0, "컬럼비아 후리스": 0.0, "컬럼비아 바람막이": 0.0, "컬럼비아 등산화": 0.0}}}};
-    const PERIOD_OPTIONS = [
-      { days: 7, label: '최근 7일' },
-      { days: 30, label: '최근 1개월' },
-      { days: 90, label: '최근 3개월' },
-      { days: 180, label: '최근 6개월' },
-      { days: 365, label: '최근 1년' },
-    ];
+function renderSnapshotTable(){
+  const rows = [];
+  const latest = latestRows();
+  const nGrowthMap = Object.fromEntries(growthByKeyword(filterNaverSnapshots(),'naver').map(x=>[x.keyword,x.growth]));
+  const gGrowthMap = Object.fromEntries(growthByKeyword(filterGoogleHistory(),'google').map(x=>[x.keyword,x.growth]));
+  latest.naver.forEach(r => rows.push({platform:'Naver',date:r.snapshot_date,keyword:r.keyword,pc:r.pc,mobile:r.mobile,total:r.total,delta:nGrowthMap[r.keyword]}));
+  latest.google.forEach(r => rows.push({platform:'Google',date:r.month,keyword:r.keyword,pc:'-',mobile:'-',total:r.monthly_searches,delta:gGrowthMap[r.keyword]}));
+  const body = document.getElementById('snapshotTable');
+  if (!rows.length){ body.innerHTML = `<tr><td colspan="7" class="empty">최신 스냅샷이 아직 없습니다.</td></tr>`; return; }
+  body.innerHTML = rows.map((r, idx) => `
+    <tr style="animation-delay:${idx * 45}ms">
+      <td>${r.platform}</td>
+      <td>${r.date}</td>
+      <td>${r.keyword}</td>
+      <td>${typeof r.pc === 'number' ? nf(r.pc) : r.pc}</td>
+      <td>${typeof r.mobile === 'number' ? nf(r.mobile) : r.mobile}</td>
+      <td>${nf(r.total)}</td>
+      <td>${pct(r.delta)}</td>
+    </tr>
+  `).join('');
+}
 
-    let overviewChart = null;
-    let keywordChart = null;
-    let CURRENT_DAYS = 30;
-    let CURRENT_KEYWORD = null;
-    let FILTERED = null;
+function renderMeta(){
+  document.getElementById('updatedAt').textContent = `업데이트 ${DASHBOARD_DATA.generated_at || '-'}`;
+  document.getElementById('periodLabel').textContent = `기간 ${getPeriodObj().label}`;
+  const availability = [
+    isNaverSnapshotsAvailable() ? `Naver 스냅샷 ${Array.from(new Set((DASHBOARD_DATA.naver_snapshots||[]).map(r=>r.snapshot_date))).length}개` : 'Naver 스냅샷 없음',
+    isGoogleHistoryAvailable() ? `Google 월 데이터 ${Array.from(new Set((DASHBOARD_DATA.google_history||[]).map(r=>r.month))).length}개월` : 'Google 미연동'
+  ];
+  document.getElementById('availabilityPill').textContent = availability.join(' · ');
+  document.getElementById('availabilityNote').innerHTML = [
+    '네이버 SearchAd 키워드 도구는 월간 PC·모바일 검색수를 제공합니다. 이 화면의 네이버 라인은 <b>수집 시점의 월간 검색량 스냅샷</b>을 날짜별로 누적한 값입니다.',
+    '구글은 Google Ads Keyword Planner Historical Metrics 연동 시 <b>월별 검색량</b>을 표시합니다. 미연동이면 네이버 검색량만 노출됩니다.',
+    '즉, 이 화면의 숫자는 상대지수나 평균점수가 아니라 <b>실제 검색량 수치</b>입니다.'
+  ].join('<br>');
+  document.getElementById('footerNote').innerHTML = `키워드: ${(DASHBOARD_DATA.keywords||[]).join(', ')}<br>구글 미연동 상태면 실제 검색수는 네이버 기준으로만 표시됩니다.`;
+}
 
-    function num(v){ return Number(v ?? 0); }
-    function fmt(v){ return Number.isFinite(v) ? (Math.round(v * 10) / 10).toFixed(1) : '-'; }
-    function fmtPct(v){ return Number.isFinite(v) ? `${v > 0 ? '+' : ''}${(Math.round(v * 10) / 10).toFixed(1)}%` : '-'; }
-    function esc(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-    function toDate(s){ return new Date(`${s}T00:00:00`); }
-    function periodLabel(days){ return (PERIOD_OPTIONS.find(x => x.days === days) || {}).label || `최근 ${days}일`; }
+function render(){
+  renderMeta();
+  renderSummary();
+  buildOverviewChart();
+  buildKeywordChart();
+  const latest = latestRows();
+  const latestRank = [
+    ...latest.naver.map(r => ({keyword:r.keyword,platform:'Naver',value:r.total})),
+    ...latest.google.map(r => ({keyword:r.keyword,platform:'Google',value:r.monthly_searches}))
+  ].sort((a,b)=>b.value-a.value);
+  renderRank('latestRank', latestRank, 'latest');
+  const growthRank = [...growthByKeyword(filterNaverSnapshots(),'naver'), ...growthByKeyword(filterGoogleHistory(),'google')]
+    .sort((a,b)=>(Number(b.growth ?? -999999))-(Number(a.growth ?? -999999)));
+  renderRank('growthRank', growthRank, 'growth');
+  renderSnapshotTable();
+}
 
-    const glowLinePlugin = {
-      id: 'glowLinePlugin',
-      beforeDatasetDraw(chart, args, pluginOptions) {
-        const { ctx } = chart;
-        const dataset = chart.data.datasets?.[args.index] || {};
-        if (!dataset || dataset.hidden) return;
-        ctx.save();
-        ctx.shadowColor = dataset.borderColor || 'rgba(59,130,246,0.35)';
-        ctx.shadowBlur = pluginOptions?.blur ?? 14;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 10;
-      },
-      afterDatasetDraw(chart) {
-        chart.ctx.restore();
-      }
-    };
-
-    function buildLineDrawAnimations(){
-      let delayed = false;
-      return {
-        x: {
-          type: 'number',
-          easing: 'easeOutCubic',
-          duration: 560,
-          from: NaN,
-          delay(ctx) {
-            if (ctx.type !== 'data' || ctx.xStarted) return 0;
-            ctx.xStarted = true;
-            return ctx.index * 42 + ctx.datasetIndex * 110;
-          }
-        },
-        y: {
-          type: 'number',
-          easing: 'easeOutQuart',
-          duration: 620,
-          from(ctx) {
-            if (ctx.type !== 'data') return 0;
-            const meta = ctx.chart.getDatasetMeta(ctx.datasetIndex);
-            if (ctx.index === 0) return ctx.chart.scales.y.getPixelForValue(0);
-            const prev = meta.data[ctx.index - 1];
-            return prev ? prev.getProps(['y'], true).y : ctx.chart.scales.y.getPixelForValue(0);
-          },
-          delay(ctx) {
-            if (ctx.type !== 'data' || ctx.yStarted) return 0;
-            ctx.yStarted = true;
-            return ctx.index * 42 + ctx.datasetIndex * 110;
-          }
-        },
-        radius: {
-          type: 'number',
-          easing: 'easeOutQuad',
-          duration: 220,
-          from: 0,
-          delay(ctx) {
-            if (ctx.type !== 'data') return 0;
-            return 260 + ctx.index * 28 + ctx.datasetIndex * 90;
-          }
-        }
-      };
-    }
-
-    function createLineAreaGradient(ctx, chartArea, rgb, alphaTop = 0.18, alphaBottom = 0.02){
-      if (!chartArea) return `rgba(${rgb},${alphaTop})`;
-      const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-      gradient.addColorStop(0, `rgba(${rgb},${alphaTop})`);
-      gradient.addColorStop(1, `rgba(${rgb},${alphaBottom})`);
-      return gradient;
-    }
-
-    function animateCount(el, target, decimals = 1){
-      if (!el) return;
-      const end = Number(target);
-      if (!Number.isFinite(end)) { el.textContent = '-'; return; }
-      const start = Number(el.dataset.prevValue || 0);
-      const duration = 700;
-      const t0 = performance.now();
-      const formatValue = (v) => (Math.round(v * (10 ** decimals)) / (10 ** decimals)).toFixed(decimals);
-      function frame(now){
-        const p = Math.min(1, (now - t0) / duration);
-        const eased = 1 - Math.pow(1 - p, 3);
-        const value = start + (end - start) * eased;
-        el.textContent = formatValue(value);
-        if (p < 1) requestAnimationFrame(frame);
-        else el.dataset.prevValue = String(end);
-      }
-      requestAnimationFrame(frame);
-    }
-
-    function initReveal(){
-      const nodes = [...document.querySelectorAll('.reveal')];
-      nodes.forEach((el, idx) => el.style.setProperty('--reveal-delay', `${Math.min(idx * 70, 280)}ms`));
-      const io = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) entry.target.classList.add('in-view');
-        });
-      }, { threshold: 0.12 });
-      nodes.forEach(el => io.observe(el));
-    }
-
-    function getAvailableDays(){
-      const allDates = (DATA.overview || []).map(r => r.date).sort();
-      if (!allDates.length) return 0;
-      const first = toDate(allDates[0]);
-      const last = toDate(allDates[allDates.length - 1]);
-      return Math.max(1, Math.floor((last - first) / 86400000) + 1);
-    }
-
-    function filterRowsByDays(rows, days){
-      if (!rows || !rows.length) return [];
-      const sorted = [...rows].sort((a,b) => String(a.date).localeCompare(String(b.date)));
-      const last = toDate(sorted[sorted.length - 1].date);
-      const cutoff = new Date(last);
-      cutoff.setDate(cutoff.getDate() - (days - 1));
-      const filtered = sorted.filter(r => toDate(r.date) >= cutoff);
-      return filtered.length ? filtered : sorted;
-    }
-
-    function computeRanks(seriesMap){
-      const latest = [];
-      const growth = [];
-      const snapshot = [];
-      Object.entries(seriesMap).forEach(([keyword, rows]) => {
-        if (!rows.length) return;
-        const first = rows[0];
-        const last = rows[rows.length - 1];
-        let naverPeak = { value: -Infinity, date: '-' };
-        let googlePeak = { value: -Infinity, date: '-' };
-        rows.forEach(r => {
-          if (num(r.naver) > naverPeak.value) naverPeak = { value: num(r.naver), date: r.date };
-          if (num(r.google) > googlePeak.value) googlePeak = { value: num(r.google), date: r.date };
-        });
-        const latestBlended = (num(last.naver) + num(last.google)) / 2;
-        const firstBlended = (num(first.naver) + num(first.google)) / 2;
-        const growthPct = firstBlended > 0 ? ((latestBlended - firstBlended) / firstBlended) * 100 : null;
-        latest.push({ keyword, value: latestBlended });
-        if (growthPct !== null) growth.push({ keyword, value: growthPct });
-        snapshot.push({
-          keyword,
-          naver_latest: num(last.naver),
-          google_latest: num(last.google),
-          gap_latest: num(last.gap),
-          latest_blended: latestBlended,
-          growth_pct: growthPct,
-          naver_peak_date: naverPeak.date,
-          naver_peak_value: Number.isFinite(naverPeak.value) ? naverPeak.value : 0,
-          google_peak_date: googlePeak.date,
-          google_peak_value: Number.isFinite(googlePeak.value) ? googlePeak.value : 0,
-        });
-      });
-      latest.sort((a,b) => b.value - a.value);
-      growth.sort((a,b) => b.value - a.value);
-      return { latest, growth, snapshot };
-    }
-
-    function buildFilteredState(days){
-      const overview = filterRowsByDays(DATA.overview || [], days);
-      const series_by_keyword = {};
-      (DATA.meta.keywords || []).forEach(keyword => {
-        series_by_keyword[keyword] = filterRowsByDays((DATA.series_by_keyword || {})[keyword] || [], days);
-      });
-      const latestRow = overview[overview.length - 1] || { date:'-', naver_avg:0, google_avg:0, gap:0 };
-      const firstRow = overview[0] || latestRow;
-      const prevRow = overview.length >= 2 ? overview[overview.length - 2] : null;
-      let platform_peaks = {
-        naver: { date:'-', value:0 },
-        google: { date:'-', value:0 },
-      };
-      overview.forEach(r => {
-        if (num(r.naver_avg) >= num(platform_peaks.naver.value)) platform_peaks.naver = { date:r.date, value:num(r.naver_avg) };
-        if (num(r.google_avg) >= num(platform_peaks.google.value)) platform_peaks.google = { date:r.date, value:num(r.google_avg) };
-      });
-      const ranks = computeRanks(series_by_keyword);
-      return {
-        days,
-        overview,
-        series_by_keyword,
-        rankings: { latest: ranks.latest.slice(0,10), growth: ranks.growth.slice(0,10) },
-        snapshot: ranks.snapshot,
-        platform_peaks,
-        latest_summary: {
-          date: latestRow.date,
-          naver_avg_latest: num(latestRow.naver_avg),
-          google_avg_latest: num(latestRow.google_avg),
-          gap_latest: num(latestRow.gap),
-          naver_vs_prev_pct: prevRow ? ((num(latestRow.naver_avg) - num(prevRow.naver_avg)) / (num(prevRow.naver_avg) || 1)) * 100 : null,
-          google_vs_prev_pct: prevRow ? ((num(latestRow.google_avg) - num(prevRow.google_avg)) / (num(prevRow.google_avg) || 1)) * 100 : null,
-          naver_vs_first_pct: num(firstRow.naver_avg) > 0 ? ((num(latestRow.naver_avg) - num(firstRow.naver_avg)) / num(firstRow.naver_avg)) * 100 : null,
-          google_vs_first_pct: num(firstRow.google_avg) > 0 ? ((num(latestRow.google_avg) - num(firstRow.google_avg)) / num(firstRow.google_avg)) * 100 : null,
-        },
-        meta: {
-          ...DATA.meta,
-          period_text: `${periodLabel(days)} 기준`,
-        }
-      };
-    }
-
-    function animateSection(selector){
-      const el = document.querySelector(selector);
-      if (!el) return;
-      el.classList.remove('fade-up');
-      void el.offsetWidth;
-      el.classList.add('fade-up');
-    }
-
-    function buildChips(){
-      const wrap = document.getElementById('keywordChips');
-      wrap.innerHTML = (DATA.meta.keywords || []).map((k, idx) => `
-        <button class="chip ${idx===0?'active':''}" data-keyword="${esc(k)}" onclick="selectKeywordChip('${String(k).replace(/'/g, "\\'")}')">${esc(k)}</button>
-      `).join('');
-    }
-
-    function buildKeywordSelect(){
-      const sel = document.getElementById('keywordSelect');
-      sel.innerHTML = (DATA.meta.keywords || []).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
-      sel.addEventListener('change', (e) => selectKeywordChip(e.target.value));
-    }
-
-    function renderPeriodTabs(){
-      const availableDays = getAvailableDays();
-      document.querySelectorAll('#periodTabs .period-tab').forEach(btn => {
-        const days = Number(btn.dataset.period);
-        btn.disabled = false;
-        btn.classList.toggle('active', days === CURRENT_DAYS);
-        if (days > availableDays) {
-          btn.title = `현재 누적 데이터는 ${availableDays}일치입니다.`;
-        } else {
-          btn.removeAttribute('title');
-        }
-      });
-    }
-
-    function selectKeywordChip(keyword){
-      CURRENT_KEYWORD = keyword;
-      document.querySelectorAll('#keywordChips .chip').forEach(el => {
-        el.classList.toggle('active', el.dataset.keyword === keyword);
-      });
-      document.getElementById('keywordSelect').value = keyword;
-      renderKeywordChart(keyword);
-    }
-
-    function renderOverviewChart(){
-      const canvas = document.getElementById('overviewChart');
-      const ctx = canvas.getContext('2d');
-      const chartArea = overviewChart?.chartArea;
-      const datasets = [
-        {
-          label: 'Naver Avg',
-          data: FILTERED.overview.map(r => ({ x: r.date, y: num(r.naver_avg) })),
-          borderColor: '#10b981',
-          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '16,185,129', 0.16, 0.01),
-          fill: true,
-          borderWidth: 3,
-          tension: 0.34,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-          pointHitRadius: 20,
-          pointBackgroundColor: '#10b981',
-          pointBorderWidth: 0,
-        },
-        {
-          label: 'Google Avg',
-          data: FILTERED.overview.map(r => ({ x: r.date, y: num(r.google_avg) })),
-          borderColor: '#3b82f6',
-          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '59,130,246', 0.15, 0.01),
-          fill: true,
-          borderWidth: 3,
-          tension: 0.34,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-          pointHitRadius: 20,
-          pointBackgroundColor: '#3b82f6',
-          pointBorderWidth: 0,
-        }
-      ];
-      if (overviewChart) overviewChart.destroy();
-      overviewChart = new Chart(ctx, {
-        type: 'line',
-        data: { datasets },
-        plugins: [glowLinePlugin],
-        options: {
-          animations: buildLineDrawAnimations(),
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            glowLinePlugin: { blur: 14 },
-            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { weight: '700' } } },
-            tooltip: {
-              backgroundColor: 'rgba(15,23,42,0.92)',
-              titleFont: { weight: '800' },
-              bodyFont: { weight: '700' },
-              padding: 12,
-              displayColors: true,
-              callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` }
-            },
-          },
-          scales: {
-            x: { type: 'time', time: { unit: DATA.meta.time_unit === 'date' ? 'day' : (DATA.meta.time_unit === 'month' ? 'month' : 'week') }, grid: { display: false }, ticks: { color: '#64748b', font: { weight: '700' } } },
-            y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.15)' }, ticks: { color: '#64748b', font: { weight: '700' } } },
-          },
-        }
-      });
-    }
-
-    function renderKeywordChart(keyword){
-      const rows = FILTERED.series_by_keyword[keyword] || [];
-      const ctx = document.getElementById('keywordChart').getContext('2d');
-      const datasets = [
-        {
-          label: 'Naver',
-          data: rows.map(r => ({ x: r.date, y: num(r.naver) })),
-          borderColor: '#10b981',
-          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '16,185,129', 0.14, 0.01),
-          fill: true,
-          borderWidth: 3,
-          tension: 0.34,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-          pointHitRadius: 18,
-          pointBackgroundColor: '#10b981',
-          pointBorderWidth: 0,
-        },
-        {
-          label: 'Google',
-          data: rows.map(r => ({ x: r.date, y: num(r.google) })),
-          borderColor: '#3b82f6',
-          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '59,130,246', 0.13, 0.01),
-          fill: true,
-          borderWidth: 3,
-          tension: 0.34,
-          pointRadius: 0,
-          pointHoverRadius: 4,
-          pointHitRadius: 18,
-          pointBackgroundColor: '#3b82f6',
-          pointBorderWidth: 0,
-        },
-        {
-          label: 'Gap',
-          data: rows.map(r => ({ x: r.date, y: num(r.gap) })),
-          borderColor: '#f59e0b',
-          backgroundColor: (context) => createLineAreaGradient(context.chart.ctx, context.chart.chartArea, '245,158,11', 0.09, 0.005),
-          fill: true,
-          borderWidth: 2.5,
-          tension: 0.34,
-          pointRadius: 0,
-          pointHoverRadius: 3,
-          pointHitRadius: 16,
-          pointBackgroundColor: '#f59e0b',
-          pointBorderWidth: 0,
-          borderDash: [7,5],
-        }
-      ];
-      if (keywordChart) keywordChart.destroy();
-      keywordChart = new Chart(ctx, {
-        type: 'line',
-        data: { datasets },
-        plugins: [glowLinePlugin],
-        options: {
-          animations: buildLineDrawAnimations(),
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            glowLinePlugin: { blur: 12 },
-            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { weight: '700' } } },
-            tooltip: {
-              backgroundColor: 'rgba(15,23,42,0.92)',
-              titleFont: { weight: '800' },
-              bodyFont: { weight: '700' },
-              padding: 12,
-              displayColors: true,
-              callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` }
-            },
-          },
-          scales: {
-            x: { type: 'time', time: { unit: DATA.meta.time_unit === 'date' ? 'day' : (DATA.meta.time_unit === 'month' ? 'month' : 'week') }, grid: { display: false }, ticks: { color: '#64748b', font: { weight: '700' } } },
-            y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.15)' }, ticks: { color: '#64748b', font: { weight: '700' } } },
-          },
-        }
-      });
-    }
-
-    function renderSnapshot(){
-      const body = document.getElementById('snapshotBody');
-      body.innerHTML = FILTERED.snapshot.map(r => `
-        <tr>
-          <td>${esc(r.keyword)}</td>
-          <td><span class="badge naver">${fmt(r.naver_latest)}</span></td>
-          <td><span class="badge google">${fmt(r.google_latest)}</span></td>
-          <td>${fmt(r.gap_latest)}</td>
-          <td><span class="badge growth">${fmtPct(r.growth_pct)}</span></td>
-          <td>${esc(r.naver_peak_date)} <span class="muted">(${fmt(r.naver_peak_value)})</span></td>
-          <td>${esc(r.google_peak_date)} <span class="muted">(${fmt(r.google_peak_value)})</span></td>
-        </tr>
-      `).join('');
-    }
-
-    function renderRanks(){
-      document.getElementById('relatedRisingList').innerHTML = (DATA.rankings.related_rising || []).slice(0, 10).map((r, idx) => `
-        <div class="rank-item" style="--idx:${idx};">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
-            <div>
-              <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
-              <div class="text-xs font-bold text-slate-500">seed: ${esc(r.source_keyword || '-')}</div>
-            </div>
-          </div>
-          <div class="text-right">
-            <div class="text-lg font-black text-slate-900">${esc(r.value_label || '-')}</div>
-            <div class="text-[11px] font-bold text-slate-500">${r.is_breakout ? '급증' : '상승률 지수'}</div>
-          </div>
-        </div>
-      `).join('') || `<div class="text-sm font-bold text-slate-500">연관 급상승 검색어 데이터가 없습니다.</div>`;
-
-      document.getElementById('latestRankList').innerHTML = (FILTERED.rankings.latest || []).slice(0, 10).map((r, idx) => `
-        <div class="rank-item" style="--idx:${idx};">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
-            <div>
-              <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
-              <div class="text-xs font-bold text-slate-500">latest blended score</div>
-            </div>
-          </div>
-          <div class="text-lg font-black text-slate-900">${fmt(r.value)}</div>
-        </div>
-      `).join('');
-
-      document.getElementById('growthRankList').innerHTML = (FILTERED.rankings.growth || []).slice(0, 10).map((r, idx) => `
-        <div class="rank-item" style="--idx:${idx};">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-2xl bg-slate-900 text-white text-xs font-black flex items-center justify-center">${idx + 1}</div>
-            <div>
-              <div class="text-sm font-black text-slate-900">${esc(r.keyword)}</div>
-              <div class="text-xs font-bold text-slate-500">vs first point in selected range</div>
-            </div>
-          </div>
-          <div class="text-lg font-black text-slate-900">${fmtPct(r.value)}</div>
-        </div>
-      `).join('');
-    }
-
-    function fillSummary(){
-      document.getElementById('periodText').textContent = DATA.meta.period;
-      document.getElementById('timeUnitText').textContent = `${DATA.meta.time_unit.toUpperCase()} · ${DATA.meta.geo} · ${DATA.meta.device.toUpperCase()}`;
-      document.getElementById('latestDateText').textContent = FILTERED.latest_summary.date || '-';
-      document.getElementById('naverPeakText').textContent = `${FILTERED.platform_peaks.naver.date} · ${fmt(FILTERED.platform_peaks.naver.value)}`;
-      document.getElementById('googlePeakText').textContent = `${FILTERED.platform_peaks.google.date} · ${fmt(FILTERED.platform_peaks.google.value)}`;
-      animateCount(document.getElementById('latestNaverValue'), FILTERED.latest_summary.naver_avg_latest, 1);
-      animateCount(document.getElementById('latestGoogleValue'), FILTERED.latest_summary.google_avg_latest, 1);
-      animateCount(document.getElementById('latestGapValue'), FILTERED.latest_summary.gap_latest, 1);
-      document.getElementById('latestNaverDelta').textContent = `선택 기간 첫 포인트 대비 ${fmtPct(FILTERED.latest_summary.naver_vs_first_pct)}`;
-      document.getElementById('latestGoogleDelta').textContent = `선택 기간 첫 포인트 대비 ${fmtPct(FILTERED.latest_summary.google_vs_first_pct)}`;
-      document.getElementById('headerMeta').textContent = `${DATA.meta.keywords.length}개 키워드 · ${periodLabel(CURRENT_DAYS)} · Generated ${DATA.meta.generated_at}`;
-      document.getElementById('activeRangeText').textContent = `${periodLabel(CURRENT_DAYS)} 기준`;
-    }
-
-    function applyPeriod(days){
-      CURRENT_DAYS = days;
-      FILTERED = buildFilteredState(days);
-      renderPeriodTabs();
-      fillSummary();
-      renderOverviewChart();
-      renderSnapshot();
-      renderRanks();
-      renderKeywordChart(CURRENT_KEYWORD || (DATA.meta.keywords || [])[0]);
-      animateSection('.layout-header');
-      animateSection('#latestRankList');
-      animateSection('#growthRankList');
-      animateSection('#snapshotBody');
-    }
-
-    function bindPeriodTabs(){
-      document.querySelectorAll('#periodTabs .period-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-          applyPeriod(Number(btn.dataset.period));
-        });
-      });
-    }
-
-    function init(){
-      initReveal();
-      buildChips();
-      buildKeywordSelect();
-      bindPeriodTabs();
-      CURRENT_KEYWORD = (DATA.meta.keywords || [])[0] || null;
-      applyPeriod(CURRENT_DAYS);
-      if (CURRENT_KEYWORD) selectKeywordChip(CURRENT_KEYWORD);
-    }
-    init();
-  </script>
+buildTabs();
+render();
+</script>
 </body>
 </html>
