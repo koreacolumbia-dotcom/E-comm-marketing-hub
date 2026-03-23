@@ -26,14 +26,14 @@
     .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
     .funnel-wrap{position:relative;padding:8px 0 2px}
     .funnel-flow{display:flex;flex-direction:column;gap:14px}
-    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(116px,.24fr);gap:12px;align-items:stretch}
+    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(132px,.22fr);gap:14px;align-items:stretch}
     .funnel-main-track,.funnel-drop-track{position:relative;border-radius:24px;overflow:hidden;background:rgba(226,232,240,.56);border:1px solid rgba(148,163,184,.16)}
-    .funnel-main-track{min-height:88px;display:flex;align-items:stretch;justify-content:flex-start;padding:0}
-    .funnel-drop-track{min-height:88px;display:flex;align-items:stretch;justify-content:flex-start}
-    .funnel-bar,.funnel-drop-bar{position:relative;display:flex;align-items:center;border-radius:22px;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);transform-origin:left center;opacity:0;animation:funnelRise .65s cubic-bezier(.2,.8,.2,1) forwards}
-    .funnel-bar{min-height:88px;padding:16px 22px;justify-content:center;text-align:center}
-    .funnel-drop-bar{min-height:88px;padding:12px 14px;justify-content:center;text-align:center;background:linear-gradient(135deg,#c084fc,#ec4899)}
-    .funnel-stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%}
+    .funnel-main-track{min-height:96px;display:flex;align-items:center;justify-content:center;padding:0 18px}
+    .funnel-drop-track{min-height:96px;display:flex;align-items:stretch;justify-content:flex-start}
+    .funnel-bar,.funnel-drop-bar{position:relative;display:flex;align-items:center;border-radius:22px;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);transform-origin:center center;opacity:0;animation:funnelRise .72s cubic-bezier(.2,.8,.2,1) forwards}
+    .funnel-bar{height:72px;min-height:72px;justify-content:center;text-align:center;min-width:4px}
+    .funnel-drop-bar{min-height:96px;padding:12px 14px;justify-content:center;text-align:center;background:linear-gradient(135deg,#c084fc,#ec4899)}
+    .funnel-stage-copy{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;pointer-events:none;z-index:2}
     .stage-title{font-size:clamp(20px,2.1vw,34px);line-height:1.04;font-weight:900;word-break:keep-all;text-shadow:0 1px 2px rgba(0,0,0,.12)}
     .stage-value .num{margin-top:8px;font-size:clamp(30px,3vw,52px);line-height:1;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.12)}
     .stage-meta{margin-top:8px;font-size:13px;line-height:1.2;font-weight:800;opacity:.96}
@@ -50,11 +50,12 @@
     .funnel-bar.compare-a{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-bar.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
     .funnel-bar::after,.funnel-drop-bar::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0));pointer-events:none}
-    @keyframes funnelRise{0%{opacity:0;transform:translateY(10px) scaleX(.86)}100%{opacity:1;transform:translateY(0) scaleX(1)}}
+    @keyframes funnelRise{0%{opacity:0;transform:translateY(12px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}
     @media (max-width: 760px){
       .funnel-row{grid-template-columns:1fr;gap:8px}
-      .funnel-main-track,.funnel-drop-track,.funnel-bar,.funnel-drop-bar{min-height:78px}
-      .funnel-bar{padding:14px 16px}
+      .funnel-main-track,.funnel-drop-track,.funnel-drop-bar{min-height:82px}
+      .funnel-main-track{padding:0 12px}
+      .funnel-bar{height:60px;min-height:60px}
       .stage-title{font-size:clamp(18px,5vw,28px)}
       .stage-value .num{font-size:clamp(26px,7vw,40px)}
     }
@@ -525,15 +526,13 @@
           notes.push('Purchase stage is using Buyer Users as a proxy because purchase_sessions is not present in the source JSON.');
         }
 
-        const max = Math.max(...fields.map((s) => s.value), 0);
-        const easing = (ratio) => Math.pow(Math.max(0, ratio), 0.82);
+        const max = Math.max(...fields.map((s) => s.value), 0) || 1;
         const stages = fields.map((stage, idx) => {
-          const rawRatio = max ? stage.value / max : 0;
-          const width = idx === 0 ? 96 : Math.max(14, easing(rawRatio) * 96);
+          const widthPct = Math.max(0.8, (stage.value / max) * 100);
           const prevValue = idx === 0 ? 0 : fields[idx - 1].value;
           const kept = idx === 0 ? 100 : (prevValue ? (stage.value / prevValue) * 100 : 0);
           const drop = idx === 0 ? 0 : Math.max(0, 100 - kept);
-          return { ...stage, width, kept, drop, share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 };
+          return { ...stage, widthPct, kept, drop, share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 };
         });
 
         const steps = [];
@@ -576,15 +575,15 @@
           canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
           return;
         }
-        const widthScale = (w, minW=18, maxW=100) => `${Math.max(minW, Math.min(maxW, Number(w || 0))).toFixed(1)}%`;
+        const mainScale = (pct) => `${Math.max(0.8, Math.min(100, Number(pct || 0))).toFixed(2)}%`;
         const dropScale = (pct) => {
           const ratio = Math.max(0, Math.min(1, Number(pct || 0) / 100));
-          return `${Math.max(20, 20 + (Math.pow(ratio, 0.82) * 80)).toFixed(1)}%`;
+          return `${Math.max(18, 18 + (Math.pow(ratio, 0.92) * 82)).toFixed(1)}%`;
         };
         const html = [
           `<div class="funnel-flow">`,
           ...stages.map((stage, i) => {
-            const mainWidth = widthScale(stage.width || (i === 0 ? 100 : 18), i === 0 ? 100 : 18, 100);
+            const mainWidth = mainScale(stage.widthPct || 0);
             const hasDrop = i > 0;
             const dropWidth = hasDrop ? dropScale(stage.drop) : '0%';
             const dropCount = hasDrop ? Math.max(0, (stages[i-1].value || 0) - (stage.value || 0)) : 0;
@@ -592,17 +591,16 @@
             ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
             <div class="funnel-row">
               <div class="funnel-main-track">
-                <div class="funnel-bar ${className}" data-stage="${Math.min(i+1,5)}" style="width:${mainWidth};animation-delay:${(i * 80)}ms">
-                  <div class="funnel-stage-copy">
-                    <div class="stage-title">${esc(stage.label)}</div>
-                    <div class="stage-value"><div class="num">${fmt(stage.value)}</div></div>
-                    <div class="stage-meta">${i === 0 ? '기준 단계' : `이탈 ${fmtPct(stage.drop,1)}`}</div>
-                  </div>
+                <div class="funnel-bar ${className}" data-stage="${Math.min(i+1,5)}" style="width:${mainWidth};animation-delay:${(i * 90)}ms"></div>
+                <div class="funnel-stage-copy" style="animation-delay:${(i * 90)}ms">
+                  <div class="stage-title">${esc(stage.label)}</div>
+                  <div class="stage-value"><div class="num">${fmt(stage.value)}</div></div>
+                  <div class="stage-meta">${i === 0 ? '기준 단계' : `이탈 ${fmtPct(stage.drop,1)}`}</div>
                 </div>
               </div>
               <div class="funnel-drop-track">
                 ${hasDrop ? `
-                <div class="funnel-drop-bar" style="width:${dropWidth};animation-delay:${(i * 80) + 120}ms">
+                <div class="funnel-drop-bar" style="width:${dropWidth};animation-delay:${(i * 90) + 140}ms">
                   <div class="drop-copy">
                     <div class="drop-label">Drop-off</div>
                     <div class="drop-value">${fmtPct(stage.drop,1)}</div>
@@ -740,7 +738,7 @@
 
         const rescale = (behavior) => ({
           ...behavior,
-          stages: behavior.stages.map((s, idx) => ({ ...s, width: idx === 0 ? 96 * Math.pow(s.value / globalMax, 0.82) || 14 : Math.max(14, Math.pow((s.value / globalMax), 0.82) * 96) }))
+          stages: behavior.stages.map((s) => ({ ...s, widthPct: Math.max(0.8, (s.value / globalMax) * 100) }))
         });
 
         renderFunnel(els.compareCanvasA, rescale(a.behavior), 'compare-a');
