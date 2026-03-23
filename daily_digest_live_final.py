@@ -2532,8 +2532,18 @@ def render_page_html(
                 })
             _tmp_target = pd.DataFrame(_rows)
             if not _tmp_target.empty:
+                try:
+                    target_roas_map_local = load_target_roas_map(TARGET_ROAS_XLS_PATH)
+                except Exception:
+                    target_roas_map_local = {}
+
                 _tmp_target["target_roas"] = _tmp_target["media"].map(
-                    lambda x: float(target_roas_map.get(x, target_roas_map.get(str(x).title().lower(), 0.0)) or 0.0)
+                    lambda x: float(
+                        target_roas_map_local.get(
+                            str(x).strip().lower(),
+                            target_roas_map_local.get(str(x).title().lower(), 0.0)
+                        ) or 0.0
+                    )
                 )
                 if float(pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()) > 0:
                     target_roas_total = float(
