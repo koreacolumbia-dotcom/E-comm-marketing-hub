@@ -17,6 +17,15 @@ on:
           - "false"
           - "true"
 
+      daily_hub_only:
+        description: "Run Daily Digest HUB update only? (no email)"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
       voc_only:
         description: "Run Crema + Naver VOC only?"
         required: true
@@ -169,6 +178,7 @@ jobs:
           MORNING_REST_CRON="30 21 * * *"
 
           DAILY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_only == 'true' }}"
+          DAILY_HUB_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_hub_only == 'true' }}"
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
           BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
           HERO_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.hero_only == 'true' }}"
@@ -182,6 +192,7 @@ jobs:
           if [ "$EVENT" = "workflow_dispatch" ]; then
             cnt=0
             [ "$DAILY_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$DAILY_HUB_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$VOC_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$BLOG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$HERO_ONLY" = "true" ] && cnt=$((cnt+1))
@@ -192,7 +203,7 @@ jobs:
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of daily_only/voc_only/blog_only/hero_only/owned_only/funnel_only/search_volume_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of daily_only/daily_hub_only/voc_only/blog_only/hero_only/owned_only/funnel_only/search_volume_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -316,6 +327,20 @@ jobs:
             RUN_SEARCH_VOLUME=false
           fi
 
+          if [ "$DAILY_HUB_ONLY" = "true" ]; then
+            RUN_DAILY=true
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+            RUN_FUNNEL=false
+            RUN_SEARCH_VOLUME=false
+            SEND_DAILY_EMAIL=false
+          fi
+
           if [ "$DAILY_ONLY" = "true" ]; then
             RUN_DAILY=true
             RUN_PRICE=false
@@ -327,6 +352,7 @@ jobs:
             RUN_OWNED=false
             RUN_FUNNEL=false
             RUN_SEARCH_VOLUME=false
+            SEND_DAILY_EMAIL=true
           fi
 
           if [ "$VOC_ONLY" = "true" ]; then
@@ -368,6 +394,7 @@ jobs:
             RUN_SEARCH_VOLUME=false
           fi
 
+          echo "daily_hub_only=$DAILY_HUB_ONLY" >> "$GITHUB_OUTPUT"
           echo "run_daily=$RUN_DAILY" >> "$GITHUB_OUTPUT"
           echo "run_price=$RUN_PRICE" >> "$GITHUB_OUTPUT"
           echo "run_hero=$RUN_HERO" >> "$GITHUB_OUTPUT"
@@ -1064,7 +1091,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          NAVER_AD_API_KEY: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
+          NAVER_AD_API_KEY: ${{ secrets.NAVER_AD_API_KEY }}
           NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
           NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
           GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
@@ -1105,16 +1132,7 @@ jobs:
           mkdir -p reports/search_volume/data
 
           echo "[INFO] Search Volume backfill window: ${START_DATE} ~ ${YMD}"
-          python -u "$SCRIPT" \
-            --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화" \
-            --start-date "$START_DATE" \
-            --end-date "$YMD" \
-            --geo KR \
-            --template "$TEMPLATE" \
-            --output-json "$OUT_JSON" \
-            --output-html "$OUT_HTML" \
-            --meta-json "$META_JSON" \
-            --skip-if-current
+          python -u "$SCRIPT"             --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화"             --end-date "$YMD"             --geo KR             --template "$TEMPLATE"             --output-json "$OUT_JSON"             --output-html "$OUT_HTML"             --meta-json "$META_JSON"             --skip-if-current
 
           echo "[INFO] Search Volume outputs:"
           ls -la reports/search_volume || true
