@@ -2445,6 +2445,39 @@ def render_page_html(
 
     paid_media_compare_html = ""
     if paid_media_compare is not None and (not paid_media_compare.empty):
+        target_roas_total = 0.0
+        budget_total = float(pd.to_numeric(paid_media_compare.get("budget", 0), errors="coerce").fillna(0).sum()) if "budget" in paid_media_compare.columns else 0.0
+
+        if "target_roas" in paid_media_compare.columns and budget_total > 0:
+            _tmp_target = paid_media_compare.copy()
+            _tmp_target["budget"] = pd.to_numeric(_tmp_target.get("budget", 0), errors="coerce").fillna(0)
+            _tmp_target["target_roas"] = pd.to_numeric(_tmp_target.get("target_roas", 0), errors="coerce").fillna(0)
+            target_roas_total = float((_tmp_target["target_roas"] * _tmp_target["budget"]).sum() / budget_total)
+        elif "target_roas" in paid_media_compare.columns:
+            target_roas_total = float(pd.to_numeric(paid_media_compare.get("target_roas", 0), errors="coerce").fillna(0).mean())
+
+        if "roas" in paid_media_compare.columns and budget_total > 0:
+            _tmp_roas = paid_media_compare.copy()
+            _tmp_roas["budget"] = pd.to_numeric(_tmp_roas.get("budget", 0), errors="coerce").fillna(0)
+            _tmp_roas["roas"] = pd.to_numeric(_tmp_roas.get("roas", 0), errors="coerce").fillna(0)
+            roas_total = float((_tmp_roas["roas"] * _tmp_roas["budget"]).sum() / budget_total)
+        else:
+            roas_total = float(pd.to_numeric(paid_media_compare.get("roas", 0), errors="coerce").fillna(0).mean()) if "roas" in paid_media_compare.columns else 0.0
+
+        cvr_total = 0.0
+        if paid_detail is not None and (not paid_detail.empty):
+            _paid_total = paid_detail[paid_detail["sub_channel"].astype(str).str.strip().str.lower() == "total"].copy() if "sub_channel" in paid_detail.columns else pd.DataFrame()
+            if not _paid_total.empty and "cvr" in _paid_total.columns:
+                cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
+
+        paid_media_compare_html += table_row([
+            "<span class='font-extrabold'>TOTAL</span>",
+            f"<div class='text-right font-extrabold'>{fmt_pct(float(target_roas_total or 0),1)}</div>",
+            f"<div class='text-right font-extrabold'>{fmt_currency_krw(budget_total)}</div>",
+            f"<div class='text-right font-extrabold'>{fmt_pct(float(roas_total or 0),1)}</div>",
+            f"<div class='text-right font-extrabold'>{fmt_pct(float(cvr_total or 0),2)}</div>",
+        ], bold=True)
+
         for r in paid_media_compare.itertuples(index=False):
             paid_media_compare_html += table_row([
                 esc(getattr(r, 'channel', '')),
