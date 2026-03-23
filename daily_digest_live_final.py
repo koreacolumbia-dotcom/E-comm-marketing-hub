@@ -1,20 +1,3 @@
-
-# ===============================
-# SAFE ANIMATION CSS (NO SYNTAX ERROR)
-# ===============================
-def get_safe_animation_css():
-    css = """
-    @keyframes fadeUp {
-      0% { opacity:0; transform:translate3d(0,20px,0) scale(.985); }
-      100% { opacity:1; transform:translate3d(0,0,0) scale(1); }
-    }
-    .digest-card {
-      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
-    }
-    """
-    return css.replace("{", "{{").replace("}", "}}")
-
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -56,6 +39,55 @@ Outputs
 """
 
 from __future__ import annotations
+
+
+# ===============================
+# SAFE ANIMATION CSS (NO SYNTAX ERROR)
+# ===============================
+def get_safe_animation_css():
+    css = """
+    @keyframes fadeUp {
+      0% { opacity: 0; transform: translate3d(0, 20px, 0) scale(.985); }
+      100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    }
+
+    @keyframes slideUpSoft {
+      0% { opacity: 0; transform: translateY(18px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes softPulse {
+      0% { box-shadow: 0 0 0 rgba(15,23,42,0); }
+      100% { box-shadow: 0 18px 40px rgba(15,23,42,.08); }
+    }
+
+    body > .mx-auto.max-w-7xl.p-6 {
+      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {
+      animation: slideUpSoft .7s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {
+      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(15,23,42,.08);
+    }
+    """
+    return css.replace("{", "{{").replace("}", "}}")
 
 import os
 import json
@@ -2513,8 +2545,8 @@ def render_page_html(
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
-  {get_safe_animation_css()}
-</style>
+      {get_safe_animation_css()}
+  </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="mx-auto max-w-7xl p-6">
@@ -2658,8 +2690,8 @@ def render_hub_index(dates: List[dt.date]) -> str:
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
-  {get_safe_animation_css()}
-</style>
+      {get_safe_animation_css()}
+  </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="mx-auto max-w-7xl p-6">
