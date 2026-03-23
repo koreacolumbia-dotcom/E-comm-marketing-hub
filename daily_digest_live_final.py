@@ -1,3 +1,20 @@
+
+# ===============================
+# SAFE ANIMATION CSS (NO SYNTAX ERROR)
+# ===============================
+def get_safe_animation_css():
+    css = """
+    @keyframes fadeUp {
+      0% { opacity:0; transform:translate3d(0,20px,0) scale(.985); }
+      100% { opacity:1; transform:translate3d(0,0,0) scale(1); }
+    }
+    .digest-card {
+      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
+    }
+    """
+    return css.replace("{", "{{").replace("}", "}}")
+
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -2496,21 +2513,8 @@ def render_page_html(
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
-  
-
-    /* === premium motion patch === */
-    @keyframes motionFadeUp{0%{opacity:0;transform:translate3d(0,20px,0) scale(.985)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}
-    @keyframes motionFadeLeft{0%{opacity:0;transform:translate3d(18px,0,0) scale(.985)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}
-    @keyframes motionPulseGlow{0%,100%{box-shadow:0 18px 38px rgba(15,23,42,.06)}50%{box-shadow:0 24px 48px rgba(0,45,114,.10)}}
-    .motion-ready .motion-target,
-    .motion-ready .motion-target-left{opacity:0;will-change:transform,opacity}
-    .motion-ready .motion-in{animation:motionFadeUp .8s cubic-bezier(.22,.86,.22,1) both}
-    .motion-ready .motion-in-left{animation:motionFadeLeft .8s cubic-bezier(.22,.86,.22,1) both}
-    .motion-hover{transition:transform .22s ease, box-shadow .22s ease}
-    .motion-hover:hover{transform:translateY(-2px);box-shadow:0 18px 36px rgba(15,23,42,.10)}
-    .motion-glow{animation:motionPulseGlow 3.2s ease-in-out infinite}
-
-  </style>
+  {get_safe_animation_css()}
+</style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="mx-auto max-w-7xl p-6">
@@ -2628,44 +2632,6 @@ def render_page_html(
 
   {paid_toggle_js}
 
-
-<script>
-(function(){
-  const initMotion = () => {
-    document.body.classList.add('motion-ready');
-    const selectors = [
-      '.glass','.glass-card','.card','.summary-card','.review-card','.ml-card','.table-wrap',
-      '.group-chip','.chip','.btn','.field','.topbar','.funnel-row','.summary-grid > *','section > .card'
-    ];
-    const nodes = Array.from(new Set(selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)))));
-    nodes.forEach((el, idx) => {
-      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {
-        el.classList.add('motion-target-left');
-      } else {
-        el.classList.add('motion-target');
-      }
-      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {
-        el.classList.add('motion-hover');
-      }
-      el.style.animationDelay = `${Math.min(idx * 45, 520)}ms`;
-    });
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const el = entry.target;
-          if (el.classList.contains('motion-target-left')) el.classList.add('motion-in-left');
-          else el.classList.add('motion-in');
-          io.unobserve(el);
-        }
-      });
-    }, {threshold:0.08, rootMargin:'0px 0px -8% 0px'});
-    nodes.forEach(el => io.observe(el));
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMotion);
-  else initMotion();
-})();
-</script>
-
 </body>
 </html>
 """
@@ -2692,7 +2658,8 @@ def render_hub_index(dates: List[dt.date]) -> str:
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
-  </style>
+  {get_safe_animation_css()}
+</style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="mx-auto max-w-7xl p-6">
@@ -2764,44 +2731,6 @@ def render_hub_index(dates: List[dt.date]) -> str:
   }}
   document.addEventListener("DOMContentLoaded", init);
 }})();
-</script>
-
-
-<script>
-(function(){
-  const initMotion = () => {
-    document.body.classList.add('motion-ready');
-    const selectors = [
-      '.glass','.glass-card','.card','.summary-card','.review-card','.ml-card','.table-wrap',
-      '.group-chip','.chip','.btn','.field','.topbar','.funnel-row','.summary-grid > *','section > .card'
-    ];
-    const nodes = Array.from(new Set(selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)))));
-    nodes.forEach((el, idx) => {
-      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {
-        el.classList.add('motion-target-left');
-      } else {
-        el.classList.add('motion-target');
-      }
-      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {
-        el.classList.add('motion-hover');
-      }
-      el.style.animationDelay = `${Math.min(idx * 45, 520)}ms`;
-    });
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const el = entry.target;
-          if (el.classList.contains('motion-target-left')) el.classList.add('motion-in-left');
-          else el.classList.add('motion-in');
-          io.unobserve(el);
-        }
-      });
-    }, {threshold:0.08, rootMargin:'0px 0px -8% 0px'});
-    nodes.forEach(el => io.observe(el));
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMotion);
-  else initMotion();
-})();
 </script>
 
 </body>
