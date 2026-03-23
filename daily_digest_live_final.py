@@ -904,12 +904,14 @@ def get_channel_snapshot_3way(
 
     m["dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     m["yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    m["cvr"] = m.apply(lambda r: (float(r["transactions_cur"]) / float(r["sessions_cur"])) if float(r["sessions_cur"]) else 0.0, axis=1)
 
     out = pd.DataFrame({
         "bucket": m["bucket"],
         "sessions": m["sessions_cur"],
         "transactions": m["transactions_cur"],
         "purchaseRevenue": m["revenue_cur"],
+        "cvr": m["cvr"],
         "rev_dod": m["dod"],
         "rev_yoy": m["yoy"],
     })
@@ -924,12 +926,13 @@ def get_channel_snapshot_3way(
         "sessions": total_sessions_cur,
         "transactions": total_orders_cur,
         "purchaseRevenue": total_revenue_cur,
+        "cvr": (total_orders_cur / total_sessions_cur) if total_sessions_cur else 0.0,
         "rev_dod": pct_change(total_sessions_cur, total_sessions_prev),
         "rev_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
     }])
 
     out = pd.concat([out, total], ignore_index=True)
-    return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod", "rev_yoy"]]
+    return out[["bucket", "sessions", "transactions", "purchaseRevenue", "cvr", "rev_dod", "rev_yoy"]]
 
 
 # =========================
@@ -945,7 +948,7 @@ def get_paid_detail_3way(
     DoD / YoY are session based.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
-    mets = ["sessions", "purchaseRevenue"]
+    mets = ["sessions", "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
@@ -982,17 +985,18 @@ def get_paid_detail_3way(
 
     def agg(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=["sub", "sessions", "purchaseRevenue"])
-        return df.groupby("sub", as_index=False)[["sessions", "purchaseRevenue"]].sum()
+            return pd.DataFrame(columns=["sub", "sessions", "transactions", "purchaseRevenue"])
+        return df.groupby("sub", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
 
-    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "purchaseRevenue": "rev_cur"})
-    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "purchaseRevenue": "rev_prev"})
-    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "purchaseRevenue": "rev_yoy_base"})
+    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "transactions": "transactions_cur", "purchaseRevenue": "rev_cur"})
+    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "transactions": "transactions_prev", "purchaseRevenue": "rev_prev"})
+    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "transactions": "transactions_yoy", "purchaseRevenue": "rev_yoy_base"})
     yoy_subs = set(yoy_a["sub"].astype(str).tolist()) if not yoy_a.empty else set()
 
     merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
     merged["dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     merged["yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    merged["cvr"] = merged.apply(lambda r: (float(r["transactions_cur"]) / float(r["sessions_cur"])) if float(r["sessions_cur"]) else 0.0, axis=1)
     merged["has_yoy"] = merged["sub"].astype(str).isin(yoy_subs)
 
     # Ensure core labels always exist in the visible table.
@@ -1000,10 +1004,10 @@ def get_paid_detail_3way(
     for c in core:
         if c not in set(merged["sub"].tolist()):
             merged = pd.concat([merged, pd.DataFrame([{
-                "sub": c, "sessions_cur": 0.0, "rev_cur": 0.0,
-                "sessions_prev": 0.0, "rev_prev": 0.0,
-                "sessions_yoy": 0.0, "rev_yoy_base": 0.0,
-                "dod": 0.0, "yoy": 0.0, "has_yoy": False
+                "sub": c, "sessions_cur": 0.0, "transactions_cur": 0.0, "rev_cur": 0.0,
+                "sessions_prev": 0.0, "transactions_prev": 0.0, "rev_prev": 0.0,
+                "sessions_yoy": 0.0, "transactions_yoy": 0.0, "rev_yoy_base": 0.0,
+                "dod": 0.0, "yoy": 0.0, "cvr": 0.0, "has_yoy": False
             }])], ignore_index=True)
 
     # Show core rows plus top "others", but compute Total from the full Paid AD base.
@@ -1021,20 +1025,24 @@ def get_paid_detail_3way(
     merged_cur_s = float(merged["sessions_cur"].sum()) if not merged.empty else 0.0
     merged_prev_s = float(merged["sessions_prev"].sum()) if not merged.empty else 0.0
     merged_yoy_s = float(merged["sessions_yoy"].sum()) if not merged.empty else 0.0
+    merged_cur_t = float(merged["transactions_cur"].sum()) if not merged.empty else 0.0
     merged_cur_r = float(merged["rev_cur"].sum()) if not merged.empty else 0.0
 
     if paid_ad_totals:
         cur_sessions_val = paid_ad_totals.get("current", {}).get("sessions", merged_cur_s)
+        cur_transactions_val = paid_ad_totals.get("current", {}).get("transactions", merged_cur_t)
         cur_revenue_val = paid_ad_totals.get("current", {}).get("revenue", merged_cur_r)
         prev_sessions_val = paid_ad_totals.get("prev", {}).get("sessions", None)
         yoy_sessions_val = paid_ad_totals.get("yoy", {}).get("sessions", None)
 
         t_cur_s = merged_cur_s if cur_sessions_val is None else float(cur_sessions_val or 0.0)
+        t_cur_t = merged_cur_t if cur_transactions_val is None else float(cur_transactions_val or 0.0)
         t_cur_r = merged_cur_r if cur_revenue_val is None else float(cur_revenue_val or 0.0)
         t_prev_s = merged_prev_s if prev_sessions_val in (None, 0, 0.0) else float(prev_sessions_val)
         t_yoy_s = merged_yoy_s if yoy_sessions_val in (None, 0, 0.0) else float(yoy_sessions_val)
     else:
         t_cur_s = merged_cur_s
+        t_cur_t = merged_cur_t
         t_prev_s = merged_prev_s
         t_yoy_s = merged_yoy_s
         t_cur_r = merged_cur_r
@@ -1042,16 +1050,19 @@ def get_paid_detail_3way(
     total_row = {
         "sub_channel": "Total",
         "sessions": t_cur_s,
+        "transactions": t_cur_t,
         "purchaseRevenue": t_cur_r,
+        "cvr": (t_cur_t / t_cur_s) if t_cur_s else 0.0,
         "dod": pct_change(t_cur_s, t_prev_s),
         "yoy": pct_change(t_cur_s, t_yoy_s),
         "has_yoy": (t_yoy_s not in (None, 0, 0.0)),
     }
 
-    out = ordered[["sub", "sessions_cur", "rev_cur", "dod", "yoy", "has_yoy"]].copy()
+    out = ordered[["sub", "sessions_cur", "transactions_cur", "rev_cur", "cvr", "dod", "yoy", "has_yoy"]].copy()
     out = out.rename(columns={
         "sub": "sub_channel",
         "sessions_cur": "sessions",
+        "transactions_cur": "transactions",
         "rev_cur": "purchaseRevenue",
     })
     out = pd.concat([out, pd.DataFrame([total_row])], ignore_index=True)
@@ -2278,6 +2289,7 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
                 f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_dod', 0) or 0))}'>{('+' if float(getattr(r,'rev_dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_dod',0) or 0),1)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
@@ -2312,7 +2324,9 @@ def render_page_html(
             row_html = table_row([
                 esc(sub),
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
+                f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
                 yoy_html,
             ], bold=is_bold, row_class=row_cls)
@@ -2503,30 +2517,33 @@ def render_page_html(
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
-      <table class="mt-3 w-full table-auto text-sm">
+      <div class="mt-3 overflow-x-auto"><table class="w-full table-auto text-sm min-w-[980px]">
         <thead class="text-xs text-slate-500">
           <tr>
             <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
             <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
           </tr>
         </thead>
         <tbody>{chan_html}</tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
       <div class="mt-3 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[920px]">
+        <table class="w-full table-auto text-sm min-w-[1120px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
@@ -2750,7 +2767,7 @@ def build_one(
 
     # Extract Paid AD totals from Channel Snapshot for Paid Detail alignment.
     paid_ad_totals = {
-        "current": {"sessions": None, "revenue": None},
+        "current": {"sessions": None, "transactions": None, "revenue": None},
         "prev": {"sessions": None, "revenue": None},
         "yoy": {"sessions": None, "revenue": None},
     }
@@ -2759,6 +2776,7 @@ def build_one(
         row = channel_snapshot[channel_snapshot["bucket"] == "Paid AD"]
         if not row.empty:
             paid_ad_totals["current"]["sessions"] = float(row.iloc[0]["sessions"])
+            paid_ad_totals["current"]["transactions"] = float(row.iloc[0].get("transactions", 0) or 0.0)
             paid_ad_totals["current"]["revenue"] = float(row.iloc[0]["purchaseRevenue"])
     except Exception:
         pass
