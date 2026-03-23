@@ -71,8 +71,8 @@ on:
           - "false"
           - "true"
 
-      search_trends_only:
-        description: "Run Search Trends dashboard only?"
+      search_volume_only:
+        description: "Run Search Volume dashboard only?"
         required: true
         default: "false"
         type: choice
@@ -120,7 +120,7 @@ on:
           - "true"
 
   schedule:
-    # 05:00 KST daily -> Search Trends only
+    # 05:00 KST daily -> Search Volume only
     - cron: "0 20 * * *"
     # 06:00 KST daily -> Daily Digest + email only
     - cron: "0 21 * * *"
@@ -164,7 +164,7 @@ jobs:
 
           EVENT="${{ github.event_name }}"
           SCHEDULE_CRON="${{ github.event.schedule }}"
-          SEARCH_TRENDS_CRON="0 20 * * *"
+          SEARCH_VOLUME_CRON="0 20 * * *"
           MORNING_DAILY_CRON="0 21 * * *"
           MORNING_REST_CRON="30 21 * * *"
 
@@ -174,7 +174,7 @@ jobs:
           HERO_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.hero_only == 'true' }}"
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
           FUNNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.funnel_only == 'true' }}"
-          SEARCH_TRENDS_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.search_trends_only == 'true' }}"
+          SEARCH_VOLUME_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.search_volume_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
           EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
           SUMMARY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.summary_only == 'true' }}"
@@ -187,12 +187,12 @@ jobs:
             [ "$HERO_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$FUNNEL_ONLY" = "true" ] && cnt=$((cnt+1))
-            [ "$SEARCH_TRENDS_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$SEARCH_VOLUME_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of daily_only/voc_only/blog_only/hero_only/owned_only/funnel_only/search_trends_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of daily_only/voc_only/blog_only/hero_only/owned_only/funnel_only/search_volume_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -206,10 +206,10 @@ jobs:
           RUN_SUMMARY=true
           RUN_OWNED=true
           RUN_FUNNEL=false
-          RUN_SEARCH_TRENDS=false
+          RUN_SEARCH_VOLUME=false
           SEND_DAILY_EMAIL=true
 
-          if [ "$EVENT" = "schedule" ] && [ "$SCHEDULE_CRON" = "$SEARCH_TRENDS_CRON" ]; then
+          if [ "$EVENT" = "schedule" ] && [ "$SCHEDULE_CRON" = "$SEARCH_VOLUME_CRON" ]; then
             RUN_DAILY=false
             RUN_PRICE=false
             RUN_HERO=false
@@ -219,7 +219,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=true
+            RUN_SEARCH_VOLUME=true
             SEND_DAILY_EMAIL=false
           fi
 
@@ -233,7 +233,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
             SEND_DAILY_EMAIL=true
           fi
 
@@ -247,7 +247,7 @@ jobs:
             RUN_SUMMARY=true
             RUN_OWNED=true
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
             SEND_DAILY_EMAIL=false
           fi
 
@@ -261,7 +261,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=true
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
           fi
 
           if [ "$FUNNEL_ONLY" = "true" ]; then
@@ -274,10 +274,10 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=true
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
           fi
 
-          if [ "$SEARCH_TRENDS_ONLY" = "true" ]; then
+          if [ "$SEARCH_VOLUME_ONLY" = "true" ]; then
             RUN_DAILY=false
             RUN_PRICE=false
             RUN_HERO=false
@@ -287,7 +287,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=true
+            RUN_SEARCH_VOLUME=true
           fi
 
           if [ "$EXTSIG_ONLY" = "true" ]; then
@@ -300,7 +300,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
           fi
 
           if [ "$SUMMARY_ONLY" = "true" ]; then
@@ -313,7 +313,7 @@ jobs:
             RUN_SUMMARY=true
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
           fi
 
           if [ "$DAILY_ONLY" = "true" ]; then
@@ -326,7 +326,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
           fi
 
           if [ "$VOC_ONLY" = "true" ]; then
@@ -339,7 +339,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
           fi
 
           if [ "$BLOG_ONLY" = "true" ]; then
@@ -352,7 +352,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
           fi
 
           if [ "$HERO_ONLY" = "true" ]; then
@@ -365,7 +365,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
-            RUN_SEARCH_TRENDS=false
+            RUN_SEARCH_VOLUME=false
           fi
 
           echo "run_daily=$RUN_DAILY" >> "$GITHUB_OUTPUT"
@@ -377,7 +377,7 @@ jobs:
           echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
           echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
           echo "run_funnel=$RUN_FUNNEL" >> "$GITHUB_OUTPUT"
-          echo "run_search_trends=$RUN_SEARCH_TRENDS" >> "$GITHUB_OUTPUT"
+          echo "run_search_volume=$RUN_SEARCH_TRENDS" >> "$GITHUB_OUTPUT"
           echo "send_daily_email=$SEND_DAILY_EMAIL" >> "$GITHUB_OUTPUT"
 
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
@@ -432,7 +432,7 @@ jobs:
           set -euo pipefail
           mkdir -p \
             reports \
-            reports/search_trends/data \
+            reports/search_volume/data \
             site/data \
             site/assets \
             site/assets/products \
@@ -1059,48 +1059,57 @@ jobs:
           echo "[CHECK] reports/daily_digest/data/funnel:"
           ls -lah reports/daily_digest/data/funnel | head -n 60 || true
 
-      - name: Build Search Trends dashboard
-        if: ${{ steps.modes.outputs.run_search_trends == 'true' }}
+      - name: Build Search Volume dashboard
+        if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
         continue-on-error: true
         shell: bash
         env:
-          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_AD_API_KEY: ${{ secrets.NAVER_AD_API_KEY }}
+          NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
+          NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
+          GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+          GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
+          GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
+          GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
+          GOOGLE_ADS_LANGUAGE_RESOURCE: ${{ secrets.GOOGLE_ADS_LANGUAGE_RESOURCE }}
+          GOOGLE_ADS_GEO_TARGET_RESOURCE: ${{ secrets.GOOGLE_ADS_GEO_TARGET_RESOURCE }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
 
-          if [ -z "${NAVER_CLIENT_ID:-}" ] || [ -z "${NAVER_CLIENT_SECRET:-}" ]; then
-            echo "[WARN] NAVER_CLIENT_ID or NAVER_CLIENT_SECRET empty -> skip search trends"
+          if [ -z "${NAVER_AD_API_KEY:-}" ] || [ -z "${NAVER_AD_SECRET_KEY:-}" ] || [ -z "${NAVER_AD_CUSTOMER_ID:-}" ]; then
+            echo "[WARN] NAVER_AD_API_KEY or NAVER_AD_SECRET_KEY or NAVER_AD_CUSTOMER_ID empty -> skip search volume"
             exit 0
           fi
 
-          SCRIPT="columbia_search_trends_hub.py"
-          TEMPLATE="columbia_search_trends_hub_template.html"
+          SCRIPT="columbia_search_volume_hub.py"
+          TEMPLATE="columbia_search_volume_hub_template.html"
 
           if [ ! -f "$SCRIPT" ]; then
-            echo "[WARN] $SCRIPT not found. Skipping search trends build."
+            echo "[WARN] $SCRIPT not found. Skipping search volume build."
             exit 0
           fi
 
           if [ ! -f "$TEMPLATE" ]; then
-            echo "[WARN] $TEMPLATE not found. Skipping search trends build."
+            echo "[WARN] $TEMPLATE not found. Skipping search volume build."
             exit 0
           fi
 
           START_DATE="$(TZ=Asia/Seoul date -d "${YMD} -3 months" '+%Y-%m-%d')"
-          OUT_JSON="reports/search_trends/data/search_trends_data.json"
-          OUT_HTML="reports/search_trends/index.html"
-          META_JSON="reports/search_trends/data/meta.json"
+          OUT_JSON="reports/search_volume/data/search_volume_data.json"
+          OUT_HTML="reports/search_volume/index.html"
+          META_JSON="reports/search_volume/data/meta.json"
 
-          mkdir -p reports/search_trends/data
+          mkdir -p reports/search_volume/data
 
-          echo "[INFO] Search Trends backfill window: ${START_DATE} ~ ${YMD}"
-          python -u "$SCRIPT"             --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화"             --start-date "$START_DATE"             --end-date "$YMD"             --time-unit week             --geo KR             --device all             --ages all             --template "$TEMPLATE"             --output-json "$OUT_JSON"             --output-html "$OUT_HTML"             --meta-json "$META_JSON"             --skip-if-current
+          echo "[INFO] Search Volume backfill window: ${START_DATE} ~ ${YMD}"
+          python -u "$SCRIPT"             --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화"             --end-date "$YMD"             --geo KR             --template "$TEMPLATE"             --output-json "$OUT_JSON"             --output-html "$OUT_HTML"             --meta-json "$META_JSON"             --skip-if-current
 
-          echo "[INFO] Search Trends outputs:"
-          ls -la reports/search_trends || true
-          ls -la reports/search_trends/data || true
+          echo "[INFO] Search Volume outputs:"
+          ls -la reports/search_volume || true
+          ls -la reports/search_volume/data || true
 
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ steps.modes.outputs.run_summary == 'true' }}
