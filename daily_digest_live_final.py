@@ -2017,6 +2017,7 @@ def get_other_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> p
 def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
+
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
@@ -2027,60 +2028,116 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
             return pd.DataFrame(columns=dims + mets)
         for c in mets:
             df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
-        df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+        df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium', '')), str(r.get('sessionCampaignName', ''))), axis=1)
         df = df[df['bucket'] == 'Paid AD'].copy()
-        df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+        df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium', '')), str(r.get('sessionCampaignName', ''))), axis=1)
         return df
+
     cur = fetch(w.cur_start, w.cur_end)
+
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=['sub',f'sessions{suffix}',f'orders{suffix}',f'revenue{suffix}'])
-        g = df.groupby('sub', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
-        return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'orders{suffix}','purchaseRevenue':f'revenue{suffix}'})
-    merged = agg(cur,'_cur').fillna(0.0)
-    spend_cur = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, w.cur_start, w.cur_end, group_key="sub_channel")
-    if spend_cur:
-        top_level_spend = {}
-        for sub_key, spend in spend_cur.items():
-            media_key = map_sub_to_media(sub_key)
-            top_level_spend[media_key] = top_level_spend.get(media_key, 0.0) + float(spend or 0.0)
-        for media_key, spend in top_level_spend.items():
-            if media_key not in spend_cur:
-                spend_cur[media_key] = spend
+            return pd.DataFrame(columns=['sub', f'sessions{suffix}', f'orders{suffix}', f'revenue{suffix}'])
+        g = df.groupby('sub', as_index=False)[['sessions', 'transactions', 'purchaseRevenue']].sum()
+        return g.rename(columns={'sessions': f'sessions{suffix}', 'transactions': f'orders{suffix}', 'purchaseRevenue': f'revenue{suffix}'})
 
-    subs = list(PAID_DETAIL_SOURCES)
-    extras = []
-    merged_subs = merged["sub"].astype(str).tolist() if not merged.empty else []
-    for key in merged_subs + list(spend_cur.keys()):
-        k = str(key or "").strip()
-        if k and k not in subs and k not in extras:
-            extras.append(k)
-    subs.extend(extras)
+    merged = agg(cur, '_cur').fillna(0.0)
 
-    rows=[]
-    for sub in subs:
-        row = merged[merged['sub']==sub]
-        if row.empty:
-            rc = {'sessions_cur':0.0,'orders_cur':0.0,'revenue_cur':0.0}
+    # Manual spend:
+    # - sub_channel spend: used for detailed rows
+    # - channel/top-level spend: used for naver / google / meta rollups
+    spend_by_sub = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, w.cur_start, w.cur_end, group_key="sub_channel")
+    spend_by_media = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, w.cur_start, w.cur_end, group_key="channel")
+
+    # Build a lookup from GA4 paid revenue/orders/sessions by sub
+    sub_metrics: Dict[str, Dict[str, float]] = {}
+    if not merged.empty:
+        for r in merged.itertuples(index=False):
+            sub_key = str(getattr(r, 'sub', '') or '').strip().lower()
+            if not sub_key:
+                continue
+            sub_metrics[sub_key] = {
+                'sessions': float(getattr(r, 'sessions_cur', 0) or 0),
+                'orders': float(getattr(r, 'orders_cur', 0) or 0),
+                'revenue': float(getattr(r, 'revenue_cur', 0) or 0),
+            }
+
+    # Build top-level media rollups from the detailed sub rows so naver/google/meta
+    # can have valid revenue/ROAS/CVR when a top-level spend row exists.
+    media_rollups: Dict[str, Dict[str, float]] = {}
+    for sub_key, vals in sub_metrics.items():
+        media_key = map_sub_to_media(sub_key)
+        media_rollups.setdefault(media_key, {'sessions': 0.0, 'orders': 0.0, 'revenue': 0.0})
+        media_rollups[media_key]['sessions'] += float(vals.get('sessions', 0) or 0)
+        media_rollups[media_key]['orders'] += float(vals.get('orders', 0) or 0)
+        media_rollups[media_key]['revenue'] += float(vals.get('revenue', 0) or 0)
+
+    base_order = list(PAID_DETAIL_SOURCES)
+    top_level_media_order = ['naver', 'meta', 'google']
+    keys = []
+
+    for k in base_order + top_level_media_order:
+        if k not in keys:
+            keys.append(k)
+    for k in list(spend_by_sub.keys()) + list(spend_by_media.keys()) + list(sub_metrics.keys()) + list(media_rollups.keys()):
+        k = str(k or '').strip().lower()
+        if k and k not in keys:
+            keys.append(k)
+
+    rows = []
+    for key in keys:
+        # Prefer exact sub metrics for detailed rows; fallback to media rollup for top-level rows
+        metric = sub_metrics.get(key)
+        if metric is None:
+            metric = media_rollups.get(key, {'sessions': 0.0, 'orders': 0.0, 'revenue': 0.0})
+
+        # Detailed rows use sub spend; top-level rows use media/channel spend
+        if key in sub_metrics:
+            cur_spend = float(spend_by_sub.get(key, 0) or 0)
         else:
-            rr = row.iloc[0]
-            rc = {k: float(rr.get(k,0) or 0) for k in ['sessions_cur','orders_cur','revenue_cur']}
-        cur_spend = float(spend_cur.get(sub,0) or 0)
-        cur_roas = (rc['revenue_cur']/cur_spend) if cur_spend else 0.0
-        cur_cvr = (rc['orders_cur']/rc['sessions_cur']) if rc['sessions_cur'] else 0.0
-        media = map_sub_to_media(sub)
+            cur_spend = float(spend_by_media.get(key, 0) or 0)
+
+        # If a detailed key is missing sub spend but exists in top-level spend, do not backfill
+        # from top-level to avoid double-counting. Top-level rows handle that spend separately.
+
+        revenue_val = float(metric.get('revenue', 0) or 0)
+        sessions_val = float(metric.get('sessions', 0) or 0)
+        orders_val = float(metric.get('orders', 0) or 0)
+
+        cur_roas = (revenue_val / cur_spend) if cur_spend else 0.0
+        cur_cvr = (orders_val / sessions_val) if sessions_val else 0.0
+        media = map_sub_to_media(key)
+
         rows.append({
-            'channel': sub,
+            'channel': key,
             'target_roas': float(
-                target_roas_map.get(sub, target_roas_map.get(media, target_roas_map.get(media.title().lower(), 0.0))) or 0
+                target_roas_map.get(key, target_roas_map.get(media, target_roas_map.get(media.title().lower(), 0.0))) or 0
             ),
             'budget': cur_spend,
             'roas': cur_roas,
             'cvr': cur_cvr,
+            'revenue': revenue_val,
+            'orders': orders_val,
+            'sessions': sessions_val,
+            'is_top_level': key in top_level_media_order,
         })
+
     out = pd.DataFrame(rows)
     if out.empty:
         return out
+
+    # Keep rows that carry either spend or performance signal.
+    out = out[
+        (pd.to_numeric(out["budget"], errors="coerce").fillna(0) != 0) |
+        (pd.to_numeric(out["roas"], errors="coerce").fillna(0) != 0) |
+        (pd.to_numeric(out["cvr"], errors="coerce").fillna(0) != 0) |
+        (pd.to_numeric(out["revenue"], errors="coerce").fillna(0) != 0)
+    ].copy()
+
+    order_map = {k: i for i, k in enumerate(base_order + top_level_media_order)}
+    out["__ord"] = out["channel"].astype(str).str.strip().str.lower().map(lambda x: order_map.get(x, 999))
+    out = out.sort_values(["__ord", "channel"]).drop(columns="__ord")
+    return out
     out = out[(out["budget"] != 0) | (out["roas"] != 0) | (out["cvr"] != 0)].copy()
     return out
 
@@ -2445,30 +2502,43 @@ def render_page_html(
 
     paid_media_compare_html = ""
     if paid_media_compare is not None and (not paid_media_compare.empty):
-        target_roas_total = 0.0
-        budget_total = float(pd.to_numeric(paid_media_compare.get("budget", 0), errors="coerce").fillna(0).sum()) if "budget" in paid_media_compare.columns else 0.0
+        # TOTAL should use true platform totals, not a sum of visible rows,
+        # because the table may contain both top-level media rows and sub rows.
+        spend_total_map = fetch_platform_spend_map(w.cur_start, w.cur_end)
+        budget_total = float(sum(float(v or 0) for v in spend_total_map.values()))
 
-        if "target_roas" in paid_media_compare.columns and budget_total > 0:
-            _tmp_target = paid_media_compare.copy()
-            _tmp_target["budget"] = pd.to_numeric(_tmp_target.get("budget", 0), errors="coerce").fillna(0)
-            _tmp_target["target_roas"] = pd.to_numeric(_tmp_target.get("target_roas", 0), errors="coerce").fillna(0)
-            target_roas_total = float((_tmp_target["target_roas"] * _tmp_target["budget"]).sum() / budget_total)
-        elif "target_roas" in paid_media_compare.columns:
-            target_roas_total = float(pd.to_numeric(paid_media_compare.get("target_roas", 0), errors="coerce").fillna(0).mean())
-
-        if "roas" in paid_media_compare.columns and budget_total > 0:
-            _tmp_roas = paid_media_compare.copy()
-            _tmp_roas["budget"] = pd.to_numeric(_tmp_roas.get("budget", 0), errors="coerce").fillna(0)
-            _tmp_roas["roas"] = pd.to_numeric(_tmp_roas.get("roas", 0), errors="coerce").fillna(0)
-            roas_total = float((_tmp_roas["roas"] * _tmp_roas["budget"]).sum() / budget_total)
-        else:
-            roas_total = float(pd.to_numeric(paid_media_compare.get("roas", 0), errors="coerce").fillna(0).mean()) if "roas" in paid_media_compare.columns else 0.0
-
+        revenue_total = 0.0
         cvr_total = 0.0
-        if paid_detail is not None and (not paid_detail.empty):
-            _paid_total = paid_detail[paid_detail["sub_channel"].astype(str).str.strip().str.lower() == "total"].copy() if "sub_channel" in paid_detail.columns else pd.DataFrame()
-            if not _paid_total.empty and "cvr" in _paid_total.columns:
-                cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
+        if paid_detail is not None and (not paid_detail.empty) and "sub_channel" in paid_detail.columns:
+            _paid_total = paid_detail[paid_detail["sub_channel"].astype(str).str.strip().str.lower() == "total"].copy()
+            if not _paid_total.empty:
+                if "purchaseRevenue" in _paid_total.columns:
+                    revenue_total = float(pd.to_numeric(_paid_total["purchaseRevenue"], errors="coerce").fillna(0).iloc[0])
+                if "cvr" in _paid_total.columns:
+                    cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
+
+        roas_total = (revenue_total / budget_total) if budget_total else 0.0
+
+        target_roas_total = 0.0
+        if budget_total > 0:
+            _rows = []
+            for _media_key, _budget_val in spend_total_map.items():
+                _rows.append({
+                    "media": str(_media_key or "").strip().lower(),
+                    "budget": float(_budget_val or 0),
+                })
+            _tmp_target = pd.DataFrame(_rows)
+            if not _tmp_target.empty:
+                _tmp_target["target_roas"] = _tmp_target["media"].map(
+                    lambda x: float(target_roas_map.get(x, target_roas_map.get(str(x).title().lower(), 0.0)) or 0.0)
+                )
+                if float(pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()) > 0:
+                    target_roas_total = float(
+                        (
+                            pd.to_numeric(_tmp_target["target_roas"], errors="coerce").fillna(0) *
+                            pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0)
+                        ).sum() / pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()
+                    )
 
         paid_media_compare_html += table_row([
             "<span class='font-extrabold'>TOTAL</span>",
