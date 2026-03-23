@@ -8,7 +8,15 @@ on:
         required: false
         default: "manual"
       daily_hub_only:
-        description: "Build Daily Digest HUB only? (no email)"
+        description: "Build Daily Digest HUB only? (update HUB, no email)"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      daily_email_only:
+        description: "Send Daily Digest email only? (no HUB update)"
         required: true
         default: "false"
         type: choice
@@ -60,13 +68,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           DAILY_HUB_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_hub_only == 'true' }}"
+          DAILY_EMAIL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_email_only == 'true' }}"
+
+          if [ "$DAILY_HUB_ONLY" = "true" ] && [ "$DAILY_EMAIL_ONLY" = "true" ]; then
+            echo "[ERROR] daily_hub_only and daily_email_only cannot both be true."
+            exit 1
+          fi
 
           echo "run_daily=true" >> "$GITHUB_OUTPUT"
+
           if [ "$DAILY_HUB_ONLY" = "true" ]; then
             echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
+            echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
+            echo "mode_label=hub_only" >> "$GITHUB_OUTPUT"
+          elif [ "$DAILY_EMAIL_ONLY" = "true" ]; then
+            echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
+            echo "skip_hub_write=true" >> "$GITHUB_OUTPUT"
+            echo "mode_label=email_only" >> "$GITHUB_OUTPUT"
           else
             echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
+            echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
+            echo "mode_label=normal" >> "$GITHUB_OUTPUT"
           fi
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -147,7 +171,7 @@ jobs:
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
-          DAILY_DIGEST_SKIP_HUB_WRITE: "false"
+          DAILY_DIGEST_SKIP_HUB_WRITE: ${{ steps.modes.outputs.skip_hub_write }}
 
           DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
@@ -191,6 +215,7 @@ jobs:
           rm -f "reports/daily_digest/daily/${YMD}.html" \
                 "reports/daily_digest/data/daily/${YMD}.json" || true
 
+          echo "[INFO] Build mode: ${{ steps.modes.outputs.mode_label }}"
           echo "[INFO] Build only: ${YMD}"
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
@@ -225,7 +250,7 @@ jobs:
 
 
       - name: Commit & push Daily Digest results
-        if: ${{ always() }}
+        if: ${{ always() && steps.modes.outputs.skip_hub_write != 'true' }}
         continue-on-error: true
         shell: bash
         run: |
