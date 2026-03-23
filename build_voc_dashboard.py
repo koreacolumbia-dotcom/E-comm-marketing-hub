@@ -55,7 +55,7 @@ except Exception:
 
 
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
-DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "90") or "90")  # last N days ending yesterday (KST)
+DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "7") or "7")  # exact last N days ending yesterday (KST); default 7 for true 7D window
 
 AUTO_STOP_MIN_DF = 0.30
 AUTO_STOP_MIN_PRODUCTS = 0.25
@@ -2626,7 +2626,11 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     if "rating" in dfN.columns:
         dfN["rating"] = pd.to_numeric(dfN.get("rating"), errors="coerce").fillna(0).astype(int)
 
-    feed_rows = rows1y if rows1y else rowsN
+    # IMPORTANT:
+    # reviews.json must contain ONLY the exact target window rows.
+    # The UI 7D card / signals / feed count reads from REVIEWS, so writing 1Y rows here
+    # inflates the displayed 7D number (e.g. 4,526 reviews for a supposed weekly window).
+    feed_rows = rowsN
     dfFeed = pd.DataFrame(feed_rows).copy() if feed_rows else pd.DataFrame(
         columns=["id", "product_code", "product_name", "rating", "created_at", "text", "source", "tags", "option_size", "option_color", "size_direction"]
     )
@@ -2715,8 +2719,8 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
         "target_days": int(target_days),
         "total_reviews": int(len(dfN)),
         "feed_total_reviews": int(len(dfFeed)),
-        "feed_period_start": start1y.isoformat() if rows1y else startN.isoformat(),
-        "feed_period_end": end1y.isoformat() if rows1y else endN.isoformat(),
+        "feed_period_start": startN.isoformat(),
+        "feed_period_end": endN.isoformat(),
         "input_total_reviews": int(len(all_rows)),
         "latest_input_created_at": latest_input_dt.isoformat() if latest_input_dt else None,
         "latest_window_created_at": latest_window_dt.isoformat() if latest_window_dt else None,
@@ -2738,17 +2742,27 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     }
 
     if debug:
+        daily_breakdown = {}
+        for r in rowsN:
+            dt = parse_created_at_iso(str(r.get("created_at") or ""))
+            if not dt:
+                continue
+            key = dt.date().isoformat()
+            daily_breakdown[key] = daily_breakdown.get(key, 0) + 1
+
         meta["debug"] = {
             "input_path": str(inp),
             "input_total_rows": len(all_rows),
             "window_rows": len(rowsN),
             "rows_1y": len(rows1y),
+            "reviews_json_rows": len(out_reviews) if 'out_reviews' in locals() else None,
             "output_tz": OUTPUT_TZ,
             "build_now_kst_iso": now.isoformat(),
             "window_start": startN.isoformat(),
             "window_end": endN.isoformat(),
             "latest_input_created_at": latest_input_dt.isoformat() if latest_input_dt else None,
             "latest_window_created_at": latest_window_dt.isoformat() if latest_window_dt else None,
+            "window_daily_breakdown": daily_breakdown,
         }
 
     out_reviews: List[Dict[str, Any]] = []
@@ -2797,7 +2811,7 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     print(f"- Dashboard default day: {endN.isoformat()}")
     print(f"- Period: {period_text}")
     print(f"- Window rows: {len(rowsN)} / Input rows: {len(all_rows)}")
-    print(f"- Feed rows written: {len(out_reviews)}")
+    print(f"- Feed rows written (exact target window only): {len(out_reviews)}")
     print(f"- Latest input created_at: {latest_input_dt.isoformat() if latest_input_dt else 'None'}")
     print(f"- Latest window created_at: {latest_window_dt.isoformat() if latest_window_dt else 'None'}")
     if empty_reason:
@@ -2808,7 +2822,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="path to reviews.json (aggregated JSON: {reviews:[...]})")
     ap.add_argument("--html-template", default="", help="optional html template path (highest priority)")
-    ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="window days ending yesterday (KST), default from env TARGET_DAYS")
+    ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="exact window days ending yesterday (KST); default 7 from env TARGET_DAYS")
     ap.add_argument("--debug", action="store_true", help="write extra diagnostics into meta.json")
     args = ap.parse_args()
 
