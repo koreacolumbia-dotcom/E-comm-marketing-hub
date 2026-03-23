@@ -1,866 +1,963 @@
-<!DOCTYPE html>
-<html lang="ko">
+<!doctype html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Owned Funnel - Final Stable</title>
+  <title>Funnel Analysis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root{
-      --bg:#edf1f6;
-      --panel:#ffffff;
-      --ink:#0d1b3d;
-      --muted:#6c7a96;
-      --line:#d8dfeb;
-      --track:#eef2f7;
-      --track2:#f7f9fc;
-      --blue1:#103a8b;
-      --blue2:#2e60ff;
-      --teal1:#10b8b1;
-      --teal2:#58dfc8;
-      --pink1:#c882ff;
-      --pink2:#ff4aa5;
-      --shadow:0 18px 40px rgba(20,35,90,.08);
-      --radius-xl:22px;
-      --radius-lg:18px;
-      --radius-md:14px;
-      --row-h:108px;
-      --drop-w:122px;
-      --stage-max:100%;
-      --stage-min:84px;
-      --anim:900ms;
-      --delay-step:120ms;
-    }
-
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      background:linear-gradient(180deg,#eef2f7 0%, #e8edf4 100%);
-      color:var(--ink);
-      font-family: Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    .page{
-      max-width:1180px;
-      margin:18px auto;
-      padding:12px;
-    }
-
-    .card{
-      background:var(--panel);
-      border:1px solid rgba(161,176,205,.22);
-      border-radius:26px;
-      box-shadow:var(--shadow);
-      padding:18px 18px 22px;
-      overflow:hidden;
-      position:relative;
-    }
-
-    .header{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:16px;
-      margin-bottom:16px;
-    }
-
-    .eyebrow{
-      font-size:11px;
-      font-weight:800;
-      letter-spacing:.18em;
-      color:#9aa8c3;
-      margin-bottom:4px;
-      text-transform:uppercase;
-    }
-    .title{
-      font-size:22px;
-      line-height:1.1;
-      font-weight:900;
-      margin:0;
-      letter-spacing:-.03em;
-    }
-    .sub{
-      margin-top:8px;
-      font-size:13px;
-      color:var(--muted);
-      line-height:1.45;
-    }
-    .scope{
-      border:1px solid var(--line);
-      border-radius:999px;
-      padding:8px 12px;
-      min-width:fit-content;
-      color:#5e6f90;
-      background:linear-gradient(180deg,#ffffff 0%, #f7f9fc 100%);
-      box-shadow:0 6px 14px rgba(24,39,75,.05);
-      font-size:12px;
-      font-weight:700;
-      white-space:nowrap;
-    }
-    .scope b{color:#244fcd}
-
-    .funnel{
-      display:grid;
-      gap:12px;
-      margin-top:10px;
-    }
-
-    .row{
-      display:grid;
-      grid-template-columns: minmax(0,1fr) var(--drop-w);
-      align-items:center;
-      gap:12px;
-      position:relative;
-    }
-
-    .lane{
-      position:relative;
-      min-width:0;
-    }
-
-    .connector{
-      position:relative;
-      z-index:1;
-      text-align:center;
-      font-size:12px;
-      line-height:1.3;
-      color:#576888;
-      font-weight:800;
-      margin:0 0 8px;
-      letter-spacing:-.02em;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .track{
-      height:var(--row-h);
-      border-radius:20px;
-      border:1px solid var(--line);
-      background:linear-gradient(180deg,#f4f7fb 0%, #eef2f7 100%);
-      position:relative;
-      overflow:hidden;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:0 12px;
-    }
-
-    .track::after{
-      content:"";
-      position:absolute;
-      inset:0;
-      background:
-        radial-gradient(120% 120% at 50% 0%, rgba(255,255,255,.65) 0%, rgba(255,255,255,0) 50%),
-        linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,0));
-      pointer-events:none;
-    }
-
-    .stage{
-      position:absolute;
-      left:50%;
-      top:50%;
-      transform:translate(-50%,-50%) scaleX(.72);
-      transform-origin:center center;
-      height:48px;
-      width:var(--stage-max);
-      min-width:var(--stage-min);
-      max-width:calc(100% - 24px);
-      border-radius:16px;
-      color:#fff;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-      padding:6px 14px;
-      overflow:hidden;
-      isolation:isolate;
-      box-shadow:
-        0 16px 32px rgba(24,67,168,.18),
-        inset 0 1px 0 rgba(255,255,255,.25);
-      opacity:0;
-      filter:saturate(1.05);
-    }
-
-    .stage.stage-blue{
-      background:linear-gradient(90deg,var(--blue1),var(--blue2));
-    }
-    .stage.stage-teal{
-      background:linear-gradient(90deg,var(--teal1),var(--teal2));
-    }
-    .stage.stage-amber{
-      background:linear-gradient(90deg,#ffb33a,#ff8a00);
-    }
-    .stage.stage-violet{
-      background:linear-gradient(90deg,#7a5cff,#4596ff);
-    }
-    .stage.stage-indigo{
-      background:linear-gradient(90deg,#3a5af9,#1c7aff);
-    }
-
-    .stage::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      background:linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0) 52%, rgba(0,0,0,.06) 100%);
-      pointer-events:none;
-      z-index:0;
-    }
-
-    .stage::after{
-      content:"";
-      position:absolute;
-      left:-18%;
-      top:-40%;
-      width:28%;
-      height:180%;
-      transform:rotate(18deg);
-      background:linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.34), rgba(255,255,255,0));
-      filter:blur(6px);
-      opacity:0;
-      z-index:1;
-      pointer-events:none;
-    }
-
-    .label{
-      position:relative;
-      z-index:2;
-      width:100%;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      gap:2px;
-      min-width:0;
-      max-width:100%;
-      overflow:hidden;
-    }
-
-    .stage-name,
-    .stage-value,
-    .stage-meta,
-    .drop-kicker,
-    .drop-rate,
-    .drop-count{
-      max-width:100%;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .stage-name{
-      font-weight:900;
-      letter-spacing:-.035em;
-      line-height:1;
-      white-space:nowrap;
-    }
-
-    .stage-value{
-      font-weight:950;
-      letter-spacing:-.045em;
-      line-height:.98;
-      white-space:nowrap;
-      font-variant-numeric:tabular-nums;
-      font-feature-settings:"tnum" 1, "lnum" 1;
-    }
-
-    .stage-meta{
-      font-weight:800;
-      line-height:1.05;
-      opacity:.96;
-      white-space:nowrap;
-    }
-
-    .drop{
-      height:var(--row-h);
-      border-radius:20px;
-      border:1px solid var(--line);
-      background:linear-gradient(180deg,#f6f8fc 0%, #edf2f7 100%);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:10px;
-      position:relative;
-      overflow:hidden;
-    }
-
-    .drop-fill{
-      position:absolute;
-      left:50%;
-      top:50%;
-      transform:translate(-50%,-50%) scale(.88);
-      transform-origin:center center;
-      width:calc(100% - 18px);
-      height:calc(100% - 18px);
-      border-radius:18px;
-      background:linear-gradient(135deg,var(--pink1),var(--pink2));
-      box-shadow:
-        0 12px 24px rgba(220,72,158,.22),
-        inset 0 1px 0 rgba(255,255,255,.28);
-      opacity:0;
-      overflow:hidden;
-    }
-
-    .drop-fill::after{
-      content:"";
-      position:absolute;
-      left:-25%;
-      top:-25%;
-      width:50%;
-      height:150%;
-      transform:rotate(18deg);
-      background:linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.28), rgba(255,255,255,0));
-      opacity:.55;
-      filter:blur(4px);
-    }
-
-    .drop-label{
-      position:relative;
-      z-index:2;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      gap:2px;
-      min-width:0;
-      max-width:100%;
-      width:100%;
-      color:#fff;
-      text-align:center;
-      padding:0 8px;
-      opacity:0;
-      transform:translateY(10px);
-    }
-
-    .drop-kicker{
-      font-size:10px;
-      line-height:1.05;
-      letter-spacing:.16em;
-      font-weight:900;
-      white-space:normal;
-      word-break:keep-all;
-      overflow-wrap:anywhere;
-    }
-    .drop-rate{
-      line-height:1;
-      font-weight:950;
-      white-space:nowrap;
-      font-variant-numeric:tabular-nums;
-      font-feature-settings:"tnum" 1, "lnum" 1;
-    }
-    .drop-count{
-      line-height:1.05;
-      font-weight:800;
-      white-space:nowrap;
-      font-variant-numeric:tabular-nums;
-      font-feature-settings:"tnum" 1, "lnum" 1;
-    }
-
-    .baseline{
-      border-style:dashed;
-      color:#95a3be;
-      font-weight:800;
-      font-size:13px;
-      letter-spacing:-.02em;
-      background:linear-gradient(180deg,#fcfdff 0%, #f5f8fc 100%);
-    }
-
-    .row.is-baseline .drop{
-      background:linear-gradient(180deg,#fcfdff 0%, #f5f8fc 100%);
-    }
-
-    .compare{
-      margin-top:18px;
-      display:none;
-      gap:18px;
-    }
-
-    .compare.on{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-    }
-
-    .mini{
-      border:1px solid rgba(161,176,205,.22);
-      border-radius:22px;
-      padding:14px;
-      background:linear-gradient(180deg,#fff 0%, #fbfcfe 100%);
-      box-shadow:var(--shadow);
-      min-width:0;
-    }
-
-    .mini h3{
-      margin:0 0 8px;
-      font-size:16px;
-      font-weight:900;
-      letter-spacing:-.03em;
-    }
-
-    .legend{
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px 10px;
-      margin-top:10px;
-      color:#6c7a96;
-      font-size:12px;
-      font-weight:700;
-    }
-    .legend span{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      white-space:nowrap;
-    }
-    .dot{
-      width:10px;height:10px;border-radius:999px;display:inline-block
-    }
-
-    .footer-note{
-      margin-top:12px;
-      font-size:12px;
-      color:#7786a3;
-      line-height:1.5;
-    }
-
-    @keyframes stageIn{
-      0%{
-        opacity:0;
-        transform:translate(-50%,-50%) scaleX(.68) translateY(16px);
-        filter:blur(2px);
-      }
-      52%{
-        opacity:1;
-        transform:translate(-50%,-50%) scaleX(1.03) translateY(0);
-        filter:blur(0);
-      }
-      100%{
-        opacity:1;
-        transform:translate(-50%,-50%) scaleX(1) translateY(0);
-        filter:blur(0);
-      }
-    }
-    @keyframes sheen{
-      0%{left:-25%;opacity:0}
-      22%{opacity:.55}
-      100%{left:115%;opacity:0}
-    }
-    @keyframes dropIn{
-      0%{
-        opacity:0;
-        transform:translate(-50%,-50%) scale(.84);
-      }
-      70%{
-        opacity:1;
-        transform:translate(-50%,-50%) scale(1.02);
-      }
-      100%{
-        opacity:1;
-        transform:translate(-50%,-50%) scale(1);
-      }
-    }
-    @keyframes fadeUp{
-      from{opacity:0;transform:translateY(10px)}
-      to{opacity:1;transform:translateY(0)}
-    }
-
-    .row.animate .stage{
-      animation:stageIn var(--anim) cubic-bezier(.18,.86,.22,1) forwards;
-    }
-    .row.animate .stage::after{
-      animation:sheen 1200ms ease forwards;
-      animation-delay:calc(var(--row-delay) + 260ms);
-    }
-    .row.animate .drop-fill{
-      animation:dropIn 820ms cubic-bezier(.18,.86,.22,1) forwards;
-      animation-delay:calc(var(--row-delay) + 120ms);
-    }
-    .row.animate .drop-label{
-      animation:fadeUp 600ms ease forwards;
-      animation-delay:calc(var(--row-delay) + 250ms);
-    }
-
-    @media (max-width: 900px){
-      :root{
-        --row-h:100px;
-        --drop-w:106px;
-      }
-      .page{padding:8px}
-      .card{padding:16px}
-    }
-
-    @media (max-width: 680px){
-      :root{
-        --row-h:94px;
-        --drop-w:96px;
-        --stage-min:68px;
-      }
-      .header{align-items:flex-start}
-      .title{font-size:20px}
-      .sub{font-size:12px}
-      .connector{font-size:11px}
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+    body{font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;background:linear-gradient(180deg,#f6f8fb,#eef3f8);color:#0f172a}
+    .glass{background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:28px;box-shadow:0 24px 60px rgba(15,23,42,.08)}
+    .chip,.btn,.field{border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.92);transition:all .15s ease;font-weight:800}
+    .chip:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+    .chip.active{background:linear-gradient(135deg,#002d72,#1d4ed8);color:#fff;border-color:rgba(0,45,114,.22)}
+    .card{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.9);border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.06)}
+    .kicker{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:#94a3b8}
+    .metric{font-size:28px;font-weight:900;line-height:1.05}
+    .muted{color:#64748b}
+    .table-wrap{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.86);border-radius:22px;overflow:hidden;box-shadow:0 14px 30px rgba(15,23,42,.06)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:14px 16px;border-bottom:1px solid rgba(148,163,184,.14);font-size:13px;vertical-align:top}
+    th{text-align:left;background:rgba(248,250,252,.94);font-size:11px;font-weight:900;color:#64748b;letter-spacing:.12em;text-transform:uppercase}
+    tbody tr:hover td{background:rgba(0,45,114,.03)}
+    .empty{border:1px dashed rgba(148,163,184,.3);background:rgba(255,255,255,.72);border-radius:24px;padding:28px;text-align:center;color:#64748b;font-weight:700}
+    .group-chip{border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.94);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;min-width:124px;text-align:left}
+    .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
+    .funnel-wrap{position:relative;padding:8px 0 2px}
+    .funnel-flow{display:grid;gap:12px}
+    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:12px;align-items:center}
+    .funnel-lane{min-width:0}
+    .funnel-step-line{text-align:center;font-size:12px;line-height:1.35;font-weight:800;color:#64748b;margin:0 0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .funnel-track{position:relative;height:108px;border-radius:20px;border:1px solid rgba(148,163,184,.18);background:linear-gradient(180deg,rgba(241,245,249,.95),rgba(234,240,247,.95));overflow:hidden;padding:0 12px}
+    .funnel-stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scaleX(.88);transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);height:48px;border-radius:16px;overflow:hidden;padding:6px 12px;min-width:72px;max-width:calc(100% - 24px);animation:funnelStageIn .95s cubic-bezier(.18,.86,.22,1) both}
+    .funnel-stage::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 54%,rgba(0,0,0,.06));pointer-events:none}
+    .funnel-stage::after{content:'';position:absolute;left:-24%;top:-40%;width:24%;height:180%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.32),rgba(255,255,255,0));filter:blur(6px);opacity:0;animation:funnelSheen 1.2s ease .35s both}
+    .funnel-stage-inner{position:relative;z-index:2;width:100%;height:100%;display:flex;align-items:center;justify-content:center;min-width:0}
+    .stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;max-width:100%;width:100%;height:100%;overflow:hidden}
+    .stage-title,.stage-note,.stage-value .num,.stage-value .sub{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    .stage-title{font-size:28px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-note{font-size:12px;line-height:1.05;font-weight:800;white-space:nowrap;opacity:.96}
+    .stage-value{min-width:0;max-width:100%}
+    .stage-value .num{font-size:42px;line-height:.95;font-weight:900;white-space:nowrap;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-value .sub{font-size:12px;line-height:1.05;font-weight:800;white-space:nowrap;opacity:.96}
+    .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
+    .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+    .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
+    .funnel-stage[data-stage="4"]{background:linear-gradient(135deg,#b45309,#f59e0b)}
+    .funnel-stage[data-stage="5"]{background:linear-gradient(135deg,#7c3aed,#ec4899)}
+    .funnel-stage.compare-a{background:linear-gradient(135deg,#002d72,#1d4ed8)}
+    .funnel-stage.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
+    .drop-slot{position:relative;height:108px;border-radius:20px;border:1px solid rgba(148,163,184,.18);background:linear-gradient(180deg,rgba(246,248,252,.98),rgba(237,242,247,.95));overflow:hidden;display:flex;align-items:center;justify-content:center;padding:10px}
+    .drop-slot.baseline{border-style:dashed;color:#94a3b8;font-weight:900;font-size:12px}
+    .drop-fill{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.88);transform-origin:center center;height:calc(100% - 18px);border-radius:18px;background:linear-gradient(135deg,#c084fc,#ec4899);box-shadow:0 12px 24px rgba(220,72,158,.22), inset 0 1px 0 rgba(255,255,255,.24);animation:dropIn .82s cubic-bezier(.18,.86,.22,1) both}
+    .drop-fill::after{content:'';position:absolute;left:-24%;top:-25%;width:44%;height:150%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.28),rgba(255,255,255,0));opacity:.55;filter:blur(4px)}
+    .drop-label{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;max-width:100%;width:100%;height:100%;text-align:center;color:#fff;animation:fadeUp .55s ease .18s both}
+    .drop-kicker,.drop-rate,.drop-count{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    .drop-kicker{font-size:10px;line-height:1.02;font-weight:900;letter-spacing:.16em;white-space:normal;overflow-wrap:anywhere}
+    .drop-rate{font-size:22px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em}
+    .drop-count{font-size:12px;line-height:1.05;font-weight:800;white-space:nowrap}
+    @keyframes funnelStageIn{0%{opacity:0;transform:translate(-50%,-50%) scaleX(.74) translateY(14px);filter:blur(2px)}55%{opacity:1;transform:translate(-50%,-50%) scaleX(1.03) translateY(0);filter:blur(0)}100%{opacity:1;transform:translate(-50%,-50%) scaleX(1) translateY(0);filter:blur(0)}}
+    @keyframes funnelSheen{0%{left:-24%;opacity:0}22%{opacity:.55}100%{left:112%;opacity:0}}
+    @keyframes dropIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.84)}70%{opacity:1;transform:translate(-50%,-50%) scale(1.02)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @media (max-width: 900px){.funnel-row{grid-template-columns:minmax(0,1fr) 104px}.funnel-track,.drop-slot{height:100px}}
+    @media (max-width: 640px){.funnel-row{grid-template-columns:minmax(0,1fr) 92px}.funnel-track,.drop-slot{height:94px}.funnel-step-line{font-size:11px}}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+    .rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:rgba(0,45,114,.08);color:#002d72;font-weight:900;font-size:12px}
+    .warn{color:#b45309}
   </style>
 </head>
-<body>
-  <div class="page">
-    <div class="card">
-      <div class="header">
+<body class="p-5 md:p-8">
+  <div class="mx-auto max-w-7xl space-y-6">
+    <section class="glass p-6 md:p-7">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div class="eyebrow">Funnel</div>
-          <h1 class="title">Conversion Flow</h1>
-          <div class="sub" id="subtitle">All | Total period</div>
-          <div class="sub">Behavior funnel is using native stage fields.</div>
+          <div class="kicker">Owned Funnel</div>
+          <h1 class="mt-2 text-3xl font-black tracking-tight md:text-4xl">Funnel Analysis</h1>
+          <p class="mt-2 text-sm font-semibold muted">Behavior-first funnel view with overview, compare, and drop-off ranking.</p>
         </div>
-        <div class="scope" id="scopeBadge">Scope | <b>All</b></div>
+        <div id="periodLabel" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-extrabold muted">Period | -</div>
       </div>
-
-      <div class="funnel" id="funnel"></div>
-
-      <div class="compare" id="compareGrid"></div>
-
-      <div class="legend">
-        <span><i class="dot" style="background:linear-gradient(90deg,#103a8b,#2e60ff)"></i>Main funnel bar</span>
-        <span><i class="dot" style="background:linear-gradient(135deg,#c882ff,#ff4aa5)"></i>Drop-off bar</span>
-        <span>글자 크기는 박스 기준 자동 축소</span>
+      <div class="mt-6 flex flex-wrap items-center gap-2">
+        <div class="kicker">View</div>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-view="daily" type="button">Daily</button>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-view="week" type="button">Week</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-view="range" type="button">Range</button>
       </div>
-
-      <div class="footer-note">
-        숫자 규모 차이가 큰 단계도 막대 길이와 글자 크기가 자동 보정되도록 설계했다.
-        Compare 모드에서는 A/B 양쪽 데이터를 합친 공통 최대값 기준으로 막대 폭을 잡아서, 서로 다른 규모도 한 화면에서 바로 비교할 수 있다.
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <div class="kicker">Date</div>
+        <input id="datePicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
+        <div id="rangeBox" class="hidden flex flex-wrap items-center gap-2">
+          <input id="startPicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
+          <span class="text-sm font-bold text-slate-400">to</span>
+          <input id="endPicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
+        </div>
+        <button id="btnApply" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Apply</button>
+        <button id="btnPrev" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Prev</button>
+        <button id="btnNext" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Next</button>
+        <button id="btnResetSelection" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Reset Group</button>
       </div>
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <div class="kicker">Segment</div>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-segment="ALL" type="button">ALL</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="PAID" type="button">PAID</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="ORGANIC" type="button">ORGANIC</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="OWNED" type="button">OWNED</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="EDM" type="button">EDM</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="LMS" type="button">LMS</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-segment="KAKAO" type="button">KAKAO</button>
+      </div>
+      <div class="mt-6 flex flex-wrap items-center gap-2">
+        <div class="kicker">Tab</div>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-tab="overview" type="button">Overview</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-tab="compare" type="button">Compare</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-tab="dropoff" type="button">Drop-off</button>
+      </div>
+    </section>
+
+    <div id="loadingState" class="empty hidden">Loading funnel data...</div>
+    <div id="errorState" class="empty hidden"></div>
+
+    <div id="contentArea" class="space-y-6">
+      <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="summaryCards"></section>
+
+      <section id="panel-overview" class="tab-panel active space-y-6">
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.85fr)]">
+          <div class="card p-5 md:p-6">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div class="kicker">Funnel</div>
+                <h2 class="mt-2 text-2xl font-black tracking-tight">Conversion Flow</h2>
+                <p id="scopeLabel" class="mt-2 text-sm font-semibold muted">Current segment summary</p>
+              </div>
+              <div id="selectionPill" class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-extrabold muted">Scope | Total</div>
+            </div>
+            <div id="funnelNotice" class="mt-4 text-xs font-semibold muted"></div>
+            <div id="funnelCanvas" class="funnel-wrap mt-6"></div>
+          </div>
+          <div class="space-y-4">
+            <div class="card p-5">
+              <div class="kicker">Selection Notes</div>
+              <div id="selectionMeta" class="mt-4 space-y-3 text-sm font-semibold muted"></div>
+            </div>
+            <div class="card p-5">
+              <div class="kicker">Step Detail</div>
+              <div id="stepDetail" class="mt-4 space-y-3"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card p-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="kicker" id="groupKicker">Groups</div>
+              <h2 class="mt-2 text-xl font-black tracking-tight" id="groupHeading">Groups In Scope</h2>
+            </div>
+            <div id="groupSummary" class="text-sm font-semibold muted">No group selected</div>
+          </div>
+          <div id="groupChips" class="mt-4 flex flex-wrap gap-3"></div>
+        </section>
+
+        <section class="card p-5">
+          <div class="kicker">Group Breakdown</div>
+          <h2 class="mt-2 text-xl font-black tracking-tight">Top Groups</h2>
+          <div class="mt-4 table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Group</th><th>Title</th><th>Sessions</th><th>PDP</th><th>Cart</th><th>Checkout</th><th>Purchase Session</th><th>Orders</th><th>Revenue</th><th>Session CVR</th>
+                </tr>
+              </thead>
+              <tbody id="groupTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="panel-compare" class="tab-panel space-y-6">
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <div class="kicker">Compare A</div>
+                <h2 class="mt-2 text-xl font-black tracking-tight">Left Funnel</h2>
+              </div>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <div class="kicker">Segment</div>
+                <select id="cmpASegment" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
+              </div>
+              <div>
+                <div class="kicker">Group</div>
+                <select id="cmpAGroup" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
+              </div>
+            </div>
+            <div id="compareMetaA" class="mt-4 text-sm font-semibold muted"></div>
+            <div id="compareCanvasA" class="funnel-wrap mt-6"></div>
+          </div>
+
+          <div class="card p-5">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <div class="kicker">Compare B</div>
+                <h2 class="mt-2 text-xl font-black tracking-tight">Right Funnel</h2>
+              </div>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <div class="kicker">Segment</div>
+                <select id="cmpBSegment" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
+              </div>
+              <div>
+                <div class="kicker">Group</div>
+                <select id="cmpBGroup" class="field mt-2 w-full rounded-2xl px-3 py-2 text-sm"></select>
+              </div>
+            </div>
+            <div id="compareMetaB" class="mt-4 text-sm font-semibold muted"></div>
+            <div id="compareCanvasB" class="funnel-wrap mt-6"></div>
+          </div>
+        </section>
+
+        <section class="card p-5">
+          <div class="kicker">Compare Summary</div>
+          <h2 class="mt-2 text-xl font-black tracking-tight">A vs B</h2>
+          <div class="mt-4 table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Metric</th><th>A</th><th>B</th><th>Delta</th>
+                </tr>
+              </thead>
+              <tbody id="compareTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="panel-dropoff" class="tab-panel space-y-6">
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div class="card p-5">
+            <div class="kicker">Overall Top 3</div>
+            <h2 class="mt-2 text-xl font-black tracking-tight">Highest Drop-off Segments</h2>
+            <div id="dropOverall" class="mt-4 space-y-3"></div>
+          </div>
+          <div class="card p-5">
+            <div class="kicker">Stage Ranking</div>
+            <h2 class="mt-2 text-xl font-black tracking-tight">Step-wise Top 3</h2>
+            <div id="dropStageRankings" class="mt-4 space-y-4"></div>
+          </div>
+        </section>
+
+        <section class="card p-5">
+          <div class="kicker">Segment Drop-off</div>
+          <h2 class="mt-2 text-xl font-black tracking-tight">Worst Step By Segment</h2>
+          <div class="mt-4 table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Segment</th><th>#1 Worst</th><th>#2</th><th>#3</th>
+                </tr>
+              </thead>
+              <tbody id="dropSegmentTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
     </div>
   </div>
 
+  <script>window.FUNNEL_DATA_BASE = window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel';</script>
   <script>
-    const DEMO_DATA = {
-      scopeLabel: 'All',
-      subtitle: 'All | Total period',
-      scaleMode: 'sqrt',
-      rows: [
-        { key:'sessions', name:'Sessions', value:60227, keepRate:null, dropRate:null, dropCount:null, color:'stage-blue', baseline:true },
-        { key:'pdp', name:'PDP Views', value:24210, keepRate:40.2, dropRate:59.8, dropCount:36017, color:'stage-teal' },
-        { key:'atc', name:'Add to Cart', value:1536, keepRate:6.3, dropRate:93.7, dropCount:22674, color:'stage-violet' },
-        { key:'checkout', name:'Checkout', value:939, keepRate:61.1, dropRate:38.9, dropCount:597, color:'stage-amber' },
-        { key:'purchase', name:'Purchase Sessions', value:420, keepRate:44.7, dropRate:55.3, dropCount:519, color:'stage-indigo' }
-      ],
-      compare: null
-    };
-
-    function numberFormat(n){
-      if (n === null || n === undefined || n === '') return '-';
-      return Number(n).toLocaleString('en-US');
-    }
-    function pctFormat(n){
-      if (n === null || n === undefined || Number.isNaN(Number(n))) return '-';
-      return `${Number(n).toFixed(1)}%`;
-    }
-    function clamp(n, min, max){
-      return Math.min(Math.max(n, min), max);
-    }
-    function widthRatio(value, maxValue, mode='sqrt'){
-      if (!maxValue || value <= 0) return 0;
-      const ratio = value / maxValue;
-      return mode === 'linear' ? ratio : Math.sqrt(ratio);
-    }
-    function stageWidthPx(value, maxValue, trackWidth, mode='sqrt'){
-      const minWidth = Math.min(Math.max(trackWidth * 0.20, 68), 120);
-      const maxWidth = Math.max(trackWidth - 24, minWidth);
-      const r = widthRatio(value, maxValue, mode);
-      return Math.round(minWidth + (maxWidth - minWidth) * r);
-    }
-    function dropWidthPx(rate, slotWidth){
-      if (rate === null || rate === undefined) return 0;
-      const minWidth = Math.min(Math.max(slotWidth * 0.38, 36), 54);
-      const maxWidth = slotWidth - 18;
-      const r = clamp(Number(rate) / 100, 0, 1);
-      return Math.round(minWidth + (maxWidth - minWidth) * r);
-    }
-    function connectorText(prevName, curName, keepRate, dropRate){
-      if (!prevName || keepRate === null || dropRate === null) return '';
-      return `${prevName} → ${curName} · ${pctFormat(keepRate)} 유지 · ${pctFormat(dropRate)} 이탈`;
-    }
-
-    function buildRow(row, idx, prevRow){
-      const rowEl = document.createElement('div');
-      rowEl.className = 'row' + (row.baseline ? ' is-baseline' : '');
-      rowEl.style.setProperty('--row-delay', `${idx * 120}ms`);
-
-      const lane = document.createElement('div');
-      lane.className = 'lane';
-
-      if (idx > 0) {
-        const connector = document.createElement('div');
-        connector.className = 'connector';
-        connector.textContent = connectorText(prevRow?.name, row.name, row.keepRate, row.dropRate);
-        lane.appendChild(connector);
-      } else {
-        const spacer = document.createElement('div');
-        spacer.style.height = '4px';
-        lane.appendChild(spacer);
-      }
-
-      const track = document.createElement('div');
-      track.className = 'track';
-
-      const stage = document.createElement('div');
-      stage.className = `stage ${row.color || 'stage-blue'}`;
-      stage.dataset.value = row.value ?? 0;
-
-      const label = document.createElement('div');
-      label.className = 'label';
-
-      const name = document.createElement('div');
-      name.className = 'stage-name fit-name';
-      name.textContent = row.name;
-
-      const value = document.createElement('div');
-      value.className = 'stage-value fit-value';
-      value.textContent = numberFormat(row.value);
-
-      const meta = document.createElement('div');
-      meta.className = 'stage-meta fit-meta';
-      meta.textContent = row.baseline ? '기준 단계' : `이탈 ${pctFormat(row.dropRate)}`;
-
-      label.appendChild(name);
-      label.appendChild(value);
-      label.appendChild(meta);
-      stage.appendChild(label);
-      track.appendChild(stage);
-      lane.appendChild(track);
-
-      const drop = document.createElement('div');
-      drop.className = 'drop' + (row.baseline ? ' baseline' : '');
-
-      if (row.baseline) {
-        drop.innerHTML = `<div class="drop-label" style="opacity:1;transform:none;color:#95a3be"><div class="drop-kicker" style="font-size:12px;letter-spacing:.02em;white-space:nowrap">Baseline</div></div>`;
-      } else {
-        const fill = document.createElement('div');
-        fill.className = 'drop-fill';
-        fill.dataset.rate = row.dropRate ?? 0;
-
-        const dlabel = document.createElement('div');
-        dlabel.className = 'drop-label';
-
-        const kicker = document.createElement('div');
-        kicker.className = 'drop-kicker fit-drop-kicker';
-        kicker.innerHTML = 'DROP-<br>OFF';
-
-        const rate = document.createElement('div');
-        rate.className = 'drop-rate fit-drop-rate';
-        rate.textContent = pctFormat(row.dropRate);
-
-        const count = document.createElement('div');
-        count.className = 'drop-count fit-drop-count';
-        count.textContent = numberFormat(row.dropCount);
-
-        dlabel.appendChild(kicker);
-        dlabel.appendChild(rate);
-        dlabel.appendChild(count);
-
-        drop.appendChild(fill);
-        drop.appendChild(dlabel);
-      }
-
-      rowEl.appendChild(lane);
-      rowEl.appendChild(drop);
-      return rowEl;
-    }
-
-    function fitTextToBox(el, opts={}){
-      if (!el) return;
-      const { max = 48, min = 8, widthRatio = 0.92, heightRatio = 0.92, multiLine = false } = opts;
-      const parent = el.parentElement;
-      if (!parent) return;
-
-      let size = max;
-      el.style.fontSize = size + 'px';
-      if (!multiLine) el.style.whiteSpace = 'nowrap';
-
-      const parentW = parent.clientWidth * widthRatio;
-      const parentH = parent.clientHeight * heightRatio;
-
-      while (size > min) {
-        const tooWide = el.scrollWidth > parentW;
-        const tooTall = el.scrollHeight > parentH;
-        if (!tooWide && !tooTall) break;
-        size -= 1;
-        el.style.fontSize = size + 'px';
-      }
-    }
-
-    function fitStageText(stage){
-      if (!stage) return;
-      const label = stage.querySelector('.label');
-      if (!label) return;
-
-      const name = label.querySelector('.fit-name');
-      const value = label.querySelector('.fit-value');
-      const meta = label.querySelector('.fit-meta');
-
-      const stageW = stage.clientWidth;
-      const stageH = stage.clientHeight;
-      const stageSmall = stageW < 150;
-      const stageTiny = stageW < 110;
-
-      label.style.height = '100%';
-      label.style.padding = '2px 4px';
-
-      fitTextToBox(name, {
-        max: stageTiny ? 18 : stageSmall ? 22 : 28,
-        min: 9,
-        widthRatio: 0.88,
-        heightRatio: 0.28
-      });
-
-      fitTextToBox(value, {
-        max: stageTiny ? 22 : stageSmall ? 28 : 40,
-        min: 11,
-        widthRatio: 0.88,
-        heightRatio: 0.38
-      });
-
-      fitTextToBox(meta, {
-        max: stageTiny ? 11 : 13,
-        min: 8,
-        widthRatio: 0.88,
-        heightRatio: 0.16
-      });
-
-      let safety = 14;
-      while (label.scrollHeight > stageH - 8 && safety > 0) {
-        [name, value, meta].forEach(node => {
-          const current = parseFloat(getComputedStyle(node).fontSize);
-          node.style.fontSize = Math.max(8, current - 1) + 'px';
-        });
-        safety -= 1;
-      }
-    }
-
-    function fitDropText(drop){
-      if (!drop) return;
-      const label = drop.querySelector('.drop-label');
-      if (!label) return;
-
-      const k = label.querySelector('.fit-drop-kicker');
-      const r = label.querySelector('.fit-drop-rate');
-      const c = label.querySelector('.fit-drop-count');
-
-      fitTextToBox(k, { max: 11, min: 8, widthRatio: 0.84, heightRatio: 0.24, multiLine: true });
-      fitTextToBox(r, { max: 28, min: 12, widthRatio: 0.82, heightRatio: 0.26 });
-      fitTextToBox(c, { max: 15, min: 9, widthRatio: 0.82, heightRatio: 0.16 });
-
-      let safety = 12;
-      while (label.scrollHeight > drop.clientHeight - 14 && safety > 0) {
-        [k, r, c].forEach(node => {
-          const current = parseFloat(getComputedStyle(node).fontSize);
-          node.style.fontSize = Math.max(8, current - 1) + 'px';
-        });
-        safety -= 1;
-      }
-    }
-
-    function applyLayout(container, rows, mode='sqrt', forcedMaxValue=null){
-      const rowEls = [...container.querySelectorAll('.row')];
-      const maxValue = forcedMaxValue || Math.max(...rows.map(r => Number(r.value || 0)), 1);
-
-      rowEls.forEach((rowEl, idx) => {
-        const track = rowEl.querySelector('.track');
-        const stage = rowEl.querySelector('.stage');
-        const drop = rowEl.querySelector('.drop');
-        const fill = rowEl.querySelector('.drop-fill');
-        const rowData = rows[idx];
-
-        if (track && stage) {
-          const stageW = stageWidthPx(Number(rowData.value || 0), maxValue, track.clientWidth, mode);
-          stage.style.width = stageW + 'px';
-          fitStageText(stage);
-        }
-
-        if (fill && drop) {
-          const fillW = dropWidthPx(Number(rowData.dropRate || 0), drop.clientWidth);
-          fill.style.width = fillW + 'px';
-          fitDropText(drop);
-        }
-      });
-    }
-
-    function renderFunnel(root, data){
-      root.innerHTML = '';
-      const rows = data.rows || [];
-      rows.forEach((row, idx) => root.appendChild(buildRow(row, idx, rows[idx-1])));
-      requestAnimationFrame(() => {
-        applyLayout(root, rows, data.scaleMode || 'sqrt');
-        [...root.querySelectorAll('.row')].forEach((row, idx) => {
-          row.style.setProperty('--row-delay', `${idx * 120}ms`);
-          row.classList.add('animate');
-        });
-      });
-    }
-
-    function renderCompare(compareRoot, compareData, baseOptions){
-      if (!compareData) {
-        compareRoot.classList.remove('on');
-        compareRoot.innerHTML = '';
-        return;
-      }
-      compareRoot.classList.add('on');
-      compareRoot.innerHTML = '';
-
-      const blocks = [
-        { title: compareData.leftTitle || 'A', rows: compareData.leftRows || [] },
-        { title: compareData.rightTitle || 'B', rows: compareData.rightRows || [] }
-      ];
-
-      const compareMax = Math.max(
-        ...((compareData.leftRows || []).concat(compareData.rightRows || []).map(r => Number(r.value || 0))),
-        1
-      );
-
-      blocks.forEach((block, miniIdx) => {
-        const mini = document.createElement('div');
-        mini.className = 'mini';
-        mini.innerHTML = `<h3>${block.title}</h3><div class="funnel"></div>`;
-        compareRoot.appendChild(mini);
-
-        const funnel = mini.querySelector('.funnel');
-        block.rows.forEach((row, idx) => funnel.appendChild(buildRow(row, idx, block.rows[idx-1])));
-
-        requestAnimationFrame(() => {
-          applyLayout(funnel, block.rows, baseOptions.scaleMode || 'sqrt', compareMax);
-          [...funnel.querySelectorAll('.row')].forEach((row, idx) => {
-            row.style.setProperty('--row-delay', `${idx * 100}ms`);
-            row.classList.add('animate');
-          });
-        });
-      });
-    }
-
-    function mountFunnel(data){
-      document.getElementById('subtitle').textContent = data.subtitle || 'All | Total period';
-      document.getElementById('scopeBadge').innerHTML = `Scope | <b>${data.scopeLabel || 'All'}</b>`;
-
-      const funnelRoot = document.getElementById('funnel');
-      renderFunnel(funnelRoot, data);
-
-      const compareRoot = document.getElementById('compareGrid');
-      renderCompare(compareRoot, data.compare, data);
-
-      const resizeAll = () => {
-        applyLayout(funnelRoot, data.rows || [], data.scaleMode || 'sqrt');
-        [...funnelRoot.querySelectorAll('.drop')].forEach(fitDropText);
-
-        if (data.compare) {
-          renderCompare(compareRoot, data.compare, data);
+    (() => {
+      const DATA_BASE = String(window.FUNNEL_DATA_BASE || 'reports/daily_digest/data/funnel').replace(/\/$/, '');
+      const OWNED_SEGMENTS = ['OWNED', 'EDM', 'LMS', 'KAKAO'];
+      const FILTER_SEGMENTS = ['ALL','PAID','ORGANIC','OWNED','EDM','LMS','KAKAO'];
+      const SEGMENT_LABELS = {
+        ALL: 'All',
+        SITE: 'All',
+        PAID: 'Paid',
+        ORGANIC: 'Organic',
+        OWNED: 'Owned Total',
+        EDM: 'EDM',
+        LMS: 'LMS',
+        KAKAO: 'Kakao',
+      };
+      const state = {
+        view: 'week',
+        tab: 'overview',
+        segment: 'ALL',
+        available: [],
+        selectedGroup: '',
+        current: null,
+        compare: {
+          A: { segment: 'ALL', group: '' },
+          B: { segment: 'OWNED', group: '' },
         }
       };
+      const els = {
+        periodLabel: document.getElementById('periodLabel'),
+        datePicker: document.getElementById('datePicker'),
+        startPicker: document.getElementById('startPicker'),
+        endPicker: document.getElementById('endPicker'),
+        rangeBox: document.getElementById('rangeBox'),
+        btnApply: document.getElementById('btnApply'),
+        btnPrev: document.getElementById('btnPrev'),
+        btnNext: document.getElementById('btnNext'),
+        btnResetSelection: document.getElementById('btnResetSelection'),
+        loadingState: document.getElementById('loadingState'),
+        errorState: document.getElementById('errorState'),
+        contentArea: document.getElementById('contentArea'),
+        summaryCards: document.getElementById('summaryCards'),
+        scopeLabel: document.getElementById('scopeLabel'),
+        selectionPill: document.getElementById('selectionPill'),
+        selectionMeta: document.getElementById('selectionMeta'),
+        funnelCanvas: document.getElementById('funnelCanvas'),
+        funnelNotice: document.getElementById('funnelNotice'),
+        stepDetail: document.getElementById('stepDetail'),
+        groupKicker: document.getElementById('groupKicker'),
+        groupHeading: document.getElementById('groupHeading'),
+        groupSummary: document.getElementById('groupSummary'),
+        groupChips: document.getElementById('groupChips'),
+        groupTableBody: document.getElementById('groupTableBody'),
+        cmpASegment: document.getElementById('cmpASegment'),
+        cmpAGroup: document.getElementById('cmpAGroup'),
+        cmpBSegment: document.getElementById('cmpBSegment'),
+        cmpBGroup: document.getElementById('cmpBGroup'),
+        compareMetaA: document.getElementById('compareMetaA'),
+        compareMetaB: document.getElementById('compareMetaB'),
+        compareCanvasA: document.getElementById('compareCanvasA'),
+        compareCanvasB: document.getElementById('compareCanvasB'),
+        compareTableBody: document.getElementById('compareTableBody'),
+        dropOverall: document.getElementById('dropOverall'),
+        dropStageRankings: document.getElementById('dropStageRankings'),
+        dropSegmentTableBody: document.getElementById('dropSegmentTableBody'),
+      };
+      const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+      const fmtMoney = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+      const fmtPct = (n, d = 1) => `${Number(n || 0).toFixed(d)}%`;
+      const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      const ymd = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      const parseYmd = (v) => { const [y,m,d] = String(v || '').split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
+      const addDays = (dt, diff) => { const out = new Date(dt); out.setDate(out.getDate() + diff); return out; };
+      const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
+      const segmentLabel = (seg = state.segment) => SEGMENT_LABELS[seg] || seg;
+      const ownedChildSegments = () => OWNED_SEGMENTS.slice(1);
 
-      const ro = new ResizeObserver(resizeAll);
-      ro.observe(document.body);
-      window.addEventListener('resize', resizeAll);
-    }
+      async function fetchJson(url){
+        const res = await fetch(url, { cache: 'no-store' });
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      }
+      const clamp = (v) => {
+        if (!state.available.length) return v;
+        if (state.available.includes(v)) return v;
+        for (let i = state.available.length - 1; i >= 0; i -= 1) if (state.available[i] <= v) return state.available[i];
+        return state.available[0];
+      };
+      const between = (s, e) => state.available.filter((day) => day >= s && day <= e);
 
-    // 외부 주입 예시:
-    // window.FUNNEL_DATA = { scopeLabel:'All', subtitle:'All | Total period', rows:[...], compare:{...} }
-    mountFunnel(window.FUNNEL_DATA || DEMO_DATA);
+      function normalizeRow(detail, base){
+        return {
+          date: String(base.date || ''),
+          detail: String(detail || base.detail || ''),
+          year: String(base.year || ''),
+          mmdd: String(base.mmdd || ''),
+          messageTitle: String(base.message_title || base.messageTitle || ''),
+          sessions: Number(base.sessions || 0),
+          users: Number(base.users || 0),
+          buyerUsers: Number(base.buyer_users || base.buyerUsers || 0),
+          purchases: Number(base.purchases || 0),
+          revenue: Number(base.revenue || 0),
+          pdpViews: Number(base.pdp_views || base.pdpViews || 0),
+          addToCart: Number(base.add_to_cart || base.addToCart || 0),
+          beginCheckout: Number(base.begin_checkout || base.beginCheckout || 0),
+          purchaseSessions: Number(base.purchase_sessions || base.purchaseSessions || 0),
+        };
+      }
+
+      function normalizeBundle(json){
+        return {
+          summary: (json.summary_rows || []).map((r) => normalizeRow(r.detail || '', r)),
+          ownedGroups: (json.owned_groups || []).map((r) => normalizeRow(r.detail || '', r)),
+        };
+      }
+
+      function currentRange(){
+        if(state.view === 'daily'){
+          const d = clamp(els.datePicker.value || state.available[state.available.length - 1]);
+          return { start:d, end:d };
+        }
+        if(state.view === 'week'){
+          const end = clamp(els.datePicker.value || state.available[state.available.length - 1]);
+          const start = clamp(ymd(startOfWeekMon(parseYmd(end))));
+          return { start, end: clamp(ymd(addDays(parseYmd(start), 6))) };
+        }
+        const start = clamp(els.startPicker.value || state.available[Math.max(0, state.available.length - 7)]);
+        const end = clamp(els.endPicker.value || state.available[state.available.length - 1]);
+        return start <= end ? { start, end } : { start:end, end:start };
+      }
+
+      function previousRange(start, end){
+        const span = Math.round((parseYmd(end) - parseYmd(start)) / 86400000) + 1;
+        const prevEnd = clamp(ymd(addDays(parseYmd(start), -1)));
+        const prevStart = clamp(ymd(addDays(parseYmd(prevEnd), -(span - 1))));
+        return { start:prevStart, end:prevEnd };
+      }
+
+      async function loadRange(start, end){
+        const raw = await Promise.all(between(start, end).map((day) => fetchJson(`${DATA_BASE}/funnel_${day}.json?t=${Date.now()}`)));
+        return raw.map(normalizeBundle).reduce((acc, bundle) => {
+          acc.summary.push(...bundle.summary);
+          acc.ownedGroups.push(...bundle.ownedGroups);
+          return acc;
+        }, { summary: [], ownedGroups: [] });
+      }
+
+      function summarizeGroupsForSegment(bundle, segment){
+        if (['OWNED','EDM','LMS','KAKAO'].includes(segment)) {
+          const rows = (bundle.ownedGroups || []).filter((row) => segment === 'OWNED' ? ownedChildSegments().includes(row.detail) : row.detail === segment);
+          const grouped = new Map();
+          rows.forEach((row) => {
+            const key = `${row.year}-${row.mmdd}`;
+            if (!grouped.has(key)) grouped.set(key, {
+              key,
+              label: row.mmdd,
+              title: row.messageTitle || '',
+              rows: [],
+            });
+            const cur = grouped.get(key);
+            cur.rows.push(row);
+            if (!cur.title && row.messageTitle) cur.title = row.messageTitle;
+          });
+          return Array.from(grouped.values()).map((g) => {
+            const agg = aggregateRows(g.rows);
+            return {
+              key: g.key,
+              label: g.label,
+              title: g.title || '',
+              segment,
+              agg,
+              cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+            };
+          }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
+        }
+
+        if (segment === 'ALL') {
+          return (bundle.summary || []).filter((row) => row.detail === 'SITE' || row.detail === 'ALL').map((row) => {
+            const agg = aggregateRows([row]);
+            return {
+              key: row.date,
+              label: row.date,
+              title: 'All',
+              segment: 'ALL',
+              agg,
+              cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+            };
+          }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
+        }
+
+        return (bundle.summary || []).filter((row) => row.detail === segment).map((row) => {
+          const agg = aggregateRows([row]);
+          return {
+            key: row.date,
+            label: row.date,
+            title: segmentLabel(segment),
+            segment,
+            agg,
+            cvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+          };
+        }).sort((a,b) => String(b.key).localeCompare(String(a.key)));
+      }
+
+      function rowsForSegment(bundle, segment, selectedGroup=''){
+        if (['OWNED','EDM','LMS','KAKAO'].includes(segment)) {
+          const rows = (bundle.ownedGroups || []).filter((row) => segment === 'OWNED' ? ownedChildSegments().includes(row.detail) : row.detail === segment);
+          if (!selectedGroup) return rows;
+          return rows.filter((row) => `${row.year}-${row.mmdd}` === selectedGroup);
+        }
+        const details = segment === 'ALL' ? ['SITE','ALL'] : [segment];
+        const rows = (bundle.summary || []).filter((row) => details.includes(row.detail));
+        if (!selectedGroup) return rows;
+        return rows.filter((row) => row.date === selectedGroup);
+      }
+
+      function aggregateRows(rows){
+        const base = (rows || []).reduce((a, r) => ({
+          sessions: a.sessions + Number(r.sessions || 0),
+          pdpViews: a.pdpViews + Number(r.pdpViews || 0),
+          addToCart: a.addToCart + Number(r.addToCart || 0),
+          beginCheckout: a.beginCheckout + Number(r.beginCheckout || 0),
+          purchaseSessions: a.purchaseSessions + Number(r.purchaseSessions || 0),
+          users: a.users + Number(r.users || 0),
+          buyerUsers: a.buyerUsers + Number(r.buyerUsers || 0),
+          orders: a.orders + Number(r.purchases || 0),
+          revenue: a.revenue + Number(r.revenue || 0),
+        }), { sessions:0,pdpViews:0,addToCart:0,beginCheckout:0,purchaseSessions:0,users:0,buyerUsers:0,orders:0,revenue:0 });
+        return base;
+      }
+
+      function buildBehaviorStages(agg){
+        const fields = [];
+        const notes = [];
+        const hasNativePdp = agg.pdpViews > 0;
+        const hasNativeCart = agg.addToCart > 0;
+        const hasNativeCheckout = agg.beginCheckout > 0;
+        const hasNativePurchaseSessions = agg.purchaseSessions > 0;
+
+        fields.push({ key:'sessions', label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions, source:'native' });
+
+        if (hasNativePdp) {
+          fields.push({ key:'pdpViews', label:'PDP Views', note:'Product detail views', value:agg.pdpViews, source:'native' });
+        } else if (agg.users > 0) {
+          fields.push({ key:'users', label:'PDP Views (Proxy)', note:'Fallback to users because PDP field is missing', value:agg.users, source:'proxy' });
+          notes.push('PDP stage is using Users as a proxy because pdp_views is not present in the source JSON.');
+        }
+
+        if (hasNativeCart) {
+          fields.push({ key:'addToCart', label:'Add to Cart', note:'Add-to-cart actions/users in scope', value:agg.addToCart, source:'native' });
+        }
+        if (hasNativeCheckout) {
+          fields.push({ key:'beginCheckout', label:'Checkout', note:'Checkout starts in scope', value:agg.beginCheckout, source:'native' });
+        }
+
+        if (hasNativePurchaseSessions) {
+          fields.push({ key:'purchaseSessions', label:'Purchase Sessions', note:'Sessions that reached purchase', value:agg.purchaseSessions, source:'native' });
+        } else if (agg.buyerUsers > 0) {
+          fields.push({ key:'buyerUsers', label:'Purchase Users (Proxy)', note:'Fallback to buyer users because purchase_sessions is missing', value:agg.buyerUsers, source:'proxy' });
+          notes.push('Purchase stage is using Buyer Users as a proxy because purchase_sessions is not present in the source JSON.');
+        }
+
+        const max = Math.max(...fields.map((s) => s.value), 0);
+        const easing = (ratio) => Math.pow(Math.max(0, ratio), 0.82);
+        const stages = fields.map((stage, idx) => {
+          const rawRatio = max ? stage.value / max : 0;
+          const width = idx === 0 ? 96 : Math.max(6, easing(rawRatio) * 96);
+          const prevValue = idx === 0 ? 0 : fields[idx - 1].value;
+          const kept = idx === 0 ? 100 : (prevValue ? (stage.value / prevValue) * 100 : 0);
+          const drop = idx === 0 ? 0 : Math.max(0, 100 - kept);
+          return { ...stage, width, kept, drop, share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 };
+        });
+
+        const steps = [];
+        for (let i = 1; i < stages.length; i += 1) {
+          steps.push({
+            from: stages[i-1].label,
+            to: stages[i].label,
+            kept: stages[i].kept,
+            drop: stages[i].drop,
+          });
+        }
+
+        return { stages, notes, steps };
+      }
+
+      function modelFor(bundle, segment, group=''){
+        const agg = aggregateRows(rowsForSegment(bundle, segment, group));
+        const behavior = buildBehaviorStages(agg);
+        return {
+          segment,
+          group,
+          agg,
+          behavior,
+          sessionCvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+          aov: agg.orders ? (agg.revenue / agg.orders) : 0,
+        };
+      }
+
+      const delta = (cur, prev) => prev ? `${cur >= prev ? '+' : ''}${(((cur - prev) / prev) * 100).toFixed(1)}%` : (cur ? '+100.0%' : '0.0%');
+      const fmtDeltaNum = (a, b, isMoney=false) => {
+        const d = Number(a || 0) - Number(b || 0);
+        const sign = d >= 0 ? '+' : '';
+        const out = isMoney ? fmtMoney(Math.abs(d)) : fmt(Math.abs(d));
+        return `${sign}${isMoney ? fmtMoney(d) : d.toLocaleString('en-US')}`;
+      };
+
+      function fitTextToBox(el, opts={}){
+        if (!el || !el.parentElement) return;
+        const { max=40, min=8, widthRatio=.9, heightRatio=.9 } = opts;
+        const parent = el.parentElement;
+        let size = max;
+        el.style.fontSize = `${size}px`;
+        while (size > min && (el.scrollWidth > parent.clientWidth * widthRatio || el.scrollHeight > parent.clientHeight * heightRatio)) {
+          size -= 1;
+          el.style.fontSize = `${size}px`;
+        }
+      }
+
+      function autoFitFunnelText(root){
+        root.querySelectorAll('.funnel-stage').forEach((stage) => {
+          const stageW = stage.clientWidth;
+          const stageH = stage.clientHeight;
+          const name = stage.querySelector('.stage-title');
+          const num = stage.querySelector('.stage-value .num');
+          const sub = stage.querySelector('.stage-value .sub');
+          const tiny = stageW < 110;
+          const small = stageW < 150;
+          if (name) fitTextToBox(name, { max: tiny ? 18 : small ? 22 : 28, min: 8, widthRatio: .88, heightRatio: .26 });
+          if (num) fitTextToBox(num, { max: tiny ? 22 : small ? 28 : 40, min: 10, widthRatio: .88, heightRatio: .36 });
+          if (sub) fitTextToBox(sub, { max: tiny ? 11 : 12, min: 8, widthRatio: .88, heightRatio: .16 });
+          const wrap = stage.querySelector('.stage-copy');
+          let safety = 14;
+          while (wrap && wrap.scrollHeight > stageH - 8 && safety > 0) {
+            [name, num, sub].filter(Boolean).forEach((node) => {
+              const current = parseFloat(getComputedStyle(node).fontSize);
+              node.style.fontSize = `${Math.max(8, current - 1)}px`;
+            });
+            safety -= 1;
+          }
+        });
+        root.querySelectorAll('.drop-slot').forEach((slot) => {
+          const kicker = slot.querySelector('.drop-kicker');
+          const rate = slot.querySelector('.drop-rate');
+          const count = slot.querySelector('.drop-count');
+          if (kicker) fitTextToBox(kicker, { max: 10, min: 8, widthRatio: .84, heightRatio: .22 });
+          if (rate) fitTextToBox(rate, { max: 22, min: 10, widthRatio: .82, heightRatio: .24 });
+          if (count) fitTextToBox(count, { max: 12, min: 8, widthRatio: .82, heightRatio: .14 });
+        });
+      }
+
+      function renderFunnel(canvas, behavior, className=''){
+        const stages = behavior.stages;
+        if (!stages.length) {
+          canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
+          return;
+        }
+        const html = [
+          `<div class="funnel-flow">`,
+          ...stages.map((stage, i) => {
+            const width = Math.max(stage.width || 0, i === 0 ? 96 : 6);
+            const dropWidth = i === 0 ? 0 : Math.max(34, ((stage.drop || 0) / 100) * 102);
+            return `
+            <div class="funnel-row">
+              <div class="funnel-lane">
+                ${i === 0 ? '' : `<div class="funnel-step-line">${esc(stages[i-1].label)} → ${esc(stage.label)} · ${fmtPct(stage.kept,1)} 유지 · ${fmtPct(stage.drop,1)} 이탈</div>`}
+                <div class="funnel-track">
+                  <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%;animation-delay:${i*90}ms">
+                    <div class="funnel-stage-inner">
+                      <div class="stage-copy">
+                        <div class="stage-title">${esc(stage.label)}</div>
+                        <div class="stage-value">
+                          <div class="num">${fmt(stage.value)}</div>
+                          <div class="sub">${i===0 ? '기준 단계' : `이탈 ${fmtPct(stage.drop,1)}`}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="drop-slot ${i===0 ? 'baseline' : ''}">
+                ${i===0 ? `<div class="muted text-xs font-extrabold">Baseline</div>` : `
+                  <div class="drop-fill" style="width:${dropWidth.toFixed(1)}px;animation-delay:${i*90+120}ms"></div>
+                  <div class="drop-label" style="animation-delay:${i*90+220}ms">
+                    <div class="drop-kicker">DROP-<br>OFF</div>
+                    <div class="drop-rate">${fmtPct(stage.drop,1)}</div>
+                    <div class="drop-count">${fmt(Math.max(0, (stages[i-1]?.value || 0) - stage.value))}</div>
+                  </div>`}
+              </div>
+            </div>`;
+          }).join(''),
+          `</div>`
+        ].join('');
+        canvas.innerHTML = html;
+        requestAnimationFrame(() => autoFitFunnelText(canvas));
+      }
+
+      function render(){
+        const range = state.current.range;
+        const prevRange = state.current.previousRange;
+        const groups = summarizeGroupsForSegment(state.current.current, state.segment);
+        const currentModel = modelFor(state.current.current, state.segment, state.selectedGroup);
+        const previousModel = modelFor(state.current.previous, state.segment, '');
+        const selectedGroup = groups.find((row) => row.key === state.selectedGroup);
+
+        els.periodLabel.textContent = `Period | ${range.start === range.end ? range.start : `${range.start} to ${range.end}`}`;
+        els.scopeLabel.textContent = `${segmentLabel()} | ${selectedGroup ? selectedGroup.label : 'Total period'}`;
+        els.selectionPill.textContent = `Scope | ${selectedGroup ? selectedGroup.label : segmentLabel()}`;
+        els.groupKicker.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'Send Groups' : 'Date Groups';
+        els.groupHeading.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'MMDD Groups In Scope' : 'Dates In Scope';
+
+        els.summaryCards.innerHTML = [
+          ['Sessions', fmt(currentModel.agg.sessions), `Prev ${fmt(previousModel.agg.sessions)} | ${delta(currentModel.agg.sessions, previousModel.agg.sessions)}`],
+          ['PDP Views', fmt(currentModel.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0), 'Behavior stage'],
+          ['Cart', fmt(currentModel.behavior.stages.find(s => s.key === 'addToCart')?.value || 0), 'Behavior stage'],
+          ['Checkout', fmt(currentModel.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), 'Behavior stage'],
+          ['Orders', fmt(currentModel.agg.orders), `Prev ${fmt(previousModel.agg.orders)} | ${delta(currentModel.agg.orders, previousModel.agg.orders)}`],
+          ['Session CVR', fmtPct(currentModel.sessionCvr, 2), `Prev ${fmtPct(previousModel.sessionCvr, 2)} | ${(currentModel.sessionCvr - previousModel.sessionCvr >= 0 ? '+' : '') + (currentModel.sessionCvr - previousModel.sessionCvr).toFixed(2)}%p`],
+        ].map(([label, value, sub]) => `<article class="card p-5"><div class="kicker">${esc(label)}</div><div class="metric mt-3">${esc(value)}</div><div class="mt-2 text-xs font-semibold muted">${esc(sub)}</div></article>`).join('');
+
+        renderFunnel(els.funnelCanvas, currentModel.behavior);
+        els.funnelNotice.innerHTML = currentModel.behavior.notes.length
+          ? currentModel.behavior.notes.map((n) => `<div class="warn">${esc(n)}</div>`).join('')
+          : `<div>Behavior funnel is using native stage fields.</div>`;
+
+        els.selectionMeta.innerHTML = [
+          `Segment | ${segmentLabel()}`,
+          `Selection | ${selectedGroup ? selectedGroup.label : 'Total period'}`,
+          `Comparison baseline | ${prevRange.start} to ${prevRange.end}`,
+          `Orders | ${fmt(currentModel.agg.orders)}`,
+          `Revenue | ${fmtMoney(currentModel.agg.revenue)}`,
+          `AOV | ${fmtMoney(currentModel.aov)}`,
+          `Session CVR | ${fmtPct(currentModel.sessionCvr, 2)}`,
+          selectedGroup && selectedGroup.title ? `Title | ${selectedGroup.title}` : '',
+        ].filter(Boolean).map((line) => `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">${esc(line)}</div>`).join('');
+
+        els.stepDetail.innerHTML = currentModel.behavior.stages.map((stage, i) => `
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
+            <div class="kicker">Stage ${String(i+1).padStart(2,'0')}</div>
+            <div class="mt-2 flex items-center justify-between gap-4">
+              <div>
+                <div class="text-base font-black">${esc(stage.label)}</div>
+                <div class="mt-1 text-xs font-semibold muted">${esc(stage.note)}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-xl font-black">${fmt(stage.value)}</div>
+                <div class="mt-1 text-xs font-semibold muted">${fmtPct(stage.share,1)} of sessions</div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+        els.groupSummary.textContent = selectedGroup ? `Selected | ${selectedGroup.label}` : `Total groups | ${groups.length}`;
+        els.groupChips.innerHTML = groups.length ? groups.slice(0, 24).map((row) => `
+          <button class="group-chip ${state.selectedGroup === row.key ? 'active' : ''}" data-group="${row.key}" type="button">
+            <div>${esc(row.label)}</div>
+            <div class="mt-1 text-[11px] font-bold text-slate-500">${fmt(row.agg.sessions)} sessions</div>
+          </button>
+        `).join('') : `<div class="empty w-full">No groups found for this segment and period.</div>`;
+        Array.from(els.groupChips.querySelectorAll('[data-group]')).forEach((button) => button.addEventListener('click', () => {
+          state.selectedGroup = button.getAttribute('data-group') || '';
+          render();
+        }));
+
+        els.groupTableBody.innerHTML = groups.length ? groups.slice(0, 20).map((row) => {
+          const behavior = buildBehaviorStages(row.agg);
+          return `
+            <tr class="cursor-pointer" data-row-group="${row.key}">
+              <td class="font-black">${esc(row.key)}</td>
+              <td>${esc(row.title || '-')}</td>
+              <td>${fmt(row.agg.sessions)}</td>
+              <td>${fmt(behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0)}</td>
+              <td>${fmt(behavior.stages.find(s => s.key === 'addToCart')?.value || 0)}</td>
+              <td>${fmt(behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0)}</td>
+              <td>${fmt(behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0)}</td>
+              <td>${fmt(row.agg.orders)}</td>
+              <td>${fmtMoney(row.agg.revenue)}</td>
+              <td>${fmtPct(row.cvr,2)}</td>
+            </tr>
+          `;
+        }).join('') : `<tr><td colspan="10" class="text-center text-slate-400">No groups</td></tr>`;
+        Array.from(els.groupTableBody.querySelectorAll('[data-row-group]')).forEach((row) => row.addEventListener('click', () => {
+          state.selectedGroup = row.getAttribute('data-row-group') || '';
+          render();
+        }));
+
+        renderCompare();
+        renderDropoff();
+      }
+
+      function compareOptionsForSegment(segment){
+        return summarizeGroupsForSegment(state.current.current, segment);
+      }
+
+      function hydrateCompareControls(){
+        [els.cmpASegment, els.cmpBSegment].forEach((select, idx) => {
+          const key = idx === 0 ? 'A' : 'B';
+          select.innerHTML = FILTER_SEGMENTS.map((seg) => `<option value="${seg}" ${state.compare[key].segment === seg ? 'selected' : ''}>${esc(segmentLabel(seg))}</option>`).join('');
+        });
+        ['A','B'].forEach((key) => {
+          const seg = state.compare[key].segment;
+          const groupSelect = key === 'A' ? els.cmpAGroup : els.cmpBGroup;
+          const options = compareOptionsForSegment(seg);
+          if (state.compare[key].group && !options.some((o) => o.key === state.compare[key].group)) state.compare[key].group = '';
+          groupSelect.innerHTML = [`<option value="">Total period</option>`, ...options.map((o) => `<option value="${o.key}" ${state.compare[key].group === o.key ? 'selected' : ''}>${esc(o.label)}</option>`)].join('');
+        });
+      }
+
+      function renderCompare(){
+        hydrateCompareControls();
+        const a = modelFor(state.current.current, state.compare.A.segment, state.compare.A.group);
+        const b = modelFor(state.current.current, state.compare.B.segment, state.compare.B.group);
+        const allStageValues = [...a.behavior.stages.map(s => s.value), ...b.behavior.stages.map(s => s.value)];
+        const globalMax = Math.max(...allStageValues, 0) || 1;
+
+        const rescale = (behavior) => ({
+          ...behavior,
+          stages: behavior.stages.map((s, idx) => ({ ...s, width: idx === 0 ? 96 * Math.pow(s.value / globalMax, 0.82) || 6 : Math.max(6, Math.pow((s.value / globalMax), 0.82) * 96) }))
+        });
+
+        renderFunnel(els.compareCanvasA, rescale(a.behavior), 'compare-a');
+        renderFunnel(els.compareCanvasB, rescale(b.behavior), 'compare-b');
+
+        const aLabel = `${segmentLabel(a.segment)} | ${state.compare.A.group || 'Total period'}`;
+        const bLabel = `${segmentLabel(b.segment)} | ${state.compare.B.group || 'Total period'}`;
+        els.compareMetaA.innerHTML = `<div>${esc(aLabel)}</div><div class="mt-1">Orders ${fmt(a.agg.orders)} · Revenue ${fmtMoney(a.agg.revenue)} · Session CVR ${fmtPct(a.sessionCvr,2)}</div>`;
+        els.compareMetaB.innerHTML = `<div>${esc(bLabel)}</div><div class="mt-1">Orders ${fmt(b.agg.orders)} · Revenue ${fmtMoney(b.agg.revenue)} · Session CVR ${fmtPct(b.sessionCvr,2)}</div>`;
+
+        const rows = [
+          ['Sessions', a.agg.sessions, b.agg.sessions, fmtDeltaNum(a.agg.sessions, b.agg.sessions)],
+          ['PDP Views', a.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0, b.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0), (b.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0))],
+          ['Cart', a.behavior.stages.find(s => s.key === 'addToCart')?.value || 0, b.behavior.stages.find(s => s.key === 'addToCart')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'addToCart')?.value || 0), (b.behavior.stages.find(s => s.key === 'addToCart')?.value || 0))],
+          ['Checkout', a.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0, b.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), (b.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0))],
+          ['Purchase Sessions', a.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0, b.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0, fmtDeltaNum((a.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0), (b.behavior.stages.find(s => s.key === 'purchaseSessions' || s.key === 'buyerUsers')?.value || 0))],
+          ['Orders', a.agg.orders, b.agg.orders, fmtDeltaNum(a.agg.orders, b.agg.orders)],
+          ['Revenue', fmtMoney(a.agg.revenue), fmtMoney(b.agg.revenue), `${a.agg.revenue - b.agg.revenue >= 0 ? '+' : ''}${fmtMoney(a.agg.revenue - b.agg.revenue)}`],
+          ['Session CVR', fmtPct(a.sessionCvr,2), fmtPct(b.sessionCvr,2), `${(a.sessionCvr - b.sessionCvr >= 0 ? '+' : '')}${(a.sessionCvr - b.sessionCvr).toFixed(2)}%p`],
+        ];
+        els.compareTableBody.innerHTML = rows.map((r) => `<tr><td class="font-black">${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join('');
+      }
+
+      function buildDropoffData(){
+        const segments = FILTER_SEGMENTS;
+        const entries = segments.map((segment) => {
+          const m = modelFor(state.current.current, segment, '');
+          const ranked = m.behavior.steps.slice().sort((a,b) => b.drop - a.drop).slice(0,3);
+          return { segment, label: segmentLabel(segment), ranked, model: m };
+        });
+        return entries;
+      }
+
+      function renderDropoff(){
+        const entries = buildDropoffData();
+        const overall = entries.map((entry) => ({
+          segment: entry.label,
+          top: entry.ranked[0] || { from:'-', to:'-', drop:0, kept:0 },
+        })).sort((a,b) => b.top.drop - a.top.drop).slice(0,3);
+
+        els.dropOverall.innerHTML = overall.length ? overall.map((row, idx) => `
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
+            <div class="flex items-start gap-3">
+              <span class="rank-badge">#${idx+1}</span>
+              <div>
+                <div class="text-sm font-black">${esc(row.segment)}</div>
+                <div class="mt-1 text-sm font-semibold muted">${esc(row.top.from)} → ${esc(row.top.to)}</div>
+                <div class="mt-1 text-sm font-black text-rose-600">${fmtPct(row.top.drop,1)} drop</div>
+              </div>
+            </div>
+          </div>
+        `).join('') : `<div class="empty">No drop-off data available.</div>`;
+
+        const stepBuckets = {};
+        entries.forEach((entry) => {
+          entry.ranked.forEach((step) => {
+            const key = `${step.from} → ${step.to}`;
+            if (!stepBuckets[key]) stepBuckets[key] = [];
+            stepBuckets[key].push({ segment: entry.label, drop: step.drop, kept: step.kept });
+          });
+        });
+        const stageCards = Object.entries(stepBuckets).map(([label, rows]) => ({
+          label,
+          rows: rows.sort((a,b) => b.drop - a.drop).slice(0,3)
+        })).sort((a,b) => (b.rows[0]?.drop || 0) - (a.rows[0]?.drop || 0));
+        els.dropStageRankings.innerHTML = stageCards.length ? stageCards.map((card) => `
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
+            <div class="text-sm font-black">${esc(card.label)}</div>
+            <div class="mt-3 space-y-2">
+              ${card.rows.map((row, idx) => `<div class="flex items-center justify-between gap-3 text-sm"><div><span class="rank-badge mr-2">#${idx+1}</span>${esc(row.segment)}</div><div class="font-black text-rose-600">${fmtPct(row.drop,1)}</div></div>`).join('')}
+            </div>
+          </div>
+        `).join('') : `<div class="empty">No stage ranking data.</div>`;
+
+        els.dropSegmentTableBody.innerHTML = entries.map((entry) => `
+          <tr>
+            <td class="font-black">${esc(entry.label)}</td>
+            <td>${entry.ranked[0] ? `${esc(entry.ranked[0].from)} → ${esc(entry.ranked[0].to)} · ${fmtPct(entry.ranked[0].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[1] ? `${esc(entry.ranked[1].from)} → ${esc(entry.ranked[1].to)} · ${fmtPct(entry.ranked[1].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[2] ? `${esc(entry.ranked[2].from)} → ${esc(entry.ranked[2].to)} · ${fmtPct(entry.ranked[2].drop,1)}` : '-'}</td>
+          </tr>
+        `).join('');
+      }
+
+      async function refresh(){
+        els.errorState.classList.add('hidden');
+        els.loadingState.classList.remove('hidden');
+        els.contentArea.classList.add('hidden');
+        try {
+          const range = currentRange();
+          const prev = previousRange(range.start, range.end);
+          els.rangeBox.classList.toggle('hidden', state.view !== 'range');
+          document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-view') === state.view));
+          document.querySelectorAll('[data-segment]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-segment') === state.segment));
+          document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === state.tab));
+          document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `panel-${state.tab}`));
+
+          const [currentBundle, previousBundle] = await Promise.all([loadRange(range.start, range.end), loadRange(prev.start, prev.end)]);
+          state.current = { range, previousRange: prev, current: currentBundle, previous: previousBundle };
+
+          const currentGroups = summarizeGroupsForSegment(currentBundle, state.segment);
+          if (state.selectedGroup && !currentGroups.some((row) => row.key === state.selectedGroup)) state.selectedGroup = '';
+          els.loadingState.classList.add('hidden');
+          els.contentArea.classList.remove('hidden');
+          render();
+        } catch (error) {
+          els.loadingState.classList.add('hidden');
+          els.errorState.classList.remove('hidden');
+          els.errorState.textContent = `Failed to load funnel data. ${error.message || error}`;
+        }
+      }
+
+      function shift(direction){
+        const range = currentRange();
+        if(state.view === 'daily'){
+          els.datePicker.value = clamp(ymd(addDays(parseYmd(range.end), direction)));
+          return;
+        }
+        if(state.view === 'week'){
+          els.datePicker.value = clamp(ymd(addDays(parseYmd(range.end), direction * 7)));
+          return;
+        }
+        const span = Math.round((parseYmd(range.end) - parseYmd(range.start)) / 86400000) + 1;
+        const start = clamp(ymd(addDays(parseYmd(range.start), direction * span)));
+        els.startPicker.value = start;
+        els.endPicker.value = clamp(ymd(addDays(parseYmd(start), span - 1)));
+      }
+
+      async function init(){
+        const available = await fetchJson(`${DATA_BASE}/available_dates.json?t=${Date.now()}`);
+        state.available = (Array.isArray(available) ? available : (available.available_dates || [])).slice().sort();
+        if(!state.available.length){
+          els.errorState.classList.remove('hidden');
+          els.errorState.textContent = `No available_dates.json found under ${DATA_BASE}.`;
+          return;
+        }
+        const latest = state.available[state.available.length - 1];
+        els.datePicker.value = latest;
+        els.startPicker.value = state.available[Math.max(0, state.available.length - 7)];
+        els.endPicker.value = latest;
+        [els.datePicker, els.startPicker, els.endPicker].forEach((field) => { field.min = state.available[0]; field.max = latest; });
+
+        document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', async () => {
+          state.view = b.getAttribute('data-view') || 'week';
+          state.selectedGroup = '';
+          await refresh();
+        }));
+        document.querySelectorAll('[data-segment]').forEach((b) => b.addEventListener('click', async () => {
+          state.segment = b.getAttribute('data-segment') || 'ALL';
+          state.selectedGroup = '';
+          await refresh();
+        }));
+        document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', async () => {
+          state.tab = b.getAttribute('data-tab') || 'overview';
+          await refresh();
+        }));
+
+        els.btnApply.addEventListener('click', async () => { state.selectedGroup = ''; await refresh(); });
+        els.btnPrev.addEventListener('click', async () => { shift(-1); state.selectedGroup = ''; await refresh(); });
+        els.btnNext.addEventListener('click', async () => { shift(1); state.selectedGroup = ''; await refresh(); });
+        els.btnResetSelection.addEventListener('click', () => { state.selectedGroup = ''; if(state.current) render(); });
+
+        els.cmpASegment.addEventListener('change', () => { state.compare.A.segment = els.cmpASegment.value; state.compare.A.group = ''; renderCompare(); });
+        els.cmpBSegment.addEventListener('change', () => { state.compare.B.segment = els.cmpBSegment.value; state.compare.B.group = ''; renderCompare(); });
+        els.cmpAGroup.addEventListener('change', () => { state.compare.A.group = els.cmpAGroup.value; renderCompare(); });
+        els.cmpBGroup.addEventListener('change', () => { state.compare.B.group = els.cmpBGroup.value; renderCompare(); });
+
+        await refresh();
+      }
+
+      init();
+    })();
   </script>
 </body>
 </html>
