@@ -1064,7 +1064,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          NAVER_AD_API_KEY: ${{ secrets.NAVER_AD_API_KEY }}
+          NAVER_AD_API_KEY: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
           NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
           NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
           GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
@@ -1105,7 +1105,16 @@ jobs:
           mkdir -p reports/search_volume/data
 
           echo "[INFO] Search Volume backfill window: ${START_DATE} ~ ${YMD}"
-          python -u "$SCRIPT"             --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화"             --end-date "$YMD"             --geo KR             --template "$TEMPLATE"             --output-json "$OUT_JSON"             --output-html "$OUT_HTML"             --meta-json "$META_JSON"             --skip-if-current
+          python -u "$SCRIPT" \
+            --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화" \
+            --start-date "$START_DATE" \
+            --end-date "$YMD" \
+            --geo KR \
+            --template "$TEMPLATE" \
+            --output-json "$OUT_JSON" \
+            --output-html "$OUT_HTML" \
+            --meta-json "$META_JSON" \
+            --skip-if-current
 
           echo "[INFO] Search Volume outputs:"
           ls -la reports/search_volume || true
