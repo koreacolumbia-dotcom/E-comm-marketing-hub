@@ -377,7 +377,7 @@ jobs:
           echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
           echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
           echo "run_funnel=$RUN_FUNNEL" >> "$GITHUB_OUTPUT"
-          echo "run_search_volume=$RUN_SEARCH_TRENDS" >> "$GITHUB_OUTPUT"
+          echo "run_search_volume=$RUN_SEARCH_VOLUME" >> "$GITHUB_OUTPUT"
           echo "send_daily_email=$SEND_DAILY_EMAIL" >> "$GITHUB_OUTPUT"
 
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
@@ -1196,4 +1196,24 @@ jobs:
           export REPORT_DATE="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
           export DAILY_DIGEST_PNG_PATH="reports/daily_digest/daily/${REPORT_DATE}.png"
           export DAILY_DIGEST_HTML_PATH="reports/daily_digest/daily/${REPORT_DATE}.html"
-          export MODE_DAIL
+          export MODE_DAILY="yesterday"
+
+          if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASS:-}" ] || [ -z "${DAILY_RECIPIENTS:-}" ]; then
+            echo "[WARN] SMTP or DAILY_RECIPIENTS config missing -> skip daily email"
+            exit 0
+          fi
+
+          if [ ! -f "${DAILY_DIGEST_PNG_PATH}" ] && [ ! -f "${DAILY_DIGEST_HTML_PATH}" ]; then
+            echo "[WARN] Neither PNG nor HTML report exists -> skip daily email"
+            ls -la reports/daily_digest/daily || true
+            exit 0
+          fi
+
+          if [ -f "scripts/send_daily_email.py" ]; then
+            python -u scripts/send_daily_email.py || true
+          elif [ -f "send_daily_email.py" ]; then
+            python -u send_daily_email.py || true
+          else
+            echo "[WARN] send_daily_email.py not found -> skip daily email"
+            exit 0
+          fi
