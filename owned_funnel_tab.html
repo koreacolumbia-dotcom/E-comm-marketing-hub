@@ -26,21 +26,21 @@
     .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
     .funnel-wrap{position:relative;padding:8px 0 2px}
     .funnel-flow{display:grid;gap:12px}
-    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:12px;align-items:center}
+    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:16px;align-items:center}
     .funnel-lane{min-width:0}
     .funnel-step-line{display:none}
-    .funnel-track{position:relative;height:108px;border-radius:20px;border:1px solid rgba(148,163,184,.18);background:linear-gradient(180deg,rgba(241,245,249,.95),rgba(234,240,247,.95));overflow:hidden;padding:0 12px}
-    .funnel-stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scaleX(.88);transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);height:48px;border-radius:16px;overflow:hidden;padding:6px 12px;min-width:72px;max-width:calc(100% - 24px);animation:funnelStageIn .95s cubic-bezier(.18,.86,.22,1) both}
+    .funnel-track{position:relative;height:132px;border-radius:22px;border:1px solid rgba(148,163,184,.18);background:linear-gradient(180deg,rgba(241,245,249,.95),rgba(234,240,247,.95));overflow:hidden;padding:0 16px}
+    .funnel-stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scaleX(.88);transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);height:64px;border-radius:18px;overflow:hidden;padding:8px 16px;min-width:88px;max-width:calc(100% - 32px);animation:funnelStageIn .95s cubic-bezier(.18,.86,.22,1) both}
     .funnel-stage::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 54%,rgba(0,0,0,.06));pointer-events:none}
     .funnel-stage::after{content:'';position:absolute;left:-24%;top:-40%;width:24%;height:180%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.32),rgba(255,255,255,0));filter:blur(6px);opacity:0;animation:funnelSheen 1.2s ease .35s both}
     .funnel-stage-inner{position:relative;z-index:2;width:100%;height:100%;display:flex;align-items:center;justify-content:center;min-width:0}
     .stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;max-width:100%;width:100%;height:100%;overflow:hidden}
     .stage-title,.stage-note,.stage-value .num,.stage-value .sub{max-width:100%;overflow:hidden;text-overflow:ellipsis}
-    .stage-title{font-size:28px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-title{font-size:34px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em;text-shadow:0 1px 2px rgba(0,0,0,.12)}
     .stage-note{font-size:12px;line-height:1.05;font-weight:800;white-space:nowrap;opacity:.96}
     .stage-value{min-width:0;max-width:100%}
-    .stage-value .num{font-size:42px;line-height:.95;font-weight:900;white-space:nowrap;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-value .sub{font-size:12px;line-height:1.05;font-weight:800;white-space:nowrap;opacity:.96}
+    .stage-value .num{font-size:52px;line-height:.95;font-weight:900;white-space:nowrap;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-value .sub{font-size:14px;line-height:1.08;font-weight:800;white-space:nowrap;opacity:.96}
     .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
     .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
@@ -48,8 +48,8 @@
     .funnel-stage[data-stage="5"]{background:linear-gradient(135deg,#7c3aed,#ec4899)}
     .funnel-stage.compare-a{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-stage.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
-    .drop-slot{position:relative;height:108px;border-radius:20px;border:1px solid rgba(148,163,184,.18);background:linear-gradient(180deg,rgba(246,248,252,.98),rgba(237,242,247,.95));overflow:hidden;display:flex;align-items:center;justify-content:flex-start;padding:10px}
-    .drop-slot.baseline{border-style:dashed;color:#94a3b8;font-weight:900;font-size:12px}
+    .drop-slot{position:relative;height:132px;border-radius:22px;border:1px solid rgba(148,163,184,.18);background:linear-gradient(180deg,rgba(246,248,252,.98),rgba(237,242,247,.95));overflow:hidden;display:flex;align-items:center;justify-content:flex-start;padding:12px}
+    .drop-slot.baseline{border-style:dashed;color:#94a3b8;font-weight:900;font-size:13px;justify-content:flex-start;align-items:center;text-align:left;padding-left:18px}
     .drop-fill{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.88);transform-origin:center center;height:calc(100% - 18px);border-radius:18px;background:linear-gradient(135deg,#c084fc,#ec4899);box-shadow:0 12px 24px rgba(220,72,158,.22), inset 0 1px 0 rgba(255,255,255,.24);animation:dropIn .82s cubic-bezier(.18,.86,.22,1) both}
     .drop-fill::after{content:'';position:absolute;left:-24%;top:-25%;width:44%;height:150%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.28),rgba(255,255,255,0));opacity:.55;filter:blur(4px)}
     .drop-label{position:relative;z-index:2;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-width:0;max-width:100%;width:100%;height:100%;text-align:left;color:#fff;animation:fadeUp .55s ease .18s both;padding-left:14px}
@@ -61,8 +61,8 @@
     @keyframes funnelSheen{0%{left:-24%;opacity:0}22%{opacity:.55}100%{left:112%;opacity:0}}
     @keyframes dropIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.84)}70%{opacity:1;transform:translate(-50%,-50%) scale(1.02)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-    @media (max-width: 900px){.funnel-row{grid-template-columns:minmax(0,1fr) 104px}.funnel-track,.drop-slot{height:100px}}
-    @media (max-width: 640px){.funnel-row{grid-template-columns:minmax(0,1fr) 92px}.funnel-track,.drop-slot{height:94px}.funnel-step-line{font-size:11px}}
+    @media (max-width: 900px){.funnel-row{grid-template-columns:minmax(0,1fr) 110px}.funnel-track,.drop-slot{height:116px}.funnel-stage{height:56px}}
+    @media (max-width: 640px){.funnel-row{grid-template-columns:minmax(0,1fr) 96px}.funnel-track,.drop-slot{height:104px}.funnel-stage{height:50px}.funnel-step-line{font-size:11px}}
     .tab-panel{display:none}
     .tab-panel.active{display:block}
     .rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:rgba(0,45,114,.08);color:#002d72;font-weight:900;font-size:12px}
@@ -124,7 +124,7 @@
       <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="summaryCards"></section>
 
       <section id="panel-overview" class="tab-panel active space-y-6">
-        <section class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.85fr)]">
+        <section class="space-y-6">
           <div class="card p-5 md:p-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -137,14 +137,15 @@
             <div id="funnelNotice" class="mt-4 text-xs font-semibold muted"></div>
             <div id="funnelCanvas" class="funnel-wrap mt-6"></div>
           </div>
-          <div class="space-y-4">
+
+          <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <div class="card p-5">
               <div class="kicker">Selection Notes</div>
-              <div id="selectionMeta" class="mt-4 space-y-3 text-sm font-semibold muted"></div>
+              <div id="selectionMeta" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2"></div>
             </div>
             <div class="card p-5">
               <div class="kicker">Step Detail</div>
-              <div id="stepDetail" class="mt-4 space-y-3"></div>
+              <div id="stepDetail" class="mt-4 grid grid-cols-1 gap-3"></div>
             </div>
           </div>
         </section>
@@ -408,8 +409,14 @@
       }
 
       async function loadRange(start, end){
-        const raw = await Promise.all(between(start, end).map((day) => fetchJson(`${DATA_BASE}/funnel_${day}.json?t=${Date.now()}`)));
-        return raw.map(normalizeBundle).reduce((acc, bundle) => {
+        const targets = between(start, end);
+        const results = await Promise.allSettled(targets.map((day) => fetchJson(`${DATA_BASE}/funnel_${day}.json?t=${Date.now()}`)));
+        const fulfilled = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+        if (!fulfilled.length) {
+          const failed = results.find((r) => r.status === 'rejected');
+          throw (failed && failed.reason) ? failed.reason : new Error('No funnel JSON could be loaded.');
+        }
+        return fulfilled.map(normalizeBundle).reduce((acc, bundle) => {
           acc.summary.push(...bundle.summary);
           acc.ownedGroups.push(...bundle.ownedGroups);
           return acc;
@@ -570,8 +577,22 @@
       const delta = (cur, prev) => prev ? `${cur >= prev ? '+' : ''}${(((cur - prev) / prev) * 100).toFixed(1)}%` : (cur ? '+100.0%' : '0.0%');
       const fmtDeltaNum = (a, b, isMoney=false) => {
         const d = Number(a || 0) - Number(b || 0);
-        return isMoney ? `${d >= 0 ? '+' : ''}${fmtMoney(d)}` : `${d >= 0 ? '+' : ''}${d.toLocaleString('en-US')}`;
+        const sign = d >= 0 ? '+' : '';
+        const out = isMoney ? fmtMoney(Math.abs(d)) : fmt(Math.abs(d));
+        return `${sign}${isMoney ? fmtMoney(d) : d.toLocaleString('en-US')}`;
       };
+
+      function fitTextToBox(el, opts={}){
+        if (!el || !el.parentElement) return;
+        const { max=40, min=8, widthRatio=.9, heightRatio=.9 } = opts;
+        const parent = el.parentElement;
+        let size = max;
+        el.style.fontSize = `${size}px`;
+        while (size > min && (el.scrollWidth > parent.clientWidth * widthRatio || el.scrollHeight > parent.clientHeight * heightRatio)) {
+          size -= 1;
+          el.style.fontSize = `${size}px`;
+        }
+      }
 
       function autoFitFunnelText(root){
         root.querySelectorAll('.funnel-stage').forEach((stage) => {
@@ -645,6 +666,7 @@
             guard -= 1;
           }
         });
+      });
       }
 
       function renderFunnel(canvas, behavior, className=''){
@@ -677,7 +699,7 @@
                 </div>
               </div>
               <div class="drop-slot ${i===0 ? 'baseline' : ''}">
-                ${i===0 ? `<div class="muted text-xs font-extrabold">Baseline</div>` : `
+                ${i===0 ? `<div class="muted text-sm font-extrabold w-full text-left">Baseline</div>` : `
                   <div class="drop-fill" style="width:${dropWidth.toFixed(1)}px;animation-delay:${i*90+120}ms"></div>
                   <div class="drop-label" style="animation-delay:${i*90+220}ms">
                     <div class="drop-kicker">DROP-<br>OFF</div>
@@ -839,11 +861,12 @@
 
       function buildDropoffData(){
         const segments = FILTER_SEGMENTS;
-        return segments.map((segment) => {
+        const entries = segments.map((segment) => {
           const m = modelFor(state.current.current, segment, '');
           const ranked = m.behavior.steps.slice().sort((a,b) => b.drop - a.drop).slice(0,3);
           return { segment, label: segmentLabel(segment), ranked, model: m };
         });
+        return entries;
       }
 
       function renderDropoff(){
@@ -984,8 +1007,9 @@
           await refresh();
         } catch (error) {
           els.loadingState.classList.add('hidden');
+          els.contentArea.classList.add('hidden');
           els.errorState.classList.remove('hidden');
-          els.errorState.textContent = `Init failed. ${error.message || error}`;
+          els.errorState.textContent = `Failed to initialize funnel data. ${error.message || error}`;
         }
       }
 
