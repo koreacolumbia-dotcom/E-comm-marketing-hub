@@ -333,7 +333,7 @@ jobs:
               matplotlib
           fi
 
-          # requirements.txt 와 별개로 Daily Digest 추가 패키지 보강 설치
+          # requirements.txt 와 별개로 리포트 빌드 추가 패키지 보강 설치
           pip install openpyxl matplotlib pytrends
 
           python -m playwright install --with-deps chromium
@@ -946,7 +946,7 @@ jobs:
             --output-json "$OUT_JSON" \
             --output-html "$OUT_HTML" \
             --meta-json "$META_JSON" \
-            
+            --skip-if-current
 
           echo "[INFO] Search Volume outputs:"
           ls -la reports/search_volume || true
