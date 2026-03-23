@@ -57,6 +57,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--meta-json", default="reports/search_volume/data/meta.json")
     p.add_argument("--template", default="search_volume_hub_template.html")
     p.add_argument("--skip-if-current", action="store_true")
+    p.add_argument("--start-date", default="", help="Optional backfill start date (accepted for workflow compatibility)")
+    p.add_argument("--end-date", default="", help="Optional snapshot end date in YYYY-MM-DD")
+    p.add_argument("--geo", default="KR", help="Optional geo code (accepted for workflow compatibility)")
 
     p.add_argument("--naver-api-key", default=os.getenv("NAVER_AD_API_KEY", ""))
     p.add_argument("--naver-secret-key", default=os.getenv("NAVER_AD_SECRET_KEY", ""))
@@ -282,7 +285,7 @@ def main() -> None:
         google_geo_target_resource=args.google_geo_target_resource,
     )
 
-    today = datetime.now(tz=KST).strftime("%Y-%m-%d")
+    today = args.end_date or datetime.now(tz=KST).strftime("%Y-%m-%d")
     if args.skip_if_current and maybe_skip_current(config.meta_json, today):
         print(f"[SKIP] search volume already built for {today}")
         return
@@ -324,6 +327,9 @@ def main() -> None:
         "naver_snapshots": upsert_naver_snapshots(existing.get("naver_snapshots", []), naver_rows),
         "google_history": upsert_google_history(existing.get("google_history", []), google_rows),
         "notes": errors,
+        "start_date": args.start_date or "",
+        "end_date": today,
+        "geo": args.geo or "KR",
     }
     config.output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     render_html(config.template, payload, config.output_html)
@@ -337,6 +343,9 @@ def main() -> None:
         "has_naver": bool(payload["naver_snapshots"]),
         "has_google": bool(payload["google_history"]),
         "notes": errors,
+        "start_date": args.start_date or "",
+        "end_date": today,
+        "geo": args.geo or "KR",
     }
     config.meta_json.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[OK] wrote: {config.output_json}")
