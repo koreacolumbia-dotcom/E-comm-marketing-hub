@@ -3652,6 +3652,20 @@ def write_html_legacy(path: str, rows: List[Banner], changes: Optional[Dict[str,
     body.embedded .sidebar {{ display:none !important; }}
     body.embedded main {{ padding: 24px !important; }}
     body.embedded .sticky {{ position: static !important; }}
+  
+
+    /* === premium motion patch === */
+    @keyframes motionFadeUp{0%{opacity:0;transform:translate3d(0,20px,0) scale(.985)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+    @keyframes motionFadeLeft{0%{opacity:0;transform:translate3d(18px,0,0) scale(.985)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+    @keyframes motionPulseGlow{0%,100%{box-shadow:0 18px 38px rgba(15,23,42,.06)}50%{box-shadow:0 24px 48px rgba(0,45,114,.10)}}
+    .motion-ready .motion-target,
+    .motion-ready .motion-target-left{opacity:0;will-change:transform,opacity}
+    .motion-ready .motion-in{animation:motionFadeUp .8s cubic-bezier(.22,.86,.22,1) both}
+    .motion-ready .motion-in-left{animation:motionFadeLeft .8s cubic-bezier(.22,.86,.22,1) both}
+    .motion-hover{transition:transform .22s ease, box-shadow .22s ease}
+    .motion-hover:hover{transform:translateY(-2px);box-shadow:0 18px 36px rgba(15,23,42,.10)}
+    .motion-glow{animation:motionPulseGlow 3.2s ease-in-out infinite}
+
   </style>
 </head>
 <body class="flex">
@@ -3732,6 +3746,44 @@ def write_html_legacy(path: str, rows: List[Banner], changes: Optional[Dict[str,
       }}
     }})();
   </script>
+
+
+<script>
+(function(){
+  const initMotion = () => {
+    document.body.classList.add('motion-ready');
+    const selectors = [
+      '.glass','.glass-card','.card','.summary-card','.review-card','.ml-card','.table-wrap',
+      '.group-chip','.chip','.btn','.field','.topbar','.funnel-row','.summary-grid > *','section > .card'
+    ];
+    const nodes = Array.from(new Set(selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)))));
+    nodes.forEach((el, idx) => {
+      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {
+        el.classList.add('motion-target-left');
+      } else {
+        el.classList.add('motion-target');
+      }
+      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {
+        el.classList.add('motion-hover');
+      }
+      el.style.animationDelay = `${Math.min(idx * 45, 520)}ms`;
+    });
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          if (el.classList.contains('motion-target-left')) el.classList.add('motion-in-left');
+          else el.classList.add('motion-in');
+          io.unobserve(el);
+        }
+      });
+    }, {threshold:0.08, rootMargin:'0px 0px -8% 0px'});
+    nodes.forEach(el => io.observe(el));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMotion);
+  else initMotion();
+})();
+</script>
 
 </body>
 </html>
@@ -3960,6 +4012,44 @@ def write_dashboard_html_legacy(path: str, rows: List[Banner], changes: Optional
       }}
     }})();
   </script>
+
+<script>
+(function(){
+  const initMotion = () => {
+    document.body.classList.add('motion-ready');
+    const selectors = [
+      '.glass','.glass-card','.card','.summary-card','.review-card','.ml-card','.table-wrap',
+      '.group-chip','.chip','.btn','.field','.topbar','.funnel-row','.summary-grid > *','section > .card'
+    ];
+    const nodes = Array.from(new Set(selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)))));
+    nodes.forEach((el, idx) => {
+      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {
+        el.classList.add('motion-target-left');
+      } else {
+        el.classList.add('motion-target');
+      }
+      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {
+        el.classList.add('motion-hover');
+      }
+      el.style.animationDelay = `${Math.min(idx * 45, 520)}ms`;
+    });
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          if (el.classList.contains('motion-target-left')) el.classList.add('motion-in-left');
+          else el.classList.add('motion-in');
+          io.unobserve(el);
+        }
+      });
+    }, {threshold:0.08, rootMargin:'0px 0px -8% 0px'});
+    nodes.forEach(el => io.observe(el));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMotion);
+  else initMotion();
+})();
+</script>
+
 </body>
 </html>
 """
@@ -4150,6 +4240,44 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
       }}
     }})();
   </script>
+
+<script>
+(function(){
+  const initMotion = () => {
+    document.body.classList.add('motion-ready');
+    const selectors = [
+      '.glass','.glass-card','.card','.summary-card','.review-card','.ml-card','.table-wrap',
+      '.group-chip','.chip','.btn','.field','.topbar','.funnel-row','.summary-grid > *','section > .card'
+    ];
+    const nodes = Array.from(new Set(selectors.flatMap(sel => Array.from(document.querySelectorAll(sel)))));
+    nodes.forEach((el, idx) => {
+      if (el.classList.contains('funnel-row') || el.classList.contains('drop-slot')) {
+        el.classList.add('motion-target-left');
+      } else {
+        el.classList.add('motion-target');
+      }
+      if (el.matches('.glass,.glass-card,.card,.summary-card,.review-card,.ml-card,.table-wrap')) {
+        el.classList.add('motion-hover');
+      }
+      el.style.animationDelay = `${Math.min(idx * 45, 520)}ms`;
+    });
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          if (el.classList.contains('motion-target-left')) el.classList.add('motion-in-left');
+          else el.classList.add('motion-in');
+          io.unobserve(el);
+        }
+      });
+    }, {threshold:0.08, rootMargin:'0px 0px -8% 0px'});
+    nodes.forEach(el => io.observe(el));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMotion);
+  else initMotion();
+})();
+</script>
+
 </body>
 </html>
 """
