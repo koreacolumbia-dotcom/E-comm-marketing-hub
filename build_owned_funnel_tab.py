@@ -14,7 +14,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 
-DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab_centered.html")
+DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab.html")  # use patched template with centered bars + autofit text
 DEFAULT_OUTPUT = Path(__file__).parent / "reports" / "daily_digest" / "owned_funnel_tab.html"
 DEFAULT_SOURCE_BASE = "reports/daily_digest/data/funnel"
 KST = timedelta(hours=9)
@@ -559,10 +559,10 @@ def build_owned_groups(day_df: pd.DataFrame, title_lookup: Dict[Tuple[str, str],
                 "message_title": title_lookup.get((clean_text(group_date), clean_text(detail)), ""),
                 "sessions": int(group["session_key"].astype(str).nunique()),
                 "users": int(user_series[user_series != ""].nunique()),
-                "pdp_views": int(group.loc[group["pdp_views"].fillna(0) > 0, "session_key"].astype(str).nunique()),
-                "add_to_cart": int(group.loc[group["add_to_cart"].fillna(0) > 0, "session_key"].astype(str).nunique()),
-                "begin_checkout": int(group.loc[group["begin_checkout"].fillna(0) > 0, "session_key"].astype(str).nunique()),
-                "purchase_sessions": int(group.loc[group["purchase_sessions"].fillna(0) > 0, "session_key"].astype(str).nunique()),
+                "pdp_views": int(group["pdp_views"].fillna(0).sum()),
+                "add_to_cart": int(group["add_to_cart"].fillna(0).sum()),
+                "begin_checkout": int(group["begin_checkout"].fillna(0).sum()),
+                "purchase_sessions": int(group["purchase_sessions"].fillna(0).sum()),
                 "pdp_users": int(user_series[group["pdp_views"].fillna(0) > 0][lambda s: s != ""].nunique()),
                 "add_to_cart_users": int(user_series[group["add_to_cart"].fillna(0) > 0][lambda s: s != ""].nunique()),
                 "begin_checkout_users": int(user_series[group["begin_checkout"].fillna(0) > 0][lambda s: s != ""].nunique()),
@@ -651,7 +651,6 @@ def resolve_source_path(source_value: str) -> Path:
     candidates.extend(
         [
             DEFAULT_SOURCE,
-            Path("owned_funnel_tab_animated.html"),
             Path("owned_funnel_tab.html"),
             Path("reports") / "daily_digest" / "owned_funnel_tab.html",
         ]
