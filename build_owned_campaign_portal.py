@@ -133,13 +133,12 @@ def is_countable_send_row(row: pd.Series) -> bool:
     channel = str(row.get("channel", "") or "").strip().upper()
     if channel != "KAKAO":
         return True
-    text = " ".join([
-        str(row.get("campaign", "") or ""),
-        str(row.get("term", "") or ""),
-        str(row.get("send_id", "") or ""),
-        str(row.get("message_title", "") or ""),
-    ]).upper()
-    return "KAKAO_CH_MESSAGE" in text
+    campaign = str(row.get("campaign", "") or "").strip().upper()
+    term = str(row.get("term", "") or "").strip().upper()
+
+    # KAKAO send count only includes event campaigns whose term starts with
+    # KAKAO_CH_MESSAGE_<date>. Menu campaigns must never be counted.
+    return campaign.startswith("KAKAO_CH_EVENT") and term.startswith("KAKAO_CH_MESSAGE_")
 
 
 def apply_send_group_metrics(camp: pd.DataFrame) -> pd.DataFrame:
