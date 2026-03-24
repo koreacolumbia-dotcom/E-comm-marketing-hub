@@ -1626,6 +1626,14 @@
     return campaign.startsWith('KAKAO_CH_EVENT') && term.startsWith('KAKAO_CH_MESSAGE_');
   }
 
+  function isKakaoMenuRow(r){
+    const channel = String((r && r.channel) || '').trim().toUpperCase();
+    if(channel !== 'KAKAO') return false;
+    const campaign = String((r && r.campaign) || '').trim().toUpperCase();
+    const term = String((r && r.term) || '').trim().toUpperCase();
+    return campaign.includes('KAKAO_CH_MENU') || term.includes('KAKAO_CH_MENU');
+  }
+
   function getActiveKpiSource(){
     return (GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []);
   }
@@ -1715,6 +1723,10 @@
 
     for(const r of chipSourceRows){
       if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
+        if(r.channel==='KAKAO' && isKakaoMenuRow(r)){
+          otherByChannel[r.channel].push(r);
+          continue;
+        }
         const mmdd = mmddOfRow(r);
         const year = getRowYear(r);
         if(mmdd && /^\d{4}$/.test(year)){
