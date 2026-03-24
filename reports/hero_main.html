@@ -16,7 +16,10 @@
       --line: rgba(148, 163, 184, 0.22);
       --panel: rgba(255, 255, 255, 0.82);
       --soft: rgba(255, 255, 255, 0.72);
+      --shadow-lg: 0 30px 80px rgba(15, 23, 42, 0.10);
+      --shadow-md: 0 20px 48px rgba(15, 23, 42, 0.07);
     }
+    html { scroll-behavior: smooth; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -26,10 +29,56 @@
       color: #0f172a;
       font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
       min-height: 100vh;
+      overflow-x: hidden;
     }
-    .glass-card { background: var(--panel); border: 1px solid rgba(255,255,255,0.88); border-radius: 30px; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.07); backdrop-filter: blur(14px); }
-    .soft-panel { background: var(--soft); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 10px 28px rgba(148, 163, 184, 0.10); }
-    .metric-card { background: rgba(255,255,255,0.76); border: 1px solid rgba(255,255,255,0.9); border-radius: 24px; padding: 20px 22px; box-shadow: 0 12px 32px rgba(18, 63, 140, 0.08); }
+    .page-shell { position: relative; isolation: isolate; }
+    .dashboard-ambient { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+    .ambient-orb { position: absolute; border-radius: 999px; filter: blur(10px); opacity: 0.75; mix-blend-mode: screen; animation: ambientFloat 18s ease-in-out infinite; }
+    .ambient-orb.one { width: 320px; height: 320px; top: -72px; right: -48px; background: radial-gradient(circle, rgba(59,130,246,0.22), rgba(59,130,246,0.02) 70%); }
+    .ambient-orb.two { width: 360px; height: 360px; left: -110px; top: 24%; background: radial-gradient(circle, rgba(14,165,233,0.18), rgba(14,165,233,0.01) 72%); animation-delay: -6s; }
+    .ambient-orb.three { width: 280px; height: 280px; right: 14%; bottom: -100px; background: radial-gradient(circle, rgba(148,163,184,0.24), rgba(148,163,184,0.02) 70%); animation-delay: -11s; }
+    main, aside { position: relative; z-index: 1; }
+    .glass-card, .soft-panel, .metric-card {
+      position: relative;
+      overflow: hidden;
+      transform: translateZ(0);
+    }
+    .glass-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.78));
+      border: 1px solid rgba(255,255,255,0.88);
+      border-radius: 30px;
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(16px);
+    }
+    .soft-panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.68));
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow-md);
+    }
+    .metric-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.74));
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 24px;
+      padding: 20px 22px;
+      box-shadow: 0 16px 36px rgba(18, 63, 140, 0.08);
+    }
+    .glass-card::before, .soft-panel::before, .metric-card::before {
+      content: "";
+      position: absolute;
+      inset: -120% auto auto -20%;
+      width: 42%;
+      height: 280%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.42), rgba(255,255,255,0));
+      transform: rotate(18deg) translateX(-120%);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+    }
+    .glass-card:hover::before, .soft-panel:hover::before, .metric-card:hover::before {
+      opacity: 1;
+      animation: shimmerSweep 1.35s ease;
+    }
     .metric-label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }
     .metric-value { margin-top: 10px; font-size: 38px; font-weight: 900; letter-spacing: -0.05em; color: #0f172a; }
     .metric-sub { margin-top: 10px; font-size: 12px; color: #475569; }
@@ -48,14 +97,17 @@
     .legend-chip { display:inline-flex; align-items:center; justify-content:center; min-width:52px; padding: 8px 12px; border-radius: 999px; background:#f8fafc; color:#64748b; font-weight:700; border:1px solid rgba(148,163,184,0.22); }
     .legend-mid { background:#dbeafe; color:#1d4ed8; }
     .legend-strong { background:#1d4ed8; color:#fff; }
-    .filter-btn, .tab-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.18); background: rgba(255,255,255,0.78); color: #475569; font-size: 13px; font-weight: 800; transition: all 0.18s ease; }
-    .filter-btn:hover, .tab-btn:hover { background: #fff; color: #0f172a; transform: translateY(-1px); }
-    .filter-btn.active, .tab-btn.active { background: var(--brand-deep); color: #fff; box-shadow: 0 12px 28px rgba(11,43,102,0.18); }
-    .tab-meta { display:inline-flex; align-items:center; justify-content:center; min-width: 24px; height:24px; padding: 0 8px; border-radius:999px; background: rgba(255,255,255,0.18); font-size: 11px; }
+    .filter-btn, .tab-btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.18); background: rgba(255,255,255,0.82); color: #475569; font-size: 14px; font-weight: 900; transition: transform 0.24s ease, box-shadow 0.24s ease, background 0.24s ease, color 0.24s ease, border-color 0.24s ease; }
+    .filter-btn:hover, .tab-btn:hover { background: #fff; color: #0f172a; border-color: rgba(29,78,216,0.16); transform: translateY(-2px); box-shadow: 0 16px 30px rgba(15,23,42,0.08); }
+    .filter-btn.active, .tab-btn.active { background: linear-gradient(135deg, var(--brand-deep), var(--brand)); color: #fff; box-shadow: 0 16px 30px rgba(11,43,102,0.22); }
+    .brand-tab-name { font-size: 15px; font-weight: 900; letter-spacing: -0.02em; line-height: 1; }
+    .tab-meta { display:inline-flex; align-items:center; justify-content:center; min-width: 30px; height:30px; padding: 0 10px; border-radius:999px; background: rgba(255,255,255,0.18); font-size: 12px; font-weight: 900; }
     .rank-chip { position:absolute; left:16px; top:16px; display:inline-flex; align-items:center; justify-content:center; padding: 7px 12px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: 0.04em; background: rgba(15,23,42,0.55); color:#fff; backdrop-filter: blur(8px); }
-    .btn-primary, .btn-secondary { display:inline-flex; align-items:center; justify-content:center; padding: 12px 16px; border-radius: 14px; font-weight: 800; text-decoration:none; }
+    .brand-hero-name { font-size: clamp(2.1rem, 3.4vw, 2.9rem); font-weight: 950; letter-spacing: -0.05em; color: #0f172a; }
+    .btn-primary, .btn-secondary { display:inline-flex; align-items:center; justify-content:center; padding: 12px 16px; border-radius: 14px; font-weight: 800; text-decoration:none; transition: transform 0.24s ease, box-shadow 0.24s ease, background 0.24s ease; }
     .btn-primary { background: linear-gradient(135deg, var(--brand-deep), var(--brand)); color:#fff; }
     .btn-secondary { background: #eef2f7; color:#334155; }
+    .btn-primary:hover, .btn-secondary:hover { transform: translateY(-2px); box-shadow: 0 16px 26px rgba(15,23,42,0.10); }
     .mini-card { display:flex; flex-direction:column; gap:6px; border-radius:18px; background:#f8fafc; border:1px solid rgba(226,232,240,0.95); padding:14px 15px; }
     .mini-card span { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.07em; }
     .mini-card strong { font-size:14px; font-weight:800; color:#0f172a; }
@@ -65,28 +117,69 @@
     .insight-chip em { font-style:normal; opacity:0.66; font-size:11px; }
     .panel-label { font-size:12px; font-weight:900; letter-spacing:0.12em; text-transform:uppercase; color:#64748b; }
     .insight-list-item { list-style:none; margin:0; padding:12px 14px; border-radius:18px; background:#f8fafc; border:1px solid rgba(226,232,240,0.95); font-size:13px; color:#334155; }
+    .pressure-row { display:flex; gap:14px; align-items:flex-start; padding:16px 18px; border-radius:22px; background:linear-gradient(180deg, rgba(248,250,252,0.96), rgba(241,245,249,0.92)); border:1px solid rgba(226,232,240,0.95); }
+    .pressure-rank { width:44px; height:44px; flex:0 0 44px; border-radius:16px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, rgba(11,43,102,0.98), rgba(18,63,140,0.82)); color:#fff; font-size:13px; font-weight:900; letter-spacing:0.08em; box-shadow:0 14px 26px rgba(11,43,102,0.18); }
+    .pressure-copy { min-width:0; flex:1; }
+    .pressure-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .pressure-head strong { font-size:17px; font-weight:900; letter-spacing:-0.03em; color:#0f172a; }
+    .pressure-metric { font-size:11px; font-weight:800; color:#475569; }
+    .pressure-title { margin:8px 0 0; font-size:13px; line-height:1.5; color:#334155; }
+    .pressure-tags { margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }
     .clamp-2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .clamp-3 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+    @keyframes ambientFloat {
+      0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+      50% { transform: translate3d(0, 18px, 0) scale(1.06); }
+    }
+    @keyframes shimmerSweep {
+      0% { transform: rotate(18deg) translateX(-140%); }
+      100% { transform: rotate(18deg) translateX(290%); }
+    }
+    @keyframes motionFadeUp {
+      0% { opacity:0; transform:translate3d(0,28px,0) scale(.985); }
+      100% { opacity:1; transform:translate3d(0,0,0) scale(1); }
+    }
+    @keyframes motionFadeLeft {
+      0% { opacity:0; transform:translate3d(22px,0,0) scale(.985); }
+      100% { opacity:1; transform:translate3d(0,0,0) scale(1); }
+    }
+    .motion-ready .motion-target,
+    .motion-ready .motion-target-left { opacity:0; will-change:transform,opacity; }
+    .motion-ready .motion-in { animation: motionFadeUp .82s cubic-bezier(.22,.86,.22,1) both; }
+    .motion-ready .motion-in-left { animation: motionFadeLeft .82s cubic-bezier(.22,.86,.22,1) both; }
+    .motion-hover { transition: transform .26s ease, box-shadow .26s ease, border-color .26s ease; }
+    .motion-hover:hover { transform: translateY(-4px); box-shadow: 0 22px 40px rgba(15,23,42,.10); border-color: rgba(29,78,216,0.16); }
     body.embedded aside { display:none !important; }
     body.embedded .sidebar { display:none !important; }
     body.embedded main { padding: 24px !important; }
     @media (max-width: 1024px) {
       .heatmap-row { grid-template-columns: 132px repeat(6, minmax(48px, 1fr)); min-width: 468px; }
+      .pressure-head { flex-direction: column; align-items: flex-start; }
+    }
+    @media (max-width: 768px) {
+      .filter-btn, .tab-btn { width: 100%; justify-content: space-between; }
+      .brand-tab-name { font-size: 16px; }
+      .brand-hero-name { font-size: clamp(1.9rem, 8vw, 2.35rem); }
     }
     </style>
 </head>
-<body class="flex">
+<body class="page-shell flex">
+  <div class="dashboard-ambient" aria-hidden="true">
+    <span class="ambient-orb one"></span>
+    <span class="ambient-orb two"></span>
+    <span class="ambient-orb three"></span>
+  </div>
   <aside class="w-72 h-screen sticky top-0 sidebar hidden xl:flex flex-col p-8">
     <div class="flex items-center gap-4 mb-16 px-2"><div class="w-12 h-12 bg-[var(--brand-deep)] rounded-2xl flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-mountain-sun text-xl"></i></div><div><div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div><div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Competitive Watch</div></div></div>
     <nav class="space-y-4"><div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4"><i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC</span></div><div class="p-4 rounded-2xl bg-white shadow-sm text-[var(--brand-deep)] font-black flex items-center gap-4"><i class="fa-solid fa-chart-line"></i> <span>경쟁사 기획전 분석</span></div></nav>
   </aside>
   <main class="flex-1 px-5 py-8 md:px-8 xl:px-12 xl:py-10">
-    <header class="mb-8"><div class="glass-card p-7 lg:p-8"><div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6"><div class="max-w-3xl"><div class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black tracking-[0.18em] text-blue-700 uppercase">Hero Banner Monitor</div><h1 class="mt-4 text-4xl lg:text-5xl font-black tracking-tight text-slate-950">경쟁사 기획전 대시보드</h1><p class="mt-4 text-base lg:text-lg text-slate-600">반복 키워드와 대표 배너를 중심으로 경쟁사 기획전 메시지와 구성을 빠르게 읽을 수 있게 정리했습니다.</p><p class="mt-4 text-sm text-slate-500">최근 7일 기준 경쟁사 메인 히어로 배너 변화 모니터링 · 2026-03-24 09:59 KST</p><p class="mt-2 text-xs text-slate-400">이미지 경로 모드: REL(assets/) · 날짜 추출: ON (rank1_only=ON)</p></div><div class="soft-panel px-5 py-4 min-w-[240px]"><div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">이번 주 시장 테마</div><div class="mt-2 text-2xl font-black tracking-tight text-slate-900">자켓, 바람막이, 고기능성</div><div class="mt-4 text-sm text-slate-500">선택 브랜드 상세는 아래 탭에서 확인하세요.</div></div></div><div class="mt-7">
+    <header class="mb-8"><div class="glass-card p-7 lg:p-8"><div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6"><div class="max-w-3xl"><div class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black tracking-[0.18em] text-blue-700 uppercase">Hero Banner Monitor</div><h1 class="mt-4 text-4xl lg:text-5xl font-black tracking-tight text-slate-950">경쟁사 기획전 대시보드</h1><p class="mt-4 text-base lg:text-lg text-slate-600">반복 키워드와 대표 배너를 중심으로 경쟁사 기획전 메시지와 구성을 빠르게 읽을 수 있게 정리했습니다.</p><p class="mt-4 text-sm text-slate-500">최근 7일 기준 경쟁사 메인 히어로 배너 변화 모니터링 · 2026-03-25 07:52 KST</p><p class="mt-2 text-xs text-slate-400">이미지 경로 모드: REL(assets/) · 날짜 추출: ON (rank1_only=ON)</p></div><div class="soft-panel px-5 py-4 min-w-[240px]"><div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">이번 주 시장 테마</div><div class="mt-2 text-2xl font-black tracking-tight text-slate-900">고기능성, 바람막이, 자켓, 팬츠</div><div class="mt-4 text-sm text-slate-500">선택 브랜드 상세는 아래 탭에서 확인하세요.</div></div></div><div class="mt-7">
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-      <div class="metric-card"><div class="metric-label">Tracked Brands</div><div class="metric-value">12</div><div class="metric-sub">Current brand coverage</div></div>
-      <div class="metric-card"><div class="metric-label">Hero Banners</div><div class="metric-value">70</div><div class="metric-sub">Main campaign cards</div></div>
-      <div class="metric-card"><div class="metric-label">Change Events</div><div class="metric-value">164</div><div class="metric-sub"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 23.3% vs 전주</span></div></div>
-      <div class="metric-card"><div class="metric-label">Actual Changes</div><div class="metric-value">136</div><div class="metric-sub"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 147.3% vs 전주</span></div></div>
+      <div class="metric-card"><div class="metric-label">Tracked Brands</div><div class="metric-value">11</div><div class="metric-sub">Current brand coverage</div></div>
+      <div class="metric-card"><div class="metric-label">Hero Banners</div><div class="metric-value">64</div><div class="metric-sub">Main campaign cards</div></div>
+      <div class="metric-card"><div class="metric-label">Change Events</div><div class="metric-value">171</div><div class="metric-sub"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 28.6% vs 전주</span></div></div>
+      <div class="metric-card"><div class="metric-label">Actual Changes</div><div class="metric-value">141</div><div class="metric-sub"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 147.4% vs 전주</span></div></div>
     </div>
     </div></div></header>
     <section class="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.95fr)] gap-6 mb-6">
@@ -101,9 +194,9 @@
       <div class="heatmap-wrap">
         <div class="heatmap-row heatmap-head">
           <div class="heatmap-brand head-label">브랜드</div>
-          <div class="heatmap-head-cell">03-18</div><div class="heatmap-head-cell">03-19</div><div class="heatmap-head-cell">03-21</div><div class="heatmap-head-cell">03-22</div><div class="heatmap-head-cell">03-23</div><div class="heatmap-head-cell">03-24</div>
+          <div class="heatmap-head-cell">03-19</div><div class="heatmap-head-cell">03-21</div><div class="heatmap-head-cell">03-22</div><div class="heatmap-head-cell">03-23</div><div class="heatmap-head-cell">03-24</div><div class="heatmap-head-cell">03-25</div>
         </div>
-        <div class="heatmap-row"><div class="heatmap-brand">Salomon</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#1d4ed8; color:#ffffff;">12</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#1d4ed8; color:#ffffff;">12</div><div class="heatmap-cell" style="background:#1d4ed8; color:#ffffff;">12</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div></div><div class="heatmap-row"><div class="heatmap-brand">Black Yak</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">7</div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">9</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">9</div></div><div class="heatmap-row"><div class="heatmap-brand">Snow Peak</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">8</div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">10</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div></div><div class="heatmap-row"><div class="heatmap-brand">Millet</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">8</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">6</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">3</div></div><div class="heatmap-row"><div class="heatmap-brand">The North Face</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">5</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">7</div></div><div class="heatmap-row"><div class="heatmap-brand">Eider</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">4</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">4</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">2</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div></div><div class="heatmap-row"><div class="heatmap-brand">The North Face</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">5</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">5</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div><div class="heatmap-row"><div class="heatmap-brand">Kolon Sport</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">6</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">2</div></div><div class="heatmap-row"><div class="heatmap-brand">K2</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">3</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">2</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">2</div></div><div class="heatmap-row"><div class="heatmap-brand">Montbell</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">6</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div></div>
+        <div class="heatmap-row"><div class="heatmap-brand">Salomon</div><div class="heatmap-cell" style="background:#1d4ed8; color:#ffffff;">12</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#1d4ed8; color:#ffffff;">12</div><div class="heatmap-cell" style="background:#1d4ed8; color:#ffffff;">12</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div><div class="heatmap-row"><div class="heatmap-brand">Millet</div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">8</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">6</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">3</div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">9</div></div><div class="heatmap-row"><div class="heatmap-brand">Black Yak</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">7</div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">9</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">9</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div><div class="heatmap-row"><div class="heatmap-brand">Snow Peak</div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">8</div><div class="heatmap-cell" style="background:#3b82f6; color:#ffffff;">10</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div><div class="heatmap-row"><div class="heatmap-brand">The North Face</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">5</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">7</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">7</div></div><div class="heatmap-row"><div class="heatmap-brand">Kolon Sport</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">6</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">2</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div><div class="heatmap-row"><div class="heatmap-brand">K2</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">3</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">2</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">2</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div><div class="heatmap-row"><div class="heatmap-brand">Eider</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">4</div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">2</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div><div class="heatmap-row"><div class="heatmap-brand">Montbell</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">6</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#dbeafe; color:#1d4ed8;">1</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div><div class="heatmap-row"><div class="heatmap-brand">The North Face</div><div class="heatmap-cell" style="background:#93c5fd; color:#1e40af;">5</div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div><div class="heatmap-cell" style="background:#f8fafc; color:#94a3b8;"></div></div>
       </div>
       <div class="mt-4 flex flex-wrap gap-2 text-[11px] text-slate-500">
         <span class="legend-chip">0</span>
@@ -111,192 +204,9 @@
         <span class="legend-chip legend-strong">3+</span>
       </div>
     </section>
-    <div class="flex flex-col gap-6"><section class="glass-card p-6 lg:p-7"><h2 class="section-title">이번 주 키워드 클라우드</h2><p class="section-sub">기획전 제목 반복어를 모아 시장의 주요 메시지를 빠르게 파악합니다.</p><div class="mt-5"><span class="keyword-chip" style="font-size:1.51rem">자켓 <em>6</em></span><span class="keyword-chip" style="font-size:1.29rem">바람막이 <em>4</em></span><span class="keyword-chip" style="font-size:1.19rem">고기능성 <em>3</em></span></div></section></div></section>
-    <section><div class="glass-card p-6 lg:p-7"><div class="flex flex-col gap-4"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><h2 class="section-title">브랜드 상세 비교</h2><p class="section-sub">필터로 세그먼트를 좁히고 아래에서 브랜드를 선택하면 메인 비주얼과 인사이트 요약을 바로 비교할 수 있습니다.</p></div><div class="flex flex-wrap gap-2"><button class="filter-btn active" data-filter="all" onclick="setBrandFilter('all')">전체</button><button class="filter-btn" data-filter="라이프스타일" onclick="setBrandFilter('라이프스타일')">라이프스타일</button><button class="filter-btn" data-filter="전문 산행" onclick="setBrandFilter('전문 산행')">전문 산행</button><button class="filter-btn" data-filter="글로벌" onclick="setBrandFilter('글로벌')">글로벌</button><button class="filter-btn" data-filter="로컬" onclick="setBrandFilter('로컬')">로컬</button></div></div><div class="flex flex-wrap gap-2 pt-1"><button onclick="switchTab('tnf')" id="tab-tnf" class="tab-btn active" data-style="라이프스타일" data-origin="글로벌"><span>The North Face</span><span class="tab-meta">12</span></button><button onclick="switchTab('patagonia')" id="tab-patagonia" class="tab-btn" data-style="라이프스타일" data-origin="글로벌"><span>Patagonia</span><span class="tab-meta">2</span></button><button onclick="switchTab('arcteryx')" id="tab-arcteryx" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span>Arc&#x27;teryx</span><span class="tab-meta">4</span></button><button onclick="switchTab('salomon')" id="tab-salomon" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span>Salomon</span><span class="tab-meta">37</span></button><button onclick="switchTab('snowpeak')" id="tab-snowpeak" class="tab-btn" data-style="라이프스타일" data-origin="글로벌"><span>Snow Peak</span><span class="tab-meta">19</span></button><button onclick="switchTab('blackyak')" id="tab-blackyak" class="tab-btn" data-style="전문 산행" data-origin="로컬"><span>Black Yak</span><span class="tab-meta">25</span></button><button onclick="switchTab('natgeo')" id="tab-natgeo" class="tab-btn" data-style="라이프스타일" data-origin="글로벌"><span>National Geographic</span><span class="tab-meta">3</span></button><button onclick="switchTab('kolonsport')" id="tab-kolonsport" class="tab-btn" data-style="전문 산행" data-origin="로컬"><span>Kolon Sport</span><span class="tab-meta">9</span></button><button onclick="switchTab('k2')" id="tab-k2" class="tab-btn" data-style="전문 산행" data-origin="로컬"><span>K2</span><span class="tab-meta">8</span></button><button onclick="switchTab('montbell')" id="tab-montbell" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span>Montbell</span><span class="tab-meta">7</span></button><button onclick="switchTab('eider')" id="tab-eider" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span>Eider</span><span class="tab-meta">11</span></button><button onclick="switchTab('millet')" id="tab-millet" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span>Millet</span><span class="tab-meta">17</span></button></div></div></div><div class="mt-6 min-h-[720px] space-y-6">
-        <section id="content-tnf" class="tab-content" style="display:block;">
-          <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div class="xl:col-span-2 flex flex-col gap-6">
-              <article class="glass-card overflow-hidden">
-                <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-                  <div class="relative min-h-[320px] bg-slate-100">
-                    <img src="assets/tnf_1_9a6f31c1f0.jpg" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://placehold.co/1100x620?text=No+Image';">
-                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent"></div>
-                    <div class="absolute left-5 top-5 flex flex-wrap gap-2">
-                      <span class="inline-flex items-center justify-center rounded-full bg-[rgba(11,43,102,0.9)] px-3 py-2 text-[11px] font-black text-white">RANK 1</span>
-                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">라이프스타일</span>
-                      <span class="inline-flex items-center justify-center rounded-full bg-white/15 px-3 py-2 text-[11px] font-black text-white">글로벌</span>
-                    </div>
-                  </div>
-                  <div class="p-6 lg:p-7 flex flex-col gap-5">
-                    <div>
-                      <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">The North Face</h3>
-                      <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"DAYCAMP JACKET BREATHABLE LIGHTER BETTER"</p>
-                      <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 100.0% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 100.0% vs 전주</span></div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                      <div class="mini-card"><span>Events</span><strong>12</strong></div>
-                      <div class="mini-card"><span>Actual Changes</span><strong>5</strong></div>
-                      <div class="mini-card"><span>Campaign Dates</span><strong>2025-09-21 ~ 2028-09-20</strong></div>
-                      <div class="mini-card"><span>Image Meta</span><strong>1100 x 500 · 76KB</strong></div>
-                    </div>
-                    <div class="flex flex-wrap gap-2"><span class="insight-chip accent">캠핑</span><span class="insight-chip accent">남성</span><span class="insight-chip accent">재킷</span></div>
-                    <div class="flex gap-2 mt-auto">
-                      <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&amp;storageId=93011" target="_blank" class="btn-primary flex-1 text-center">Open Landing</a>
-                      <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/260300_공식몰_데이캠프_기획전_main_banner_PC.webp" target="_blank" class="btn-secondary">Open Image</a>
-                    </div>
-                  </div>
-                </div>
-              </article>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-    <article class="soft-panel overflow-hidden flex flex-col">
-      <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/tnf_2_210a6be42b.jpg" class="w-full h-full object-cover"
-             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 2</span>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">기간 정보 없음</div>
-          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"화이트라벨 루벤 자켓 기획전"</h4>
-          <p class="mt-1 text-[12px] text-slate-500 clamp-2">화이트라벨 루벤 자켓 기획전</p>
-          <div class="mt-3 flex flex-wrap gap-2"><span class="mini-stat">tnf_slick</span></div>
-          <p class="mt-2 text-[11px] text-slate-500">src tnf_slick | conf 0.96 | meta skipped</p>
-        </div>
-        <div class="mt-auto flex gap-2">
-          <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&amp;storageId=93004" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
-          <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/260300_공식몰_화이트라벨_루벤자켓_기획전_main_banner_PC.webp" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
-        </div>
-      </div>
-    </article>
-    
-    <article class="soft-panel overflow-hidden flex flex-col">
-      <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/tnf_3_e2f24544dd.jpg" class="w-full h-full object-cover"
-             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 3</span>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">기간 정보 없음</div>
-          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"화이트라벨 쉘던 자켓 기획전"</h4>
-          <p class="mt-1 text-[12px] text-slate-500 clamp-2">화이트라벨 쉘던 자켓 기획전</p>
-          <div class="mt-3 flex flex-wrap gap-2"><span class="mini-stat">tnf_slick</span></div>
-          <p class="mt-2 text-[11px] text-slate-500">src tnf_slick | conf 0.96 | meta skipped</p>
-        </div>
-        <div class="mt-auto flex gap-2">
-          <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&amp;storageId=93005" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
-          <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/260300_기획전제작_화이트라벨_쉘던_자켓_기획전_main_banner_PC_v2.webp" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
-        </div>
-      </div>
-    </article>
-    
-    <article class="soft-panel overflow-hidden flex flex-col">
-      <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/tnf_4_234f0912b5.jpg" class="w-full h-full object-cover"
-             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 4</span>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">기간 정보 없음</div>
-          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"박보검 몬테라 자켓 기획전"</h4>
-          <p class="mt-1 text-[12px] text-slate-500 clamp-2">박보검 몬테라 자켓 기획전</p>
-          <div class="mt-3 flex flex-wrap gap-2"><span class="mini-stat">tnf_slick</span></div>
-          <p class="mt-2 text-[11px] text-slate-500">src tnf_slick | conf 0.96 | meta skipped</p>
-        </div>
-        <div class="mt-auto flex gap-2">
-          <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&amp;storageId=92981" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
-          <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/260200_박보검_몬테라자켓_기획전-main_banner_PC.webp" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
-        </div>
-      </div>
-    </article>
-    
-    <article class="soft-panel overflow-hidden flex flex-col">
-      <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/tnf_5_0adae4c860.jpg" class="w-full h-full object-cover"
-             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 5</span>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">기간 정보 없음</div>
-          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"SPRING, BLOOMING 지금, 봄을 입다"</h4>
-          <p class="mt-1 text-[12px] text-slate-500 clamp-2">SPRING, BLOOMING 지금, 봄을 입다</p>
-          <div class="mt-3 flex flex-wrap gap-2"><span class="mini-stat">tnf_slick</span></div>
-          <p class="mt-2 text-[11px] text-slate-500">src tnf_slick | conf 0.96 | meta skipped</p>
-        </div>
-        <div class="mt-auto flex gap-2">
-          <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&amp;storageId=92996" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
-          <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/17645/260200_공식몰_여성봄자켓_기획전_main_banner_PC-1.webp" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
-        </div>
-      </div>
-    </article>
-    
-    <article class="soft-panel overflow-hidden flex flex-col">
-      <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/tnf_6_6b575ed02e.jpg" class="w-full h-full object-cover"
-             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 6</span>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">기간 정보 없음</div>
-          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"VECTIV COLLECTION"</h4>
-          <p class="mt-1 text-[12px] text-slate-500 clamp-2">VECTIV COLLECTION</p>
-          <div class="mt-3 flex flex-wrap gap-2"><span class="mini-stat">tnf_slick</span></div>
-          <p class="mt-2 text-[11px] text-slate-500">src tnf_slick | conf 0.96 | meta skipped</p>
-        </div>
-        <div class="mt-auto flex gap-2">
-          <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&amp;storageId=92963" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
-          <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/17611/260300_벡티브기획전_main_banner_PC.webp" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
-        </div>
-      </div>
-    </article>
-    
-    <article class="soft-panel overflow-hidden flex flex-col">
-      <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/tnf_7_db56603aad.jpg" class="w-full h-full object-cover"
-             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 7</span>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">기간 정보 없음</div>
-          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"SPRING INTO SCHOOL 봄의 시작을 담은 키즈 등교룩"</h4>
-          <p class="mt-1 text-[12px] text-slate-500 clamp-2">SPRING INTO SCHOOL 봄의 시작을 담은 키즈 등교룩</p>
-          <div class="mt-3 flex flex-wrap gap-2"><span class="mini-stat">tnf_slick</span></div>
-          <p class="mt-2 text-[11px] text-slate-500">src tnf_slick | conf 0.96 | meta skipped</p>
-        </div>
-        <div class="mt-auto flex gap-2">
-          <a href="https://www.thenorthfacekorea.co.kr/event/eventCategoryNF?pagetype=view&amp;storageId=92994" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
-          <a href="https://image.thenorthfacekorea.co.kr/cmsstatic/260200_키즈_신학기_등교룩_기획전-main_banner_PC.webp" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
-        </div>
-      </div>
-    </article>
-    </div>
-            </div>
-            <aside class="flex flex-col gap-5">
-              <section class="glass-card p-6">
-                <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Insight</div>
-                <h4 class="mt-2 text-xl font-black text-slate-900">The North Face Summary</h4>
-                <p class="mt-3 text-sm text-slate-600">Weekly theme: 자켓, DAYCAMP, JACKET</p>
-                <div class="mt-5 grid grid-cols-2 gap-3">
-                  <div class="mini-card"><span>Added</span><strong>7</strong></div>
-                  <div class="mini-card"><span>Removed</span><strong>0</strong></div>
-                  <div class="mini-card"><span>Segment</span><strong>라이프스타일</strong></div>
-                  <div class="mini-card"><span>Origin</span><strong>글로벌</strong></div>
-                </div>
-                <div class="mt-5"><div class="panel-label">Keyword Cluster</div><div class="mt-2 flex flex-wrap gap-2"><span class="insight-chip">자켓 <em>4</em></span><span class="insight-chip">DAYCAMP <em>2</em></span><span class="insight-chip">JACKET <em>2</em></span><span class="insight-chip">화이트라벨 <em>2</em></span><span class="insight-chip">YOUNGONE <em>1</em></span></div></div>
-                <div class="mt-5"><div class="panel-label">Visual / OCR</div><p class="mt-2 text-sm text-slate-700">캠핑, 남성, 재킷</p><div class="mt-2 flex flex-wrap gap-2"><span class="insight-chip accent">캠핑</span><span class="insight-chip accent">남성</span><span class="insight-chip accent">재킷</span></div></div>
-                <div class="mt-5"><div class="panel-label">OCR Text</div><div class="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">OCR disabled or no text</div></div>
-              </section>
-              <section class="glass-card p-6"><div class="panel-label">Recent Title Changes</div><ul class="mt-3 space-y-2"><li class="insight-list-item">"화이트라벨 쉘던 자켓 기획전"</li><li class="insight-list-item">"화이트라벨 루벤 자켓 기획전"</li><li class="insight-list-item">"박보검 몬테라 자켓 기획전"</li><li class="insight-list-item">"SPRING, BLOOMING 지금, 봄을 입다"</li></ul></section>
-            </aside>
-          </div>
-        </section>
-        
-        <section id="content-patagonia" class="tab-content" style="display:none;">
+    <div class="flex flex-col gap-6"><section class="glass-card p-6 lg:p-7"><h2 class="section-title">이번 주 키워드 클라우드</h2><p class="section-sub">기획전 제목 반복어를 모아 시장의 주요 메시지를 빠르게 파악합니다.</p><div class="mt-5"><span class="keyword-chip" style="font-size:1.51rem">고기능성 <em>4</em></span><span class="keyword-chip" style="font-size:1.35rem">바람막이 <em>3</em></span><span class="keyword-chip" style="font-size:1.35rem">자켓 <em>3</em></span><span class="keyword-chip" style="font-size:1.19rem">팬츠 <em>2</em></span></div></section></div></section>
+    <section><div class="glass-card p-6 lg:p-7"><div class="flex flex-col gap-4"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"><div><h2 class="section-title">브랜드 상세 비교</h2><p class="section-sub">필터로 세그먼트를 좁히고 아래에서 브랜드를 선택하면 메인 비주얼과 인사이트 요약을 바로 비교할 수 있습니다.</p></div><div class="flex flex-wrap gap-2"><button class="filter-btn active" data-filter="all" onclick="setBrandFilter('all')">전체</button><button class="filter-btn" data-filter="라이프스타일" onclick="setBrandFilter('라이프스타일')">라이프스타일</button><button class="filter-btn" data-filter="전문 산행" onclick="setBrandFilter('전문 산행')">전문 산행</button><button class="filter-btn" data-filter="글로벌" onclick="setBrandFilter('글로벌')">글로벌</button><button class="filter-btn" data-filter="로컬" onclick="setBrandFilter('로컬')">로컬</button></div></div><div class="flex flex-wrap gap-2 pt-1"><button onclick="switchTab('patagonia')" id="tab-patagonia" class="tab-btn active" data-style="라이프스타일" data-origin="글로벌"><span class="brand-tab-name">Patagonia</span><span class="tab-meta">2</span></button><button onclick="switchTab('arcteryx')" id="tab-arcteryx" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span class="brand-tab-name">Arc&#x27;teryx</span><span class="tab-meta">4</span></button><button onclick="switchTab('salomon')" id="tab-salomon" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span class="brand-tab-name">Salomon</span><span class="tab-meta">37</span></button><button onclick="switchTab('snowpeak')" id="tab-snowpeak" class="tab-btn" data-style="라이프스타일" data-origin="글로벌"><span class="brand-tab-name">Snow Peak</span><span class="tab-meta">19</span></button><button onclick="switchTab('blackyak')" id="tab-blackyak" class="tab-btn" data-style="전문 산행" data-origin="로컬"><span class="brand-tab-name">Black Yak</span><span class="tab-meta">25</span></button><button onclick="switchTab('natgeo')" id="tab-natgeo" class="tab-btn" data-style="라이프스타일" data-origin="글로벌"><span class="brand-tab-name">National Geographic</span><span class="tab-meta">3</span></button><button onclick="switchTab('kolonsport')" id="tab-kolonsport" class="tab-btn" data-style="전문 산행" data-origin="로컬"><span class="brand-tab-name">Kolon Sport</span><span class="tab-meta">9</span></button><button onclick="switchTab('k2')" id="tab-k2" class="tab-btn" data-style="전문 산행" data-origin="로컬"><span class="brand-tab-name">K2</span><span class="tab-meta">8</span></button><button onclick="switchTab('montbell')" id="tab-montbell" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span class="brand-tab-name">Montbell</span><span class="tab-meta">7</span></button><button onclick="switchTab('eider')" id="tab-eider" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span class="brand-tab-name">Eider</span><span class="tab-meta">7</span></button><button onclick="switchTab('millet')" id="tab-millet" class="tab-btn" data-style="전문 산행" data-origin="글로벌"><span class="brand-tab-name">Millet</span><span class="tab-meta">26</span></button></div></div></div><div class="mt-6 min-h-[720px] space-y-6">
+        <section id="content-patagonia" class="tab-content" style="display:block;">
           <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div class="xl:col-span-2 flex flex-col gap-6">
               <article class="glass-card overflow-hidden">
@@ -313,7 +223,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Patagonia</h3>
+                      <h3 class="mt-2 brand-hero-name">Patagonia</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"main visual section"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 100.0% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 100.0% vs 전주</span></div>
                     </div>
@@ -370,7 +280,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Arc&#x27;teryx</h3>
+                      <h3 class="mt-2 brand-hero-name">Arc&#x27;teryx</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"NEW FOR SPRING"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 border-sky-200">▼ 33.3% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 100.0% vs 전주</span></div>
                     </div>
@@ -469,7 +379,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Salomon</h3>
+                      <h3 class="mt-2 brand-hero-name">Salomon</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"LIGHT SIGNAL MODYSSEY AERO"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 54.2% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 146.7% vs 전주</span></div>
                     </div>
@@ -652,7 +562,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Snow Peak</h3>
+                      <h3 class="mt-2 brand-hero-name">Snow Peak</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"자연을 입고 일상을 걷다 The Peak Moment"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 111.1% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 700.0% vs 전주</span></div>
                     </div>
@@ -835,7 +745,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Black Yak</h3>
+                      <h3 class="mt-2 brand-hero-name">Black Yak</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"EXCLUSIVE BENEFITS 공식몰 단독 혜택"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 212.5% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 475.0% vs 전주</span></div>
                     </div>
@@ -1018,7 +928,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">National Geographic</h3>
+                      <h3 class="mt-2 brand-hero-name">National Geographic</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"지구, 경이로운 행성"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 100.0% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 100.0% vs 전주</span></div>
                     </div>
@@ -1096,7 +1006,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Kolon Sport</h3>
+                      <h3 class="mt-2 brand-hero-name">Kolon Sport</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"WEATHER MONSTER"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 border-sky-200">▼ 67.9% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 border-sky-200">▼ 40.0% vs 전주</span></div>
                     </div>
@@ -1258,7 +1168,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">K2</h3>
+                      <h3 class="mt-2 brand-hero-name">K2</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"나만의 가벼운 그늘을 입다 자외선은 막고, 움직임은 가볍게. K2 초경량 아우터 컬렉션"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 border-sky-200">▼ 11.1% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 14.3% vs 전주</span></div>
                     </div>
@@ -1357,7 +1267,7 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Montbell</h3>
+                      <h3 class="mt-2 brand-hero-name">Montbell</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"메인 배너"</p>
                       <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 border-sky-200">▼ 12.5% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 133.3% vs 전주</span></div>
                     </div>
@@ -1519,13 +1429,13 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Eider</h3>
+                      <h3 class="mt-2 brand-hero-name">Eider</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"바람이 가벼워지는 계절"</p>
-                      <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 450.0% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 900.0% vs 전주</span></div>
+                      <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 16.7% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 75.0% vs 전주</span></div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                      <div class="mini-card"><span>Events</span><strong>11</strong></div>
-                      <div class="mini-card"><span>Actual Changes</span><strong>10</strong></div>
+                      <div class="mini-card"><span>Events</span><strong>7</strong></div>
+                      <div class="mini-card"><span>Actual Changes</span><strong>7</strong></div>
                       <div class="mini-card"><span>Campaign Dates</span><strong>기간 정보 없음</strong></div>
                       <div class="mini-card"><span>Image Meta</span><strong>1100 x 618 · 49KB</strong></div>
                     </div>
@@ -1608,7 +1518,7 @@
                 <h4 class="mt-2 text-xl font-black text-slate-900">Eider Summary</h4>
                 <p class="mt-3 text-sm text-slate-600">Weekly theme: EIDER, SAFETY, VILLAGE</p>
                 <div class="mt-5 grid grid-cols-2 gap-3">
-                  <div class="mini-card"><span>Added</span><strong>1</strong></div>
+                  <div class="mini-card"><span>Added</span><strong>0</strong></div>
                   <div class="mini-card"><span>Removed</span><strong>0</strong></div>
                   <div class="mini-card"><span>Segment</span><strong>전문 산행</strong></div>
                   <div class="mini-card"><span>Origin</span><strong>글로벌</strong></div>
@@ -1617,7 +1527,7 @@
                 <div class="mt-5"><div class="panel-label">Visual / OCR</div><p class="mt-2 text-sm text-slate-700">태그 자동 분류 데이터 부족</p><div class="mt-2 flex flex-wrap gap-2"><span class="text-sm text-slate-400">No tags</span></div></div>
                 <div class="mt-5"><div class="panel-label">OCR Text</div><div class="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">OCR disabled or no text</div></div>
               </section>
-              <section class="glass-card p-6"><div class="panel-label">Recent Title Changes</div><ul class="mt-3 space-y-2"><li class="insight-list-item">"자일리톨 파우더로 더 가볍고 산뜻하게"</li><li class="insight-list-item">"걷는게 취미가 된다"</li><li class="insight-list-item">"바람이 가벼워지는 계절"</li><li class="insight-list-item">"활동별 추천 1"</li></ul></section>
+              <section class="glass-card p-6"><div class="panel-label">Recent Title Changes</div><ul class="mt-3 space-y-2"><li class="insight-list-item">"K.VILLAGE 아웃도어 스포츠 골프 온라인스토어"</li><li class="insight-list-item">"바람이 가벼워지는 계절"</li><li class="insight-list-item">"걷는게 취미가 된다"</li><li class="insight-list-item">"활동별 추천 1"</li></ul></section>
             </aside>
           </div>
         </section>
@@ -1628,7 +1538,7 @@
               <article class="glass-card overflow-hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
                   <div class="relative min-h-[320px] bg-slate-100">
-                    <img src="assets/millet_1_0b8328a935.jpg" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://placehold.co/1100x620?text=No+Image';">
+                    <img src="assets/millet_1_1edc903959.jpg" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='https://placehold.co/1100x620?text=No+Image';">
                     <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent"></div>
                     <div class="absolute left-5 top-5 flex flex-wrap gap-2">
                       <span class="inline-flex items-center justify-center rounded-full bg-[rgba(11,43,102,0.9)] px-3 py-2 text-[11px] font-black text-white">RANK 1</span>
@@ -1639,20 +1549,20 @@
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">Millet</h3>
-                      <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"파이로하이크202"</p>
-                      <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 21.4% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 100.0% vs 전주</span></div>
+                      <h3 class="mt-2 brand-hero-name">Millet</h3>
+                      <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"코듀라셋업"</p>
+                      <div class="mt-4 flex flex-wrap gap-2"><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 116.7% vs 전주</span><span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 border-rose-200">▲ 300.0% vs 전주</span></div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                      <div class="mini-card"><span>Events</span><strong>17</strong></div>
-                      <div class="mini-card"><span>Actual Changes</span><strong>12</strong></div>
-                      <div class="mini-card"><span>Campaign Dates</span><strong>2026-03-16 ~ 2026-04-15</strong></div>
-                      <div class="mini-card"><span>Image Meta</span><strong>1100 x 451 · 80KB</strong></div>
+                      <div class="mini-card"><span>Events</span><strong>26</strong></div>
+                      <div class="mini-card"><span>Actual Changes</span><strong>20</strong></div>
+                      <div class="mini-card"><span>Campaign Dates</span><strong>2026-03-24 ~ 2026-04-30</strong></div>
+                      <div class="mini-card"><span>Image Meta</span><strong>1100 x 451 · 67KB</strong></div>
                     </div>
-                    <div class="flex flex-wrap gap-2"><span class="insight-chip accent">하이킹</span></div>
+                    <div class="flex flex-wrap gap-2"><span class="insight-chip accent">하이킹</span><span class="insight-chip accent">재킷</span></div>
                     <div class="flex gap-2 mt-auto">
-                      <a href="https://www.millet.co.kr/front/promo/event/298" target="_blank" class="btn-primary flex-1 text-center">Open Landing</a>
-                      <a href="https://www.millet.co.kr/data/banner/Y9KnBC3L.1jyodr8px5we0.jpg" target="_blank" class="btn-secondary">Open Image</a>
+                      <a href="https://www.millet.co.kr/front/promo/event/308" target="_blank" class="btn-primary flex-1 text-center">Open Landing</a>
+                      <a href="https://www.millet.co.kr/data/banner/Y9KnBC3L.1ibes6vu4jqlh.jpg" target="_blank" class="btn-secondary">Open Image</a>
                     </div>
                   </div>
                 </div>
@@ -1660,7 +1570,7 @@
               <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
     <article class="soft-panel overflow-hidden flex flex-col">
       <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/millet_4_087ecfd53e.jpg" class="w-full h-full object-cover"
+        <img src="assets/millet_5_087ecfd53e.jpg" class="w-full h-full object-cover"
              onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
         <span class="rank-chip">RANK 2</span>
       </div>
@@ -1681,9 +1591,30 @@
     
     <article class="soft-panel overflow-hidden flex flex-col">
       <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/millet_2_253ab544e0.jpg" class="w-full h-full object-cover"
+        <img src="assets/millet_2_0b8328a935.jpg" class="w-full h-full object-cover"
              onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
         <span class="rank-chip">RANK 3</span>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div>
+          <div class="text-[11px] font-semibold text-slate-500">기간 정보 없음</div>
+          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"파이로하이크202"</h4>
+          <p class="mt-1 text-[12px] text-slate-500 clamp-2">파이로하이크202</p>
+          <div class="mt-3 flex flex-wrap gap-2"><span class="mini-stat">hero_slider_container</span></div>
+          <p class="mt-2 text-[11px] text-slate-500">src hero_slider_container | conf 0.88 | meta skipped</p>
+        </div>
+        <div class="mt-auto flex gap-2">
+          <a href="https://www.millet.co.kr/front/promo/event/298" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
+          <a href="https://www.millet.co.kr/data/banner/Y9KnBC3L.1jyodr8px5we0.jpg" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
+        </div>
+      </div>
+    </article>
+    
+    <article class="soft-panel overflow-hidden flex flex-col">
+      <div class="relative aspect-[16/9] bg-slate-100">
+        <img src="assets/millet_3_253ab544e0.jpg" class="w-full h-full object-cover"
+             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
+        <span class="rank-chip">RANK 4</span>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div>
@@ -1702,9 +1633,9 @@
     
     <article class="soft-panel overflow-hidden flex flex-col">
       <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/millet_3_06c2e86c97.jpg" class="w-full h-full object-cover"
+        <img src="assets/millet_4_06c2e86c97.jpg" class="w-full h-full object-cover"
              onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 4</span>
+        <span class="rank-chip">RANK 5</span>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div>
@@ -1723,9 +1654,9 @@
     
     <article class="soft-panel overflow-hidden flex flex-col">
       <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/millet_7_616346e733.jpg" class="w-full h-full object-cover"
+        <img src="assets/millet_8_616346e733.jpg" class="w-full h-full object-cover"
              onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 5</span>
+        <span class="rank-chip">RANK 6</span>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div>
@@ -1744,9 +1675,9 @@
     
     <article class="soft-panel overflow-hidden flex flex-col">
       <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/millet_8_35c7fd8d7d.jpg" class="w-full h-full object-cover"
+        <img src="assets/millet_9_35c7fd8d7d.jpg" class="w-full h-full object-cover"
              onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 6</span>
+        <span class="rank-chip">RANK 7</span>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div>
@@ -1762,45 +1693,24 @@
         </div>
       </div>
     </article>
-    
-    <article class="soft-panel overflow-hidden flex flex-col">
-      <div class="relative aspect-[16/9] bg-slate-100">
-        <img src="assets/millet_9_462246a3e7.jpg" class="w-full h-full object-cover"
-             onerror="this.onerror=null; this.src='https://placehold.co/640x360?text=No+Image';">
-        <span class="rank-chip">RANK 7</span>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div>
-          <div class="text-[11px] font-semibold text-slate-500">기간 정보 없음</div>
-          <h4 class="mt-2 text-sm font-bold text-slate-900 clamp-2">"ESSENTIALS ITEM"</h4>
-          <p class="mt-1 text-[12px] text-slate-500 clamp-2">ESSENTIALS ITEM</p>
-          <div class="mt-3 flex flex-wrap gap-2"><span class="mini-stat">generic_fallback</span></div>
-          <p class="mt-2 text-[11px] text-slate-500">src generic_fallback | conf 0.55 | meta skipped</p>
-        </div>
-        <div class="mt-auto flex gap-2">
-          <a href="https://www.millet.co.kr/front/product/category/168?psort=new" target="_blank" class="btn-primary flex-1 text-center text-[11px]">기획전 보기</a>
-          <a href="https://www.millet.co.kr/data/banner/6LHaWWsZbOgbIrX7uz.qe11m1uypco4.jpg" target="_blank" class="btn-secondary text-[11px]">원본 이미지</a>
-        </div>
-      </div>
-    </article>
     </div>
             </div>
             <aside class="flex flex-col gap-5">
               <section class="glass-card p-6">
                 <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Insight</div>
                 <h4 class="mt-2 text-xl font-black text-slate-900">Millet Summary</h4>
-                <p class="mt-3 text-sm text-slate-600">Weekly theme: MILLET, 파이로하이크, ITEM</p>
+                <p class="mt-3 text-sm text-slate-600">Weekly theme: MILLET, ITEM, SUMMIT</p>
                 <div class="mt-5 grid grid-cols-2 gap-3">
-                  <div class="mini-card"><span>Added</span><strong>3</strong></div>
+                  <div class="mini-card"><span>Added</span><strong>4</strong></div>
                   <div class="mini-card"><span>Removed</span><strong>2</strong></div>
                   <div class="mini-card"><span>Segment</span><strong>전문 산행</strong></div>
                   <div class="mini-card"><span>Origin</span><strong>글로벌</strong></div>
                 </div>
-                <div class="mt-5"><div class="panel-label">Keyword Cluster</div><div class="mt-2 flex flex-wrap gap-2"><span class="insight-chip">MILLET <em>4</em></span><span class="insight-chip">파이로하이크 <em>2</em></span><span class="insight-chip">ITEM <em>2</em></span><span class="insight-chip">PYRO <em>1</em></span><span class="insight-chip">SERIES <em>1</em></span></div></div>
-                <div class="mt-5"><div class="panel-label">Visual / OCR</div><p class="mt-2 text-sm text-slate-700">하이킹</p><div class="mt-2 flex flex-wrap gap-2"><span class="insight-chip accent">하이킹</span></div></div>
+                <div class="mt-5"><div class="panel-label">Keyword Cluster</div><div class="mt-2 flex flex-wrap gap-2"><span class="insight-chip">MILLET <em>4</em></span><span class="insight-chip">ITEM <em>2</em></span><span class="insight-chip">SUMMIT <em>1</em></span><span class="insight-chip">CODURA <em>1</em></span><span class="insight-chip">SETUP <em>1</em></span></div></div>
+                <div class="mt-5"><div class="panel-label">Visual / OCR</div><p class="mt-2 text-sm text-slate-700">하이킹, 재킷</p><div class="mt-2 flex flex-wrap gap-2"><span class="insight-chip accent">하이킹</span><span class="insight-chip accent">재킷</span></div></div>
                 <div class="mt-5"><div class="panel-label">OCR Text</div><div class="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">OCR disabled or no text</div></div>
               </section>
-              <section class="glass-card p-6"><div class="panel-label">Recent Title Changes</div><ul class="mt-3 space-y-2"><li class="insight-list-item">"MILLET DRYNAMIC ITEM"</li><li class="insight-list-item">"티폰자켓"</li><li class="insight-list-item">"고어자켓"</li><li class="insight-list-item">"디맥스 하이브리드 팬츠_MRVUP090"</li></ul></section>
+              <section class="glass-card p-6"><div class="panel-label">Recent Title Changes</div><ul class="mt-3 space-y-2"><li class="insight-list-item">"레이 기획전"</li><li class="insight-list-item">"티폰자켓"</li><li class="insight-list-item">"MILLET PICK 추천상품"</li><li class="insight-list-item">"MILLET 남성 3LAYER 방풍자켓_MQUFJ401"</li></ul></section>
             </aside>
           </div>
         </section>
@@ -1830,6 +1740,24 @@
         if (firstVisible) switchTab(firstVisible.id.replace('tab-', ''));
       }
     }
+    function enhanceDashboardLayout() {
+      const main = document.querySelector('main');
+      if (!main) return;
+      const sections = Array.from(main.children).filter(el => el.tagName === 'SECTION');
+      if (sections.length >= 2) {
+        const analyticsSection = sections[0];
+        const brandSection = sections[1];
+        if (analyticsSection && brandSection && analyticsSection.previousElementSibling?.tagName === 'HEADER') {
+          main.insertBefore(brandSection, analyticsSection);
+        }
+        const analyticsSide = analyticsSection && analyticsSection.children.length > 1 ? analyticsSection.children[1] : null;
+        const pressureHtml = "\n    <section class=\"glass-card p-6 lg:p-7\">\n      <div class=\"flex items-center justify-between gap-3\">\n        <div>\n          <h2 class=\"section-title\">Competitive Pressure Radar</h2>\n          <p class=\"section-sub\">\uc774\ubc88 \uc8fc\uc5d0 \uac00\uc7a5 \ube60\ub974\uac8c \uc6c0\uc9c1\uc778 \ube0c\ub79c\ub4dc\ub97c \ubcc0\ud654\ub7c9 \uae30\uc900\uc73c\ub85c \ubaa8\uc558\uc2b5\ub2c8\ub2e4.</p>\n        </div>\n        <div class=\"text-[11px] text-slate-500\">sorted by changed / events</div>\n      </div>\n      <div class=\"mt-5 space-y-3\">\n        \n        <article class=\"pressure-row\">\n          <div class=\"pressure-rank\">01</div>\n          <div class=\"pressure-copy\">\n            <div class=\"pressure-head\">\n              <strong>Salomon</strong>\n              <span class=\"pressure-metric\">changed 37 \u00b7 events 37</span>\n            </div>\n            <p class=\"pressure-title clamp-2\">\"26SS \ubaa8\ub514\uc138\uc774 \uc5d0\uc5b4\ub85c \uc0b4\ub85c\ubaac \uacf5\uc2dd \uc628\ub77c\uc778\uc2a4\ud1a0\uc5b4 \u2013 Salomon Korea\"</p>\n            <div class=\"pressure-tags\"><span class=\"mini-stat\">image_changed 36</span><span class=\"mini-stat\">extractor_changed 12</span></div>\n          </div>\n        </article>\n        \n        <article class=\"pressure-row\">\n          <div class=\"pressure-rank\">02</div>\n          <div class=\"pressure-copy\">\n            <div class=\"pressure-head\">\n              <strong>Black Yak</strong>\n              <span class=\"pressure-metric\">changed 23 \u00b7 events 25</span>\n            </div>\n            <p class=\"pressure-title clamp-2\">\"\uba54\uc778 \ubc30\ub108\"</p>\n            <div class=\"pressure-tags\"><span class=\"mini-stat\">image_changed 23</span><span class=\"mini-stat\">rank_shift 16</span></div>\n          </div>\n        </article>\n        \n        <article class=\"pressure-row\">\n          <div class=\"pressure-rank\">03</div>\n          <div class=\"pressure-copy\">\n            <div class=\"pressure-head\">\n              <strong>Millet</strong>\n              <span class=\"pressure-metric\">changed 20 \u00b7 events 26</span>\n            </div>\n            <p class=\"pressure-title clamp-2\">\"MILLET DRYNAMIC ITEM\"</p>\n            <div class=\"pressure-tags\"><span class=\"mini-stat\">image_changed 19</span><span class=\"mini-stat\">rank_shift 11</span></div>\n          </div>\n        </article>\n        \n        <article class=\"pressure-row\">\n          <div class=\"pressure-rank\">04</div>\n          <div class=\"pressure-copy\">\n            <div class=\"pressure-head\">\n              <strong>Snow Peak</strong>\n              <span class=\"pressure-metric\">changed 16 \u00b7 events 19</span>\n            </div>\n            <p class=\"pressure-title clamp-2\">\"\uc2a4\ub178\uc6b0\ud53c\ud06c \uc5b4\ud328\ub7f4 * Snow Peak\"</p>\n            <div class=\"pressure-tags\"><span class=\"mini-stat\">image_changed 15</span><span class=\"mini-stat\">extractor_changed 8</span></div>\n          </div>\n        </article>\n        \n        <article class=\"pressure-row\">\n          <div class=\"pressure-rank\">05</div>\n          <div class=\"pressure-copy\">\n            <div class=\"pressure-head\">\n              <strong>Kolon Sport</strong>\n              <span class=\"pressure-metric\">changed 9 \u00b7 events 9</span>\n            </div>\n            <p class=\"pressure-title clamp-2\">\"[TRAIL] \uc5ec\uc131 \uacbd\ub7c9 \ud6c4\ub4dc\ud615 \ubc29\uc218 \uc7ac\ud0b7_GREY-a\"</p>\n            <div class=\"pressure-tags\"><span class=\"mini-stat\">image_changed 8</span><span class=\"mini-stat\">extractor_changed 6</span></div>\n          </div>\n        </article>\n        \n      </div>\n    </section>\n    ";
+        if (analyticsSide && pressureHtml && !analyticsSide.querySelector('.pressure-row')) {
+          analyticsSide.insertAdjacentHTML('beforeend', pressureHtml);
+        }
+      }
+    }
+    enhanceDashboardLayout();
     (function () {
       try {
         if (window.self !== window.top) document.body.classList.add("embedded");
