@@ -150,8 +150,8 @@
     }}
 
     .report-shell {{
-      width: min(1760px, calc(100vw - 20px));
-      max-width: 1760px !important;
+      width: calc(100vw - 24px);
+      max-width: none !important;
       animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
       transform-origin: top center;
     }}
@@ -250,9 +250,22 @@
       pointer-events: none;
     }}
 
+
+    .reveal-block,
     .kpi-card {{
-      animation: cardReveal .92s cubic-bezier(.16,.84,.22,1) both;
+      opacity: 0;
+      transform: translateY(22px) scale(.985);
+      will-change: transform, opacity;
     }}
+
+    .reveal-block.is-visible {{
+      animation: sectionReveal .72s cubic-bezier(.18,.84,.22,1) both;
+    }}
+
+    .kpi-card.is-visible {{
+      animation: cardReveal .82s cubic-bezier(.16,.84,.22,1) both;
+    }}
+
 
     .metric-chip,
     .section-signal {{
@@ -422,8 +435,8 @@
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto p-6">
-    <div class="mt-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
+  <div class="report-shell mx-auto px-3 py-4 lg:px-4 lg:py-5">
+    <div class="reveal-block mt-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
       <div class="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
         <div class="text-sm font-extrabold text-slate-800">데이터 기간 · 2026-03-16</div>
         <div class="text-xs text-slate-500">WOW: Sessions vs 2026-03-09 | YOY: Sessions vs 2025-03-17</div>
@@ -479,7 +492,7 @@
         
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="reveal-block mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
       <div class="mt-3 overflow-x-auto"><table class="w-full table-auto text-sm min-w-[980px]">
         <thead class="text-xs text-slate-500">
@@ -497,7 +510,7 @@
       </table></div>
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="reveal-block mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
         <div class="text-[11px] text-slate-500">Wider canvas + sticky Sub column</div>
@@ -671,7 +684,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Padding/Slim Down</div>
-                <div class="text-xs text-slate-500">D1 230 · 7D Avg 345</div>
+                <div class="text-xs text-slate-500">D1 490 · 7D Avg 621</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -680,10 +693,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,32.0 71.7,37.6 107.3,16.0 143.0,24.8 178.7,20.2 214.3,13.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,32.0 71.7,37.6 107.3,16.0 143.0,24.8 178.7,20.2 214.3,13.7 250.0,44.3"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='32.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='37.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='16.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='24.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='20.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>432</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>331</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>230</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,39.6 71.7,41.6 107.3,23.1 143.0,34.0 178.7,28.3 214.3,13.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,39.6 71.7,41.6 107.3,23.1 143.0,34.0 178.7,28.3 214.3,13.7 250.0,44.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='39.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='41.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='23.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='34.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='28.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>818</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>654</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>490</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -692,7 +705,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Mid/Heavy Down</div>
-                <div class="text-xs text-slate-500">D1 11 · 7D Avg 54</div>
+                <div class="text-xs text-slate-500">D1 13 · 7D Avg 82</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -701,10 +714,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,13.7 71.7,35.6 107.3,36.1 143.0,43.0 178.7,43.3 214.3,42.4 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,13.7 71.7,35.6 107.3,36.1 143.0,43.0 178.7,43.3 214.3,42.4 250.0,44.3"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='35.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='36.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='43.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='43.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='42.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>190</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>100</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>11</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,13.7 71.7,34.5 107.3,34.5 143.0,42.4 178.7,42.5 214.3,40.6 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,13.7 71.7,34.5 107.3,34.5 143.0,42.4 178.7,42.5 214.3,40.6 250.0,44.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='34.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='34.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='42.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='42.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='40.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>269</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>141</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>13</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -713,7 +726,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Interchange</div>
-                <div class="text-xs text-slate-500">D1 201 · 7D Avg 287</div>
+                <div class="text-xs text-slate-500">D1 142 · 7D Avg 179</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -722,10 +735,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,17.3 71.7,18.4 107.3,13.7 143.0,41.3 178.7,44.3 214.3,34.3 250.0,42.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,17.3 71.7,18.4 107.3,13.7 143.0,41.3 178.7,44.3 214.3,34.3 250.0,42.6"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='17.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='18.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='41.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='34.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='42.6' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>402</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>296</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>189</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,21.9 71.7,35.8 107.3,26.1 143.0,41.5 178.7,33.6 214.3,13.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,21.9 71.7,35.8 107.3,26.1 143.0,41.5 178.7,33.6 214.3,13.7 250.0,44.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='21.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='35.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='26.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='41.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='33.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>228</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>185</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>142</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -734,7 +747,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Rain</div>
-                <div class="text-xs text-slate-500">D1 1,422 · 7D Avg 1,720</div>
+                <div class="text-xs text-slate-500">D1 1,386 · 7D Avg 1,647</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -743,10 +756,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,21.8 71.7,24.9 107.3,13.7 143.0,44.3 178.7,35.8 214.3,34.2 250.0,38.8 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,21.8 71.7,24.9 107.3,13.7 143.0,44.3 178.7,35.8 214.3,34.2 250.0,38.8"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='21.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='24.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='35.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='34.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='38.8' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2321</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1774</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1226</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,16.1 71.7,20.4 107.3,13.7 143.0,44.3 178.7,34.8 214.3,30.8 250.0,37.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,16.1 71.7,20.4 107.3,13.7 143.0,44.3 178.7,34.8 214.3,30.8 250.0,37.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='16.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='20.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='34.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='30.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='37.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2062</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1624</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1186</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -755,7 +768,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FLEECE · Fleece Pullover</div>
-                <div class="text-xs text-slate-500">D1 93 · 7D Avg 124</div>
+                <div class="text-xs text-slate-500">D1 3 · 7D Avg 9</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -764,10 +777,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,13.7 71.7,32.7 107.3,28.5 143.0,23.0 178.7,36.9 214.3,30.9 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,13.7 71.7,32.7 107.3,28.5 143.0,23.0 178.7,36.9 214.3,30.9 250.0,44.3"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='32.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='28.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='23.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='36.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='30.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>159</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>126</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>93</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,30.2 71.7,34.9 107.3,13.7 143.0,32.5 178.7,32.5 214.3,25.5 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,30.2 71.7,34.9 107.3,13.7 143.0,32.5 178.7,32.5 214.3,25.5 250.0,44.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='30.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='34.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='32.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='32.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='25.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>16</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>10</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>3</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -776,7 +789,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FLEECE · Jacket</div>
-                <div class="text-xs text-slate-500">D1 15 · 7D Avg 24</div>
+                <div class="text-xs text-slate-500">D1 47 · 7D Avg 57</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -785,10 +798,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,39.7 71.7,41.3 107.3,30.5 143.0,13.7 178.7,21.3 214.3,22.9 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,39.7 71.7,41.3 107.3,30.5 143.0,13.7 178.7,21.3 214.3,22.9 250.0,44.3"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='39.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='41.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='30.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='21.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='22.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>35</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>25</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>15</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,37.4 71.7,20.6 107.3,13.7 143.0,44.3 178.7,41.2 214.3,21.2 250.0,36.8 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,37.4 71.7,20.6 107.3,13.7 143.0,44.3 178.7,41.2 214.3,21.2 250.0,36.8"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='37.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='20.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='41.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='21.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='36.8' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>84</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>60</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>35</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -797,7 +810,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Fleece Top</div>
-                <div class="text-xs text-slate-500">D1 61 · 7D Avg 70</div>
+                <div class="text-xs text-slate-500">D1 349 · 7D Avg 417</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -806,10 +819,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,37.4 71.7,36.2 107.3,43.1 143.0,13.7 178.7,44.3 214.3,27.4 250.0,40.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,37.4 71.7,36.2 107.3,43.1 143.0,13.7 178.7,44.3 214.3,27.4 250.0,40.6"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='37.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='36.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='43.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='27.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='40.6' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>104</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>80</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>55</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,31.7 71.7,33.8 107.3,28.6 143.0,13.7 178.7,40.8 214.3,25.3 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,31.7 71.7,33.8 107.3,28.6 143.0,13.7 178.7,40.8 214.3,25.3 250.0,44.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='31.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='33.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='28.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='40.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='25.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>507</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>428</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>349</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -818,7 +831,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Round T-shirt</div>
-                <div class="text-xs text-slate-500">D1 648 · 7D Avg 751</div>
+                <div class="text-xs text-slate-500">D1 698 · 7D Avg 809</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -827,10 +840,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 71.7,32.1 107.3,13.7 143.0,34.9 178.7,30.6 214.3,25.9 250.0,36.2 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 71.7,32.1 107.3,13.7 143.0,34.9 178.7,30.6 214.3,25.9 250.0,36.2"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='32.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='34.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='30.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='25.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='36.2' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1101</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>793</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>485</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 71.7,34.2 107.3,13.7 143.0,36.2 178.7,32.0 214.3,26.9 250.0,37.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 71.7,34.2 107.3,13.7 143.0,36.2 178.7,32.0 214.3,26.9 250.0,37.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='34.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='36.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='32.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='26.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='37.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1200</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>874</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>548</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -839,7 +852,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Polo/Zip Up</div>
-                <div class="text-xs text-slate-500">D1 219 · 7D Avg 252</div>
+                <div class="text-xs text-slate-500">D1 270 · 7D Avg 296</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -848,10 +861,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,25.7 71.7,44.3 107.3,13.7 143.0,40.6 178.7,27.1 214.3,35.7 250.0,37.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,25.7 71.7,44.3 107.3,13.7 143.0,40.6 178.7,27.1 214.3,35.7 250.0,37.7"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='25.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='40.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='27.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='35.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='37.7' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>361</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>270</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>180</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,37.1 71.7,44.3 107.3,13.7 143.0,41.1 178.7,30.4 214.3,35.1 250.0,37.8 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,37.1 71.7,44.3 107.3,13.7 143.0,41.1 178.7,30.4 214.3,35.1 250.0,37.8"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='37.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='41.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='30.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='35.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='37.8' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>447</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>334</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>222</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -860,7 +873,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">PANTS · Pants</div>
-                <div class="text-xs text-slate-500">D1 796 · 7D Avg 904</div>
+                <div class="text-xs text-slate-500">D1 634 · 7D Avg 709</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -869,10 +882,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,42.6 71.7,32.8 107.3,13.7 143.0,44.3 178.7,37.5 214.3,35.2 250.0,39.5 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,42.6 71.7,32.8 107.3,13.7 143.0,44.3 178.7,37.5 214.3,35.2 250.0,39.5"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='42.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='32.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='37.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='35.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='39.5' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1432</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1054</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>676</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,39.2 71.7,33.0 107.3,13.7 143.0,44.3 178.7,35.2 214.3,32.0 250.0,37.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,39.2 71.7,33.0 107.3,13.7 143.0,44.3 178.7,35.2 214.3,32.0 250.0,37.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='39.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='33.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='35.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='32.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='37.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1072</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>792</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>513</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -881,7 +894,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Boots</div>
-                <div class="text-xs text-slate-500">D1 11 · 7D Avg 10</div>
+                <div class="text-xs text-slate-500">D1 22 · 7D Avg 26</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -890,10 +903,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,33.2 71.7,13.7 107.3,30.4 143.0,30.4 178.7,44.3 214.3,33.2 250.0,27.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,33.2 71.7,13.7 107.3,30.4 143.0,30.4 178.7,44.3 214.3,33.2 250.0,27.6"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='33.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='30.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='30.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='33.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='27.6' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>16</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>10</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>5</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,27.8 71.7,17.2 107.3,13.7 143.0,32.5 178.7,44.3 214.3,23.1 250.0,32.5 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,27.8 71.7,17.2 107.3,13.7 143.0,32.5 178.7,44.3 214.3,23.1 250.0,32.5"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='27.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='17.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='32.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='23.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='32.5' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>38</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>25</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>12</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -902,7 +915,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Omni-Max</div>
-                <div class="text-xs text-slate-500">D1 244 · 7D Avg 261</div>
+                <div class="text-xs text-slate-500">D1 12 · 7D Avg 10</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -911,10 +924,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,13.7 71.7,19.4 107.3,16.0 143.0,36.3 178.7,44.3 214.3,14.5 250.0,29.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,13.7 71.7,19.4 107.3,16.0 143.0,36.3 178.7,44.3 214.3,14.5 250.0,29.7"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='19.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='16.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='36.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='14.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='29.7' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>300</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>246</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>193</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,13.7 71.7,26.4 107.3,41.8 143.0,44.3 178.7,39.2 214.3,41.8 250.0,29.0 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,13.7 71.7,26.4 107.3,41.8 143.0,44.3 178.7,39.2 214.3,41.8 250.0,29.0"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='26.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='41.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='39.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='41.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='29.0' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>18</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>12</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>6</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -923,7 +936,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Hiking</div>
-                <div class="text-xs text-slate-500">D1 731 · 7D Avg 847</div>
+                <div class="text-xs text-slate-500">D1 1,180 · 7D Avg 1,232</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -932,10 +945,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,28.0 71.7,13.7 107.3,29.4 143.0,44.3 178.7,44.2 214.3,20.1 250.0,40.4 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,28.0 71.7,13.7 107.3,29.4 143.0,44.3 178.7,44.2 214.3,20.1 250.0,40.4"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='28.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='29.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='20.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='40.4' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1078</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>879</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>680</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,17.6 71.7,13.7 107.3,15.3 143.0,44.2 178.7,44.3 214.3,31.6 250.0,31.9 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,17.6 71.7,13.7 107.3,15.3 143.0,44.2 178.7,44.3 214.3,31.6 250.0,31.9"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='17.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='15.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='44.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='31.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='31.9' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1446</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1222</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>999</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -944,7 +957,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Sneakers</div>
-                <div class="text-xs text-slate-500">D1 236 · 7D Avg 296</div>
+                <div class="text-xs text-slate-500">D1 177 · 7D Avg 209</div>
               </div>
               <div class="shrink-0">
     <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -953,10 +966,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 71.7,28.8 107.3,21.8 143.0,38.1 178.7,13.7 214.3,17.5 250.0,44.1 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 71.7,28.8 107.3,21.8 143.0,38.1 178.7,13.7 214.3,17.5 250.0,44.1"/>
-      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='28.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='21.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='38.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='17.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.1' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>363</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>299</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>235</text>
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 71.7,31.3 107.3,23.1 143.0,41.8 178.7,16.2 214.3,13.7 250.0,41.8 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 71.7,31.3 107.3,23.1 143.0,41.8 178.7,16.2 214.3,13.7 250.0,41.8"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='31.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='23.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='41.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='16.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='41.8' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>255</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>212</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>170</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text>
     </svg>
     </div>
@@ -1049,6 +1062,64 @@
   if(trendBtns.length){
     setTrend(trendBtns[0].getAttribute('data-trend-tab'));
   }
+
+  function animateKpiValue(el){
+    const finalText = (el.getAttribute('data-kpi-value') || el.textContent || '').trim();
+    if(!finalText || el.dataset.animated === '1') return;
+    el.dataset.animated = '1';
+
+    const isWon = finalText.includes('₩');
+    const isPct = finalText.includes('%');
+    const isPp = finalText.toLowerCase().includes('pp');
+    const raw = finalText.replace(/[^0-9.\-]/g, '');
+    const target = Number(raw);
+    if(!Number.isFinite(target)){
+      el.textContent = finalText;
+      return;
+    }
+
+    const duration = 850;
+    const start = performance.now();
+    function render(v){
+      if(isWon){
+        el.textContent = '₩' + Math.round(v).toLocaleString('en-US');
+      } else if(isPct){
+        const decimals = (raw.split('.')[1] || '').length;
+        el.textContent = v.toFixed(Math.min(decimals, 2)) + '%' + (isPp ? 'p' : '');
+      } else {
+        el.textContent = Math.round(v).toLocaleString('en-US');
+      }
+    }
+    function tick(now){
+      const p = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      render(target * eased);
+      if(p < 1) requestAnimationFrame(tick);
+      else el.textContent = finalText;
+    }
+    requestAnimationFrame(tick);
+  }
+
+  const revealTargets = [
+    ...document.querySelectorAll('.reveal-block'),
+    ...document.querySelectorAll('.kpi-card')
+  ];
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach((entry)=>{
+      if(!entry.isIntersecting) return;
+      const el = entry.target;
+      window.setTimeout(()=>{
+        el.classList.add('is-visible');
+        el.querySelectorAll('.kpi-value').forEach(animateKpiValue);
+      }, Number(el.dataset.delay || 0));
+      io.unobserve(el);
+    });
+  }, { threshold: 0.12 });
+
+  revealTargets.forEach((el, idx)=>{
+    el.dataset.delay = String(Math.min(idx * 55, 240));
+    io.observe(el);
+  });
 })();
 </script>
 
