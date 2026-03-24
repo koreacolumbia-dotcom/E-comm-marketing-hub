@@ -14,7 +14,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 
-DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab.html")  # use patched template with centered bars + autofit text
+DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab.html")  # patched template: edge-to-edge bars, value-based widths, drop-off text removed
 DEFAULT_OUTPUT = Path(__file__).parent / "reports" / "daily_digest" / "owned_funnel_tab.html"
 DEFAULT_SOURCE_BASE = "reports/daily_digest/data/funnel"
 KST = timedelta(hours=9)
