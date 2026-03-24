@@ -33,9 +33,9 @@
     .delta-pill.down{background:rgba(190,24,93,.08);color:#be185d;border-color:rgba(190,24,93,.16)}
     .delta-pill.flat{background:rgba(148,163,184,.12);color:#64748b;border-color:rgba(148,163,184,.16)}
     .metric-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:18px;max-width:180px}
-    .metric-stat{border:1px solid rgba(191,219,254,.45);background:linear-gradient(180deg,rgba(248,250,252,.92),rgba(241,245,249,.84));border-radius:18px;padding:12px 14px}
-    .metric-stat-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#94a3b8}
-    .metric-stat-value{margin-top:6px;font-size:22px;font-weight:900;color:#0f172a;letter-spacing:-.03em}
+    .metric-stat{border:1px solid rgba(191,219,254,.45);background:linear-gradient(180deg,rgba(248,250,252,.92),rgba(241,245,249,.84));border-radius:20px;padding:16px 18px;min-height:104px;display:flex;flex-direction:column;justify-content:center}
+    .metric-stat-label{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:#94a3b8}
+    .metric-stat-value{margin-top:8px;font-size:34px;line-height:1;font-weight:900;color:#0f172a;letter-spacing:-.04em}
     .metric-footnote{margin-top:12px;font-size:12px;font-weight:700;color:#64748b}
     .insight-card,.detail-card,.drop-rank-card,.stage-rank-card{border:1px solid rgba(191,219,254,.34);background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(248,250,252,.88));border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.05);animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}
     .insight-card{padding:18px 18px 16px}
@@ -174,7 +174,6 @@
           <span class="text-sm font-bold text-slate-400">to</span>
           <input id="endPicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
         </div>
-        <button id="btnApply" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Apply</button>
       </div>
       <div class="mt-4 flex flex-wrap items-center gap-2">
         <div class="kicker">Segment</div>
@@ -388,7 +387,6 @@
         startPicker: document.getElementById('startPicker'),
         endPicker: document.getElementById('endPicker'),
         rangeBox: document.getElementById('rangeBox'),
-        btnApply: document.getElementById('btnApply'),
         loadingState: document.getElementById('loadingState'),
         errorState: document.getElementById('errorState'),
         contentArea: document.getElementById('contentArea'),
@@ -427,7 +425,7 @@
       const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
       const segmentLabel = (seg = state.segment) => SEGMENT_LABELS[seg] || seg;
       const compareLabel = (mode = state.compareMode) => ({ all:'ALL', wow:'WoW', yoy:'YoY' }[mode] || 'ALL');
-      const compareReferenceLabel = (mode = state.compareMode) => ({ all:'Reference', wow:'Previous Week', yoy:'Last Year' }[mode] || 'Reference');
+      const compareReferenceLabel = (mode = state.compareMode) => ({ all:'YoY', wow:'Previous Week', yoy:'Last Year' }[mode] || 'YoY');
       const compareModesForDisplay = () => state.compareMode === 'all' ? ['wow','yoy'] : [state.compareMode];
       const ownedChildSegments = () => OWNED_SEGMENTS.slice(1);
 
@@ -478,8 +476,8 @@
         }
         if(state.view === 'week'){
           const end = clamp(els.datePicker.value || state.available[state.available.length - 1]);
-          const start = clamp(ymd(startOfWeekMon(parseYmd(end))));
-          return { start, end: clamp(ymd(addDays(parseYmd(start), 6))) };
+          const start = clamp(ymd(addDays(parseYmd(end), -6)));
+          return { start, end };
         }
         const start = clamp(els.startPicker.value || state.available[Math.max(0, state.available.length - 7)]);
         const end = clamp(els.endPicker.value || state.available[state.available.length - 1]);
@@ -714,7 +712,7 @@
       };
       const DROP_LABEL = '\uC774\uD0C8\uC728';
       const stepPath = (from, to) => `${from} -> ${to}`;
-      const buildMetricCard = ({ label, value, previousValue, deltaText, tone, footnote }, idx) => `
+      const buildMetricCard = ({ label, value, referenceValue, deltaText, tone, footnote }, idx) => `
         <article class="card metric-card premium-card" style="animation-delay:${idx * 80}ms">
           <div class="metric-head">
             <div class="kicker">${esc(label)}</div>
@@ -723,8 +721,8 @@
           <div class="metric mt-4">${esc(value)}</div>
           <div class="metric-grid metric-grid-rich">
             <div class="metric-stat metric-stat-glass">
-              <div class="metric-stat-label">${esc(compareReferenceLabel())}</div>
-              <div class="metric-stat-value">${esc(previousValue)}</div>
+              <div class="metric-stat-label">YoY</div>
+              <div class="metric-stat-value">${esc(referenceValue)}</div>
             </div>
           </div>
           <div class="metric-footnote">${esc(footnote)}</div>
@@ -1015,7 +1013,7 @@
             label: 'Sessions',
             value: fmt(currentModel.agg.sessions),
             currentValue: fmt(currentModel.agg.sessions),
-            previousValue: primaryModel ? fmt(primaryModel.agg.sessions) : '-',
+            referenceValue: yoyModel ? fmt(yoyModel.agg.sessions) : '-',
             deltaText: primaryModel ? delta(currentModel.agg.sessions, primaryModel.agg.sessions) : 'N/A',
             tone: primaryModel ? deltaTone(currentModel.agg.sessions - primaryModel.agg.sessions) : 'flat',
             footnote: dualFoot((m) => m.agg.sessions, (v) => fmt(v)),
@@ -1024,7 +1022,7 @@
             label: 'PDP Views',
             value: fmt(currentPdp),
             currentValue: fmt(currentPdp),
-            previousValue: primaryModel ? fmt(stageMetricValue(primaryModel, ['pdpViews', 'users'])) : '-',
+            referenceValue: yoyModel ? fmt(stageMetricValue(yoyModel, ['pdpViews', 'users'])) : '-',
             deltaText: primaryModel ? delta(currentPdp, stageMetricValue(primaryModel, ['pdpViews', 'users'])) : 'N/A',
             tone: primaryModel ? deltaTone(currentPdp - stageMetricValue(primaryModel, ['pdpViews', 'users'])) : 'flat',
             footnote: dualFoot((m) => stageMetricValue(m, ['pdpViews', 'users']), (v) => fmt(v)),
@@ -1033,7 +1031,7 @@
             label: 'Add to Cart',
             value: fmt(currentCart),
             currentValue: fmt(currentCart),
-            previousValue: primaryModel ? fmt(stageMetricValue(primaryModel, 'addToCart')) : '-',
+            referenceValue: yoyModel ? fmt(stageMetricValue(yoyModel, 'addToCart')) : '-',
             deltaText: primaryModel ? delta(currentCart, stageMetricValue(primaryModel, 'addToCart')) : 'N/A',
             tone: primaryModel ? deltaTone(currentCart - stageMetricValue(primaryModel, 'addToCart')) : 'flat',
             footnote: dualFoot((m) => stageMetricValue(m, 'addToCart'), (v) => fmt(v)),
@@ -1042,7 +1040,7 @@
             label: 'Checkout',
             value: fmt(currentCheckout),
             currentValue: fmt(currentCheckout),
-            previousValue: primaryModel ? fmt(stageMetricValue(primaryModel, 'beginCheckout')) : '-',
+            referenceValue: yoyModel ? fmt(stageMetricValue(yoyModel, 'beginCheckout')) : '-',
             deltaText: primaryModel ? delta(currentCheckout, stageMetricValue(primaryModel, 'beginCheckout')) : 'N/A',
             tone: primaryModel ? deltaTone(currentCheckout - stageMetricValue(primaryModel, 'beginCheckout')) : 'flat',
             footnote: dualFoot((m) => stageMetricValue(m, 'beginCheckout'), (v) => fmt(v)),
@@ -1051,7 +1049,7 @@
             label: 'Orders',
             value: fmt(currentModel.agg.orders),
             currentValue: fmt(currentModel.agg.orders),
-            previousValue: primaryModel ? fmt(primaryModel.agg.orders) : '-',
+            referenceValue: yoyModel ? fmt(yoyModel.agg.orders) : '-',
             deltaText: primaryModel ? delta(currentModel.agg.orders, primaryModel.agg.orders) : 'N/A',
             tone: primaryModel ? deltaTone(currentModel.agg.orders - primaryModel.agg.orders) : 'flat',
             footnote: dualFoot((m) => m.agg.orders, (v) => fmt(v)),
@@ -1060,7 +1058,7 @@
             label: 'Session CVR',
             value: fmtPct(currentModel.sessionCvr, 2),
             currentValue: fmtPct(currentModel.sessionCvr, 2),
-            previousValue: primaryModel ? fmtPct(primaryModel.sessionCvr, 2) : '-',
+            referenceValue: yoyModel ? fmtPct(yoyModel.sessionCvr, 2) : '-',
             deltaText: primaryModel ? signedPointDelta(currentModel.sessionCvr, primaryModel.sessionCvr) : 'N/A',
             tone: primaryModel ? deltaTone(currentModel.sessionCvr - primaryModel.sessionCvr) : 'flat',
             footnote: [
@@ -1448,7 +1446,11 @@
             await refresh();
           }));
 
-          els.btnApply.addEventListener('click', async () => { state.selectedGroup = ''; await refresh(); });
+          const handleDateChange = async () => { state.selectedGroup = ''; await refresh(); };
+          els.datePicker.addEventListener('change', handleDateChange);
+          els.startPicker.addEventListener('change', handleDateChange);
+          els.endPicker.addEventListener('change', handleDateChange);
+
 
           els.cmpASegment.addEventListener('change', () => { state.compare.A.segment = els.cmpASegment.value; state.compare.A.group = ''; renderCompare(); });
           els.cmpBSegment.addEventListener('change', () => { state.compare.B.segment = els.cmpBSegment.value; state.compare.B.group = ''; renderCompare(); });
