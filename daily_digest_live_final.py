@@ -108,6 +108,56 @@ def get_safe_animation_css():
       }
     }
 
+
+    @keyframes dramaticCardIn {
+      0% {
+        opacity: 0;
+        transform: perspective(1400px) translateY(42px) scale(.94) rotateX(9deg);
+        filter: blur(10px);
+        box-shadow: 0 0 0 rgba(15,23,42,0);
+      }
+      58% {
+        opacity: 1;
+        transform: perspective(1400px) translateY(-10px) scale(1.02) rotateX(-1.3deg);
+        filter: blur(0);
+        box-shadow: 0 30px 56px rgba(15,23,42,.14);
+      }
+      76% {
+        opacity: 1;
+        transform: perspective(1400px) translateY(2px) scale(.997) rotateX(.35deg);
+        filter: blur(0);
+      }
+      100% {
+        opacity: 1;
+        transform: perspective(1400px) translateY(0) scale(1) rotateX(0);
+        filter: blur(0);
+        box-shadow: 0 14px 30px rgba(15,23,42,.08);
+      }
+    }
+
+    @keyframes dramaticSectionIn {
+      0% {
+        opacity: 0;
+        transform: perspective(1600px) translateY(54px) scale(.965) rotateX(8deg);
+        filter: blur(12px);
+      }
+      60% {
+        opacity: 1;
+        transform: perspective(1600px) translateY(-12px) scale(1.008) rotateX(-1deg);
+        filter: blur(0);
+      }
+      78% {
+        opacity: 1;
+        transform: perspective(1600px) translateY(2px) scale(.998) rotateX(.3deg);
+        filter: blur(0);
+      }
+      100% {
+        opacity: 1;
+        transform: perspective(1600px) translateY(0) scale(1) rotateX(0);
+        filter: blur(0);
+      }
+    }
+
     @keyframes pageExit {
       0% {
         opacity: 1;
@@ -191,7 +241,9 @@ def get_safe_animation_css():
       max-width: 100vw !important;
       margin-left: calc(50% - 50vw);
       margin-right: calc(50% - 50vw);
-      animation: pageReveal 1.05s cubic-bezier(.16,.84,.22,1) both;
+      padding-left: 10px;
+      padding-right: 10px;
+      animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
       transform-origin: top center;
       overflow-x: clip;
     }
@@ -209,23 +261,22 @@ def get_safe_animation_css():
       transform-origin: top center;
     }
 
-    body > .report-shell > div.mt-6,
-    body > .report-shell > section.mt-6,
-    body > .report-shell > article.mt-6 {
-      animation: sectionReveal .9s cubic-bezier(.18,.84,.22,1) both;
+    .reveal-block,
+    .kpi-card {
+      opacity: 0;
+      transform: perspective(1400px) translateY(42px) scale(.94) rotateX(9deg);
+      transform-origin: center top;
+      filter: blur(10px);
+      will-change: transform, opacity, filter;
     }
 
-    body > .report-shell > div.mt-6:nth-of-type(1),
-    body > .report-shell > section.mt-6:nth-of-type(1),
-    body > .report-shell > article.mt-6:nth-of-type(1) { animation-delay: .04s; }
+    .reveal-block.is-visible {
+      animation: dramaticSectionIn .96s cubic-bezier(.16,.84,.22,1) both;
+    }
 
-    body > .report-shell > div.mt-6:nth-of-type(2),
-    body > .report-shell > section.mt-6:nth-of-type(2),
-    body > .report-shell > article.mt-6:nth-of-type(2) { animation-delay: .10s; }
-
-    body > .report-shell > div.mt-6:nth-of-type(3),
-    body > .report-shell > section.mt-6:nth-of-type(3),
-    body > .report-shell > article.mt-6:nth-of-type(3) { animation-delay: .16s; }
+    .kpi-card.is-visible {
+      animation: dramaticCardIn .98s cubic-bezier(.16,.84,.22,1) both;
+    }
 
     .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
     .rounded-2xl.border.border-slate-200.bg-white.p-4,
@@ -233,7 +284,6 @@ def get_safe_animation_css():
     .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {
       position: relative;
       overflow: hidden;
-      animation: cardReveal .85s cubic-bezier(.2,.8,.2,1) both;
       transition:
         transform .28s cubic-bezier(.2,.8,.2,1),
         box-shadow .28s cubic-bezier(.2,.8,.2,1),
@@ -290,24 +340,9 @@ def get_safe_animation_css():
       pointer-events: none;
     }
 
-
-    .reveal-block,
     .kpi-card {
-      opacity: 0;
-      transform: perspective(1400px) translateY(46px) scale(.94) rotateX(10deg);
-      transform-origin: center top;
-      will-change: transform, opacity, filter;
-      filter: blur(10px);
+      transform-style: preserve-3d;
     }
-
-    .reveal-block.is-visible {
-      animation: dramaticSectionIn .95s cubic-bezier(.16,.84,.22,1) both;
-    }
-
-    .kpi-card.is-visible {
-      animation: dramaticCardIn .96s cubic-bezier(.16,.84,.22,1) both;
-    }
-
 
     .metric-chip,
     .section-signal {
@@ -2782,6 +2817,7 @@ def render_page_html(
     weekly_href = f"../weekly/END_{ymd(w.end_date)}.html"
     compare_basis_text = f"{wow_label}: Sessions vs {period_label(w.prev_start, w.prev_end)}"
     yoy_basis_text = f"YOY: Sessions vs {period_label(w.yoy_start, w.yoy_end)}"
+    metric_basis_text = "KPI cards compare the metric shown on each card. Channel Snapshot and Paid Detail compare columns use Sessions."
 
     def compare_cell(label: str, value: float, enabled: bool = True) -> str:
         if not enabled:
@@ -3106,8 +3142,7 @@ def render_page_html(
     el.dataset.animated = '1';
 
     const isWon = finalText.includes('₩');
-    const isPct = finalText.includes('%');
-    const isPp = finalText.toLowerCase().includes('pp');
+    const endsWithPct = finalText.endsWith('%');
     const raw = finalText.replace(/[^0-9.\-]/g, '');
     const target = Number(raw);
     if(!Number.isFinite(target)){
@@ -3115,56 +3150,71 @@ def render_page_html(
       return;
     }
 
-    const duration = 850;
+    const decimals = (raw.split('.')[1] || '').length;
+    const duration = 900;
     const start = performance.now();
+
     function render(v){
       if(isWon){
         el.textContent = '₩' + Math.round(v).toLocaleString('en-US');
-      } else if(isPct){
-        const decimals = (raw.split('.')[1] || '').length;
-        el.textContent = v.toFixed(Math.min(decimals, 2)) + '%' + (isPp ? 'p' : '');
+      } else if(endsWithPct){
+        el.textContent = v.toFixed(Math.min(decimals, 2)) + '%';
       } else {
         el.textContent = Math.round(v).toLocaleString('en-US');
       }
     }
+
     function tick(now){
       const p = Math.min(1, (now - start) / duration);
       const eased = 1 - Math.pow(1 - p, 3);
       render(target * eased);
-      if(p < 1) requestAnimationFrame(tick);
-      else el.textContent = finalText;
+      if(p < 1){
+        requestAnimationFrame(tick);
+      } else {
+        el.textContent = finalText;
+      }
     }
     requestAnimationFrame(tick);
   }
 
-  const revealTargets = [
-    ...document.querySelectorAll('.reveal-block'),
-    ...document.querySelectorAll('.kpi-card')
-  ];
-  const io = new IntersectionObserver((entries)=>{
-    entries.forEach((entry)=>{
-      if(!entry.isIntersecting) return;
-      const el = entry.target;
-      window.setTimeout(()=>{
-        el.classList.add('is-visible');
-        el.querySelectorAll('.kpi-value').forEach(animateKpiValue);
-      }, Number(el.dataset.delay || 0));
-      io.unobserve(el);
-    });
-  }, { threshold: 0.12 });
-
+  const revealTargets = Array.from(document.querySelectorAll('.reveal-block, .kpi-card'));
   revealTargets.forEach((el, idx)=>{
-    el.dataset.delay = String(Math.min(idx * 95, 520));
-    io.observe(el);
-    const rect = el.getBoundingClientRect();
-    if(rect.top < window.innerHeight * 0.92){
-      window.setTimeout(()=>{
-        el.classList.add('is-visible');
-        el.querySelectorAll('.kpi-value').forEach(animateKpiValue);
-      }, Number(el.dataset.delay || 0));
-      io.unobserve(el);
-    }
+    el.dataset.revealDelay = String(Math.min(idx * 95, 520));
   });
+
+  function revealElement(el){
+    if(!el || el.classList.contains('is-visible')) return;
+    window.setTimeout(()=>{
+      el.classList.add('is-visible');
+      el.querySelectorAll('.kpi-value').forEach(animateKpiValue);
+      if(el.classList.contains('kpi-card')){
+        const valueEl = el.querySelector('.kpi-value');
+        if(valueEl) animateKpiValue(valueEl);
+      }
+    }, Number(el.dataset.revealDelay || 0));
+  }
+
+  if('IntersectionObserver' in window){
+    const io = new IntersectionObserver((entries)=>{
+      entries.forEach((entry)=>{
+        if(entry.isIntersecting){
+          revealElement(entry.target);
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+
+    revealTargets.forEach((el)=>{
+      io.observe(el);
+      const rect = el.getBoundingClientRect();
+      if(rect.top < window.innerHeight * 0.92){
+        revealElement(el);
+        io.unobserve(el);
+      }
+    });
+  } else {
+    revealTargets.forEach(revealElement);
+  }
 })();
 </script>"""
 
@@ -3179,33 +3229,16 @@ def render_page_html(
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
       {get_safe_animation_css()}
-  
-    @keyframes dramaticCardIn {
-      0% { opacity: 0; transform: perspective(1400px) translateY(46px) scale(.94) rotateX(10deg); filter: blur(10px); }
-      55% { opacity: 1; transform: perspective(1400px) translateY(-8px) scale(1.02) rotateX(-1.5deg); filter: blur(0); }
-      72% { opacity: 1; transform: perspective(1400px) translateY(2px) scale(.996) rotateX(.5deg); filter: blur(0); }
-      100% { opacity: 1; transform: perspective(1400px) translateY(0) scale(1) rotateX(0); filter: blur(0); }
-    }
-
-    @keyframes dramaticSectionIn {
-      0% { opacity: 0; transform: perspective(1600px) translateY(56px) scale(.965) rotateX(8deg); filter: blur(12px); }
-      60% { opacity: 1; transform: perspective(1600px) translateY(-10px) scale(1.008) rotateX(-1deg); filter: blur(0); }
-      78% { opacity: 1; transform: perspective(1600px) translateY(2px) scale(.998) rotateX(.35deg); filter: blur(0); }
-      100% { opacity: 1; transform: perspective(1600px) translateY(0) scale(1) rotateX(0); filter: blur(0); }
-    }
-
-</style>
+  </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="report-shell mx-auto px-2 py-3 lg:px-3 lg:py-4">
-    <div class="reveal-block mt-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
-      <div class="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
-        <div class="text-sm font-extrabold text-slate-800">데이터 기간 · {period_label(w.cur_start, w.cur_end)}</div>
-        <div class="text-xs text-slate-500">{esc(compare_basis_text)} | {esc(yoy_basis_text)}</div>
-      </div>
+    <div class="reveal-block section-signal mt-2 flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div class="text-sm font-bold text-slate-700">데이터 기간 · {period_label(w.cur_start, w.cur_end)}</div>
+      <div class="text-xs text-slate-500">{esc(compare_basis_text)} | {esc(yoy_basis_text)} | {esc(metric_basis_text)}</div>
     </div>
 
-    <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
+    <div class="reveal-block mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
       {kpis_cards}
     </div>
 
