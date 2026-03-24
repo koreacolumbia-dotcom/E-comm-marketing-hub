@@ -175,6 +175,44 @@
       gap:10px;
       text-align:center;
     }
+    .ytd-loading-overlay{ display:none !important; }
+    .skeleton-zone{ position: relative; }
+    .skeleton-card{ position: relative; overflow: hidden; }
+    .skeleton-card::before{
+      content:'';
+      position:absolute; inset:0;
+      background: linear-gradient(110deg, rgba(255,255,255,0) 20%, rgba(255,255,255,0.7) 42%, rgba(255,255,255,0) 64%);
+      transform: translateX(-120%);
+      animation: shimmer 1.8s ease-in-out infinite;
+      pointer-events:none;
+      z-index: 2;
+    }
+    .skeleton-card .kpi-title,
+    .skeleton-card .kpi-value,
+    .skeleton-card .kpi-sub{
+      color: transparent !important;
+      position: relative;
+    }
+    .skeleton-card .kpi-title::after,
+    .skeleton-card .kpi-value::after,
+    .skeleton-card .kpi-sub::after{
+      content:'';
+      display:block;
+      height: .9em;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(226,232,240,0.95), rgba(241,245,249,0.98), rgba(226,232,240,0.95));
+    }
+    .skeleton-card .kpi-title::after{ width: 58%; margin-top: 2px; height: .8em; }
+    .skeleton-card .kpi-value::after{ width: 66%; margin-top: 10px; height: 1.4em; }
+    .skeleton-card .kpi-sub::after{ width: 48%; margin-top: 8px; height: .9em; }
+    .kpi-card.kpi-reveal{ opacity: 0; transform: translateY(18px) scale(.985); }
+    .kpi-card.kpi-visible{ animation: kpiReveal .75s cubic-bezier(.22,1,.36,1) forwards; }
+    @keyframes shimmer{ to{ transform: translateX(120%); } }
+    @keyframes kpiReveal{
+      0%{ opacity:0; transform: translateY(18px) scale(.985); }
+      60%{ opacity:1; transform: translateY(-4px) scale(1.01); }
+      100%{ opacity:1; transform: translateY(0) scale(1); }
+    }
     @keyframes spin{
       to{ transform: rotate(360deg); }
     }
@@ -633,7 +671,7 @@
           <div class="toggle !py-1 !px-3">YTD</div>
         </div>
         <div id="ytdSummaryLabel" class="small-label mb-3">YTD YoY Summary &#45572;&#51201;</div>
-        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 skeleton-zone">
           <div class="kpi-card">
             <div class="kpi-title">ALL 누적 Send count</div>
             <div id="allSendCount" class="kpi-value">-</div>
@@ -662,7 +700,7 @@
         <div class="flex items-center gap-3 mt-5 mb-4">
           <div id="ytdActualsTitle" class="text-xl font-black tracking-tight">YTD Actuals &#45572;&#51201; (EDM)</div>
         </div>
-        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4 skeleton-zone">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -898,12 +936,25 @@
   const loadingText = document.getElementById('loadingText');
   const ytdLoadingOverlay = document.getElementById('ytdLoadingOverlay');
   const ytdLoadingText = document.getElementById('ytdLoadingText');
+  const allCards = document.getElementById('allCards');
+  const ytdCards = document.getElementById('ytdCards');
+  let ytdSkeletonArmed = false;
   function showNotice(msg){ noticeText.textContent = msg; notice.style.display='flex'; }
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
+  function setSkeletonState(container, active){
+    if(!container) return;
+    Array.from(container.querySelectorAll('.kpi-card')).forEach(card=>{
+      card.classList.toggle('skeleton-card', !!active);
+      if(active){
+        card.classList.remove('kpi-visible');
+        card.classList.add('kpi-reveal');
+      }
+    });
+  }
   function showLoading(msg){
     if(String(msg || '').indexOf('YTD') === 0 || String(msg || '').indexOf('TY YTD') === 0 || String(msg || '').indexOf('LY YTD') === 0){
       if(loadingOverlay) loadingOverlay.style.display = 'none';
-      showYtdLoading(msg);
+      showYtdLoading();
       return;
     }
     if(loadingText) loadingText.textContent = msg || '데이터 불러오는 중…';
@@ -913,17 +964,38 @@
     if(loadingOverlay) loadingOverlay.style.display = 'none';
     if(loadingText) loadingText.textContent = '데이터 불러오는 중…';
   }
-  function showYtdLoading(msg){
-    if(ytdLoadingText) ytdLoadingText.textContent = msg || 'YTD loading...';
-    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'flex';
+  function showYtdLoading(){
+    ytdSkeletonArmed = true;
+    setSkeletonState(allCards, true);
+    setSkeletonState(ytdCards, true);
+    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
+    if(ytdLoadingText) ytdLoadingText.textContent = '';
+  }
+  function animateKpiGroup(container, baseDelay=0){
+    if(!container) return;
+    Array.from(container.querySelectorAll('.kpi-card')).forEach((card, idx)=>{
+      card.classList.remove('kpi-visible');
+      card.classList.add('kpi-reveal');
+      card.style.animationDelay = `${baseDelay + idx*55}ms`;
+      requestAnimationFrame(()=> card.classList.add('kpi-visible'));
+    });
   }
   function hideYtdLoading(){
+    setSkeletonState(allCards, false);
+    setSkeletonState(ytdCards, false);
     if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
-    if(ytdLoadingText) ytdLoadingText.textContent = 'YTD loading...';
+    if(ytdLoadingText) ytdLoadingText.textContent = '';
+    if(ytdSkeletonArmed){
+      animateKpiGroup(allCards, 0);
+      animateKpiGroup(ytdCards, 120);
+      ytdSkeletonArmed = false;
+    }
   }
   noticeClose.addEventListener('click', hideNotice);
 
   const btnReload = document.getElementById('btnReload');
+
+  showYtdLoading();
 
   const chipDaily = document.getElementById('chipDaily');
   const chipWeek  = document.getElementById('chipWeek');
@@ -3249,7 +3321,7 @@
       const chunkSize = 10;
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
-        showLoading(`YTD 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+        showYtdLoading();
         const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
         const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
