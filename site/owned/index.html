@@ -274,24 +274,125 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
-  
-    .anim-fade{ opacity:0; transform: translateY(12px) scale(.985); transition: opacity .45s ease, transform .45s ease, box-shadow .35s ease; }
-    .anim-fade.in{ opacity:1; transform: translateY(0) scale(1); }
-    .view-stage{ transition: opacity .18s ease, transform .18s ease; }
-    .view-stage.switching{ opacity:.82; transform: translateY(2px); }
-    .ytd-section-label{ font-size:11px; font-weight:900; letter-spacing:.18em; text-transform:uppercase; color:#94a3b8; margin:8px 0 10px; display:flex; align-items:center; gap:10px; }
-    .ytd-section-label:after{ content:""; flex:1; height:1px; background:rgba(148,163,184,0.22); }
-    .ytd-compare-card{ background: linear-gradient(180deg, rgba(236,244,255,.95), rgba(255,255,255,.92)); border-color: rgba(0,45,114,0.12); }
-    .ytd-compare-value{ font-size:28px; font-weight:900; margin-top:8px; color:#002d72; line-height:1; }
-    .ytd-compare-meta{ font-size:12px; font-weight:800; color:#64748b; margin-top:8px; }
-    .ytd-actual-card.ty-primary{ background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(244,248,255,.96)); border-color: rgba(0,45,114,0.16); box-shadow: 0 16px 38px rgba(0,45,114,0.08); }
-    .ytd-actual-card .kpi-value{ font-size:26px; color:#0f172a; }
-    .ytd-pill-row{ display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
-    .ytd-pill{ display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; font-size:10px; font-weight:900; letter-spacing:.14em; text-transform:uppercase; }
-    .ytd-pill.ty{ background:#002d72; color:#fff; }
-    .ytd-pill.ly{ background:rgba(255,255,255,.88); color:#64748b; border:1px solid rgba(148,163,184,0.28); }
-    .ytd-delta{ font-size:13px; font-weight:900; color:#002d72; margin-top:4px; }
-    .ytd-ref{ font-size:12px; font-weight:800; color:#64748b; margin-top:8px; }
+
+    .ytd-section{
+      position:relative;
+      overflow:hidden;
+      border-radius: 28px;
+      padding: 18px;
+      border: 1px solid rgba(148,163,184,0.18);
+      box-shadow: 0 18px 44px rgba(15,23,42,0.06);
+      isolation:isolate;
+    }
+    .ytd-section::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.72));
+      z-index:-2;
+    }
+    .ytd-section::after{
+      content:"";
+      position:absolute;
+      inset:auto -12% -55% auto;
+      width: 260px;
+      height: 260px;
+      border-radius:999px;
+      filter: blur(34px);
+      opacity:.55;
+      z-index:-1;
+      transform: translate3d(0,0,0);
+    }
+    .ytd-section--all{
+      background: linear-gradient(180deg, rgba(236,244,255,0.95), rgba(255,255,255,0.82));
+    }
+    .ytd-section--all::after{
+      background: radial-gradient(circle, rgba(0,45,114,0.16), rgba(0,45,114,0));
+    }
+    .ytd-section--channel{
+      margin-top: 18px;
+      background: linear-gradient(180deg, rgba(255,247,237,0.92), rgba(255,255,255,0.82));
+    }
+    .ytd-section--channel::after{
+      background: radial-gradient(circle, rgba(249,115,22,0.15), rgba(249,115,22,0));
+    }
+    .section-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 7px 12px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,0.18);
+      background: rgba(255,255,255,0.72);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      color:#64748b;
+    }
+    .section-badge-dot{
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background:#002d72;
+      box-shadow:0 0 0 6px rgba(0,45,114,0.08);
+    }
+    .section-badge-dot.channel{ background:#f97316; box-shadow:0 0 0 6px rgba(249,115,22,0.10); }
+    .section-title{
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -.02em;
+      color:#0f172a;
+    }
+    .section-subcopy{
+      font-size: 12px;
+      font-weight: 800;
+      color:#64748b;
+    }
+    .kpi-card--hero{
+      background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,255,255,0.82));
+      border-color: rgba(148,163,184,0.18);
+      border-radius: 22px;
+      padding: 16px 18px;
+      box-shadow: 0 16px 38px rgba(2,6,23,0.06);
+      transition: transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s ease, border-color .25s ease;
+      position:relative;
+      overflow:hidden;
+    }
+    .kpi-card--hero::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: linear-gradient(120deg, rgba(255,255,255,0), rgba(255,255,255,0.7), rgba(255,255,255,0));
+      transform: translateX(-160%);
+      transition: transform .9s ease;
+      pointer-events:none;
+    }
+    .kpi-card--hero:hover{
+      transform: translateY(-4px);
+      box-shadow: 0 22px 46px rgba(2,6,23,0.10);
+      border-color: rgba(0,45,114,0.16);
+    }
+    .kpi-card--hero:hover::before{ transform: translateX(160%); }
+    .kpi-card--all{ border-top: 4px solid rgba(0,45,114,0.82); }
+    .kpi-card--channel{ border-top: 4px solid rgba(249,115,22,0.82); }
+    .kpi-grid-tight{ gap: 14px; }
+    .animate-rise{
+      animation: riseIn .75s cubic-bezier(.22,1,.36,1) both;
+    }
+    .animate-float-soft{
+      animation: floatSoft 5.5s ease-in-out infinite;
+    }
+    @keyframes riseIn{
+      from{ opacity:0; transform: translateY(18px) scale(.985); }
+      to{ opacity:1; transform: translateY(0) scale(1); }
+    }
+    @keyframes floatSoft{
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-4px); }
+    }
 
   </style>
 </head>
@@ -329,7 +430,6 @@
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
         <button id="chipWeek" class="chip" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
-        <button id="chipAll" class="chip" type="button">ALL</button>
 
         <label class="ml-2 flex items-center gap-2 text-xs font-extrabold text-slate-600 select-none">
           <input id="toggleGroupJump" type="checkbox" class="accent-slate-900" />
@@ -358,8 +458,7 @@
         <button id="btnToday" class="btn" type="button">오늘</button>
 
         <div class="ml-2 small-label">Channel</div>
-        <button id="chipChannelAll" class="chip active" type="button">ALL</button>
-        <button id="chipEDM" class="chip" type="button">EDM</button>
+        <button id="chipEDM" class="chip active" type="button">EDM</button>
         <button id="chipLMS" class="chip" type="button">LMS</button>
         <button id="chipKAKAO" class="chip" type="button">KAKAO</button>
 
@@ -418,69 +517,94 @@
             <div id="ytdLoadingText" class="loading-text">YTD loading...</div>
           </div>
         </div>
-        <div class="flex items-center gap-3 mb-4">
-          <div id="ytdHeading" class="text-xl font-black tracking-tight">OWNED YTD YoY (ALL CHANNELS)</div>
-          <div class="toggle !py-1 !px-3">YTD</div>
+        <div class="ytd-section ytd-section--all animate-rise">
+          <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4">
+            <div>
+              <div class="section-badge mb-3"><span class="section-badge-dot"></span> ALL SUMMARY</div>
+              <div id="ytdSummaryTitle" class="section-title">OWNED YTD YoY 누적 (ALL)</div>
+              <div id="ytdSummaryLabel" class="section-subcopy mt-1">전체 채널 누적 기준 · This year vs Previous year</div>
+            </div>
+            <div class="toggle !py-1 !px-3 animate-float-soft">YTD</div>
+          </div>
+          <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 kpi-grid-tight">
+          <div class="kpi-card kpi-card--hero kpi-card--all animate-rise">
+            <div class="kpi-title">ALL 누적 Send count</div>
+            <div id="allSendCount" class="kpi-value">-</div>
+            <div id="allSendCountSub" class="kpi-sub">YoY -</div>
+            <div id="allSendCountLy" class="kpi-sub">LY -</div>
+          </div>
+          <div class="kpi-card kpi-card--hero kpi-card--all animate-rise">
+            <div class="kpi-title">ALL 누적 Sessions</div>
+            <div id="allSessions" class="kpi-value">-</div>
+            <div id="allSessionsSub" class="kpi-sub">YoY -</div>
+            <div id="allSessionsLy" class="kpi-sub">LY -</div>
+          </div>
+          <div class="kpi-card kpi-card--hero kpi-card--all animate-rise">
+            <div class="kpi-title">ALL 누적 Revenue</div>
+            <div id="allRevenue" class="kpi-value">-</div>
+            <div id="allRevenueSub" class="kpi-sub">YoY -</div>
+            <div id="allRevenueLy" class="kpi-sub">LY -</div>
+          </div>
+          <div class="kpi-card kpi-card--hero kpi-card--all animate-rise">
+            <div class="kpi-title">ALL 누적 CVR</div>
+            <div id="allLeverage" class="kpi-value">-</div>
+            <div id="allLeverageSub" class="kpi-sub">YoY -</div>
+            <div id="allLeverageLy" class="kpi-sub">LY -</div>
+          </div>
+          </div>
         </div>
-        <div class="ytd-section-label">YTD YoY Summary</div>
-        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div class="kpi-card ytd-compare-card">
-            <div class="kpi-title">Send Count YoY</div>
-            <div id="allSendCount" class="ytd-compare-value">-</div>
-            <div id="allSendCountSub" class="ytd-compare-meta">TY -</div>
-            <div id="allSendCountLy" class="ytd-compare-meta">LY -</div>
+        <div class="ytd-section ytd-section--channel animate-rise">
+          <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4">
+            <div>
+              <div class="section-badge mb-3"><span class="section-badge-dot channel"></span> CHANNEL ACTUALS</div>
+              <div id="ytdActualsTitle" class="section-title">YTD Actuals 누적 (EDM)</div>
+              <div class="section-subcopy mt-1">선택 채널 누적 기준 · TY vs LY same period</div>
+            </div>
           </div>
-          <div class="kpi-card ytd-compare-card">
-            <div class="kpi-title">Sessions YoY</div>
-            <div id="allSessions" class="ytd-compare-value">-</div>
-            <div id="allSessionsSub" class="ytd-compare-meta">TY -</div>
-            <div id="allSessionsLy" class="ytd-compare-meta">LY -</div>
-          </div>
-          <div class="kpi-card ytd-compare-card">
-            <div class="kpi-title">Revenue YoY</div>
-            <div id="allRevenue" class="ytd-compare-value">-</div>
-            <div id="allRevenueSub" class="ytd-compare-meta">TY -</div>
-            <div id="allRevenueLy" class="ytd-compare-meta">LY -</div>
-          </div>
-          <div class="kpi-card ytd-compare-card">
-            <div class="kpi-title">CVR YoY</div>
-            <div id="allLeverage" class="ytd-compare-value">-</div>
-            <div id="allLeverageSub" class="ytd-compare-meta">TY -</div>
-            <div id="allLeverageLy" class="ytd-compare-meta">LY -</div>
-          </div>
+          <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 kpi-grid-tight">
+        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+          <div class="kpi-title">YTD · TY Sessions</div>
+          <div id="ytdTySessions" class="kpi-value">-</div>
+          <div id="ytdTySessionsSub" class="kpi-sub">-</div>
         </div>
-        <div class="ytd-section-label mt-4">YTD Actuals</div>
-        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-1">
-          <div class="kpi-card ytd-actual-card ty-primary">
-            <div class="ytd-pill-row"><span class="ytd-pill ty">TY</span><span class="ytd-pill ly">Reference: LY</span></div>
-            <div class="kpi-title">YTD Sessions</div>
-            <div id="ytdTySessions" class="kpi-value">-</div>
-            <div id="ytdTySessionsSub" class="ytd-delta">vs LY -</div>
-            <div id="ytdLySessionsRef" class="ytd-ref">LY same period: -</div>
-          </div>
-          <div class="kpi-card ytd-actual-card ty-primary">
-            <div class="ytd-pill-row"><span class="ytd-pill ty">TY</span><span class="ytd-pill ly">Reference: LY</span></div>
-            <div class="kpi-title">YTD Revenue</div>
-            <div id="ytdTyRevenue" class="kpi-value">-</div>
-            <div id="ytdTyRevenueSub" class="ytd-delta">vs LY -</div>
-            <div id="ytdLyRevenueRef" class="ytd-ref">LY same period: -</div>
-          </div>
-          <div class="kpi-card ytd-actual-card ty-primary">
-            <div class="ytd-pill-row"><span class="ytd-pill ty">TY</span><span class="ytd-pill ly">Reference: LY</span></div>
-            <div class="kpi-title">YTD Send Count</div>
-            <div id="ytdTySendCount" class="kpi-value">-</div>
-            <div id="ytdTySendCountSub" class="ytd-delta">vs LY -</div>
-            <div id="ytdLySendCountRef" class="ytd-ref">LY same period: -</div>
-          </div>
-          <div class="kpi-card ytd-actual-card ty-primary">
-            <div class="ytd-pill-row"><span class="ytd-pill ty">TY</span><span class="ytd-pill ly">Reference: LY</span></div>
-            <div class="kpi-title">YTD Avg Leverage</div>
-            <div id="ytdTyLeverage" class="kpi-value">-</div>
-            <div id="ytdTyLeverageSub" class="ytd-delta">vs LY -</div>
-            <div id="ytdLyLeverageRef" class="ytd-ref">LY same period: -</div>
-          </div>
-        </div></div>
+        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+          <div class="kpi-title">YTD · TY Revenue</div>
+          <div id="ytdTyRevenue" class="kpi-value">-</div>
+          <div id="ytdTyRevenueSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+          <div class="kpi-title">YTD · TY Send count</div>
+          <div id="ytdTySendCount" class="kpi-value">-</div>
+          <div id="ytdTySendCountSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+          <div class="kpi-title">YTD · TY Avg leverage</div>
+          <div id="ytdTyLeverage" class="kpi-value">-</div>
+          <div id="ytdTyLeverageSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+          <div class="kpi-title">YTD · LY Sessions</div>
+          <div id="ytdLySessions" class="kpi-value">-</div>
+          <div id="ytdLySessionsSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+          <div class="kpi-title">YTD · LY Revenue</div>
+          <div id="ytdLyRevenue" class="kpi-value">-</div>
+          <div id="ytdLyRevenueSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+          <div class="kpi-title">YTD · LY Send count</div>
+          <div id="ytdLySendCount" class="kpi-value">-</div>
+          <div id="ytdLySendCountSub" class="kpi-sub">-</div>
+        </div>
+        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+          <div class="kpi-title">YTD · LY Avg leverage</div>
+          <div id="ytdLyLeverage" class="kpi-value">-</div>
+          <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
+        </div>
       </div>
+          </div>
+        </div>
 
       <!-- KPI (selection) -->
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
@@ -568,14 +692,14 @@
           <div id="wrapKakaoOther" class="mt-2 hidden"></div>
         </div>
 
-        <div id="secOTHER" class="mb-4">
-          <div class="flex items-center gap-3">
-            <div class="sec-title">Other channels</div>
-            <button id="toggleOtherChannels" class="toggle ml-auto" type="button">펼치기</button>
-          </div>
-          <div id="wrapOtherChannels" class="mt-2 hidden"></div>
+      <div id="secOTHER" class="mb-4">
+        <div class="flex items-center gap-3">
+          <div class="sec-title">Other channels</div>
+          <button id="toggleOtherChannels" class="toggle ml-auto" type="button">펼치기</button>
         </div>
+        <div id="wrapOtherChannels" class="mt-2 hidden"></div>
       </div>
+    </div>
 
       <!-- Terms -->
       <div id="termSection" class="hidden mb-6">
@@ -704,8 +828,6 @@
   const chipDaily = document.getElementById('chipDaily');
   const chipWeek  = document.getElementById('chipWeek');
   const chipRange = document.getElementById('chipRange');
-  const chipAll = document.getElementById('chipAll');
-  const chipChannelAll = document.getElementById('chipChannelAll');
 
   const rangeBox  = document.getElementById('rangeBox');
   const dailyBox  = document.getElementById('dailyBox');
@@ -728,7 +850,6 @@
   const chipEDM = document.getElementById('chipEDM');
   const chipLMS = document.getElementById('chipLMS');
   const chipKAKAO = document.getElementById('chipKAKAO');
-  const ytdHeading = document.getElementById('ytdHeading');
 
   const secEDM = document.getElementById('secEDM');
   const secLMS = document.getElementById('secLMS');
@@ -741,6 +862,10 @@
 
   const periodText = document.getElementById('periodText');
   const ytdCards = document.getElementById('ytdCards');
+  const allCards = document.getElementById('allCards');
+  const ytdSummaryTitle = document.getElementById('ytdSummaryTitle');
+  const ytdSummaryLabel = document.getElementById('ytdSummaryLabel');
+  const ytdActualsTitle = document.getElementById('ytdActualsTitle');
   const allSessions = document.getElementById('allSessions');
   const allRevenue = document.getElementById('allRevenue');
   const allSendCount = document.getElementById('allSendCount');
@@ -757,14 +882,18 @@
   const ytdTyRevenue  = document.getElementById('ytdTyRevenue');
   const ytdTySendCount = document.getElementById('ytdTySendCount');
   const ytdTyLeverage = document.getElementById('ytdTyLeverage');
-  const ytdLySessionsRef = document.getElementById('ytdLySessionsRef');
-  const ytdLyRevenueRef  = document.getElementById('ytdLyRevenueRef');
-  const ytdLySendCountRef = document.getElementById('ytdLySendCountRef');
-  const ytdLyLeverageRef  = document.getElementById('ytdLyLeverageRef');
+  const ytdLySessions = document.getElementById('ytdLySessions');
+  const ytdLyRevenue  = document.getElementById('ytdLyRevenue');
+  const ytdLySendCount = document.getElementById('ytdLySendCount');
+  const ytdLyLeverage  = document.getElementById('ytdLyLeverage');
   const ytdTySessionsSub = document.getElementById('ytdTySessionsSub');
   const ytdTyRevenueSub  = document.getElementById('ytdTyRevenueSub');
   const ytdTySendCountSub = document.getElementById('ytdTySendCountSub');
   const ytdTyLeverageSub  = document.getElementById('ytdTyLeverageSub');
+  const ytdLySessionsSub = document.getElementById('ytdLySessionsSub');
+  const ytdLyRevenueSub  = document.getElementById('ytdLyRevenueSub');
+  const ytdLySendCountSub = document.getElementById('ytdLySendCountSub');
+  const ytdLyLeverageSub  = document.getElementById('ytdLyLeverageSub');
 
   const totEdmSessions = document.getElementById('totEdmSessions');
   const totEdmRevenue = document.getElementById('totEdmRevenue');
@@ -791,6 +920,11 @@
   const toggleLmsOther = document.getElementById('toggleLmsOther');
   const toggleKakaoOther = document.getElementById('toggleKakaoOther');
   const toggleOtherChannels = document.getElementById('toggleOtherChannels');
+  const detailTabExplorer = document.getElementById('detailTabExplorer');
+  const detailTabFunnel = document.getElementById('detailTabFunnel');
+  const detailPanelExplorer = document.getElementById('detailPanelExplorer');
+  const detailPanelFunnel = document.getElementById('detailPanelFunnel');
+  const funnelPanel = document.getElementById('funnelPanel');
 
   const termSection = document.getElementById('termSection');
   const termTb = document.getElementById('termTb');
@@ -841,6 +975,15 @@
     const x = Number(n);
     if(!isFinite(x)) return '-';
     return x.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+
+  function escapeHtml(value){
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function extractGroupFromText(s, fallbackYear=''){
@@ -898,27 +1041,11 @@
     return getRowGroup(r).mmdd;
   }
 
-
-  function isKakaoCountableRow(r){
-    const channel = String((r && (r.channel || '')) || '').trim().toUpperCase();
-    if(channel !== 'KAKAO') return true;
-    const text = [r && r.campaign, r && r.term, r && r.send_id, r && r.message_title].map(v => String(v || '').toUpperCase()).join(' ');
-    return text.includes('KAKAO_CH_MESSAGE');
-  }
-
-  function channelMatches(value){
-    return CHANNEL === 'ALL' ? ['EDM','LMS','KAKAO'].includes(String(value || '')) : String(value || '') === CHANNEL;
-  }
-
-  function selectedChannelLabel(){
-    return CHANNEL === 'ALL' ? 'ALL CHANNELS' : CHANNEL;
-  }
-
   function getSendKey(r, expectedYear='', cutoffDate=''){
+    if(!isCountableSendRow(r)) return '';
     const group = getRowGroup(r);
     const channel = String((r && (r.channel || '')) || '').trim();
     if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
-    if(!isKakaoCountableRow(r)) return '';
     if(expectedYear && String(group.year) !== String(expectedYear)) return '';
     if(cutoffDate){
       const groupDate = dateStrFromYearMmdd(group.year, group.mmdd);
@@ -955,21 +1082,7 @@
       if(!date || !channel || !title) continue;
       const key = `${date}||${channel}||${title}`;
       if(!map.has(key)){
-        map.set(key, {
-          date,
-          channel,
-          message_title: title,
-          message_body: body,
-          send_volume: Number((row && row.send_volume) || 0),
-          sessions: Number((row && row.sessions) || 0),
-          session_rate: Number((row && row.session_rate) || 0),
-          message_revenue: Number((row && (row.message_revenue || row.revenue)) || 0),
-          total_revenue: Number((row && row.total_revenue) || 0),
-          cost: Number((row && row.cost) || 0),
-          roas: Number((row && row.roas) || 0),
-          send_count: Number((row && row.send_count) || 1),
-          avg_leverage: Number((row && row.avg_leverage) || Number((row && row.sessions) || 0)),
-        });
+        map.set(key, { date, channel, message_title: title, message_body: body });
       }
     }
     return Array.from(map.values()).sort((a,b)=>{
@@ -1033,34 +1146,7 @@
 
   function getMessageLogRows(messageLog, channel, year){
     const yearPrefix = `${year}-`;
-    return getEffectiveMessageLog(messageLog).filter(m => {
-      const ch = String(m.channel || '');
-      const match = channel === 'ALL' ? ['EDM','LMS','KAKAO'].includes(ch) : ch === channel;
-      return match && String(m.date||'').startsWith(yearPrefix);
-    });
-  }
-
-  function buildMessageMetricRows(messageLog){
-    return normalizeMessageLogRows(messageLog).filter(m => /^2025-/.test(String(m.date || ''))).map(m => ({
-      date: m.date,
-      year: String(m.date || '').slice(0,4),
-      mmdd: String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10),
-      has_group_mmdd: true,
-      channel: m.channel,
-      send_id: `${m.channel}||${String(m.date || '').replace(/-/g,'')}`,
-      campaign: m.message_title || '',
-      term: '',
-      sessions: Number(m.sessions || 0),
-      users: 0,
-      purchases: 0,
-      revenue: Number(m.message_revenue || 0),
-      items_purchased: 0,
-      send_count: Number(m.send_count || 1),
-      avg_leverage: Number(m.avg_leverage || m.sessions || 0),
-      message_title: m.message_title || '',
-      message_body: m.message_body || '',
-      source_type: 'message_log',
-    }));
+    return getEffectiveMessageLog(messageLog).filter(m => m.channel===channel && String(m.date||'').startsWith(yearPrefix));
   }
 
   function getRowGroupDate(r){
@@ -1106,7 +1192,7 @@
     }
 
     for(const r of (baseRows || [])){
-      if(!channelMatches(r.channel)) continue;
+      if(r.channel !== CHANNEL) continue;
       if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, sourceMessageLog)) continue;
       if(!matchesSearch(r)) continue;
       const key = `${r.channel}||${getRowYear(r)}||${getRowMmdd(r)}||${r.campaign||''}||${r.term||''}`;
@@ -1116,7 +1202,7 @@
     }
 
     for(const m of getEffectiveMessageLog(sourceMessageLog)){
-      if(!channelMatches(m.channel)) continue;
+      if(m.channel !== CHANNEL) continue;
       const year = String(m.date || '').slice(0,4);
       const mmdd = String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10);
       const pseudo = {
@@ -1160,7 +1246,6 @@
   }
 
   function getChannelSummary(rows, channel, endDate, messageLog){
-    if(channel === 'ALL') return getAllChannelsSummary(rows, endDate, messageLog);
     const expectedYear = String(endDate || '').slice(0,4);
     const scheduledRows = getScheduledMessageRowsUpTo(messageLog, channel, endDate);
     const metricRows = scheduledRows.length ? filterRowsToScheduledDates(rows || [], channel, endDate, messageLog) : (rows || []);
@@ -1173,7 +1258,7 @@
   function getCumulativeSendCount(channel, endDate){
     const expectedYear = String(endDate || '').slice(0,4);
     const sourceRows = ((GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []))
-      .filter(r => channel === 'ALL' ? ['EDM','LMS','KAKAO'].includes(String(r.channel||'')) : r.channel === channel);
+      .filter(r => r.channel === channel);
     const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
       ? GROUP_SOURCE_MESSAGE_LOG
       : (((RAW && RAW.message_log) || []));
@@ -1203,20 +1288,20 @@
   function renderAllSummary(summary, prevSummary){
     if(!summary){
       [allSessions, allRevenue, allSendCount, allLeverage].forEach(el => { if(el) el.textContent = '-'; });
-      [allSessionsSub, allRevenueSub, allSendCountSub, allLeverageSub].forEach(el => { if(el) el.textContent = 'TY -'; });
+      [allSessionsSub, allRevenueSub, allSendCountSub, allLeverageSub].forEach(el => { if(el) el.textContent = 'YoY -'; });
       [allSessionsLy, allRevenueLy, allSendCountLy, allLeverageLy].forEach(el => { if(el) el.textContent = 'LY -'; });
       return;
     }
+    allSendCount.textContent = fmt(summary.send_count);
+    allSessions.textContent = fmt(summary.sessions);
+    allRevenue.textContent = fmtMoney(summary.revenue);
     const cvr = summary.sessions ? ((summary.purchases || 0) / summary.sessions * 100) : 0;
+    allLeverage.textContent = `${cvr.toFixed(2)}%`;
     if(!prevSummary){
-      allSendCount.textContent = '-';
-      allSessions.textContent = '-';
-      allRevenue.textContent = '-';
-      allLeverage.textContent = '-';
-      allSendCountSub.textContent = `TY ${fmt(summary.send_count)}`;
-      allSessionsSub.textContent = `TY ${fmt(summary.sessions)}`;
-      allRevenueSub.textContent = `TY ${fmtMoney(summary.revenue)}`;
-      allLeverageSub.textContent = `TY ${cvr.toFixed(2)}%`;
+      allSendCountSub.textContent = 'YoY -';
+      allSessionsSub.textContent = 'YoY -';
+      allRevenueSub.textContent = 'YoY -';
+      allLeverageSub.textContent = 'YoY -';
       allSendCountLy.textContent = 'LY -';
       allSessionsLy.textContent = 'LY -';
       allRevenueLy.textContent = 'LY -';
@@ -1228,18 +1313,53 @@
     const dRev  = prevSummary.revenue ? ((summary.revenue - prevSummary.revenue)/prevSummary.revenue*100) : (summary.revenue ? 100 : 0);
     const dSend = prevSummary.send_count ? ((summary.send_count - prevSummary.send_count)/prevSummary.send_count*100) : (summary.send_count ? 100 : 0);
     const dCvr = cvr - prevCvr;
-    allSendCount.textContent = `${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
-    allSessions.textContent = `${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-    allRevenue.textContent = `${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-    allLeverage.textContent = `${dCvr>=0?'+':''}${dCvr.toFixed(2)}%p`;
-    allSendCountSub.textContent = `TY ${fmt(summary.send_count)}`;
-    allSessionsSub.textContent = `TY ${fmt(summary.sessions)}`;
-    allRevenueSub.textContent = `TY ${fmtMoney(summary.revenue)}`;
-    allLeverageSub.textContent = `TY ${cvr.toFixed(2)}%`;
+    allSendCountSub.textContent = `YoY ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+    allSessionsSub.textContent = `YoY ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+    allRevenueSub.textContent = `YoY ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+    allLeverageSub.textContent = `YoY ${dCvr>=0?'+':''}${dCvr.toFixed(2)}%p`;
     allSendCountLy.textContent = `LY ${fmt(prevSummary.send_count)}`;
     allSessionsLy.textContent = `LY ${fmt(prevSummary.sessions)}`;
     allRevenueLy.textContent = `LY ${fmtMoney(prevSummary.revenue)}`;
     allLeverageLy.textContent = `LY ${prevCvr.toFixed(2)}%`;
+  }
+
+  function getYtdChannelLabel(channel){
+    const normalized = String(channel || '').trim().toUpperCase();
+    return normalized || 'ALL';
+  }
+
+  function updateYtdLabels(){
+    const actualsChannel = getYtdChannelLabel(CHANNEL);
+    if(ytdSummaryTitle) ytdSummaryTitle.textContent = 'OWNED YTD YoY \uB204\uC801 (ALL)';
+    if(ytdSummaryLabel) ytdSummaryLabel.textContent = 'YTD YoY Summary \uB204\uC801';
+    if(ytdActualsTitle) ytdActualsTitle.textContent = `YTD Actuals \uB204\uC801 (${actualsChannel})`;
+
+    const allTitles = allCards ? Array.from(allCards.querySelectorAll('.kpi-title')) : [];
+    const actualTitles = ytdCards ? Array.from(ytdCards.querySelectorAll('.kpi-title')) : [];
+
+    const allTitleText = [
+      'ALL \uB204\uC801 Send count',
+      'ALL \uB204\uC801 Sessions',
+      'ALL \uB204\uC801 Revenue',
+      'ALL \uB204\uC801 CVR',
+    ];
+    const actualTitleText = [
+      'TY \uB204\uC801 Sessions',
+      'TY \uB204\uC801 Revenue',
+      'TY \uB204\uC801 Send count',
+      'TY \uB204\uC801 Avg leverage',
+      'LY \uB204\uC801 Sessions',
+      'LY \uB204\uC801 Revenue',
+      'LY \uB204\uC801 Send count',
+      'LY \uB204\uC801 Avg leverage',
+    ];
+
+    allTitles.forEach((el, idx) => {
+      if(el && allTitleText[idx]) el.textContent = allTitleText[idx];
+    });
+    actualTitles.forEach((el, idx) => {
+      if(el && actualTitleText[idx]) el.textContent = actualTitleText[idx];
+    });
   }
 
   function getMessageMeta(rows){
@@ -1366,17 +1486,20 @@
   }
 
   // ✅ 기본값
-  let VIEW = 'DAILY';     // DAILY | WEEK | RANGE | ALL
-  let CHANNEL = 'ALL';    // ALL | EDM | LMS | KAKAO
+  let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
+  let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
 
   let RAW = null;         // {kpi:[], prod:[], analysis:[]}
   let KPI = [];
   let SELECTED = null;    // {type:'single', ...} or {type:'group', ...}
   let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
   let GROUP_SOURCE_ROWS = [];
+  let GROUP_SOURCE_PROD = [];
+  let GROUP_SOURCE_ANALYSIS = [];
   let GROUP_SOURCE_MESSAGE_LOG = [];
   let CURRENT_ANALYSIS_ROWS = [];
   const CUMULATIVE_ANALYSIS_CACHE = new Map();
+  let DETAIL_VIEW = 'explorer';
 
   // ✅ MMDD 클릭은 "디폴트: 날짜 이동 + 7일 누적" 이므로 기본 ON
   let GROUP_JUMP_MODE = false;
@@ -1384,8 +1507,16 @@
 
   const YTD_CACHE = new Map();
 
+  function setDetailViewActive(){
+    const isExplorer = DETAIL_VIEW === 'explorer';
+    if(detailTabExplorer) detailTabExplorer.classList.toggle('active', isExplorer);
+    if(detailTabFunnel) detailTabFunnel.classList.toggle('active', !isExplorer);
+    if(detailPanelExplorer) detailPanelExplorer.classList.toggle('hidden', !isExplorer);
+    if(detailPanelFunnel) detailPanelFunnel.classList.toggle('hidden', isExplorer);
+  }
+
   function setViewActive(){
-    [chipDaily, chipWeek, chipRange, chipAll].forEach(el=>el.classList.remove('active'));
+    [chipDaily, chipWeek, chipRange].forEach(el=>el.classList.remove('active'));
     if(VIEW==='DAILY'){
       chipDaily.classList.add('active');
       rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
@@ -1404,26 +1535,19 @@
       dailyBox.classList.add('hidden');
       weekHint.classList.add('hidden');
     }
-    if(VIEW==='ALL'){
-      chipAll.classList.add('active');
-      rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
-      dailyBox.classList.remove('hidden');
-      weekHint.classList.add('hidden');
-    }
   }
 
   function setChipActive(){
-    [chipChannelAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
-    if(CHANNEL==='ALL') chipChannelAll.classList.add('active');
+    [chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
     if(CHANNEL==='EDM') chipEDM.classList.add('active');
     if(CHANNEL==='LMS') chipLMS.classList.add('active');
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
   }
 
   function toggleSections(){
-    secEDM.style.display = (CHANNEL==='ALL' || CHANNEL==='EDM') ? '' : 'none';
-    secLMS.style.display = (CHANNEL==='ALL' || CHANNEL==='LMS') ? '' : 'none';
-    secKAKAO.style.display = (CHANNEL==='ALL' || CHANNEL==='KAKAO') ? '' : 'none';
+    secEDM.style.display = (CHANNEL==='EDM') ? '' : 'none';
+    secLMS.style.display = (CHANNEL==='LMS') ? '' : 'none';
+    secKAKAO.style.display = (CHANNEL==='KAKAO') ? '' : 'none';
     secOTHER.style.display = 'none';
   }
 
@@ -1443,11 +1567,6 @@
       }
       return `WEEK ${s} ~ ${e}`;
     }
-    if(VIEW==='ALL'){
-      const end = datePicker.value || ymd(addDays(new Date(), -1));
-      const year = String(end).slice(0,4);
-      return `ALL ${year}-01-01 ~ ${end}`;
-    }
     return `${startPicker.value || '-'} ~ ${endPicker.value || '-'}`;
   }
 
@@ -1462,9 +1581,6 @@
       const cur = parseYMD(datePicker.value || ymd(addDays(new Date(), -1)));
       return ymd(endOfWeekSun(cur));
     }
-    if(VIEW==='ALL'){
-      return datePicker.value || ymd(addDays(new Date(), -1));
-    }
     return endPicker.value || ymd(addDays(new Date(), -1));
   }
 
@@ -1472,7 +1588,7 @@
     if(!RAW){ KPI=[]; return; }
     const qq = (q.value||'').trim().toLowerCase();
     KPI = (RAW.kpi||[]).filter(r=>{
-      if(!channelMatches(r.channel)) return false;
+      if(r.channel!==CHANNEL) return false;
       if(qq){
         const c = String(r.campaign||'').toLowerCase();
         const t = String(r.term||'').toLowerCase();
@@ -1502,19 +1618,41 @@
     return out;
   }
 
-  function animateCards(){
-    document.querySelectorAll('.kpi-card, .mini-card').forEach((el, idx)=>{
-      el.classList.add('anim-fade');
-      el.classList.remove('in');
-      setTimeout(()=>el.classList.add('in'), Math.min(idx * 35, 350));
-    });
+  function isCountableSendRow(r){
+    const channel = String((r && r.channel) || '').trim().toUpperCase();
+    if(channel !== 'KAKAO') return true;
+    const campaign = String((r && r.campaign) || '').trim().toUpperCase();
+    const term = String((r && r.term) || '').trim().toUpperCase();
+    return campaign.startsWith('KAKAO_CH_EVENT') && term.startsWith('KAKAO_CH_MESSAGE_');
   }
 
-  function pulseViewStage(){
-    const el = document.querySelector('.glass');
-    if(!el) return;
-    el.classList.add('view-stage','switching');
-    setTimeout(()=>el.classList.remove('switching'), 180);
+  function isKakaoMenuRow(r){
+    const channel = String((r && r.channel) || '').trim().toUpperCase();
+    if(channel !== 'KAKAO') return false;
+    const campaign = String((r && r.campaign) || '').trim().toUpperCase();
+    const term = String((r && r.term) || '').trim().toUpperCase();
+    return campaign.includes('KAKAO_CH_MENU') || term.includes('KAKAO_CH_MENU');
+  }
+
+  function getActiveKpiSource(){
+    return (GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []);
+  }
+
+  function getActiveProdSource(){
+    return (GROUP_SOURCE_PROD && GROUP_SOURCE_PROD.length) ? GROUP_SOURCE_PROD : ((RAW && RAW.prod) || []);
+  }
+
+  function getActiveAnalysisSource(){
+    return (GROUP_SOURCE_ANALYSIS && GROUP_SOURCE_ANALYSIS.length) ? GROUP_SOURCE_ANALYSIS : ((RAW && RAW.analysis) || []);
+  }
+
+  function rerunCardAnimations(scope){
+    const root = scope || document;
+    root.querySelectorAll('.animate-rise').forEach((el, idx)=>{
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = `riseIn .72s cubic-bezier(.22,1,.36,1) ${Math.min(idx * 0.04, 0.28)}s both`;
+    });
   }
 
   function updateChannelTotals(){
@@ -1585,6 +1723,10 @@
 
     for(const r of chipSourceRows){
       if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
+        if(r.channel==='KAKAO' && isKakaoMenuRow(r)){
+          otherByChannel[r.channel].push(r);
+          continue;
+        }
         const mmdd = mmddOfRow(r);
         const year = getRowYear(r);
         if(mmdd && /^\d{4}$/.test(year)){
@@ -1620,7 +1762,7 @@
       }
       const currentYear = String(getCampaignChipCutoffDate() || '').slice(0,4);
       const years = Array.from(byYear.keys())
-        .filter(yr => VIEW==='ALL' ? true : (!currentYear || String(yr) === currentYear))
+        .filter(yr => !currentYear || String(yr) === currentYear)
         .sort((a,b)=> b.localeCompare(a));
 
       let html = '';
@@ -1806,15 +1948,16 @@
   }
 
   function getSelectedKpiRows(sel){
-    if(!sel || !RAW) return [];
+    const source = getActiveKpiSource();
+    if(!sel || !source.length) return [];
     if(sel.type === 'single'){
-      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
+      return source.filter(x=> x.channel===sel.channel && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
     }
     if(sel.type === 'group'){
-      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd);
+      return source.filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd);
     }
     if(sel.type === 'other-group'){
-      return (RAW.kpi||[]).filter(x=> {
+      return source.filter(x=> {
         if(x.channel !== sel.channel) return false;
         const parsed = getOtherCampaignDateGroup(x);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
@@ -1844,23 +1987,24 @@
   }
 
   function getSelectedProdRows(sel){
-    if(!sel || !RAW) return [];
+    const source = getActiveProdSource();
+    if(!sel || !source.length) return [];
     if(sel.type === 'single'){
-      return (RAW.prod||[]).filter(r =>
+      return source.filter(r =>
         r.channel===sel.channel &&
         (r.campaign||'')===(sel.campaign||'') &&
         (r.term||'')===(sel.term||'')
       );
     }
     if(sel.type === 'group'){
-      return (RAW.prod||[]).filter(p =>
+      return source.filter(p =>
         p.channel===sel.channel &&
         getRowYear(p)===sel.year &&
         getRowMmdd(p)===sel.mmdd
       );
     }
     if(sel.type === 'other-group'){
-      return (RAW.prod||[]).filter(p => {
+      return source.filter(p => {
         if(p.channel !== sel.channel) return false;
         const parsed = getOtherCampaignDateGroup(p);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
@@ -1870,23 +2014,24 @@
   }
 
   function getSelectedAnalysisRows(sel){
-    if(!sel || !RAW) return [];
+    const source = getActiveAnalysisSource();
+    if(!sel || !source.length) return [];
     if(sel.type === 'single'){
-      return (RAW.analysis||[]).filter(r =>
+      return source.filter(r =>
         r.channel===sel.channel &&
         (r.campaign||'')===(sel.campaign||'') &&
         (r.term||'')===(sel.term||'')
       );
     }
     if(sel.type === 'group'){
-      return (RAW.analysis||[]).filter(r =>
+      return source.filter(r =>
         r.channel===sel.channel &&
         getRowYear(r)===sel.year &&
         getRowMmdd(r)===sel.mmdd
       );
     }
     if(sel.type === 'other-group'){
-      return (RAW.analysis||[]).filter(r => {
+      return source.filter(r => {
         if(r.channel !== sel.channel) return false;
         const parsed = getOtherCampaignDateGroup(r);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
@@ -1909,6 +2054,7 @@
       kSendCountSub.textContent='-'; kLeverageSub.textContent='-';
       msgTitle.textContent='-'; msgBody.textContent='-';
       selChannel.textContent='-'; selCampaign.textContent='-'; selTerm.textContent='-';
+      renderFunnelAnalysis();
       return;
     }
 
@@ -1959,6 +2105,196 @@
     kLeverageSub.textContent = `Sessions / send count`;
     msgTitle.textContent = meta.title || '-';
     msgBody.textContent = meta.body || '-';
+    renderFunnelAnalysis();
+  }
+
+  function getFunnelScopeLabel(rows){
+    if(!RAW) return 'No data';
+    if(!SELECTED){
+      return `${CHANNEL} · ${periodLabel()}`;
+    }
+    if(SELECTED.type === 'single'){
+      const parts = [SELECTED.channel, SELECTED.campaign || '-'];
+      if(SELECTED.term) parts.push(SELECTED.term);
+      return parts.join(' / ');
+    }
+    if(SELECTED.type === 'group'){
+      return `${SELECTED.channel} · ${SELECTED.year}-${SELECTED.mmdd} group`;
+    }
+    return `${SELECTED.channel} · ${SELECTED.year}-${SELECTED.mmdd} other campaign`;
+  }
+
+  function getFunnelModel(){
+    if(!RAW) return null;
+    const rows = SELECTED ? getSelectedKpiRows(SELECTED) : KPI;
+    const analysisRows = SELECTED
+      ? getSelectedAnalysisRows(SELECTED)
+      : ((RAW.analysis || []).filter(r => r.channel === CHANNEL));
+    const agg = aggregateRow(rows || []);
+    const buyerUsers = new Set((analysisRows || []).map(r => String(r.user_id || '').trim()).filter(Boolean)).size;
+    const sessions = Number(agg.sessions || 0);
+    const users = Number(agg.users || 0);
+    const purchases = Number(agg.purchases || 0);
+    const baseMax = Math.max(sessions, users, purchases, 0);
+
+    const baseStages = [
+      { key:'sessions', label:'Sessions', note:'Selected traffic volume', value:sessions },
+      { key:'users', label:'Users', note:'Unique users in scope', value:users },
+      { key:'purchases', label:'Purchases', note:'Completed orders', value:purchases },
+    ];
+
+    let prevDisplayWidth = 100;
+    const stages = baseStages.map((stage, idx) => {
+      const rawWidth = baseMax ? (stage.value / baseMax * 100) : 0;
+      let displayWidth = stage.value ? Math.max(rawWidth, 28) : 18;
+      if(idx === 0){
+        displayWidth = Math.max(displayWidth, 90);
+      }else{
+        displayWidth = Math.min(displayWidth, prevDisplayWidth - 8);
+        displayWidth = Math.max(displayWidth, stage.value ? 24 : 18);
+      }
+      prevDisplayWidth = displayWidth;
+
+      const prevValue = idx === 0 ? null : Number(baseStages[idx - 1].value || 0);
+      const stepRate = (idx === 0)
+        ? 100
+        : (prevValue ? (stage.value / prevValue * 100) : 0);
+      const dropRate = (idx === 0)
+        ? 0
+        : Math.max(0, 100 - stepRate);
+
+      return {
+        ...stage,
+        shareRate: sessions ? (stage.value / sessions * 100) : 0,
+        stepRate,
+        dropRate,
+        displayWidth,
+      };
+    });
+
+    return {
+      scopeLabel: getFunnelScopeLabel(rows),
+      buyerUsers,
+      revenue: Number(agg.revenue || 0),
+      items: Number(agg.items_purchased || 0),
+      cvr: sessions ? (purchases / sessions * 100) : 0,
+      aov: purchases ? (Number(agg.revenue || 0) / purchases) : 0,
+      stages,
+      hasData: stages.some(stage => stage.value > 0),
+    };
+  }
+
+  function renderFunnelAnalysis(){
+    if(!funnelPanel) return;
+
+    const model = getFunnelModel();
+    if(!model || !model.hasData){
+      funnelPanel.innerHTML = `
+        <div class="funnel-side-card">
+          <div class="small-label">Funnel Analysis</div>
+          <div class="mt-3 text-xl font-black tracking-tight text-slate-900">Funnel-shaped Detail View</div>
+          <div class="mt-2 text-sm font-semibold text-slate-500">Select a channel or MMDD group to see the Sessions to Users to Purchases flow in a funnel layout.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const stagesHtml = model.stages.map((stage, idx) => {
+      const connector = idx === 0 ? '' : `
+        <div class="funnel-connector">
+          <span>${model.stages[idx - 1].label} -> ${stage.label}</span>
+          <span>${stage.stepRate.toFixed(1)}% kept</span>
+          <span>${stage.dropRate.toFixed(1)}% drop</span>
+        </div>
+      `;
+      return `
+        ${connector}
+        <div class="funnel-row">
+          <div class="funnel-stage" data-stage="${idx + 1}" style="width:${stage.displayWidth.toFixed(1)}%">
+            <div class="funnel-stage-inner">
+              <div>
+                <div class="funnel-step">Stage ${String(idx + 1).padStart(2, '0')}</div>
+                <div class="funnel-label">${escapeHtml(stage.label)}</div>
+                <div class="funnel-note">${escapeHtml(stage.note)}</div>
+              </div>
+              <div>
+                <div class="funnel-value">${fmt(stage.value)}</div>
+                <div class="funnel-meta">${idx === 0 ? 'Base 100%' : `${stage.stepRate.toFixed(1)}% from previous`}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const stageListHtml = model.stages.map((stage, idx) => `
+      <div class="funnel-list-item">
+        <div>
+          <div class="funnel-list-label">${String(idx + 1).padStart(2, '0')}. ${escapeHtml(stage.label)}</div>
+          <div class="funnel-list-sub">${idx === 0 ? 'Baseline stage' : `${stage.stepRate.toFixed(1)}% retained | ${stage.dropRate.toFixed(1)}% drop-off`}</div>
+        </div>
+        <div class="funnel-list-value">
+          <div>${fmt(stage.value)}</div>
+          <div class="funnel-list-sub">${stage.shareRate.toFixed(1)}% of sessions</div>
+        </div>
+      </div>
+    `).join('');
+
+    funnelPanel.innerHTML = `
+      <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
+        <div class="funnel-side-card">
+          <div class="small-label">Funnel Analysis</div>
+          <div class="mt-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div class="text-2xl font-black tracking-tight text-slate-900">Funnel-shaped Conversion Flow</div>
+              <div class="mt-2 text-sm font-semibold text-slate-500">${escapeHtml(model.scopeLabel)}</div>
+            </div>
+            <div class="pill">Period | ${escapeHtml(periodLabel())}</div>
+          </div>
+          <div class="mt-5 space-y-1">
+            ${stagesHtml}
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="funnel-side-card">
+            <div class="small-label">Performance Snapshot</div>
+            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div class="funnel-metric-card">
+                <div class="funnel-metric-kicker">Buyer Users</div>
+                <div class="funnel-metric-value">${fmt(model.buyerUsers)}</div>
+                <div class="funnel-metric-sub">Distinct user_id from purchase analysis</div>
+              </div>
+              <div class="funnel-metric-card">
+                <div class="funnel-metric-kicker">CVR</div>
+                <div class="funnel-metric-value">${model.cvr.toFixed(2)}%</div>
+                <div class="funnel-metric-sub">Purchases / Sessions</div>
+              </div>
+              <div class="funnel-metric-card">
+                <div class="funnel-metric-kicker">Revenue</div>
+                <div class="funnel-metric-value">${fmtMoney(model.revenue)}</div>
+                <div class="funnel-metric-sub">Total revenue in selected scope</div>
+              </div>
+              <div class="funnel-metric-card">
+                <div class="funnel-metric-kicker">AOV</div>
+                <div class="funnel-metric-value">${fmtMoney(model.aov)}</div>
+                <div class="funnel-metric-sub">Revenue / Purchases</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="funnel-side-card">
+            <div class="small-label">Stage Detail</div>
+            <div class="funnel-list">
+              ${stageListHtml}
+            </div>
+            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-sm font-semibold text-slate-500">
+              Items purchased | <span class="font-black text-slate-900">${fmt(model.items)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   function renderTerms(){
@@ -2327,7 +2663,6 @@
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
-    animateCards();
   }
 
   function selectOtherGroup(channel, year, mmdd){
@@ -2456,17 +2791,11 @@
       messageLog.push(...(j.message_log || []));
     }
 
-    const normalizedMessageLog = normalizeMessageLogRows(messageLog);
-    for (const r of buildMessageMetricRows(normalizedMessageLog)) {
-      const key = `${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}||${getRowYear(r)}||${getRowMmdd(r)}`;
-      sumInto(kpiMap, key, r, ['sessions', 'users', 'purchases', 'revenue', 'items_purchased', 'send_count']);
-    }
-
     return {
       kpi: Array.from(kpiMap.values()),
       prod: Array.from(prodMap.values()),
       analysis: Array.from(analysisMap.values()),
-      message_log: normalizedMessageLog
+      message_log: normalizeMessageLogRows(messageLog)
     };
   }
 
@@ -2496,7 +2825,6 @@
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
-    animateCards();
   }
 
   async function loadRange(startStr, endStr){
@@ -2559,7 +2887,6 @@
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
-    animateCards();
   }
 
   async function loadWeekByDate(dStr){
@@ -2569,14 +2896,6 @@
     startPicker.value = s;
     endPicker.value = e;
     await loadRange(s, e);
-  }
-
-  async function loadAllByDate(dStr){
-    const end = clampToAvailable(dStr);
-    const year = String(end || '').slice(0,4);
-    const start = `${year}-01-01`;
-    datePicker.value = end;
-    await loadRange(start, end);
   }
 
   async function loadAvailableDates(){
@@ -2629,6 +2948,7 @@
 
   async function computeYTD(){
     if(!AVAILABLE || !AVAILABLE.length) return;
+    updateYtdLabels();
     const end = currentPeriodEndDate();
     const year = String(end).slice(0,4);
     if(!/^\d{4}$/.test(year)) return;
@@ -2647,27 +2967,35 @@
       const TY = v.this;
       const LY = v.prev;
       GROUP_SOURCE_ROWS = v.group_rows || [];
+      GROUP_SOURCE_PROD = v.group_prod || [];
+      GROUP_SOURCE_ANALYSIS = v.group_analysis || [];
       GROUP_SOURCE_MESSAGE_LOG = v.group_message_log || [];
       renderAllSummary(ALL && ALL.this, ALL && ALL.prev);
       ytdTySessions.textContent = fmt(TY.sessions);
       ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
       ytdTySendCount.textContent = fmt(TY.send_count);
       ytdTyLeverage.textContent = fmtRatio(TY.avg_leverage);
+      ytdLySessions.textContent = fmt(LY.sessions);
+      ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
+      ytdLySendCount.textContent = fmt(LY.send_count);
+      ytdLyLeverage.textContent = fmtRatio(LY.avg_leverage);
+
       const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
       const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
       const dSend = LY.send_count ? ((TY.send_count - LY.send_count)/LY.send_count*100) : (TY.send_count ? 100 : 0);
       const dLev  = LY.avg_leverage ? ((TY.avg_leverage - LY.avg_leverage)/LY.avg_leverage*100) : (TY.avg_leverage ? 100 : 0);
-      ytdTySessionsSub.textContent = `vs LY ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-      ytdTyRevenueSub.textContent  = `vs LY ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-      ytdTySendCountSub.textContent = `vs LY ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
-      ytdTyLeverageSub.textContent = `vs LY ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
-      ytdLySessionsRef.textContent = `LY same period: ${fmt(LY.sessions)}`;
-      ytdLyRevenueRef.textContent  = `LY same period: ${fmtMoney(LY.revenue)}`;
-      ytdLySendCountRef.textContent = `LY same period: ${fmt(LY.send_count)}`;
-      ytdLyLeverageRef.textContent = `LY same period: ${fmtRatio(LY.avg_leverage)}`;
+      ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+      ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+      ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+      ytdTyLeverageSub.textContent = `vs LY: ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
+      ytdLySessionsSub.textContent = `LY (same period)`;
+      ytdLyRevenueSub.textContent  = `LY (same period)`;
+      ytdLySendCountSub.textContent = `LY (same period)`;
+      ytdLyLeverageSub.textContent = `LY (same period)`;
       hideYtdLoading();
       updateChannelTotals();
       renderCampaignButtons();
+      rerunCardAnimations(document.getElementById('ytdWrap'));
       return;
     }
 
@@ -2692,16 +3020,17 @@
     const thisAgg = await loadAgg(thisStart, thisEnd, 'TY');
     const prevAgg = await loadAgg(prevStart, prevEnd, 'LY');
 
-    const thisRows = (thisAgg.kpi||[]).filter(r=> channelMatches(r.channel));
-    const prevRows = (prevAgg.kpi||[]).filter(r=> channelMatches(r.channel));
+    const thisRows = (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
+    const prevRows = (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
 
     const allSum = getAllChannelsSummary(thisAgg.kpi || [], thisEnd, thisAgg.message_log || []);
     const allPrevSum = getAllChannelsSummary(prevAgg.kpi || [], prevEnd, prevAgg.message_log || []);
     const thisSum = getChannelSummary(thisRows, CHANNEL, thisEnd, thisAgg.message_log || []);
     const prevSum = getChannelSummary(prevRows, CHANNEL, prevEnd, prevAgg.message_log || []);
-    if(ytdHeading) ytdHeading.textContent = `OWNED YTD YoY (${selectedChannelLabel()})`;
 
     GROUP_SOURCE_ROWS = [...(thisAgg.kpi || []), ...(prevAgg.kpi || [])];
+    GROUP_SOURCE_PROD = [...(thisAgg.prod || []), ...(prevAgg.prod || [])];
+    GROUP_SOURCE_ANALYSIS = [...(thisAgg.analysis || []), ...(prevAgg.analysis || [])];
     GROUP_SOURCE_MESSAGE_LOG = normalizeMessageLogRows([...(thisAgg.message_log || []), ...(prevAgg.message_log || [])]);
 
     YTD_CACHE.set(key, {
@@ -2709,6 +3038,8 @@
       this:thisSum,
       prev:prevSum,
       group_rows: GROUP_SOURCE_ROWS,
+      group_prod: GROUP_SOURCE_PROD,
+      group_analysis: GROUP_SOURCE_ANALYSIS,
       group_message_log: GROUP_SOURCE_MESSAGE_LOG,
     });
 
@@ -2717,22 +3048,27 @@
     ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
     ytdTySendCount.textContent = fmt(thisSum.send_count);
     ytdTyLeverage.textContent = fmtRatio(thisSum.avg_leverage);
+    ytdLySessions.textContent = fmt(prevSum.sessions);
+    ytdLyRevenue.textContent  = fmtMoney(prevSum.revenue);
+    ytdLySendCount.textContent = fmt(prevSum.send_count);
+    ytdLyLeverage.textContent = fmtRatio(prevSum.avg_leverage);
+
     const dSess = prevSum.sessions ? ((thisSum.sessions - prevSum.sessions)/prevSum.sessions*100) : (thisSum.sessions ? 100 : 0);
     const dRev  = prevSum.revenue  ? ((thisSum.revenue  - prevSum.revenue )/prevSum.revenue *100) : (thisSum.revenue  ? 100 : 0);
     const dSend = prevSum.send_count ? ((thisSum.send_count - prevSum.send_count)/prevSum.send_count*100) : (thisSum.send_count ? 100 : 0);
     const dLev  = prevSum.avg_leverage ? ((thisSum.avg_leverage - prevSum.avg_leverage)/prevSum.avg_leverage*100) : (thisSum.avg_leverage ? 100 : 0);
-    ytdTySessionsSub.textContent = `vs LY ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-    ytdTyRevenueSub.textContent  = `vs LY ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-    ytdTySendCountSub.textContent = `vs LY ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
-    ytdTyLeverageSub.textContent = `vs LY ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
-    ytdLySessionsRef.textContent = `LY same period: ${fmt(prevSum.sessions)}`;
-    ytdLyRevenueRef.textContent  = `LY same period: ${fmtMoney(prevSum.revenue)}`;
-    ytdLySendCountRef.textContent = `LY same period: ${fmt(prevSum.send_count)}`;
-    ytdLyLeverageRef.textContent = `LY same period: ${fmtRatio(prevSum.avg_leverage)}`;
+    ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+    ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+    ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+    ytdTyLeverageSub.textContent = `vs LY: ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
+    ytdLySessionsSub.textContent = `LY (same period)`;
+    ytdLyRevenueSub.textContent  = `LY (same period)`;
+    ytdLySendCountSub.textContent = `LY (same period)`;
+    ytdLyLeverageSub.textContent = `LY (same period)`;
     hideYtdLoading();
     updateChannelTotals();
     renderCampaignButtons();
-    animateCards();
+    rerunCardAnimations(document.getElementById('ytdWrap'));
   }
 
   function bindToggle(btn, wrap){
@@ -2810,7 +3146,6 @@
   chipDaily.addEventListener('click', ()=>{
     WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
-    pulseViewStage();
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
@@ -2820,7 +3155,6 @@
   chipWeek.addEventListener('click', async ()=>{
     WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
-    pulseViewStage();
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
@@ -2831,28 +3165,16 @@
   chipRange.addEventListener('click', ()=>{
     WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
-    pulseViewStage();
     setViewActive();
     setToLastNDays(7);
     loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
   });
 
-  chipAll.addEventListener('click', async ()=>{
-    WEEK_ANCHORED_MODE = false;
-    VIEW='ALL';
-    pulseViewStage();
-    setViewActive();
-    const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
-    datePicker.value = d;
-    await loadAllByDate(d);
-    await computeYTD();
-  });
-
   // ✅ 채널 클릭 시 디폴트 VIEW = WEEK
   async function onChannelChange(ch){
     CHANNEL = ch;
+    updateYtdLabels();
     setChipActive();
-    pulseViewStage();
     toggleSections();
 
     WEEK_ANCHORED_MODE = false;
@@ -2870,25 +3192,24 @@
     await computeYTD();
   }
 
-  chipChannelAll.addEventListener('click', async ()=>{
-    CHANNEL = 'ALL';
-    setChipActive();
-    pulseViewStage();
-    toggleSections();
-    filterKPI();
-    renderCampaignButtons();
-    aggregateKPIForSelected();
-    renderTerms();
-    renderProducts();
-    await computeYTD();
-  });
-
   chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
   chipLMS.addEventListener('click', ()=>onChannelChange('LMS'));
   chipKAKAO.addEventListener('click', ()=>onChannelChange('KAKAO'));
+  if(detailTabExplorer){
+    detailTabExplorer.addEventListener('click', ()=>{
+      DETAIL_VIEW = 'explorer';
+      setDetailViewActive();
+    });
+  }
+  if(detailTabFunnel){
+    detailTabFunnel.addEventListener('click', ()=>{
+      DETAIL_VIEW = 'funnel';
+      setDetailViewActive();
+    });
+  }
 
-  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); animateCards(); });
-  topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); animateCards(); });
+  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
   btnApplyRange.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
   btn7d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
@@ -2910,14 +3231,6 @@
       const d = ymd(addDays(cur,-7));
       datePicker.value = clampToAvailable(d);
       await loadWeekByDate(datePicker.value);
-      await computeYTD();
-      return;
-    }
-    if(VIEW==='ALL'){
-      const cur = parseYMD(datePicker.value);
-      const d = ymd(addDays(cur,-1));
-      datePicker.value = clampToAvailable(d);
-      await loadAllByDate(datePicker.value);
       await computeYTD();
       return;
     }
@@ -2946,14 +3259,6 @@
       await computeYTD();
       return;
     }
-    if(VIEW==='ALL'){
-      const cur = parseYMD(datePicker.value);
-      const d = ymd(addDays(cur,+1));
-      datePicker.value = clampToAvailable(d);
-      await loadAllByDate(datePicker.value);
-      await computeYTD();
-      return;
-    }
     const s = parseYMD(startPicker.value);
     const e = parseYMD(endPicker.value);
     startPicker.value = clampToAvailable(ymd(addDays(s,+7)));
@@ -2973,12 +3278,6 @@
     if(VIEW==='WEEK'){
       datePicker.value = d;
       await loadWeekByDate(d);
-      await computeYTD();
-      return;
-    }
-    if(VIEW==='ALL'){
-      datePicker.value = d;
-      await loadAllByDate(d);
       await computeYTD();
       return;
     }
@@ -3009,8 +3308,10 @@
     // defaults
     toggleGroupJump.checked = true;
     GROUP_JUMP_MODE = true;
+    updateYtdLabels();
 
     setChipActive();
+    setDetailViewActive();
     toggleSections();
     await loadAvailableDates();
 
@@ -3032,6 +3333,7 @@
     // ✅ 첫 화면에서 올해누적(YTD) 바로 계산/표시
     if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
+    rerunCardAnimations(document);
   })();
 
 })();
