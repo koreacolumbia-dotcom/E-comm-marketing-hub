@@ -9,7 +9,7 @@ on:
         default: "manual"
 
       voc_only:
-        description: "Run Crema + Naver VOC only?"
+        description: "Run Official (Crema) VOC only?"
         required: true
         default: "false"
         type: choice
@@ -420,7 +420,7 @@ jobs:
           ls -la reports/external_signal.html || true
 
 
-      - name: Run Crema + Naver VOC (collect -> merge -> build -> archive)
+      - name: Run Official VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
         env:
           CREMA_SECURE_DEVICE_TOKEN: ${{ secrets.CREMA_SECURE_DEVICE_TOKEN }}
@@ -526,30 +526,7 @@ jobs:
             exit 1
           fi
 
-          NAVER_MASTER_JSON="reports/naver_commerce/master_reviews.json"
-          NAVER_START="${YMD}"
-          if [ "${FORCE_CREMA_1Y}" = "true" ] || [ ! -f "${NAVER_MASTER_JSON}" ]; then
-            NAVER_START="${START_1Y}"
-          fi
-
-          NAVER_SCRIPT="naver_commerce_reviews.py"
-          MERGED_INPUT="reports/crema_raw/reviews_merged.json"
-          NAVER_REVIEW_JSON="${NAVER_MASTER_JSON}"
-          if [ -f "${NAVER_SCRIPT}" ]; then
-            echo "[INFO] (2) Merge Naver Commerce reviews when configured"
-            python -u "${NAVER_SCRIPT}" \
-              --base-input "${INPUT_JSON}" \
-              --existing-naver-input "${NAVER_MASTER_JSON}" \
-              --output "${MERGED_INPUT}" \
-              --naver-output "${NAVER_REVIEW_JSON}" \
-              --start "${NAVER_START}" \
-              --end "${YMD}" \
-              --brand-channel-no "${NAVER_COMMERCE_BRAND_CHANNEL_NO:-}" \
-              --product-url "https://brand.naver.com/columbia"
-            INPUT_JSON="${MERGED_INPUT}"
-          else
-            echo "[WARN] ${NAVER_SCRIPT} not found. Build continues with Crema-only reviews."
-          fi
+          echo "[INFO] (2) Marketplace crawl disabled -> skip Naver/Musinsa and build Official-only dashboard"
 
           if [ ! -f "${FLAG}" ]; then
             HEALTH="reports/crema_raw/health/latest_health.json"
@@ -577,8 +554,8 @@ jobs:
             fi
           fi
 
-          BUILD_VOC_SCRIPT="build_voc_dashboard.py"
-          # Canonical VOC builder: only use `build_voc_dashboard.py`.
+          BUILD_VOC_SCRIPT="voc_fix9/build_voc_dashboard.py"
+          # Canonical VOC builder: use the patched builder under `voc_fix9/`.
           if [ ! -f "${BUILD_VOC_SCRIPT}" ]; then
             echo "[ERROR] Missing canonical VOC builder: ${BUILD_VOC_SCRIPT}"
             ls -la | head -n 200 || true
