@@ -32,10 +32,10 @@
     .delta-pill.up{background:rgba(15,118,110,.08);color:#0f766e;border-color:rgba(15,118,110,.16)}
     .delta-pill.down{background:rgba(190,24,93,.08);color:#be185d;border-color:rgba(190,24,93,.16)}
     .delta-pill.flat{background:rgba(148,163,184,.12);color:#64748b;border-color:rgba(148,163,184,.16)}
-    .metric-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:18px;max-width:180px}
-    .metric-stat{border:1px solid rgba(191,219,254,.45);background:linear-gradient(180deg,rgba(248,250,252,.92),rgba(241,245,249,.84));border-radius:20px;padding:16px 18px;min-height:104px;display:flex;flex-direction:column;justify-content:center}
+    .metric-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:18px;max-width:260px}
+    .metric-stat{border:1px solid rgba(191,219,254,.45);background:linear-gradient(180deg,rgba(248,250,252,.92),rgba(241,245,249,.84));border-radius:20px;padding:18px 20px;min-height:132px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
     .metric-stat-label{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:#94a3b8}
-    .metric-stat-value{margin-top:8px;font-size:34px;line-height:1;font-weight:900;color:#0f172a;letter-spacing:-.04em}
+    .metric-stat-value{margin-top:8px;font-size:clamp(28px,2.2vw,40px);line-height:1;font-weight:900;color:#0f172a;letter-spacing:-.04em;white-space:nowrap;overflow:hidden;text-overflow:clip}
     .metric-footnote{margin-top:12px;font-size:12px;font-weight:700;color:#64748b}
     .insight-card,.detail-card,.drop-rank-card,.stage-rank-card{border:1px solid rgba(191,219,254,.34);background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(248,250,252,.88));border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.05);animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}
     .insight-card{padding:18px 18px 16px}
@@ -55,7 +55,7 @@
     .funnel-row{display:grid;grid-template-columns:300px minmax(0,1fr) 236px;gap:24px;align-items:stretch}
     .funnel-stage-card{position:relative;border:1px solid rgba(191,219,254,.40);background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,250,252,.94));border-radius:28px;box-shadow:0 18px 40px rgba(15,23,42,.07);padding:18px 18px 16px;display:flex;flex-direction:column;justify-content:flex-start;min-height:220px;animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}.funnel-stage-card::before{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(29,78,216,.06),rgba(255,255,255,0) 52%);pointer-events:none}.funnel-stage-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;position:relative;z-index:1}.funnel-stage-card-title{margin-top:6px;font-size:18px;line-height:1.08;font-weight:900;letter-spacing:-.03em;color:#0f172a}.funnel-stage-card-current{font-size:32px;line-height:.95;font-weight:900;letter-spacing:-.05em;color:#0f172a;white-space:nowrap}.funnel-stage-card-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;position:relative;z-index:1}.funnel-stage-card-ref{margin-top:10px;display:grid;gap:6px;position:relative;z-index:1}.funnel-stage-card-refline{font-size:12px;line-height:1.35;font-weight:800;color:#64748b}.funnel-lane{min-width:0}
     .funnel-step-line{display:none}
-    .funnel-track{position:relative;height:220px;border-radius:30px;border:1px solid rgba(191,219,254,.36);background:linear-gradient(180deg,rgba(239,246,255,.86),rgba(255,255,255,.4));overflow:hidden;padding:0 10px}
+    .funnel-track{position:relative;height:220px;border-radius:30px;border:1px solid rgba(191,219,254,.36);background:linear-gradient(180deg,rgba(239,246,255,.86),rgba(255,255,255,.4));overflow:hidden;padding:0 10px;display:flex;align-items:center;justify-content:center}
     .funnel-stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 22px 42px rgba(15,23,42,.13);height:168px;border-radius:26px;overflow:hidden;padding:16px 28px;min-width:0;max-width:100%;animation:funnelStageIn .96s cubic-bezier(.18,.86,.22,1) both}
     .funnel-stage::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 54%,rgba(0,0,0,.06));pointer-events:none}
     .funnel-stage::after{content:'';position:absolute;left:-24%;top:-40%;width:24%;height:180%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.32),rgba(255,255,255,0));filter:blur(6px);opacity:0;animation:funnelSheen 1.2s ease .35s both}
@@ -104,7 +104,7 @@
     .drop-compare.flat{color:#64748b}
     .drop-reference{font-size:12px;line-height:1.35;font-weight:800;color:#64748b}
     .detailed-flow .funnel-track{height:252px;padding:18px 14px 14px}
-    .detailed-flow .funnel-stage{top:34%;height:116px;min-width:0;padding:12px 12px;overflow:visible}
+    .detailed-flow .funnel-stage{top:50%;height:116px;min-width:0;padding:12px 12px;overflow:visible}
     .detailed-flow .stage-copy{display:none}
     .detailed-flow .stage-bar-copy{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
     .detailed-flow .drop-slot{height:252px;padding:18px 18px 24px}
@@ -115,8 +115,8 @@
     @keyframes dropIn{0%{opacity:0;transform:translate(-14px,-50%) scale(.88)}70%{opacity:1;transform:translate(0,-50%) scale(1.02)}100%{opacity:1;transform:translate(0,-50%) scale(1)}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes cardRise{0%{opacity:0;transform:translateY(18px);filter:blur(6px)}100%{opacity:1;transform:translateY(0);filter:blur(0)}}
-    @media (max-width: 1180px){.funnel-row{grid-template-columns:260px minmax(0,1fr) 206px;gap:18px}.funnel-stage-card{min-height:198px}.funnel-track,.drop-slot{height:198px}.funnel-stage{height:150px;min-width:0}.stage-title{font-size:46px}.stage-value .num{font-size:70px}.funnel-stage-card-title{font-size:17px}.funnel-stage-card-current{font-size:28px}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:228px}.detailed-flow .funnel-stage{height:98px}.drop-rate{font-size:40px}}
-    @media (max-width: 900px){.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.funnel-row{grid-template-columns:minmax(0,1fr)}.funnel-stage-card{min-height:auto}.funnel-track,.drop-slot{height:184px}.funnel-stage{height:138px;min-width:0}.drop-fill{height:14px}.drop-slot{padding:16px 16px 22px}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:236px}.detailed-flow .funnel-stage{height:96px;top:31%}}
+    @media (max-width: 1180px){.funnel-row{grid-template-columns:260px minmax(0,1fr) 206px;gap:18px}.funnel-stage-card{min-height:198px}.funnel-track,.drop-slot{height:198px}.funnel-stage{height:150px;min-width:0}.stage-title{font-size:46px}.stage-value .num{font-size:70px}.funnel-stage-card-title{font-size:17px}.funnel-stage-card-current{font-size:28px}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:228px}.detailed-flow .funnel-stage{height:98px;top:50%}.drop-rate{font-size:40px}}
+    @media (max-width: 900px){.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.funnel-row{grid-template-columns:minmax(0,1fr)}.funnel-stage-card{min-height:auto}.funnel-track,.drop-slot{height:184px}.funnel-stage{height:138px;min-width:0}.drop-fill{height:14px}.drop-slot{padding:16px 16px 22px}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:236px}.detailed-flow .funnel-stage{height:96px;top:50%}}
     @media (max-width: 640px){.metric{font-size:38px}.metric-grid,.detail-grid{grid-template-columns:1fr}.funnel-track,.drop-slot{height:162px}.funnel-stage{height:124px;min-width:0;padding:14px 18px}.stage-title{font-size:38px}.stage-value .num{font-size:56px}.drop-rate{font-size:34px}.drop-count{font-size:14px}.drop-compare{font-size:11px}.stage-panel{left:12px;width:calc(100% - 24px);padding:12px 12px}.stage-panel-title{font-size:19px}.stage-panel-current{font-size:24px}.stage-chip{font-size:11px;padding:7px 10px}.funnel-step-line{font-size:11px}}
     .tab-panel{display:none}
     .tab-panel.active{display:block;animation:fadeUp .28s ease}
@@ -129,14 +129,14 @@
     .compare-stack{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
     .compare-stack.compact{gap:3px}
     .compare-ref{font-size:11px;font-weight:800;color:#64748b;letter-spacing:.01em}
-    .metric-grid-rich{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .metric-grid-rich{grid-template-columns:minmax(0,1fr);gap:12px}
     .metric-stat-glass{background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(241,245,249,.84));border:1px solid rgba(191,219,254,.65);box-shadow:inset 0 1px 0 rgba(255,255,255,.78)}
     .stage-panel{backdrop-filter:blur(18px);background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(248,250,252,.92));box-shadow:0 20px 45px rgba(15,23,42,.08)}
     .stage-reference-bucket{display:grid;gap:6px;margin-top:10px}
     .stage-reference{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:999px;background:rgba(248,250,252,.9);border:1px solid rgba(226,232,240,.9)}
     .drop-slot{background:linear-gradient(180deg,rgba(255,255,255,.94),rgba(252,244,247,.88));box-shadow:0 18px 40px rgba(15,23,42,.06)}
     .drop-compare{display:inline-flex;align-items:center;justify-content:center;padding:7px 10px;border-radius:999px;font-size:11px;font-weight:900}
-    .drop-reference{font-size:11px;font-weight:800;color:#64748b}
+    .drop-reference{font-size:11px;font-weight:800;color:#64748b}.drop-fill{display:none !important;}
     .delta-pill.up,.drop-compare.up{background:rgba(20,184,166,.12);color:#0f766e;border:1px solid rgba(20,184,166,.25)}
     .delta-pill.down,.drop-compare.down{background:rgba(244,63,94,.10);color:#e11d48;border:1px solid rgba(244,63,94,.22)}
     .delta-pill.flat,.drop-compare.flat{background:rgba(148,163,184,.14);color:#475569;border:1px solid rgba(148,163,184,.24)}
@@ -425,7 +425,7 @@
       const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
       const segmentLabel = (seg = state.segment) => SEGMENT_LABELS[seg] || seg;
       const compareLabel = (mode = state.compareMode) => ({ all:'ALL', wow:'WoW', yoy:'YoY' }[mode] || 'ALL');
-      const compareReferenceLabel = (mode = state.compareMode) => ({ all:'YoY', wow:'Previous Week', yoy:'Last Year' }[mode] || 'YoY');
+      const compareReferenceLabel = (mode = state.compareMode) => ({ all:'YoY', wow:'WoW', yoy:'YoY' }[mode] || 'YoY');
       const compareModesForDisplay = () => state.compareMode === 'all' ? ['wow','yoy'] : [state.compareMode];
       const ownedChildSegments = () => OWNED_SEGMENTS.slice(1);
 
@@ -964,7 +964,6 @@
                     <div class="drop-count">${compact ? 'Start stage for the selected funnel' : 'WoW / YoY deltas are shown together in the left stage cards.'}</div>
                   </div>
                 ` : `
-                  <div class="drop-fill" style="width:${dropWidth.toFixed(1)}%;animation-delay:${i * 90 + 120}ms"></div>
                   <div class="drop-label">
                     <div class="drop-kicker">${DROP_LABEL}</div>
                     <div class="drop-rate">${fmtPct(stage.drop,1)}</div>
