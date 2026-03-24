@@ -14,14 +14,7 @@
     .chip.active{background:linear-gradient(135deg,#002d72,#1d4ed8);color:#fff;border-color:rgba(0,45,114,.22)}
     .card{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.9);border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.06)}
     .kicker{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:#94a3b8}
-    .metric{font-size:28px;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
-    .metric-count{display:inline-block}
-    .summary-card{opacity:0;transform:translateY(14px) scale(.98)}
-    .summary-card.card-in{animation:cardIn .72s cubic-bezier(.2,.85,.24,1) forwards}
-    .tab-animate{opacity:0;transform:translateY(10px)}
-    .tab-animate.tab-in{animation:fadeUp .58s ease forwards}
-    .drop-fill.clickable{cursor:pointer;transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
-    .drop-fill.clickable:hover{transform:translateY(-50%) scale(1.03);box-shadow:0 16px 28px rgba(220,72,158,.28), inset 0 1px 0 rgba(255,255,255,.24);filter:saturate(1.08)}
+    .metric{font-size:28px;font-weight:900;line-height:1.05}
     .muted{color:#64748b}
     .table-wrap{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.86);border-radius:22px;overflow:hidden;box-shadow:0 14px 30px rgba(15,23,42,.06)}
     table{width:100%;border-collapse:collapse}
@@ -37,17 +30,17 @@
     .funnel-lane{min-width:0}
     .funnel-step-line{display:none}
     .funnel-track{position:relative;height:192px;border-radius:0;border:none;background:transparent;overflow:visible;padding:0}
-    .funnel-stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);height:100%;border-radius:20px;overflow:hidden;padding:14px 26px;min-width:112px;max-width:100%;animation:funnelStageIn .95s cubic-bezier(.18,.86,.22,1) both}
+    .funnel-stage{position:absolute;left:0;top:50%;transform:translateY(-50%);transform-origin:left center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);height:100%;border-radius:20px;overflow:hidden;padding:12px 22px;min-width:112px;max-width:100%;animation:funnelStageIn .95s cubic-bezier(.18,.86,.22,1) both}
     .funnel-stage::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 54%,rgba(0,0,0,.06));pointer-events:none}
     .funnel-stage::after{content:'';position:absolute;left:-24%;top:-40%;width:24%;height:180%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.32),rgba(255,255,255,0));filter:blur(6px);opacity:0;animation:funnelSheen 1.2s ease .35s both}
     .funnel-stage-inner{position:relative;z-index:2;width:100%;height:100%;display:flex;align-items:center;justify-content:center;min-width:0}
     .stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;max-width:100%;width:100%;height:100%;overflow:hidden}
     .stage-title,.stage-note,.stage-value .num,.stage-value .sub{max-width:100%;overflow:hidden;text-overflow:ellipsis}
-    .stage-title{font-size:48px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-note{font-size:14px;line-height:1.05;font-weight:800;white-space:nowrap;opacity:.96}
+    .stage-title{font-size:40px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-note{font-size:12px;line-height:1.05;font-weight:800;white-space:nowrap;opacity:.96}
     .stage-value{min-width:0;max-width:100%}
-    .stage-value .num{font-size:74px;line-height:.95;font-weight:900;white-space:nowrap;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-value .sub{font-size:18px;line-height:1.08;font-weight:800;white-space:nowrap;opacity:.96}
+    .stage-value .num{font-size:62px;line-height:.95;font-weight:900;white-space:nowrap;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-value .sub{font-size:16px;line-height:1.08;font-weight:800;white-space:nowrap;opacity:.96}
     .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
     .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
@@ -59,16 +52,15 @@
     .drop-slot.baseline{color:#94a3b8;font-weight:900;font-size:13px;justify-content:flex-start;align-items:center;text-align:left;padding-left:8px}
     .drop-fill{position:absolute;left:0;top:50%;transform:translateY(-50%);transform-origin:left center;height:100%;border-radius:18px;background:linear-gradient(135deg,#c084fc,#ec4899);box-shadow:0 12px 24px rgba(220,72,158,.22), inset 0 1px 0 rgba(255,255,255,.24);animation:dropIn .82s cubic-bezier(.18,.86,.22,1) both}
     .drop-fill::after{content:'';position:absolute;left:-24%;top:-25%;width:44%;height:150%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.28),rgba(255,255,255,0));opacity:.55;filter:blur(4px)}
-    .drop-label{position:relative;z-index:2;height:100%;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:8px 10px}
+    .drop-label{display:none}
     .drop-kicker,.drop-rate,.drop-count{max-width:100%;overflow:hidden;text-overflow:ellipsis}
     .drop-kicker{font-size:11px;line-height:1.04;font-weight:900;letter-spacing:.14em;white-space:normal;overflow-wrap:anywhere}
     .drop-rate{font-size:30px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em}
     .drop-count{font-size:14px;line-height:1.05;font-weight:800;white-space:nowrap}
-    @keyframes funnelStageIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.82);filter:blur(2px)}55%{opacity:1;transform:translate(-50%,-50%) scale(1.03);filter:blur(0)}100%{opacity:1;transform:translate(-50%,-50%) scale(1);filter:blur(0)}}
+    @keyframes funnelStageIn{0%{opacity:0;transform:translateY(-50%) scaleX(.74) translateY(14px);filter:blur(2px)}55%{opacity:1;transform:translateY(-50%) scaleX(1.03) translateY(0);filter:blur(0)}100%{opacity:1;transform:translateY(-50%) scaleX(1) translateY(0);filter:blur(0)}}
     @keyframes funnelSheen{0%{left:-24%;opacity:0}22%{opacity:.55}100%{left:112%;opacity:0}}
     @keyframes dropIn{0%{opacity:0;transform:translateY(-50%) scale(.84)}70%{opacity:1;transform:translateY(-50%) scale(1.02)}100%{opacity:1;transform:translateY(-50%) scale(1)}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes cardIn{0%{opacity:0;transform:translateY(14px) scale(.98)}65%{opacity:1;transform:translateY(-2px) scale(1.01)}100%{opacity:1;transform:translateY(0) scale(1)}}
     @media (max-width: 900px){.funnel-row{grid-template-columns:minmax(0,1fr) 128px}.funnel-track,.drop-slot{height:150px}.funnel-stage{height:88px}}
     @media (max-width: 640px){.funnel-row{grid-template-columns:minmax(0,1fr) 108px}.funnel-track,.drop-slot{height:134px}.funnel-stage{height:74px}.funnel-step-line{font-size:11px}}
     .tab-panel{display:none}
@@ -137,7 +129,7 @@
     <div id="contentArea" class="space-y-6">
       <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="summaryCards"></section>
 
-      <section id="panel-overview" class="tab-panel active space-y-6" data-tab-panel="overview">
+      <section id="panel-overview" class="tab-panel active space-y-6">
         <section class="space-y-6">
           <div class="card p-5 md:p-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
@@ -191,7 +183,7 @@
         </section>
       </section>
 
-      <section id="panel-compare" class="tab-panel space-y-6" data-tab-panel="compare">
+      <section id="panel-compare" class="tab-panel space-y-6">
         <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <div class="card p-5">
             <div class="flex items-center justify-between gap-3">
@@ -252,7 +244,7 @@
         </section>
       </section>
 
-      <section id="panel-dropoff" class="tab-panel space-y-6" data-tab-panel="dropoff">
+      <section id="panel-dropoff" class="tab-panel space-y-6">
         <section class="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <div class="card p-5">
             <div class="kicker">Overall Top 3</div>
@@ -703,56 +695,6 @@
         });
       }
 
-
-      function animateCount(el, target, opts={}){
-        if (!el) return;
-        const { duration=1100, decimals=0, prefix='', suffix='', money=false } = opts;
-        const start = 0;
-        const end = Number(target || 0);
-        const easeOut = (t) => 1 - Math.pow(1 - t, 3);
-        const started = performance.now();
-        function frame(now){
-          const progress = Math.min(1, (now - started) / duration);
-          const value = start + (end - start) * easeOut(progress);
-          const shown = money
-            ? `${prefix}${Math.round(value).toLocaleString('en-US')}${suffix}`
-            : `${prefix}${Number(value).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}${suffix}`;
-          el.textContent = shown;
-          if (progress < 1) requestAnimationFrame(frame);
-        }
-        requestAnimationFrame(frame);
-      }
-
-      function animateSummaryCards(){
-        const cards = [...document.querySelectorAll('#summaryCards .summary-card')];
-        cards.forEach((card, idx) => {
-          card.classList.remove('card-in');
-          card.style.animationDelay = `${idx * 90}ms`;
-          requestAnimationFrame(() => card.classList.add('card-in'));
-          const metricEl = card.querySelector('.metric-count');
-          if (!metricEl) return;
-          const raw = metricEl.dataset.target || '0';
-          const type = metricEl.dataset.type || 'number';
-          if (type === 'percent') {
-            animateCount(metricEl, Number(raw), { duration: 1200, decimals: Number(metricEl.dataset.decimals || 2), suffix:'%' });
-          } else {
-            animateCount(metricEl, Number(raw), { duration: 1200, decimals: 0 });
-          }
-        });
-      }
-
-      function animatePanelEntrance(panelId){
-        const panel = document.getElementById(panelId);
-        if (!panel) return;
-        const nodes = panel.querySelectorAll('.card, .table-wrap, .empty');
-        nodes.forEach((node, idx) => {
-          node.classList.remove('tab-in');
-          node.classList.add('tab-animate');
-          node.style.animationDelay = `${idx * 70}ms`;
-          requestAnimationFrame(() => node.classList.add('tab-in'));
-        });
-      }
-
       function renderFunnel(canvas, behavior, className=''){
         const stages = behavior.stages;
         if (!stages.length) {
@@ -763,11 +705,12 @@
           `<div class="funnel-flow">`,
           ...stages.map((stage, i) => {
             const baseValue = Math.max(stages[0]?.value || 0, 1);
-            const width = i === 0 ? 100 : Math.max(7, (stage.value / baseValue) * 100);
+            const width = i === 0 ? 100 : Math.max(10, (stage.value / baseValue) * 100);
             const dropWidth = i === 0 ? 0 : Math.max(48, ((stage.drop || 0) / 100) * 150);
             return `
             <div class="funnel-row">
               <div class="funnel-lane">
+                
                 <div class="funnel-track">
                   <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%;animation-delay:${i*90}ms">
                     <div class="funnel-stage-inner">
@@ -784,32 +727,14 @@
               </div>
               <div class="drop-slot ${i===0 ? 'baseline' : ''}">
                 ${i===0 ? `<div class="muted text-sm font-extrabold w-full text-left">Baseline</div>` : `
-                  <div class="drop-fill clickable" data-drop-rate="${stage.drop || 0}" data-drop-count="${Math.max(0, (stages[i-1]?.value || 0) - (stage.value || 0))}" style="width:${dropWidth.toFixed(1)}px;animation-delay:${i*90+120}ms">
-                    <div class="drop-label">
-                      <div class="drop-kicker">DROP OFF</div>
-                      <div class="drop-rate">${fmtPct(stage.drop || 0,1)}</div>
-                      <div class="drop-count">${fmt(Math.max(0, (stages[i-1]?.value || 0) - (stage.value || 0)))}</div>
-                    </div>
-                  </div>`}
+                  <div class="drop-fill" style="width:${dropWidth.toFixed(1)}px;animation-delay:${i*90+120}ms"></div>`}
               </div>
             </div>`;
           }).join(''),
           `</div>`
         ].join('');
         canvas.innerHTML = html;
-
-        canvas.querySelectorAll('.drop-fill.clickable').forEach((fill) => {
-          fill.addEventListener('click', () => {
-            fill.style.animation = 'none';
-            void fill.offsetWidth;
-            fill.style.animation = 'dropIn .82s cubic-bezier(.18,.86,.22,1)';
-          });
-        });
-
-        requestAnimationFrame(() => {
-          autoFitFunnelText(canvas);
-          setTimeout(() => autoFitFunnelText(canvas), 300);
-        });
+        requestAnimationFrame(() => { autoFitFunnelText(canvas); setTimeout(() => autoFitFunnelText(canvas), 300); });
       }
 
       function render(){
@@ -833,14 +758,7 @@
           ['Checkout', fmt(currentModel.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), 'Behavior stage'],
           ['Orders', fmt(currentModel.agg.orders), `${compareLabel()} ${fmt(previousModel.agg.orders)} | ${delta(currentModel.agg.orders, previousModel.agg.orders)}`],
           ['Session CVR', fmtPct(currentModel.sessionCvr, 2), `${compareLabel()} ${fmtPct(previousModel.sessionCvr, 2)} | ${(currentModel.sessionCvr - previousModel.sessionCvr >= 0 ? '+' : '') + (currentModel.sessionCvr - previousModel.sessionCvr).toFixed(2)}%p`],
-        ].map(([label, value, sub], idx) => {
-          const isPercent = label === 'Session CVR';
-          const numericTarget = isPercent
-            ? Number(currentModel.sessionCvr || 0)
-            : Number(String(value).replace(/[^\d.-]/g, '') || 0);
-          return `<article class="summary-card card p-5" style="animation-delay:${idx*90}ms"><div class="kicker">${esc(label)}</div><div class="metric mt-3"><span class="metric-count" data-type="${isPercent ? 'percent' : 'number'}" data-decimals="${isPercent ? 2 : 0}" data-target="${numericTarget}">0</span></div><div class="mt-2 text-xs font-semibold muted">${esc(sub)}</div></article>`;
-        }).join('');
-        animateSummaryCards();
+        ].map(([label, value, sub]) => `<article class="card p-5"><div class="kicker">${esc(label)}</div><div class="metric mt-3">${esc(value)}</div><div class="mt-2 text-xs font-semibold muted">${esc(sub)}</div></article>`).join('');
 
         renderFunnel(els.funnelCanvas, currentModel.behavior);
         els.funnelNotice.innerHTML = currentModel.behavior.notes.length
@@ -1046,7 +964,6 @@
           els.loadingState.classList.add('hidden');
           els.contentArea.classList.remove('hidden');
           render();
-          animatePanelEntrance(`panel-${state.tab}`);
         } catch (error) {
           els.loadingState.classList.add('hidden');
           els.errorState.classList.remove('hidden');
