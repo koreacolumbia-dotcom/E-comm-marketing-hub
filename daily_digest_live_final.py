@@ -2767,20 +2767,9 @@ def render_page_html(
     metric_basis_text = "KPI cards compare the metric shown on each card. Channel Snapshot and Paid Detail compare columns use Sessions."
 
     def compare_cell(label: str, value: float, enabled: bool = True) -> str:
-        label_esc = esc(label)
         if not enabled:
-            return (
-                "<div class='compare-cell text-slate-400'>"
-                f"<span class='compare-pill is-muted'>{label_esc}</span>"
-                "<span>-</span>"
-                "</div>"
-            )
-        return (
-            f"<div class='compare-cell {delta_cls(value)}'>"
-            f"<span class='compare-pill'>{label_esc}</span>"
-            f"<span>{('+' if value >= 0 else '')}{fmt_pct(value, 1)}</span>"
-            "</div>"
-        )
+            return "<div class='text-right text-slate-400'>-</div>"
+        return f"<div class='text-right {delta_cls(value)}'>{('+' if value >= 0 else '')}{fmt_pct(value, 1)}</div>"
 
     def top_kpi_card(title: str, value: str, delta_main: str, delta_yoy_s: str, cls_main: str, cls_yoy: str) -> str:
         return f"""
