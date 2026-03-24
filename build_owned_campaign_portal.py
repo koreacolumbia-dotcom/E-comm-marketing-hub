@@ -170,10 +170,34 @@ def apply_send_group_metrics(camp: pd.DataFrame) -> pd.DataFrame:
 
 
 OWNED_MESSAGE_BLOCKS = (
-    {"channel": "KAKAO", "title_col": 2, "date_col": 3},
-    {"channel": "LMS", "title_col": 11, "date_col": 12},
-    {"channel": "EDM", "title_col": 21, "date_col": 22},
+    {"channel": "KAKAO", "title_col": 1, "date_col": 2, "send_volume_col": 3, "sessions_col": 4, "session_rate_col": 5, "message_revenue_col": 6, "total_revenue_col": 7, "cost_col": 8, "roas_col": 9},
+    {"channel": "LMS", "title_col": 10, "date_col": 11, "send_volume_col": 12, "sessions_col": 13, "session_rate_col": 14, "message_revenue_col": 15, "total_revenue_col": 16, "cost_col": 17, "roas_col": 18},
+    {"channel": "EDM", "title_col": 21, "date_col": 22, "send_volume_col": None, "sessions_col": 23, "session_rate_col": None, "message_revenue_col": None, "total_revenue_col": None, "cost_col": None, "roas_col": None},
 )
+
+
+def _coerce_float(raw_value: Any) -> Optional[float]:
+    if raw_value is None:
+        return None
+    try:
+        if pd.isna(raw_value):
+            return None
+    except Exception:
+        pass
+    s = clean_text(raw_value).replace(',', '').replace('%', '')
+    if not s:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def _coerce_int(raw_value: Any) -> Optional[int]:
+    v = _coerce_float(raw_value)
+    if v is None:
+        return None
+    return int(round(v))
 
 
 def guess_owned_message_source(cli_value: str = "") -> Optional[Path]:
@@ -208,7 +232,11 @@ def parse_owned_message_date(raw_value: Any, default_year: str) -> Optional[str]
 
 
 def load_owned_message_log(message_source: Optional[Path]) -> pd.DataFrame:
-    columns = ["date", "channel", "message_title", "message_body"]
+    columns = [
+        "date", "channel", "message_title", "message_body",
+        "send_volume", "sessions", "session_rate", "message_revenue",
+        "total_revenue", "cost", "roas", "send_count", "avg_leverage"
+    ]
     if not message_source or not message_source.exists():
         return pd.DataFrame(columns=columns)
 
@@ -222,7 +250,8 @@ def load_owned_message_log(message_source: Optional[Path]) -> pd.DataFrame:
         channel = block["channel"]
         title_col = block["title_col"]
         date_col = block["date_col"]
-        if raw.shape[1] <= max(title_col, date_col):
+        required_cols = [c for c in [title_col, date_col] if c is not None]
+        if not required_cols or raw.shape[1] <= max(required_cols):
             continue
 
         for idx in raw.index:
@@ -230,12 +259,23 @@ def load_owned_message_log(message_source: Optional[Path]) -> pd.DataFrame:
             date_str = parse_owned_message_date(raw.iat[idx, date_col], inferred_year)
             if not title or not date_str:
                 continue
+
+            sessions = _coerce_int(raw.iat[idx, block["sessions_col"]]) if block.get("sessions_col") is not None and raw.shape[1] > block["sessions_col"] else None
             rows.append(
                 {
                     "date": date_str,
                     "channel": channel,
                     "message_title": title,
                     "message_body": "",
+                    "send_volume": _coerce_int(raw.iat[idx, block["send_volume_col"]]) if block.get("send_volume_col") is not None and raw.shape[1] > block["send_volume_col"] else None,
+                    "sessions": sessions,
+                    "session_rate": _coerce_float(raw.iat[idx, block["session_rate_col"]]) if block.get("session_rate_col") is not None and raw.shape[1] > block["session_rate_col"] else None,
+                    "message_revenue": _coerce_float(raw.iat[idx, block["message_revenue_col"]]) if block.get("message_revenue_col") is not None and raw.shape[1] > block["message_revenue_col"] else None,
+                    "total_revenue": _coerce_float(raw.iat[idx, block["total_revenue_col"]]) if block.get("total_revenue_col") is not None and raw.shape[1] > block["total_revenue_col"] else None,
+                    "cost": _coerce_float(raw.iat[idx, block["cost_col"]]) if block.get("cost_col") is not None and raw.shape[1] > block["cost_col"] else None,
+                    "roas": _coerce_float(raw.iat[idx, block["roas_col"]]) if block.get("roas_col") is not None and raw.shape[1] > block["roas_col"] else None,
+                    "send_count": 1,
+                    "avg_leverage": sessions or 0,
                 }
             )
 
@@ -243,6 +283,14 @@ def load_owned_message_log(message_source: Optional[Path]) -> pd.DataFrame:
         return pd.DataFrame(columns=columns)
 
     out = pd.DataFrame(rows, columns=columns).drop_duplicates().sort_values(["date", "channel", "message_title"]).reset_index(drop=True)
+    for col in ["send_volume", "sessions", "send_count"]:
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0).astype(int)
+    for col in ["session_rate", "message_revenue", "total_revenue", "cost", "roas", "avg_leverage"]:
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col], errors="coerce")
+    if "avg_leverage" in out.columns and "sessions" in out.columns:
+        out["avg_leverage"] = out["avg_leverage"].fillna(out["sessions"]).fillna(0.0)
     return out
 
 
