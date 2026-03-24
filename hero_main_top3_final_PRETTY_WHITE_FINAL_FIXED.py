@@ -3571,6 +3571,65 @@ def _render_heatmap_section(changes: Dict[str, Any]) -> str:
     """
 
 
+def _render_competitive_pressure_section(changes: Dict[str, Any], brand_name_map: Dict[str, str]) -> str:
+    ranked = sorted(
+        (changes.get("brands") or []),
+        key=lambda x: (
+            -int(x.get("changed", 0) or 0),
+            -int(x.get("events", 0) or 0),
+            x.get("brand_name", ""),
+        )
+    )[:5]
+    if not ranked:
+        return """
+        <section class="glass-card p-6 lg:p-7">
+          <h2 class="section-title">Competitive Pressure Radar</h2>
+          <p class="section-sub mt-2">최근 변화량이 충분하지 않아 리더 브랜드를 아직 계산하지 못했습니다.</p>
+        </section>
+        """
+
+    rows_html = []
+    for idx, info in enumerate(ranked, start=1):
+        brand_name = info.get("brand_name") or brand_name_map.get(info.get("brand_key", ""), info.get("brand_key", "-"))
+        last_title = norm_ws(info.get("last_title", "") or "") or "최근 변경 제목 없음"
+        subtype_pairs = sorted(
+            ((k, int(v or 0)) for k, v in (info.get("subtypes") or {}).items()),
+            key=lambda kv: (-kv[1], kv[0])
+        )[:2]
+        subtype_html = "".join([
+            f'<span class="mini-stat">{_h(k)} {v}</span>'
+            for k, v in subtype_pairs if k
+        ]) or '<span class="mini-stat">subtype 없음</span>'
+        rows_html.append(f"""
+        <article class="pressure-row">
+          <div class="pressure-rank">{idx:02d}</div>
+          <div class="pressure-copy">
+            <div class="pressure-head">
+              <strong>{_h(brand_name)}</strong>
+              <span class="pressure-metric">changed {int(info.get('changed', 0) or 0)} · events {int(info.get('events', 0) or 0)}</span>
+            </div>
+            <p class="pressure-title clamp-2">"{_h(last_title)}"</p>
+            <div class="pressure-tags">{subtype_html}</div>
+          </div>
+        </article>
+        """)
+
+    return f"""
+    <section class="glass-card p-6 lg:p-7">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="section-title">Competitive Pressure Radar</h2>
+          <p class="section-sub">이번 주에 가장 빠르게 움직인 브랜드를 변화량 기준으로 모았습니다.</p>
+        </div>
+        <div class="text-[11px] text-slate-500">sorted by changed / events</div>
+      </div>
+      <div class="mt-5 space-y-3">
+        {''.join(rows_html)}
+      </div>
+    </section>
+    """
+
+
 def _dashboard_css(day_count: int) -> str:
     heat_cols = max(int(day_count or 0), 1)
     heat_width = 168 + heat_cols * 66
@@ -3584,7 +3643,10 @@ def _dashboard_css(day_count: int) -> str:
       --line: rgba(148, 163, 184, 0.22);
       --panel: rgba(255, 255, 255, 0.82);
       --soft: rgba(255, 255, 255, 0.72);
+      --shadow-lg: 0 30px 80px rgba(15, 23, 42, 0.10);
+      --shadow-md: 0 20px 48px rgba(15, 23, 42, 0.07);
     }}
+    html {{ scroll-behavior: smooth; }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
@@ -3594,10 +3656,56 @@ def _dashboard_css(day_count: int) -> str:
       color: #0f172a;
       font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
       min-height: 100vh;
+      overflow-x: hidden;
     }}
-    .glass-card {{ background: var(--panel); border: 1px solid rgba(255,255,255,0.88); border-radius: 30px; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.07); backdrop-filter: blur(14px); }}
-    .soft-panel {{ background: var(--soft); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 10px 28px rgba(148, 163, 184, 0.10); }}
-    .metric-card {{ background: rgba(255,255,255,0.76); border: 1px solid rgba(255,255,255,0.9); border-radius: 24px; padding: 20px 22px; box-shadow: 0 12px 32px rgba(18, 63, 140, 0.08); }}
+    .page-shell {{ position: relative; isolation: isolate; }}
+    .dashboard-ambient {{ position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }}
+    .ambient-orb {{ position: absolute; border-radius: 999px; filter: blur(10px); opacity: 0.75; mix-blend-mode: screen; animation: ambientFloat 18s ease-in-out infinite; }}
+    .ambient-orb.one {{ width: 320px; height: 320px; top: -72px; right: -48px; background: radial-gradient(circle, rgba(59,130,246,0.22), rgba(59,130,246,0.02) 70%); }}
+    .ambient-orb.two {{ width: 360px; height: 360px; left: -110px; top: 24%; background: radial-gradient(circle, rgba(14,165,233,0.18), rgba(14,165,233,0.01) 72%); animation-delay: -6s; }}
+    .ambient-orb.three {{ width: 280px; height: 280px; right: 14%; bottom: -100px; background: radial-gradient(circle, rgba(148,163,184,0.24), rgba(148,163,184,0.02) 70%); animation-delay: -11s; }}
+    main, aside {{ position: relative; z-index: 1; }}
+    .glass-card, .soft-panel, .metric-card {{
+      position: relative;
+      overflow: hidden;
+      transform: translateZ(0);
+    }}
+    .glass-card {{
+      background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.78));
+      border: 1px solid rgba(255,255,255,0.88);
+      border-radius: 30px;
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(16px);
+    }}
+    .soft-panel {{
+      background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.68));
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow-md);
+    }}
+    .metric-card {{
+      background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.74));
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 24px;
+      padding: 20px 22px;
+      box-shadow: 0 16px 36px rgba(18, 63, 140, 0.08);
+    }}
+    .glass-card::before, .soft-panel::before, .metric-card::before {{
+      content: "";
+      position: absolute;
+      inset: -120% auto auto -20%;
+      width: 42%;
+      height: 280%;
+      background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.42), rgba(255,255,255,0));
+      transform: rotate(18deg) translateX(-120%);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+    }}
+    .glass-card:hover::before, .soft-panel:hover::before, .metric-card:hover::before {{
+      opacity: 1;
+      animation: shimmerSweep 1.35s ease;
+    }}
     .metric-label {{ font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }}
     .metric-value {{ margin-top: 10px; font-size: 38px; font-weight: 900; letter-spacing: -0.05em; color: #0f172a; }}
     .metric-sub {{ margin-top: 10px; font-size: 12px; color: #475569; }}
@@ -3616,14 +3724,17 @@ def _dashboard_css(day_count: int) -> str:
     .legend-chip {{ display:inline-flex; align-items:center; justify-content:center; min-width:52px; padding: 8px 12px; border-radius: 999px; background:#f8fafc; color:#64748b; font-weight:700; border:1px solid rgba(148,163,184,0.22); }}
     .legend-mid {{ background:#dbeafe; color:#1d4ed8; }}
     .legend-strong {{ background:#1d4ed8; color:#fff; }}
-    .filter-btn, .tab-btn {{ display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.18); background: rgba(255,255,255,0.78); color: #475569; font-size: 13px; font-weight: 800; transition: all 0.18s ease; }}
-    .filter-btn:hover, .tab-btn:hover {{ background: #fff; color: #0f172a; transform: translateY(-1px); }}
-    .filter-btn.active, .tab-btn.active {{ background: var(--brand-deep); color: #fff; box-shadow: 0 12px 28px rgba(11,43,102,0.18); }}
-    .tab-meta {{ display:inline-flex; align-items:center; justify-content:center; min-width: 24px; height:24px; padding: 0 8px; border-radius:999px; background: rgba(255,255,255,0.18); font-size: 11px; }}
+    .filter-btn, .tab-btn {{ display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.18); background: rgba(255,255,255,0.82); color: #475569; font-size: 14px; font-weight: 900; transition: transform 0.24s ease, box-shadow 0.24s ease, background 0.24s ease, color 0.24s ease, border-color 0.24s ease; }}
+    .filter-btn:hover, .tab-btn:hover {{ background: #fff; color: #0f172a; border-color: rgba(29,78,216,0.16); transform: translateY(-2px); box-shadow: 0 16px 30px rgba(15,23,42,0.08); }}
+    .filter-btn.active, .tab-btn.active {{ background: linear-gradient(135deg, var(--brand-deep), var(--brand)); color: #fff; box-shadow: 0 16px 30px rgba(11,43,102,0.22); }}
+    .brand-tab-name {{ font-size: 15px; font-weight: 900; letter-spacing: -0.02em; line-height: 1; }}
+    .tab-meta {{ display:inline-flex; align-items:center; justify-content:center; min-width: 30px; height:30px; padding: 0 10px; border-radius:999px; background: rgba(255,255,255,0.18); font-size: 12px; font-weight: 900; }}
     .rank-chip {{ position:absolute; left:16px; top:16px; display:inline-flex; align-items:center; justify-content:center; padding: 7px 12px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: 0.04em; background: rgba(15,23,42,0.55); color:#fff; backdrop-filter: blur(8px); }}
-    .btn-primary, .btn-secondary {{ display:inline-flex; align-items:center; justify-content:center; padding: 12px 16px; border-radius: 14px; font-weight: 800; text-decoration:none; }}
+    .brand-hero-name {{ font-size: clamp(2.1rem, 3.4vw, 2.9rem); font-weight: 950; letter-spacing: -0.05em; color: #0f172a; }}
+    .btn-primary, .btn-secondary {{ display:inline-flex; align-items:center; justify-content:center; padding: 12px 16px; border-radius: 14px; font-weight: 800; text-decoration:none; transition: transform 0.24s ease, box-shadow 0.24s ease, background 0.24s ease; }}
     .btn-primary {{ background: linear-gradient(135deg, var(--brand-deep), var(--brand)); color:#fff; }}
     .btn-secondary {{ background: #eef2f7; color:#334155; }}
+    .btn-primary:hover, .btn-secondary:hover {{ transform: translateY(-2px); box-shadow: 0 16px 26px rgba(15,23,42,0.10); }}
     .mini-card {{ display:flex; flex-direction:column; gap:6px; border-radius:18px; background:#f8fafc; border:1px solid rgba(226,232,240,0.95); padding:14px 15px; }}
     .mini-card span {{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.07em; }}
     .mini-card strong {{ font-size:14px; font-weight:800; color:#0f172a; }}
@@ -3633,13 +3744,49 @@ def _dashboard_css(day_count: int) -> str:
     .insight-chip em {{ font-style:normal; opacity:0.66; font-size:11px; }}
     .panel-label {{ font-size:12px; font-weight:900; letter-spacing:0.12em; text-transform:uppercase; color:#64748b; }}
     .insight-list-item {{ list-style:none; margin:0; padding:12px 14px; border-radius:18px; background:#f8fafc; border:1px solid rgba(226,232,240,0.95); font-size:13px; color:#334155; }}
+    .pressure-row {{ display:flex; gap:14px; align-items:flex-start; padding:16px 18px; border-radius:22px; background:linear-gradient(180deg, rgba(248,250,252,0.96), rgba(241,245,249,0.92)); border:1px solid rgba(226,232,240,0.95); }}
+    .pressure-rank {{ width:44px; height:44px; flex:0 0 44px; border-radius:16px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, rgba(11,43,102,0.98), rgba(18,63,140,0.82)); color:#fff; font-size:13px; font-weight:900; letter-spacing:0.08em; box-shadow:0 14px 26px rgba(11,43,102,0.18); }}
+    .pressure-copy {{ min-width:0; flex:1; }}
+    .pressure-head {{ display:flex; align-items:center; justify-content:space-between; gap:12px; }}
+    .pressure-head strong {{ font-size:17px; font-weight:900; letter-spacing:-0.03em; color:#0f172a; }}
+    .pressure-metric {{ font-size:11px; font-weight:800; color:#475569; }}
+    .pressure-title {{ margin:8px 0 0; font-size:13px; line-height:1.5; color:#334155; }}
+    .pressure-tags {{ margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }}
     .clamp-2 {{ overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
     .clamp-3 {{ overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }}
+    @keyframes ambientFloat {{
+      0%, 100% {{ transform: translate3d(0, 0, 0) scale(1); }}
+      50% {{ transform: translate3d(0, 18px, 0) scale(1.06); }}
+    }}
+    @keyframes shimmerSweep {{
+      0% {{ transform: rotate(18deg) translateX(-140%); }}
+      100% {{ transform: rotate(18deg) translateX(290%); }}
+    }}
+    @keyframes motionFadeUp {{
+      0% {{ opacity:0; transform:translate3d(0,28px,0) scale(.985); }}
+      100% {{ opacity:1; transform:translate3d(0,0,0) scale(1); }}
+    }}
+    @keyframes motionFadeLeft {{
+      0% {{ opacity:0; transform:translate3d(22px,0,0) scale(.985); }}
+      100% {{ opacity:1; transform:translate3d(0,0,0) scale(1); }}
+    }}
+    .motion-ready .motion-target,
+    .motion-ready .motion-target-left {{ opacity:0; will-change:transform,opacity; }}
+    .motion-ready .motion-in {{ animation: motionFadeUp .82s cubic-bezier(.22,.86,.22,1) both; }}
+    .motion-ready .motion-in-left {{ animation: motionFadeLeft .82s cubic-bezier(.22,.86,.22,1) both; }}
+    .motion-hover {{ transition: transform .26s ease, box-shadow .26s ease, border-color .26s ease; }}
+    .motion-hover:hover {{ transform: translateY(-4px); box-shadow: 0 22px 40px rgba(15,23,42,.10); border-color: rgba(29,78,216,0.16); }}
     body.embedded aside {{ display:none !important; }}
     body.embedded .sidebar {{ display:none !important; }}
     body.embedded main {{ padding: 24px !important; }}
     @media (max-width: 1024px) {{
       .heatmap-row {{ grid-template-columns: 132px repeat({heat_cols}, minmax(48px, 1fr)); min-width: {heat_width_mobile}px; }}
+      .pressure-head {{ flex-direction: column; align-items: flex-start; }}
+    }}
+    @media (max-width: 768px) {{
+      .filter-btn, .tab-btn {{ width: 100%; justify-content: space-between; }}
+      .brand-tab-name {{ font-size: 16px; }}
+      .brand-hero-name {{ font-size: clamp(1.9rem, 8vw, 2.35rem); }}
     }}
     """
 
@@ -3819,7 +3966,12 @@ def write_html_legacy(path: str, rows: List[Banner], changes: Optional[Dict[str,
 
   </style>
 </head>
-<body class="flex">
+<body class="page-shell flex">
+  <div class="dashboard-ambient" aria-hidden="true">
+    <span class="ambient-orb one"></span>
+    <span class="ambient-orb two"></span>
+    <span class="ambient-orb three"></span>
+  </div>
   <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
     <div class="flex items-center gap-4 mb-16 px-2">
       <div class="w-12 h-12 bg-[#002d72] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-900/20">
@@ -3991,6 +4143,7 @@ def write_dashboard_html_legacy(path: str, rows: List[Banner], changes: Optional
         bk: summarize_brand_insight(bk, sorted(by_brand.get(bk, []), key=lambda x: x.rank), changes_map)
         for bk in active_brand_keys
     }
+    pressure_section_html = _render_competitive_pressure_section(safe_changes, brand_name_map)
     health = build_collection_health(rows)
 
     overview_cards_html = f"""
@@ -4135,7 +4288,12 @@ def write_dashboard_html_legacy(path: str, rows: List[Banner], changes: Optional
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>{_dashboard_css(len(safe_changes.get("timeline_days") or []))}</style>
 </head>
-<body class="flex">
+<body class="page-shell flex">
+  <div class="dashboard-ambient" aria-hidden="true">
+    <span class="ambient-orb one"></span>
+    <span class="ambient-orb two"></span>
+    <span class="ambient-orb three"></span>
+  </div>
   <aside class="w-72 h-screen sticky top-0 sidebar hidden xl:flex flex-col p-8">
     <div class="flex items-center gap-4 mb-16 px-2"><div class="w-12 h-12 bg-[var(--brand-deep)] rounded-2xl flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-mountain-sun text-xl"></i></div><div><div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div><div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Competitive Watch</div></div></div>
     <nav class="space-y-4"><div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4"><i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC</span></div><div class="p-4 rounded-2xl bg-white shadow-sm text-[var(--brand-deep)] font-black flex items-center gap-4"><i class="fa-solid fa-chart-line"></i> <span>Hero Banner Monitor</span></div></nav>
@@ -4226,6 +4384,7 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
         bk: summarize_brand_insight(bk, sorted(by_brand.get(bk, []), key=lambda x: x.rank), changes_map)
         for bk in active_brand_keys
     }
+    pressure_section_html = _render_competitive_pressure_section(safe_changes, brand_name_map)
 
     overview_cards_html = f"""
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -4261,7 +4420,7 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
         brand_name = brand_name_map.get(bk, bk)
         seg = BRAND_SEGMENTS.get(bk, {"style": "ETC", "origin": "ETC"})
         insight = brand_insights.get(bk, {})
-        tab_menu_html += '<button onclick="switchTab(\'{bk}\')" id="tab-{bk}" class="{cls}" data-style="{style}" data-origin="{origin}"><span>{name}</span><span class="tab-meta">{meta}</span></button>'.format(
+        tab_menu_html += '<button onclick="switchTab(\'{bk}\')" id="tab-{bk}" class="{cls}" data-style="{style}" data-origin="{origin}"><span class="brand-tab-name">{name}</span><span class="tab-meta">{meta}</span></button>'.format(
             bk=_h(bk),
             cls=("tab-btn active" if i == 0 else "tab-btn"),
             style=_h(seg.get("style", "ETC")),
@@ -4297,7 +4456,7 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
                   <div class="p-6 lg:p-7 flex flex-col gap-5">
                     <div>
                       <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Brand Detail</div>
-                      <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">{_h(brand_name)}</h3>
+                      <h3 class="mt-2 brand-hero-name">{_h(brand_name)}</h3>
                       <p class="mt-3 text-lg font-bold text-slate-900 clamp-3">"{_h(top_item.title or '-')}"</p>
                       <div class="mt-4 flex flex-wrap gap-2">{_html_pct_chip(float(insight.get('event_delta_pct', 0.0) or 0.0))}{_html_pct_chip(float(insight.get('changed_delta_pct', 0.0) or 0.0))}</div>
                     </div>
@@ -4349,7 +4508,12 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>{_dashboard_css(len(safe_changes.get("timeline_days") or []))}</style>
 </head>
-<body class="flex">
+<body class="page-shell flex">
+  <div class="dashboard-ambient" aria-hidden="true">
+    <span class="ambient-orb one"></span>
+    <span class="ambient-orb two"></span>
+    <span class="ambient-orb three"></span>
+  </div>
   <aside class="w-72 h-screen sticky top-0 sidebar hidden xl:flex flex-col p-8">
     <div class="flex items-center gap-4 mb-16 px-2"><div class="w-12 h-12 bg-[var(--brand-deep)] rounded-2xl flex items-center justify-center text-white shadow-xl"><i class="fa-solid fa-mountain-sun text-xl"></i></div><div><div class="text-xl font-black tracking-tighter italic">M-OS <span class="text-blue-600 font-extrabold">PRO</span></div><div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">Competitive Watch</div></div></div>
     <nav class="space-y-4"><div class="p-4 rounded-2xl text-slate-400 font-bold flex items-center gap-4"><i class="fa-solid fa-tower-broadcast"></i> <span>Live VOC</span></div><div class="p-4 rounded-2xl bg-white shadow-sm text-[var(--brand-deep)] font-black flex items-center gap-4"><i class="fa-solid fa-chart-line"></i> <span>경쟁사 기획전 분석</span></div></nav>
@@ -4383,6 +4547,24 @@ def write_dashboard_html(path: str, rows: List[Banner], changes: Optional[Dict[s
         if (firstVisible) switchTab(firstVisible.id.replace('tab-', ''));
       }}
     }}
+    function enhanceDashboardLayout() {{
+      const main = document.querySelector('main');
+      if (!main) return;
+      const sections = Array.from(main.children).filter(el => el.tagName === 'SECTION');
+      if (sections.length >= 2) {{
+        const analyticsSection = sections[0];
+        const brandSection = sections[1];
+        if (analyticsSection && brandSection && analyticsSection.previousElementSibling?.tagName === 'HEADER') {{
+          main.insertBefore(brandSection, analyticsSection);
+        }}
+        const analyticsSide = analyticsSection && analyticsSection.children.length > 1 ? analyticsSection.children[1] : null;
+        const pressureHtml = {json.dumps(pressure_section_html)};
+        if (analyticsSide && pressureHtml && !analyticsSide.querySelector('.pressure-row')) {{
+          analyticsSide.insertAdjacentHTML('beforeend', pressureHtml);
+        }}
+      }}
+    }}
+    enhanceDashboardLayout();
     (function () {{
       try {{
         if (window.self !== window.top) document.body.classList.add("embedded");
