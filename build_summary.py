@@ -1241,7 +1241,6 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         <div>
           <div class="section-eyebrow">CSK E-COMM SUMMARY</div>
           <h1 class="mt-3 text-3xl sm:text-5xl font-black tracking-[-0.04em] text-slate-950">오늘의 핵심 요약</h1>
-          <p class="mt-3 text-sm sm:text-base text-slate-600 max-w-3xl">Daily · Weekly · Owned YTD를 같은 스타일 안에서 명확히 다른 레이어로 분리해, 섹션 전환이 바로 인지되도록 재정렬했습니다.</p>
         </div>
         <div class="section-meta">
           generated <b class="text-slate-900">{now_kst_label()}</b><br/>
