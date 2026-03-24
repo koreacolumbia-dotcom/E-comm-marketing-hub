@@ -32,10 +32,10 @@
     .delta-pill.up{background:rgba(15,118,110,.08);color:#0f766e;border-color:rgba(15,118,110,.16)}
     .delta-pill.down{background:rgba(190,24,93,.08);color:#be185d;border-color:rgba(190,24,93,.16)}
     .delta-pill.flat{background:rgba(148,163,184,.12);color:#64748b;border-color:rgba(148,163,184,.16)}
-    .metric-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:18px;max-width:260px}
-    .metric-stat{border:1px solid rgba(191,219,254,.45);background:linear-gradient(180deg,rgba(248,250,252,.92),rgba(241,245,249,.84));border-radius:20px;padding:18px 20px;min-height:132px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+    .metric-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-top:16px;max-width:220px}
+    .metric-stat{border:1px solid rgba(191,219,254,.45);background:linear-gradient(180deg,rgba(248,250,252,.92),rgba(241,245,249,.84));border-radius:20px;padding:14px 16px;min-height:86px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
     .metric-stat-label{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:#94a3b8}
-    .metric-stat-value{margin-top:8px;font-size:clamp(28px,2.2vw,40px);line-height:1;font-weight:900;color:#0f172a;letter-spacing:-.04em;white-space:nowrap;overflow:hidden;text-overflow:clip}
+    .metric-stat-value{margin-top:6px;font-size:clamp(24px,1.9vw,34px);line-height:1;font-weight:900;color:#0f172a;letter-spacing:-.04em;white-space:nowrap;overflow:hidden;text-overflow:clip}
     .metric-footnote{margin-top:12px;font-size:12px;font-weight:700;color:#64748b}
     .insight-card,.detail-card,.drop-rank-card,.stage-rank-card{border:1px solid rgba(191,219,254,.34);background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(248,250,252,.88));border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.05);animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}
     .insight-card{padding:18px 18px 16px}
@@ -55,8 +55,8 @@
     .funnel-row{display:grid;grid-template-columns:300px minmax(0,1fr) 236px;gap:24px;align-items:stretch}
     .funnel-stage-card{position:relative;border:1px solid rgba(191,219,254,.40);background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,250,252,.94));border-radius:28px;box-shadow:0 18px 40px rgba(15,23,42,.07);padding:18px 18px 16px;display:flex;flex-direction:column;justify-content:flex-start;min-height:220px;animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}.funnel-stage-card::before{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(29,78,216,.06),rgba(255,255,255,0) 52%);pointer-events:none}.funnel-stage-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;position:relative;z-index:1}.funnel-stage-card-title{margin-top:6px;font-size:18px;line-height:1.08;font-weight:900;letter-spacing:-.03em;color:#0f172a}.funnel-stage-card-current{font-size:32px;line-height:.95;font-weight:900;letter-spacing:-.05em;color:#0f172a;white-space:nowrap}.funnel-stage-card-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;position:relative;z-index:1}.funnel-stage-card-ref{margin-top:10px;display:grid;gap:6px;position:relative;z-index:1}.funnel-stage-card-refline{font-size:12px;line-height:1.35;font-weight:800;color:#64748b}.funnel-lane{min-width:0}
     .funnel-step-line{display:none}
-    .funnel-track{position:relative;height:220px;border-radius:30px;border:1px solid rgba(191,219,254,.36);background:linear-gradient(180deg,rgba(239,246,255,.86),rgba(255,255,255,.4));overflow:hidden;padding:0 10px}.funnel-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 10px}
-    .funnel-stage{position:relative;left:auto;top:auto;transform:none;transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 22px 42px rgba(15,23,42,.13);height:168px;border-radius:26px;overflow:hidden;padding:16px 28px;min-width:0;max-width:100%;margin:auto;animation:funnelStageIn .96s cubic-bezier(.18,.86,.22,1) both}
+    .funnel-track{position:relative;height:220px;border-radius:30px;border:1px solid rgba(191,219,254,.36);background:linear-gradient(180deg,rgba(239,246,255,.86),rgba(255,255,255,.4));overflow:hidden;padding:0 10px;display:flex;align-items:center;justify-content:center}.funnel-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 10px}
+    .funnel-stage{position:relative;left:auto;top:auto;transform:none;transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 22px 42px rgba(15,23,42,.13);height:168px;border-radius:26px;overflow:hidden;padding:16px 28px;min-width:0;max-width:100%;margin:0 auto;animation:funnelStageIn .72s cubic-bezier(.18,.86,.22,1) both}
     .funnel-stage::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 54%,rgba(0,0,0,.06));pointer-events:none}
     .funnel-stage::after{content:'';position:absolute;left:-24%;top:-40%;width:24%;height:180%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.32),rgba(255,255,255,0));filter:blur(6px);opacity:0;animation:funnelSheen 1.2s ease .35s both}
     .funnel-stage-inner{position:relative;z-index:2;width:100%;height:100%;display:flex;align-items:center;justify-content:center;min-width:0}
@@ -88,7 +88,7 @@
     .funnel-stage.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
     .drop-slot{position:relative;height:220px;border-radius:30px;border:1px solid rgba(251,207,232,.5);background:linear-gradient(180deg,rgba(255,247,248,.96),rgba(255,255,255,.92));overflow:hidden;display:flex;align-items:flex-start;justify-content:flex-start;padding:18px 18px 24px}
     .drop-slot.baseline{border-style:dashed;border-color:rgba(148,163,184,.35);background:linear-gradient(180deg,rgba(248,250,252,.78),rgba(255,255,255,.84))}
-    .drop-fill{position:absolute;left:18px;bottom:18px;transform:none;transform-origin:left center;height:16px;border-radius:999px;background:linear-gradient(90deg,#fb7185,#ec4899);box-shadow:0 10px 22px rgba(220,72,158,.18), inset 0 1px 0 rgba(255,255,255,.24);animation:dropIn .82s cubic-bezier(.18,.86,.22,1) both}
+    .drop-fill{display:none !important;position:absolute;left:18px;bottom:18px;transform:none;transform-origin:left center;height:16px;border-radius:999px;background:linear-gradient(90deg,#fb7185,#ec4899);box-shadow:0 10px 22px rgba(220,72,158,.18), inset 0 1px 0 rgba(255,255,255,.24);animation:none}
     .drop-fill::after{content:'';position:absolute;left:-24%;top:-25%;width:44%;height:150%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.28),rgba(255,255,255,0));opacity:.55;filter:blur(4px)}
     .drop-label{position:relative;z-index:2;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:8px;max-width:100%;width:100%}
     .drop-kicker,.drop-rate,.drop-count{max-width:100%;overflow:hidden;text-overflow:ellipsis}
@@ -104,15 +104,15 @@
     .drop-compare.flat{color:#64748b}
     .drop-reference{font-size:12px;line-height:1.35;font-weight:800;color:#64748b}
     .detailed-flow .funnel-track{height:252px;padding:18px 14px 14px}
-    .detailed-flow .funnel-stage{top:50%;height:116px;min-width:0;padding:12px 12px;overflow:visible}
+    .detailed-flow .funnel-stage{height:116px;min-width:0;padding:12px 12px;overflow:visible}
     .detailed-flow .stage-copy{display:none}
     .detailed-flow .stage-bar-copy{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
     .detailed-flow .drop-slot{height:252px;padding:18px 18px 24px}
     .detailed-flow .drop-fill{height:16px}
     .compact-flow .stage-bar-copy,.compact-flow .stage-panel,.compact-flow .funnel-stage-card{display:none}
-    @keyframes funnelStageIn{0%{opacity:0;transform:translate(-50%,-40%) scale(.82);filter:blur(2px)}55%{opacity:1;transform:translate(-50%,-50%) scale(1.03);filter:blur(0)}100%{opacity:1;transform:translate(-50%,-50%) scale(1);filter:blur(0)}}
+    @keyframes funnelStageIn{0%{opacity:0;transform:scale(.88);filter:blur(2px)}60%{opacity:1;transform:scale(1.02);filter:blur(0)}100%{opacity:1;transform:scale(1);filter:blur(0)}}
     @keyframes funnelSheen{0%{left:-24%;opacity:0}22%{opacity:.55}100%{left:112%;opacity:0}}
-    @keyframes dropIn{0%{opacity:0;transform:translate(-14px,-50%) scale(.88)}70%{opacity:1;transform:translate(0,-50%) scale(1.02)}100%{opacity:1;transform:translate(0,-50%) scale(1)}}
+    @keyframes dropIn{0%{opacity:0;transform:translateX(-14px) scale(.88)}70%{opacity:1;transform:translateX(0) scale(1.02)}100%{opacity:1;transform:translateX(0) scale(1)}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes cardRise{0%{opacity:0;transform:translateY(18px);filter:blur(6px)}100%{opacity:1;transform:translateY(0);filter:blur(0)}}
     @media (max-width: 1180px){.funnel-row{grid-template-columns:260px minmax(0,1fr) 206px;gap:18px}.funnel-stage-card{min-height:198px}.funnel-track,.drop-slot{height:198px}.funnel-stage{height:150px;min-width:0}.stage-title{font-size:46px}.stage-value .num{font-size:70px}.funnel-stage-card-title{font-size:17px}.funnel-stage-card-current{font-size:28px}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:228px}.detailed-flow .funnel-stage{height:98px;top:50%}.drop-rate{font-size:40px}}
