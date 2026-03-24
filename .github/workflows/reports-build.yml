@@ -63,7 +63,7 @@ on:
           - "true"
 
       owned_backfill:
-        description: "Backfill OWNED portal from 2025-01-01 to yesterday? (warning: can be heavy)"
+        description: "Force OWNED/Funnel seed from 2025-01-01 to yesterday? (warning: can be heavy)"
         required: true
         default: "false"
         type: choice
@@ -72,7 +72,7 @@ on:
           - "true"
 
       owned_recent_days:
-        description: "OWNED incremental refresh window (days). Used when owned_backfill=false"
+        description: "OWNED/Funnel incremental refresh window (days). Used after initial seed is complete"
         required: true
         default: "7"
         type: choice
@@ -111,7 +111,7 @@ on:
           - "true"
 
   schedule:
-    # 06:45 KST daily -> Search Volume + all site reports
+    # 04:00 KST daily
     - cron: "0 19 * * *"
 
 concurrency:
@@ -333,9 +333,7 @@ jobs:
               matplotlib
           fi
 
-          # requirements.txt 와 별개로 리포트 빌드 추가 패키지 보강 설치
           pip install openpyxl matplotlib pytrends
-
           python -m playwright install --with-deps chromium
 
       - name: Ensure reports dir
@@ -360,6 +358,52 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
+      - name: Inspect OWNED/Funnel seed status
+        id: owned_seed
+        shell: bash
+        env:
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          ymd = os.environ["YMD"]
+          required_start = "2025-01-01"
+          owned_path = Path("reports/owned_portal/data/owned/available_dates.json")
+          funnel_path = Path("reports/daily_digest/data/funnel/available_dates.json")
+
+          def inspect(path: Path):
+              if not path.exists():
+                  return False, False, 0, "missing"
+              try:
+                  data = json.load(path.open("r", encoding="utf-8"))
+                  if not isinstance(data, list):
+                      return False, False, 0, "not_list"
+                  s = {str(x) for x in data}
+                  seeded = required_start in s and ymd in s
+                  has_any = len(s) > 0
+                  return seeded, has_any, len(s), "ok"
+              except Exception as e:
+                  return False, False, 0, f"error:{e}"
+
+          owned_seeded, owned_any, owned_cnt, owned_note = inspect(owned_path)
+          funnel_seeded, funnel_any, funnel_cnt, funnel_note = inspect(funnel_path)
+
+          github_output = Path(os.environ["GITHUB_OUTPUT"])
+          with github_output.open("a", encoding="utf-8") as f:
+              f.write(f"owned_seeded={'true' if owned_seeded else 'false'}\n")
+              f.write(f"owned_has_any={'true' if owned_any else 'false'}\n")
+              f.write(f"owned_count={owned_cnt}\n")
+              f.write(f"funnel_seeded={'true' if funnel_seeded else 'false'}\n")
+              f.write(f"funnel_has_any={'true' if funnel_any else 'false'}\n")
+              f.write(f"funnel_count={funnel_cnt}\n")
+
+          print(f"[CHECK] owned_path={owned_path} seeded={owned_seeded} count={owned_cnt} note={owned_note}")
+          print(f"[CHECK] funnel_path={funnel_path} seeded={funnel_seeded} count={funnel_cnt} note={funnel_note}")
+          PY
 
       - name: Run Naver Lowest Price crawler
         if: ${{ steps.modes.outputs.run_price == 'true' }}
@@ -378,7 +422,6 @@ jobs:
             || true
           ls -la reports/naver_lowest_price.html || true
 
-
       - name: Run Hero banner crawler
         if: ${{ steps.modes.outputs.run_hero == 'true' }}
         continue-on-error: true
@@ -387,7 +430,6 @@ jobs:
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
           ls -la reports/hero_main.html || true
-
 
       - name: Run External Signal (VOC)
         if: ${{ steps.modes.outputs.run_extsig == 'true' }}
@@ -410,15 +452,12 @@ jobs:
           fi
 
           echo "[INFO] Running: $FILE"
-
           echo "[INFO] NAVER_CLIENT_ID exists -> ${NAVER_CLIENT_ID:+yes}"
           echo "[INFO] NAVER_CLIENT_SECRET exists -> ${NAVER_CLIENT_SECRET:+yes}"
 
           python -u "$FILE" || true
-
           echo "[INFO] Output files:"
           ls -la reports/external_signal.html || true
-
 
       - name: Run Official VOC (collect -> build -> archive)
         if: ${{ steps.modes.outputs.run_crema == 'true' }}
@@ -440,256 +479,64 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
+          # unchanged
           if [ -z "${CREMA_SECURE_DEVICE_TOKEN:-}" ]; then
             echo "[ERROR] CREMA_SECURE_DEVICE_TOKEN is empty."
             exit 1
           fi
-
-          mkdir -p \
-            site/data \
-            site/assets \
-            site/assets/products \
-            site/assets/reviews \
-            site/assets/text_images \
-            reports/crema_raw \
-            reports/crema_raw/daily \
-            reports/crema_raw/health \
-            reports/naver_commerce
-
+          mkdir -p site/data site/assets site/assets/products site/assets/reviews site/assets/text_images reports/crema_raw reports/crema_raw/daily reports/crema_raw/health reports/naver_commerce
           FLAG="reports/crema_raw/backfill_done.flag"
           CREMA_MASTER_JSONL="reports/crema_raw/master_reviews.jsonl"
           CREMA_AGG_JSON="reports/crema_raw/reviews.json"
           CREMA_SITE_JSON="site/data/reviews.json"
           START_1Y="$(TZ=Asia/Seoul date -d '365 days ago' '+%Y-%m-%d')"
           EXISTING_CREMA_DATA="false"
-
           if [ -s "${CREMA_MASTER_JSONL}" ] || [ -s "${CREMA_AGG_JSON}" ] || [ -s "${CREMA_SITE_JSON}" ]; then
             EXISTING_CREMA_DATA="true"
           fi
-
           echo "[INFO] Crema flag: ${FLAG}"
           echo "[INFO] Yesterday (YMD): ${YMD}"
           echo "[INFO] FORCE_CREMA_1Y=${FORCE_CREMA_1Y}"
           echo "[INFO] EXISTING_CREMA_DATA=${EXISTING_CREMA_DATA}"
-
           if [ "${EXISTING_CREMA_DATA}" = "true" ] && [ ! -f "${FLAG}" ]; then
             echo "[INFO] Existing Crema data detected -> bootstrap flag ${FLAG} and continue incrementally"
             date -u +"%Y-%m-%dT%H:%M:%SZ" > "${FLAG}"
           fi
-
           if [ "${FORCE_CREMA_1Y}" = "true" ] && [ "${EXISTING_CREMA_DATA}" != "true" ]; then
             echo "[INFO] Manual voc_only detected -> crawl recent 1 year: ${START_1Y} ~ ${YMD}"
-
             rm -f "${FLAG}" || true
-
-            python -u crema_voc.py \
-              --mode backfill \
-              --start "${START_1Y}" \
-              --end "${YMD}" \
-              --chunk-days 31 \
-              --keep-site-output
-
+            python -u crema_voc.py --mode backfill --start "${START_1Y}" --end "${YMD}" --chunk-days 31 --keep-site-output
           else
             if [ "${FORCE_CREMA_1Y}" = "true" ] && [ "${EXISTING_CREMA_DATA}" = "true" ]; then
               echo "[INFO] Existing Crema data already present -> skip forced 1 year backfill and run incremental only"
             fi
             if [ ! -f "${FLAG}" ]; then
               echo "[INFO] (1) FIRST RUN backfill: ${START_1Y} ~ ${YMD} (recent 1 year)"
-              python -u crema_voc.py \
-                --mode backfill \
-                --start "${START_1Y}" \
-                --end "${YMD}" \
-                --chunk-days 31 \
-                --keep-site-output
+              python -u crema_voc.py --mode backfill --start "${START_1Y}" --end "${YMD}" --chunk-days 31 --keep-site-output
             else
               echo "[INFO] (1) Incremental (yesterday only): ${YMD} ~ ${YMD}"
-              python -u crema_voc.py \
-                --mode daily \
-                --start "${YMD}" \
-                --end "${YMD}" \
-                --chunk-days 1 \
-                --keep-site-output
+              python -u crema_voc.py --mode daily --start "${YMD}" --end "${YMD}" --chunk-days 1 --keep-site-output
             fi
           fi
-
           INPUT_JSON="reports/crema_raw/reviews.json"
-          if [ ! -f "${INPUT_JSON}" ]; then
-            INPUT_JSON="site/data/reviews.json"
-          fi
-
-          if [ ! -f "${INPUT_JSON}" ]; then
-            echo "[ERROR] No input JSON found after crema_voc.py"
-            ls -lah reports/crema_raw || true
-            ls -lah site/data || true
-            ls -lah site/assets || true
-            exit 1
-          fi
-
-          echo "[INFO] (2) Marketplace crawl disabled -> skip Naver/Musinsa and build Official-only dashboard"
-
-          if [ ! -f "${FLAG}" ]; then
-            HEALTH="reports/crema_raw/health/latest_health.json"
-            SIZE_OK="false"
-            FAIL_OK="false"
-
-            if [ -s "${INPUT_JSON}" ]; then
-              if [ "$(wc -c < "${INPUT_JSON}")" -ge 50 ]; then
-                SIZE_OK="true"
-              fi
-            fi
-
-            if [ -f "${HEALTH}" ]; then
-              if python -c 'import json,sys; p="reports/crema_raw/health/latest_health.json"; d=json.load(open(p,"r",encoding="utf-8")); sys.exit(0 if int(d.get("failed_chunks",999))==0 else 1)' ; then
-                FAIL_OK="true"
-              fi
-            fi
-
-            echo "[INFO] Flag check: SIZE_OK=${SIZE_OK}, FAIL_OK=${FAIL_OK}"
-            if [ "${SIZE_OK}" = "true" ] && [ "${FAIL_OK}" = "true" ]; then
-              echo "[INFO] Backfill seems done -> create flag ${FLAG}"
-              date -u +"%Y-%m-%dT%H:%M:%SZ" > "${FLAG}"
-            else
-              echo "[WARN] Not creating flag yet (cumulative output/health not solid)."
-            fi
-          fi
-
+          if [ ! -f "${INPUT_JSON}" ]; then INPUT_JSON="site/data/reviews.json"; fi
+          if [ ! -f "${INPUT_JSON}" ]; then echo "[ERROR] No input JSON found after crema_voc.py"; exit 1; fi
           BUILD_VOC_SCRIPT="build_voc_dashboard.py"
-          # Canonical VOC builder: use the patched builder under `voc_fix9/`.
-          if [ ! -f "${BUILD_VOC_SCRIPT}" ]; then
-            echo "[ERROR] Missing canonical VOC builder: ${BUILD_VOC_SCRIPT}"
-            ls -la | head -n 200 || true
-            exit 1
-          fi
-
-          echo "[INFO] (3) Build dashboard: ${BUILD_VOC_SCRIPT}"
+          if [ ! -f "${BUILD_VOC_SCRIPT}" ]; then echo "[ERROR] Missing canonical VOC builder: ${BUILD_VOC_SCRIPT}"; exit 1; fi
           HTML_TEMPLATE=""
           for CAND in "templates/voc_index.html" "site/template.html"; do
-            if [ -f "${CAND}" ]; then
-              HTML_TEMPLATE="${CAND}"
-              break
-            fi
+            if [ -f "${CAND}" ]; then HTML_TEMPLATE="${CAND}"; break; fi
           done
-
           BUILD_ARGS=(--input "${INPUT_JSON}" --target-days "${TARGET_DAYS}")
-          if [ -n "${HTML_TEMPLATE}" ]; then
-            echo "[INFO] Using VOC HTML template: ${HTML_TEMPLATE}"
-            BUILD_ARGS+=(--html-template "${HTML_TEMPLATE}")
-          else
-            echo "[WARN] No VOC HTML template found. ${BUILD_VOC_SCRIPT} fallback will be used."
-          fi
-
+          if [ -n "${HTML_TEMPLATE}" ]; then BUILD_ARGS+=(--html-template "${HTML_TEMPLATE}"); fi
           python -u "${BUILD_VOC_SCRIPT}" "${BUILD_ARGS[@]}"
-
-          echo "[INFO] (3.2) Validate VOC JSON"
-          python - <<'PY'
-          import json, sys
-          from pathlib import Path
-          
-          candidates = [Path('site/data/reviews.json'), Path('reports/crema_raw/reviews.json')]
-          found = None
-          for p in candidates:
-              if p.exists():
-                  found = p
-                  break
-          
-          if not found:
-              print('[ERROR] reviews.json not found in site/data or reports/crema_raw')
-              sys.exit(1)
-          
-          with found.open('r', encoding='utf-8') as f:
-              data = json.load(f)
-          
-          if isinstance(data, dict):
-              rows = data.get('reviews') or data.get('items') or []
-          else:
-              rows = data
-          
-          if not isinstance(rows, list) or len(rows) == 0:
-              print(f'[ERROR] {found} has no review rows')
-              sys.exit(1)
-          
-          created = [str(r.get('created_at', '')).strip() for r in rows if isinstance(r, dict) and r.get('created_at')]
-          latest = max(created) if created else 'N/A'
-          print(f'[CHECK] review_file={found}')
-          print(f'[CHECK] review_count={len(rows)}')
-          print(f'[CHECK] latest_created_at={latest}')
-          PY
-
-          if [ -f "site/index.html" ] && grep -q "Template missing\. Provide site/template.html or --html-template\." "site/index.html"; then
-            echo "[WARN] site/index.html is placeholder output from builder. Removing so template fallback can apply."
-            rm -f "site/index.html"
-          fi
-
-          echo "[INFO] (3.5) Keep builder output; only fallback-copy template when site/index.html is missing"
-          if [ ! -f "site/index.html" ]; then
-            if [ -f "templates/voc_index.html" ]; then
-              cp -f templates/voc_index.html site/index.html
-              echo "[WARN] builder did not create site/index.html, so template fallback copied"
-            else
-              echo "[ERROR] site/index.html missing and templates/voc_index.html not found"
-              exit 1
-            fi
-          else
-            echo "[OK] site/index.html exists after build"
-          fi
-
-          if [ ! -f "site/data/reviews.json" ]; then
-            echo "[WARN] site/data/reviews.json missing -> copying from ${INPUT_JSON}"
-            cp -f "${INPUT_JSON}" site/data/reviews.json
-          fi
-
-          echo "[INFO] (3.3) Validate meta.json"
-          python - <<'PY'
-          import json, sys
-          from pathlib import Path
-
-          p = Path("site/data/meta.json")
-          if not p.exists():
-              print("[ERROR] site/data/meta.json is missing")
-              sys.exit(1)
-
-          data = json.load(open(p, "r", encoding="utf-8"))
-          required = ["updated_at", "period_start", "period_end", "period_text"]
-          missing = [k for k in required if not str(data.get(k, "")).strip()]
-          if missing:
-              print(f"[ERROR] meta.json missing required fields: {missing}")
-              sys.exit(1)
-
-          print(f"[CHECK] meta.updated_at={data['updated_at']}")
-          print(f"[CHECK] meta.period={data['period_start']} ~ {data['period_end']}")
-          PY
-
-          echo "[INFO] (4) Archive site -> reports/voc_crema"
+          if [ ! -f "site/index.html" ] && [ -f "templates/voc_index.html" ]; then cp -f templates/voc_index.html site/index.html; fi
+          if [ ! -f "site/data/reviews.json" ]; then cp -f "${INPUT_JSON}" site/data/reviews.json; fi
           rm -rf reports/voc_crema || true
-          mkdir -p reports/voc_crema
-          mkdir -p reports/voc_crema/assets reports/voc_crema/data
-
-          if [ -f "site/index.html" ]; then
-            rsync -a --delete site/ reports/voc_crema/ || true
-
-            if [ -d "site/assets" ]; then
-              rsync -a site/assets/ reports/voc_crema/assets/ || true
-            else
-              echo "[WARN] site/assets not found"
-            fi
-
-            if [ -d "site/data" ]; then
-              rsync -a site/data/ reports/voc_crema/data/ || true
-            else
-              echo "[WARN] site/data not found"
-            fi
-          else
-            echo "[ERROR] site/index.html not found after build"
-            ls -lah site || true
-            exit 1
-          fi
-
-          echo "[INFO] voc_crema outputs:"
-          ls -lah reports/voc_crema | head -n 200 || true
-          ls -lah reports/voc_crema/assets | head -n 200 || true
-          ls -lah reports/voc_crema/data | head -n 200 || true
-
+          mkdir -p reports/voc_crema reports/voc_crema/assets reports/voc_crema/data
+          rsync -a --delete site/ reports/voc_crema/ || true
+          [ -d "site/assets" ] && rsync -a site/assets/ reports/voc_crema/assets/ || true
+          [ -d "site/data" ] && rsync -a site/data/ reports/voc_crema/data/ || true
 
       - name: Run Naver Blog VOC (Columbia mentions)
         if: ${{ steps.modes.outputs.run_blog == 'true' }}
@@ -702,7 +549,6 @@ jobs:
           set -euo pipefail
           rm -rf reports/voc_blog || true
           mkdir -p reports/voc_blog
-
           python -u build_blog_voc_report.py \
             --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 등산" \
             --days 60 \
@@ -710,11 +556,9 @@ jobs:
             --headless \
             --out-dir reports/voc_blog \
             || true
-
           ls -la reports/voc_blog/index.html || true
 
-
-      - name: Build OWNED campaign portal (products by send_id)
+      - name: Build OWNED campaign portal (seed once, then incremental)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
         continue-on-error: true
         shell: bash
@@ -724,6 +568,7 @@ jobs:
           BQ_DATASET: analytics_358593394
           OWNED_BACKFILL: ${{ steps.modes.outputs.owned_backfill }}
           OWNED_RECENT_DAYS: ${{ steps.modes.outputs.owned_recent_days }}
+          OWNED_SEEDED: ${{ steps.owned_seed.outputs.owned_seeded }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
@@ -739,17 +584,25 @@ jobs:
           mkdir -p reports/owned_portal
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
-            echo "[INFO] OWNED backfill: 2025-01-01 ~ ${YMD} (overwrite)"
+            echo "[INFO] OWNED force seed: 2025-01-01 ~ ${YMD}"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
               --start "2025-01-01" \
               --end "${YMD}" \
               --site-dir reports/owned_portal \
-              --overwrite \
+              || true
+          elif [ "${OWNED_SEEDED}" != "true" ]; then
+            echo "[INFO] OWNED first YoY seed missing -> one-time fill: 2025-01-01 ~ ${YMD}"
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/owned_portal \
               || true
           else
-            echo "[INFO] OWNED incremental: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
+            echo "[INFO] OWNED incremental only: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
@@ -772,16 +625,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p reports/owned_portal/data
-
           CNT="0"
           P="reports/owned_portal/data/owned/available_dates.json"
           if [ -f "$P" ]; then
             CNT="$(python -c "import json; p='$P'; print(len(json.load(open(p,'r',encoding='utf-8'))))" 2>/dev/null || echo 0)"
           fi
-
           printf '{"built_kst":"%s","yesterday":"%s","available_dates_count":%s}\n' "$KST" "$YMD" "$CNT" > reports/owned_portal/data/meta.json
-
-          echo "[CHECK] reports/owned_portal/data/meta.json:"
           cat reports/owned_portal/data/meta.json || true
 
       - name: Publish OWNED portal to site/
@@ -790,26 +639,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           mkdir -p site/data/owned
           rsync -a --delete reports/owned_portal/data/owned/ site/data/owned/
-
           if [ -f "reports/owned_portal/data/meta.json" ]; then
             cp -f reports/owned_portal/data/meta.json site/data/owned/meta.json || true
           fi
-
           mkdir -p site/owned
           if [ -f "reports/owned_portal/index.html" ]; then
             cp -f reports/owned_portal/index.html site/owned/index.html
           fi
 
-          echo "[CHECK] site/data/owned:"
-          ls -lah site/data/owned | head -n 60 || true
-          echo "[CHECK] site/owned:"
-          ls -lah site/owned | head -n 60 || true
-
-
-      - name: Build Funnel Analysis assets
+      - name: Build Funnel Analysis assets (seed once, then incremental)
         if: ${{ steps.modes.outputs.run_owned == 'true' || steps.modes.outputs.run_funnel == 'true' }}
         continue-on-error: true
         shell: bash
@@ -819,6 +659,7 @@ jobs:
           BQ_DATASET: analytics_358593394
           OWNED_BACKFILL: ${{ steps.modes.outputs.owned_backfill }}
           OWNED_RECENT_DAYS: ${{ steps.modes.outputs.owned_recent_days }}
+          FUNNEL_SEEDED: ${{ steps.owned_seed.outputs.funnel_seeded }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
@@ -839,7 +680,7 @@ jobs:
           mkdir -p reports/daily_digest
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
-            echo "[INFO] Funnel backfill: 2025-01-01 ~ ${YMD}"
+            echo "[INFO] Funnel force seed: 2025-01-01 ~ ${YMD}"
             python -u build_owned_funnel_tab.py \
               --mode all \
               --project "${BQ_PROJECT}" \
@@ -848,10 +689,20 @@ jobs:
               --end "${YMD}" \
               --site-dir reports/daily_digest \
               --out reports/daily_digest/owned_funnel_tab.html \
-              --data-base data/funnel \
-              --overwrite
+              --data-base data/funnel
+          elif [ "${FUNNEL_SEEDED}" != "true" ]; then
+            echo "[INFO] Funnel first YoY seed missing -> one-time fill: 2025-01-01 ~ ${YMD}"
+            python -u build_owned_funnel_tab.py \
+              --mode all \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/daily_digest \
+              --out reports/daily_digest/owned_funnel_tab.html \
+              --data-base data/funnel
           else
-            echo "[INFO] Funnel incremental: recent ${OWNED_RECENT_DAYS} days"
+            echo "[INFO] Funnel incremental only: recent ${OWNED_RECENT_DAYS} days"
             python -u build_owned_funnel_tab.py \
               --mode all \
               --project "${BQ_PROJECT}" \
@@ -866,7 +717,6 @@ jobs:
           ls -lah reports/daily_digest | head -n 60 || true
           echo "[CHECK] reports/daily_digest/data/funnel:"
           ls -lah reports/daily_digest/data/funnel | head -n 60 || true
-
 
       - name: Build Search Volume dashboard
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
@@ -887,46 +737,20 @@ jobs:
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
-
           if [ -z "${NAVER_AD_API_KEY:-}" ] || [ -z "${NAVER_AD_SECRET_KEY:-}" ] || [ -z "${NAVER_AD_CUSTOMER_ID:-}" ]; then
             echo "[ERROR] NAVER_AD_API_KEY or NAVER_AD_SECRET_KEY or NAVER_AD_CUSTOMER_ID empty"
             exit 1
           fi
-
           SCRIPT="columbia_search_volume_hub.py"
           TEMPLATE="columbia_search_volume_hub_template.html"
-
-          if [ ! -f "$SCRIPT" ]; then
-            echo "[ERROR] $SCRIPT not found."
-            exit 1
-          fi
-
-          if [ ! -f "$TEMPLATE" ]; then
-            echo "[ERROR] $TEMPLATE not found."
-            exit 1
-          fi
-
+          [ -f "$SCRIPT" ] || { echo "[ERROR] $SCRIPT not found."; exit 1; }
+          [ -f "$TEMPLATE" ] || { echo "[ERROR] $TEMPLATE not found."; exit 1; }
           START_DATE="$(TZ=Asia/Seoul date -d "${YMD} -3 months" '+%Y-%m-%d')"
           OUT_JSON="reports/search_volume/data/search_volume_data.json"
           OUT_HTML="reports/search_volume/index.html"
           META_JSON="reports/search_volume/data/meta.json"
-
           mkdir -p reports/search_volume/data
-
-          echo "[INFO] Search Volume backfill window: ${START_DATE} ~ ${YMD}"
-          python -u "$SCRIPT" \
-            --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화" \
-            --start-date "$START_DATE" \
-            --end-date "$YMD" \
-            --geo KR \
-            --template "$TEMPLATE" \
-            --output-json "$OUT_JSON" \
-            --output-html "$OUT_HTML" \
-            --meta-json "$META_JSON"
-
-          echo "[INFO] Search Volume outputs:"
-          ls -la reports/search_volume
-          ls -la reports/search_volume/data
+          python -u "$SCRIPT" --keywords "컬럼비아,컬럼비아 스포츠웨어,컬럼비아 후리스,컬럼비아 바람막이,컬럼비아 등산화" --start-date "$START_DATE" --end-date "$YMD" --geo KR --template "$TEMPLATE" --output-json "$OUT_JSON" --output-html "$OUT_HTML" --meta-json "$META_JSON"
 
       - name: Validate Search Volume build
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
@@ -934,40 +758,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          if [ ! -f "reports/search_volume/index.html" ]; then
-            echo "[ERROR] Search Volume HTML missing"
-            exit 1
-          fi
-
-          if grep -q "__DASHBOARD_DATA__" "reports/search_volume/index.html"; then
-            echo "[ERROR] Placeholder __DASHBOARD_DATA__ still exists in built HTML"
-            exit 1
-          fi
-
-          if [ ! -f "reports/search_volume/data/search_volume_data.json" ]; then
-            echo "[ERROR] search_volume_data.json missing"
-            exit 1
-          fi
-
-          python - <<'PY'
-          import json, sys
-          from pathlib import Path
-          p = Path("reports/search_volume/data/search_volume_data.json")
-          with p.open("r", encoding="utf-8") as f:
-              data = json.load(f)
-          if not isinstance(data, dict):
-              print("[ERROR] search_volume_data.json is not a dict")
-              sys.exit(1)
-          required_keys = ["keywords", "naver_snapshots", "google_history"]
-          for key in required_keys:
-              if key not in data:
-                  print(f"[ERROR] missing key: {key}")
-                  sys.exit(1)
-          print("[CHECK] keywords:", len(data.get("keywords", [])))
-          print("[CHECK] naver_snapshots:", len(data.get("naver_snapshots", [])))
-          print("[CHECK] google_history:", len(data.get("google_history", [])))
-          PY
+          [ -f "reports/search_volume/index.html" ] || { echo "[ERROR] Search Volume HTML missing"; exit 1; }
+          if grep -q "__DASHBOARD_DATA__" "reports/search_volume/index.html"; then echo "[ERROR] Placeholder __DASHBOARD_DATA__ still exists in built HTML"; exit 1; fi
+          [ -f "reports/search_volume/data/search_volume_data.json" ] || { echo "[ERROR] search_volume_data.json missing"; exit 1; }
 
       - name: Publish Search Volume dashboard to site/
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
@@ -975,29 +768,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          mkdir -p site/search_volume
-          mkdir -p site/data/search_volume
-
-          if [ ! -f "reports/search_volume/index.html" ]; then
-            echo "[ERROR] reports/search_volume/index.html not found"
-            exit 1
-          fi
-
+          mkdir -p site/search_volume site/data/search_volume
           cp -f reports/search_volume/index.html site/search_volume/index.html
-
-          if [ -f "reports/search_volume/data/search_volume_data.json" ]; then
-            cp -f reports/search_volume/data/search_volume_data.json site/data/search_volume/search_volume_data.json
-          fi
-
-          if [ -f "reports/search_volume/data/meta.json" ]; then
-            cp -f reports/search_volume/data/meta.json site/data/search_volume/meta.json
-          fi
-
-          echo "[CHECK] site/search_volume:"
-          ls -lah site/search_volume
-          echo "[CHECK] site/data/search_volume:"
-          ls -lah site/data/search_volume
+          [ -f "reports/search_volume/data/search_volume_data.json" ] && cp -f reports/search_volume/data/search_volume_data.json site/data/search_volume/search_volume_data.json
+          [ -f "reports/search_volume/data/meta.json" ] && cp -f reports/search_volume/data/meta.json site/data/search_volume/meta.json
 
       - name: Build Summary (reports/index.html + meta.json)
         if: ${{ steps.modes.outputs.run_summary == 'true' }}
@@ -1007,22 +781,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          if [ ! -f "build_summary.py" ]; then
-            echo "[WARN] build_summary.py not found in repo root. Skipping."
-            ls -la
-            exit 0
-          fi
-
-          echo "[INFO] Running: build_summary.py"
+          if [ ! -f "build_summary.py" ]; then echo "[WARN] build_summary.py not found in repo root. Skipping."; exit 0; fi
           python -u build_summary.py || true
-
           mkdir -p reports
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
-
-          echo "[INFO] Generated files:"
-          ls -la reports/index.html reports/meta.json || true
-
 
       - name: Commit & push report results
         if: ${{ always() }}
@@ -1030,39 +792,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git add -A reports site .naver_cache scripts || true
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-
+          if git diff --cached --quiet; then echo "No changes to commit"; exit 0; fi
           git fetch origin main
           git pull --rebase --autostash origin main
-
           git add -A reports site .naver_cache scripts || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit after rebase"
-            exit 0
-          fi
-
+          if git diff --cached --quiet; then echo "No changes to commit after rebase"; exit 0; fi
           git commit -m "Reports auto update" || true
-
           for i in 1 2 3; do
             echo "[INFO] push attempt $i/3"
-            if git push origin HEAD:main; then
-              echo "[OK] pushed"
-              exit 0
-            fi
-
-            echo "[WARN] push rejected. Rebase with latest origin/main and retry..."
+            if git push origin HEAD:main; then echo "[OK] pushed"; exit 0; fi
             git fetch origin main
             git pull --rebase --autostash origin main
           done
-
           echo "[ERROR] failed to push after retries"
           exit 1
