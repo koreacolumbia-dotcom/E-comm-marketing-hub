@@ -581,7 +581,9 @@ def _aggregate_owned_rows_by_channel(rows: List[Dict[str, Any]]) -> Dict[str, Di
         out[ch]["revenue"] += float(_safe_float(r.get("revenue")) or 0.0)
 
         if _owned_valid_send_row(r):
-            send_groups[ch].add(_owned_send_group_key(r))
+            ident = _owned_send_identity(r)
+            if ident:
+                send_groups[ch].add(ident)
 
     for ch in OWNED_CHANNELS:
         out[ch]["send_count"] = float(len(send_groups[ch]))
@@ -817,7 +819,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
           <div class="relative z-10">
             <div class="text-[11px] font-extrabold tracking-[0.22em] text-slate-500 uppercase">{title}</div>
             <div class="mt-3 flex items-end justify-between gap-3">
-              <div class="metric-value text-2xl sm:text-[2rem] font-black leading-none text-slate-950" data-countup="{value}">{value}</div>
+              <div class="metric-value text-[clamp(1.45rem,2vw,2rem)] font-black leading-[1.02] text-slate-950 break-all" data-countup="{value}">{value}</div>
             </div>
             <div class="mt-4 space-y-2 text-[11px] sm:text-xs">
               <div class="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-3 py-2 border border-white/70">
@@ -1087,6 +1089,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       transform:translateY(-6px) scale(1.01);
       box-shadow:0 28px 64px rgba(15,23,42,.12);
     }}
+    .metric-value {{ overflow-wrap:anywhere; word-break:break-word; }}
     .metric-card::before, .channel-card::before {{
       content:"";
       position:absolute;
@@ -1124,7 +1127,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
     }}
     .channel-metric .k {{ font-size:11px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:#64748b; }}
-    .channel-metric .v {{ margin-top:.5rem; font-size:1.45rem; font-weight:900; line-height:1.1; color:#020617; }}
+    .channel-metric .v {{ margin-top:.5rem; font-size:1.45rem; font-weight:900; line-height:1.08; color:#020617; overflow-wrap:anywhere; word-break:break-word; }}
     .channel-metric .s {{ margin-top:.45rem; font-size:11px; color:#64748b; }}
     .logic-row {{
       display:flex;
