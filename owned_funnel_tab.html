@@ -67,6 +67,18 @@
     .stage-value{min-width:0;max-width:100%}
     .stage-value .num{font-size:92px;line-height:.88;font-weight:900;white-space:nowrap;letter-spacing:-.06em;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.12)}
     .stage-value .sub{font-size:21px;line-height:1.08;font-weight:800;white-space:nowrap;opacity:.96}
+    .stage-bar-copy{display:none}
+    .stage-bar-num{font-size:52px;line-height:1;font-weight:900;letter-spacing:-.05em;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-panel{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(380px,calc(100% - 28px));border-radius:22px;border:1px solid rgba(191,219,254,.46);background:rgba(255,255,255,.94);box-shadow:0 18px 40px rgba(15,23,42,.08);padding:14px 16px}
+    .stage-panel-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+    .stage-panel-title{margin-top:6px;font-size:26px;line-height:1.05;font-weight:900;letter-spacing:-.03em;color:#0f172a}
+    .stage-panel-current{font-size:34px;line-height:.95;font-weight:900;letter-spacing:-.05em;color:#0f172a;white-space:nowrap}
+    .stage-panel-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+    .stage-chip{display:inline-flex;align-items:center;justify-content:center;min-height:34px;border-radius:999px;padding:8px 12px;border:1px solid rgba(148,163,184,.18);background:rgba(248,250,252,.94);font-size:12px;font-weight:900;color:#475569}
+    .stage-chip.delta.up{background:rgba(15,118,110,.08);color:#0f766e;border-color:rgba(15,118,110,.16)}
+    .stage-chip.delta.down{background:rgba(190,24,93,.08);color:#be185d;border-color:rgba(190,24,93,.16)}
+    .stage-chip.delta.flat{background:rgba(148,163,184,.12);color:#64748b;border-color:rgba(148,163,184,.16)}
+    .stage-reference{margin-top:10px;font-size:13px;line-height:1.35;font-weight:800;color:#64748b}
     .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
     .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
@@ -86,14 +98,25 @@
     .drop-slot.baseline .drop-kicker,.drop-slot.baseline .drop-rate,.drop-slot.baseline .drop-count{color:#64748b}
     .drop-tag{display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;background:rgba(190,24,93,.08);color:#be185d;font-size:11px;font-weight:900;letter-spacing:.08em}
     .drop-big{font-size:34px;line-height:1;font-weight:900;letter-spacing:-.04em;color:#881337}
+    .drop-compare{font-size:14px;line-height:1.2;font-weight:900}
+    .drop-compare.up{color:#0f766e}
+    .drop-compare.down{color:#be185d}
+    .drop-compare.flat{color:#64748b}
+    .detailed-flow .funnel-track{height:252px;padding:18px 14px 14px}
+    .detailed-flow .funnel-stage{top:34%;height:116px;min-width:56px;padding:12px 18px}
+    .detailed-flow .stage-copy{display:none}
+    .detailed-flow .stage-bar-copy{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+    .detailed-flow .drop-slot{height:252px;padding:18px}
+    .detailed-flow .drop-fill{height:92px}
+    .compact-flow .stage-bar-copy,.compact-flow .stage-panel{display:none}
     @keyframes funnelStageIn{0%{opacity:0;transform:translate(-50%,-40%) scale(.82);filter:blur(2px)}55%{opacity:1;transform:translate(-50%,-50%) scale(1.03);filter:blur(0)}100%{opacity:1;transform:translate(-50%,-50%) scale(1);filter:blur(0)}}
     @keyframes funnelSheen{0%{left:-24%;opacity:0}22%{opacity:.55}100%{left:112%;opacity:0}}
     @keyframes dropIn{0%{opacity:0;transform:translate(-14px,-50%) scale(.88)}70%{opacity:1;transform:translate(0,-50%) scale(1.02)}100%{opacity:1;transform:translate(0,-50%) scale(1)}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes cardRise{0%{opacity:0;transform:translateY(18px);filter:blur(6px)}100%{opacity:1;transform:translateY(0);filter:blur(0)}}
-    @media (max-width: 1180px){.funnel-row{grid-template-columns:minmax(0,1fr) 206px;gap:20px}.funnel-track,.drop-slot{height:198px}.funnel-stage{height:150px;min-width:76px}.stage-title{font-size:46px}.stage-value .num{font-size:70px}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media (max-width: 900px){.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.funnel-row{grid-template-columns:minmax(0,1fr)}.funnel-track,.drop-slot{height:184px}.funnel-stage{height:138px;min-width:68px}.drop-fill{height:82px}.drop-slot{padding:0 18px}}
-    @media (max-width: 640px){.metric{font-size:38px}.metric-grid,.detail-grid{grid-template-columns:1fr}.funnel-track,.drop-slot{height:162px}.funnel-stage{height:124px;min-width:60px;padding:14px 18px}.stage-title{font-size:38px}.stage-value .num{font-size:56px}.drop-rate{font-size:38px}.drop-count{font-size:15px}.funnel-step-line{font-size:11px}}
+    @media (max-width: 1180px){.funnel-row{grid-template-columns:minmax(0,1fr) 206px;gap:20px}.funnel-track,.drop-slot{height:198px}.funnel-stage{height:150px;min-width:76px}.stage-title{font-size:46px}.stage-value .num{font-size:70px}.stage-panel-title{font-size:22px}.stage-panel-current{font-size:28px}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:228px}.detailed-flow .funnel-stage{height:98px}}
+    @media (max-width: 900px){.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.funnel-row{grid-template-columns:minmax(0,1fr)}.funnel-track,.drop-slot{height:184px}.funnel-stage{height:138px;min-width:68px}.drop-fill{height:82px}.drop-slot{padding:0 18px}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:236px}.detailed-flow .funnel-stage{height:96px;top:31%}}
+    @media (max-width: 640px){.metric{font-size:38px}.metric-grid,.detail-grid{grid-template-columns:1fr}.funnel-track,.drop-slot{height:162px}.funnel-stage{height:124px;min-width:60px;padding:14px 18px}.stage-title{font-size:38px}.stage-value .num{font-size:56px}.drop-rate{font-size:38px}.drop-count{font-size:15px}.stage-panel{width:calc(100% - 20px);padding:12px 12px}.stage-panel-title{font-size:19px}.stage-panel-current{font-size:24px}.stage-chip{font-size:11px;padding:7px 10px}.funnel-step-line{font-size:11px}}
     .tab-panel{display:none}
     .tab-panel.active{display:block;animation:fadeUp .28s ease}
     .rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:rgba(0,45,114,.08);color:#002d72;font-weight:900;font-size:12px}
@@ -645,6 +668,7 @@
         const list = Array.isArray(keys) ? keys : [keys];
         return model.behavior.stages.find((stage) => list.includes(stage.key))?.value || 0;
       };
+      const DROP_LABEL = '\uC774\uD0C8\uC728';
       const stepPath = (from, to) => `${from} -> ${to}`;
       const buildMetricCard = ({ label, value, previousValue, deltaText, tone, footnote }, idx) => `
         <article class="card metric-card" style="animation-delay:${idx * 80}ms">
@@ -677,6 +701,7 @@
 
       function autoFitFunnelText(root){
         root.querySelectorAll('.funnel-stage').forEach((stage) => {
+          const barNum = stage.querySelector('.stage-bar-num');
           const name = stage.querySelector('.stage-title');
           const num = stage.querySelector('.stage-value .num');
           const sub = stage.querySelector('.stage-value .sub');
@@ -700,9 +725,13 @@
           const tiny = stageW < 140;
           const small = stageW < 220;
 
-          shrink(name, tiny ? 28 : small ? 38 : 48, 11, .92, .30);
-          shrink(num, tiny ? 36 : small ? 52 : 66, 12, .92, .42);
-          shrink(sub, tiny ? 14 : 18, 10, .92, .18);
+          if (barNum) {
+            shrink(barNum, tiny ? 28 : small ? 38 : 48, 12, .92, .48);
+          } else {
+            shrink(name, tiny ? 28 : small ? 38 : 48, 11, .92, .30);
+            shrink(num, tiny ? 36 : small ? 52 : 66, 12, .92, .42);
+            shrink(sub, tiny ? 14 : 18, 10, .92, .18);
+          }
 
           let guard = 20;
           while (wrap && wrap.scrollHeight > stage.clientHeight - 6 && guard > 0) {
@@ -749,6 +778,7 @@
         });
       }
 
+      /*
       function renderFunnel(canvas, behavior, className=''){
         const stages = behavior.stages;
         if (!stages.length) {
@@ -798,6 +828,98 @@
         ].join('');
         canvas.innerHTML = html;
         canvas.querySelectorAll('.drop-slot:not(.baseline) .drop-kicker').forEach((el) => { el.textContent = '이탈율'; });
+        requestAnimationFrame(() => { autoFitFunnelText(canvas); setTimeout(() => autoFitFunnelText(canvas), 300); });
+      }
+
+      */
+
+      function renderFunnel(canvas, behavior, className='', options={}){
+        const stages = behavior.stages;
+        const compact = !!options.compact;
+        const compareBehavior = options.compareBehavior || null;
+        const referenceLabel = options.referenceLabel || compareReferenceLabel();
+        if (!stages.length) {
+          canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
+          return;
+        }
+
+        const compareStageMap = new Map((compareBehavior?.stages || []).map((stage) => [stage.key, stage]));
+        const compareStepMap = new Map((compareBehavior?.steps || []).map((step) => [`${step.from}|${step.to}`, step]));
+
+        const html = [
+          `<div class="funnel-flow ${compact ? 'compact-flow' : 'detailed-flow'}">`,
+          ...stages.map((stage, i) => {
+            const width = Math.min(100, Math.max(0, stage.width || 0));
+            const dropWidth = i === 0 ? 0 : Math.min(100, Math.max(0, stage.drop || 0));
+            const compareStage = compareStageMap.get(stage.key);
+            const stageDeltaText = compareStage ? delta(stage.value, compareStage.value) : 'N/A';
+            const stageDeltaTone = compareStage ? deltaTone(stage.value - compareStage.value) : 'flat';
+            const stageReference = compareStage ? `${referenceLabel} ${fmt(compareStage.value)}` : `${referenceLabel} -`;
+            const stepKey = i === 0 ? '' : `${stages[i - 1].label}|${stage.label}`;
+            const compareStep = i === 0 ? null : compareStepMap.get(stepKey);
+            const dropDeltaText = compareStep ? signedPointDelta(stage.drop, compareStep.drop, 1) : '';
+            const dropDeltaTone = compareStep ? deltaTone(stage.drop - compareStep.drop) : 'flat';
+            const dropReference = compareStep ? `${referenceLabel} ${fmtPct(compareStep.drop, 1)}` : `${referenceLabel} -`;
+            return `
+            <div class="funnel-row">
+              <div class="funnel-lane">
+                <div class="funnel-track">
+                  <div class="funnel-stage ${className}" data-stage="${Math.min(i + 1,5)}" style="width:${width.toFixed(1)}%;animation-delay:${i * 90}ms">
+                    <div class="funnel-stage-inner">
+                      ${compact ? `
+                        <div class="stage-copy">
+                          <div class="stage-title">${esc(stage.label)}</div>
+                          <div class="stage-value">
+                            <div class="num">${fmt(stage.value)}</div>
+                            <div class="sub">${i === 0 ? 'Baseline' : `${fmtPct(stage.share,1)} of sessions`}</div>
+                          </div>
+                        </div>
+                      ` : `
+                        <div class="stage-bar-copy">
+                          <div class="stage-bar-num">${fmt(stage.value)}</div>
+                        </div>
+                      `}
+                    </div>
+                  </div>
+                  ${compact ? '' : `
+                    <div class="stage-panel">
+                      <div class="stage-panel-head">
+                        <div>
+                          <div class="kicker">Stage ${String(i + 1).padStart(2,'0')}</div>
+                          <div class="stage-panel-title">${esc(stage.label)}</div>
+                        </div>
+                        <div class="stage-panel-current">${fmt(stage.value)}</div>
+                      </div>
+                      <div class="stage-panel-meta">
+                        <div class="stage-chip">${fmtPct(stage.share, 1)} of sessions</div>
+                        <div class="stage-chip delta ${stageDeltaTone}">${esc(compareLabel())} ${esc(stageDeltaText)}</div>
+                      </div>
+                      <div class="stage-reference">${esc(stageReference)}</div>
+                    </div>
+                  `}
+                </div>
+              </div>
+              <div class="drop-slot ${i === 0 ? 'baseline' : ''}">
+                ${i === 0 ? `
+                  <div class="drop-label">
+                    <div class="drop-kicker">Flow</div>
+                    <div class="drop-rate">Baseline</div>
+                    <div class="drop-count">${compact ? 'Start stage for the selected funnel' : `${referenceLabel} value is shown in each step card`}</div>
+                  </div>
+                ` : `
+                  <div class="drop-fill" style="width:${dropWidth.toFixed(1)}%;animation-delay:${i * 90 + 120}ms"></div>
+                  <div class="drop-label">
+                    <div class="drop-kicker">${DROP_LABEL}</div>
+                    <div class="drop-rate">${fmtPct(stage.drop,1)}</div>
+                    <div class="drop-count">${esc(stepPath(stages[i - 1].label, stage.label))}</div>
+                    ${compareStep ? `<div class="drop-compare ${dropDeltaTone}">${esc(compareLabel())} ${esc(dropDeltaText)} | ${esc(dropReference)}</div>` : `<div class="drop-compare flat">${esc(dropReference)}</div>`}
+                  </div>`}
+              </div>
+            </div>`;
+          }).join(''),
+          `</div>`
+        ].join('');
+        canvas.innerHTML = html;
         requestAnimationFrame(() => { autoFitFunnelText(canvas); setTimeout(() => autoFitFunnelText(canvas), 300); });
       }
 
@@ -879,7 +1001,10 @@
         ];
         els.summaryCards.innerHTML = summaryCards.map((card, idx) => buildMetricCard(card, idx)).join('');
 
-        renderFunnel(els.funnelCanvas, currentModel.behavior);
+        renderFunnel(els.funnelCanvas, currentModel.behavior, '', {
+          compareBehavior: previousModel.behavior,
+          referenceLabel: compareReferenceLabel(),
+        });
         els.funnelNotice.innerHTML = currentModel.behavior.notes.length
           ? currentModel.behavior.notes.map((n) => `<div class="warn">${esc(n)}</div>`).join('')
           : `<div>Behavior funnel is using native stage fields.</div>`;
@@ -1024,8 +1149,8 @@
           stages: behavior.stages.map((s, idx) => ({ ...s, width: idx === 0 ? 96 : Math.max(3, Math.pow((s.value / globalMax), 0.82) * 96) }))
         });
 
-        renderFunnel(els.compareCanvasA, rescale(a.behavior), 'compare-a');
-        renderFunnel(els.compareCanvasB, rescale(b.behavior), 'compare-b');
+        renderFunnel(els.compareCanvasA, rescale(a.behavior), 'compare-a', { compact:true });
+        renderFunnel(els.compareCanvasB, rescale(b.behavior), 'compare-b', { compact:true });
 
         const aLabel = `${segmentLabel(a.segment)} | ${state.compare.A.group || 'Total period'}`;
         const bLabel = `${segmentLabel(b.segment)} | ${state.compare.B.group || 'Total period'}`;
@@ -1222,8 +1347,7 @@
             return;
           }
           const latest = state.available[state.available.length - 1];
-          const latestDate = parseYmd(latest);
-          const ytdStart = clamp(`${latestDate.getFullYear()}-01-01`);
+          const ytdStart = clamp('2026-01-01');
           els.datePicker.value = latest;
           els.startPicker.value = ytdStart;
           els.endPicker.value = latest;
