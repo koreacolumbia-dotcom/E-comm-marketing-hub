@@ -711,7 +711,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
         """
 
         cards = ""
-        for r in groups[tab]:
+        for card_idx, r in enumerate(groups[tab]):
             code = r.get("코드", "") or ""
             name_en = r.get("상품명(영문)", "") or ""
             name_ko = r.get("상품명(한글)", "") or ""
@@ -851,7 +851,8 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
             title_sub = _safe_attr(name_en) if name_ko else ""
 
             cards += f"""
-            <div class="glass-card p-6 border-white/80 hover:scale-[1.01] transition-transform card-item flex flex-col"
+            <div class="glass-card p-6 border-white/80 card-item card-in flex flex-col"
+              style="--enter-delay:{min(card_idx * 45, 280)}ms;"
               data-code="{data_code}" data-nameen="{data_name_en}" data-nameko="{data_name_ko}"
               data-missing="{missing_flag}" data-diffpos="{diff_pos_flag}"
               data-diff="{diff if isinstance(diff,int) else ''}" data-diffabs="{diff_abs}"
@@ -939,22 +940,149 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand: #002d72; --bg0: #f6f8fb; --bg1: #eef3f9; }
-    body { background: linear-gradient(180deg, var(--bg0), var(--bg1)); font-family: 'Plus Jakarta Sans', sans-serif; color: #0f172a; min-height: 100vh; }
-    .glass-card { background: rgba(255,255,255,0.55); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.7); border-radius: 30px; box-shadow: 0 20px 50px rgba(0,45,114,0.05); }
-    .sidebar { background: rgba(255,255,255,0.7); backdrop-filter: blur(15px); border-right: 1px solid rgba(255,255,255,0.8); }
+    :root {
+      --brand: #002d72;
+      --brand-strong: #001b49;
+      --bg0: #f7f9fc;
+      --bg1: #edf3fa;
+      --line: rgba(148, 163, 184, 0.22);
+      --glass: rgba(255,255,255,0.72);
+      --glass-strong: rgba(255,255,255,0.84);
+      --shadow-soft: 0 24px 70px rgba(15, 23, 42, 0.08);
+      --shadow-hover: 0 28px 70px rgba(0, 45, 114, 0.16);
+    }
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 34%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.10), transparent 28%),
+        linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 58%, #f8fbff 100%);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: #0f172a;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: auto;
+      pointer-events: none;
+      border-radius: 9999px;
+      filter: blur(18px);
+      opacity: 0.55;
+      z-index: -1;
+    }
+    body::before {
+      width: 320px;
+      height: 320px;
+      top: -120px;
+      right: -80px;
+      background: radial-gradient(circle, rgba(0,45,114,0.18), rgba(0,45,114,0));
+    }
+    body::after {
+      width: 260px;
+      height: 260px;
+      bottom: 6%;
+      left: -90px;
+      background: radial-gradient(circle, rgba(14,165,233,0.15), rgba(14,165,233,0));
+    }
+    .glass-card {
+      background: linear-gradient(180deg, var(--glass-strong), rgba(255,255,255,0.58));
+      backdrop-filter: blur(22px);
+      border: 1px solid rgba(255,255,255,0.78);
+      border-radius: 30px;
+      box-shadow: var(--shadow-soft);
+      transition: transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s ease, border-color .45s ease;
+    }
+    .sidebar {
+      background: rgba(255,255,255,0.74);
+      backdrop-filter: blur(18px);
+      border-right: 1px solid rgba(255,255,255,0.82);
+    }
     .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
     .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .input-glass { background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.8); border-radius: 18px; padding: 14px 16px; outline: none; }
-    .input-glass:focus { box-shadow: 0 0 0 4px rgba(0,45,114,0.10); border-color: rgba(0,45,114,0.25); }
-    .chip { border-radius: 9999px; padding: 10px 14px; font-weight: 900; font-size: 12px; border: 1px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.60); color: #334155; }
-    .chip.active { background: rgba(0,45,114,0.95); color: white; border-color: rgba(0,45,114,1); box-shadow: 0 10px 30px rgba(0,45,114,0.15); }
+    .input-glass {
+      background: rgba(255,255,255,0.76);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 18px;
+      padding: 14px 16px;
+      outline: none;
+      transition: border-color .3s ease, box-shadow .3s ease, transform .3s ease;
+    }
+    .input-glass:focus {
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.10), 0 18px 40px rgba(15,23,42,0.08);
+      border-color: rgba(0,45,114,0.22);
+      transform: translateY(-1px);
+    }
+    .chip {
+      border-radius: 9999px;
+      padding: 10px 14px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.62);
+      color: #334155;
+      transition: all .28s ease;
+    }
+    .chip:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.92);
+      box-shadow: 0 14px 30px rgba(15,23,42,0.06);
+    }
+    .chip.active {
+      background: linear-gradient(135deg, rgba(0,45,114,0.96), rgba(30,64,175,0.96));
+      color: white;
+      border-color: rgba(0,45,114,1);
+      box-shadow: 0 14px 32px rgba(0,45,114,0.18);
+    }
     .small-label { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 900; }
-    .summary-card { border-radius: 26px; background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.75); backdrop-filter: blur(18px); box-shadow: 0 20px 50px rgba(0,45,114,0.05); padding: 18px 20px; }
-    .overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.65); backdrop-filter: blur(10px); display: none; align-items: center; justify-content: center; z-index: 9999; }
+    .summary-card {
+      border-radius: 26px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.84), rgba(255,255,255,0.58));
+      border: 1px solid rgba(255,255,255,0.82);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 22px 55px rgba(0,45,114,0.06);
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform .35s ease, box-shadow .35s ease, border-color .35s ease;
+    }
+    .summary-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.28), transparent 40%);
+      pointer-events: none;
+    }
+    .summary-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(191,219,254,0.95);
+      box-shadow: var(--shadow-hover);
+    }
+    .overlay { position: fixed; inset: 0; background: rgba(248,250,252,0.68); backdrop-filter: blur(12px); display: none; align-items: center; justify-content: center; z-index: 9999; }
     .overlay.show { display: flex; }
-    .spinner { width: 56px; height: 56px; border-radius: 9999px; border: 6px solid rgba(0,0,0,0.08); border-top-color: rgba(0,45,114,0.95); animation: spin 0.9s linear infinite; }
+    .spinner {
+      width: 56px;
+      height: 56px;
+      border-radius: 9999px;
+      border: 6px solid rgba(0,0,0,0.06);
+      border-top-color: rgba(0,45,114,0.95);
+      border-right-color: rgba(59,130,246,0.55);
+      animation: spin 0.9s linear infinite;
+      box-shadow: 0 10px 30px rgba(0,45,114,0.12);
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes cardEnter {
+      from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
 
     .img-box { height: 240px; }
     @media (min-width: 1024px){ .img-box { height: 280px; } }
@@ -982,6 +1110,219 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
       box-shadow: 0 10px 30px rgba(0,0,0,0.06);
     }
 
+    .control-shell {
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.92), rgba(255,255,255,0.62)),
+        radial-gradient(circle at top right, rgba(59,130,246,0.12), transparent 28%);
+    }
+    .control-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent 42%);
+      pointer-events: none;
+    }
+    .section-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #2563eb;
+    }
+    .section-heading {
+      font-size: clamp(1.75rem, 3vw, 2.5rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+      font-weight: 800;
+      color: #0f172a;
+      margin-top: 14px;
+    }
+    .control-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.8fr);
+      gap: 18px;
+      align-items: end;
+    }
+    .search-field,
+    .select-shell {
+      position: relative;
+    }
+    .search-icon {
+      position: absolute;
+      top: 50%;
+      left: 18px;
+      transform: translateY(-50%);
+      color: #64748b;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .search-field input {
+      min-height: 60px;
+      padding-left: 50px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+    }
+    .select-shell select {
+      min-height: 60px;
+      width: 100%;
+      appearance: none;
+      padding-right: 44px;
+    }
+    .select-shell::after {
+      content: "\f078";
+      font-family: "Font Awesome 6 Free";
+      font-weight: 900;
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+      pointer-events: none;
+    }
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 22px;
+    }
+    .action-btn {
+      min-height: 52px;
+      padding: 0 22px;
+      border-radius: 18px;
+      font-size: 13px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: transform .28s ease, box-shadow .28s ease, background-color .28s ease, border-color .28s ease, color .28s ease;
+    }
+    .action-btn:hover {
+      transform: translateY(-2px);
+    }
+    .action-btn.primary {
+      background: linear-gradient(135deg, var(--brand), #1543a5);
+      color: #fff;
+      box-shadow: 0 18px 36px rgba(0,45,114,0.18);
+    }
+    .action-btn.primary:hover {
+      box-shadow: 0 22px 42px rgba(0,45,114,0.24);
+    }
+    .action-btn.secondary,
+    .action-btn.ghost {
+      background: rgba(255,255,255,0.7);
+      color: #334155;
+      border: 1px solid rgba(255,255,255,0.9);
+    }
+    .action-btn.secondary:hover,
+    .action-btn.ghost:hover {
+      background: rgba(255,255,255,0.94);
+      box-shadow: 0 14px 30px rgba(15,23,42,0.06);
+    }
+    .control-meta {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .metric-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.92);
+      color: #334155;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      box-shadow: 0 10px 24px rgba(15,23,42,0.04);
+    }
+    .metric-pill strong {
+      color: #0f172a;
+      font-weight: 900;
+    }
+    .metric-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #2563eb, #38bdf8);
+      box-shadow: 0 0 0 6px rgba(59,130,246,0.10);
+    }
+    .tab-shell {
+      margin-bottom: 24px;
+      padding: 12px;
+      border-radius: 24px;
+      background: rgba(255,255,255,0.56);
+      border: 1px solid rgba(255,255,255,0.82);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 20px 44px rgba(15,23,42,0.05);
+    }
+    .tab-btn {
+      border: 1px solid rgba(255,255,255,0.88);
+      transition: all .28s ease;
+    }
+    .tab-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 30px rgba(15,23,42,0.06);
+    }
+    .card-item {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(255,255,255,0.84);
+    }
+    .card-item::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.24), transparent 30%);
+      pointer-events: none;
+    }
+    .card-item:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow-hover);
+      border-color: rgba(191,219,254,0.95);
+    }
+    .card-item.card-in {
+      animation: cardEnter .65s cubic-bezier(.22,1,.36,1) both;
+      animation-delay: var(--enter-delay, 0ms);
+    }
+    .no-results-panel {
+      margin-top: 24px;
+      padding: 20px;
+      border-radius: 24px;
+      text-align: center;
+      color: #334155;
+      font-weight: 900;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(255,255,255,0.88);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.68);
+    }
+    @media (max-width: 1023px) {
+      .control-shell { padding: 24px; }
+      .control-grid { grid-template-columns: minmax(0, 1fr); }
+      .section-heading { font-size: 1.9rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
     .grid-3 { }
     .grid-4 { }
     @media (min-width: 1024px){
@@ -995,6 +1336,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     body.embedded .sidebar { display:none !important; }
     body.embedded main { padding: 24px !important; }
     body.embedded .sticky { position: static !important; }
+    body.embedded .control-shell { margin-top: 0 !important; }
   </style>
 </head>
 <body class="flex">
@@ -1086,61 +1428,73 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
       </div>
     </section>
 
-    <section class="glass-card p-8 mb-10">
-      <div class="flex flex-col lg:flex-row gap-4 lg:items-end">
-        <div class="flex-1">
-          <div class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-2 flex items-center gap-2">
+    <section class="glass-card control-shell mb-10">
+      <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
+        <div class="flex-1 max-w-3xl">
+          <div class="section-kicker">
             <i class="fa-solid fa-magnifying-glass"></i> Search
           </div>
-          <div class="text-slate-500 text-sm font-bold mb-4">
-            상품명(영문/한글) 또는 상품코드로 필터링 —
-            <span class="font-black text-slate-700">Search 버튼 또는 Enter로 적용</span>
+          <h2 class="section-heading">Clean search, faster review.</h2>
+          <div class="text-slate-500 text-sm font-bold mt-4 leading-6">
+            Search by product name or style code, then sort the current results instantly.
+            <span class="font-black text-slate-700">Press Enter or Search to apply.</span>
           </div>
-
-          <div class="grid grid-cols-1 gap-3">
-            <input id="qAll" class="input-glass w-full font-bold text-slate-800"
-              placeholder="상품명(영문/한글) 또는 상품코드 (ex. jacket / 바람막이 / C7XXXX...)" />
+          <div class="mt-5 flex flex-wrap gap-3">
+            <div class="metric-pill"><span class="metric-dot"></span>Simple, focused, easy to scan</div>
+            <div class="metric-pill">Built for quick daily review</div>
           </div>
         </div>
 
-        <div class="flex flex-col gap-3 min-w-[280px]">
+        <div class="flex flex-col gap-3 min-w-[280px] xl:max-w-[320px] w-full">
           <div class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 flex items-center gap-2">
             <i class="fa-solid fa-arrow-down-wide-short"></i> Sort
           </div>
-          <select id="sortMode" class="input-glass font-black text-slate-800">
-            <option value="diffabs_desc">가격차이 |abs| 큰 순</option>
-            <option value="diff_desc">가격차이 큰 순(공식-네이버)</option>
-            <option value="diff_asc">가격차이 작은 순(공식-네이버)</option>
-            <option value="naver_asc">네이버최저가 낮은 순</option>
-            <option value="naver_desc">네이버최저가 높은 순</option>
-            <option value="official_desc">공식몰가 높은 순</option>
-            <option value="code_asc">상품코드 오름차순</option>
-            <option value="delta_asc">Δ최저가 하락 큰 순</option>
-            <option value="delta_desc">Δ최저가 상승 큰 순</option>
-            <option value="conf_desc">Match 점수 높은 순</option>
-          </select>
-
-          <div class="flex gap-3">
-            <button onclick="onSearchClick()" class="px-6 py-4 bg-[#002d72] text-white font-black rounded-2xl hover:bg-blue-600 transition-colors flex items-center gap-2">
-              <i class="fa-solid fa-magnifying-glass"></i> Search
-            </button>
-            <button onclick="onApplyClick()" class="px-6 py-4 bg-white/70 text-slate-700 font-black rounded-2xl hover:bg-white transition-colors border border-white flex items-center gap-2">
-              <i class="fa-solid fa-arrow-down-wide-short"></i> Apply Sort
-            </button>
-            <button onclick="resetAll()" class="px-6 py-4 bg-white/70 text-slate-700 font-black rounded-2xl hover:bg-white transition-colors border border-white flex items-center gap-2">
-              <i class="fa-solid fa-rotate-left"></i> Reset
-            </button>
+          <div class="select-shell">
+            <select id="sortMode" class="input-glass font-black text-slate-800">
+              <option value="diffabs_desc">Gap |abs| high to low</option>
+              <option value="diff_desc">Gap high to low</option>
+              <option value="diff_asc">Gap low to high</option>
+              <option value="naver_asc">Naver price low to high</option>
+              <option value="naver_desc">Naver price high to low</option>
+              <option value="official_desc">Official price high to low</option>
+              <option value="code_asc">Style code A to Z</option>
+              <option value="delta_asc">Delta low to high</option>
+              <option value="delta_desc">Delta high to low</option>
+              <option value="conf_desc">Match score high to low</option>
+            </select>
           </div>
         </div>
       </div>
 
-      <div id="noResults" class="hidden mt-5 glass-card p-5 text-center text-slate-700 font-black">
+      <div class="mt-6">
+        <label class="search-field block">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input id="qAll" class="input-glass w-full font-bold text-slate-800"
+            placeholder="Product name or style code (ex. jacket / windbreaker / C7XXXX...)" />
+        </label>
+      </div>
+
+      <div class="action-row">
+        <button onclick="onSearchClick()" class="action-btn primary">
+          <i class="fa-solid fa-magnifying-glass"></i> Search
+        </button>
+        <button onclick="onApplyClick()" class="action-btn secondary">
+          <i class="fa-solid fa-arrow-down-wide-short"></i> Apply Sort
+        </button>
+        <button onclick="resetAll()" class="action-btn ghost">
+          <i class="fa-solid fa-rotate-left"></i> Reset
+        </button>
+      </div>
+
+      <div id="noResults" class="hidden no-results-panel">
         검색 결과가 없습니다.
       </div>
     </section>
 
     <section>
-      <div class="flex flex-wrap gap-2 mb-8">__TAB_MENU__</div>
+      <div class="tab-shell">
+        <div class="flex flex-wrap gap-2">__TAB_MENU__</div>
+      </div>
       <div class="min-h-[500px]">__CONTENT_AREA__</div>
     </section>
   </main>
@@ -1289,6 +1643,17 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     try { localStorage.setItem('gridMode', String(state.gridMode)); } catch(e){}
   }
 
+  function animateVisibleCards(container) {
+    if (!container) return;
+    const visibleCards = Array.from(container.querySelectorAll('.card-item:not([data-hidden="1"])'));
+    visibleCards.forEach((card, index) => {
+      card.style.setProperty('--enter-delay', `${Math.min(index * 40, 240)}ms`);
+      card.classList.remove('card-in');
+      void card.offsetWidth;
+      card.classList.add('card-in');
+    });
+  }
+
   function setGridMode(n){
     runWithOverlay("Applying grid...", () => {
       state.gridMode = (n === 4 ? 4 : 3);
@@ -1313,6 +1678,7 @@ def build_html_portal(rows: List[Dict[str, Any]], meta: Dict[str, Any]) -> str:
     });
 
     sortCards(container);
+    animateVisibleCards(container);
     updateCount();
   }
 
@@ -1801,3 +2167,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
