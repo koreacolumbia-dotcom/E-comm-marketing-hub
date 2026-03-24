@@ -122,6 +122,31 @@
     .tab-panel.active{display:block;animation:fadeUp .28s ease}
     .rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:rgba(0,45,114,.08);color:#002d72;font-weight:900;font-size:12px}
     .warn{color:#b45309}
+  
+    .premium-card{position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(247,250,255,.94));box-shadow:0 24px 60px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.72)}
+    .premium-card::before{content:'';position:absolute;inset:0 auto auto 0;width:100%;height:4px;background:linear-gradient(90deg,#1d4ed8,#14b8a6,#ec4899)}
+    .metric-compare-cluster,.stage-compare-rail,.drop-compare-bucket{display:flex;flex-wrap:wrap;gap:8px}
+    .compare-stack{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+    .compare-stack.compact{gap:3px}
+    .compare-ref{font-size:11px;font-weight:800;color:#64748b;letter-spacing:.01em}
+    .metric-grid-rich{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .metric-stat-glass{background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(241,245,249,.84));border:1px solid rgba(191,219,254,.65);box-shadow:inset 0 1px 0 rgba(255,255,255,.78)}
+    .stage-panel{backdrop-filter:blur(18px);background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(248,250,252,.92));box-shadow:0 20px 45px rgba(15,23,42,.08)}
+    .stage-reference-bucket{display:grid;gap:6px;margin-top:10px}
+    .stage-reference{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:999px;background:rgba(248,250,252,.9);border:1px solid rgba(226,232,240,.9)}
+    .drop-slot{background:linear-gradient(180deg,rgba(255,255,255,.94),rgba(252,244,247,.88));box-shadow:0 18px 40px rgba(15,23,42,.06)}
+    .drop-compare{display:inline-flex;align-items:center;justify-content:center;padding:7px 10px;border-radius:999px;font-size:11px;font-weight:900}
+    .drop-reference{font-size:11px;font-weight:800;color:#64748b}
+    .delta-pill.up,.drop-compare.up{background:rgba(20,184,166,.12);color:#0f766e;border:1px solid rgba(20,184,166,.25)}
+    .delta-pill.down,.drop-compare.down{background:rgba(244,63,94,.10);color:#e11d48;border:1px solid rgba(244,63,94,.22)}
+    .delta-pill.flat,.drop-compare.flat{background:rgba(148,163,184,.14);color:#475569;border:1px solid rgba(148,163,184,.24)}
+    .stage-chip.delta.up{background:rgba(20,184,166,.12);color:#0f766e;border:1px solid rgba(20,184,166,.25)}
+    .stage-chip.delta.down{background:rgba(244,63,94,.10);color:#e11d48;border:1px solid rgba(244,63,94,.22)}
+    .stage-chip.delta.flat{background:rgba(148,163,184,.14);color:#475569;border:1px solid rgba(148,163,184,.24)}
+    .funnel-stage{box-shadow:0 24px 40px rgba(30,41,59,.14), inset 0 1px 0 rgba(255,255,255,.24);position:relative}
+    .funnel-stage::after{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0));pointer-events:none}
+    @media (max-width: 900px){.metric-grid-rich{grid-template-columns:1fr}.metric-compare-cluster,.stage-compare-rail,.drop-compare-bucket{gap:6px}.compare-stack{align-items:flex-start}}
+    
   </style>
 </head>
 <body class="p-4 md:p-8 xl:p-10">
@@ -690,14 +715,14 @@
       const DROP_LABEL = '\uC774\uD0C8\uC728';
       const stepPath = (from, to) => `${from} -> ${to}`;
       const buildMetricCard = ({ label, value, previousValue, deltaText, tone, footnote }, idx) => `
-        <article class="card metric-card" style="animation-delay:${idx * 80}ms">
+        <article class="card metric-card premium-card" style="animation-delay:${idx * 80}ms">
           <div class="metric-head">
             <div class="kicker">${esc(label)}</div>
             <div class="delta-pill ${tone}">${esc(deltaText)}</div>
           </div>
           <div class="metric mt-4">${esc(value)}</div>
-          <div class="metric-grid">
-            <div class="metric-stat">
+          <div class="metric-grid metric-grid-rich">
+            <div class="metric-stat metric-stat-glass">
               <div class="metric-stat-label">${esc(compareReferenceLabel())}</div>
               <div class="metric-stat-value">${esc(previousValue)}</div>
             </div>
@@ -938,7 +963,7 @@
                   <div class="drop-label">
                     <div class="drop-kicker">Flow</div>
                     <div class="drop-rate">Baseline</div>
-                    <div class="drop-count">${compact ? 'Start stage for the selected funnel' : 'Comparison deltas are shown in the left stage cards.'}</div>
+                    <div class="drop-count">${compact ? 'Start stage for the selected funnel' : 'WoW / YoY deltas are shown together in the left stage cards.'}</div>
                   </div>
                 ` : `
                   <div class="drop-fill" style="width:${dropWidth.toFixed(1)}%;animation-delay:${i * 90 + 120}ms"></div>
