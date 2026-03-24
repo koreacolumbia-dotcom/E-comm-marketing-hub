@@ -2764,7 +2764,6 @@ def render_page_html(
     weekly_href = f"../weekly/END_{ymd(w.end_date)}.html"
     compare_basis_text = f"{wow_label}: Sessions vs {period_label(w.prev_start, w.prev_end)}"
     yoy_basis_text = f"YOY: Sessions vs {period_label(w.yoy_start, w.yoy_end)}"
-    metric_basis_text = "KPI cards compare the metric shown on each card. Channel Snapshot and Paid Detail compare columns use Sessions."
 
     def compare_cell(label: str, value: float, enabled: bool = True) -> str:
         if not enabled:
@@ -3100,27 +3099,14 @@ def render_page_html(
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="report-shell mx-auto p-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="text-2xl font-black">Daily Digest</div>
-        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
-        <div class="text-sm text-slate-500">{period_label(w.cur_start, w.cur_end)} | {wow_label} vs {period_label(w.prev_start, w.prev_end)} | YOY {period_label(w.yoy_start, w.yoy_end)}</div>
-      </div>
-      <div class="flex items-center gap-2">
-        <div class="flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm">
-          <a href="{esc(daily_href)}" data-nav-transition="true" class="mode-switch rounded-full px-3 py-2 text-xs font-extrabold {'bg-slate-900 text-white' if w.mode == 'daily' else 'bg-white text-slate-500'}">DAILY</a>
-          <a href="{esc(weekly_href)}" data-nav-transition="true" class="mode-switch rounded-full px-3 py-2 text-xs font-extrabold {'bg-slate-900 text-white' if w.mode == 'weekly' else 'bg-white text-slate-500'}">WEEKLY</a>
-        </div>
-        <a href="{esc(nav_links.get('hub','#'))}" data-nav-transition="true" class="mode-switch rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+    <div class="mt-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
+      <div class="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+        <div class="text-sm font-extrabold text-slate-800">데이터 기간 · {period_label(w.cur_start, w.cur_end)}</div>
+        <div class="text-xs text-slate-500">{esc(compare_basis_text)} | {esc(yoy_basis_text)}</div>
       </div>
     </div>
 
-    <div class="section-signal mt-4 flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-      <div class="text-sm text-slate-600">{esc(compare_basis_text)} | {esc(yoy_basis_text)}</div>
-      <div class="text-xs font-semibold uppercase tracking-widest text-slate-500">{esc(metric_basis_text)}</div>
-    </div>
-
-    <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
+    <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
       {kpis_cards}
     </div>
 
