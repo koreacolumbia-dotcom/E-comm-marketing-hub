@@ -14,7 +14,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 
-DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab.html")  # patched template: edge-to-edge bars, value-based widths, drop-off text removed
+DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab.html")  # patched template: centered funnel bars, larger stage text, drop-off labels restored, KPI/drop animations added
 DEFAULT_OUTPUT = Path(__file__).parent / "reports" / "daily_digest" / "owned_funnel_tab.html"
 DEFAULT_SOURCE_BASE = "reports/daily_digest/data/funnel"
 KST = timedelta(hours=9)
