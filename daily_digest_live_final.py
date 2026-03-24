@@ -42,49 +42,145 @@ from __future__ import annotations
 
 
 # ===============================
-# SAFE ANIMATION CSS (NO SYNTAX ERROR)
+# SAFE ANIMATION CSS (MORE DRAMATIC)
 # ===============================
 def get_safe_animation_css():
     css = """
-    @keyframes fadeUp {
-      0% { opacity: 0; transform: translate3d(0, 20px, 0) scale(.985); }
-      100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    @keyframes pageReveal {
+      0% {
+        opacity: 0;
+        transform: perspective(1200px) rotateX(3.5deg) translate3d(0, 34px, 0) scale(.982);
+        filter: blur(8px);
+      }
+      60% {
+        opacity: 1;
+        transform: perspective(1200px) rotateX(0deg) translate3d(0, -4px, 0) scale(1.004);
+        filter: blur(0);
+      }
+      100% {
+        opacity: 1;
+        transform: perspective(1200px) rotateX(0deg) translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }
     }
 
-    @keyframes slideUpSoft {
-      0% { opacity: 0; transform: translateY(18px); }
-      100% { opacity: 1; transform: translateY(0); }
+    @keyframes sectionReveal {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, 28px, 0) scale(.985);
+        filter: blur(6px);
+      }
+      65% {
+        opacity: 1;
+        transform: translate3d(0, -3px, 0) scale(1.003);
+        filter: blur(0);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }
     }
 
-    @keyframes softPulse {
-      0% { box-shadow: 0 0 0 rgba(15,23,42,0); }
-      100% { box-shadow: 0 18px 40px rgba(15,23,42,.08); }
+    @keyframes cardReveal {
+      0% {
+        opacity: 0;
+        transform: translateY(24px) scale(.975);
+        box-shadow: 0 0 0 rgba(15,23,42,0);
+      }
+      70% {
+        opacity: 1;
+        transform: translateY(-2px) scale(1.01);
+        box-shadow: 0 24px 48px rgba(15,23,42,.10);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        box-shadow: 0 12px 28px rgba(15,23,42,.06);
+      }
+    }
+
+    @keyframes shimmerSweep {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
     }
 
     body > .mx-auto.max-w-7xl.p-6 {
-      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
+      animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
+      transform-origin: top center;
     }
 
     body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
     body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
     body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {
-      animation: slideUpSoft .7s cubic-bezier(.2,.8,.2,1) both;
+      animation: sectionReveal .9s cubic-bezier(.18,.84,.22,1) both;
     }
+
+    body > .mx-auto.max-w-7xl.p-6 > div.mt-6:nth-of-type(1),
+    body > .mx-auto.max-w-7xl.p-6 > section.mt-6:nth-of-type(1),
+    body > .mx-auto.max-w-7xl.p-6 > article.mt-6:nth-of-type(1) { animation-delay: .04s; }
+
+    body > .mx-auto.max-w-7xl.p-6 > div.mt-6:nth-of-type(2),
+    body > .mx-auto.max-w-7xl.p-6 > section.mt-6:nth-of-type(2),
+    body > .mx-auto.max-w-7xl.p-6 > article.mt-6:nth-of-type(2) { animation-delay: .10s; }
+
+    body > .mx-auto.max-w-7xl.p-6 > div.mt-6:nth-of-type(3),
+    body > .mx-auto.max-w-7xl.p-6 > section.mt-6:nth-of-type(3),
+    body > .mx-auto.max-w-7xl.p-6 > article.mt-6:nth-of-type(3) { animation-delay: .16s; }
 
     .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
     .rounded-2xl.border.border-slate-200.bg-white.p-4,
     .rounded-2xl.border.border-slate-200.bg-white.p-5,
     .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {
-      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
-      transition: transform .2s ease, box-shadow .2s ease;
+      position: relative;
+      overflow: hidden;
+      animation: cardReveal .85s cubic-bezier(.2,.8,.2,1) both;
+      transition:
+        transform .28s cubic-bezier(.2,.8,.2,1),
+        box-shadow .28s cubic-bezier(.2,.8,.2,1),
+        border-color .28s ease;
+      will-change: transform, box-shadow;
+    }
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4::before,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4::before,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5::before,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(
+        110deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,.38) 45%,
+        rgba(255,255,255,0) 70%
+      );
+      background-size: 220% 100%;
+      opacity: .55;
+      animation: shimmerSweep 2.4s ease-out 1;
     }
 
     .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
     .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
     .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
     .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 18px 40px rgba(15,23,42,.08);
+      transform: translateY(-4px) scale(1.006);
+      box-shadow: 0 22px 44px rgba(15,23,42,.10);
+      border-color: rgba(148,163,184,.55);
+    }
+
+    .overflow-x-auto table tbody tr {
+      transition: background-color .2s ease, transform .2s ease;
+    }
+
+    .overflow-x-auto table tbody tr:hover {
+      background-color: rgba(248,250,252,.9);
+    }
+
+    .paid-extra.hidden {
+      opacity: 0;
+      transform: translateY(8px);
     }
     """
     return css.replace("{", "{{").replace("}", "}}")
@@ -2700,7 +2796,7 @@ def render_page_html(
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
       <div class="mt-3 overflow-x-auto">
         <table class="w-full table-auto text-sm min-w-[1120px]">
           <thead class="text-xs text-slate-500">
@@ -2720,23 +2816,22 @@ def render_page_html(
       <div class="mt-3 flex justify-end">
         <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Show more</button>
       </div>
-    </div>
-
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
-      <div class="mt-3 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[760px]">
-          <thead class="text-xs text-slate-500">
-            <tr>
-              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
-            </tr>
-          </thead>
-          <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
-        </table>
+      <div class="mt-4 border-t border-slate-200 pt-4">
+        <div class="mb-2 text-[11px] font-bold tracking-wide text-slate-400 uppercase">Budget / ROAS / CVR</div>
+        <div class="overflow-x-auto">
+          <table class="w-full table-auto text-sm min-w-[760px]">
+            <thead class="text-xs text-slate-500">
+              <tr>
+                <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
+              </tr>
+            </thead>
+            <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+          </table>
+        </div>
       </div>
     </div>
 
