@@ -478,16 +478,28 @@ def _owned_is_countable_send_row(row: Dict[str, Any]) -> bool:
     return campaign.startswith("KAKAO_CH_EVENT") and term.startswith("KAKAO_CH_MESSAGE_")
 
 
+def _owned_has_group_mmdd(row: Dict[str, Any]) -> bool:
+    if not bool(row.get("has_group_mmdd", False)):
+        return False
+    year_s = str(row.get("year") or "").strip()
+    mmdd_s = str(row.get("mmdd") or "").strip()
+    return bool(re.fullmatch(r"\d{4}", year_s) and re.fullmatch(r"\d{4}", mmdd_s))
+
+
+def _owned_is_countable_send_row(row: Dict[str, Any]) -> bool:
+    ch = str(row.get("channel") or "").strip().upper()
+    if ch != "KAKAO":
+        return True
+    campaign = str(row.get("campaign") or "").strip().upper()
+    term = str(row.get("term") or "").strip().upper()
+    return campaign.startswith("KAKAO_CH_EVENT") and term.startswith("KAKAO_CH_MESSAGE_")
+
+
 def _owned_valid_send_row(row: Dict[str, Any]) -> bool:
     ch = str(row.get("channel") or "").strip().upper()
-    if ch not in OWNED_CHANNELS or not _owned_is_countable_send_row(row):
+    if ch not in OWNED_CHANNELS:
         return False
-    year = str(row.get("year") or "").strip()
-    mmdd = str(row.get("mmdd") or "").strip() or _extract_mmdd_token(str(row.get("campaign") or ""))
-    row_dt = _parse_row_date(row)
-    if row_dt and not year:
-        year = str(row_dt.year)
-    return bool(re.fullmatch(r"\d{4}", year) and re.fullmatch(r"\d{4}", mmdd))
+    return _owned_has_group_mmdd(row) and _owned_is_countable_send_row(row)
 
 
 def _extract_mmdd_token(text: str) -> str:
@@ -509,23 +521,44 @@ def _owned_send_group_key(row: Dict[str, Any]) -> Tuple[str, str, str]:
     ch = str(row.get("channel") or "").strip().upper()
     yr = str(row.get("year") or "").strip()
     mmdd = str(row.get("mmdd") or "").strip()
-    campaign = str(row.get("campaign") or "").strip()
-    row_dt = _parse_row_date(row)
+    return (ch, yr, mmdd)
 
-    bucket = mmdd or _extract_mmdd_token(campaign)
+
+def _owned_send_identity(row: Dict[str, Any]) -> Optional[Tuple[str, str, str, str]]:
+    """
+    Match build_owned_campaign_portal logic more faithfully.
+    Preferred unique send unit: (date, channel, send_id).
+    Fallback only when send_id is missing: (date, channel, year, mmdd/campaign-bucket).
+    """
+    ch = str(row.get("channel") or "").strip().upper()
+    if ch not in OWNED_CHANNELS or not _owned_valid_send_row(row):
+        return None
+
+    row_dt = _parse_row_date(row)
+    dt = row_dt.isoformat() if row_dt else str(row.get("date") or "").strip()
+    send_id = str(row.get("send_id") or "").strip()
+    if dt and send_id:
+        return (dt, ch, "SEND_ID", send_id)
+
+    yr, bucket = _owned_send_group_key(row)[1:]
+    if not yr and row_dt:
+        yr = str(row_dt.year)
     if not bucket and row_dt:
         bucket = row_dt.strftime("%m%d")
-    if not bucket:
-        bucket = campaign or "UNKNOWN"
-    return (ch, yr, bucket)
+    if not dt or not yr or not bucket:
+        return None
+    return (dt, ch, yr, bucket)
 
 
 def _aggregate_owned_rows(rows: List[Dict[str, Any]]) -> Dict[str, float]:
     out = {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0}
+    send_groups = set()
 
     for r in rows:
         ch = str(r.get("channel") or "").strip().upper()
         if ch not in OWNED_CHANNELS:
+            continue
+        if not _owned_has_group_mmdd(r):
             continue
 
         out["sessions"] += float(_safe_float(r.get("sessions")) or 0.0)
@@ -533,23 +566,22 @@ def _aggregate_owned_rows(rows: List[Dict[str, Any]]) -> Dict[str, float]:
         out["purchases"] += float(_safe_float(r.get("purchases")) or 0.0)
         out["revenue"] += float(_safe_float(r.get("revenue")) or 0.0)
 
-        # Preferred: trust the campaign row's send_count from owned builder.
-        # Fallback: count as 1 only when the row looks like a valid send row.
-        send_v = _safe_float(r.get("send_count"))
-        if send_v is not None and send_v > 0:
-            out["send_count"] += float(send_v)
-        elif _owned_valid_send_row(r):
-            out["send_count"] += 1.0
+        if _owned_valid_send_row(r):
+            send_groups.add(_owned_send_group_key(r))
 
+    out["send_count"] = float(len(send_groups))
     return out
 
 
 def _aggregate_owned_rows_by_channel(rows: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
     out = {ch: {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0} for ch in OWNED_CHANNELS}
+    send_groups = {ch: set() for ch in OWNED_CHANNELS}
 
     for r in rows:
         ch = str(r.get("channel") or "").strip().upper()
         if ch not in OWNED_CHANNELS:
+            continue
+        if not _owned_has_group_mmdd(r):
             continue
 
         out[ch]["sessions"] += float(_safe_float(r.get("sessions")) or 0.0)
@@ -557,12 +589,11 @@ def _aggregate_owned_rows_by_channel(rows: List[Dict[str, Any]]) -> Dict[str, Di
         out[ch]["purchases"] += float(_safe_float(r.get("purchases")) or 0.0)
         out[ch]["revenue"] += float(_safe_float(r.get("revenue")) or 0.0)
 
-        send_v = _safe_float(r.get("send_count"))
-        if send_v is not None and send_v > 0:
-            out[ch]["send_count"] += float(send_v)
-        elif _owned_valid_send_row(r):
-            out[ch]["send_count"] += 1.0
+        if _owned_valid_send_row(r):
+            send_groups[ch].add(_owned_send_group_key(r))
 
+    for ch in OWNED_CHANNELS:
+        out[ch]["send_count"] = float(len(send_groups[ch]))
     return out
 
 
@@ -592,18 +623,21 @@ def _build_owned_result_from_ytd_yoy(obj: Dict[str, Any], owned_dir: Path) -> Op
     if not isinstance(ytd, dict) or not ytd.get("enabled"):
         return None
 
-    cur_summary = _normalize_owned_summary(((ytd.get("current") or {}).get("summary") or {}))
-    prev_summary = _normalize_owned_summary(((ytd.get("previous") or {}).get("summary") or {}))
     cur_rows = (ytd.get("current") or {}).get("campaigns") or []
     prev_rows = (ytd.get("previous") or {}).get("campaigns") or []
 
+    cur_sum = _aggregate_owned_rows(cur_rows)
+    prev_sum = _aggregate_owned_rows(prev_rows)
+    cur_cvr = (cur_sum["purchases"] / cur_sum["sessions"]) if cur_sum["sessions"] > 0 else None
+    prev_cvr = (prev_sum["purchases"] / prev_sum["sessions"]) if prev_sum["sessions"] > 0 else None
+
     total_yoy = {
-        "send_count": _ratio(cur_summary.get("send_count"), prev_summary.get("send_count")),
-        "sessions": _ratio(cur_summary.get("sessions"), prev_summary.get("sessions")),
-        "users": _ratio(cur_summary.get("users"), prev_summary.get("users")),
-        "purchases": _ratio(cur_summary.get("purchases"), prev_summary.get("purchases")),
-        "revenue": _ratio(cur_summary.get("revenue"), prev_summary.get("revenue")),
-        "cvr_pp": _pp(cur_summary.get("cvr"), prev_summary.get("cvr")),
+        "send_count": _ratio(cur_sum["send_count"], prev_sum["send_count"]),
+        "sessions": _ratio(cur_sum["sessions"], prev_sum["sessions"]),
+        "users": _ratio(cur_sum["users"], prev_sum["users"]),
+        "purchases": _ratio(cur_sum["purchases"], prev_sum["purchases"]),
+        "revenue": _ratio(cur_sum["revenue"], prev_sum["revenue"]),
+        "cvr_pp": _pp(cur_cvr, prev_cvr),
     }
 
     cur_ch_sum = _aggregate_owned_rows_by_channel(cur_rows)
@@ -632,14 +666,13 @@ def _build_owned_result_from_ytd_yoy(obj: Dict[str, Any], owned_dir: Path) -> Op
         "owned_dir": str(owned_dir),
         "period": ytd.get("period"),
         "prev_period": ytd.get("prev_period"),
-        "total": cur_summary,
-        "total_prev": prev_summary,
+        "total": {**cur_sum, "cvr": cur_cvr},
+        "total_prev": {**prev_sum, "cvr": prev_cvr},
         "total_yoy": total_yoy,
         "by_channel": by_channel,
         "updated": now_kst_label(),
-        "source": "ytd_yoy",
+        "source": "ytd_yoy_recomputed_from_campaign_rows",
     }
-
 
 
 def _owned_bundle_paths(owned_dir: Path) -> List[Path]:
@@ -673,6 +706,8 @@ def _load_owned_bundle_rows_for_ytd(owned_dir: Path, target_end: date) -> Tuple[
         for r in (obj.get("campaigns") or []):
             ch = str(r.get("channel") or "").strip().upper()
             if ch not in OWNED_CHANNELS:
+                continue
+            if not _owned_has_group_mmdd(r):
                 continue
             row_dt = _parse_row_date(r)
             if not row_dt:
@@ -859,12 +894,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         accent_style = f"style=\"--accent:{accent};\"" if accent else ""
         return f'''
         <article class="metric-card reveal rounded-[28px] p-4 sm:p-5" {accent_style}>
-          <div class="metric-glow"></div>
           <div class="relative z-10">
             <div class="text-[11px] font-extrabold tracking-[0.22em] text-slate-500 uppercase">{title}</div>
             <div class="mt-3 flex items-end justify-between gap-3">
               <div class="metric-value text-2xl sm:text-[2rem] font-black leading-none text-slate-950" data-countup="{value}">{value}</div>
-              <div class="hidden sm:block h-10 w-10 rounded-2xl bg-white/80 border border-white/70 shadow-[0_12px_30px_rgba(15,23,42,.08)]"></div>
             </div>
             <div class="mt-4 space-y-2 text-[11px] sm:text-xs">
               <div class="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-3 py-2 border border-white/70">
@@ -917,6 +950,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "dailyKpi",
         "DAILY SNAPSHOT",
         "Daily KPI Summary",
+        "전일 핵심 퍼포먼스를 한 번에 비교할 수 있도록 카드 간 위계를 분리하고, 증감률은 즉시 눈에 들어오게 구성했습니다.",
         f'기준일 <b class="text-slate-900">{daily.get("date") or "-"}</b><br/>updated {daily.get("updated") or ""}',
         "#60a5fa",
         f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{daily_tiles}</div>',
@@ -933,6 +967,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "weeklyKpi",
         "WEEKLY TREND",
         "Weekly KPI Summary (7D)",
+        "최근 7일 누적 흐름을 별도 톤으로 구분해 일간 카드와 헷갈리지 않도록 분리했습니다.",
         f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
         "#8b5cf6",
         f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{weekly_tiles}</div>',
@@ -942,6 +977,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "ownedYtd",
         "OWNED PERFORMANCE",
         "OWNED YTD YoY (EDM + LMS + KAKAO)",
+        "build_owned_campaign 포털 로직과 동일하게 channel + year + mmdd send grouping을 적용하고, has_group_mmdd=true 캠페인만 누적 대상으로 사용합니다.",
         f'상태 <b class="text-slate-900">{"ENABLED" if owned_ytd.get("enabled") else "DISABLED"}</b><br/>updated {owned_ytd.get("updated") or ""}',
         "#14b8a6",
         '<div class="empty-state rounded-[28px] p-6 text-sm text-slate-600">OWNED 데이터가 아직 없습니다.</div>',
@@ -1011,9 +1047,9 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
             <div class="section-eyebrow">LOGIC TRACE</div>
             <h3 class="mt-2 text-xl font-black tracking-tight text-slate-950">Owned YTD 계산 기준</h3>
             <div class="mt-4 space-y-3 text-sm text-slate-600">
-              <div class="logic-row"><span>send_count</span><b>builder 값 우선</b></div>
-              <div class="logic-row"><span>fallback</span><b>동일 grouping 규칙</b></div>
-              <div class="logic-row"><span>KAKAO</span><b>KAKAO_CH_EVENT + KAKAO_CH_MESSAGE_*</b></div>
+              <div class="logic-row"><span>send_count</span><b>channel + year + mmdd grouping</b></div>
+              <div class="logic-row"><span>row filter</span><b>has_group_mmdd = true only</b></div>
+              <div class="logic-row"><span>KAKAO rule</span><b>KAKAO_CH_EVENT + KAKAO_CH_MESSAGE_*</b></div>
               <div class="logic-row"><span>source</span><b class="truncate max-w-[18rem] inline-block align-bottom">{source or owned_dir}</b></div>
             </div>
           </div>
@@ -1241,6 +1277,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         <div>
           <div class="section-eyebrow">CSK E-COMM SUMMARY</div>
           <h1 class="mt-3 text-3xl sm:text-5xl font-black tracking-[-0.04em] text-slate-950">오늘의 핵심 요약</h1>
+          <p class="mt-3 text-sm sm:text-base text-slate-600 max-w-3xl">Daily · Weekly · Owned YTD를 같은 스타일 안에서 명확히 다른 레이어로 분리해, 섹션 전환이 바로 인지되도록 재정렬했습니다.</p>
         </div>
         <div class="section-meta">
           generated <b class="text-slate-900">{now_kst_label()}</b><br/>
