@@ -467,17 +467,6 @@ def _parse_row_date(row: Dict[str, Any]) -> Optional[date]:
         return None
 
 
-def _owned_is_countable_send_row(row: Dict[str, Any]) -> bool:
-    ch = str(row.get("channel") or "").strip().upper()
-    if ch not in OWNED_CHANNELS:
-        return False
-    if ch != "KAKAO":
-        return True
-    campaign = str(row.get("campaign") or "").strip().upper()
-    term = str(row.get("term") or "").strip().upper()
-    return campaign.startswith("KAKAO_CH_EVENT") and term.startswith("KAKAO_CH_MESSAGE_")
-
-
 def _owned_has_group_mmdd(row: Dict[str, Any]) -> bool:
     if not bool(row.get("has_group_mmdd", False)):
         return False
@@ -567,7 +556,9 @@ def _aggregate_owned_rows(rows: List[Dict[str, Any]]) -> Dict[str, float]:
         out["revenue"] += float(_safe_float(r.get("revenue")) or 0.0)
 
         if _owned_valid_send_row(r):
-            send_groups.add(_owned_send_group_key(r))
+            ident = _owned_send_identity(r)
+            if ident:
+                send_groups.add(ident)
 
     out["send_count"] = float(len(send_groups))
     return out
@@ -803,77 +794,6 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
     })
     return result
 
-    ytd_based = _build_owned_result_from_ytd_yoy(obj, owned_dir)
-    if ytd_based:
-        return ytd_based
-
-    all_rows = obj.get("campaigns") or []
-    cutoff_mmdd = target_end.strftime("%m-%d")
-    cur_rows = []
-    prev_rows = []
-
-    for r in all_rows:
-        ch = str(r.get("channel") or "").strip().upper()
-        yr = str(r.get("year") or "").strip()
-        row_dt = _parse_row_date(r)
-        if ch not in OWNED_CHANNELS or not row_dt:
-            continue
-        row_mmdd = row_dt.strftime("%m-%d")
-        if yr == str(target_end.year):
-            if row_dt.year == target_end.year and row_dt <= target_end:
-                cur_rows.append(r)
-        elif yr == str(target_end.year - 1):
-            if row_mmdd <= cutoff_mmdd:
-                prev_rows.append(r)
-
-    cur_sum = _aggregate_owned_rows(cur_rows)
-    prev_sum = _aggregate_owned_rows(prev_rows)
-    cur_cvr = (cur_sum["purchases"] / cur_sum["sessions"]) if cur_sum["sessions"] > 0 else None
-    prev_cvr = (prev_sum["purchases"] / prev_sum["sessions"]) if prev_sum["sessions"] > 0 else None
-
-    total_yoy = {
-        "send_count": _ratio(cur_sum["send_count"], prev_sum["send_count"]),
-        "sessions": _ratio(cur_sum["sessions"], prev_sum["sessions"]),
-        "users": _ratio(cur_sum["users"], prev_sum["users"]),
-        "purchases": _ratio(cur_sum["purchases"], prev_sum["purchases"]),
-        "revenue": _ratio(cur_sum["revenue"], prev_sum["revenue"]),
-        "cvr_pp": (cur_cvr - prev_cvr) if (cur_cvr is not None and prev_cvr is not None) else None,
-    }
-
-    total = dict(cur_sum); total["cvr"] = cur_cvr
-    total_prev = dict(prev_sum); total_prev["cvr"] = prev_cvr
-    cur_ch_sum = _aggregate_owned_rows_by_channel(cur_rows)
-    prev_ch_sum = _aggregate_owned_rows_by_channel(prev_rows)
-
-    by_channel = {}
-    for ch in OWNED_CHANNELS:
-        curv = cur_ch_sum[ch]
-        prevv = prev_ch_sum[ch]
-        cur_c = (curv["purchases"] / curv["sessions"]) if curv["sessions"] > 0 else None
-        prev_c = (prevv["purchases"] / prevv["sessions"]) if prevv["sessions"] > 0 else None
-        by_channel[ch] = {
-            "cur": {**curv, "cvr": cur_c},
-            "prev": {**prevv, "cvr": prev_c},
-            "yoy": {
-                "send_count": _ratio(curv["send_count"], prevv["send_count"]),
-                "sessions": _ratio(curv["sessions"], prevv["sessions"]),
-                "users": _ratio(curv["users"], prevv["users"]),
-                "purchases": _ratio(curv["purchases"], prevv["purchases"]),
-                "revenue": _ratio(curv["revenue"], prevv["revenue"]),
-                "cvr_pp": (cur_c - prev_c) if (cur_c is not None and prev_c is not None) else None,
-            },
-        }
-
-    result.update({
-        "enabled": True,
-        "period": f"{target_end.year}-01-01 ~ {ymd(target_end)}",
-        "prev_period": f"{target_end.year - 1}-01-01 ~ {target_end.year - 1}-{target_end.strftime('%m-%d')}",
-        "total": total, "total_prev": total_prev, "total_yoy": total_yoy,
-        "by_channel": by_channel, "updated": now_kst_label(),
-        "source": str(latest_bundle),
-    })
-    return result
-
 
 def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: Dict[str, Any]) -> str:
     def tone_cls_from_delta(x: Any) -> str:
@@ -977,7 +897,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "ownedYtd",
         "OWNED PERFORMANCE",
         "OWNED YTD YoY (EDM + LMS + KAKAO)",
-        "build_owned_campaign 포털 로직과 동일하게 channel + year + mmdd send grouping을 적용하고, has_group_mmdd=true 캠페인만 누적 대상으로 사용합니다.",
+        "build_owned_campaign 포털 로직을 직접 반영해 send_id 우선 dedupe / fallback grouping을 적용하고, has_group_mmdd=true 캠페인만 누적 대상으로 사용합니다.",
         f'상태 <b class="text-slate-900">{"ENABLED" if owned_ytd.get("enabled") else "DISABLED"}</b><br/>updated {owned_ytd.get("updated") or ""}',
         "#14b8a6",
         '<div class="empty-state rounded-[28px] p-6 text-sm text-slate-600">OWNED 데이터가 아직 없습니다.</div>',
@@ -1047,7 +967,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
             <div class="section-eyebrow">LOGIC TRACE</div>
             <h3 class="mt-2 text-xl font-black tracking-tight text-slate-950">Owned YTD 계산 기준</h3>
             <div class="mt-4 space-y-3 text-sm text-slate-600">
-              <div class="logic-row"><span>send_count</span><b>channel + year + mmdd grouping</b></div>
+              <div class="logic-row"><span>send_count</span><b>date + channel + send_id dedupe (fallback grouping)</b></div>
               <div class="logic-row"><span>row filter</span><b>has_group_mmdd = true only</b></div>
               <div class="logic-row"><span>KAKAO rule</span><b>KAKAO_CH_EVENT + KAKAO_CH_MESSAGE_*</b></div>
               <div class="logic-row"><span>source</span><b class="truncate max-w-[18rem] inline-block align-bottom">{source or owned_dir}</b></div>
@@ -1154,7 +1074,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       background:rgba(255,255,255,.60);
       border:1px solid rgba(255,255,255,.72);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
-      min-width:min(100%, 20rem);
+      min-width:min(100%, 24rem);
     }}
     .metric-card {{
       position:relative;
@@ -1270,7 +1190,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
   </style>
 </head>
 <body>
-  <div class="mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
+  <div class="mx-auto max-w-[1820px] px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
     <header class="hero-shell reveal rounded-[36px] px-5 py-6 sm:px-7 sm:py-8 mb-7">
       <div class="hero-shimmer"></div>
       <div class="relative z-10 flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
