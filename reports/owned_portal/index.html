@@ -440,12 +440,58 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+  
+    /* ===== FINAL ENTRANCE + FULL WIDTH PATCH ===== */
+    .page-enter{
+      opacity: 0;
+      transform: translateY(28px) scale(.988);
+      filter: blur(8px);
+      transition:
+        opacity .9s cubic-bezier(.22,1,.36,1),
+        transform .9s cubic-bezier(.22,1,.36,1),
+        filter .9s cubic-bezier(.22,1,.36,1),
+        box-shadow .35s ease;
+      transition-delay: var(--enter-delay, 0ms);
+      will-change: opacity, transform, filter;
+    }
+    body.page-ready .page-enter{
+      opacity: 1;
+      transform: none;
+      filter: blur(0);
+    }
+    .page-enter-soft{
+      opacity: 0;
+      transform: translateY(20px);
+      transition:
+        opacity .8s cubic-bezier(.22,1,.36,1),
+        transform .8s cubic-bezier(.22,1,.36,1);
+      transition-delay: var(--enter-delay, 0ms);
+    }
+    body.page-ready .page-enter-soft{
+      opacity: 1;
+      transform: none;
+    }
+    .report-shell{
+      width: 100%;
+      max-width: none;
+    }
+    .report-main.glass{
+      width: 100%;
+      border-radius: 30px;
+      padding: 24px;
+    }
+    @media (min-width: 1280px){
+      .report-main.glass{
+        padding: 28px;
+      }
+    }
+
   </style>
 </head>
 
-<body class="p-6 md:p-10">
-  <div class="max-w-7xl mx-auto">
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+<body class="pre-enter p-3 md:p-4 xl:p-5">
+  <div class="report-shell w-full max-w-none">
+    <div class="page-enter flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6" style="--enter-delay:40ms">
       <div>
         <div class="text-4xl font-black tracking-tight">OWNED Campaign Explorer</div>
         <div class="muted font-semibold mt-1">By Date(MMDD, year-split) → TERM 드릴다운 → 구매 상품 (EDM/LMS/KAKAO)</div>
@@ -455,7 +501,7 @@
       </div>
     </div>
 
-    <div id="notice" class="notice mb-4">
+    <div id="notice" class="notice page-enter-soft mb-4" style="--enter-delay:120ms">
       <div class="dot"></div>
       <div id="noticeText">-</div>
       <button id="noticeClose" class="x" type="button">닫기</button>
@@ -469,7 +515,7 @@
       </div>
     </div>
 
-    <div class="glass p-6">
+    <div class="report-main glass page-enter" style="--enter-delay:110ms">
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
@@ -3436,6 +3482,18 @@
     GROUP_JUMP_MODE = !!toggleGroupJump.checked;
   });
 
+  function runInitialEntrance(){
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        document.body.classList.add('page-ready');
+      });
+    });
+    setTimeout(()=>{
+      refreshKpiMadness();
+      attachKpiTilt();
+    }, 180);
+  }
+
   (async function init(){
     // defaults
     toggleGroupJump.checked = true;
@@ -3467,6 +3525,7 @@
     await computeYTD();
     refreshKpiMadness();
     attachKpiTilt();
+    runInitialEntrance();
   })();
 
 })();
