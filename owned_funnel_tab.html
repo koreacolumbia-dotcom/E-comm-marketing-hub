@@ -417,6 +417,7 @@
         for (let i = state.available.length - 1; i >= 0; i -= 1) if (state.available[i] <= v) return state.available[i];
         return state.available[0];
       };
+      const exactOrNull = (v) => state.available.includes(v) ? v : null;
       const between = (s, e) => state.available.filter((day) => day >= s && day <= e);
 
       function normalizeRow(detail, base){
@@ -473,11 +474,13 @@
         if (state.compareMode === 'yoy') {
           const shiftYear = (v) => {
             const dt = parseYmd(v);
-            return clamp(ymd(new Date(dt.getFullYear() - 1, dt.getMonth(), dt.getDate())));
+            return exactOrNull(ymd(new Date(dt.getFullYear() - 1, dt.getMonth(), dt.getDate())));
           };
+          const yoyStart = shiftYear(start);
+          const yoyEnd = shiftYear(end);
           return {
-            start: shiftYear(start),
-            end: shiftYear(end),
+            start: yoyStart,
+            end: yoyEnd,
           };
         }
 
@@ -494,16 +497,19 @@
             return { mode, label: compareLabel(mode), referenceLabel: compareReferenceLabel(mode), range: { start: clamp(ymd(addDays(parseYmd(start), -7))), end: clamp(ymd(addDays(parseYmd(end), -7))) } };
           }
           if (mode === 'yoy') {
-            const shiftYear = (v) => { const dt = parseYmd(v); return clamp(ymd(new Date(dt.getFullYear() - 1, dt.getMonth(), dt.getDate()))); };
-            return { mode, label: compareLabel(mode), referenceLabel: compareReferenceLabel(mode), range: { start: shiftYear(start), end: shiftYear(end) } };
+            const shiftYear = (v) => { const dt = parseYmd(v); return exactOrNull(ymd(new Date(dt.getFullYear() - 1, dt.getMonth(), dt.getDate()))); };
+            const yoyStart = shiftYear(start);
+            const yoyEnd = shiftYear(end);
+            return { mode, label: compareLabel(mode), referenceLabel: compareReferenceLabel(mode), range: { start: yoyStart, end: yoyEnd } };
           }
           const prevEnd = clamp(ymd(addDays(parseYmd(start), -1)));
           const prevStart = clamp(ymd(addDays(parseYmd(prevEnd), -(span - 1))));
           return { mode, label: 'Prev', referenceLabel: 'Previous Period', range: { start: prevStart, end: prevEnd } };
-        });
+        }).filter((entry) => entry.range.start && entry.range.end);
       }
 
       async function loadRange(start, end){
+        if (!start || !end) return { summary: [], ownedGroups: [] };
         const targets = between(start, end);
         const results = await Promise.allSettled(targets.map((day) => fetchJson(`${DATA_BASE}/funnel_${day}.json?t=${Date.now()}`)));
         const fulfilled = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
@@ -1391,7 +1397,8 @@
             return;
           }
           const latest = state.available[state.available.length - 1];
-          const ytdStart = clamp('2026-01-01');
+          const latestYear = parseYmd(latest).getFullYear();
+          const ytdStart = clamp(`${latestYear}-01-01`);
           els.datePicker.value = latest;
           els.startPicker.value = ytdStart;
           els.endPicker.value = latest;
