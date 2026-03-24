@@ -274,6 +274,25 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+  
+    .anim-fade{ opacity:0; transform: translateY(12px) scale(.985); transition: opacity .45s ease, transform .45s ease, box-shadow .35s ease; }
+    .anim-fade.in{ opacity:1; transform: translateY(0) scale(1); }
+    .view-stage{ transition: opacity .18s ease, transform .18s ease; }
+    .view-stage.switching{ opacity:.82; transform: translateY(2px); }
+    .ytd-section-label{ font-size:11px; font-weight:900; letter-spacing:.18em; text-transform:uppercase; color:#94a3b8; margin:8px 0 10px; display:flex; align-items:center; gap:10px; }
+    .ytd-section-label:after{ content:""; flex:1; height:1px; background:rgba(148,163,184,0.22); }
+    .ytd-compare-card{ background: linear-gradient(180deg, rgba(236,244,255,.95), rgba(255,255,255,.92)); border-color: rgba(0,45,114,0.12); }
+    .ytd-compare-value{ font-size:28px; font-weight:900; margin-top:8px; color:#002d72; line-height:1; }
+    .ytd-compare-meta{ font-size:12px; font-weight:800; color:#64748b; margin-top:8px; }
+    .ytd-actual-card.ty-primary{ background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(244,248,255,.96)); border-color: rgba(0,45,114,0.16); box-shadow: 0 16px 38px rgba(0,45,114,0.08); }
+    .ytd-actual-card .kpi-value{ font-size:26px; color:#0f172a; }
+    .ytd-pill-row{ display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+    .ytd-pill{ display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; font-size:10px; font-weight:900; letter-spacing:.14em; text-transform:uppercase; }
+    .ytd-pill.ty{ background:#002d72; color:#fff; }
+    .ytd-pill.ly{ background:rgba(255,255,255,.88); color:#64748b; border:1px solid rgba(148,163,184,0.28); }
+    .ytd-delta{ font-size:13px; font-weight:900; color:#002d72; margin-top:4px; }
+    .ytd-ref{ font-size:12px; font-weight:800; color:#64748b; margin-top:8px; }
+
   </style>
 </head>
 
@@ -310,6 +329,7 @@
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
         <button id="chipWeek" class="chip" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
+        <button id="chipAll" class="chip" type="button">ALL</button>
 
         <label class="ml-2 flex items-center gap-2 text-xs font-extrabold text-slate-600 select-none">
           <input id="toggleGroupJump" type="checkbox" class="accent-slate-900" />
@@ -401,74 +421,64 @@
           <div class="text-xl font-black tracking-tight">OWNED YTD YoY (EDM + LMS + KAKAO)</div>
           <div class="toggle !py-1 !px-3">YTD</div>
         </div>
+        <div class="ytd-section-label">YTD YoY Summary</div>
         <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div class="kpi-card">
-            <div class="kpi-title">ALL Send count</div>
-            <div id="allSendCount" class="kpi-value">-</div>
-            <div id="allSendCountSub" class="kpi-sub">YoY -</div>
-            <div id="allSendCountLy" class="kpi-sub">LY -</div>
+          <div class="kpi-card ytd-compare-card">
+            <div class="kpi-title">Send Count YoY</div>
+            <div id="allSendCount" class="ytd-compare-value">-</div>
+            <div id="allSendCountSub" class="ytd-compare-meta">TY -</div>
+            <div id="allSendCountLy" class="ytd-compare-meta">LY -</div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-title">ALL Sessions</div>
-            <div id="allSessions" class="kpi-value">-</div>
-            <div id="allSessionsSub" class="kpi-sub">YoY -</div>
-            <div id="allSessionsLy" class="kpi-sub">LY -</div>
+          <div class="kpi-card ytd-compare-card">
+            <div class="kpi-title">Sessions YoY</div>
+            <div id="allSessions" class="ytd-compare-value">-</div>
+            <div id="allSessionsSub" class="ytd-compare-meta">TY -</div>
+            <div id="allSessionsLy" class="ytd-compare-meta">LY -</div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-title">ALL Revenue</div>
-            <div id="allRevenue" class="kpi-value">-</div>
-            <div id="allRevenueSub" class="kpi-sub">YoY -</div>
-            <div id="allRevenueLy" class="kpi-sub">LY -</div>
+          <div class="kpi-card ytd-compare-card">
+            <div class="kpi-title">Revenue YoY</div>
+            <div id="allRevenue" class="ytd-compare-value">-</div>
+            <div id="allRevenueSub" class="ytd-compare-meta">TY -</div>
+            <div id="allRevenueLy" class="ytd-compare-meta">LY -</div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-title">ALL CVR</div>
-            <div id="allLeverage" class="kpi-value">-</div>
-            <div id="allLeverageSub" class="kpi-sub">YoY -</div>
-            <div id="allLeverageLy" class="kpi-sub">LY -</div>
+          <div class="kpi-card ytd-compare-card">
+            <div class="kpi-title">CVR YoY</div>
+            <div id="allLeverage" class="ytd-compare-value">-</div>
+            <div id="allLeverageSub" class="ytd-compare-meta">TY -</div>
+            <div id="allLeverageLy" class="ytd-compare-meta">LY -</div>
           </div>
         </div>
-        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
-        <div class="kpi-card">
-          <div class="kpi-title">YTD · TY Sessions</div>
-          <div id="ytdTySessions" class="kpi-value">-</div>
-          <div id="ytdTySessionsSub" class="kpi-sub">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">YTD · TY Revenue</div>
-          <div id="ytdTyRevenue" class="kpi-value">-</div>
-          <div id="ytdTyRevenueSub" class="kpi-sub">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">YTD · TY Send count</div>
-          <div id="ytdTySendCount" class="kpi-value">-</div>
-          <div id="ytdTySendCountSub" class="kpi-sub">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">YTD · TY Avg leverage</div>
-          <div id="ytdTyLeverage" class="kpi-value">-</div>
-          <div id="ytdTyLeverageSub" class="kpi-sub">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">YTD · LY Sessions</div>
-          <div id="ytdLySessions" class="kpi-value">-</div>
-          <div id="ytdLySessionsSub" class="kpi-sub">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">YTD · LY Revenue</div>
-          <div id="ytdLyRevenue" class="kpi-value">-</div>
-          <div id="ytdLyRevenueSub" class="kpi-sub">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">YTD · LY Send count</div>
-          <div id="ytdLySendCount" class="kpi-value">-</div>
-          <div id="ytdLySendCountSub" class="kpi-sub">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">YTD · LY Avg leverage</div>
-          <div id="ytdLyLeverage" class="kpi-value">-</div>
-          <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
-        </div>
-      </div>
+        <div class="ytd-section-label mt-4">YTD Actuals</div>
+        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-1">
+          <div class="kpi-card ytd-actual-card ty-primary">
+            <div class="ytd-pill-row"><span class="ytd-pill ty">TY</span><span class="ytd-pill ly">Reference: LY</span></div>
+            <div class="kpi-title">YTD Sessions</div>
+            <div id="ytdTySessions" class="kpi-value">-</div>
+            <div id="ytdTySessionsSub" class="ytd-delta">vs LY -</div>
+            <div id="ytdLySessionsRef" class="ytd-ref">LY same period: -</div>
+          </div>
+          <div class="kpi-card ytd-actual-card ty-primary">
+            <div class="ytd-pill-row"><span class="ytd-pill ty">TY</span><span class="ytd-pill ly">Reference: LY</span></div>
+            <div class="kpi-title">YTD Revenue</div>
+            <div id="ytdTyRevenue" class="kpi-value">-</div>
+            <div id="ytdTyRevenueSub" class="ytd-delta">vs LY -</div>
+            <div id="ytdLyRevenueRef" class="ytd-ref">LY same period: -</div>
+          </div>
+          <div class="kpi-card ytd-actual-card ty-primary">
+            <div class="ytd-pill-row"><span class="ytd-pill ty">TY</span><span class="ytd-pill ly">Reference: LY</span></div>
+            <div class="kpi-title">YTD Send Count</div>
+            <div id="ytdTySendCount" class="kpi-value">-</div>
+            <div id="ytdTySendCountSub" class="ytd-delta">vs LY -</div>
+            <div id="ytdLySendCountRef" class="ytd-ref">LY same period: -</div>
+          </div>
+          <div class="kpi-card ytd-actual-card ty-primary">
+            <div class="ytd-pill-row"><span class="ytd-pill ty">TY</span><span class="ytd-pill ly">Reference: LY</span></div>
+            <div class="kpi-title">YTD Avg Leverage</div>
+            <div id="ytdTyLeverage" class="kpi-value">-</div>
+            <div id="ytdTyLeverageSub" class="ytd-delta">vs LY -</div>
+            <div id="ytdLyLeverageRef" class="ytd-ref">LY same period: -</div>
+          </div>
+        </div></div>
       </div>
 
       <!-- KPI (selection) -->
@@ -693,6 +703,7 @@
   const chipDaily = document.getElementById('chipDaily');
   const chipWeek  = document.getElementById('chipWeek');
   const chipRange = document.getElementById('chipRange');
+  const chipAll = document.getElementById('chipAll');
 
   const rangeBox  = document.getElementById('rangeBox');
   const dailyBox  = document.getElementById('dailyBox');
@@ -743,18 +754,14 @@
   const ytdTyRevenue  = document.getElementById('ytdTyRevenue');
   const ytdTySendCount = document.getElementById('ytdTySendCount');
   const ytdTyLeverage = document.getElementById('ytdTyLeverage');
-  const ytdLySessions = document.getElementById('ytdLySessions');
-  const ytdLyRevenue  = document.getElementById('ytdLyRevenue');
-  const ytdLySendCount = document.getElementById('ytdLySendCount');
-  const ytdLyLeverage  = document.getElementById('ytdLyLeverage');
+  const ytdLySessionsRef = document.getElementById('ytdLySessionsRef');
+  const ytdLyRevenueRef  = document.getElementById('ytdLyRevenueRef');
+  const ytdLySendCountRef = document.getElementById('ytdLySendCountRef');
+  const ytdLyLeverageRef  = document.getElementById('ytdLyLeverageRef');
   const ytdTySessionsSub = document.getElementById('ytdTySessionsSub');
   const ytdTyRevenueSub  = document.getElementById('ytdTyRevenueSub');
   const ytdTySendCountSub = document.getElementById('ytdTySendCountSub');
   const ytdTyLeverageSub  = document.getElementById('ytdTyLeverageSub');
-  const ytdLySessionsSub = document.getElementById('ytdLySessionsSub');
-  const ytdLyRevenueSub  = document.getElementById('ytdLyRevenueSub');
-  const ytdLySendCountSub = document.getElementById('ytdLySendCountSub');
-  const ytdLyLeverageSub  = document.getElementById('ytdLyLeverageSub');
 
   const totEdmSessions = document.getElementById('totEdmSessions');
   const totEdmRevenue = document.getElementById('totEdmRevenue');
@@ -928,7 +935,21 @@
       if(!date || !channel || !title) continue;
       const key = `${date}||${channel}||${title}`;
       if(!map.has(key)){
-        map.set(key, { date, channel, message_title: title, message_body: body });
+        map.set(key, {
+          date,
+          channel,
+          message_title: title,
+          message_body: body,
+          send_volume: Number((row && row.send_volume) || 0),
+          sessions: Number((row && row.sessions) || 0),
+          session_rate: Number((row && row.session_rate) || 0),
+          message_revenue: Number((row && (row.message_revenue || row.revenue)) || 0),
+          total_revenue: Number((row && row.total_revenue) || 0),
+          cost: Number((row && row.cost) || 0),
+          roas: Number((row && row.roas) || 0),
+          send_count: Number((row && row.send_count) || 1),
+          avg_leverage: Number((row && row.avg_leverage) || Number((row && row.sessions) || 0)),
+        });
       }
     }
     return Array.from(map.values()).sort((a,b)=>{
@@ -993,6 +1014,29 @@
   function getMessageLogRows(messageLog, channel, year){
     const yearPrefix = `${year}-`;
     return getEffectiveMessageLog(messageLog).filter(m => m.channel===channel && String(m.date||'').startsWith(yearPrefix));
+  }
+
+  function buildMessageMetricRows(messageLog){
+    return normalizeMessageLogRows(messageLog).filter(m => /^2025-/.test(String(m.date || ''))).map(m => ({
+      date: m.date,
+      year: String(m.date || '').slice(0,4),
+      mmdd: String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10),
+      has_group_mmdd: true,
+      channel: m.channel,
+      send_id: `${m.channel}||${String(m.date || '').replace(/-/g,'')}`,
+      campaign: m.message_title || '',
+      term: '',
+      sessions: Number(m.sessions || 0),
+      users: 0,
+      purchases: 0,
+      revenue: Number(m.message_revenue || 0),
+      items_purchased: 0,
+      send_count: Number(m.send_count || 1),
+      avg_leverage: Number(m.avg_leverage || m.sessions || 0),
+      message_title: m.message_title || '',
+      message_body: m.message_body || '',
+      source_type: 'message_log',
+    }));
   }
 
   function getRowGroupDate(r){
@@ -1134,20 +1178,20 @@
   function renderAllSummary(summary, prevSummary){
     if(!summary){
       [allSessions, allRevenue, allSendCount, allLeverage].forEach(el => { if(el) el.textContent = '-'; });
-      [allSessionsSub, allRevenueSub, allSendCountSub, allLeverageSub].forEach(el => { if(el) el.textContent = 'YoY -'; });
+      [allSessionsSub, allRevenueSub, allSendCountSub, allLeverageSub].forEach(el => { if(el) el.textContent = 'TY -'; });
       [allSessionsLy, allRevenueLy, allSendCountLy, allLeverageLy].forEach(el => { if(el) el.textContent = 'LY -'; });
       return;
     }
-    allSendCount.textContent = fmt(summary.send_count);
-    allSessions.textContent = fmt(summary.sessions);
-    allRevenue.textContent = fmtMoney(summary.revenue);
     const cvr = summary.sessions ? ((summary.purchases || 0) / summary.sessions * 100) : 0;
-    allLeverage.textContent = `${cvr.toFixed(2)}%`;
     if(!prevSummary){
-      allSendCountSub.textContent = 'YoY -';
-      allSessionsSub.textContent = 'YoY -';
-      allRevenueSub.textContent = 'YoY -';
-      allLeverageSub.textContent = 'YoY -';
+      allSendCount.textContent = '-';
+      allSessions.textContent = '-';
+      allRevenue.textContent = '-';
+      allLeverage.textContent = '-';
+      allSendCountSub.textContent = `TY ${fmt(summary.send_count)}`;
+      allSessionsSub.textContent = `TY ${fmt(summary.sessions)}`;
+      allRevenueSub.textContent = `TY ${fmtMoney(summary.revenue)}`;
+      allLeverageSub.textContent = `TY ${cvr.toFixed(2)}%`;
       allSendCountLy.textContent = 'LY -';
       allSessionsLy.textContent = 'LY -';
       allRevenueLy.textContent = 'LY -';
@@ -1159,10 +1203,14 @@
     const dRev  = prevSummary.revenue ? ((summary.revenue - prevSummary.revenue)/prevSummary.revenue*100) : (summary.revenue ? 100 : 0);
     const dSend = prevSummary.send_count ? ((summary.send_count - prevSummary.send_count)/prevSummary.send_count*100) : (summary.send_count ? 100 : 0);
     const dCvr = cvr - prevCvr;
-    allSendCountSub.textContent = `YoY ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
-    allSessionsSub.textContent = `YoY ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-    allRevenueSub.textContent = `YoY ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-    allLeverageSub.textContent = `YoY ${dCvr>=0?'+':''}${dCvr.toFixed(2)}%p`;
+    allSendCount.textContent = `${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+    allSessions.textContent = `${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+    allRevenue.textContent = `${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+    allLeverage.textContent = `${dCvr>=0?'+':''}${dCvr.toFixed(2)}%p`;
+    allSendCountSub.textContent = `TY ${fmt(summary.send_count)}`;
+    allSessionsSub.textContent = `TY ${fmt(summary.sessions)}`;
+    allRevenueSub.textContent = `TY ${fmtMoney(summary.revenue)}`;
+    allLeverageSub.textContent = `TY ${cvr.toFixed(2)}%`;
     allSendCountLy.textContent = `LY ${fmt(prevSummary.send_count)}`;
     allSessionsLy.textContent = `LY ${fmt(prevSummary.sessions)}`;
     allRevenueLy.textContent = `LY ${fmtMoney(prevSummary.revenue)}`;
@@ -1293,7 +1341,7 @@
   }
 
   // ✅ 기본값
-  let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
+  let VIEW = 'DAILY';     // DAILY | WEEK | RANGE | ALL
   let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
 
   let RAW = null;         // {kpi:[], prod:[], analysis:[]}
@@ -1312,7 +1360,7 @@
   const YTD_CACHE = new Map();
 
   function setViewActive(){
-    [chipDaily, chipWeek, chipRange].forEach(el=>el.classList.remove('active'));
+    [chipDaily, chipWeek, chipRange, chipAll].forEach(el=>el.classList.remove('active'));
     if(VIEW==='DAILY'){
       chipDaily.classList.add('active');
       rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
@@ -1329,6 +1377,12 @@
       chipRange.classList.add('active');
       rangeBox.classList.remove('hidden'); rangeBox.classList.add('flex');
       dailyBox.classList.add('hidden');
+      weekHint.classList.add('hidden');
+    }
+    if(VIEW==='ALL'){
+      chipAll.classList.add('active');
+      rangeBox.classList.add('hidden'); rangeBox.classList.remove('flex');
+      dailyBox.classList.remove('hidden');
       weekHint.classList.add('hidden');
     }
   }
@@ -1363,6 +1417,11 @@
       }
       return `WEEK ${s} ~ ${e}`;
     }
+    if(VIEW==='ALL'){
+      const end = datePicker.value || ymd(addDays(new Date(), -1));
+      const year = String(end).slice(0,4);
+      return `ALL ${year}-01-01 ~ ${end}`;
+    }
     return `${startPicker.value || '-'} ~ ${endPicker.value || '-'}`;
   }
 
@@ -1376,6 +1435,9 @@
       }
       const cur = parseYMD(datePicker.value || ymd(addDays(new Date(), -1)));
       return ymd(endOfWeekSun(cur));
+    }
+    if(VIEW==='ALL'){
+      return datePicker.value || ymd(addDays(new Date(), -1));
     }
     return endPicker.value || ymd(addDays(new Date(), -1));
   }
@@ -1412,6 +1474,21 @@
       out.items_purchased += Number(r.items_purchased||0);
     }
     return out;
+  }
+
+  function animateCards(){
+    document.querySelectorAll('.kpi-card, .mini-card').forEach((el, idx)=>{
+      el.classList.add('anim-fade');
+      el.classList.remove('in');
+      setTimeout(()=>el.classList.add('in'), Math.min(idx * 35, 350));
+    });
+  }
+
+  function pulseViewStage(){
+    const el = document.querySelector('.glass');
+    if(!el) return;
+    el.classList.add('view-stage','switching');
+    setTimeout(()=>el.classList.remove('switching'), 180);
   }
 
   function updateChannelTotals(){
@@ -1517,7 +1594,7 @@
       }
       const currentYear = String(getCampaignChipCutoffDate() || '').slice(0,4);
       const years = Array.from(byYear.keys())
-        .filter(yr => !currentYear || String(yr) === currentYear)
+        .filter(yr => VIEW==='ALL' ? true : (!currentYear || String(yr) === currentYear))
         .sort((a,b)=> b.localeCompare(a));
 
       let html = '';
@@ -2224,6 +2301,7 @@
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
+    animateCards();
   }
 
   function selectOtherGroup(channel, year, mmdd){
@@ -2352,11 +2430,17 @@
       messageLog.push(...(j.message_log || []));
     }
 
+    const normalizedMessageLog = normalizeMessageLogRows(messageLog);
+    for (const r of buildMessageMetricRows(normalizedMessageLog)) {
+      const key = `${r.channel}||${r.send_id || ''}||${r.campaign || ''}||${r.term || ''}||${getRowYear(r)}||${getRowMmdd(r)}`;
+      sumInto(kpiMap, key, r, ['sessions', 'users', 'purchases', 'revenue', 'items_purchased', 'send_count']);
+    }
+
     return {
       kpi: Array.from(kpiMap.values()),
       prod: Array.from(prodMap.values()),
       analysis: Array.from(analysisMap.values()),
-      message_log: normalizeMessageLogRows(messageLog)
+      message_log: normalizedMessageLog
     };
   }
 
@@ -2386,6 +2470,7 @@
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
+    animateCards();
   }
 
   async function loadRange(startStr, endStr){
@@ -2448,6 +2533,7 @@
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
+    animateCards();
   }
 
   async function loadWeekByDate(dStr){
@@ -2457,6 +2543,14 @@
     startPicker.value = s;
     endPicker.value = e;
     await loadRange(s, e);
+  }
+
+  async function loadAllByDate(dStr){
+    const end = clampToAvailable(dStr);
+    const year = String(end || '').slice(0,4);
+    const start = `${year}-01-01`;
+    datePicker.value = end;
+    await loadRange(start, end);
   }
 
   async function loadAvailableDates(){
@@ -2533,23 +2627,18 @@
       ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
       ytdTySendCount.textContent = fmt(TY.send_count);
       ytdTyLeverage.textContent = fmtRatio(TY.avg_leverage);
-      ytdLySessions.textContent = fmt(LY.sessions);
-      ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
-      ytdLySendCount.textContent = fmt(LY.send_count);
-      ytdLyLeverage.textContent = fmtRatio(LY.avg_leverage);
-
       const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
       const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
       const dSend = LY.send_count ? ((TY.send_count - LY.send_count)/LY.send_count*100) : (TY.send_count ? 100 : 0);
       const dLev  = LY.avg_leverage ? ((TY.avg_leverage - LY.avg_leverage)/LY.avg_leverage*100) : (TY.avg_leverage ? 100 : 0);
-      ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-      ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-      ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
-      ytdTyLeverageSub.textContent = `vs LY: ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
-      ytdLySessionsSub.textContent = `LY (same period)`;
-      ytdLyRevenueSub.textContent  = `LY (same period)`;
-      ytdLySendCountSub.textContent = `LY (same period)`;
-      ytdLyLeverageSub.textContent = `LY (same period)`;
+      ytdTySessionsSub.textContent = `vs LY ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+      ytdTyRevenueSub.textContent  = `vs LY ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+      ytdTySendCountSub.textContent = `vs LY ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+      ytdTyLeverageSub.textContent = `vs LY ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
+      ytdLySessionsRef.textContent = `LY same period: ${fmt(LY.sessions)}`;
+      ytdLyRevenueRef.textContent  = `LY same period: ${fmtMoney(LY.revenue)}`;
+      ytdLySendCountRef.textContent = `LY same period: ${fmt(LY.send_count)}`;
+      ytdLyLeverageRef.textContent = `LY same period: ${fmtRatio(LY.avg_leverage)}`;
       hideYtdLoading();
       updateChannelTotals();
       renderCampaignButtons();
@@ -2601,26 +2690,22 @@
     ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
     ytdTySendCount.textContent = fmt(thisSum.send_count);
     ytdTyLeverage.textContent = fmtRatio(thisSum.avg_leverage);
-    ytdLySessions.textContent = fmt(prevSum.sessions);
-    ytdLyRevenue.textContent  = fmtMoney(prevSum.revenue);
-    ytdLySendCount.textContent = fmt(prevSum.send_count);
-    ytdLyLeverage.textContent = fmtRatio(prevSum.avg_leverage);
-
     const dSess = prevSum.sessions ? ((thisSum.sessions - prevSum.sessions)/prevSum.sessions*100) : (thisSum.sessions ? 100 : 0);
     const dRev  = prevSum.revenue  ? ((thisSum.revenue  - prevSum.revenue )/prevSum.revenue *100) : (thisSum.revenue  ? 100 : 0);
     const dSend = prevSum.send_count ? ((thisSum.send_count - prevSum.send_count)/prevSum.send_count*100) : (thisSum.send_count ? 100 : 0);
     const dLev  = prevSum.avg_leverage ? ((thisSum.avg_leverage - prevSum.avg_leverage)/prevSum.avg_leverage*100) : (thisSum.avg_leverage ? 100 : 0);
-    ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
-    ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
-    ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
-    ytdTyLeverageSub.textContent = `vs LY: ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
-    ytdLySessionsSub.textContent = `LY (same period)`;
-    ytdLyRevenueSub.textContent  = `LY (same period)`;
-    ytdLySendCountSub.textContent = `LY (same period)`;
-    ytdLyLeverageSub.textContent = `LY (same period)`;
+    ytdTySessionsSub.textContent = `vs LY ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
+    ytdTyRevenueSub.textContent  = `vs LY ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
+    ytdTySendCountSub.textContent = `vs LY ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
+    ytdTyLeverageSub.textContent = `vs LY ${dLev>=0?'+':''}${dLev.toFixed(1)}%`;
+    ytdLySessionsRef.textContent = `LY same period: ${fmt(prevSum.sessions)}`;
+    ytdLyRevenueRef.textContent  = `LY same period: ${fmtMoney(prevSum.revenue)}`;
+    ytdLySendCountRef.textContent = `LY same period: ${fmt(prevSum.send_count)}`;
+    ytdLyLeverageRef.textContent = `LY same period: ${fmtRatio(prevSum.avg_leverage)}`;
     hideYtdLoading();
     updateChannelTotals();
     renderCampaignButtons();
+    animateCards();
   }
 
   function bindToggle(btn, wrap){
@@ -2698,6 +2783,7 @@
   chipDaily.addEventListener('click', ()=>{
     WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
+    pulseViewStage();
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
@@ -2707,6 +2793,7 @@
   chipWeek.addEventListener('click', async ()=>{
     WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
+    pulseViewStage();
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
@@ -2717,15 +2804,28 @@
   chipRange.addEventListener('click', ()=>{
     WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
+    pulseViewStage();
     setViewActive();
     setToLastNDays(7);
     loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
+  });
+
+  chipAll.addEventListener('click', async ()=>{
+    WEEK_ANCHORED_MODE = false;
+    VIEW='ALL';
+    pulseViewStage();
+    setViewActive();
+    const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
+    datePicker.value = d;
+    await loadAllByDate(d);
+    await computeYTD();
   });
 
   // ✅ 채널 클릭 시 디폴트 VIEW = WEEK
   async function onChannelChange(ch){
     CHANNEL = ch;
     setChipActive();
+    pulseViewStage();
     toggleSections();
 
     WEEK_ANCHORED_MODE = false;
@@ -2747,8 +2847,8 @@
   chipLMS.addEventListener('click', ()=>onChannelChange('LMS'));
   chipKAKAO.addEventListener('click', ()=>onChannelChange('KAKAO'));
 
-  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
-  topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
+  q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); animateCards(); });
+  topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); animateCards(); });
 
   btnApplyRange.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
   btn7d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
@@ -2770,6 +2870,14 @@
       const d = ymd(addDays(cur,-7));
       datePicker.value = clampToAvailable(d);
       await loadWeekByDate(datePicker.value);
+      await computeYTD();
+      return;
+    }
+    if(VIEW==='ALL'){
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,-1));
+      datePicker.value = clampToAvailable(d);
+      await loadAllByDate(datePicker.value);
       await computeYTD();
       return;
     }
@@ -2798,6 +2906,14 @@
       await computeYTD();
       return;
     }
+    if(VIEW==='ALL'){
+      const cur = parseYMD(datePicker.value);
+      const d = ymd(addDays(cur,+1));
+      datePicker.value = clampToAvailable(d);
+      await loadAllByDate(datePicker.value);
+      await computeYTD();
+      return;
+    }
     const s = parseYMD(startPicker.value);
     const e = parseYMD(endPicker.value);
     startPicker.value = clampToAvailable(ymd(addDays(s,+7)));
@@ -2817,6 +2933,12 @@
     if(VIEW==='WEEK'){
       datePicker.value = d;
       await loadWeekByDate(d);
+      await computeYTD();
+      return;
+    }
+    if(VIEW==='ALL'){
+      datePicker.value = d;
+      await loadAllByDate(d);
       await computeYTD();
       return;
     }
