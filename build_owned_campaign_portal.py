@@ -127,6 +127,21 @@ def extract_group_year_mmdd(*values: Any, fallback_date: Optional[str] = None) -
     return "", "", False
 
 
+
+
+def is_countable_send_row(row: pd.Series) -> bool:
+    channel = str(row.get("channel", "") or "").strip().upper()
+    if channel != "KAKAO":
+        return True
+    text = " ".join([
+        str(row.get("campaign", "") or ""),
+        str(row.get("term", "") or ""),
+        str(row.get("send_id", "") or ""),
+        str(row.get("message_title", "") or ""),
+    ]).upper()
+    return "KAKAO_CH_MESSAGE" in text
+
+
 def apply_send_group_metrics(camp: pd.DataFrame) -> pd.DataFrame:
     if camp.empty:
         return camp
@@ -143,6 +158,7 @@ def apply_send_group_metrics(camp: pd.DataFrame) -> pd.DataFrame:
         camp["has_group_mmdd"].astype(bool)
         & camp["year"].astype(str).str.fullmatch(r"\d{4}")
         & camp["mmdd"].astype(str).str.fullmatch(r"\d{4}")
+        & camp.apply(is_countable_send_row, axis=1)
     )
 
     camp.loc[valid_mask, "send_group_key"] = (
