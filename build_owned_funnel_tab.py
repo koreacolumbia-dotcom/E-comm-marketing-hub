@@ -41,7 +41,7 @@ def kst_today() -> date:
 
 def default_data_range(today: Optional[date] = None) -> Tuple[date, date]:
     anchor = today or kst_today()
-    return date(anchor.year, 1, 1), anchor
+    return date(2026, 1, 1), anchor
 
 
 def ymd(value: date) -> str:
@@ -681,7 +681,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-base", default="data/funnel", help="Relative funnel data path to inject for the published HTML.")
     parser.add_argument("--project", default="columbia-ga4", help="BigQuery project id.")
     parser.add_argument("--dataset", default="analytics_358593394", help="BigQuery dataset id.")
-    parser.add_argument("--start", default="", help="Start date YYYY-MM-DD. Defaults to Jan 1 of the current KST year in data mode.")
+    parser.add_argument("--start", default="", help="Start date YYYY-MM-DD. Defaults to 2026-01-01 in data mode.")
     parser.add_argument("--end", default="", help="End date YYYY-MM-DD. Defaults to today in data mode.")
     parser.add_argument("--recent-days", type=int, default=0, help="Incremental window in days, ending yesterday KST.")
     parser.add_argument("--site-dir", default="reports/daily_digest", help="Output directory that will receive data/funnel.")
