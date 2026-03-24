@@ -7,14 +7,15 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-    body{font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;background:linear-gradient(180deg,#f6f8fb,#eef3f8);color:#0f172a}
+    body{font-family:'Plus Jakarta Sans','Noto Sans KR',system-ui,sans-serif;background:radial-gradient(circle at top left,rgba(191,219,254,.42),transparent 32%),radial-gradient(circle at top right,rgba(224,231,255,.46),transparent 34%),linear-gradient(180deg,#f6f8fb,#eef3f8);color:#0f172a}
+    .dashboard-shell{max-width:1800px}
     .glass{background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.8);border-radius:28px;box-shadow:0 24px 60px rgba(15,23,42,.08)}
     .chip,.btn,.field{border:1px solid rgba(148,163,184,.24);background:rgba(255,255,255,.92);transition:all .15s ease;font-weight:800}
     .chip:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
     .chip.active{background:linear-gradient(135deg,#002d72,#1d4ed8);color:#fff;border-color:rgba(0,45,114,.22)}
-    .card{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.9);border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.06)}
+    .card{position:relative;border:1px solid rgba(148,163,184,.16);background:rgba(255,255,255,.92);border-radius:28px;box-shadow:0 18px 44px rgba(15,23,42,.07);overflow:hidden}
     .kicker{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:900;color:#94a3b8}
-    .metric{font-size:28px;font-weight:900;line-height:1.05}
+    .metric{font-size:36px;font-weight:900;line-height:1.02;letter-spacing:-.03em}
     .muted{color:#64748b}
     .table-wrap{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.86);border-radius:22px;overflow:hidden;box-shadow:0 14px 30px rgba(15,23,42,.06)}
     table{width:100%;border-collapse:collapse}
@@ -24,23 +25,48 @@
     .empty{border:1px dashed rgba(148,163,184,.3);background:rgba(255,255,255,.72);border-radius:24px;padding:28px;text-align:center;color:#64748b;font-weight:700}
     .group-chip{border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.94);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;min-width:124px;text-align:left}
     .group-chip.active{background:rgba(0,45,114,.07);border-color:rgba(0,45,114,.18);color:#002d72}
-    .funnel-wrap{position:relative;padding:8px 0 2px}
-    .funnel-flow{display:grid;gap:12px}
-    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) 188px;gap:18px;align-items:center}
+    .metric-card{padding:22px 22px 20px;animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}
+    .metric-card::before{content:'';position:absolute;inset:0;background:linear-gradient(140deg,rgba(29,78,216,.08),rgba(255,255,255,0) 48%);pointer-events:none}
+    .metric-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .delta-pill{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;letter-spacing:.06em;border:1px solid transparent}
+    .delta-pill.up{background:rgba(15,118,110,.08);color:#0f766e;border-color:rgba(15,118,110,.16)}
+    .delta-pill.down{background:rgba(190,24,93,.08);color:#be185d;border-color:rgba(190,24,93,.16)}
+    .delta-pill.flat{background:rgba(148,163,184,.12);color:#64748b;border-color:rgba(148,163,184,.16)}
+    .metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+    .metric-stat{border:1px solid rgba(191,219,254,.45);background:linear-gradient(180deg,rgba(248,250,252,.92),rgba(241,245,249,.84));border-radius:18px;padding:12px 14px}
+    .metric-stat-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:#94a3b8}
+    .metric-stat-value{margin-top:6px;font-size:16px;font-weight:900;color:#0f172a}
+    .metric-footnote{margin-top:14px;font-size:12px;font-weight:700;color:#64748b}
+    .insight-card,.detail-card,.drop-rank-card,.stage-rank-card{border:1px solid rgba(191,219,254,.34);background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(248,250,252,.88));border-radius:24px;box-shadow:0 16px 36px rgba(15,23,42,.05);animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}
+    .insight-card{padding:18px 18px 16px}
+    .insight-value{margin-top:10px;font-size:22px;line-height:1.12;font-weight:900;letter-spacing:-.03em;color:#0f172a}
+    .insight-note{margin-top:8px;font-size:12px;font-weight:700;color:#64748b;line-height:1.45}
+    .detail-card{padding:20px}
+    .detail-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .detail-title{margin-top:8px;font-size:22px;line-height:1.08;font-weight:900;letter-spacing:-.03em;color:#0f172a}
+    .detail-value{font-size:30px;line-height:1;font-weight:900;letter-spacing:-.04em;color:#0f172a;text-align:right}
+    .detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}
+    .detail-stat{border:1px solid rgba(226,232,240,.95);background:rgba(248,250,252,.96);border-radius:18px;padding:11px 12px}
+    .detail-stat-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:900;color:#94a3b8}
+    .detail-stat-value{margin-top:6px;font-size:16px;font-weight:900;color:#0f172a}
+    .detail-note{margin-top:14px;font-size:12px;font-weight:700;color:#64748b;line-height:1.5}
+    .funnel-wrap{position:relative;padding:14px 0 4px}
+    .funnel-flow{display:grid;gap:18px}
+    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) 236px;gap:28px;align-items:center}
     .funnel-lane{min-width:0}
     .funnel-step-line{display:none}
-    .funnel-track{position:relative;height:192px;border-radius:0;border:none;background:transparent;overflow:visible;padding:0}
-    .funnel-stage{position:absolute;left:0;top:50%;transform:translateY(-50%);transform-origin:left center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 18px 36px rgba(15,23,42,.12);height:100%;border-radius:20px;overflow:hidden;padding:12px 22px;min-width:112px;max-width:100%;animation:funnelStageIn .95s cubic-bezier(.18,.86,.22,1) both}
+    .funnel-track{position:relative;height:220px;border-radius:30px;border:1px solid rgba(191,219,254,.36);background:linear-gradient(180deg,rgba(239,246,255,.86),rgba(255,255,255,.4));overflow:hidden;padding:0 10px}
+    .funnel-stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 22px 42px rgba(15,23,42,.13);height:168px;border-radius:26px;overflow:hidden;padding:16px 28px;min-width:188px;max-width:100%;animation:funnelStageIn .96s cubic-bezier(.18,.86,.22,1) both}
     .funnel-stage::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 54%,rgba(0,0,0,.06));pointer-events:none}
     .funnel-stage::after{content:'';position:absolute;left:-24%;top:-40%;width:24%;height:180%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.32),rgba(255,255,255,0));filter:blur(6px);opacity:0;animation:funnelSheen 1.2s ease .35s both}
     .funnel-stage-inner{position:relative;z-index:2;width:100%;height:100%;display:flex;align-items:center;justify-content:center;min-width:0}
-    .stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;max-width:100%;width:100%;height:100%;overflow:hidden}
+    .stage-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;max-width:100%;width:100%;height:100%;overflow:hidden}
     .stage-title,.stage-note,.stage-value .num,.stage-value .sub{max-width:100%;overflow:hidden;text-overflow:ellipsis}
-    .stage-title{font-size:40px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-title{font-size:52px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.04em;text-shadow:0 1px 2px rgba(0,0,0,.12)}
     .stage-note{font-size:12px;line-height:1.05;font-weight:800;white-space:nowrap;opacity:.96}
     .stage-value{min-width:0;max-width:100%}
-    .stage-value .num{font-size:62px;line-height:.95;font-weight:900;white-space:nowrap;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .stage-value .sub{font-size:16px;line-height:1.08;font-weight:800;white-space:nowrap;opacity:.96}
+    .stage-value .num{font-size:78px;line-height:.92;font-weight:900;white-space:nowrap;letter-spacing:-.05em;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+    .stage-value .sub{font-size:18px;line-height:1.08;font-weight:800;white-space:nowrap;opacity:.96}
     .funnel-stage[data-stage="1"]{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-stage[data-stage="2"]{background:linear-gradient(135deg,#0f766e,#14b8a6)}
     .funnel-stage[data-stage="3"]{background:linear-gradient(135deg,#2563eb,#38bdf8)}
@@ -48,29 +74,34 @@
     .funnel-stage[data-stage="5"]{background:linear-gradient(135deg,#7c3aed,#ec4899)}
     .funnel-stage.compare-a{background:linear-gradient(135deg,#002d72,#1d4ed8)}
     .funnel-stage.compare-b{background:linear-gradient(135deg,#0f766e,#14b8a6)}
-    .drop-slot{position:relative;height:192px;border-radius:0;border:none;background:transparent;overflow:visible;display:flex;align-items:center;justify-content:flex-start;padding:0}
-    .drop-slot.baseline{color:#94a3b8;font-weight:900;font-size:13px;justify-content:flex-start;align-items:center;text-align:left;padding-left:8px}
-    .drop-fill{position:absolute;left:0;top:50%;transform:translateY(-50%);transform-origin:left center;height:100%;border-radius:18px;background:linear-gradient(135deg,#c084fc,#ec4899);box-shadow:0 12px 24px rgba(220,72,158,.22), inset 0 1px 0 rgba(255,255,255,.24);animation:dropIn .82s cubic-bezier(.18,.86,.22,1) both}
+    .drop-slot{position:relative;height:220px;border-radius:30px;border:1px solid rgba(251,207,232,.6);background:linear-gradient(180deg,rgba(255,241,242,.92),rgba(255,255,255,.84));overflow:hidden;display:flex;align-items:center;justify-content:flex-start;padding:0 20px}
+    .drop-slot.baseline{border-style:dashed;border-color:rgba(148,163,184,.35);background:linear-gradient(180deg,rgba(248,250,252,.78),rgba(255,255,255,.84))}
+    .drop-fill{position:absolute;left:18px;top:50%;transform:translateY(-50%);transform-origin:left center;height:96px;border-radius:24px;background:linear-gradient(135deg,#fb7185,#ec4899);box-shadow:0 14px 30px rgba(220,72,158,.22), inset 0 1px 0 rgba(255,255,255,.24);animation:dropIn .82s cubic-bezier(.18,.86,.22,1) both}
     .drop-fill::after{content:'';position:absolute;left:-24%;top:-25%;width:44%;height:150%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.28),rgba(255,255,255,0));opacity:.55;filter:blur(4px)}
-    .drop-label{display:none}
+    .drop-label{position:relative;z-index:2;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;max-width:100%}
     .drop-kicker,.drop-rate,.drop-count{max-width:100%;overflow:hidden;text-overflow:ellipsis}
-    .drop-kicker{font-size:11px;line-height:1.04;font-weight:900;letter-spacing:.14em;white-space:normal;overflow-wrap:anywhere}
-    .drop-rate{font-size:30px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.03em}
-    .drop-count{font-size:14px;line-height:1.05;font-weight:800;white-space:nowrap}
-    @keyframes funnelStageIn{0%{opacity:0;transform:translateY(-50%) scaleX(.74) translateY(14px);filter:blur(2px)}55%{opacity:1;transform:translateY(-50%) scaleX(1.03) translateY(0);filter:blur(0)}100%{opacity:1;transform:translateY(-50%) scaleX(1) translateY(0);filter:blur(0)}}
+    .drop-kicker{font-size:11px;line-height:1.04;font-weight:900;letter-spacing:.18em;white-space:normal;overflow-wrap:anywhere;color:#be185d}
+    .drop-rate{font-size:40px;line-height:1;font-weight:900;white-space:nowrap;letter-spacing:-.04em;color:#881337}
+    .drop-count{font-size:14px;line-height:1.3;font-weight:800;white-space:normal;color:#475569}
+    .drop-slot.baseline .drop-kicker,.drop-slot.baseline .drop-rate,.drop-slot.baseline .drop-count{color:#64748b}
+    .drop-tag{display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;background:rgba(190,24,93,.08);color:#be185d;font-size:11px;font-weight:900;letter-spacing:.08em}
+    .drop-big{font-size:30px;line-height:1;font-weight:900;letter-spacing:-.04em;color:#881337}
+    @keyframes funnelStageIn{0%{opacity:0;transform:translate(-50%,-40%) scale(.82);filter:blur(2px)}55%{opacity:1;transform:translate(-50%,-50%) scale(1.03);filter:blur(0)}100%{opacity:1;transform:translate(-50%,-50%) scale(1);filter:blur(0)}}
     @keyframes funnelSheen{0%{left:-24%;opacity:0}22%{opacity:.55}100%{left:112%;opacity:0}}
-    @keyframes dropIn{0%{opacity:0;transform:translateY(-50%) scale(.84)}70%{opacity:1;transform:translateY(-50%) scale(1.02)}100%{opacity:1;transform:translateY(-50%) scale(1)}}
+    @keyframes dropIn{0%{opacity:0;transform:translate(-14px,-50%) scale(.88)}70%{opacity:1;transform:translate(0,-50%) scale(1.02)}100%{opacity:1;transform:translate(0,-50%) scale(1)}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-    @media (max-width: 900px){.funnel-row{grid-template-columns:minmax(0,1fr) 128px}.funnel-track,.drop-slot{height:150px}.funnel-stage{height:88px}}
-    @media (max-width: 640px){.funnel-row{grid-template-columns:minmax(0,1fr) 108px}.funnel-track,.drop-slot{height:134px}.funnel-stage{height:74px}.funnel-step-line{font-size:11px}}
+    @keyframes cardRise{0%{opacity:0;transform:translateY(18px);filter:blur(6px)}100%{opacity:1;transform:translateY(0);filter:blur(0)}}
+    @media (max-width: 1180px){.funnel-row{grid-template-columns:minmax(0,1fr) 206px;gap:20px}.funnel-track,.drop-slot{height:198px}.funnel-stage{height:150px;min-width:152px}.stage-title{font-size:42px}.stage-value .num{font-size:62px}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width: 900px){.metric-grid,.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.funnel-row{grid-template-columns:minmax(0,1fr)}.funnel-track,.drop-slot{height:184px}.funnel-stage{height:138px;min-width:132px}.drop-fill{height:82px}.drop-slot{padding:0 18px}}
+    @media (max-width: 640px){.metric{font-size:30px}.metric-grid,.detail-grid{grid-template-columns:1fr}.funnel-track,.drop-slot{height:162px}.funnel-stage{height:124px;min-width:118px;padding:14px 18px}.stage-title{font-size:34px}.stage-value .num{font-size:50px}.drop-rate{font-size:32px}.funnel-step-line{font-size:11px}}
     .tab-panel{display:none}
-    .tab-panel.active{display:block}
+    .tab-panel.active{display:block;animation:fadeUp .28s ease}
     .rank-badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;border-radius:999px;background:rgba(0,45,114,.08);color:#002d72;font-weight:900;font-size:12px}
     .warn{color:#b45309}
   </style>
 </head>
-<body class="p-5 md:p-8">
-  <div class="mx-auto max-w-7xl space-y-6">
+<body class="p-4 md:p-8 xl:p-10">
+  <div class="dashboard-shell mx-auto space-y-6">
     <section class="glass p-6 md:p-7">
       <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -353,6 +384,7 @@
       const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
       const segmentLabel = (seg = state.segment) => SEGMENT_LABELS[seg] || seg;
       const compareLabel = () => ({ prev:'Prev', wow:'WoW', yoy:'YoY' }[state.compareMode] || 'Prev');
+      const compareReferenceLabel = () => ({ prev:'Previous Period', wow:'Previous Week', yoy:'Last Year' }[state.compareMode] || 'Previous Period');
       const ownedChildSegments = () => OWNED_SEGMENTS.slice(1);
 
       async function fetchJson(url){
@@ -608,6 +640,33 @@
         const out = isMoney ? fmtMoney(Math.abs(d)) : fmt(Math.abs(d));
         return `${sign}${isMoney ? fmtMoney(d) : d.toLocaleString('en-US')}`;
       };
+      const deltaTone = (value) => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
+      const signedPointDelta = (cur, prev, digits=2) => `${cur - prev >= 0 ? '+' : ''}${(cur - prev).toFixed(digits)}%p`;
+      const stageMetricValue = (model, keys) => {
+        const list = Array.isArray(keys) ? keys : [keys];
+        return model.behavior.stages.find((stage) => list.includes(stage.key))?.value || 0;
+      };
+      const stepPath = (from, to) => `${from} → ${to}`;
+      const buildMetricCard = ({ label, value, currentValue, previousValue, deltaText, tone, footnote }, idx) => `
+        <article class="card metric-card" style="animation-delay:${idx * 80}ms">
+          <div class="metric-head">
+            <div class="kicker">${esc(label)}</div>
+            <div class="delta-pill ${tone}">${esc(deltaText)}</div>
+          </div>
+          <div class="metric mt-4">${esc(value)}</div>
+          <div class="metric-grid">
+            <div class="metric-stat">
+              <div class="metric-stat-label">Current</div>
+              <div class="metric-stat-value">${esc(currentValue)}</div>
+            </div>
+            <div class="metric-stat">
+              <div class="metric-stat-label">${esc(compareReferenceLabel())}</div>
+              <div class="metric-stat-value">${esc(previousValue)}</div>
+            </div>
+          </div>
+          <div class="metric-footnote">${esc(footnote)}</div>
+        </article>
+      `;
 
       function fitTextToBox(el, opts={}){
         if (!el || !el.parentElement) return;
@@ -643,12 +702,12 @@
           };
 
           const stageW = stage.clientWidth;
-          const tiny = stageW < 110;
-          const small = stageW < 150;
+          const tiny = stageW < 140;
+          const small = stageW < 220;
 
-          shrink(name, tiny ? 18 : small ? 22 : 28, 8, .88, .28);
-          shrink(num, tiny ? 22 : small ? 28 : 40, 10, .88, .38);
-          shrink(sub, tiny ? 11 : 12, 8, .88, .16);
+          shrink(name, tiny ? 24 : small ? 32 : 42, 11, .88, .28);
+          shrink(num, tiny ? 30 : small ? 42 : 56, 12, .88, .38);
+          shrink(sub, tiny ? 13 : 16, 10, .88, .16);
 
           let guard = 20;
           while (wrap && wrap.scrollHeight > stage.clientHeight - 6 && guard > 0) {
@@ -679,9 +738,9 @@
             }
           };
 
-          if (kicker) shrink(kicker, 10, 8, .80, .24);
-          if (rate) shrink(rate, 22, 10, .80, .24);
-          if (count) shrink(count, 12, 8, .80, .14);
+          if (kicker) shrink(kicker, 11, 8, .86, .24);
+          if (rate) shrink(rate, 34, 12, .86, .24);
+          if (count) shrink(count, 14, 9, .86, .18);
 
           const wrap = slot.querySelector('.drop-label');
           let guard = 12;
@@ -704,13 +763,11 @@
         const html = [
           `<div class="funnel-flow">`,
           ...stages.map((stage, i) => {
-            const baseValue = Math.max(stages[0]?.value || 0, 1);
-            const width = i === 0 ? 100 : Math.max(10, (stage.value / baseValue) * 100);
-            const dropWidth = i === 0 ? 0 : Math.max(48, ((stage.drop || 0) / 100) * 150);
+            const width = Math.min(100, Math.max(18, stage.width || 0));
+            const dropWidth = i === 0 ? 0 : Math.min(100, Math.max(24, stage.drop || 0));
             return `
             <div class="funnel-row">
               <div class="funnel-lane">
-                
                 <div class="funnel-track">
                   <div class="funnel-stage ${className}" data-stage="${Math.min(i+1,5)}" style="width:${width.toFixed(1)}%;animation-delay:${i*90}ms">
                     <div class="funnel-stage-inner">
@@ -718,7 +775,7 @@
                         <div class="stage-title">${esc(stage.label)}</div>
                         <div class="stage-value">
                           <div class="num">${fmt(stage.value)}</div>
-                          <div class="sub">${i===0 ? 'Baseline' : ''}</div>
+                          <div class="sub">${i===0 ? 'Baseline' : `${fmtPct(stage.share,1)} of sessions`}</div>
                         </div>
                       </div>
                     </div>
@@ -726,8 +783,19 @@
                 </div>
               </div>
               <div class="drop-slot ${i===0 ? 'baseline' : ''}">
-                ${i===0 ? `<div class="muted text-sm font-extrabold w-full text-left">Baseline</div>` : `
-                  <div class="drop-fill" style="width:${dropWidth.toFixed(1)}px;animation-delay:${i*90+120}ms"></div>`}
+                ${i===0 ? `
+                  <div class="drop-label">
+                    <div class="drop-kicker">Flow</div>
+                    <div class="drop-rate">Baseline</div>
+                    <div class="drop-count">Start stage for the selected funnel</div>
+                  </div>
+                ` : `
+                  <div class="drop-fill" style="width:${dropWidth.toFixed(1)}%;animation-delay:${i*90+120}ms"></div>
+                  <div class="drop-label">
+                    <div class="drop-kicker">이탈율</div>
+                    <div class="drop-rate">${fmtPct(stage.drop,1)}</div>
+                    <div class="drop-count">${esc(stepPath(stages[i - 1].label, stage.label))}</div>
+                  </div>`}
               </div>
             </div>`;
           }).join(''),
@@ -751,46 +819,146 @@
         els.groupKicker.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'Send Groups' : 'Date Groups';
         els.groupHeading.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'MMDD Groups In Scope' : 'Dates In Scope';
 
-        els.summaryCards.innerHTML = [
-          ['Sessions', fmt(currentModel.agg.sessions), `${compareLabel()} ${fmt(previousModel.agg.sessions)} | ${delta(currentModel.agg.sessions, previousModel.agg.sessions)}`],
-          ['PDP Views', fmt(currentModel.behavior.stages.find(s => s.key === 'pdpViews' || s.key === 'users')?.value || 0), 'Behavior stage'],
-          ['Cart', fmt(currentModel.behavior.stages.find(s => s.key === 'addToCart')?.value || 0), 'Behavior stage'],
-          ['Checkout', fmt(currentModel.behavior.stages.find(s => s.key === 'beginCheckout')?.value || 0), 'Behavior stage'],
-          ['Orders', fmt(currentModel.agg.orders), `${compareLabel()} ${fmt(previousModel.agg.orders)} | ${delta(currentModel.agg.orders, previousModel.agg.orders)}`],
-          ['Session CVR', fmtPct(currentModel.sessionCvr, 2), `${compareLabel()} ${fmtPct(previousModel.sessionCvr, 2)} | ${(currentModel.sessionCvr - previousModel.sessionCvr >= 0 ? '+' : '') + (currentModel.sessionCvr - previousModel.sessionCvr).toFixed(2)}%p`],
-        ].map(([label, value, sub]) => `<article class="card p-5"><div class="kicker">${esc(label)}</div><div class="metric mt-3">${esc(value)}</div><div class="mt-2 text-xs font-semibold muted">${esc(sub)}</div></article>`).join('');
+        const currentPdp = stageMetricValue(currentModel, ['pdpViews', 'users']);
+        const previousPdp = stageMetricValue(previousModel, ['pdpViews', 'users']);
+        const currentCart = stageMetricValue(currentModel, 'addToCart');
+        const previousCart = stageMetricValue(previousModel, 'addToCart');
+        const currentCheckout = stageMetricValue(currentModel, 'beginCheckout');
+        const previousCheckout = stageMetricValue(previousModel, 'beginCheckout');
+        const summaryCards = [
+          {
+            label: 'Sessions',
+            value: fmt(currentModel.agg.sessions),
+            currentValue: fmt(currentModel.agg.sessions),
+            previousValue: fmt(previousModel.agg.sessions),
+            deltaText: delta(currentModel.agg.sessions, previousModel.agg.sessions),
+            tone: deltaTone(currentModel.agg.sessions - previousModel.agg.sessions),
+            footnote: `${compareLabel()} reference ${fmt(previousModel.agg.sessions)}`,
+          },
+          {
+            label: 'PDP Views',
+            value: fmt(currentPdp),
+            currentValue: fmt(currentPdp),
+            previousValue: fmt(previousPdp),
+            deltaText: delta(currentPdp, previousPdp),
+            tone: deltaTone(currentPdp - previousPdp),
+            footnote: 'Behavior stage volume',
+          },
+          {
+            label: 'Add to Cart',
+            value: fmt(currentCart),
+            currentValue: fmt(currentCart),
+            previousValue: fmt(previousCart),
+            deltaText: delta(currentCart, previousCart),
+            tone: deltaTone(currentCart - previousCart),
+            footnote: 'Cart intent progression',
+          },
+          {
+            label: 'Checkout',
+            value: fmt(currentCheckout),
+            currentValue: fmt(currentCheckout),
+            previousValue: fmt(previousCheckout),
+            deltaText: delta(currentCheckout, previousCheckout),
+            tone: deltaTone(currentCheckout - previousCheckout),
+            footnote: 'Checkout starts in scope',
+          },
+          {
+            label: 'Orders',
+            value: fmt(currentModel.agg.orders),
+            currentValue: fmt(currentModel.agg.orders),
+            previousValue: fmt(previousModel.agg.orders),
+            deltaText: delta(currentModel.agg.orders, previousModel.agg.orders),
+            tone: deltaTone(currentModel.agg.orders - previousModel.agg.orders),
+            footnote: `Revenue ${fmtMoney(currentModel.agg.revenue)}`,
+          },
+          {
+            label: 'Session CVR',
+            value: fmtPct(currentModel.sessionCvr, 2),
+            currentValue: fmtPct(currentModel.sessionCvr, 2),
+            previousValue: fmtPct(previousModel.sessionCvr, 2),
+            deltaText: signedPointDelta(currentModel.sessionCvr, previousModel.sessionCvr),
+            tone: deltaTone(currentModel.sessionCvr - previousModel.sessionCvr),
+            footnote: `AOV ${fmtMoney(currentModel.aov)}`,
+          },
+        ];
+        els.summaryCards.innerHTML = summaryCards.map((card, idx) => buildMetricCard(card, idx)).join('');
 
         renderFunnel(els.funnelCanvas, currentModel.behavior);
         els.funnelNotice.innerHTML = currentModel.behavior.notes.length
           ? currentModel.behavior.notes.map((n) => `<div class="warn">${esc(n)}</div>`).join('')
           : `<div>Behavior funnel is using native stage fields.</div>`;
 
-        els.selectionMeta.innerHTML = [
-          `Segment | ${segmentLabel()}`,
-          `Selection | ${selectedGroup ? selectedGroup.label : 'Total period'}`,
-          `Comparison ${compareLabel()} | ${prevRange.start} to ${prevRange.end}`,
-          `Orders | ${fmt(currentModel.agg.orders)}`,
-          `Revenue | ${fmtMoney(currentModel.agg.revenue)}`,
-          `AOV | ${fmtMoney(currentModel.aov)}`,
-          `Session CVR | ${fmtPct(currentModel.sessionCvr, 2)}`,
-          selectedGroup && selectedGroup.title ? `Title | ${selectedGroup.title}` : '',
-        ].filter(Boolean).map((line) => `<div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">${esc(line)}</div>`).join('');
+        const selectionCards = [
+          {
+            label: 'Segment',
+            value: segmentLabel(),
+            note: 'Current traffic scope in the funnel view.',
+          },
+          {
+            label: 'Selection',
+            value: selectedGroup ? selectedGroup.label : 'Total period',
+            note: selectedGroup && selectedGroup.title ? selectedGroup.title : 'All rows included in the selected date range.',
+          },
+          {
+            label: `Comparison ${compareLabel()}`,
+            value: `${prevRange.start} - ${prevRange.end}`,
+            note: compareReferenceLabel(),
+          },
+          {
+            label: 'Revenue',
+            value: fmtMoney(currentModel.agg.revenue),
+            note: `Orders ${fmt(currentModel.agg.orders)} · AOV ${fmtMoney(currentModel.aov)}`,
+          },
+          {
+            label: 'Session CVR',
+            value: fmtPct(currentModel.sessionCvr, 2),
+            note: `Current funnel efficiency across ${fmt(currentModel.agg.sessions)} sessions.`,
+          },
+          {
+            label: 'Coverage',
+            value: range.start === range.end ? range.start : `${range.start} - ${range.end}`,
+            note: 'Selection stays connected to the loaded JSON date range.',
+          },
+        ];
+        els.selectionMeta.innerHTML = selectionCards.map((card, idx) => `
+          <article class="insight-card" style="animation-delay:${idx * 70}ms">
+            <div class="kicker">${esc(card.label)}</div>
+            <div class="insight-value">${esc(card.value)}</div>
+            <div class="insight-note">${esc(card.note)}</div>
+          </article>
+        `).join('');
 
-        els.stepDetail.innerHTML = currentModel.behavior.stages.map((stage, i) => `
-          <div class="rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4">
-            <div class="kicker">Stage ${String(i+1).padStart(2,'0')}</div>
-            <div class="mt-2 flex items-center justify-between gap-4">
+        els.stepDetail.innerHTML = currentModel.behavior.stages.map((stage, i) => {
+          const prior = currentModel.behavior.stages[i - 1];
+          const retained = i === 0 ? '100.0%' : fmtPct(stage.kept, 1);
+          const dropoff = i === 0 ? '0.0%' : fmtPct(stage.drop, 1);
+          return `
+          <article class="detail-card" style="animation-delay:${i * 80}ms">
+            <div class="detail-top">
               <div>
-                <div class="text-base font-black">${esc(stage.label)}</div>
-                <div class="mt-1 text-xs font-semibold muted">${esc(stage.note)}</div>
+                <div class="kicker">Stage ${String(i+1).padStart(2,'0')}</div>
+                <div class="detail-title">${esc(stage.label)}</div>
               </div>
-              <div class="text-right">
-                <div class="text-xl font-black">${fmt(stage.value)}</div>
-                <div class="mt-1 text-xs font-semibold muted">${fmtPct(stage.share,1)} of sessions</div>
+              <div class="detail-value">${fmt(stage.value)}</div>
+            </div>
+            <div class="detail-grid">
+              <div class="detail-stat">
+                <div class="detail-stat-label">Share</div>
+                <div class="detail-stat-value">${fmtPct(stage.share, 1)}</div>
+              </div>
+              <div class="detail-stat">
+                <div class="detail-stat-label">Retained</div>
+                <div class="detail-stat-value">${retained}</div>
+              </div>
+              <div class="detail-stat">
+                <div class="detail-stat-label">Drop-off</div>
+                <div class="detail-stat-value">${dropoff}</div>
               </div>
             </div>
-          </div>
-        `).join('');
+            <div class="detail-note">${esc(stage.note)}${prior ? ` Transition: ${stepPath(prior.label, stage.label)}.` : ' This is the funnel entry stage.'}</div>
+          </article>
+        `;
+        }).join('');
 
         els.groupSummary.textContent = selectedGroup ? `Selected | ${selectedGroup.label}` : `Total groups | ${groups.length}`;
         els.groupChips.innerHTML = groups.length ? groups.slice(0, 24).map((row) => `
@@ -827,7 +995,7 @@
         }));
 
         renderCompare();
-        renderDropoff();
+        renderDropoffCards();
       }
 
       function compareOptionsForSegment(segment){
@@ -865,8 +1033,8 @@
 
         const aLabel = `${segmentLabel(a.segment)} | ${state.compare.A.group || 'Total period'}`;
         const bLabel = `${segmentLabel(b.segment)} | ${state.compare.B.group || 'Total period'}`;
-        els.compareMetaA.innerHTML = `<div>${esc(aLabel)}</div><div class="mt-1">Orders ${fmt(a.agg.orders)} Â· Revenue ${fmtMoney(a.agg.revenue)} Â· Session CVR ${fmtPct(a.sessionCvr,2)}</div>`;
-        els.compareMetaB.innerHTML = `<div>${esc(bLabel)}</div><div class="mt-1">Orders ${fmt(b.agg.orders)} Â· Revenue ${fmtMoney(b.agg.revenue)} Â· Session CVR ${fmtPct(b.sessionCvr,2)}</div>`;
+        els.compareMetaA.innerHTML = `<div>${esc(aLabel)}</div><div class="mt-1">Orders ${fmt(a.agg.orders)} · Revenue ${fmtMoney(a.agg.revenue)} · Session CVR ${fmtPct(a.sessionCvr,2)}</div>`;
+        els.compareMetaB.innerHTML = `<div>${esc(bLabel)}</div><div class="mt-1">Orders ${fmt(b.agg.orders)} · Revenue ${fmtMoney(b.agg.revenue)} · Session CVR ${fmtPct(b.sessionCvr,2)}</div>`;
 
         const rows = [
           ['Sessions', a.agg.sessions, b.agg.sessions, fmtDeltaNum(a.agg.sessions, b.agg.sessions)],
@@ -904,7 +1072,7 @@
               <span class="rank-badge">#${idx+1}</span>
               <div>
                 <div class="text-sm font-black">${esc(row.segment)}</div>
-                <div class="mt-1 text-sm font-semibold muted">${esc(row.top.from)} â ${esc(row.top.to)}</div>
+                <div class="mt-1 text-sm font-semibold muted">${esc(row.top.from)} → ${esc(row.top.to)}</div>
                 <div class="mt-1 text-sm font-black text-rose-600">${fmtPct(row.top.drop,1)} drop</div>
               </div>
             </div>
@@ -914,7 +1082,7 @@
         const stepBuckets = {};
         entries.forEach((entry) => {
           entry.ranked.forEach((step) => {
-            const key = `${step.from} â ${step.to}`;
+            const key = `${step.from} → ${step.to}`;
             if (!stepBuckets[key]) stepBuckets[key] = [];
             stepBuckets[key].push({ segment: entry.label, drop: step.drop, kept: step.kept });
           });
@@ -935,9 +1103,70 @@
         els.dropSegmentTableBody.innerHTML = entries.map((entry) => `
           <tr>
             <td class="font-black">${esc(entry.label)}</td>
-            <td>${entry.ranked[0] ? `${esc(entry.ranked[0].from)} â ${esc(entry.ranked[0].to)} Â· ${fmtPct(entry.ranked[0].drop,1)}` : '-'}</td>
-            <td>${entry.ranked[1] ? `${esc(entry.ranked[1].from)} â ${esc(entry.ranked[1].to)} Â· ${fmtPct(entry.ranked[1].drop,1)}` : '-'}</td>
-            <td>${entry.ranked[2] ? `${esc(entry.ranked[2].from)} â ${esc(entry.ranked[2].to)} Â· ${fmtPct(entry.ranked[2].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[0] ? `${esc(entry.ranked[0].from)} → ${esc(entry.ranked[0].to)} · ${fmtPct(entry.ranked[0].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[1] ? `${esc(entry.ranked[1].from)} → ${esc(entry.ranked[1].to)} · ${fmtPct(entry.ranked[1].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[2] ? `${esc(entry.ranked[2].from)} → ${esc(entry.ranked[2].to)} · ${fmtPct(entry.ranked[2].drop,1)}` : '-'}</td>
+          </tr>
+        `).join('');
+      }
+
+      function renderDropoffCards(){
+        const entries = buildDropoffData();
+        const overall = entries.map((entry) => ({
+          segment: entry.label,
+          top: entry.ranked[0] || { from:'-', to:'-', drop:0, kept:0 },
+        })).sort((a,b) => b.top.drop - a.top.drop).slice(0,3);
+
+        els.dropOverall.innerHTML = overall.length ? overall.map((row, idx) => `
+          <article class="drop-rank-card p-5" style="animation-delay:${idx * 90}ms">
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex items-start gap-3">
+                <span class="rank-badge">#${idx+1}</span>
+                <div>
+                  <div class="text-base font-black">${esc(row.segment)}</div>
+                  <div class="mt-2 text-sm font-semibold muted">${esc(stepPath(row.top.from, row.top.to))}</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="drop-tag">이탈율</div>
+                <div class="mt-2 drop-big">${fmtPct(row.top.drop,1)}</div>
+              </div>
+            </div>
+          </article>
+        `).join('') : `<div class="empty">No drop-off data available.</div>`;
+
+        const stepBuckets = {};
+        entries.forEach((entry) => {
+          entry.ranked.forEach((step) => {
+            const key = stepPath(step.from, step.to);
+            if (!stepBuckets[key]) stepBuckets[key] = [];
+            stepBuckets[key].push({ segment: entry.label, drop: step.drop, kept: step.kept });
+          });
+        });
+        const stageCards = Object.entries(stepBuckets).map(([label, rows]) => ({
+          label,
+          rows: rows.sort((a,b) => b.drop - a.drop).slice(0,3)
+        })).sort((a,b) => (b.rows[0]?.drop || 0) - (a.rows[0]?.drop || 0));
+        els.dropStageRankings.innerHTML = stageCards.length ? stageCards.map((card, cardIdx) => `
+          <article class="stage-rank-card p-5" style="animation-delay:${cardIdx * 90}ms">
+            <div class="text-base font-black">${esc(card.label)}</div>
+            <div class="mt-4 space-y-3">
+              ${card.rows.map((row, idx) => `
+                <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm">
+                  <div class="font-semibold text-slate-700"><span class="rank-badge mr-2">#${idx+1}</span>${esc(row.segment)}</div>
+                  <div class="font-black text-rose-600">${fmtPct(row.drop,1)}</div>
+                </div>
+              `).join('')}
+            </div>
+          </article>
+        `).join('') : `<div class="empty">No stage ranking data.</div>`;
+
+        els.dropSegmentTableBody.innerHTML = entries.map((entry) => `
+          <tr>
+            <td class="font-black">${esc(entry.label)}</td>
+            <td>${entry.ranked[0] ? `${esc(stepPath(entry.ranked[0].from, entry.ranked[0].to))} · ${fmtPct(entry.ranked[0].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[1] ? `${esc(stepPath(entry.ranked[1].from, entry.ranked[1].to))} · ${fmtPct(entry.ranked[1].drop,1)}` : '-'}</td>
+            <td>${entry.ranked[2] ? `${esc(stepPath(entry.ranked[2].from, entry.ranked[2].to))} · ${fmtPct(entry.ranked[2].drop,1)}` : '-'}</td>
           </tr>
         `).join('');
       }
@@ -997,8 +1226,10 @@
             return;
           }
           const latest = state.available[state.available.length - 1];
+          const latestDate = parseYmd(latest);
+          const ytdStart = clamp(`${latestDate.getFullYear()}-01-01`);
           els.datePicker.value = latest;
-          els.startPicker.value = state.available[Math.max(0, state.available.length - 7)];
+          els.startPicker.value = ytdStart;
           els.endPicker.value = latest;
           [els.datePicker, els.startPicker, els.endPicker].forEach((field) => { field.min = state.available[0]; field.max = latest; });
 
