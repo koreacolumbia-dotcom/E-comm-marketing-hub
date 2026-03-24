@@ -14,7 +14,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 
-DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab_design_upgraded_v5.html")
+DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab_design_upgraded_v6.html")
 DEFAULT_OUTPUT = Path(__file__).parent / "reports" / "daily_digest" / "owned_funnel_tab.html"
 DEFAULT_SOURCE_BASE = "reports/daily_digest/data/funnel"
 KST = timedelta(hours=9)
