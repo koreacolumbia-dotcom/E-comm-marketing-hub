@@ -797,7 +797,112 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
     return result
 
 
-def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: Dict[str, Any]) -> str:
+
+def build_daily_trend_series(reports_dir: Path, limit: int = 28) -> List[Dict[str, Any]]:
+    files = list((reports_dir / "daily_digest" / "data" / "daily").glob("*.json"))
+    files = [p for p in files if re.match(r"^\d{4}-\d{2}-\d{2}\.json$", p.name)]
+    files.sort(key=lambda p: p.name)
+    out: List[Dict[str, Any]] = []
+    for p in files[-limit:]:
+        bundle = _load_bundle(p)
+        if not bundle:
+            continue
+        k = _extract_kpis_from_bundle(bundle)
+        out.append({
+            "date": p.stem,
+            "sessions": _safe_float(k.get("sessions")) or 0.0,
+            "orders": _safe_float(k.get("orders")) or 0.0,
+            "revenue": _safe_float(k.get("revenue")) or 0.0,
+            "cvr": _safe_float(k.get("cvr")) or 0.0,
+            "signups": _safe_float(k.get("signups")) or 0.0,
+        })
+    return out
+
+
+def build_weekly_trend_series(reports_dir: Path, limit: int = 12) -> List[Dict[str, Any]]:
+    files = list((reports_dir / "daily_digest" / "data" / "weekly").glob("END_*.json"))
+    files = [p for p in files if re.match(r"^END_\d{4}-\d{2}-\d{2}\.json$", p.name)]
+    files.sort(key=lambda p: p.name)
+    out: List[Dict[str, Any]] = []
+    for p in files[-limit:]:
+        bundle = _load_bundle(p)
+        if not bundle:
+            continue
+        end = _bundle_date_from_path(p) or p.name
+        start = _ymd_minus_days(end, 6) or end
+        k = _extract_kpis_from_bundle(bundle)
+        out.append({
+            "date": end,
+            "label": f"{start[5:]}~{end[5:]}",
+            "sessions": _safe_float(k.get("sessions")) or 0.0,
+            "orders": _safe_float(k.get("orders")) or 0.0,
+            "revenue": _safe_float(k.get("revenue")) or 0.0,
+            "cvr": _safe_float(k.get("cvr")) or 0.0,
+            "signups": _safe_float(k.get("signups")) or 0.0,
+        })
+    return out
+
+
+def build_owned_trend_series(reports_dir: Path) -> Dict[str, Any]:
+    owned_dir = _find_owned_data_dir(reports_dir)
+    result = {"total": [], "by_channel": {ch: [] for ch in OWNED_CHANNELS}}
+    if not owned_dir:
+        return result
+
+    totals: Dict[str, Dict[str, float]] = {}
+    by_channel: Dict[str, Dict[str, Dict[str, float]]] = {ch: {} for ch in OWNED_CHANNELS}
+    send_seen_total: Dict[str, set] = {}
+    send_seen_channel: Dict[str, Dict[str, set]] = {ch: {} for ch in OWNED_CHANNELS}
+
+    for p in _owned_bundle_paths(owned_dir):
+        obj = _load_bundle(p)
+        if not obj:
+            continue
+        for r in (obj.get("campaigns") or []):
+            ch = str(r.get("channel") or "").strip().upper()
+            if ch not in OWNED_CHANNELS:
+                continue
+            if not _owned_has_group_mmdd(r):
+                continue
+            row_dt = _parse_row_date(r)
+            dt = row_dt.isoformat() if row_dt else str(r.get("date") or "")
+            if not dt:
+                continue
+            slot = totals.setdefault(dt, {"date": dt, "send_count": 0.0, "sessions": 0.0, "revenue": 0.0, "purchases": 0.0})
+            ch_slot = by_channel[ch].setdefault(dt, {"date": dt, "send_count": 0.0, "sessions": 0.0, "revenue": 0.0, "purchases": 0.0})
+            sessions = float(_safe_float(r.get("sessions")) or 0.0)
+            revenue = float(_safe_float(r.get("revenue")) or 0.0)
+            purchases = float(_safe_float(r.get("purchases")) or 0.0)
+            slot["sessions"] += sessions
+            slot["revenue"] += revenue
+            slot["purchases"] += purchases
+            ch_slot["sessions"] += sessions
+            ch_slot["revenue"] += revenue
+            ch_slot["purchases"] += purchases
+            ident = _owned_send_identity(r)
+            if ident:
+                total_seen = send_seen_total.setdefault(dt, set())
+                if ident not in total_seen:
+                    total_seen.add(ident)
+                    slot["send_count"] += 1.0
+                ch_seen = send_seen_channel[ch].setdefault(dt, set())
+                if ident not in ch_seen:
+                    ch_seen.add(ident)
+                    ch_slot["send_count"] += 1.0
+
+    def finalize(mapping: Dict[str, Dict[str, float]]) -> List[Dict[str, Any]]:
+        items = [mapping[k] for k in sorted(mapping.keys())]
+        for x in items:
+            x["cvr"] = (x["purchases"] / x["sessions"]) if x["sessions"] > 0 else 0.0
+            x.pop("purchases", None)
+        return items
+
+    result["total"] = finalize(totals)
+    result["by_channel"] = {ch: finalize(by_channel[ch]) for ch in OWNED_CHANNELS}
+    return result
+
+
+def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: Dict[str, Any], daily_trend: List[Dict[str, Any]], weekly_trend: List[Dict[str, Any]], owned_trend: Dict[str, Any]) -> str:
     def tone_cls_from_delta(x: Any) -> str:
         try:
             v = float(x)
@@ -812,12 +917,22 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
             return "text-slate-600"
         return "text-emerald-600" if v >= 0 else "text-rose-600"
 
-    def metric_tile(title: str, value: str, sub_a_label: str, sub_a_value: str, sub_a_cls: str, sub_b_label: str, sub_b_value: str, sub_b_cls: str, accent: str = "") -> str:
-        accent_style = f"style=\"--accent:{accent};\"" if accent else ""
+    def metric_tile(title: str, value: str, sub_a_label: str, sub_a_value: str, sub_a_cls: str, sub_b_label: str, sub_b_value: str, sub_b_cls: str, accent: str = "", click_section: str = "", click_metric: str = "", click_label: str = "") -> str:
+        attrs = []
+        if accent:
+            attrs.append(f"--accent:{accent};")
+        if click_section and click_metric:
+            attrs.append("cursor:pointer;")
+        style_attr = f"style=\"{' '.join(attrs)}\"" if attrs else ""
+        data_attr = f'data-chart-section="{click_section}" data-chart-metric="{click_metric}" data-chart-label="{click_label or title}"' if click_section and click_metric else ""
+        hint = '<span class="chart-hint">CLICK</span>' if click_section and click_metric else ''
         return f'''
-        <article class="metric-card reveal rounded-[28px] p-4 sm:p-5" {accent_style}>
+        <article class="metric-card reveal rounded-[28px] p-4 sm:p-5" {style_attr} {data_attr}>
           <div class="relative z-10">
-            <div class="text-[11px] font-extrabold tracking-[0.22em] text-slate-500 uppercase">{title}</div>
+            <div class="flex items-center justify-between gap-3">
+              <div class="text-[11px] font-extrabold tracking-[0.22em] text-slate-500 uppercase">{title}</div>
+              {hint}
+            </div>
             <div class="mt-3 flex items-end justify-between gap-3">
               <div class="metric-value text-[clamp(1.45rem,2vw,2rem)] font-black leading-[1.02] text-slate-950 break-all" data-countup="{value}">{value}</div>
             </div>
@@ -856,17 +971,42 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         </section>
         '''
 
+    def trend_panel(section_key: str, title: str, subtitle: str) -> str:
+        return f'''
+        <div class="trend-panel reveal mt-4 rounded-[28px] p-5 sm:p-6" data-trend-section="{section_key}">
+          <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
+            <div>
+              <div class="section-eyebrow">CLICK TO EXPLORE</div>
+              <h3 class="mt-2 text-xl sm:text-2xl font-black tracking-tight text-slate-950">{title}</h3>
+              <p class="mt-2 text-sm text-slate-600">{subtitle}</p>
+            </div>
+            <div class="trend-legend text-xs text-slate-500">카드를 누르면 해당 KPI 그래프로 전환됩니다.</div>
+          </div>
+          <div class="trend-head flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+            <div>
+              <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">Selected KPI</div>
+              <div class="trend-selected text-lg font-black text-slate-950" data-selected-title>Revenue</div>
+            </div>
+            <div class="trend-summary text-sm text-slate-600" data-selected-summary></div>
+          </div>
+          <div class="trend-svg-shell rounded-[24px] p-3 sm:p-4">
+            <svg class="trend-svg w-full h-[280px] sm:h-[320px]" viewBox="0 0 1000 320" preserveAspectRatio="none" data-trend-svg></svg>
+          </div>
+          <div class="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-500" data-axis-labels></div>
+        </div>
+        '''
+
     d_wow = daily.get("wow") or {}
     d_yoy = daily.get("yoy") or {}
     w_wow = weekly.get("wow") or {}
     w_yoy = weekly.get("yoy") or {}
 
     daily_tiles = "".join([
-        metric_tile("Sessions", fmt_int(daily.get("sessions")), "WoW", fmt_delta_ratio(d_wow.get("sessions")), tone_cls_from_delta(d_wow.get("sessions")), "YoY", fmt_delta_ratio(d_yoy.get("sessions")), tone_cls_from_delta(d_yoy.get("sessions")), "#60a5fa"),
-        metric_tile("Orders", fmt_int(daily.get("orders")), "WoW", fmt_delta_ratio(d_wow.get("orders")), tone_cls_from_delta(d_wow.get("orders")), "YoY", fmt_delta_ratio(d_yoy.get("orders")), tone_cls_from_delta(d_yoy.get("orders")), "#a78bfa"),
-        metric_tile("Revenue", fmt_krw_symbol(daily.get("revenue")), "WoW", fmt_delta_ratio(d_wow.get("revenue")), tone_cls_from_delta(d_wow.get("revenue")), "YoY", fmt_delta_ratio(d_yoy.get("revenue")), tone_cls_from_delta(d_yoy.get("revenue")), "#22c55e"),
-        metric_tile("CVR", fmt_cvr(daily.get("cvr")), "WoW", fmt_pp_from_fraction(d_wow.get("cvr_pp")), pp_tone_cls(d_wow.get("cvr_pp")), "YoY", fmt_pp_from_fraction(d_yoy.get("cvr_pp")), pp_tone_cls(d_yoy.get("cvr_pp")), "#f59e0b"),
-        metric_tile("Sign-up Users", fmt_int(daily.get("signups")), "WoW", fmt_delta_ratio(d_wow.get("signups")), tone_cls_from_delta(d_wow.get("signups")), "YoY", fmt_delta_ratio(d_yoy.get("signups")), tone_cls_from_delta(d_yoy.get("signups")), "#14b8a6"),
+        metric_tile("Sessions", fmt_int(daily.get("sessions")), "WoW", fmt_delta_ratio(d_wow.get("sessions")), tone_cls_from_delta(d_wow.get("sessions")), "YoY", fmt_delta_ratio(d_yoy.get("sessions")), tone_cls_from_delta(d_yoy.get("sessions")), "#60a5fa", "daily", "sessions", "Daily Sessions"),
+        metric_tile("Orders", fmt_int(daily.get("orders")), "WoW", fmt_delta_ratio(d_wow.get("orders")), tone_cls_from_delta(d_wow.get("orders")), "YoY", fmt_delta_ratio(d_yoy.get("orders")), tone_cls_from_delta(d_yoy.get("orders")), "#a78bfa", "daily", "orders", "Daily Orders"),
+        metric_tile("Revenue", fmt_krw_symbol(daily.get("revenue")), "WoW", fmt_delta_ratio(d_wow.get("revenue")), tone_cls_from_delta(d_wow.get("revenue")), "YoY", fmt_delta_ratio(d_yoy.get("revenue")), tone_cls_from_delta(d_yoy.get("revenue")), "#22c55e", "daily", "revenue", "Daily Revenue"),
+        metric_tile("CVR", fmt_cvr(daily.get("cvr")), "WoW", fmt_pp_from_fraction(d_wow.get("cvr_pp")), pp_tone_cls(d_wow.get("cvr_pp")), "YoY", fmt_pp_from_fraction(d_yoy.get("cvr_pp")), pp_tone_cls(d_yoy.get("cvr_pp")), "#f59e0b", "daily", "cvr", "Daily CVR"),
+        metric_tile("Sign-up Users", fmt_int(daily.get("signups")), "WoW", fmt_delta_ratio(d_wow.get("signups")), tone_cls_from_delta(d_wow.get("signups")), "YoY", fmt_delta_ratio(d_yoy.get("signups")), tone_cls_from_delta(d_yoy.get("signups")), "#14b8a6", "daily", "signups", "Daily Sign-up Users"),
     ])
     daily_strip = section_shell(
         "dailyKpi",
@@ -875,15 +1015,15 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "전일 핵심 퍼포먼스를 한 번에 비교할 수 있도록 카드 간 위계를 분리하고, 증감률은 즉시 눈에 들어오게 구성했습니다.",
         f'기준일 <b class="text-slate-900">{daily.get("date") or "-"}</b><br/>updated {daily.get("updated") or ""}',
         "#60a5fa",
-        f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{daily_tiles}</div>',
+        f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{daily_tiles}</div>{trend_panel("daily", "Daily KPI Trend", "최근 일자 기준으로 카드 선택 KPI의 흐름을 보여줍니다.")}',
     )
 
     weekly_tiles = "".join([
-        metric_tile("Sessions", fmt_int(weekly.get("sessions")), "WoW", fmt_delta_ratio(w_wow.get("sessions")), tone_cls_from_delta(w_wow.get("sessions")), "YoY", fmt_delta_ratio(w_yoy.get("sessions")), tone_cls_from_delta(w_yoy.get("sessions")), "#38bdf8"),
-        metric_tile("Orders", fmt_int(weekly.get("orders")), "WoW", fmt_delta_ratio(w_wow.get("orders")), tone_cls_from_delta(w_wow.get("orders")), "YoY", fmt_delta_ratio(w_yoy.get("orders")), tone_cls_from_delta(w_yoy.get("orders")), "#8b5cf6"),
-        metric_tile("Revenue", fmt_krw_symbol(weekly.get("revenue")), "WoW", fmt_delta_ratio(w_wow.get("revenue")), tone_cls_from_delta(w_wow.get("revenue")), "YoY", fmt_delta_ratio(w_yoy.get("revenue")), tone_cls_from_delta(w_yoy.get("revenue")), "#10b981"),
-        metric_tile("CVR", fmt_cvr(weekly.get("cvr")), "WoW", fmt_pp_from_fraction(w_wow.get("cvr_pp")), pp_tone_cls(w_wow.get("cvr_pp")), "YoY", fmt_pp_from_fraction(w_yoy.get("cvr_pp")), pp_tone_cls(w_yoy.get("cvr_pp")), "#f97316"),
-        metric_tile("Sign-up Users", fmt_int(weekly.get("signups")), "WoW", fmt_delta_ratio(w_wow.get("signups")), tone_cls_from_delta(w_wow.get("signups")), "YoY", fmt_delta_ratio(w_yoy.get("signups")), tone_cls_from_delta(w_yoy.get("signups")), "#06b6d4"),
+        metric_tile("Sessions", fmt_int(weekly.get("sessions")), "WoW", fmt_delta_ratio(w_wow.get("sessions")), tone_cls_from_delta(w_wow.get("sessions")), "YoY", fmt_delta_ratio(w_yoy.get("sessions")), tone_cls_from_delta(w_yoy.get("sessions")), "#38bdf8", "weekly", "sessions", "Weekly Sessions"),
+        metric_tile("Orders", fmt_int(weekly.get("orders")), "WoW", fmt_delta_ratio(w_wow.get("orders")), tone_cls_from_delta(w_wow.get("orders")), "YoY", fmt_delta_ratio(w_yoy.get("orders")), tone_cls_from_delta(w_yoy.get("orders")), "#8b5cf6", "weekly", "orders", "Weekly Orders"),
+        metric_tile("Revenue", fmt_krw_symbol(weekly.get("revenue")), "WoW", fmt_delta_ratio(w_wow.get("revenue")), tone_cls_from_delta(w_wow.get("revenue")), "YoY", fmt_delta_ratio(w_yoy.get("revenue")), tone_cls_from_delta(w_yoy.get("revenue")), "#10b981", "weekly", "revenue", "Weekly Revenue"),
+        metric_tile("CVR", fmt_cvr(weekly.get("cvr")), "WoW", fmt_pp_from_fraction(w_wow.get("cvr_pp")), pp_tone_cls(w_wow.get("cvr_pp")), "YoY", fmt_pp_from_fraction(w_yoy.get("cvr_pp")), pp_tone_cls(w_yoy.get("cvr_pp")), "#f97316", "weekly", "cvr", "Weekly CVR"),
+        metric_tile("Sign-up Users", fmt_int(weekly.get("signups")), "WoW", fmt_delta_ratio(w_wow.get("signups")), tone_cls_from_delta(w_wow.get("signups")), "YoY", fmt_delta_ratio(w_yoy.get("signups")), tone_cls_from_delta(w_yoy.get("signups")), "#06b6d4", "weekly", "signups", "Weekly Sign-up Users"),
     ])
     weekly_strip = section_shell(
         "weeklyKpi",
@@ -892,7 +1032,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "최근 7일 누적 흐름을 별도 톤으로 구분해 일간 카드와 헷갈리지 않도록 분리했습니다.",
         f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
         "#8b5cf6",
-        f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{weekly_tiles}</div>',
+        f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{weekly_tiles}</div>{trend_panel("weekly", "Weekly KPI Trend", "주간 누적 추이를 기준으로 선택 KPI를 비교합니다.")}',
     )
 
     owned_block = section_shell(
@@ -916,10 +1056,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         source = owned_ytd.get("source") or ""
 
         owned_total_tiles = "".join([
-            metric_tile("Send Count", fmt_int(tot.get("send_count")), "YoY", fmt_delta_ratio(tot_yoy.get("send_count")), tone_cls_from_delta(tot_yoy.get("send_count")), "LY", fmt_int(tot_prev.get("send_count")), "text-slate-700", "#2dd4bf"),
-            metric_tile("Sessions", fmt_int(tot.get("sessions")), "YoY", fmt_delta_ratio(tot_yoy.get("sessions")), tone_cls_from_delta(tot_yoy.get("sessions")), "LY", fmt_int(tot_prev.get("sessions")), "text-slate-700", "#38bdf8"),
-            metric_tile("Revenue", fmt_krw_symbol(tot.get("revenue")), "YoY", fmt_delta_ratio(tot_yoy.get("revenue")), tone_cls_from_delta(tot_yoy.get("revenue")), "LY", fmt_krw_symbol(tot_prev.get("revenue")), "text-slate-700", "#22c55e"),
-            metric_tile("CVR", fmt_cvr(tot.get("cvr")), "YoY", fmt_pp_from_fraction(tot_yoy.get("cvr_pp")), pp_tone_cls(tot_yoy.get("cvr_pp")), "LY", fmt_cvr(tot_prev.get("cvr")), "text-slate-700", "#f59e0b"),
+            metric_tile("Send Count", fmt_int(tot.get("send_count")), "YoY", fmt_delta_ratio(tot_yoy.get("send_count")), tone_cls_from_delta(tot_yoy.get("send_count")), "LY", fmt_int(tot_prev.get("send_count")), "text-slate-700", "#2dd4bf", "owned", "send_count", "Owned Send Count"),
+            metric_tile("Sessions", fmt_int(tot.get("sessions")), "YoY", fmt_delta_ratio(tot_yoy.get("sessions")), tone_cls_from_delta(tot_yoy.get("sessions")), "LY", fmt_int(tot_prev.get("sessions")), "text-slate-700", "#38bdf8", "owned", "sessions", "Owned Sessions"),
+            metric_tile("Revenue", fmt_krw_symbol(tot.get("revenue")), "YoY", fmt_delta_ratio(tot_yoy.get("revenue")), tone_cls_from_delta(tot_yoy.get("revenue")), "LY", fmt_krw_symbol(tot_prev.get("revenue")), "text-slate-700", "#22c55e", "owned", "revenue", "Owned Revenue"),
+            metric_tile("CVR", fmt_cvr(tot.get("cvr")), "YoY", fmt_pp_from_fraction(tot_yoy.get("cvr_pp")), pp_tone_cls(tot_yoy.get("cvr_pp")), "LY", fmt_cvr(tot_prev.get("cvr")), "text-slate-700", "#f59e0b", "owned", "cvr", "Owned CVR"),
         ])
 
         by_ch = owned_ytd.get("by_channel") or {}
@@ -940,10 +1080,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
                 <span class="channel-pill">LY / YoY</span>
               </div>
               <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="channel-metric"><div class="k">Send Count</div><div class="v metric-value" data-countup="{fmt_int(cur.get("send_count"))}">{fmt_int(cur.get("send_count"))}</div><div class="s">LY {fmt_int(prev.get("send_count"))} · <b class="{tone_cls_from_delta(yoy.get("send_count"))}">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
-                <div class="channel-metric"><div class="k">Sessions</div><div class="v metric-value" data-countup="{fmt_int(cur.get("sessions"))}">{fmt_int(cur.get("sessions"))}</div><div class="s">LY {fmt_int(prev.get("sessions"))} · <b class="{tone_cls_from_delta(yoy.get("sessions"))}">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
-                <div class="channel-metric"><div class="k">Revenue</div><div class="v metric-value" data-countup="{fmt_krw_symbol(cur.get("revenue"))}">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="s">LY {fmt_krw_symbol(prev.get("revenue"))} · <b class="{tone_cls_from_delta(yoy.get("revenue"))}">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
-                <div class="channel-metric"><div class="k">CVR</div><div class="v metric-value" data-countup="{fmt_cvr(cur.get("cvr"))}">{fmt_cvr(cur.get("cvr"))}</div><div class="s">LY {fmt_cvr(prev.get("cvr"))} · <b class="{pp_tone_cls(yoy.get("cvr_pp"))}">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
+                <div class="channel-metric" data-chart-section="owned" data-chart-metric="send_count" data-chart-label="{ch} Send Count" data-chart-channel="{ch}"><div class="chart-hint">CLICK</div><div class="k">Send Count</div><div class="v metric-value" data-countup="{fmt_int(cur.get("send_count"))}">{fmt_int(cur.get("send_count"))}</div><div class="s">LY {fmt_int(prev.get("send_count"))} · <b class="{tone_cls_from_delta(yoy.get("send_count"))}">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
+                <div class="channel-metric" data-chart-section="owned" data-chart-metric="sessions" data-chart-label="{ch} Sessions" data-chart-channel="{ch}"><div class="chart-hint">CLICK</div><div class="k">Sessions</div><div class="v metric-value" data-countup="{fmt_int(cur.get("sessions"))}">{fmt_int(cur.get("sessions"))}</div><div class="s">LY {fmt_int(prev.get("sessions"))} · <b class="{tone_cls_from_delta(yoy.get("sessions"))}">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
+                <div class="channel-metric" data-chart-section="owned" data-chart-metric="revenue" data-chart-label="{ch} Revenue" data-chart-channel="{ch}"><div class="chart-hint">CLICK</div><div class="k">Revenue</div><div class="v metric-value" data-countup="{fmt_krw_symbol(cur.get("revenue"))}">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="s">LY {fmt_krw_symbol(prev.get("revenue"))} · <b class="{tone_cls_from_delta(yoy.get("revenue"))}">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
+                <div class="channel-metric" data-chart-section="owned" data-chart-metric="cvr" data-chart-label="{ch} CVR" data-chart-channel="{ch}"><div class="chart-hint">CLICK</div><div class="k">CVR</div><div class="v metric-value" data-countup="{fmt_cvr(cur.get("cvr"))}">{fmt_cvr(cur.get("cvr"))}</div><div class="s">LY {fmt_cvr(prev.get("cvr"))} · <b class="{pp_tone_cls(yoy.get("cvr_pp"))}">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
               </div>
             </article>
             ''')
@@ -977,6 +1117,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
           </div>
         </div>
         <div class="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-4">{''.join(channel_cards)}</div>
+        {trend_panel("owned", "Owned YTD Daily Trend", "누적 카드 클릭 시 일자별 owned 추이를 아래 그래프로 전환합니다.")}
         <div class="mt-3 px-1 text-[11px] text-slate-500">owned_dir: {owned_dir}</div>
         '''
         owned_block = section_shell(
@@ -1190,6 +1331,12 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     @media (max-width: 640px) {{
       .section-meta {{ min-width:0; width:100%; }}
     }}
+
+    .chart-hint { display:inline-flex; align-items:center; justify-content:center; padding:.26rem .45rem; border-radius:999px; font-size:9px; font-weight:900; letter-spacing:.14em; color:#475569; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.9); }
+    .metric-card[data-chart-section], .channel-metric[data-chart-section] { cursor:pointer; }
+    .metric-card.active-chart, .channel-metric.active-chart { transform:translateY(-6px) scale(1.01); box-shadow:0 28px 64px rgba(15,23,42,.14); border-color:color-mix(in srgb, var(--accent, #94a3b8) 40%, white); }
+    .trend-panel { background:linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.7)); border:1px solid rgba(255,255,255,.76); box-shadow:0 18px 48px rgba(15,23,42,.08); }
+    .trend-svg-shell { background:linear-gradient(180deg, rgba(248,250,252,.92), rgba(255,255,255,.88)); border:1px solid rgba(226,232,240,.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.86); }
   </style>
 </head>
 <body>
@@ -1217,6 +1364,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     {weekly_strip}
     {owned_block}
   </div>
+  <script id="trend-data" type="application/json">{json.dumps({"daily": daily_trend, "weekly": weekly_trend, "owned": owned_trend}, ensure_ascii=False)}</script>
   <script>
     (() => {{
       const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1237,6 +1385,13 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         if (meta.isPercent) return `${{value.toFixed(2)}}%`;
         if (meta.isCurrency) return `₩${{Math.round(value).toLocaleString('en-US')}}`;
         return `${{Math.round(value).toLocaleString('en-US')}}`;
+      }};
+      const formatMetric = (metric, value) => {{
+        if (value == null || Number.isNaN(Number(value))) return '-';
+        const v = Number(value);
+        if (metric === 'revenue') return `₩${{Math.round(v).toLocaleString('en-US')}}`;
+        if (metric === 'cvr') return `${{(v * 100).toFixed(2)}}%`;
+        return `${{Math.round(v).toLocaleString('en-US')}}`;
       }};
       const animateValue = (el) => {{
         const meta = parseDisplayNumber(el.dataset.countup || el.textContent);
@@ -1263,9 +1418,59 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         }}, {{ threshold: 0.45 }});
         document.querySelectorAll('.metric-value').forEach((el) => valueObserver.observe(el));
       }}
+      const trendData = JSON.parse(document.getElementById('trend-data')?.textContent || '{{}}');
+      const pickSeries = (section, metric, channel) => {{
+        if (section === 'daily') return (trendData.daily || []).map(x => ({{ label: (x.date || '').slice(5), value: Number(x[metric] || 0) }}));
+        if (section === 'weekly') return (trendData.weekly || []).map(x => ({{ label: x.label || (x.date || '').slice(5), value: Number(x[metric] || 0) }}));
+        if (section === 'owned') {{
+          const source = channel ? ((((trendData.owned || {{}}).by_channel || {{}})[channel]) || []) : (((trendData.owned || {{}}).total) || []);
+          return source.map(x => ({{ label: (x.date || '').slice(5), value: Number(x[metric] || 0) }}));
+        }}
+        return [];
+      }};
+      const renderTrend = (panel, section, metric, label, channel='') => {{
+        const series = pickSeries(section, metric, channel).filter(x => Number.isFinite(x.value));
+        const svg = panel.querySelector('[data-trend-svg]');
+        const titleEl = panel.querySelector('[data-selected-title]');
+        const summaryEl = panel.querySelector('[data-selected-summary]');
+        const axisEl = panel.querySelector('[data-axis-labels]');
+        titleEl.textContent = label || metric;
+        if (!series.length) {{ svg.innerHTML=''; summaryEl.textContent='표시할 데이터가 없습니다.'; axisEl.innerHTML=''; return; }}
+        const vals = series.map(x => x.value);
+        const min = Math.min(...vals);
+        const max = Math.max(...vals);
+        const range = (max - min) || (max === 0 ? 1 : Math.abs(max) * 0.15);
+        const padL = 36, padR = 16, padT = 18, padB = 28, W = 1000, H = 320;
+        const innerW = W - padL - padR, innerH = H - padT - padB;
+        const stepX = series.length > 1 ? innerW / (series.length - 1) : innerW / 2;
+        const pts = series.map((p, i) => {{
+          const x = padL + (series.length > 1 ? i * stepX : innerW / 2);
+          const y = padT + innerH - (((p.value - min) / range) * innerH);
+          return [x, y];
+        }});
+        const line = pts.map(p => p.join(',')).join(' ');
+        const area = `M ${{padL}} ${{H-padB}} L ${{pts.map(p=>p.join(' ')).join(' L ')}} L ${{pts[pts.length-1][0]}} ${{H-padB}} Z`;
+        const grid = [0,1,2,3].map(i => {{ const y = padT + (innerH * i / 3); return `<line x1="${{padL}}" y1="${{y}}" x2="${{W-padR}}" y2="${{y}}" stroke="rgba(148,163,184,.22)" stroke-width="1" />`; }}).join('');
+        const circles = pts.map((p,i) => `<circle cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.5}}" fill="white" stroke="rgba(15,23,42,.72)" stroke-width="${{i===pts.length-1?2:1.4}}" />`).join('');
+        svg.innerHTML = `<defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(59,130,246,.28)"/><stop offset="100%" stop-color="rgba(59,130,246,0)"/></linearGradient></defs>${{grid}}<path d="${{area}}" fill="url(#trendFill)"></path><polyline points="${{line}}" fill="none" stroke="rgba(15,23,42,.88)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>${{circles}}`;
+        const last = series[series.length-1]?.value ?? 0;
+        const prev = series.length > 1 ? series[series.length-2]?.value ?? null : null;
+        const delta = prev == null || prev === 0 ? null : ((last - prev) / prev);
+        summaryEl.textContent = `최근값 ${{formatMetric(metric, last)}}${{delta == null ? '' : ` · 직전 대비 ${{delta >= 0 ? '+' : ''}}${{(delta * 100).toFixed(1)}}%`}}`;
+        const labels = [series[0], series[Math.floor((series.length-1)/2)], series[series.length-1]].filter(Boolean);
+        axisEl.innerHTML = labels.map(x => `<div class="rounded-2xl bg-white/70 border border-white/80 px-3 py-2 text-center font-bold text-slate-600">${{x.label}}</div>`).join('');
+      }};
+      const activate = (card) => {{
+        const section = card.dataset.chartSection;
+        document.querySelectorAll(`[data-chart-section="${{section}}"]`).forEach(el => el.classList.remove('active-chart'));
+        card.classList.add('active-chart');
+        const panel = document.querySelector(`[data-trend-section="${{section}}"]`);
+        if (panel) renderTrend(panel, section, card.dataset.chartMetric, card.dataset.chartLabel, card.dataset.chartChannel || '');
+      }};
+      document.querySelectorAll('[data-chart-section]').forEach(card => card.addEventListener('click', () => activate(card)));
+      ['daily','weekly','owned'].forEach(section => {{ const first = document.querySelector(`[data-chart-section="${{section}}"]`); if (first) activate(first); }});
     }})();
-  </script>
-</body>
+  </script>ody>
 </html>'''
 
 
@@ -1276,8 +1481,11 @@ def main() -> None:
     daily = build_daily_kpis(reports_dir)
     weekly = build_weekly_kpis(reports_dir)
     owned_ytd = build_owned_ytd_yoy(reports_dir)
+    daily_trend = build_daily_trend_series(reports_dir)
+    weekly_trend = build_weekly_trend_series(reports_dir)
+    owned_trend = build_owned_trend_series(reports_dir)
     out = reports_dir / "index.html"
-    out.write_text(render_index_html(daily, weekly, owned_ytd), encoding="utf-8")
+    out.write_text(render_index_html(daily, weekly, owned_ytd, daily_trend, weekly_trend, owned_trend), encoding="utf-8")
     print(f"[OK] Wrote: {out}")
 
 
