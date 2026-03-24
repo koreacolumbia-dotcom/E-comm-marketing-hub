@@ -358,7 +358,8 @@
         <button id="btnToday" class="btn" type="button">오늘</button>
 
         <div class="ml-2 small-label">Channel</div>
-        <button id="chipEDM" class="chip active" type="button">EDM</button>
+        <button id="chipChannelAll" class="chip active" type="button">ALL</button>
+        <button id="chipEDM" class="chip" type="button">EDM</button>
         <button id="chipLMS" class="chip" type="button">LMS</button>
         <button id="chipKAKAO" class="chip" type="button">KAKAO</button>
 
@@ -418,7 +419,7 @@
           </div>
         </div>
         <div class="flex items-center gap-3 mb-4">
-          <div class="text-xl font-black tracking-tight">OWNED YTD YoY (EDM + LMS + KAKAO)</div>
+          <div id="ytdHeading" class="text-xl font-black tracking-tight">OWNED YTD YoY (ALL CHANNELS)</div>
           <div class="toggle !py-1 !px-3">YTD</div>
         </div>
         <div class="ytd-section-label">YTD YoY Summary</div>
@@ -704,6 +705,7 @@
   const chipWeek  = document.getElementById('chipWeek');
   const chipRange = document.getElementById('chipRange');
   const chipAll = document.getElementById('chipAll');
+  const chipChannelAll = document.getElementById('chipChannelAll');
 
   const rangeBox  = document.getElementById('rangeBox');
   const dailyBox  = document.getElementById('dailyBox');
@@ -726,6 +728,7 @@
   const chipEDM = document.getElementById('chipEDM');
   const chipLMS = document.getElementById('chipLMS');
   const chipKAKAO = document.getElementById('chipKAKAO');
+  const ytdHeading = document.getElementById('ytdHeading');
 
   const secEDM = document.getElementById('secEDM');
   const secLMS = document.getElementById('secLMS');
@@ -895,10 +898,27 @@
     return getRowGroup(r).mmdd;
   }
 
+
+  function isKakaoCountableRow(r){
+    const channel = String((r && (r.channel || '')) || '').trim().toUpperCase();
+    if(channel !== 'KAKAO') return true;
+    const text = [r && r.campaign, r && r.term, r && r.send_id, r && r.message_title].map(v => String(v || '').toUpperCase()).join(' ');
+    return text.includes('KAKAO_CH_MESSAGE');
+  }
+
+  function channelMatches(value){
+    return CHANNEL === 'ALL' ? ['EDM','LMS','KAKAO'].includes(String(value || '')) : String(value || '') === CHANNEL;
+  }
+
+  function selectedChannelLabel(){
+    return CHANNEL === 'ALL' ? 'ALL CHANNELS' : CHANNEL;
+  }
+
   function getSendKey(r, expectedYear='', cutoffDate=''){
     const group = getRowGroup(r);
     const channel = String((r && (r.channel || '')) || '').trim();
     if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
+    if(!isKakaoCountableRow(r)) return '';
     if(expectedYear && String(group.year) !== String(expectedYear)) return '';
     if(cutoffDate){
       const groupDate = dateStrFromYearMmdd(group.year, group.mmdd);
@@ -1013,7 +1033,11 @@
 
   function getMessageLogRows(messageLog, channel, year){
     const yearPrefix = `${year}-`;
-    return getEffectiveMessageLog(messageLog).filter(m => m.channel===channel && String(m.date||'').startsWith(yearPrefix));
+    return getEffectiveMessageLog(messageLog).filter(m => {
+      const ch = String(m.channel || '');
+      const match = channel === 'ALL' ? ['EDM','LMS','KAKAO'].includes(ch) : ch === channel;
+      return match && String(m.date||'').startsWith(yearPrefix);
+    });
   }
 
   function buildMessageMetricRows(messageLog){
@@ -1082,7 +1106,7 @@
     }
 
     for(const r of (baseRows || [])){
-      if(r.channel !== CHANNEL) continue;
+      if(!channelMatches(r.channel)) continue;
       if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, sourceMessageLog)) continue;
       if(!matchesSearch(r)) continue;
       const key = `${r.channel}||${getRowYear(r)}||${getRowMmdd(r)}||${r.campaign||''}||${r.term||''}`;
@@ -1092,7 +1116,7 @@
     }
 
     for(const m of getEffectiveMessageLog(sourceMessageLog)){
-      if(m.channel !== CHANNEL) continue;
+      if(!channelMatches(m.channel)) continue;
       const year = String(m.date || '').slice(0,4);
       const mmdd = String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10);
       const pseudo = {
@@ -1136,6 +1160,7 @@
   }
 
   function getChannelSummary(rows, channel, endDate, messageLog){
+    if(channel === 'ALL') return getAllChannelsSummary(rows, endDate, messageLog);
     const expectedYear = String(endDate || '').slice(0,4);
     const scheduledRows = getScheduledMessageRowsUpTo(messageLog, channel, endDate);
     const metricRows = scheduledRows.length ? filterRowsToScheduledDates(rows || [], channel, endDate, messageLog) : (rows || []);
@@ -1148,7 +1173,7 @@
   function getCumulativeSendCount(channel, endDate){
     const expectedYear = String(endDate || '').slice(0,4);
     const sourceRows = ((GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []))
-      .filter(r => r.channel === channel);
+      .filter(r => channel === 'ALL' ? ['EDM','LMS','KAKAO'].includes(String(r.channel||'')) : r.channel === channel);
     const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
       ? GROUP_SOURCE_MESSAGE_LOG
       : (((RAW && RAW.message_log) || []));
@@ -1342,7 +1367,7 @@
 
   // ✅ 기본값
   let VIEW = 'DAILY';     // DAILY | WEEK | RANGE | ALL
-  let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
+  let CHANNEL = 'ALL';    // ALL | EDM | LMS | KAKAO
 
   let RAW = null;         // {kpi:[], prod:[], analysis:[]}
   let KPI = [];
@@ -1388,16 +1413,17 @@
   }
 
   function setChipActive(){
-    [chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
+    [chipChannelAll, chipEDM, chipLMS, chipKAKAO].forEach(el=>el.classList.remove('active'));
+    if(CHANNEL==='ALL') chipChannelAll.classList.add('active');
     if(CHANNEL==='EDM') chipEDM.classList.add('active');
     if(CHANNEL==='LMS') chipLMS.classList.add('active');
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
   }
 
   function toggleSections(){
-    secEDM.style.display = (CHANNEL==='EDM') ? '' : 'none';
-    secLMS.style.display = (CHANNEL==='LMS') ? '' : 'none';
-    secKAKAO.style.display = (CHANNEL==='KAKAO') ? '' : 'none';
+    secEDM.style.display = (CHANNEL==='ALL' || CHANNEL==='EDM') ? '' : 'none';
+    secLMS.style.display = (CHANNEL==='ALL' || CHANNEL==='LMS') ? '' : 'none';
+    secKAKAO.style.display = (CHANNEL==='ALL' || CHANNEL==='KAKAO') ? '' : 'none';
     secOTHER.style.display = 'none';
   }
 
@@ -1446,7 +1472,7 @@
     if(!RAW){ KPI=[]; return; }
     const qq = (q.value||'').trim().toLowerCase();
     KPI = (RAW.kpi||[]).filter(r=>{
-      if(r.channel!==CHANNEL) return false;
+      if(!channelMatches(r.channel)) return false;
       if(qq){
         const c = String(r.campaign||'').toLowerCase();
         const t = String(r.term||'').toLowerCase();
@@ -2666,13 +2692,14 @@
     const thisAgg = await loadAgg(thisStart, thisEnd, 'TY');
     const prevAgg = await loadAgg(prevStart, prevEnd, 'LY');
 
-    const thisRows = (thisAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
-    const prevRows = (prevAgg.kpi||[]).filter(r=>r.channel===CHANNEL);
+    const thisRows = (thisAgg.kpi||[]).filter(r=> channelMatches(r.channel));
+    const prevRows = (prevAgg.kpi||[]).filter(r=> channelMatches(r.channel));
 
     const allSum = getAllChannelsSummary(thisAgg.kpi || [], thisEnd, thisAgg.message_log || []);
     const allPrevSum = getAllChannelsSummary(prevAgg.kpi || [], prevEnd, prevAgg.message_log || []);
     const thisSum = getChannelSummary(thisRows, CHANNEL, thisEnd, thisAgg.message_log || []);
     const prevSum = getChannelSummary(prevRows, CHANNEL, prevEnd, prevAgg.message_log || []);
+    if(ytdHeading) ytdHeading.textContent = `OWNED YTD YoY (${selectedChannelLabel()})`;
 
     GROUP_SOURCE_ROWS = [...(thisAgg.kpi || []), ...(prevAgg.kpi || [])];
     GROUP_SOURCE_MESSAGE_LOG = normalizeMessageLogRows([...(thisAgg.message_log || []), ...(prevAgg.message_log || [])]);
@@ -2842,6 +2869,19 @@
     renderProducts();
     await computeYTD();
   }
+
+  chipChannelAll.addEventListener('click', async ()=>{
+    CHANNEL = 'ALL';
+    setChipActive();
+    pulseViewStage();
+    toggleSections();
+    filterKPI();
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderTerms();
+    renderProducts();
+    await computeYTD();
+  });
 
   chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
   chipLMS.addEventListener('click', ()=>onChannelChange('LMS'));
