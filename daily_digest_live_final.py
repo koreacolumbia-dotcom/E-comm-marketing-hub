@@ -187,8 +187,8 @@ def get_safe_animation_css():
     }
 
     .report-shell {
-      width: min(1760px, calc(100vw - 20px));
-      max-width: 1760px !important;
+      width: calc(100vw - 24px);
+      max-width: none !important;
       animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
       transform-origin: top center;
     }
@@ -287,9 +287,22 @@ def get_safe_animation_css():
       pointer-events: none;
     }
 
+
+    .reveal-block,
     .kpi-card {
-      animation: cardReveal .92s cubic-bezier(.16,.84,.22,1) both;
+      opacity: 0;
+      transform: translateY(22px) scale(.985);
+      will-change: transform, opacity;
     }
+
+    .reveal-block.is-visible {
+      animation: sectionReveal .72s cubic-bezier(.18,.84,.22,1) both;
+    }
+
+    .kpi-card.is-visible {
+      animation: cardReveal .82s cubic-bezier(.16,.84,.22,1) both;
+    }
+
 
     .metric-chip,
     .section-signal {
@@ -3081,6 +3094,64 @@ def render_page_html(
   if(trendBtns.length){
     setTrend(trendBtns[0].getAttribute('data-trend-tab'));
   }
+
+  function animateKpiValue(el){
+    const finalText = (el.getAttribute('data-kpi-value') || el.textContent || '').trim();
+    if(!finalText || el.dataset.animated === '1') return;
+    el.dataset.animated = '1';
+
+    const isWon = finalText.includes('₩');
+    const isPct = finalText.includes('%');
+    const isPp = finalText.toLowerCase().includes('pp');
+    const raw = finalText.replace(/[^0-9.\-]/g, '');
+    const target = Number(raw);
+    if(!Number.isFinite(target)){
+      el.textContent = finalText;
+      return;
+    }
+
+    const duration = 850;
+    const start = performance.now();
+    function render(v){
+      if(isWon){
+        el.textContent = '₩' + Math.round(v).toLocaleString('en-US');
+      } else if(isPct){
+        const decimals = (raw.split('.')[1] || '').length;
+        el.textContent = v.toFixed(Math.min(decimals, 2)) + '%' + (isPp ? 'p' : '');
+      } else {
+        el.textContent = Math.round(v).toLocaleString('en-US');
+      }
+    }
+    function tick(now){
+      const p = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      render(target * eased);
+      if(p < 1) requestAnimationFrame(tick);
+      else el.textContent = finalText;
+    }
+    requestAnimationFrame(tick);
+  }
+
+  const revealTargets = [
+    ...document.querySelectorAll('.reveal-block'),
+    ...document.querySelectorAll('.kpi-card')
+  ];
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach((entry)=>{
+      if(!entry.isIntersecting) return;
+      const el = entry.target;
+      window.setTimeout(()=>{
+        el.classList.add('is-visible');
+        el.querySelectorAll('.kpi-value').forEach(animateKpiValue);
+      }, Number(el.dataset.delay || 0));
+      io.unobserve(el);
+    });
+  }, { threshold: 0.12 });
+
+  revealTargets.forEach((el, idx)=>{
+    el.dataset.delay = String(Math.min(idx * 55, 240));
+    io.observe(el);
+  });
 })();
 </script>"""
 
@@ -3098,8 +3169,8 @@ def render_page_html(
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto p-6">
-    <div class="mt-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
+  <div class="report-shell mx-auto px-3 py-4 lg:px-4 lg:py-5">
+    <div class="reveal-block mt-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
       <div class="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
         <div class="text-sm font-extrabold text-slate-800">데이터 기간 · {period_label(w.cur_start, w.cur_end)}</div>
         <div class="text-xs text-slate-500">{esc(compare_basis_text)} | {esc(yoy_basis_text)}</div>
@@ -3110,7 +3181,7 @@ def render_page_html(
       {kpis_cards}
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="reveal-block mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
       <div class="mt-3 overflow-x-auto"><table class="w-full table-auto text-sm min-w-[980px]">
         <thead class="text-xs text-slate-500">
@@ -3128,7 +3199,7 @@ def render_page_html(
       </table></div>
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="reveal-block mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
         <div class="text-[11px] text-slate-500">Wider canvas + sticky Sub column</div>
@@ -3227,7 +3298,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto p-6">
+  <div class="report-shell mx-auto px-3 py-4 lg:px-4 lg:py-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest Hub</div>
