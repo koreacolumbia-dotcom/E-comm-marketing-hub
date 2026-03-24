@@ -48,6 +48,8 @@ def get_safe_animation_css():
     css = """
     body,
     body.bg-slate-50 {
+      margin: 0;
+      padding: 0;
       background:
         radial-gradient(circle at top left, rgba(59,130,246,.10), transparent 32%),
         radial-gradient(circle at top right, rgba(14,165,233,.08), transparent 26%),
@@ -237,15 +239,16 @@ def get_safe_animation_css():
     }
 
     .report-shell {
-      width: 100vw;
-      max-width: 100vw !important;
-      margin-left: calc(50% - 50vw);
-      margin-right: calc(50% - 50vw);
-      padding-left: 10px;
-      padding-right: 10px;
+      width: calc(100vw - 8px) !important;
+      max-width: calc(100vw - 8px) !important;
+      min-width: calc(100vw - 8px) !important;
+      margin: 0 auto !important;
+      padding-left: 8px;
+      padding-right: 8px;
+      box-sizing: border-box;
       animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
       transform-origin: top center;
-      overflow-x: clip;
+      overflow-x: visible;
     }
 
     body.page-exit .report-shell {
@@ -413,14 +416,17 @@ def get_safe_animation_css():
     }
 
     .paid-detail-shell {
+      width: 100%;
       overflow-x: auto;
       overflow-y: visible;
-      padding-bottom: 4px;
+      padding-bottom: 6px;
       scrollbar-gutter: stable both-edges;
+      -webkit-overflow-scrolling: touch;
     }
 
     .paid-detail-table {
-      min-width: 1360px !important;
+      width: 100%;
+      min-width: 1540px !important;
     }
 
     .paid-detail-table th:first-child,
@@ -428,8 +434,8 @@ def get_safe_animation_css():
       position: sticky;
       left: 0;
       z-index: 1;
-      background: rgba(255,255,255,.96);
-      box-shadow: 12px 0 20px rgba(248,250,252,.92);
+      background: rgba(255,255,255,.98);
+      box-shadow: 8px 0 14px rgba(248,250,252,.86);
     }
 
     .paid-detail-table th:first-child {
@@ -3232,7 +3238,7 @@ def render_page_html(
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto px-2 py-3 lg:px-3 lg:py-4">
+  <div class="report-shell mx-auto px-1 py-2 lg:px-2 lg:py-3">
     <div class="reveal-block section-signal mt-2 flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
       <div class="text-sm font-bold text-slate-700">데이터 기간 · {period_label(w.cur_start, w.cur_end)}</div>
       <div class="text-xs text-slate-500">{esc(compare_basis_text)} | {esc(yoy_basis_text)} | {esc(metric_basis_text)}</div>
@@ -3242,7 +3248,7 @@ def render_page_html(
       {kpis_cards}
     </div>
 
-    <div class="reveal-block mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="reveal-block mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
       <div class="mt-3 overflow-x-auto"><table class="w-full table-auto text-sm min-w-[980px]">
         <thead class="text-xs text-slate-500">
@@ -3260,7 +3266,7 @@ def render_page_html(
       </table></div>
     </div>
 
-    <div class="reveal-block mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="reveal-block mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
         <div class="text-[11px] text-slate-500">Wider canvas + sticky Sub column</div>
@@ -3289,7 +3295,7 @@ def render_page_html(
       </div>
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Trend (Index)</div>
         <div class="flex flex-wrap items-center gap-2">{trend_tabs_html}</div>
@@ -3309,7 +3315,7 @@ def render_page_html(
       </div>
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend (Category)</div>
       <div class="mt-3 space-y-2">{pdp_rows}</div>
     </div>
@@ -3359,7 +3365,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto px-2 py-3 lg:px-3 lg:py-4">
+  <div class="report-shell mx-auto px-1 py-2 lg:px-2 lg:py-3">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest Hub</div>
