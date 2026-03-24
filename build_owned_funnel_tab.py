@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -14,7 +14,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 
-DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab.html")  # patched template: centered funnel bars, larger stage text, drop-off labels restored, KPI/drop animations added
+DEFAULT_SOURCE = Path(__file__).with_name("owned_funnel_tab (6).html")
 DEFAULT_OUTPUT = Path(__file__).parent / "reports" / "daily_digest" / "owned_funnel_tab.html"
 DEFAULT_SOURCE_BASE = "reports/daily_digest/data/funnel"
 KST = timedelta(hours=9)
@@ -36,7 +36,12 @@ def clean_text(value: Any) -> str:
 
 
 def kst_today() -> date:
-    return (datetime.utcnow() + KST).date()
+    return (datetime.now(UTC) + KST).date()
+
+
+def default_data_range(today: Optional[date] = None) -> Tuple[date, date]:
+    anchor = today or kst_today()
+    return date(anchor.year, 1, 1), anchor
 
 
 def ymd(value: date) -> str:
@@ -676,8 +681,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-base", default="data/funnel", help="Relative funnel data path to inject for the published HTML.")
     parser.add_argument("--project", default="columbia-ga4", help="BigQuery project id.")
     parser.add_argument("--dataset", default="analytics_358593394", help="BigQuery dataset id.")
-    parser.add_argument("--start", default="", help="Start date YYYY-MM-DD")
-    parser.add_argument("--end", default="", help="End date YYYY-MM-DD")
+    parser.add_argument("--start", default="", help="Start date YYYY-MM-DD. Defaults to Jan 1 of the current KST year in data mode.")
+    parser.add_argument("--end", default="", help="End date YYYY-MM-DD. Defaults to today in data mode.")
     parser.add_argument("--recent-days", type=int, default=0, help="Incremental window in days, ending yesterday KST.")
     parser.add_argument("--site-dir", default="reports/daily_digest", help="Output directory that will receive data/funnel.")
     parser.add_argument("--owned-message-source", default="", help="Optional workbook path for owned message title lookup.")
@@ -694,10 +699,9 @@ def main() -> None:
             end_d = kst_today() - timedelta(days=1)
             start_d = end_d - timedelta(days=args.recent_days - 1)
         else:
-            if not args.start or not args.end:
-                raise SystemExit("Either --recent-days or both --start/--end are required for data mode.")
-            start_d = parse_ymd(args.start)
-            end_d = parse_ymd(args.end)
+            default_start_d, default_end_d = default_data_range()
+            start_d = parse_ymd(args.start) if args.start else default_start_d
+            end_d = parse_ymd(args.end) if args.end else default_end_d
         if start_d > end_d:
             raise SystemExit("Start date must be before or equal to end date.")
 
