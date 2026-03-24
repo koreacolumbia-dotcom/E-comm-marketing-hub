@@ -16,6 +16,7 @@ OWNED Campaign → Product Explorer (GA4 BigQuery Export)
    - items_purchased = SUM(items.quantity)
 6) ✅ purchases는 transaction_id distinct 우선(중복 purchase event 방지), 없으면 event count fallback
 7) ✅ recent-days의 end는 KST 전일(yesterday) 기준
+8) ✅ KAKAO send count strict rule: only KAKAO_CH_EVENT campaign + KAKAO_CH_MESSAGE_YYYYMMDD term are countable; KAKAO_CH_MENU_* excluded
 """
 
 from __future__ import annotations
