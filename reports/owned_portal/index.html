@@ -190,6 +190,172 @@
     .kpi-value{ font-size: 20px; font-weight: 900; margin-top: 6px; }
     .kpi-sub{ font-size: 12px; font-weight: 800; color:#64748b; margin-top: 2px; }
 
+
+
+    /* ===== KPI MADNESS PATCH ===== */
+    #ytdWrap{
+      position: relative;
+      overflow: hidden;
+      border-radius: 34px;
+      padding: 22px;
+      background:
+        radial-gradient(1200px 380px at -10% -15%, rgba(59,130,246,0.14), transparent 60%),
+        radial-gradient(900px 340px at 110% 10%, rgba(249,115,22,0.12), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+      border: 1px solid rgba(148,163,184,0.18);
+      box-shadow: 0 24px 80px rgba(15,23,42,0.08);
+    }
+    #ytdWrap::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background: linear-gradient(135deg, rgba(255,255,255,0.24), transparent 45%, rgba(255,255,255,0.12));
+    }
+    #allCards, #ytdCards{ perspective: 1400px; }
+    #allCards .kpi-card, #ytdCards .kpi-card{
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      transform-style: preserve-3d;
+      transition: transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s cubic-bezier(.22,1,.36,1), border-color .35s ease, background .35s ease;
+      will-change: transform, box-shadow;
+    }
+    #allCards .kpi-card::before, #ytdCards .kpi-card::before{
+      content:'';
+      position:absolute;
+      inset:-1px;
+      border-radius: inherit;
+      padding:1px;
+      background: linear-gradient(135deg, rgba(255,255,255,.75), rgba(255,255,255,.1), rgba(255,255,255,.35));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+      opacity:.9;
+      pointer-events:none;
+    }
+    #allCards .kpi-card::after, #ytdCards .kpi-card::after{
+      content:'';
+      position:absolute;
+      width:180px;
+      height:180px;
+      right:-60px;
+      top:-70px;
+      border-radius:999px;
+      filter: blur(8px);
+      opacity:.55;
+      pointer-events:none;
+      transition: transform .55s cubic-bezier(.22,1,.36,1), opacity .35s ease;
+    }
+    #allCards .kpi-card:hover, #ytdCards .kpi-card:hover{
+      transform: translateY(-10px) rotateX(6deg) rotateY(-6deg) scale(1.02);
+    }
+    #allCards .kpi-card:hover::after, #ytdCards .kpi-card:hover::after{
+      transform: translate3d(-8px, 10px, 0) scale(1.08);
+      opacity:.8;
+    }
+
+    #allCards .kpi-card{
+      min-height: 146px;
+      border: 1px solid rgba(37,99,235,0.22);
+      background: linear-gradient(180deg, rgba(13,32,77,0.96), rgba(19,52,120,0.92));
+      box-shadow: 0 22px 44px rgba(19,52,120,0.24), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    #allCards .kpi-card::after{
+      background: radial-gradient(circle at center, rgba(96,165,250,.7), rgba(59,130,246,.18) 55%, transparent 70%);
+    }
+    #allCards .kpi-title{ color: rgba(191,219,254,0.82); }
+    #allCards .kpi-value{
+      color:#ffffff;
+      font-size: 2.05rem;
+      line-height: 1;
+      letter-spacing:-0.04em;
+      text-shadow: 0 8px 22px rgba(96,165,250,0.18);
+    }
+    #allCards .kpi-sub{ color: rgba(219,234,254,0.82); }
+    #allCards .kpi-card .kpi-sub:first-of-type{ font-weight: 900; }
+
+    #ytdCards .kpi-card{ min-height: 138px; }
+    #ytdCards .kpi-card:nth-child(-n+4){
+      border: 1px solid rgba(249,115,22,0.28);
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,247,237,0.96));
+      box-shadow: 0 18px 38px rgba(249,115,22,0.12);
+    }
+    #ytdCards .kpi-card:nth-child(-n+4)::after{
+      background: radial-gradient(circle at center, rgba(251,146,60,.45), rgba(251,146,60,.12) 55%, transparent 70%);
+    }
+    #ytdCards .kpi-card:nth-child(n+5){
+      border: 1px solid rgba(148,163,184,0.26);
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98));
+      box-shadow: 0 16px 34px rgba(15,23,42,0.08);
+    }
+    #ytdCards .kpi-card:nth-child(n+5)::after{
+      background: radial-gradient(circle at center, rgba(148,163,184,.32), rgba(203,213,225,.08) 55%, transparent 70%);
+    }
+    #ytdCards .kpi-card:nth-child(-n+4) .kpi-value{
+      font-size: 2.2rem;
+      line-height: 1;
+      letter-spacing:-0.05em;
+      color:#111827;
+    }
+    #ytdCards .kpi-card:nth-child(n+5) .kpi-value{
+      font-size: 1.95rem;
+      line-height: 1;
+      color:#0f172a;
+    }
+
+    .kpi-pop-in{
+      opacity:0;
+      transform: translateY(22px) scale(.96);
+      animation: kpiPop .9s cubic-bezier(.22,1,.36,1) forwards;
+      animation-delay: var(--delay, 0ms);
+    }
+    .kpi-ty-burst{
+      animation: kpiTyBurst 1.05s cubic-bezier(.16,1,.3,1) both;
+      animation-delay: var(--delay, 0ms);
+    }
+    .kpi-ly-glide{
+      animation: kpiLyGlide .95s cubic-bezier(.22,1,.36,1) both;
+      animation-delay: var(--delay, 0ms);
+    }
+    .kpi-value.kpi-glow{
+      animation: kpiGlow 2.8s ease-in-out infinite;
+    }
+    .kpi-value.kpi-shine{
+      background: linear-gradient(90deg, rgba(255,255,255,.96), rgba(191,219,254,.98), rgba(255,255,255,.96));
+      background-size: 220% auto;
+      -webkit-background-clip:text;
+      background-clip:text;
+      color: transparent !important;
+      animation: textShine 4.4s linear infinite;
+    }
+    .kpi-card[data-trend="up"]{ box-shadow: 0 22px 48px rgba(34,197,94,0.14), 0 0 0 1px rgba(34,197,94,0.08); }
+    .kpi-card[data-trend="down"]{ box-shadow: 0 22px 48px rgba(239,68,68,0.12), 0 0 0 1px rgba(239,68,68,0.07); }
+    .kpi-card[data-trend="up"] .kpi-sub:first-of-type{ color:#16a34a !important; }
+    .kpi-card[data-trend="down"] .kpi-sub:first-of-type{ color:#dc2626 !important; }
+
+    @keyframes kpiPop{
+      0%{ opacity:0; transform: translateY(24px) scale(.94); }
+      60%{ opacity:1; transform: translateY(-6px) scale(1.012); }
+      100%{ opacity:1; transform: translateY(0) scale(1); }
+    }
+    @keyframes kpiTyBurst{
+      0%{ opacity:0; transform: translateY(28px) scale(.92); }
+      55%{ opacity:1; transform: translateY(-10px) scale(1.025); }
+      100%{ opacity:1; transform: translateY(0) scale(1); }
+    }
+    @keyframes kpiLyGlide{
+      0%{ opacity:0; transform: translateX(-18px) translateY(16px); }
+      100%{ opacity:1; transform: translateX(0) translateY(0); }
+    }
+    @keyframes kpiGlow{
+      0%,100%{ text-shadow: 0 0 0 rgba(255,255,255,0); }
+      50%{ text-shadow: 0 0 22px rgba(191,219,254,.26); }
+    }
+    @keyframes textShine{
+      to{ background-position: 220% center; }
+    }
+
     .mini-card{
       border: 1px solid rgba(148,163,184,0.22);
       background: rgba(255,255,255,0.80);
@@ -274,126 +440,6 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
-
-    .ytd-section{
-      position:relative;
-      overflow:hidden;
-      border-radius: 28px;
-      padding: 18px;
-      border: 1px solid rgba(148,163,184,0.18);
-      box-shadow: 0 18px 44px rgba(15,23,42,0.06);
-      isolation:isolate;
-    }
-    .ytd-section::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      border-radius: inherit;
-      background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.72));
-      z-index:-2;
-    }
-    .ytd-section::after{
-      content:"";
-      position:absolute;
-      inset:auto -12% -55% auto;
-      width: 260px;
-      height: 260px;
-      border-radius:999px;
-      filter: blur(34px);
-      opacity:.55;
-      z-index:-1;
-      transform: translate3d(0,0,0);
-    }
-    .ytd-section--all{
-      background: linear-gradient(180deg, rgba(236,244,255,0.95), rgba(255,255,255,0.82));
-    }
-    .ytd-section--all::after{
-      background: radial-gradient(circle, rgba(0,45,114,0.16), rgba(0,45,114,0));
-    }
-    .ytd-section--channel{
-      margin-top: 18px;
-      background: linear-gradient(180deg, rgba(255,247,237,0.92), rgba(255,255,255,0.82));
-    }
-    .ytd-section--channel::after{
-      background: radial-gradient(circle, rgba(249,115,22,0.15), rgba(249,115,22,0));
-    }
-    .section-badge{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding: 7px 12px;
-      border-radius:999px;
-      border:1px solid rgba(148,163,184,0.18);
-      background: rgba(255,255,255,0.72);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
-      font-size:11px;
-      font-weight:900;
-      letter-spacing:.16em;
-      text-transform:uppercase;
-      color:#64748b;
-    }
-    .section-badge-dot{
-      width:8px;
-      height:8px;
-      border-radius:999px;
-      background:#002d72;
-      box-shadow:0 0 0 6px rgba(0,45,114,0.08);
-    }
-    .section-badge-dot.channel{ background:#f97316; box-shadow:0 0 0 6px rgba(249,115,22,0.10); }
-    .section-title{
-      font-size: 24px;
-      font-weight: 900;
-      letter-spacing: -.02em;
-      color:#0f172a;
-    }
-    .section-subcopy{
-      font-size: 12px;
-      font-weight: 800;
-      color:#64748b;
-    }
-    .kpi-card--hero{
-      background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,255,255,0.82));
-      border-color: rgba(148,163,184,0.18);
-      border-radius: 22px;
-      padding: 16px 18px;
-      box-shadow: 0 16px 38px rgba(2,6,23,0.06);
-      transition: transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s ease, border-color .25s ease;
-      position:relative;
-      overflow:hidden;
-    }
-    .kpi-card--hero::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      background: linear-gradient(120deg, rgba(255,255,255,0), rgba(255,255,255,0.7), rgba(255,255,255,0));
-      transform: translateX(-160%);
-      transition: transform .9s ease;
-      pointer-events:none;
-    }
-    .kpi-card--hero:hover{
-      transform: translateY(-4px);
-      box-shadow: 0 22px 46px rgba(2,6,23,0.10);
-      border-color: rgba(0,45,114,0.16);
-    }
-    .kpi-card--hero:hover::before{ transform: translateX(160%); }
-    .kpi-card--all{ border-top: 4px solid rgba(0,45,114,0.82); }
-    .kpi-card--channel{ border-top: 4px solid rgba(249,115,22,0.82); }
-    .kpi-grid-tight{ gap: 14px; }
-    .animate-rise{
-      animation: riseIn .75s cubic-bezier(.22,1,.36,1) both;
-    }
-    .animate-float-soft{
-      animation: floatSoft 5.5s ease-in-out infinite;
-    }
-    @keyframes riseIn{
-      from{ opacity:0; transform: translateY(18px) scale(.985); }
-      to{ opacity:1; transform: translateY(0) scale(1); }
-    }
-    @keyframes floatSoft{
-      0%,100%{ transform: translateY(0); }
-      50%{ transform: translateY(-4px); }
-    }
-
   </style>
 </head>
 
@@ -517,94 +563,83 @@
             <div id="ytdLoadingText" class="loading-text">YTD loading...</div>
           </div>
         </div>
-        <div class="ytd-section ytd-section--all animate-rise">
-          <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4">
-            <div>
-              <div class="section-badge mb-3"><span class="section-badge-dot"></span> ALL SUMMARY</div>
-              <div id="ytdSummaryTitle" class="section-title">OWNED YTD YoY 누적 (ALL)</div>
-              <div id="ytdSummaryLabel" class="section-subcopy mt-1">전체 채널 누적 기준 · This year vs Previous year</div>
-            </div>
-            <div class="toggle !py-1 !px-3 animate-float-soft">YTD</div>
-          </div>
-          <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 kpi-grid-tight">
-          <div class="kpi-card kpi-card--hero kpi-card--all animate-rise">
+        <div class="flex items-center gap-3 mb-4">
+          <div id="ytdSummaryTitle" class="text-xl font-black tracking-tight">OWNED YTD YoY &#45572;&#51201; (ALL)</div>
+          <div class="toggle !py-1 !px-3">YTD</div>
+        </div>
+        <div id="ytdSummaryLabel" class="small-label mb-3">YTD YoY Summary &#45572;&#51201;</div>
+        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div class="kpi-card">
             <div class="kpi-title">ALL 누적 Send count</div>
             <div id="allSendCount" class="kpi-value">-</div>
             <div id="allSendCountSub" class="kpi-sub">YoY -</div>
             <div id="allSendCountLy" class="kpi-sub">LY -</div>
           </div>
-          <div class="kpi-card kpi-card--hero kpi-card--all animate-rise">
+          <div class="kpi-card">
             <div class="kpi-title">ALL 누적 Sessions</div>
             <div id="allSessions" class="kpi-value">-</div>
             <div id="allSessionsSub" class="kpi-sub">YoY -</div>
             <div id="allSessionsLy" class="kpi-sub">LY -</div>
           </div>
-          <div class="kpi-card kpi-card--hero kpi-card--all animate-rise">
+          <div class="kpi-card">
             <div class="kpi-title">ALL 누적 Revenue</div>
             <div id="allRevenue" class="kpi-value">-</div>
             <div id="allRevenueSub" class="kpi-sub">YoY -</div>
             <div id="allRevenueLy" class="kpi-sub">LY -</div>
           </div>
-          <div class="kpi-card kpi-card--hero kpi-card--all animate-rise">
+          <div class="kpi-card">
             <div class="kpi-title">ALL 누적 CVR</div>
             <div id="allLeverage" class="kpi-value">-</div>
             <div id="allLeverageSub" class="kpi-sub">YoY -</div>
             <div id="allLeverageLy" class="kpi-sub">LY -</div>
           </div>
-          </div>
         </div>
-        <div class="ytd-section ytd-section--channel animate-rise">
-          <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4">
-            <div>
-              <div class="section-badge mb-3"><span class="section-badge-dot channel"></span> CHANNEL ACTUALS</div>
-              <div id="ytdActualsTitle" class="section-title">YTD Actuals 누적 (EDM)</div>
-              <div class="section-subcopy mt-1">선택 채널 누적 기준 · TY vs LY same period</div>
-            </div>
-          </div>
-          <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 kpi-grid-tight">
-        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+        <div class="flex items-center gap-3 mt-5 mb-4">
+          <div id="ytdActualsTitle" class="text-xl font-black tracking-tight">YTD Actuals &#45572;&#51201; (EDM)</div>
+        </div>
+        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+        <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
           <div id="ytdTySessionsSub" class="kpi-sub">-</div>
         </div>
-        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+        <div class="kpi-card">
           <div class="kpi-title">YTD · TY Revenue</div>
           <div id="ytdTyRevenue" class="kpi-value">-</div>
           <div id="ytdTyRevenueSub" class="kpi-sub">-</div>
         </div>
-        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+        <div class="kpi-card">
           <div class="kpi-title">YTD · TY Send count</div>
           <div id="ytdTySendCount" class="kpi-value">-</div>
           <div id="ytdTySendCountSub" class="kpi-sub">-</div>
         </div>
-        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+        <div class="kpi-card">
           <div class="kpi-title">YTD · TY Avg leverage</div>
           <div id="ytdTyLeverage" class="kpi-value">-</div>
           <div id="ytdTyLeverageSub" class="kpi-sub">-</div>
         </div>
-        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+        <div class="kpi-card">
           <div class="kpi-title">YTD · LY Sessions</div>
           <div id="ytdLySessions" class="kpi-value">-</div>
           <div id="ytdLySessionsSub" class="kpi-sub">-</div>
         </div>
-        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+        <div class="kpi-card">
           <div class="kpi-title">YTD · LY Revenue</div>
           <div id="ytdLyRevenue" class="kpi-value">-</div>
           <div id="ytdLyRevenueSub" class="kpi-sub">-</div>
         </div>
-        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+        <div class="kpi-card">
           <div class="kpi-title">YTD · LY Send count</div>
           <div id="ytdLySendCount" class="kpi-value">-</div>
           <div id="ytdLySendCountSub" class="kpi-sub">-</div>
         </div>
-        <div class="kpi-card kpi-card--hero kpi-card--channel animate-rise">
+        <div class="kpi-card">
           <div class="kpi-title">YTD · LY Avg leverage</div>
           <div id="ytdLyLeverage" class="kpi-value">-</div>
           <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
         </div>
       </div>
-          </div>
-        </div>
+      </div>
 
       <!-- KPI (selection) -->
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
@@ -1041,17 +1076,154 @@
     return getRowGroup(r).mmdd;
   }
 
+  function isKakaoMenuRow(r){
+    const campaign = String((r && (r.campaign || '')) || '').toUpperCase();
+    const term = String((r && (r.term || '')) || '').toUpperCase();
+    return campaign.includes('KAKAO_CH_MENU') || term.includes('KAKAO_CH_MENU');
+  }
+
+  function isKakaoCountableSendRow(r){
+    const campaign = String((r && (r.campaign || '')) || '').trim().toUpperCase();
+    const term = String((r && (r.term || '')) || '').trim().toUpperCase();
+    if(isKakaoMenuRow(r)) return false;
+    return campaign.startsWith('KAKAO_CH_EVENT') && term.startsWith('KAKAO_CH_MESSAGE_');
+  }
+
+  function isCountableSendRow(r){
+    const channel = String((r && (r.channel || '')) || '').trim().toUpperCase();
+    const group = getRowGroup(r);
+    if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return false;
+    if(channel === 'KAKAO') return isKakaoCountableSendRow(r);
+    return true;
+  }
+
   function getSendKey(r, expectedYear='', cutoffDate=''){
-    if(!isCountableSendRow(r)) return '';
     const group = getRowGroup(r);
     const channel = String((r && (r.channel || '')) || '').trim();
-    if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
+    if(!isCountableSendRow(r)) return '';
     if(expectedYear && String(group.year) !== String(expectedYear)) return '';
     if(cutoffDate){
       const groupDate = dateStrFromYearMmdd(group.year, group.mmdd);
       if(groupDate > cutoffDate) return '';
     }
     return `${channel}||${group.year}||${group.mmdd}`;
+  }
+
+
+
+  function parseDisplayNumber(rawText){
+    const s = String(rawText || '').trim();
+    if(!s || s === '-') return null;
+    const cleaned = s.replace(/,/g,'').replace(/원/g,'').replace(/%/g,'').replace(/[^0-9.\-]/g,'');
+    if(!cleaned || cleaned === '-' || cleaned === '.' || cleaned === '-.') return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  function formatAnimatedValue(value, sourceText){
+    const source = String(sourceText || '');
+    const hasPercent = source.includes('%');
+    const hasWon = source.includes('₩') || source.includes('원');
+    const hasComma = source.includes(',');
+    const decimals = (() => {
+      const m = source.match(/\.(\d+)/);
+      return m ? m[1].length : 0;
+    })();
+    let out = decimals > 0 ? value.toFixed(Math.min(decimals, 2)) : Math.round(value).toString();
+    if(hasComma || !hasPercent){
+      const parts = out.split('.');
+      parts[0] = Number(parts[0]).toLocaleString('en-US');
+      out = parts.join('.');
+    }
+    if(hasPercent) out += '%';
+    if(hasWon) out = `₩${out}`;
+    return out;
+  }
+
+  function animateValueText(el, toText, duration=1100){
+    if(!el) return;
+    const target = parseDisplayNumber(toText);
+    if(target === null){ el.textContent = toText; return; }
+    const prevTarget = Number(el.dataset.animTarget || 'NaN');
+    const from = Number.isFinite(prevTarget) ? prevTarget : 0;
+    el.dataset.animTarget = String(target);
+    const start = performance.now();
+    const ease = (t)=> 1 - Math.pow(1 - t, 4);
+    function frame(now){
+      const p = Math.min(1, (now - start) / duration);
+      const cur = from + (target - from) * ease(p);
+      el.textContent = formatAnimatedValue(cur, toText);
+      if(p < 1) requestAnimationFrame(frame);
+      else el.textContent = toText;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function applyKpiTrend(card){
+    if(!card) return;
+    const sub = card.querySelector('.kpi-sub');
+    if(!sub) return;
+    const t = sub.textContent || '';
+    card.removeAttribute('data-trend');
+    if(/YoY\s*\+|vs\s*LY\s*:\s*\+|vs\s*LY\s*\+|\+\d/.test(t)) card.dataset.trend = 'up';
+    else if(/YoY\s*-|vs\s*LY\s*:\s*-|vs\s*LY\s*-|-\d/.test(t)) card.dataset.trend = 'down';
+  }
+
+  function refreshKpiMadness(){
+    const all = Array.from(document.querySelectorAll('#allCards .kpi-card'));
+    const ytd = Array.from(document.querySelectorAll('#ytdCards .kpi-card'));
+    const sel = Array.from(document.querySelectorAll('.grid.grid-cols-1.md\:grid-cols-2.xl\:grid-cols-7.gap-4.mt-5.mb-6 .kpi-card'));
+
+    all.forEach((card, i)=>{
+      card.classList.remove('kpi-pop-in','kpi-ty-burst','kpi-ly-glide');
+      void card.offsetWidth;
+      card.style.setProperty('--delay', `${i * 80}ms`);
+      card.classList.add('kpi-pop-in');
+      applyKpiTrend(card);
+      const value = card.querySelector('.kpi-value');
+      if(value){
+        value.classList.add('kpi-shine','kpi-glow');
+        animateValueText(value, value.textContent, 1450);
+      }
+    });
+
+    ytd.forEach((card, i)=>{
+      card.classList.remove('kpi-pop-in','kpi-ty-burst','kpi-ly-glide');
+      void card.offsetWidth;
+      card.style.setProperty('--delay', `${i * 70}ms`);
+      card.classList.add(i < 4 ? 'kpi-ty-burst' : 'kpi-ly-glide');
+      applyKpiTrend(card);
+      const value = card.querySelector('.kpi-value');
+      if(value){
+        value.classList.remove('kpi-shine');
+        value.classList.toggle('kpi-glow', i < 4);
+        animateValueText(value, value.textContent, i < 4 ? 1150 : 950);
+      }
+    });
+
+    sel.forEach((card, i)=>{
+      card.style.setProperty('--delay', `${i * 35}ms`);
+      applyKpiTrend(card);
+      const value = card.querySelector('.kpi-value');
+      if(value) animateValueText(value, value.textContent, 800);
+    });
+  }
+
+  function attachKpiTilt(){
+    const cards = document.querySelectorAll('#allCards .kpi-card, #ytdCards .kpi-card');
+    cards.forEach(card => {
+      if(card.dataset.tiltBound === '1') return;
+      card.dataset.tiltBound = '1';
+      card.addEventListener('mousemove', (e)=>{
+        const r = card.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width;
+        const py = (e.clientY - r.top) / r.height;
+        const ry = (px - 0.5) * 11;
+        const rx = (0.5 - py) * 9;
+        card.style.transform = `translateY(-10px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+      });
+      card.addEventListener('mouseleave', ()=>{ card.style.transform = ''; });
+    });
   }
 
   function countDistinctSends(rows, expectedYear='', cutoffDate=''){
@@ -1494,8 +1666,6 @@
   let SELECTED = null;    // {type:'single', ...} or {type:'group', ...}
   let AVAILABLE = null;   // ["YYYY-MM-DD", ...]
   let GROUP_SOURCE_ROWS = [];
-  let GROUP_SOURCE_PROD = [];
-  let GROUP_SOURCE_ANALYSIS = [];
   let GROUP_SOURCE_MESSAGE_LOG = [];
   let CURRENT_ANALYSIS_ROWS = [];
   const CUMULATIVE_ANALYSIS_CACHE = new Map();
@@ -1618,43 +1788,6 @@
     return out;
   }
 
-  function isCountableSendRow(r){
-    const channel = String((r && r.channel) || '').trim().toUpperCase();
-    if(channel !== 'KAKAO') return true;
-    const campaign = String((r && r.campaign) || '').trim().toUpperCase();
-    const term = String((r && r.term) || '').trim().toUpperCase();
-    return campaign.startsWith('KAKAO_CH_EVENT') && term.startsWith('KAKAO_CH_MESSAGE_');
-  }
-
-  function isKakaoMenuRow(r){
-    const channel = String((r && r.channel) || '').trim().toUpperCase();
-    if(channel !== 'KAKAO') return false;
-    const campaign = String((r && r.campaign) || '').trim().toUpperCase();
-    const term = String((r && r.term) || '').trim().toUpperCase();
-    return campaign.includes('KAKAO_CH_MENU') || term.includes('KAKAO_CH_MENU');
-  }
-
-  function getActiveKpiSource(){
-    return (GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []);
-  }
-
-  function getActiveProdSource(){
-    return (GROUP_SOURCE_PROD && GROUP_SOURCE_PROD.length) ? GROUP_SOURCE_PROD : ((RAW && RAW.prod) || []);
-  }
-
-  function getActiveAnalysisSource(){
-    return (GROUP_SOURCE_ANALYSIS && GROUP_SOURCE_ANALYSIS.length) ? GROUP_SOURCE_ANALYSIS : ((RAW && RAW.analysis) || []);
-  }
-
-  function rerunCardAnimations(scope){
-    const root = scope || document;
-    root.querySelectorAll('.animate-rise').forEach((el, idx)=>{
-      el.style.animation = 'none';
-      void el.offsetWidth;
-      el.style.animation = `riseIn .72s cubic-bezier(.22,1,.36,1) ${Math.min(idx * 0.04, 0.28)}s both`;
-    });
-  }
-
   function updateChannelTotals(){
     periodText.textContent = `· ${periodLabel()}`;
     if(!RAW || !RAW.kpi){
@@ -1722,24 +1855,33 @@
     const messageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length) ? GROUP_SOURCE_MESSAGE_LOG : (((RAW && RAW.message_log) || []));
 
     for(const r of chipSourceRows){
-      if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
-        if(r.channel==='KAKAO' && isKakaoMenuRow(r)){
-          otherByChannel[r.channel].push(r);
+      if(!(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO')){
+        otherChannels.push(r);
+        continue;
+      }
+
+      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog)) continue;
+
+      const mmdd = mmddOfRow(r);
+      const year = getRowYear(r);
+      const hasDateGroup = mmdd && /^\d{4}$/.test(year) && /^\d{4}$/.test(getRowMmdd(r) || mmdd);
+
+      if(r.channel === 'KAKAO' && isKakaoMenuRow(r)){
+        otherByChannel.KAKAO.push(r);
+        continue;
+      }
+
+      if(hasDateGroup){
+        if(r.channel === 'KAKAO' && !isKakaoCountableSendRow(r)){
+          otherByChannel.KAKAO.push(r);
           continue;
         }
-        const mmdd = mmddOfRow(r);
-        const year = getRowYear(r);
-        if(mmdd && /^\d{4}$/.test(year)){
-          if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog)) continue;
-          const gk = `${getRowYear(r)}-${getRowMmdd(r)}`;
-          const m = by[r.channel];
-          if(!m.has(gk)) m.set(gk, []);
-          m.get(gk).push(r);
-        }else{
-          otherByChannel[r.channel].push(r);
-        }
+        const gk = `${getRowYear(r)}-${getRowMmdd(r)}`;
+        const m = by[r.channel];
+        if(!m.has(gk)) m.set(gk, []);
+        m.get(gk).push(r);
       }else{
-        otherChannels.push(r);
+        otherByChannel[r.channel].push(r);
       }
     }
 
@@ -1800,7 +1942,7 @@
       }
     }
 
-    function renderOtherCampaigns(channel, wrapEl){
+    function renderOtherCampaignsInline(channel, wrapEl){
       const rows = otherByChannel[channel].slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
       if(!rows.length){
         wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
@@ -1829,9 +1971,9 @@
       });
     }
 
-    renderOtherCampaigns('EDM', wrapEDMOther);
-    renderOtherCampaigns('LMS', wrapLMSOther);
-    renderOtherCampaigns('KAKAO', wrapKakaoOther);
+    renderOtherCampaignsInline('EDM', wrapEDMOther);
+    renderOtherCampaignsInline('LMS', wrapLMSOther);
+    renderOtherCampaignsInline('KAKAO', wrapKakaoOther);
 
     const oc = otherChannels.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
     if(!oc.length){
@@ -1860,6 +2002,7 @@
       });
     }
   }
+
 
   function renderOtherCampaigns(channel, wrapEl){
     const sourceRows = otherByChannel[channel].slice();
@@ -1948,16 +2091,15 @@
   }
 
   function getSelectedKpiRows(sel){
-    const source = getActiveKpiSource();
-    if(!sel || !source.length) return [];
+    if(!sel || !RAW) return [];
     if(sel.type === 'single'){
-      return source.filter(x=> x.channel===sel.channel && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
+      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
     }
     if(sel.type === 'group'){
-      return source.filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd);
+      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd);
     }
     if(sel.type === 'other-group'){
-      return source.filter(x=> {
+      return (RAW.kpi||[]).filter(x=> {
         if(x.channel !== sel.channel) return false;
         const parsed = getOtherCampaignDateGroup(x);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
@@ -1987,24 +2129,23 @@
   }
 
   function getSelectedProdRows(sel){
-    const source = getActiveProdSource();
-    if(!sel || !source.length) return [];
+    if(!sel || !RAW) return [];
     if(sel.type === 'single'){
-      return source.filter(r =>
+      return (RAW.prod||[]).filter(r =>
         r.channel===sel.channel &&
         (r.campaign||'')===(sel.campaign||'') &&
         (r.term||'')===(sel.term||'')
       );
     }
     if(sel.type === 'group'){
-      return source.filter(p =>
+      return (RAW.prod||[]).filter(p =>
         p.channel===sel.channel &&
         getRowYear(p)===sel.year &&
         getRowMmdd(p)===sel.mmdd
       );
     }
     if(sel.type === 'other-group'){
-      return source.filter(p => {
+      return (RAW.prod||[]).filter(p => {
         if(p.channel !== sel.channel) return false;
         const parsed = getOtherCampaignDateGroup(p);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
@@ -2014,24 +2155,23 @@
   }
 
   function getSelectedAnalysisRows(sel){
-    const source = getActiveAnalysisSource();
-    if(!sel || !source.length) return [];
+    if(!sel || !RAW) return [];
     if(sel.type === 'single'){
-      return source.filter(r =>
+      return (RAW.analysis||[]).filter(r =>
         r.channel===sel.channel &&
         (r.campaign||'')===(sel.campaign||'') &&
         (r.term||'')===(sel.term||'')
       );
     }
     if(sel.type === 'group'){
-      return source.filter(r =>
+      return (RAW.analysis||[]).filter(r =>
         r.channel===sel.channel &&
         getRowYear(r)===sel.year &&
         getRowMmdd(r)===sel.mmdd
       );
     }
     if(sel.type === 'other-group'){
-      return source.filter(r => {
+      return (RAW.analysis||[]).filter(r => {
         if(r.channel !== sel.channel) return false;
         const parsed = getOtherCampaignDateGroup(r);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
@@ -2967,8 +3107,6 @@
       const TY = v.this;
       const LY = v.prev;
       GROUP_SOURCE_ROWS = v.group_rows || [];
-      GROUP_SOURCE_PROD = v.group_prod || [];
-      GROUP_SOURCE_ANALYSIS = v.group_analysis || [];
       GROUP_SOURCE_MESSAGE_LOG = v.group_message_log || [];
       renderAllSummary(ALL && ALL.this, ALL && ALL.prev);
       ytdTySessions.textContent = fmt(TY.sessions);
@@ -2995,7 +3133,6 @@
       hideYtdLoading();
       updateChannelTotals();
       renderCampaignButtons();
-      rerunCardAnimations(document.getElementById('ytdWrap'));
       return;
     }
 
@@ -3029,8 +3166,6 @@
     const prevSum = getChannelSummary(prevRows, CHANNEL, prevEnd, prevAgg.message_log || []);
 
     GROUP_SOURCE_ROWS = [...(thisAgg.kpi || []), ...(prevAgg.kpi || [])];
-    GROUP_SOURCE_PROD = [...(thisAgg.prod || []), ...(prevAgg.prod || [])];
-    GROUP_SOURCE_ANALYSIS = [...(thisAgg.analysis || []), ...(prevAgg.analysis || [])];
     GROUP_SOURCE_MESSAGE_LOG = normalizeMessageLogRows([...(thisAgg.message_log || []), ...(prevAgg.message_log || [])]);
 
     YTD_CACHE.set(key, {
@@ -3038,8 +3173,6 @@
       this:thisSum,
       prev:prevSum,
       group_rows: GROUP_SOURCE_ROWS,
-      group_prod: GROUP_SOURCE_PROD,
-      group_analysis: GROUP_SOURCE_ANALYSIS,
       group_message_log: GROUP_SOURCE_MESSAGE_LOG,
     });
 
@@ -3068,7 +3201,6 @@
     hideYtdLoading();
     updateChannelTotals();
     renderCampaignButtons();
-    rerunCardAnimations(document.getElementById('ytdWrap'));
   }
 
   function bindToggle(btn, wrap){
@@ -3333,7 +3465,8 @@
     // ✅ 첫 화면에서 올해누적(YTD) 바로 계산/표시
     if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
-    rerunCardAnimations(document);
+    refreshKpiMadness();
+    attachKpiTilt();
   })();
 
 })();
