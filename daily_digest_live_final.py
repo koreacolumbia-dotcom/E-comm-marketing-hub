@@ -178,9 +178,51 @@ def get_safe_animation_css():
       background-color: rgba(248,250,252,.9);
     }
 
+    .paid-extra {
+      transition: opacity .42s cubic-bezier(.2,.8,.2,1), transform .42s cubic-bezier(.2,.8,.2,1), max-height .42s ease;
+      transform-origin: top center;
+    }
+
     .paid-extra.hidden {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(12px) scale(.985);
+      max-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .kpi-card {
+      animation: cardReveal .92s cubic-bezier(.16,.84,.22,1) both;
+    }
+
+    .kpi-value {
+      display: inline-block;
+      letter-spacing: -.02em;
+      text-shadow: 0 10px 28px rgba(15,23,42,.08);
+      animation: kpiFloat .92s cubic-bezier(.18,.84,.22,1) both;
+      will-change: transform, opacity;
+    }
+
+    @keyframes kpiFloat {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, 16px, 0) scale(.92);
+        filter: blur(8px);
+      }
+      62% {
+        opacity: 1;
+        transform: translate3d(0, -2px, 0) scale(1.035);
+        filter: blur(0);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    .paid-detail-table tbody tr {
+      animation: sectionReveal .7s cubic-bezier(.2,.8,.2,1) both;
     }
     """
     return css.replace("{", "{{").replace("}", "}}")
@@ -2462,9 +2504,9 @@ def render_page_html(
 
     def top_kpi_card(title: str, value: str, delta_main: str, delta_yoy_s: str, cls_main: str, cls_yoy: str) -> str:
         return f"""
-        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
-          <div class="mt-1 text-xl font-black text-slate-900">{esc(value)}</div>
+          <div class="kpi-value mt-1 text-xl font-black text-slate-900" data-kpi-value="{esc(value)}">{esc(value)}</div>
           <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> · YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
         </div>
         """
@@ -2499,7 +2541,60 @@ def render_page_html(
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
 
-    # Paid detail rows
+    # Paid detail rows (merged with budget / target ROAS / ROAS)
+    paid_compare_lookup: Dict[str, Dict[str, float]] = {}
+    paid_compare_total = {"target_roas": 0.0, "budget": 0.0, "roas": 0.0, "cvr": 0.0}
+    if paid_media_compare is not None and (not paid_media_compare.empty):
+        spend_total_map = fetch_platform_spend_map(w.cur_start, w.cur_end)
+        budget_total = float(sum(float(v or 0) for v in spend_total_map.values()))
+
+        revenue_total = 0.0
+        cvr_total = 0.0
+        if paid_detail is not None and (not paid_detail.empty) and "sub_channel" in paid_detail.columns:
+            _paid_total = paid_detail[paid_detail["sub_channel"].astype(str).str.strip().str.lower() == "total"].copy()
+            if not _paid_total.empty:
+                if "purchaseRevenue" in _paid_total.columns:
+                    revenue_total = float(pd.to_numeric(_paid_total["purchaseRevenue"], errors="coerce").fillna(0).iloc[0])
+                if "cvr" in _paid_total.columns:
+                    cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
+
+        roas_total = (revenue_total / budget_total) if budget_total else 0.0
+        target_roas_total = 0.0
+        if budget_total > 0:
+            _rows = []
+            for _media_key, _budget_val in spend_total_map.items():
+                _rows.append({"media": str(_media_key or "").strip().lower(), "budget": float(_budget_val or 0)})
+            _tmp_target = pd.DataFrame(_rows)
+            if not _tmp_target.empty:
+                try:
+                    target_roas_map_local = load_target_roas_map(TARGET_ROAS_XLS_PATH)
+                except Exception:
+                    target_roas_map_local = {}
+                _tmp_target["target_roas"] = _tmp_target["media"].map(
+                    lambda x: float(target_roas_map_local.get(str(x).strip().lower(), target_roas_map_local.get(str(x).title().lower(), 0.0)) or 0.0)
+                )
+                _budget_sum = float(pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum())
+                if _budget_sum > 0:
+                    target_roas_total = float(((pd.to_numeric(_tmp_target["target_roas"], errors="coerce").fillna(0) * pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0)).sum()) / _budget_sum)
+
+        paid_compare_total = {
+            "target_roas": float(target_roas_total or 0),
+            "budget": float(budget_total or 0),
+            "roas": float(roas_total or 0),
+            "cvr": float(cvr_total or 0),
+        }
+
+        for r in paid_media_compare.itertuples(index=False):
+            key = str(getattr(r, 'channel', '') or '').strip().lower()
+            if not key:
+                continue
+            paid_compare_lookup[key] = {
+                "target_roas": float(getattr(r, 'target_roas', 0) or 0),
+                "budget": float(getattr(r, 'budget', 0) or 0),
+                "roas": float(getattr(r, 'roas', 0) or 0),
+                "cvr": float(getattr(r, 'cvr', 0) or 0),
+            }
+
     paid_html = ""
     paid_total_row = ""
     if paid_detail is not None and (not paid_detail.empty):
@@ -2509,8 +2604,9 @@ def render_page_html(
 
         for r in paid_detail.itertuples(index=False):
             sub = str(getattr(r, "sub_channel", "") or "").strip()
-            is_total = (sub.lower() == "total")
-            is_bold = (sub.lower() == "total") or (sub.lower() == "google")
+            sub_key = sub.lower()
+            is_total = (sub_key == "total")
+            is_bold = is_total or (sub_key == "google")
             has_yoy = bool(getattr(r, "has_yoy", False))
 
             row_cls = ""
@@ -2526,12 +2622,20 @@ def render_page_html(
                 else "<div class='text-right text-slate-400'>-</div>"
             )
 
+            compare_metric = paid_compare_total if is_total else paid_compare_lookup.get(sub_key, paid_compare_lookup.get(map_sub_to_media(sub_key), {}))
+            target_roas_val = float(compare_metric.get("target_roas", 0) or 0)
+            budget_val = float(compare_metric.get("budget", 0) or 0)
+            roas_val = float(compare_metric.get("roas", 0) or 0)
+
             row_html = table_row([
                 esc(sub),
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
                 f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
+                f"<div class='text-right'>{fmt_pct(target_roas_val,1) if (is_total or budget_val or target_roas_val) else '-'}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(budget_val) if (is_total or budget_val) else '-'}</div>",
+                f"<div class='text-right'>{fmt_pct(roas_val,1) if (is_total or budget_val or roas_val) else '-'}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
                 yoy_html,
             ], bold=is_bold, row_class=row_cls)
@@ -2600,71 +2704,6 @@ def render_page_html(
             rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
 
     paid_media_compare_html = ""
-    if paid_media_compare is not None and (not paid_media_compare.empty):
-        # TOTAL should use true platform totals, not a sum of visible rows,
-        # because the table may contain both top-level media rows and sub rows.
-        spend_total_map = fetch_platform_spend_map(w.cur_start, w.cur_end)
-        budget_total = float(sum(float(v or 0) for v in spend_total_map.values()))
-
-        revenue_total = 0.0
-        cvr_total = 0.0
-        if paid_detail is not None and (not paid_detail.empty) and "sub_channel" in paid_detail.columns:
-            _paid_total = paid_detail[paid_detail["sub_channel"].astype(str).str.strip().str.lower() == "total"].copy()
-            if not _paid_total.empty:
-                if "purchaseRevenue" in _paid_total.columns:
-                    revenue_total = float(pd.to_numeric(_paid_total["purchaseRevenue"], errors="coerce").fillna(0).iloc[0])
-                if "cvr" in _paid_total.columns:
-                    cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
-
-        roas_total = (revenue_total / budget_total) if budget_total else 0.0
-
-        target_roas_total = 0.0
-        if budget_total > 0:
-            _rows = []
-            for _media_key, _budget_val in spend_total_map.items():
-                _rows.append({
-                    "media": str(_media_key or "").strip().lower(),
-                    "budget": float(_budget_val or 0),
-                })
-            _tmp_target = pd.DataFrame(_rows)
-            if not _tmp_target.empty:
-                try:
-                    target_roas_map_local = load_target_roas_map(TARGET_ROAS_XLS_PATH)
-                except Exception:
-                    target_roas_map_local = {}
-
-                _tmp_target["target_roas"] = _tmp_target["media"].map(
-                    lambda x: float(
-                        target_roas_map_local.get(
-                            str(x).strip().lower(),
-                            target_roas_map_local.get(str(x).title().lower(), 0.0)
-                        ) or 0.0
-                    )
-                )
-                if float(pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()) > 0:
-                    target_roas_total = float(
-                        (
-                            pd.to_numeric(_tmp_target["target_roas"], errors="coerce").fillna(0) *
-                            pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0)
-                        ).sum() / pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()
-                    )
-
-        paid_media_compare_html += table_row([
-            "<span class='font-extrabold'>TOTAL</span>",
-            f"<div class='text-right font-extrabold'>{fmt_pct(float(target_roas_total or 0),1)}</div>",
-            f"<div class='text-right font-extrabold'>{fmt_currency_krw(budget_total)}</div>",
-            f"<div class='text-right font-extrabold'>{fmt_pct(float(roas_total or 0),1)}</div>",
-            f"<div class='text-right font-extrabold'>{fmt_pct(float(cvr_total or 0),2)}</div>",
-        ], bold=True)
-
-        for r in paid_media_compare.itertuples(index=False):
-            paid_media_compare_html += table_row([
-                esc(getattr(r, 'channel', '')),
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'target_roas', 0) or 0),1)}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget', 0))}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas', 0) or 0),1)}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
-            ])
 
     kpis_cards = "".join([
         top_kpi_card("Sessions", fmt_int(cur["sessions"]),
@@ -2798,7 +2837,7 @@ def render_page_html(
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
       <div class="mt-3 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[1120px]">
+        <table class="paid-detail-table w-full table-auto text-sm min-w-[1480px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
@@ -2806,32 +2845,18 @@ def render_page_html(
               <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
           </thead>
-          <tbody>{paid_html}</tbody>
+          <tbody>{paid_html or "<tr><td colspan='10' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
         </table>
       </div>
       <div class="mt-3 flex justify-end">
         <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Show more</button>
-      </div>
-      <div class="mt-4 border-t border-slate-200 pt-4">
-        <div class="mb-2 text-[11px] font-bold tracking-wide text-slate-400 uppercase">Budget / ROAS / CVR</div>
-        <div class="overflow-x-auto">
-          <table class="w-full table-auto text-sm min-w-[760px]">
-            <thead class="text-xs text-slate-500">
-              <tr>
-                <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
-              </tr>
-            </thead>
-            <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
-          </table>
-        </div>
       </div>
     </div>
 
