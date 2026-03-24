@@ -467,14 +467,27 @@ def _parse_row_date(row: Dict[str, Any]) -> Optional[date]:
         return None
 
 
-def _owned_valid_send_row(row: Dict[str, Any]) -> bool:
+def _owned_is_countable_send_row(row: Dict[str, Any]) -> bool:
     ch = str(row.get("channel") or "").strip().upper()
     if ch not in OWNED_CHANNELS:
         return False
-    campaign = str(row.get("campaign") or "").strip()
-    mmdd = str(row.get("mmdd") or "").strip()
+    if ch != "KAKAO":
+        return True
+    campaign = str(row.get("campaign") or "").strip().upper()
+    term = str(row.get("term") or "").strip().upper()
+    return campaign.startswith("KAKAO_CH_EVENT") and term.startswith("KAKAO_CH_MESSAGE_")
+
+
+def _owned_valid_send_row(row: Dict[str, Any]) -> bool:
+    ch = str(row.get("channel") or "").strip().upper()
+    if ch not in OWNED_CHANNELS or not _owned_is_countable_send_row(row):
+        return False
+    year = str(row.get("year") or "").strip()
+    mmdd = str(row.get("mmdd") or "").strip() or _extract_mmdd_token(str(row.get("campaign") or ""))
     row_dt = _parse_row_date(row)
-    return bool(campaign or mmdd or row_dt)
+    if row_dt and not year:
+        year = str(row_dt.year)
+    return bool(re.fullmatch(r"\d{4}", year) and re.fullmatch(r"\d{4}", mmdd))
 
 
 def _extract_mmdd_token(text: str) -> str:
@@ -828,14 +841,64 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
 
 
 def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: Dict[str, Any]) -> str:
-    def kpi_tile(title: str, value: str, line1: str, line2: str) -> str:
+    def tone_cls_from_delta(x: Any) -> str:
+        try:
+            v = float(x)
+        except Exception:
+            return "text-slate-600"
+        return "text-emerald-600" if v >= 0 else "text-rose-600"
+
+    def pp_tone_cls(x: Any) -> str:
+        try:
+            v = float(x)
+        except Exception:
+            return "text-slate-600"
+        return "text-emerald-600" if v >= 0 else "text-rose-600"
+
+    def metric_tile(title: str, value: str, sub_a_label: str, sub_a_value: str, sub_a_cls: str, sub_b_label: str, sub_b_value: str, sub_b_cls: str, accent: str = "") -> str:
+        accent_style = f"style=\"--accent:{accent};\"" if accent else ""
         return f'''
-        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{title}</div>
-          <div class="mt-1 text-xl font-black text-slate-900">{value}</div>
-          <div class="mt-1 text-[11px] text-slate-500">{line1}</div>
-          <div class="mt-1 text-[11px] text-slate-500">{line2}</div>
-        </div>
+        <article class="metric-card reveal rounded-[28px] p-4 sm:p-5" {accent_style}>
+          <div class="metric-glow"></div>
+          <div class="relative z-10">
+            <div class="text-[11px] font-extrabold tracking-[0.22em] text-slate-500 uppercase">{title}</div>
+            <div class="mt-3 flex items-end justify-between gap-3">
+              <div class="metric-value text-2xl sm:text-[2rem] font-black leading-none text-slate-950" data-countup="{value}">{value}</div>
+              <div class="hidden sm:block h-10 w-10 rounded-2xl bg-white/80 border border-white/70 shadow-[0_12px_30px_rgba(15,23,42,.08)]"></div>
+            </div>
+            <div class="mt-4 space-y-2 text-[11px] sm:text-xs">
+              <div class="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-3 py-2 border border-white/70">
+                <span class="text-slate-500">{sub_a_label}</span>
+                <span class="font-extrabold {sub_a_cls}">{sub_a_value}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-3 py-2 border border-white/70">
+                <span class="text-slate-500">{sub_b_label}</span>
+                <span class="font-extrabold {sub_b_cls}">{sub_b_value}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+        '''
+
+    def section_shell(section_id: str, eyebrow: str, title: str, desc: str, meta: str, accent: str, inner_html: str) -> str:
+        return f'''
+        <section id="{section_id}" class="summary-section reveal relative overflow-hidden rounded-[32px] p-[1px] mb-7" style="--section-accent:{accent};">
+          <div class="section-border absolute inset-0"></div>
+          <div class="relative rounded-[31px] px-4 py-5 sm:px-6 sm:py-6">
+            <div class="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(255,255,255,.88),transparent_72%)] pointer-events-none"></div>
+            <div class="relative z-10 flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-5">
+              <div>
+                <div class="section-eyebrow">{eyebrow}</div>
+                <h2 class="mt-2 text-2xl sm:text-[2rem] font-black tracking-tight text-slate-950">{title}</h2>
+                <p class="mt-2 text-sm text-slate-600 max-w-3xl">{desc}</p>
+              </div>
+              <div class="section-meta text-xs text-slate-600">
+                {meta}
+              </div>
+            </div>
+            {inner_html}
+          </div>
+        </section>
         '''
 
     d_wow = daily.get("wow") or {}
@@ -843,37 +906,50 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     w_wow = weekly.get("wow") or {}
     w_yoy = weekly.get("yoy") or {}
 
-    daily_strip = f'''
-    <div class="glass-card rounded-3xl p-5 mb-6">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div class="text-base font-black text-slate-900">Daily KPI Summary</div>
-        <div class="text-xs text-slate-500">기준: <b class="text-slate-700">{daily.get("date") or "-"}</b> · updated: {daily.get("updated") or ""}</div>
-      </div>
-      <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {kpi_tile("Sessions", fmt_int(daily.get("sessions")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(d_wow.get("sessions"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("sessions"))}</b>')}
-        {kpi_tile("Orders", fmt_int(daily.get("orders")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(d_wow.get("orders"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("orders"))}</b>')}
-        {kpi_tile("Revenue", fmt_krw_symbol(daily.get("revenue")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(d_wow.get("revenue"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("revenue"))}</b>')}
-        {kpi_tile("CVR", fmt_cvr(daily.get("cvr")), f'WoW <b class="text-slate-900">{fmt_pp_from_fraction(d_wow.get("cvr_pp"))}</b>', f'YoY <b class="text-slate-900">{fmt_pp_from_fraction(d_yoy.get("cvr_pp"))}</b>')}
-        {kpi_tile("Sign-up Users", fmt_int(daily.get("signups")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(d_wow.get("signups"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(d_yoy.get("signups"))}</b>')}
-      </div>
-    </div>'''
+    daily_tiles = "".join([
+        metric_tile("Sessions", fmt_int(daily.get("sessions")), "WoW", fmt_delta_ratio(d_wow.get("sessions")), tone_cls_from_delta(d_wow.get("sessions")), "YoY", fmt_delta_ratio(d_yoy.get("sessions")), tone_cls_from_delta(d_yoy.get("sessions")), "#60a5fa"),
+        metric_tile("Orders", fmt_int(daily.get("orders")), "WoW", fmt_delta_ratio(d_wow.get("orders")), tone_cls_from_delta(d_wow.get("orders")), "YoY", fmt_delta_ratio(d_yoy.get("orders")), tone_cls_from_delta(d_yoy.get("orders")), "#a78bfa"),
+        metric_tile("Revenue", fmt_krw_symbol(daily.get("revenue")), "WoW", fmt_delta_ratio(d_wow.get("revenue")), tone_cls_from_delta(d_wow.get("revenue")), "YoY", fmt_delta_ratio(d_yoy.get("revenue")), tone_cls_from_delta(d_yoy.get("revenue")), "#22c55e"),
+        metric_tile("CVR", fmt_cvr(daily.get("cvr")), "WoW", fmt_pp_from_fraction(d_wow.get("cvr_pp")), pp_tone_cls(d_wow.get("cvr_pp")), "YoY", fmt_pp_from_fraction(d_yoy.get("cvr_pp")), pp_tone_cls(d_yoy.get("cvr_pp")), "#f59e0b"),
+        metric_tile("Sign-up Users", fmt_int(daily.get("signups")), "WoW", fmt_delta_ratio(d_wow.get("signups")), tone_cls_from_delta(d_wow.get("signups")), "YoY", fmt_delta_ratio(d_yoy.get("signups")), tone_cls_from_delta(d_yoy.get("signups")), "#14b8a6"),
+    ])
+    daily_strip = section_shell(
+        "dailyKpi",
+        "DAILY SNAPSHOT",
+        "Daily KPI Summary",
+        "전일 핵심 퍼포먼스를 한 번에 비교할 수 있도록 카드 간 위계를 분리하고, 증감률은 즉시 눈에 들어오게 구성했습니다.",
+        f'기준일 <b class="text-slate-900">{daily.get("date") or "-"}</b><br/>updated {daily.get("updated") or ""}',
+        "#60a5fa",
+        f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{daily_tiles}</div>',
+    )
 
-    weekly_strip = f'''
-    <div class="glass-card rounded-3xl p-5 mb-6">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div class="text-base font-black text-slate-900">Weekly KPI Summary (7D)</div>
-        <div class="text-xs text-slate-500">기간: <b class="text-slate-700">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b> · updated: {weekly.get("updated") or ""}</div>
-      </div>
-      <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {kpi_tile("Sessions", fmt_int(weekly.get("sessions")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("sessions"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("sessions"))}</b>')}
-        {kpi_tile("Orders", fmt_int(weekly.get("orders")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("orders"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("orders"))}</b>')}
-        {kpi_tile("Revenue", fmt_krw_symbol(weekly.get("revenue")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("revenue"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("revenue"))}</b>')}
-        {kpi_tile("CVR", fmt_cvr(weekly.get("cvr")), f'WoW <b class="text-slate-900">{fmt_pp_from_fraction(w_wow.get("cvr_pp"))}</b>', f'YoY <b class="text-slate-900">{fmt_pp_from_fraction(w_yoy.get("cvr_pp"))}</b>')}
-        {kpi_tile("Sign-up Users", fmt_int(weekly.get("signups")), f'WoW <b class="text-slate-900">{fmt_delta_ratio(w_wow.get("signups"))}</b>', f'YoY <b class="text-slate-900">{fmt_delta_ratio(w_yoy.get("signups"))}</b>')}
-      </div>
-    </div>'''
+    weekly_tiles = "".join([
+        metric_tile("Sessions", fmt_int(weekly.get("sessions")), "WoW", fmt_delta_ratio(w_wow.get("sessions")), tone_cls_from_delta(w_wow.get("sessions")), "YoY", fmt_delta_ratio(w_yoy.get("sessions")), tone_cls_from_delta(w_yoy.get("sessions")), "#38bdf8"),
+        metric_tile("Orders", fmt_int(weekly.get("orders")), "WoW", fmt_delta_ratio(w_wow.get("orders")), tone_cls_from_delta(w_wow.get("orders")), "YoY", fmt_delta_ratio(w_yoy.get("orders")), tone_cls_from_delta(w_yoy.get("orders")), "#8b5cf6"),
+        metric_tile("Revenue", fmt_krw_symbol(weekly.get("revenue")), "WoW", fmt_delta_ratio(w_wow.get("revenue")), tone_cls_from_delta(w_wow.get("revenue")), "YoY", fmt_delta_ratio(w_yoy.get("revenue")), tone_cls_from_delta(w_yoy.get("revenue")), "#10b981"),
+        metric_tile("CVR", fmt_cvr(weekly.get("cvr")), "WoW", fmt_pp_from_fraction(w_wow.get("cvr_pp")), pp_tone_cls(w_wow.get("cvr_pp")), "YoY", fmt_pp_from_fraction(w_yoy.get("cvr_pp")), pp_tone_cls(w_yoy.get("cvr_pp")), "#f97316"),
+        metric_tile("Sign-up Users", fmt_int(weekly.get("signups")), "WoW", fmt_delta_ratio(w_wow.get("signups")), tone_cls_from_delta(w_wow.get("signups")), "YoY", fmt_delta_ratio(w_yoy.get("signups")), tone_cls_from_delta(w_yoy.get("signups")), "#06b6d4"),
+    ])
+    weekly_strip = section_shell(
+        "weeklyKpi",
+        "WEEKLY TREND",
+        "Weekly KPI Summary (7D)",
+        "최근 7일 누적 흐름을 별도 톤으로 구분해 일간 카드와 헷갈리지 않도록 분리했습니다.",
+        f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
+        "#8b5cf6",
+        f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{weekly_tiles}</div>',
+    )
 
-    owned_block = ""
+    owned_block = section_shell(
+        "ownedYtd",
+        "OWNED PERFORMANCE",
+        "OWNED YTD YoY (EDM + LMS + KAKAO)",
+        "build_owned_campaign 포털 집계 로직을 그대로 따라가도록 send_count 우선 사용, 부족한 경우에만 동일 규칙의 fallback을 적용합니다.",
+        f'상태 <b class="text-slate-900">{"ENABLED" if owned_ytd.get("enabled") else "DISABLED"}</b><br/>updated {owned_ytd.get("updated") or ""}',
+        "#14b8a6",
+        '<div class="empty-state rounded-[28px] p-6 text-sm text-slate-600">OWNED 데이터가 아직 없습니다.</div>',
+    )
+
     if owned_ytd.get("enabled"):
         tot = owned_ytd.get("total") or {}
         tot_prev = owned_ytd.get("total_prev") or {}
@@ -882,42 +958,81 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         prev_period = owned_ytd.get("prev_period") or "-"
         upd = owned_ytd.get("updated") or ""
         owned_dir = owned_ytd.get("owned_dir") or ""
-        owned_block = f'''
-        <div class="glass-card rounded-3xl p-5 mb-6">
-          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
-            <div class="flex items-center gap-3">
-              <div class="text-base font-black text-slate-900">OWNED YTD YoY (EDM + LMS + KAKAO)</div>
-              <span class="badge-soft">YTD</span>
-            </div>
-            <div class="text-xs text-slate-500">기간: <b class="text-slate-700">{period}</b> · YoY 비교: {prev_period} · updated: {upd}</div>
-          </div>
-          <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {kpi_tile("Send Count", fmt_int(tot.get("send_count")), f'YoY <b class="text-slate-900">{fmt_delta_ratio(tot_yoy.get("send_count"))}</b>', f'LY <b class="text-slate-900">{fmt_int(tot_prev.get("send_count"))}</b>')}
-            {kpi_tile("Sessions", fmt_int(tot.get("sessions")), f'YoY <b class="text-slate-900">{fmt_delta_ratio(tot_yoy.get("sessions"))}</b>', f'LY <b class="text-slate-900">{fmt_int(tot_prev.get("sessions"))}</b>')}
-            {kpi_tile("Revenue", fmt_krw_symbol(tot.get("revenue")), f'YoY <b class="text-slate-900">{fmt_delta_ratio(tot_yoy.get("revenue"))}</b>', f'LY <b class="text-slate-900">{fmt_krw_symbol(tot_prev.get("revenue"))}</b>')}
-            {kpi_tile("CVR", fmt_cvr(tot.get("cvr")), f'YoY <b class="text-slate-900">{fmt_pp_from_fraction(tot_yoy.get("cvr_pp"))}</b>', f'LY <b class="text-slate-900">{fmt_cvr(tot_prev.get("cvr"))}</b>')}
-          </div>
-          <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
-        '''
+        source = owned_ytd.get("source") or ""
+
+        owned_total_tiles = "".join([
+            metric_tile("Send Count", fmt_int(tot.get("send_count")), "YoY", fmt_delta_ratio(tot_yoy.get("send_count")), tone_cls_from_delta(tot_yoy.get("send_count")), "LY", fmt_int(tot_prev.get("send_count")), "text-slate-700", "#2dd4bf"),
+            metric_tile("Sessions", fmt_int(tot.get("sessions")), "YoY", fmt_delta_ratio(tot_yoy.get("sessions")), tone_cls_from_delta(tot_yoy.get("sessions")), "LY", fmt_int(tot_prev.get("sessions")), "text-slate-700", "#38bdf8"),
+            metric_tile("Revenue", fmt_krw_symbol(tot.get("revenue")), "YoY", fmt_delta_ratio(tot_yoy.get("revenue")), tone_cls_from_delta(tot_yoy.get("revenue")), "LY", fmt_krw_symbol(tot_prev.get("revenue")), "text-slate-700", "#22c55e"),
+            metric_tile("CVR", fmt_cvr(tot.get("cvr")), "YoY", fmt_pp_from_fraction(tot_yoy.get("cvr_pp")), pp_tone_cls(tot_yoy.get("cvr_pp")), "LY", fmt_cvr(tot_prev.get("cvr")), "text-slate-700", "#f59e0b"),
+        ])
+
         by_ch = owned_ytd.get("by_channel") or {}
+        channel_cards = []
+        channel_accents = {"EDM": "#60a5fa", "LMS": "#a78bfa", "KAKAO": "#f59e0b"}
         for ch in OWNED_CHANNELS:
             cur = (by_ch.get(ch) or {}).get("cur") or {}
             prev = (by_ch.get(ch) or {}).get("prev") or {}
             yoy = (by_ch.get(ch) or {}).get("yoy") or {}
-            owned_block += f'''
-            <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-              <div class="flex items-center justify-between">
-                <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{ch} YTD</div>
-                <span class="badge-soft">YoY</span>
+            accent = channel_accents.get(ch, "#94a3b8")
+            channel_cards.append(f'''
+            <article class="channel-card reveal rounded-[28px] p-5" style="--accent:{accent};">
+              <div class="channel-top flex items-start justify-between gap-3">
+                <div>
+                  <div class="section-eyebrow">{ch}</div>
+                  <h3 class="mt-2 text-xl font-black tracking-tight text-slate-950">{ch} YTD</h3>
+                </div>
+                <span class="channel-pill">LY / YoY</span>
               </div>
-              <div class="mt-2 grid grid-cols-2 gap-3">
-                <div><div class="text-xs text-slate-500">Send Count</div><div class="text-lg font-black text-slate-900">{fmt_int(cur.get("send_count"))}</div><div class="text-[11px] text-slate-500">LY {fmt_int(prev.get("send_count"))} · YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
-                <div><div class="text-xs text-slate-500">Sessions</div><div class="text-lg font-black text-slate-900">{fmt_int(cur.get("sessions"))}</div><div class="text-[11px] text-slate-500">LY {fmt_int(prev.get("sessions"))} · YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
-                <div><div class="text-xs text-slate-500">Revenue</div><div class="text-lg font-black text-slate-900">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="text-[11px] text-slate-500">LY {fmt_krw_symbol(prev.get("revenue"))} · YoY <b class="text-slate-900">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
-                <div><div class="text-xs text-slate-500">CVR</div><div class="text-lg font-black text-slate-900">{fmt_cvr(cur.get("cvr"))}</div><div class="text-[11px] text-slate-500">LY {fmt_cvr(prev.get("cvr"))} · YoY <b class="text-slate-900">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
+              <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="channel-metric"><div class="k">Send Count</div><div class="v metric-value" data-countup="{fmt_int(cur.get("send_count"))}">{fmt_int(cur.get("send_count"))}</div><div class="s">LY {fmt_int(prev.get("send_count"))} · <b class="{tone_cls_from_delta(yoy.get("send_count"))}">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
+                <div class="channel-metric"><div class="k">Sessions</div><div class="v metric-value" data-countup="{fmt_int(cur.get("sessions"))}">{fmt_int(cur.get("sessions"))}</div><div class="s">LY {fmt_int(prev.get("sessions"))} · <b class="{tone_cls_from_delta(yoy.get("sessions"))}">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
+                <div class="channel-metric"><div class="k">Revenue</div><div class="v metric-value" data-countup="{fmt_krw_symbol(cur.get("revenue"))}">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="s">LY {fmt_krw_symbol(prev.get("revenue"))} · <b class="{tone_cls_from_delta(yoy.get("revenue"))}">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
+                <div class="channel-metric"><div class="k">CVR</div><div class="v metric-value" data-countup="{fmt_cvr(cur.get("cvr"))}">{fmt_cvr(cur.get("cvr"))}</div><div class="s">LY {fmt_cvr(prev.get("cvr"))} · <b class="{pp_tone_cls(yoy.get("cvr_pp"))}">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
               </div>
-            </div>'''
-        owned_block += f'''</div><div class="mt-3 text-[11px] text-slate-500">source: {owned_dir}</div></div>'''
+            </article>
+            ''')
+
+        owned_inner = f'''
+        <div class="grid grid-cols-1 xl:grid-cols-[1.2fr_.8fr] gap-4 items-stretch">
+          <div class="insight-panel rounded-[28px] p-5 sm:p-6 reveal">
+            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+              <div>
+                <div class="section-eyebrow">YTD TOTAL</div>
+                <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-950">누적 전체 요약</h3>
+                <p class="mt-2 text-sm text-slate-600">당해연도 1월 1일부터 어제까지 누적 기준이며, 전년은 동일 MM-DD cutoff로 맞춰 비교합니다.</p>
+              </div>
+              <div class="text-xs text-slate-600 leading-6">
+                기간 <b class="text-slate-900">{period}</b><br/>
+                YoY 비교 <b class="text-slate-900">{prev_period}</b><br/>
+                updated {upd}
+              </div>
+            </div>
+            <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">{owned_total_tiles}</div>
+          </div>
+          <div class="logic-panel rounded-[28px] p-5 reveal">
+            <div class="section-eyebrow">LOGIC TRACE</div>
+            <h3 class="mt-2 text-xl font-black tracking-tight text-slate-950">Owned YTD 계산 기준</h3>
+            <div class="mt-4 space-y-3 text-sm text-slate-600">
+              <div class="logic-row"><span>send_count</span><b>builder 값 우선</b></div>
+              <div class="logic-row"><span>fallback</span><b>동일 grouping 규칙</b></div>
+              <div class="logic-row"><span>KAKAO</span><b>KAKAO_CH_EVENT + KAKAO_CH_MESSAGE_*</b></div>
+              <div class="logic-row"><span>source</span><b class="truncate max-w-[18rem] inline-block align-bottom">{source or owned_dir}</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-4">{''.join(channel_cards)}</div>
+        <div class="mt-3 px-1 text-[11px] text-slate-500">owned_dir: {owned_dir}</div>
+        '''
+        owned_block = section_shell(
+            "ownedYtd",
+            "OWNED PERFORMANCE",
+            "OWNED YTD YoY (EDM + LMS + KAKAO)",
+            "채널별 카드 톤을 분리해서 EDM/LMS/KAKAO가 한눈에 구분되도록 구성하고, 총합/채널/로직 설명 블록을 계층화했습니다.",
+            f'기간 <b class="text-slate-900">{period}</b><br/>updated {upd}',
+            "#14b8a6",
+            owned_inner,
+        )
 
     return f'''<!doctype html>
 <html lang="ko">
@@ -927,23 +1042,273 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
   <title>CSK E-COMM | 오늘의 핵심 요약</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root {{ --brand:#002d72; }}
-    body{{ background: transparent; font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; }}
-    .glass-card{{ background: rgba(255,255,255,0.70); backdrop-filter: blur(14px); border: 1px solid rgba(15,23,42,0.06); box-shadow: 0 16px 50px rgba(15,23,42,0.08); }}
-    .badge-soft{{ font-size:11px; font-weight:900; padding:6px 10px; border-radius:999px; background: rgba(15,23,42,.06); color: rgba(15,23,42,.70); }}
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;700;800&display=swap');
+    :root {{
+      --brand:#002d72;
+      --bg-a:#f6f8fb;
+      --bg-b:#eef4ff;
+      --ink:#0f172a;
+    }}
+    * {{ box-sizing:border-box; }}
+    html {{ scroll-behavior:smooth; }}
+    body {{
+      margin:0;
+      min-height:100vh;
+      color:var(--ink);
+      font-family:'Plus Jakarta Sans',sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(96,165,250,.22), transparent 32%),
+        radial-gradient(circle at top right, rgba(45,212,191,.18), transparent 28%),
+        linear-gradient(180deg, var(--bg-b) 0%, #f8fafc 34%, #eef2ff 100%);
+    }}
+    .hero-shell {{
+      position:relative;
+      overflow:hidden;
+      background:linear-gradient(135deg, rgba(255,255,255,.88), rgba(255,255,255,.64));
+      border:1px solid rgba(255,255,255,.78);
+      backdrop-filter: blur(20px);
+      box-shadow:0 28px 70px rgba(15,23,42,.10);
+    }}
+    .hero-shell::before {{
+      content:"";
+      position:absolute;
+      inset:-20% auto auto -10%;
+      width:18rem;
+      height:18rem;
+      background:radial-gradient(circle, rgba(96,165,250,.28), transparent 65%);
+      filter:blur(10px);
+      pointer-events:none;
+    }}
+    .hero-shell::after {{
+      content:"";
+      position:absolute;
+      right:-3rem;
+      top:-4rem;
+      width:16rem;
+      height:16rem;
+      background:radial-gradient(circle, rgba(20,184,166,.22), transparent 66%);
+      filter:blur(6px);
+      pointer-events:none;
+    }}
+    .glass-card, .summary-section > div, .metric-card, .channel-card, .logic-panel, .insight-panel, .empty-state {{
+      background:linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.68));
+      backdrop-filter:blur(20px);
+      border:1px solid rgba(255,255,255,.72);
+      box-shadow:0 18px 48px rgba(15,23,42,.08);
+    }}
+    .section-border {{
+      background:linear-gradient(135deg, color-mix(in srgb, var(--section-accent) 45%, white) 0%, rgba(255,255,255,.78) 28%, rgba(255,255,255,.28) 100%);
+      opacity:.95;
+    }}
+    .section-eyebrow {{
+      display:inline-flex;
+      align-items:center;
+      gap:.45rem;
+      padding:.45rem .8rem;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.22em;
+      text-transform:uppercase;
+      color:#0f172a;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(255,255,255,.8);
+      box-shadow:0 10px 26px rgba(15,23,42,.06);
+    }}
+    .section-meta {{
+      padding:1rem 1.1rem;
+      border-radius:24px;
+      background:rgba(255,255,255,.60);
+      border:1px solid rgba(255,255,255,.72);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
+      min-width:min(100%, 20rem);
+    }}
+    .metric-card {{
+      position:relative;
+      overflow:hidden;
+      transform:translateY(0) scale(1);
+      transition:transform .45s cubic-bezier(.2,.8,.2,1), box-shadow .45s ease, border-color .45s ease;
+      border:1px solid rgba(255,255,255,.75);
+    }}
+    .metric-card:hover, .channel-card:hover, .logic-panel:hover, .insight-panel:hover {{
+      transform:translateY(-6px) scale(1.01);
+      box-shadow:0 28px 64px rgba(15,23,42,.12);
+    }}
+    .metric-card::before, .channel-card::before {{
+      content:"";
+      position:absolute;
+      inset:0 auto 0 0;
+      width:4px;
+      background:linear-gradient(180deg, var(--accent, #94a3b8), transparent 85%);
+    }}
+    .metric-glow {{
+      position:absolute;
+      inset:auto -12% -45% auto;
+      width:8rem;
+      height:8rem;
+      background:radial-gradient(circle, color-mix(in srgb, var(--accent, #94a3b8) 30%, white), transparent 68%);
+      pointer-events:none;
+      filter:blur(4px);
+      opacity:.85;
+    }}
+    .channel-card {{ position:relative; overflow:hidden; }}
+    .channel-pill {{
+      display:inline-flex;
+      align-items:center;
+      padding:.42rem .78rem;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:800;
+      color:#334155;
+      background:rgba(255,255,255,.74);
+      border:1px solid rgba(255,255,255,.78);
+    }}
+    .channel-metric {{
+      padding:1rem;
+      border-radius:22px;
+      background:rgba(255,255,255,.74);
+      border:1px solid rgba(255,255,255,.78);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
+    }}
+    .channel-metric .k {{ font-size:11px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:#64748b; }}
+    .channel-metric .v {{ margin-top:.5rem; font-size:1.45rem; font-weight:900; line-height:1.1; color:#020617; }}
+    .channel-metric .s {{ margin-top:.45rem; font-size:11px; color:#64748b; }}
+    .logic-row {{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:1rem;
+      padding:.9rem 1rem;
+      border-radius:20px;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(255,255,255,.78);
+    }}
+    .logic-row span {{ color:#64748b; font-size:12px; text-transform:uppercase; letter-spacing:.16em; font-weight:800; }}
+    .logic-row b {{ color:#0f172a; font-size:12px; font-weight:900; }}
+    .nav-chip {{
+      display:inline-flex;
+      align-items:center;
+      gap:.45rem;
+      padding:.7rem 1rem;
+      border-radius:999px;
+      background:rgba(255,255,255,.7);
+      border:1px solid rgba(255,255,255,.8);
+      font-size:12px;
+      font-weight:800;
+      color:#334155;
+      text-decoration:none;
+      transition:transform .25s ease, background .25s ease, box-shadow .25s ease;
+      box-shadow:0 10px 24px rgba(15,23,42,.06);
+    }}
+    .nav-chip:hover {{ transform:translateY(-2px); background:rgba(255,255,255,.92); }}
+    .reveal {{ opacity:0; transform:translateY(24px) scale(.985); animation:riseIn .9s cubic-bezier(.2,.8,.2,1) forwards; }}
+    .summary-section:nth-of-type(1) {{ animation-delay:.08s; }}
+    .summary-section:nth-of-type(2) {{ animation-delay:.18s; }}
+    .summary-section:nth-of-type(3) {{ animation-delay:.28s; }}
+    .metric-card:nth-child(1) {{ animation-delay:.12s; }}
+    .metric-card:nth-child(2) {{ animation-delay:.18s; }}
+    .metric-card:nth-child(3) {{ animation-delay:.24s; }}
+    .metric-card:nth-child(4) {{ animation-delay:.30s; }}
+    .metric-card:nth-child(5) {{ animation-delay:.36s; }}
+    .channel-card:nth-child(1) {{ animation-delay:.14s; }}
+    .channel-card:nth-child(2) {{ animation-delay:.22s; }}
+    .channel-card:nth-child(3) {{ animation-delay:.30s; }}
+    @keyframes riseIn {{
+      0% {{ opacity:0; transform:translateY(26px) scale(.982); }}
+      60% {{ opacity:1; transform:translateY(-4px) scale(1.006); }}
+      100% {{ opacity:1; transform:translateY(0) scale(1); }}
+    }}
+    @keyframes shimmer {{
+      0% {{ transform:translateX(-120%) skewX(-14deg); opacity:0; }}
+      30% {{ opacity:.65; }}
+      100% {{ transform:translateX(220%) skewX(-14deg); opacity:0; }}
+    }}
+    .hero-shimmer {{
+      position:absolute;
+      inset:0 auto 0 -30%;
+      width:30%;
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+      animation:shimmer 4.8s ease-in-out infinite;
+      pointer-events:none;
+    }}
+    @media (max-width: 640px) {{
+      .section-meta {{ min-width:0; width:100%; }}
+    }}
   </style>
 </head>
 <body>
-  <div id="summaryTop" class="px-2 sm:px-6 py-6">
-    <div class="mb-6">
-      <div class="text-3xl sm:text-4xl font-black tracking-tight">오늘의 핵심 요약</div>
-      <div class="mt-2 text-xs text-slate-500">기준일 기본값: 어제(KST) · generated: {now_kst_label()}</div>
-    </div>
-    <section id="dailyKpi">{daily_strip}</section>
-    <section id="weeklyKpi">{weekly_strip}</section>
-    <section id="ownedYtd">{owned_block}</section>
+  <div class="mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
+    <header class="hero-shell reveal rounded-[36px] px-5 py-6 sm:px-7 sm:py-8 mb-7">
+      <div class="hero-shimmer"></div>
+      <div class="relative z-10 flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
+        <div>
+          <div class="section-eyebrow">CSK E-COMM SUMMARY</div>
+          <h1 class="mt-3 text-3xl sm:text-5xl font-black tracking-[-0.04em] text-slate-950">오늘의 핵심 요약</h1>
+          <p class="mt-3 text-sm sm:text-base text-slate-600 max-w-3xl">Daily · Weekly · Owned YTD를 같은 스타일 안에서 명확히 다른 레이어로 분리해, 섹션 전환이 바로 인지되도록 재정렬했습니다.</p>
+        </div>
+        <div class="section-meta">
+          generated <b class="text-slate-900">{now_kst_label()}</b><br/>
+          기준일 기본값 <b class="text-slate-900">어제 (KST)</b>
+        </div>
+      </div>
+      <div class="relative z-10 mt-5 flex flex-wrap gap-2">
+        <a href="#dailyKpi" class="nav-chip">Daily KPI</a>
+        <a href="#weeklyKpi" class="nav-chip">Weekly KPI</a>
+        <a href="#ownedYtd" class="nav-chip">Owned YTD YoY</a>
+      </div>
+    </header>
+    {daily_strip}
+    {weekly_strip}
+    {owned_block}
   </div>
+  <script>
+    (() => {{
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const easeOutExpo = (t) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+      const parseDisplayNumber = (text) => {{
+        const raw = (text || '').trim();
+        if (!raw || raw === '-') return null;
+        const isCurrency = raw.includes('₩');
+        const isPp = raw.includes('%p');
+        const isPercent = !isPp && raw.includes('%');
+        const num = Number(raw.replace(/[^0-9.-]/g, ''));
+        if (Number.isNaN(num)) return null;
+        return {{ raw, num, isCurrency, isPercent, isPp }};
+      }};
+      const formatDisplayNumber = (meta, value) => {{
+        if (!meta) return '';
+        if (meta.isPp) return `${{value.toFixed(2)}}%p`;
+        if (meta.isPercent) return `${{value.toFixed(2)}}%`;
+        if (meta.isCurrency) return `₩${{Math.round(value).toLocaleString('en-US')}}`;
+        return `${{Math.round(value).toLocaleString('en-US')}}`;
+      }};
+      const animateValue = (el) => {{
+        const meta = parseDisplayNumber(el.dataset.countup || el.textContent);
+        if (!meta) return;
+        const duration = meta.isCurrency ? 1500 : 1250;
+        const start = performance.now();
+        const tick = (now) => {{
+          const p = Math.min(1, (now - start) / duration);
+          const eased = easeOutExpo(p);
+          const cur = meta.num * eased;
+          el.textContent = formatDisplayNumber(meta, cur);
+          if (p < 1) requestAnimationFrame(tick);
+          else el.textContent = meta.raw;
+        }};
+        requestAnimationFrame(tick);
+      }};
+      if (!prefersReduced) {{
+        const valueObserver = new IntersectionObserver((entries, obs) => {{
+          entries.forEach((entry) => {{
+            if (!entry.isIntersecting) return;
+            animateValue(entry.target);
+            obs.unobserve(entry.target);
+          }});
+        }}, {{ threshold: 0.45 }});
+        document.querySelectorAll('.metric-value').forEach((el) => valueObserver.observe(el));
+      }}
+    }})();
+  </script>
 </body>
 </html>'''
 
