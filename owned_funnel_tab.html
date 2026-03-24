@@ -52,8 +52,8 @@
     .detail-note{margin-top:14px;font-size:12px;font-weight:700;color:#64748b;line-height:1.5}
     .funnel-wrap{position:relative;padding:14px 0 4px}
     .funnel-flow{display:grid;gap:18px}
-    .funnel-row{display:grid;grid-template-columns:minmax(0,1fr) 236px;gap:28px;align-items:center}
-    .funnel-lane{min-width:0}
+    .funnel-row{display:grid;grid-template-columns:300px minmax(0,1fr) 236px;gap:24px;align-items:stretch}
+    .funnel-stage-card{position:relative;border:1px solid rgba(191,219,254,.40);background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,250,252,.94));border-radius:28px;box-shadow:0 18px 40px rgba(15,23,42,.07);padding:18px 18px 16px;display:flex;flex-direction:column;justify-content:flex-start;min-height:220px;animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}.funnel-stage-card::before{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(29,78,216,.06),rgba(255,255,255,0) 52%);pointer-events:none}.funnel-stage-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;position:relative;z-index:1}.funnel-stage-card-title{margin-top:6px;font-size:18px;line-height:1.08;font-weight:900;letter-spacing:-.03em;color:#0f172a}.funnel-stage-card-current{font-size:32px;line-height:.95;font-weight:900;letter-spacing:-.05em;color:#0f172a;white-space:nowrap}.funnel-stage-card-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;position:relative;z-index:1}.funnel-stage-card-ref{margin-top:10px;display:grid;gap:6px;position:relative;z-index:1}.funnel-stage-card-refline{font-size:12px;line-height:1.35;font-weight:800;color:#64748b}.funnel-lane{min-width:0}
     .funnel-step-line{display:none}
     .funnel-track{position:relative;height:220px;border-radius:30px;border:1px solid rgba(191,219,254,.36);background:linear-gradient(180deg,rgba(239,246,255,.86),rgba(255,255,255,.4));overflow:hidden;padding:0 10px}
     .funnel-stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 22px 42px rgba(15,23,42,.13);height:168px;border-radius:26px;overflow:hidden;padding:16px 28px;min-width:0;max-width:100%;animation:funnelStageIn .96s cubic-bezier(.18,.86,.22,1) both}
@@ -69,7 +69,7 @@
     .stage-value .sub{font-size:21px;line-height:1.08;font-weight:800;white-space:nowrap;opacity:.96}
     .stage-bar-copy{display:none;position:relative;z-index:3}
     .stage-bar-num{font-size:52px;line-height:1;font-weight:900;letter-spacing:-.05em;text-shadow:0 1px 2px rgba(0,0,0,.12);white-space:nowrap}
-    .stage-panel{position:absolute;left:18px;bottom:18px;transform:none;width:min(348px,calc(100% - 36px));border-radius:22px;border:1px solid rgba(191,219,254,.46);background:rgba(255,255,255,.96);box-shadow:0 18px 40px rgba(15,23,42,.08);padding:14px 16px}
+    .stage-panel{display:none}
     .stage-panel-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
     .stage-panel-title{margin-top:6px;font-size:26px;line-height:1.05;font-weight:900;letter-spacing:-.03em;color:#0f172a}
     .stage-panel-current{font-size:34px;line-height:.95;font-weight:900;letter-spacing:-.05em;color:#0f172a;white-space:nowrap}
@@ -109,14 +109,14 @@
     .detailed-flow .stage-bar-copy{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
     .detailed-flow .drop-slot{height:252px;padding:18px 18px 24px}
     .detailed-flow .drop-fill{height:16px}
-    .compact-flow .stage-bar-copy,.compact-flow .stage-panel{display:none}
+    .compact-flow .stage-bar-copy,.compact-flow .stage-panel,.compact-flow .funnel-stage-card{display:none}
     @keyframes funnelStageIn{0%{opacity:0;transform:translate(-50%,-40%) scale(.82);filter:blur(2px)}55%{opacity:1;transform:translate(-50%,-50%) scale(1.03);filter:blur(0)}100%{opacity:1;transform:translate(-50%,-50%) scale(1);filter:blur(0)}}
     @keyframes funnelSheen{0%{left:-24%;opacity:0}22%{opacity:.55}100%{left:112%;opacity:0}}
     @keyframes dropIn{0%{opacity:0;transform:translate(-14px,-50%) scale(.88)}70%{opacity:1;transform:translate(0,-50%) scale(1.02)}100%{opacity:1;transform:translate(0,-50%) scale(1)}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes cardRise{0%{opacity:0;transform:translateY(18px);filter:blur(6px)}100%{opacity:1;transform:translateY(0);filter:blur(0)}}
-    @media (max-width: 1180px){.funnel-row{grid-template-columns:minmax(0,1fr) 206px;gap:20px}.funnel-track,.drop-slot{height:198px}.funnel-stage{height:150px;min-width:0}.stage-title{font-size:46px}.stage-value .num{font-size:70px}.stage-panel-title{font-size:22px}.stage-panel-current{font-size:28px}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:228px}.detailed-flow .funnel-stage{height:98px}.drop-rate{font-size:40px}}
-    @media (max-width: 900px){.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.funnel-row{grid-template-columns:minmax(0,1fr)}.funnel-track,.drop-slot{height:184px}.funnel-stage{height:138px;min-width:0}.drop-fill{height:14px}.drop-slot{padding:16px 16px 22px}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:236px}.detailed-flow .funnel-stage{height:96px;top:31%}}
+    @media (max-width: 1180px){.funnel-row{grid-template-columns:260px minmax(0,1fr) 206px;gap:18px}.funnel-stage-card{min-height:198px}.funnel-track,.drop-slot{height:198px}.funnel-stage{height:150px;min-width:0}.stage-title{font-size:46px}.stage-value .num{font-size:70px}.funnel-stage-card-title{font-size:17px}.funnel-stage-card-current{font-size:28px}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:228px}.detailed-flow .funnel-stage{height:98px}.drop-rate{font-size:40px}}
+    @media (max-width: 900px){.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.funnel-row{grid-template-columns:minmax(0,1fr)}.funnel-stage-card{min-height:auto}.funnel-track,.drop-slot{height:184px}.funnel-stage{height:138px;min-width:0}.drop-fill{height:14px}.drop-slot{padding:16px 16px 22px}.detailed-flow .funnel-track,.detailed-flow .drop-slot{height:236px}.detailed-flow .funnel-stage{height:96px;top:31%}}
     @media (max-width: 640px){.metric{font-size:38px}.metric-grid,.detail-grid{grid-template-columns:1fr}.funnel-track,.drop-slot{height:162px}.funnel-stage{height:124px;min-width:0;padding:14px 18px}.stage-title{font-size:38px}.stage-value .num{font-size:56px}.drop-rate{font-size:34px}.drop-count{font-size:14px}.drop-compare{font-size:11px}.stage-panel{left:12px;width:calc(100% - 24px);padding:12px 12px}.stage-panel-title{font-size:19px}.stage-panel-current{font-size:24px}.stage-chip{font-size:11px;padding:7px 10px}.funnel-step-line{font-size:11px}}
     .tab-panel{display:none}
     .tab-panel.active{display:block;animation:fadeUp .28s ease}
@@ -150,9 +150,6 @@
           <input id="endPicker" class="field rounded-2xl px-3 py-2 text-sm" type="date" />
         </div>
         <button id="btnApply" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Apply</button>
-        <button id="btnPrev" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Prev</button>
-        <button id="btnNext" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Next</button>
-        <button id="btnResetSelection" class="btn rounded-2xl px-4 py-2 text-sm" type="button">Reset Group</button>
       </div>
       <div class="mt-4 flex flex-wrap items-center gap-2">
         <div class="kicker">Segment</div>
@@ -166,7 +163,7 @@
       </div>
       <div class="mt-4 flex flex-wrap items-center gap-2">
         <div class="kicker">Compare</div>
-        <button class="chip rounded-full px-4 py-2 text-xs active" data-compare="prev" type="button">Prev</button>
+        <button class="chip rounded-full px-4 py-2 text-xs active" data-compare="all" type="button">ALL</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-compare="wow" type="button">WoW</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-compare="yoy" type="button">YoY</button>
       </div>
@@ -351,7 +348,7 @@
         view: 'week',
         tab: 'overview',
         segment: 'ALL',
-        compareMode: 'prev',
+        compareMode: 'all',
         available: [],
         selectedGroup: '',
         current: null,
@@ -367,9 +364,6 @@
         endPicker: document.getElementById('endPicker'),
         rangeBox: document.getElementById('rangeBox'),
         btnApply: document.getElementById('btnApply'),
-        btnPrev: document.getElementById('btnPrev'),
-        btnNext: document.getElementById('btnNext'),
-        btnResetSelection: document.getElementById('btnResetSelection'),
         loadingState: document.getElementById('loadingState'),
         errorState: document.getElementById('errorState'),
         contentArea: document.getElementById('contentArea'),
@@ -407,8 +401,9 @@
       const addDays = (dt, diff) => { const out = new Date(dt); out.setDate(out.getDate() + diff); return out; };
       const startOfWeekMon = (dt) => { const out = new Date(dt); const day = out.getDay(); out.setDate(out.getDate() + (day === 0 ? -6 : 1 - day)); return out; };
       const segmentLabel = (seg = state.segment) => SEGMENT_LABELS[seg] || seg;
-      const compareLabel = () => ({ prev:'Prev', wow:'WoW', yoy:'YoY' }[state.compareMode] || 'Prev');
-      const compareReferenceLabel = () => ({ prev:'Previous Period', wow:'Previous Week', yoy:'Last Year' }[state.compareMode] || 'Previous Period');
+      const compareLabel = (mode = state.compareMode) => ({ all:'ALL', wow:'WoW', yoy:'YoY' }[mode] || 'ALL');
+      const compareReferenceLabel = (mode = state.compareMode) => ({ all:'Reference', wow:'Previous Week', yoy:'Last Year' }[mode] || 'Reference');
+      const compareModesForDisplay = () => state.compareMode === 'all' ? ['wow','yoy'] : [state.compareMode];
       const ownedChildSegments = () => OWNED_SEGMENTS.slice(1);
 
       async function fetchJson(url){
@@ -468,7 +463,7 @@
       function previousRange(start, end){
         const span = Math.round((parseYmd(end) - parseYmd(start)) / 86400000) + 1;
 
-        if (state.compareMode === 'wow') {
+        if (state.compareMode === 'wow' || state.compareMode === 'all') {
           return {
             start: clamp(ymd(addDays(parseYmd(start), -7))),
             end: clamp(ymd(addDays(parseYmd(end), -7))),
@@ -489,6 +484,23 @@
         const prevEnd = clamp(ymd(addDays(parseYmd(start), -1)));
         const prevStart = clamp(ymd(addDays(parseYmd(prevEnd), -(span - 1))));
         return { start:prevStart, end:prevEnd };
+      }
+
+      function comparisonRanges(start, end){
+        const modes = compareModesForDisplay();
+        return modes.map((mode) => {
+          const span = Math.round((parseYmd(end) - parseYmd(start)) / 86400000) + 1;
+          if (mode === 'wow') {
+            return { mode, label: compareLabel(mode), referenceLabel: compareReferenceLabel(mode), range: { start: clamp(ymd(addDays(parseYmd(start), -7))), end: clamp(ymd(addDays(parseYmd(end), -7))) } };
+          }
+          if (mode === 'yoy') {
+            const shiftYear = (v) => { const dt = parseYmd(v); return clamp(ymd(new Date(dt.getFullYear() - 1, dt.getMonth(), dt.getDate()))); };
+            return { mode, label: compareLabel(mode), referenceLabel: compareReferenceLabel(mode), range: { start: shiftYear(start), end: shiftYear(end) } };
+          }
+          const prevEnd = clamp(ymd(addDays(parseYmd(start), -1)));
+          const prevStart = clamp(ymd(addDays(parseYmd(prevEnd), -(span - 1))));
+          return { mode, label: 'Prev', referenceLabel: 'Previous Period', range: { start: prevStart, end: prevEnd } };
+        });
       }
 
       async function loadRange(start, end){
@@ -837,32 +849,63 @@
       function renderFunnel(canvas, behavior, className='', options={}){
         const stages = behavior.stages;
         const compact = !!options.compact;
-        const compareBehavior = options.compareBehavior || null;
-        const referenceLabel = options.referenceLabel || compareReferenceLabel();
+        const compareBehaviors = Array.isArray(options.compareBehaviors) ? options.compareBehaviors : (options.compareBehavior ? [options.compareBehavior] : []);
         if (!stages.length) {
           canvas.innerHTML = `<div class="empty">No funnel stages available.</div>`;
           return;
         }
 
-        const compareStageMap = new Map((compareBehavior?.stages || []).map((stage) => [stage.key, stage]));
-        const compareStepMap = new Map((compareBehavior?.steps || []).map((step) => [`${step.from}|${step.to}`, step]));
+        const compareSets = compareBehaviors.map((entry) => ({
+          mode: entry.mode || 'wow',
+          label: entry.label || compareLabel(entry.mode || 'wow'),
+          referenceLabel: entry.referenceLabel || compareReferenceLabel(entry.mode || 'wow'),
+          stageMap: new Map((entry.behavior?.stages || []).map((stage) => [stage.key, stage])),
+          stepMap: new Map((entry.behavior?.steps || []).map((step) => [`${step.from}|${step.to}`, step])),
+        }));
 
         const html = [
           `<div class="funnel-flow ${compact ? 'compact-flow' : 'detailed-flow'}">`,
           ...stages.map((stage, i) => {
             const width = Math.min(100, Math.max(0, stage.width || 0));
             const dropWidth = i === 0 ? 0 : Math.min(100, Math.max(0, stage.drop || 0));
-            const compareStage = compareStageMap.get(stage.key);
-            const stageDeltaText = compareStage ? delta(stage.value, compareStage.value) : 'N/A';
-            const stageDeltaTone = compareStage ? deltaTone(stage.value - compareStage.value) : 'flat';
-            const stageReference = compareStage ? `${referenceLabel} ${fmt(compareStage.value)}` : `${referenceLabel} -`;
+            const stageComparisons = compareSets.map((set) => {
+              const ref = set.stageMap.get(stage.key);
+              return {
+                ...set,
+                deltaText: ref ? delta(stage.value, ref.value) : 'N/A',
+                tone: ref ? deltaTone(stage.value - ref.value) : 'flat',
+                referenceText: `${set.referenceLabel} ${ref ? fmt(ref.value) : '-'}`,
+              };
+            });
             const stepKey = i === 0 ? '' : `${stages[i - 1].label}|${stage.label}`;
-            const compareStep = i === 0 ? null : compareStepMap.get(stepKey);
-            const dropDeltaText = compareStep ? signedPointDelta(stage.drop, compareStep.drop, 1) : '';
-            const dropDeltaTone = compareStep ? deltaTone(stage.drop - compareStep.drop) : 'flat';
-            const dropReference = compareStep ? `${referenceLabel} ${fmtPct(compareStep.drop, 1)}` : `${referenceLabel} -`;
+            const dropComparisons = i === 0 ? [] : compareSets.map((set) => {
+              const ref = set.stepMap.get(stepKey);
+              return {
+                ...set,
+                deltaText: ref ? signedPointDelta(stage.drop, ref.drop, 1) : 'N/A',
+                tone: ref ? deltaTone(stage.drop - ref.drop) : 'flat',
+                referenceText: `${set.referenceLabel} ${ref ? fmtPct(ref.drop, 1) : '-'}`,
+              };
+            });
             return `
             <div class="funnel-row">
+              ${compact ? '' : `
+              <div class="funnel-stage-card" style="animation-delay:${i * 80}ms">
+                <div class="funnel-stage-card-head">
+                  <div>
+                    <div class="kicker">Stage ${String(i + 1).padStart(2,'0')}</div>
+                    <div class="funnel-stage-card-title">${esc(stage.label)}</div>
+                  </div>
+                  <div class="funnel-stage-card-current">${fmt(stage.value)}</div>
+                </div>
+                <div class="funnel-stage-card-meta">
+                  <div class="stage-chip">${fmtPct(stage.share, 1)} of sessions</div>
+                  ${stageComparisons.map((item) => `<div class="stage-chip delta ${item.tone}">${esc(item.label)} ${esc(item.deltaText)}</div>`).join('')}
+                </div>
+                <div class="funnel-stage-card-ref">
+                  ${stageComparisons.length ? stageComparisons.map((item) => `<div class="funnel-stage-card-refline">${esc(item.referenceText)}</div>`).join('') : `<div class="funnel-stage-card-refline">No comparison reference</div>`}
+                </div>
+              </div>`}
               <div class="funnel-lane">
                 <div class="funnel-track">
                   <div class="funnel-stage ${className}" data-stage="${Math.min(i + 1,5)}" style="width:${width.toFixed(1)}%;animation-delay:${i * 90}ms">
@@ -882,22 +925,6 @@
                       `}
                     </div>
                   </div>
-                  ${compact ? '' : `
-                    <div class="stage-panel">
-                      <div class="stage-panel-head">
-                        <div>
-                          <div class="kicker">Stage ${String(i + 1).padStart(2,'0')}</div>
-                          <div class="stage-panel-title">${esc(stage.label)}</div>
-                        </div>
-                        <div class="stage-panel-current">${fmt(stage.value)}</div>
-                      </div>
-                      <div class="stage-panel-meta">
-                        <div class="stage-chip">${fmtPct(stage.share, 1)} of sessions</div>
-                        <div class="stage-chip delta ${stageDeltaTone}">${esc(compareLabel())} ${esc(stageDeltaText)}</div>
-                      </div>
-                      <div class="stage-reference">${esc(stageReference)}</div>
-                    </div>
-                  `}
                 </div>
               </div>
               <div class="drop-slot ${i === 0 ? 'baseline' : ''}">
@@ -905,7 +932,7 @@
                   <div class="drop-label">
                     <div class="drop-kicker">Flow</div>
                     <div class="drop-rate">Baseline</div>
-                    <div class="drop-count">${compact ? 'Start stage for the selected funnel' : `${referenceLabel} value is shown in each step card`}</div>
+                    <div class="drop-count">${compact ? 'Start stage for the selected funnel' : 'Comparison deltas are shown in the left stage cards.'}</div>
                   </div>
                 ` : `
                   <div class="drop-fill" style="width:${dropWidth.toFixed(1)}%;animation-delay:${i * 90 + 120}ms"></div>
@@ -913,7 +940,8 @@
                     <div class="drop-kicker">${DROP_LABEL}</div>
                     <div class="drop-rate">${fmtPct(stage.drop,1)}</div>
                     <div class="drop-count">${esc(stepPath(stages[i - 1].label, stage.label))}</div>
-                    ${compareStep ? `<div class="drop-compare ${dropDeltaTone}">${esc(compareLabel())} ${esc(dropDeltaText)}</div><div class="drop-reference">${esc(dropReference)}</div>` : `<div class="drop-reference">${esc(dropReference)}</div>`}
+                    ${dropComparisons.map((item) => `<div class="drop-compare ${item.tone}">${esc(item.label)} ${esc(item.deltaText)}</div>`).join('')}
+                    ${dropComparisons.map((item) => `<div class="drop-reference">${esc(item.referenceText)}</div>`).join('')}
                   </div>`}
               </div>
             </div>`;
@@ -926,11 +954,21 @@
 
       function render(){
         const range = state.current.range;
-        const prevRange = state.current.previousRange;
+        const compareEntries = state.current.comparisons || [];
+        const wowEntry = compareEntries.find((entry) => entry.mode === 'wow') || null;
+        const yoyEntry = compareEntries.find((entry) => entry.mode === 'yoy') || null;
+        const primaryEntry = state.compareMode === 'yoy' ? (yoyEntry || wowEntry) : (wowEntry || yoyEntry);
         const groups = summarizeGroupsForSegment(state.current.current, state.segment);
         const currentModel = modelFor(state.current.current, state.segment, state.selectedGroup);
-        const previousModel = modelFor(state.current.previous, state.segment, '');
         const selectedGroup = groups.find((row) => row.key === state.selectedGroup);
+        const comparisonModelFor = (entry, groupKey = '') => entry ? modelFor(entry.bundle, state.segment, groupKey) : null;
+        const wowModel = comparisonModelFor(wowEntry);
+        const yoyModel = comparisonModelFor(yoyEntry);
+        const primaryModel = comparisonModelFor(primaryEntry);
+        const dualFoot = (getter, formatter = (v) => v) => [
+          wowModel ? `WoW ${formatter(getter(wowModel))}` : null,
+          yoyModel ? `YoY ${formatter(getter(yoyModel))}` : null,
+        ].filter(Boolean).join(' | ') || 'No comparison reference';
 
         els.periodLabel.textContent = `Period | ${range.start === range.end ? range.start : `${range.start} to ${range.end}`}`;
         els.scopeLabel.textContent = `${segmentLabel()} | ${selectedGroup ? selectedGroup.label : 'Total period'}`;
@@ -939,72 +977,76 @@
         els.groupHeading.textContent = ['OWNED','EDM','LMS','KAKAO'].includes(state.segment) ? 'MMDD Groups In Scope' : 'Dates In Scope';
 
         const currentPdp = stageMetricValue(currentModel, ['pdpViews', 'users']);
-        const previousPdp = stageMetricValue(previousModel, ['pdpViews', 'users']);
         const currentCart = stageMetricValue(currentModel, 'addToCart');
-        const previousCart = stageMetricValue(previousModel, 'addToCart');
         const currentCheckout = stageMetricValue(currentModel, 'beginCheckout');
-        const previousCheckout = stageMetricValue(previousModel, 'beginCheckout');
         const summaryCards = [
           {
             label: 'Sessions',
             value: fmt(currentModel.agg.sessions),
             currentValue: fmt(currentModel.agg.sessions),
-            previousValue: fmt(previousModel.agg.sessions),
-            deltaText: delta(currentModel.agg.sessions, previousModel.agg.sessions),
-            tone: deltaTone(currentModel.agg.sessions - previousModel.agg.sessions),
-            footnote: `${compareLabel()} reference ${fmt(previousModel.agg.sessions)}`,
+            previousValue: primaryModel ? fmt(primaryModel.agg.sessions) : '-',
+            deltaText: primaryModel ? delta(currentModel.agg.sessions, primaryModel.agg.sessions) : 'N/A',
+            tone: primaryModel ? deltaTone(currentModel.agg.sessions - primaryModel.agg.sessions) : 'flat',
+            footnote: dualFoot((m) => m.agg.sessions, (v) => fmt(v)),
           },
           {
             label: 'PDP Views',
             value: fmt(currentPdp),
             currentValue: fmt(currentPdp),
-            previousValue: fmt(previousPdp),
-            deltaText: delta(currentPdp, previousPdp),
-            tone: deltaTone(currentPdp - previousPdp),
-            footnote: 'Behavior stage volume',
+            previousValue: primaryModel ? fmt(stageMetricValue(primaryModel, ['pdpViews', 'users'])) : '-',
+            deltaText: primaryModel ? delta(currentPdp, stageMetricValue(primaryModel, ['pdpViews', 'users'])) : 'N/A',
+            tone: primaryModel ? deltaTone(currentPdp - stageMetricValue(primaryModel, ['pdpViews', 'users'])) : 'flat',
+            footnote: dualFoot((m) => stageMetricValue(m, ['pdpViews', 'users']), (v) => fmt(v)),
           },
           {
             label: 'Add to Cart',
             value: fmt(currentCart),
             currentValue: fmt(currentCart),
-            previousValue: fmt(previousCart),
-            deltaText: delta(currentCart, previousCart),
-            tone: deltaTone(currentCart - previousCart),
-            footnote: 'Cart intent progression',
+            previousValue: primaryModel ? fmt(stageMetricValue(primaryModel, 'addToCart')) : '-',
+            deltaText: primaryModel ? delta(currentCart, stageMetricValue(primaryModel, 'addToCart')) : 'N/A',
+            tone: primaryModel ? deltaTone(currentCart - stageMetricValue(primaryModel, 'addToCart')) : 'flat',
+            footnote: dualFoot((m) => stageMetricValue(m, 'addToCart'), (v) => fmt(v)),
           },
           {
             label: 'Checkout',
             value: fmt(currentCheckout),
             currentValue: fmt(currentCheckout),
-            previousValue: fmt(previousCheckout),
-            deltaText: delta(currentCheckout, previousCheckout),
-            tone: deltaTone(currentCheckout - previousCheckout),
-            footnote: 'Checkout starts in scope',
+            previousValue: primaryModel ? fmt(stageMetricValue(primaryModel, 'beginCheckout')) : '-',
+            deltaText: primaryModel ? delta(currentCheckout, stageMetricValue(primaryModel, 'beginCheckout')) : 'N/A',
+            tone: primaryModel ? deltaTone(currentCheckout - stageMetricValue(primaryModel, 'beginCheckout')) : 'flat',
+            footnote: dualFoot((m) => stageMetricValue(m, 'beginCheckout'), (v) => fmt(v)),
           },
           {
             label: 'Orders',
             value: fmt(currentModel.agg.orders),
             currentValue: fmt(currentModel.agg.orders),
-            previousValue: fmt(previousModel.agg.orders),
-            deltaText: delta(currentModel.agg.orders, previousModel.agg.orders),
-            tone: deltaTone(currentModel.agg.orders - previousModel.agg.orders),
-            footnote: `Revenue ${fmtMoney(currentModel.agg.revenue)}`,
+            previousValue: primaryModel ? fmt(primaryModel.agg.orders) : '-',
+            deltaText: primaryModel ? delta(currentModel.agg.orders, primaryModel.agg.orders) : 'N/A',
+            tone: primaryModel ? deltaTone(currentModel.agg.orders - primaryModel.agg.orders) : 'flat',
+            footnote: dualFoot((m) => m.agg.orders, (v) => fmt(v)),
           },
           {
             label: 'Session CVR',
             value: fmtPct(currentModel.sessionCvr, 2),
             currentValue: fmtPct(currentModel.sessionCvr, 2),
-            previousValue: fmtPct(previousModel.sessionCvr, 2),
-            deltaText: signedPointDelta(currentModel.sessionCvr, previousModel.sessionCvr),
-            tone: deltaTone(currentModel.sessionCvr - previousModel.sessionCvr),
-            footnote: `AOV ${fmtMoney(currentModel.aov)}`,
+            previousValue: primaryModel ? fmtPct(primaryModel.sessionCvr, 2) : '-',
+            deltaText: primaryModel ? signedPointDelta(currentModel.sessionCvr, primaryModel.sessionCvr) : 'N/A',
+            tone: primaryModel ? deltaTone(currentModel.sessionCvr - primaryModel.sessionCvr) : 'flat',
+            footnote: [
+              wowModel ? `WoW ${fmtPct(wowModel.sessionCvr, 2)}` : null,
+              yoyModel ? `YoY ${fmtPct(yoyModel.sessionCvr, 2)}` : null,
+            ].filter(Boolean).join(' | ') || `AOV ${fmtMoney(currentModel.aov)}`,
           },
         ];
         els.summaryCards.innerHTML = summaryCards.map((card, idx) => buildMetricCard(card, idx)).join('');
 
         renderFunnel(els.funnelCanvas, currentModel.behavior, '', {
-          compareBehavior: previousModel.behavior,
-          referenceLabel: compareReferenceLabel(),
+          compareBehaviors: compareEntries.map((entry) => ({
+            mode: entry.mode,
+            label: entry.label,
+            referenceLabel: entry.referenceLabel,
+            behavior: modelFor(entry.bundle, state.segment, '').behavior,
+          })),
         });
         els.funnelNotice.innerHTML = currentModel.behavior.notes.length
           ? currentModel.behavior.notes.map((n) => `<div class="warn">${esc(n)}</div>`).join('')
@@ -1022,9 +1064,9 @@
             note: selectedGroup && selectedGroup.title ? selectedGroup.title : 'All rows included in the selected date range.',
           },
           {
-            label: `Comparison ${compareLabel()}`,
-            value: `${prevRange.start} - ${prevRange.end}`,
-            note: compareReferenceLabel(),
+            label: 'Comparison Window',
+            value: compareEntries.length ? compareEntries.map((entry) => `${entry.label} ${entry.range.start} - ${entry.range.end}`).join(' | ') : 'No comparison',
+            note: 'WoW / YoY references',
           },
           {
             label: 'Revenue',
@@ -1299,7 +1341,7 @@
         els.contentArea.classList.add('hidden');
         try {
           const range = currentRange();
-          const prev = previousRange(range.start, range.end);
+          const comparisonsMeta = comparisonRanges(range.start, range.end);
           els.rangeBox.classList.toggle('hidden', state.view !== 'range');
           document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-view') === state.view));
           document.querySelectorAll('[data-segment]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-segment') === state.segment));
@@ -1307,8 +1349,9 @@
           document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === state.tab));
           document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `panel-${state.tab}`));
 
-          const [currentBundle, previousBundle] = await Promise.all([loadRange(range.start, range.end), loadRange(prev.start, prev.end)]);
-          state.current = { range, previousRange: prev, current: currentBundle, previous: previousBundle };
+          const currentBundle = await loadRange(range.start, range.end);
+          const comparisonBundles = await Promise.all(comparisonsMeta.map(async (meta) => ({ ...meta, bundle: await loadRange(meta.range.start, meta.range.end) })));
+          state.current = { range, comparisons: comparisonBundles, current: currentBundle };
 
           const currentGroups = summarizeGroupsForSegment(currentBundle, state.segment);
           if (state.selectedGroup && !currentGroups.some((row) => row.key === state.selectedGroup)) state.selectedGroup = '';
@@ -1365,7 +1408,7 @@
             await refresh();
           }));
           document.querySelectorAll('[data-compare]').forEach((b) => b.addEventListener('click', async () => {
-            state.compareMode = b.getAttribute('data-compare') || 'prev';
+            state.compareMode = b.getAttribute('data-compare') || 'all';
             await refresh();
           }));
           document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', async () => {
@@ -1374,9 +1417,6 @@
           }));
 
           els.btnApply.addEventListener('click', async () => { state.selectedGroup = ''; await refresh(); });
-          els.btnPrev.addEventListener('click', async () => { shift(-1); state.selectedGroup = ''; await refresh(); });
-          els.btnNext.addEventListener('click', async () => { shift(1); state.selectedGroup = ''; await refresh(); });
-          els.btnResetSelection.addEventListener('click', () => { state.selectedGroup = ''; if(state.current) render(); });
 
           els.cmpASegment.addEventListener('change', () => { state.compare.A.segment = els.cmpASegment.value; state.compare.A.group = ''; renderCompare(); });
           els.cmpBSegment.addEventListener('change', () => { state.compare.B.segment = els.cmpBSegment.value; state.compare.B.group = ''; renderCompare(); });
