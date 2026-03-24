@@ -187,10 +187,13 @@ def get_safe_animation_css():
     }
 
     .report-shell {
-      width: calc(100vw - 24px);
-      max-width: none !important;
-      animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
+      width: 100vw;
+      max-width: 100vw !important;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      animation: pageReveal 1.05s cubic-bezier(.16,.84,.22,1) both;
       transform-origin: top center;
+      overflow-x: clip;
     }
 
     body.page-exit .report-shell {
@@ -291,16 +294,18 @@ def get_safe_animation_css():
     .reveal-block,
     .kpi-card {
       opacity: 0;
-      transform: translateY(22px) scale(.985);
-      will-change: transform, opacity;
+      transform: perspective(1400px) translateY(46px) scale(.94) rotateX(10deg);
+      transform-origin: center top;
+      will-change: transform, opacity, filter;
+      filter: blur(10px);
     }
 
     .reveal-block.is-visible {
-      animation: sectionReveal .72s cubic-bezier(.18,.84,.22,1) both;
+      animation: dramaticSectionIn .95s cubic-bezier(.16,.84,.22,1) both;
     }
 
     .kpi-card.is-visible {
-      animation: cardReveal .82s cubic-bezier(.16,.84,.22,1) both;
+      animation: dramaticCardIn .96s cubic-bezier(.16,.84,.22,1) both;
     }
 
 
@@ -3149,8 +3154,16 @@ def render_page_html(
   }, { threshold: 0.12 });
 
   revealTargets.forEach((el, idx)=>{
-    el.dataset.delay = String(Math.min(idx * 55, 240));
+    el.dataset.delay = String(Math.min(idx * 95, 520));
     io.observe(el);
+    const rect = el.getBoundingClientRect();
+    if(rect.top < window.innerHeight * 0.92){
+      window.setTimeout(()=>{
+        el.classList.add('is-visible');
+        el.querySelectorAll('.kpi-value').forEach(animateKpiValue);
+      }, Number(el.dataset.delay || 0));
+      io.unobserve(el);
+    }
   });
 })();
 </script>"""
@@ -3166,10 +3179,25 @@ def render_page_html(
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
       {get_safe_animation_css()}
-  </style>
+  
+    @keyframes dramaticCardIn {
+      0% { opacity: 0; transform: perspective(1400px) translateY(46px) scale(.94) rotateX(10deg); filter: blur(10px); }
+      55% { opacity: 1; transform: perspective(1400px) translateY(-8px) scale(1.02) rotateX(-1.5deg); filter: blur(0); }
+      72% { opacity: 1; transform: perspective(1400px) translateY(2px) scale(.996) rotateX(.5deg); filter: blur(0); }
+      100% { opacity: 1; transform: perspective(1400px) translateY(0) scale(1) rotateX(0); filter: blur(0); }
+    }
+
+    @keyframes dramaticSectionIn {
+      0% { opacity: 0; transform: perspective(1600px) translateY(56px) scale(.965) rotateX(8deg); filter: blur(12px); }
+      60% { opacity: 1; transform: perspective(1600px) translateY(-10px) scale(1.008) rotateX(-1deg); filter: blur(0); }
+      78% { opacity: 1; transform: perspective(1600px) translateY(2px) scale(.998) rotateX(.35deg); filter: blur(0); }
+      100% { opacity: 1; transform: perspective(1600px) translateY(0) scale(1) rotateX(0); filter: blur(0); }
+    }
+
+</style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto px-3 py-4 lg:px-4 lg:py-5">
+  <div class="report-shell mx-auto px-2 py-3 lg:px-3 lg:py-4">
     <div class="reveal-block mt-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3">
       <div class="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
         <div class="text-sm font-extrabold text-slate-800">데이터 기간 · {period_label(w.cur_start, w.cur_end)}</div>
@@ -3298,7 +3326,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto px-3 py-4 lg:px-4 lg:py-5">
+  <div class="report-shell mx-auto px-2 py-3 lg:px-3 lg:py-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest Hub</div>
