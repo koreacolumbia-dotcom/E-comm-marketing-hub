@@ -12,7 +12,7 @@
 - Output:
   - site/data/reviews.json  (filtered to last N days by default)
   - site/data/meta.json     (period/keywords/evidence/clusters/mindmap + HEALTHCHECK + ML/DL)
-  - site/index.html         (template priority: --html-template > site/template.html > DEFAULT)
+  - site/index.html         (template priority: --html-template > templates/voc_index.html > site/template.html > DEFAULT)
 
 Adds on top of v6.0:
 1) Robust created_at parsing (supports trailing 'Z')
@@ -55,7 +55,7 @@ except Exception:
 
 
 OUTPUT_TZ = os.getenv("OUTPUT_TZ", "Asia/Seoul").strip()
-DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "7") or "7")  # exact last N days ending yesterday (KST); default 7 for true 7D window
+DEFAULT_TARGET_DAYS = int(os.getenv("TARGET_DAYS", "90") or "90")  # last N days ending yesterday (KST)
 
 AUTO_STOP_MIN_DF = 0.30
 AUTO_STOP_MIN_PRODUCTS = 0.25
@@ -1954,18 +1954,19 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
 
 def load_html_template(cli_template: Optional[str]) -> str:
-    """
-    Method 2: prefer the builder's built-in DEFAULT_HTML_TEMPLATE unless the caller
-    explicitly passes --html-template. This avoids old site/template.html files
-    hiding new UI tabs such as Musinsa.
-    """
     if cli_template:
         p = pathlib.Path(cli_template).expanduser()
         if p.exists():
             return p.read_text(encoding="utf-8")
 
-    # Intentionally ignore SITE_DIR / "template.html" and legacy templates by default.
-    # They may be older than the builder's embedded template and can hide new tabs/UI.
+    for tpl in [
+        ROOT / "templates" / "voc_index.html",
+        ROOT / "templates" / "voc_dashboard.html",
+        SITE_DIR / "template.html",
+    ]:
+        if tpl.exists():
+            return tpl.read_text(encoding="utf-8")
+
     return DEFAULT_HTML_TEMPLATE
 
 
@@ -1979,6 +1980,12 @@ def normalize_template_paths(html: str) -> str:
     This normalizer rewrites those paths to be relative to the current page.
     """
     if not html:
+        return html
+    if "Official Mall Review Intelligence" in html:
+        html = html.replace("site/data/", "data/")
+        html = html.replace("site/data", "data")
+        html = html.replace("/site/data/", "data/")
+        html = html.replace("/site/data", "data")
         return html
     # Remove the extra top status strip so the dashboard starts from the main hero.
     html = re.sub(
@@ -1998,6 +2005,7 @@ def normalize_template_paths(html: str) -> str:
     html = html.replace("VOC Dashboard | Official + Naver Brand Reviews", "VOC Dashboard | Official + Naver Brand + Musinsa Reviews")
     html = html.replace("Official + Naver", "Official + Naver Brand")
     html = html.replace("Official + Naver Brand Brand", "Official + Naver Brand")
+    html = html.replace("Naver Brand Brand", "Naver Brand")
     html = html.replace("Official몰 & Naver 리뷰 VOC 대시보드", "Official몰 & Naver Brand · Musinsa 리뷰 VOC 대시보드")
     html = html.replace("Official몰 & Naver Brand 리뷰 VOC 대시보드", "Official몰 & Naver Brand · Musinsa 리뷰 VOC 대시보드")
     html = html.replace('<i class="fa-brands fa-naver mr-2"></i>Naver', '<i class="fa-brands fa-naver mr-2"></i>Naver Brand')
@@ -2029,6 +2037,26 @@ def normalize_template_paths(html: str) -> str:
                 <i class="fa-solid fa-shirt mr-2"></i>Musinsa
               </button>
             </div>""",
+    )
+    html = re.sub(
+        r"""<div class="flex items-center gap-2 flex-wrap">\s*<button class="tab-btn active" data-tab="combined" onclick="switchSourceTab\('combined'\)">.*?</div>""",
+        """<div class="flex items-center gap-2 flex-wrap">
+              <button class="tab-btn active" data-tab="combined" onclick="switchSourceTab('combined')">
+                <i class="fa-solid fa-layer-group mr-2"></i>Combined
+              </button>
+              <button class="tab-btn" data-tab="official" onclick="switchSourceTab('official')">
+                <i class="fa-solid fa-store mr-2"></i>Official
+              </button>
+              <button class="tab-btn" data-tab="naver" onclick="switchSourceTab('naver')">
+                <i class="fa-brands fa-naver mr-2"></i>Naver Brand
+              </button>
+              <button class="tab-btn" data-tab="musinsa" onclick="switchSourceTab('musinsa')">
+                <i class="fa-solid fa-shirt mr-2"></i>Musinsa
+              </button>
+            </div>""",
+        html,
+        count=1,
+        flags=re.S,
     )
     html = html.replace('max-w-[1280px] px-4 md:px-8', 'max-w-[1680px] px-4 md:px-6 xl:px-8')
     html = html.replace('<main class="p-6 md:p-10 w-full">', '<main class="w-full px-4 py-6 md:px-6 md:py-8 xl:px-8">')
@@ -2404,7 +2432,7 @@ def normalize_template_paths(html: str) -> str:
     )
     html = re.sub(
         r"""const dayInput = document\.getElementById\("daySelect"\);\s*if \(dayInput\)\{.*?\n\s*\}""",
-        lambda m: """const dayInput = document.getElementById("daySelect");
+        """const dayInput = document.getElementById("daySelect");
         if (dayInput){
           const reviewDays = REVIEWS
             .map(r => String(r.created_at || "").slice(0, 10))
@@ -2626,11 +2654,7 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     if "rating" in dfN.columns:
         dfN["rating"] = pd.to_numeric(dfN.get("rating"), errors="coerce").fillna(0).astype(int)
 
-    # IMPORTANT:
-    # reviews.json must contain ONLY the exact target window rows.
-    # The UI 7D card / signals / feed count reads from REVIEWS, so writing 1Y rows here
-    # inflates the displayed 7D number (e.g. 4,526 reviews for a supposed weekly window).
-    feed_rows = rowsN
+    feed_rows = rows1y if rows1y else rowsN
     dfFeed = pd.DataFrame(feed_rows).copy() if feed_rows else pd.DataFrame(
         columns=["id", "product_code", "product_name", "rating", "created_at", "text", "source", "tags", "option_size", "option_color", "size_direction"]
     )
@@ -2719,8 +2743,8 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
         "target_days": int(target_days),
         "total_reviews": int(len(dfN)),
         "feed_total_reviews": int(len(dfFeed)),
-        "feed_period_start": startN.isoformat(),
-        "feed_period_end": endN.isoformat(),
+        "feed_period_start": start1y.isoformat() if rows1y else startN.isoformat(),
+        "feed_period_end": end1y.isoformat() if rows1y else endN.isoformat(),
         "input_total_reviews": int(len(all_rows)),
         "latest_input_created_at": latest_input_dt.isoformat() if latest_input_dt else None,
         "latest_window_created_at": latest_window_dt.isoformat() if latest_window_dt else None,
@@ -2742,27 +2766,17 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     }
 
     if debug:
-        daily_breakdown = {}
-        for r in rowsN:
-            dt = parse_created_at_iso(str(r.get("created_at") or ""))
-            if not dt:
-                continue
-            key = dt.date().isoformat()
-            daily_breakdown[key] = daily_breakdown.get(key, 0) + 1
-
         meta["debug"] = {
             "input_path": str(inp),
             "input_total_rows": len(all_rows),
             "window_rows": len(rowsN),
             "rows_1y": len(rows1y),
-            "reviews_json_rows": len(out_reviews) if 'out_reviews' in locals() else None,
             "output_tz": OUTPUT_TZ,
             "build_now_kst_iso": now.isoformat(),
             "window_start": startN.isoformat(),
             "window_end": endN.isoformat(),
             "latest_input_created_at": latest_input_dt.isoformat() if latest_input_dt else None,
             "latest_window_created_at": latest_window_dt.isoformat() if latest_window_dt else None,
-            "window_daily_breakdown": daily_breakdown,
         }
 
     out_reviews: List[Dict[str, Any]] = []
@@ -2811,7 +2825,7 @@ def main(input_path: str, html_template: Optional[str], target_days: int, debug:
     print(f"- Dashboard default day: {endN.isoformat()}")
     print(f"- Period: {period_text}")
     print(f"- Window rows: {len(rowsN)} / Input rows: {len(all_rows)}")
-    print(f"- Feed rows written (exact target window only): {len(out_reviews)}")
+    print(f"- Feed rows written: {len(out_reviews)}")
     print(f"- Latest input created_at: {latest_input_dt.isoformat() if latest_input_dt else 'None'}")
     print(f"- Latest window created_at: {latest_window_dt.isoformat() if latest_window_dt else 'None'}")
     if empty_reason:
@@ -2822,7 +2836,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="path to reviews.json (aggregated JSON: {reviews:[...]})")
     ap.add_argument("--html-template", default="", help="optional html template path (highest priority)")
-    ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="exact window days ending yesterday (KST); default 7 from env TARGET_DAYS")
+    ap.add_argument("--target-days", type=int, default=DEFAULT_TARGET_DAYS, help="window days ending yesterday (KST), default from env TARGET_DAYS")
     ap.add_argument("--debug", action="store_true", help="write extra diagnostics into meta.json")
     args = ap.parse_args()
 
