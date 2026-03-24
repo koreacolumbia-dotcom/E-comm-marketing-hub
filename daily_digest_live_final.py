@@ -46,6 +46,14 @@ from __future__ import annotations
 # ===============================
 def get_safe_animation_css():
     css = """
+    body,
+    body.bg-slate-50 {
+      background:
+        radial-gradient(circle at top left, rgba(59,130,246,.10), transparent 32%),
+        radial-gradient(circle at top right, rgba(14,165,233,.08), transparent 26%),
+        linear-gradient(180deg, #f8fbff 0%, #f8fafc 38%, #f3f6fb 100%);
+    }
+
     @keyframes pageReveal {
       0% {
         opacity: 0;
@@ -100,33 +108,121 @@ def get_safe_animation_css():
       }
     }
 
+    @keyframes pageExit {
+      0% {
+        opacity: 1;
+        transform: perspective(1200px) rotateX(0deg) translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }
+      100% {
+        opacity: 0;
+        transform: perspective(1200px) rotateX(2.5deg) translate3d(0, -16px, 0) scale(.992);
+        filter: blur(8px);
+      }
+    }
+
     @keyframes shimmerSweep {
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
 
-    body > .mx-auto.max-w-7xl.p-6 {
+    @keyframes panelSwap {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, 22px, 0) scale(.986);
+        filter: blur(10px);
+      }
+      70% {
+        opacity: 1;
+        transform: translate3d(0, -2px, 0) scale(1.004);
+        filter: blur(0);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    @keyframes lineDraw {
+      0% {
+        opacity: 0;
+        stroke-dashoffset: 1400;
+      }
+      100% {
+        opacity: 1;
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes dotPop {
+      0% {
+        opacity: 0;
+        transform: scale(.2);
+      }
+      75% {
+        opacity: 1;
+        transform: scale(1.16);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes fadeGrid {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes miniRise {
+      0% {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .report-shell {
+      width: min(1760px, calc(100vw - 20px));
+      max-width: 1760px !important;
       animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
       transform-origin: top center;
     }
 
-    body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
-    body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
-    body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {
+    body.page-exit .report-shell {
+      animation: pageExit .28s cubic-bezier(.4,0,.2,1) both;
+    }
+
+    body.page-exit {
+      overflow: hidden;
+    }
+
+    body > .report-shell {
+      animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
+      transform-origin: top center;
+    }
+
+    body > .report-shell > div.mt-6,
+    body > .report-shell > section.mt-6,
+    body > .report-shell > article.mt-6 {
       animation: sectionReveal .9s cubic-bezier(.18,.84,.22,1) both;
     }
 
-    body > .mx-auto.max-w-7xl.p-6 > div.mt-6:nth-of-type(1),
-    body > .mx-auto.max-w-7xl.p-6 > section.mt-6:nth-of-type(1),
-    body > .mx-auto.max-w-7xl.p-6 > article.mt-6:nth-of-type(1) { animation-delay: .04s; }
+    body > .report-shell > div.mt-6:nth-of-type(1),
+    body > .report-shell > section.mt-6:nth-of-type(1),
+    body > .report-shell > article.mt-6:nth-of-type(1) { animation-delay: .04s; }
 
-    body > .mx-auto.max-w-7xl.p-6 > div.mt-6:nth-of-type(2),
-    body > .mx-auto.max-w-7xl.p-6 > section.mt-6:nth-of-type(2),
-    body > .mx-auto.max-w-7xl.p-6 > article.mt-6:nth-of-type(2) { animation-delay: .10s; }
+    body > .report-shell > div.mt-6:nth-of-type(2),
+    body > .report-shell > section.mt-6:nth-of-type(2),
+    body > .report-shell > article.mt-6:nth-of-type(2) { animation-delay: .10s; }
 
-    body > .mx-auto.max-w-7xl.p-6 > div.mt-6:nth-of-type(3),
-    body > .mx-auto.max-w-7xl.p-6 > section.mt-6:nth-of-type(3),
-    body > .mx-auto.max-w-7xl.p-6 > article.mt-6:nth-of-type(3) { animation-delay: .16s; }
+    body > .report-shell > div.mt-6:nth-of-type(3),
+    body > .report-shell > section.mt-6:nth-of-type(3),
+    body > .report-shell > article.mt-6:nth-of-type(3) { animation-delay: .16s; }
 
     .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
     .rounded-2xl.border.border-slate-200.bg-white.p-4,
@@ -195,6 +291,98 @@ def get_safe_animation_css():
       animation: cardReveal .92s cubic-bezier(.16,.84,.22,1) both;
     }
 
+    .metric-chip,
+    .section-signal {
+      backdrop-filter: blur(18px);
+    }
+
+    .metric-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      border: 1px solid rgba(148,163,184,.24);
+      border-radius: 999px;
+      padding: .38rem .7rem;
+      background: rgba(255,255,255,.72);
+      box-shadow: 0 10px 22px rgba(15,23,42,.05);
+    }
+
+    .section-signal {
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 1.25rem;
+      background: linear-gradient(135deg, rgba(255,255,255,.84), rgba(248,250,252,.78));
+      box-shadow: 0 14px 32px rgba(15,23,42,.06);
+    }
+
+    .mode-switch,
+    .trend-tab {
+      transition:
+        transform .28s cubic-bezier(.2,.8,.2,1),
+        box-shadow .28s cubic-bezier(.2,.8,.2,1),
+        border-color .28s ease,
+        background-color .28s ease,
+        color .28s ease;
+      will-change: transform, box-shadow;
+    }
+
+    .mode-switch:hover,
+    .trend-tab:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(15,23,42,.08);
+    }
+
+    .compare-cell {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: .45rem;
+      min-width: 132px;
+    }
+
+    .compare-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      padding: .18rem .42rem;
+      border-radius: 999px;
+      background: rgba(15,23,42,.06);
+      border: 1px solid rgba(148,163,184,.20);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      color: #475569;
+      text-transform: uppercase;
+    }
+
+    .compare-pill.is-muted {
+      opacity: .7;
+    }
+
+    .paid-detail-shell {
+      overflow-x: auto;
+      overflow-y: visible;
+      padding-bottom: 4px;
+      scrollbar-gutter: stable both-edges;
+    }
+
+    .paid-detail-table {
+      min-width: 1360px !important;
+    }
+
+    .paid-detail-table th:first-child,
+    .paid-detail-table td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: rgba(255,255,255,.96);
+      box-shadow: 12px 0 20px rgba(248,250,252,.92);
+    }
+
+    .paid-detail-table th:first-child {
+      z-index: 2;
+    }
+
     .kpi-value {
       display: inline-block;
       letter-spacing: -.02em;
@@ -223,6 +411,49 @@ def get_safe_animation_css():
 
     .paid-detail-table tbody tr {
       animation: sectionReveal .7s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .trend-panel.is-active {
+      animation: panelSwap .58s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .trend-chart,
+    .mini-chart {
+      overflow: visible;
+    }
+
+    .trend-chart.chart-animate .trend-grid,
+    .mini-chart.chart-animate .mini-grid {
+      opacity: 0;
+      animation: fadeGrid .52s ease forwards;
+    }
+
+    .trend-chart.chart-animate .trend-line {
+      opacity: 0;
+      stroke-dasharray: 1400;
+      stroke-dashoffset: 1400;
+      animation: lineDraw 1.28s cubic-bezier(.22,.86,.24,1) forwards;
+      filter: drop-shadow(0 10px 18px rgba(15,23,42,.10));
+    }
+
+    .trend-chart.chart-animate .trend-dot,
+    .mini-chart.chart-animate .mini-dot {
+      opacity: 0;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: dotPop .46s cubic-bezier(.2,.9,.2,1) forwards;
+    }
+
+    .mini-chart.chart-animate .mini-line {
+      opacity: 0;
+      stroke-dasharray: 680;
+      stroke-dashoffset: 680;
+      animation: lineDraw .96s cubic-bezier(.22,.86,.24,1) forwards;
+    }
+
+    .mini-chart.chart-animate .mini-area {
+      opacity: 0;
+      animation: miniRise .52s ease forwards;
     }
     """
     return css.replace("{", "{{").replace("}", "}}")
@@ -521,7 +752,7 @@ def combined_index_svg(
         frac = t / ticks
         y = pad_t + inner_h * (1 - frac)
         val = y_min2 + (y_max2 - y_min2) * frac
-        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
+        grid.append(f"<line class='trend-grid' style='animation-delay:{t*0.04:.2f}s' x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
         ylabels_svg.append(f"<text x='{pad_l-8}' y='{y+3:.1f}' text-anchor='end' font-size='10' fill='#6b7280'>{val:.0f}</text>")
 
     xlabels_svg = []
@@ -539,8 +770,17 @@ def combined_index_svg(
         pts = [xy(i, v) for i, v in enumerate(s)]
         poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
         color = colors[sidx]
-        polys.append(f"<polyline fill='none' stroke='{color}' stroke-width='2.6' points='{poly}'/>")
-        dots.append("".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='3.0' fill='{color}'/>" for x, y in pts]))
+        polys.append(
+            f"<polyline class='trend-line trend-line-{sidx+1}' "
+            f"style='animation-delay:{0.18 + sidx*0.12:.2f}s' "
+            f"fill='none' stroke='{color}' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round' points='{poly}'/>"
+        )
+        dots.append(
+            "".join([
+                f"<circle class='trend-dot trend-dot-{sidx+1}' style='animation-delay:{0.34 + sidx*0.12 + i*0.03:.2f}s' cx='{x:.1f}' cy='{y:.1f}' r='3.0' fill='{color}'/>"
+                for i, (x, y) in enumerate(pts)
+            ])
+        )
 
     legend_items = []
     lx, ly = pad_l, 8
@@ -553,7 +793,7 @@ def combined_index_svg(
         )
 
     return f"""
-    <svg width="100%" viewBox="0 0 {width} {height}" preserveAspectRatio="none" style="display:block;">
+    <svg class="trend-chart chart-animate" width="100%" viewBox="0 0 {width} {height}" preserveAspectRatio="none" style="display:block;">
       {''.join(grid)}
       {axes}
       {''.join(polys)}
@@ -595,7 +835,7 @@ def spark_svg(
     grid = []
     for frac in [0.0, 0.5, 1.0]:
         y = pad_t + inner_h * (1 - frac)
-        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2fb' stroke-width='1'/>")
+        grid.append(f"<line class='mini-grid' style='animation-delay:{frac*0.06:.2f}s' x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2fb' stroke-width='1'/>")
 
     axes = f"""
       <line x1='{pad_l}' y1='{pad_t}' x2='{pad_l}' y2='{height-pad_b}' stroke='#cbd5e1' stroke-width='1'/>
@@ -619,14 +859,17 @@ def spark_svg(
 
     area = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
     area_poly = f"{pad_l:.1f},{height-pad_b:.1f} {area} {width-pad_r:.1f},{height-pad_b:.1f}"
-    dots = "".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.8' fill='{stroke}'/>" for x, y in pts])
+    dots = "".join([
+        f"<circle class='mini-dot' style='animation-delay:{0.22 + i*0.04:.2f}s' cx='{x:.1f}' cy='{y:.1f}' r='2.8' fill='{stroke}'/>"
+        for i, (x, y) in enumerate(pts)
+    ])
 
     return f"""
-    <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+    <svg class="mini-chart chart-animate" width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
       {''.join(grid)}
       {axes}
-      <polygon points="{area_poly}" fill="{stroke}" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="{stroke}" stroke-width="2.4" points="{poly}"/>
+      <polygon class="mini-area" points="{area_poly}" fill="{stroke}" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="{stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="{poly}"/>
       {dots}
       {ylabels_svg}
       {''.join(xlabels_svg)}
@@ -722,7 +965,7 @@ def build_window(end_date: dt.date, mode: str) -> DigestWindow:
         cur_end = end_date
         prev_end = end_date - dt.timedelta(days=7)
         prev_start = prev_end
-        compare_label = "WoW"
+        compare_label = "WOW"
 
         yoy_override = parse_yyyy_mm_dd(YOY_DAILY_DATE_OVERRIDE)
         if yoy_override:
@@ -741,7 +984,7 @@ def build_window(end_date: dt.date, mode: str) -> DigestWindow:
 
         prev_end = end_date - dt.timedelta(days=7)
         prev_start = prev_end - dt.timedelta(days=6)
-        compare_label = "WoW"
+        compare_label = "WOW"
 
         yoy_end_override = parse_yyyy_mm_dd(YOY_WEEKLY_END_OVERRIDE)
         if yoy_end_override:
@@ -1384,7 +1627,7 @@ def combined_index_svg_monthly(
         frac = t / 5
         y = pad_t + inner_h * (1 - frac)
         val = y_min2 + (y_max2 - y_min2) * frac
-        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
+        grid.append(f"<line class='trend-grid' style='animation-delay:{t*0.04:.2f}s' x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
         ylabels_svg.append(f"<text x='{pad_l-8}' y='{y+3:.1f}' text-anchor='end' font-size='10' fill='#6b7280'>{val:.0f}</text>")
 
     weekend_marks = []
@@ -1412,12 +1655,21 @@ def combined_index_svg_monthly(
         pts = [xy(i, v) for i, v in enumerate(s)]
         poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
         color = colors[sidx]
-        polys.append(f"<polyline fill='none' stroke='{color}' stroke-width='2.3' points='{poly}'/>")
-        dots.append("".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.3' fill='{color}'/>" for x, y in pts]))
+        polys.append(
+            f"<polyline class='trend-line trend-line-{sidx+1}' "
+            f"style='animation-delay:{0.18 + sidx*0.14:.2f}s' "
+            f"fill='none' stroke='{color}' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='{poly}'/>"
+        )
+        dots.append(
+            "".join([
+                f"<circle class='trend-dot trend-dot-{sidx+1}' style='animation-delay:{0.34 + sidx*0.12 + i*0.025:.2f}s' cx='{x:.1f}' cy='{y:.1f}' r='2.3' fill='{color}'/>"
+                for i, (x, y) in enumerate(pts)
+            ])
+        )
     legend_items = []
     for i, lab in enumerate(labels):
         legend_items.append(f"<g transform='translate({pad_l + i*165},8)'><line x1='0' y1='8' x2='18' y2='8' stroke='{colors[i]}' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>{lab}</text></g>")
-    return f"<svg width='100%' viewBox='0 0 {width} {height}' preserveAspectRatio='none' style='display:block;'>{''.join(weekend_marks)}{''.join(grid)}{axes}{''.join(polys)}{''.join(dots)}{''.join(ylabels_svg)}{''.join(xlabels_svg)}<text x='{pad_l}' y='{height-8}' font-size='10' fill='#94a3b8'>{footer_label}</text>{''.join(legend_items)}</svg>"
+    return f"<svg class='trend-chart chart-animate' width='100%' viewBox='0 0 {width} {height}' preserveAspectRatio='none' style='display:block;'>{''.join(weekend_marks)}{''.join(grid)}{axes}{''.join(polys)}{''.join(dots)}{''.join(ylabels_svg)}{''.join(xlabels_svg)}<text x='{pad_l}' y='{height-8}' font-size='10' fill='#94a3b8'>{footer_label}</text>{''.join(legend_items)}</svg>"
 
 def trend_svg_from_series(series: dict, days: int = 30) -> str:
     raw_dates = [parse_yyyy_mm_dd(d) for d in series.get("dates", [])]
@@ -2502,12 +2754,43 @@ def render_page_html(
     def delta_cls(v: float) -> str:
         return "text-blue-600" if v >= 0 else "text-orange-700"
 
+    def period_label(start_date: dt.date, end_date: dt.date) -> str:
+        if start_date == end_date:
+            return ymd(start_date)
+        return f"{ymd(start_date)} ~ {ymd(end_date)}"
+
+    wow_label = (w.compare_label or "WOW").upper()
+    daily_href = f"../daily/{ymd(w.end_date)}.html"
+    weekly_href = f"../weekly/END_{ymd(w.end_date)}.html"
+    compare_basis_text = f"{wow_label}: Sessions vs {period_label(w.prev_start, w.prev_end)}"
+    yoy_basis_text = f"YOY: Sessions vs {period_label(w.yoy_start, w.yoy_end)}"
+    metric_basis_text = "KPI cards compare the metric shown on each card. Channel Snapshot and Paid Detail compare columns use Sessions."
+
+    def compare_cell(label: str, value: float, enabled: bool = True) -> str:
+        label_esc = esc(label)
+        if not enabled:
+            return (
+                "<div class='compare-cell text-slate-400'>"
+                f"<span class='compare-pill is-muted'>{label_esc}</span>"
+                "<span>-</span>"
+                "</div>"
+            )
+        return (
+            f"<div class='compare-cell {delta_cls(value)}'>"
+            f"<span class='compare-pill'>{label_esc}</span>"
+            f"<span>{('+' if value >= 0 else '')}{fmt_pct(value, 1)}</span>"
+            "</div>"
+        )
+
     def top_kpi_card(title: str, value: str, delta_main: str, delta_yoy_s: str, cls_main: str, cls_yoy: str) -> str:
         return f"""
         <div class="kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
           <div class="kpi-value mt-1 text-xl font-black text-slate-900" data-kpi-value="{esc(value)}">{esc(value)}</div>
-          <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> · YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
+          <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+            <span class="metric-chip"><span class="compare-pill">{wow_label}</span><b class="{cls_main}">{esc(delta_main)}</b></span>
+            <span class="metric-chip"><span class="compare-pill">YOY</span><b class="{cls_yoy}">{esc(delta_yoy_s)}</b></span>
+          </div>
         </div>
         """
 
@@ -2537,8 +2820,8 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_dod', 0) or 0))}'>{('+' if float(getattr(r,'rev_dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_dod',0) or 0),1)}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
+                compare_cell(wow_label, float(getattr(r, 'rev_dod', 0) or 0), enabled=True),
+                compare_cell("YOY", float(getattr(r, 'rev_yoy', 0) or 0), enabled=True),
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
 
     # Paid detail rows (merged with budget / target ROAS / ROAS)
@@ -2616,11 +2899,7 @@ def render_page_html(
                 idx_non_total += 1
 
             yoy_val = float(getattr(r, 'yoy', 0) or 0)
-            yoy_html = (
-                f"<div class='text-right {delta_cls(yoy_val)}'>{('+' if yoy_val>=0 else '')}{fmt_pct(yoy_val,1)}</div>"
-                if (is_total or has_yoy)
-                else "<div class='text-right text-slate-400'>-</div>"
-            )
+            yoy_html = compare_cell("YOY", yoy_val, enabled=(is_total or has_yoy))
 
             compare_metric = paid_compare_total if is_total else paid_compare_lookup.get(sub_key, paid_compare_lookup.get(map_sub_to_media(sub_key), {}))
             target_roas_val = float(compare_metric.get("target_roas", 0) or 0)
@@ -2636,7 +2915,7 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_pct(target_roas_val,1) if (is_total or budget_val or target_roas_val) else '-'}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(budget_val) if (is_total or budget_val) else '-'}</div>",
                 f"<div class='text-right'>{fmt_pct(roas_val,1) if (is_total or budget_val or roas_val) else '-'}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
+                compare_cell(wow_label, float(getattr(r, 'dod', 0) or 0), enabled=True),
                 yoy_html,
             ], bold=is_bold, row_class=row_cls)
 
@@ -2734,16 +3013,31 @@ def render_page_html(
         ("1m", "1M", trend_svgs.get("1m", "")),
     ]
     trend_tabs_html = "".join([
-        f"<button type='button' data-trend-tab='{key}' class='rounded-full border px-3 py-1 text-xs font-extrabold transition {'border-slate-900 bg-slate-900 text-white' if i == 0 else 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}'>{label}</button>"
+        f"<button type='button' data-trend-tab='{key}' class='trend-tab rounded-full border px-3 py-1 text-xs font-extrabold {'border-slate-900 bg-slate-900 text-white' if i == 0 else 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}'>{label}</button>"
         for i, (key, label, _) in enumerate(trend_tabs)
     ])
     trend_panels_html = "".join([
-        f"<div data-trend-panel='{key}' class='mt-3{' hidden' if i != 0 else ''}'>{svg}</div>"
+        f"<div data-trend-panel='{key}' class='trend-panel mt-3{' hidden' if i != 0 else ' is-active'}'>{svg}</div>"
         for i, (key, _, svg) in enumerate(trend_tabs)
     ])
 
     paid_toggle_js = """<script>
 (function(){
+  function navigateWithAnimation(url){
+    if(!url) return;
+    document.body.classList.add('page-exit');
+    window.setTimeout(()=>{ window.location.href = url; }, 260);
+  }
+
+  document.querySelectorAll('[data-nav-transition]').forEach(el=>{
+    el.addEventListener('click', (event)=>{
+      const href = el.getAttribute('href');
+      if(!href || href === '#' || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navigateWithAnimation(href);
+    });
+  });
+
   const btn = document.getElementById('paidToggle');
   if(btn){
     let on = false;
@@ -2761,6 +3055,14 @@ def render_page_html(
 
   const trendBtns = Array.from(document.querySelectorAll('[data-trend-tab]'));
   const trendPanels = Array.from(document.querySelectorAll('[data-trend-panel]'));
+  function restartCharts(scope){
+    if(!scope) return;
+    scope.querySelectorAll('.trend-chart, .mini-chart').forEach((chart, idx)=>{
+      chart.classList.remove('chart-animate');
+      void chart.getBoundingClientRect();
+      window.setTimeout(()=> chart.classList.add('chart-animate'), 12 + (idx * 20));
+    });
+  }
   function setTrend(target){
     trendBtns.forEach(el=>{
       const active = el.getAttribute('data-trend-tab') === target;
@@ -2773,8 +3075,16 @@ def render_page_html(
     });
     trendPanels.forEach(el=>{
       const active = el.getAttribute('data-trend-panel') === target;
-      if(active) el.classList.remove('hidden');
-      else el.classList.add('hidden');
+      if(active){
+        el.classList.remove('hidden');
+        el.classList.remove('is-active');
+        void el.getBoundingClientRect();
+        el.classList.add('is-active');
+        restartCharts(el);
+      } else {
+        el.classList.add('hidden');
+        el.classList.remove('is-active');
+      }
     });
   }
   trendBtns.forEach(el=>{
@@ -2800,16 +3110,25 @@ def render_page_html(
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-7xl p-6">
+  <div class="report-shell mx-auto p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
-        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
+        <div class="text-sm text-slate-500">{period_label(w.cur_start, w.cur_end)} | {wow_label} vs {period_label(w.prev_start, w.prev_end)} | YOY {period_label(w.yoy_start, w.yoy_end)}</div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+        <div class="flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm">
+          <a href="{esc(daily_href)}" data-nav-transition="true" class="mode-switch rounded-full px-3 py-2 text-xs font-extrabold {'bg-slate-900 text-white' if w.mode == 'daily' else 'bg-white text-slate-500'}">DAILY</a>
+          <a href="{esc(weekly_href)}" data-nav-transition="true" class="mode-switch rounded-full px-3 py-2 text-xs font-extrabold {'bg-slate-900 text-white' if w.mode == 'weekly' else 'bg-white text-slate-500'}">WEEKLY</a>
+        </div>
+        <a href="{esc(nav_links.get('hub','#'))}" data-nav-transition="true" class="mode-switch rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
+    </div>
+
+    <div class="section-signal mt-4 flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div class="text-sm text-slate-600">{esc(compare_basis_text)} | {esc(yoy_basis_text)}</div>
+      <div class="text-xs font-semibold uppercase tracking-widest text-slate-500">{esc(metric_basis_text)}</div>
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
@@ -2826,8 +3145,8 @@ def render_page_html(
             <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">{wow_label} (Sessions)</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YOY (Sessions)</th>
           </tr>
         </thead>
         <tbody>{chan_html}</tbody>
@@ -2835,9 +3154,12 @@ def render_page_html(
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
-      <div class="mt-3 overflow-x-auto">
-        <table class="paid-detail-table w-full table-auto text-sm min-w-[1480px]">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
+        <div class="text-[11px] text-slate-500">Wider canvas + sticky Sub column</div>
+      </div>
+      <div class="mt-3 paid-detail-shell">
+        <table class="paid-detail-table w-full table-auto text-sm min-w-[1360px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
@@ -2848,8 +3170,8 @@ def render_page_html(
               <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">{wow_label} (Sessions)</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YOY (Sessions)</th>
             </tr>
           </thead>
           <tbody>{paid_html or "<tr><td colspan='10' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
@@ -2930,7 +3252,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-7xl p-6">
+  <div class="report-shell mx-auto p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest Hub</div>
@@ -2948,8 +3270,8 @@ def render_hub_index(dates: List[dt.date]) -> str:
           </select>
         </div>
         <div class="mt-3 flex gap-2">
-          <button id="openDaily" class="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
-          <button id="openWeekly" class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
+          <button id="openDaily" class="mode-switch flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
+          <button id="openWeekly" class="mode-switch flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
         </div>
       </div>
 
@@ -2972,17 +3294,33 @@ def render_hub_index(dates: List[dt.date]) -> str:
     $("#openDate").value = latest;
   }}
 
+  function goWithAnimation(url) {{
+    document.body.classList.add("page-exit");
+    window.setTimeout(() => {{
+      window.location.href = url;
+    }}, 260);
+  }}
+
   function renderRecent() {{
     const items = dates.slice(-10).reverse();
     $("#recentList").innerHTML = items.map(d => `
       <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3">
         <div class="text-sm font-extrabold">${{esc(d)}}</div>
         <div class="flex gap-2">
-          <a class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${{esc(d)}}.html">Daily</a>
-          <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${{esc(d)}}.html">Weekly</a>
+          <a data-nav-transition="true" class="mode-switch rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${{esc(d)}}.html">Daily</a>
+          <a data-nav-transition="true" class="mode-switch rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${{esc(d)}}.html">Weekly</a>
         </div>
       </div>
     `).join("");
+
+    document.querySelectorAll('[data-nav-transition]').forEach(el => {{
+      el.addEventListener('click', (event) => {{
+        const href = el.getAttribute('href');
+        if(!href || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        goWithAnimation(href);
+      }});
+    }});
   }}
 
   function init() {{
@@ -2990,11 +3328,11 @@ def render_hub_index(dates: List[dt.date]) -> str:
     renderRecent();
     $("#openDaily").addEventListener("click", () => {{
       const d = $("#openDate").value;
-      window.location.href = "daily/" + d + ".html";
+      goWithAnimation("daily/" + d + ".html");
     }});
     $("#openWeekly").addEventListener("click", () => {{
       const d = $("#openDate").value;
-      window.location.href = "weekly/END_" + d + ".html";
+      goWithAnimation("weekly/END_" + d + ".html");
     }});
   }}
   document.addEventListener("DOMContentLoaded", init);
@@ -3226,4 +3564,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
