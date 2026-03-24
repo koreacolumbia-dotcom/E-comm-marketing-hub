@@ -255,6 +255,65 @@
       opacity:.8;
     }
 
+
+
+    /* ===== INITIAL ENTRANCE MOTION PATCH ===== */
+    #allSummarySection, #channelActualsSection, #kpiPanel, #messageMeta, #campaignArea, #productsSection, #analysisSection{
+      will-change: transform, opacity, filter;
+    }
+    .intro-block{
+      opacity: 0;
+      transform: translateY(26px) scale(.985);
+      filter: blur(8px);
+    }
+    .intro-block.intro-in{
+      animation: sectionRise .9s cubic-bezier(.22,1,.36,1) forwards;
+      animation-delay: var(--intro-delay, 0ms);
+    }
+    @keyframes sectionRise{
+      0%{ opacity:0; transform: translateY(26px) scale(.985); filter: blur(8px); }
+      60%{ opacity:1; transform: translateY(-4px) scale(1.004); filter: blur(0); }
+      100%{ opacity:1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+    #allCards .kpi-card.kpi-preenter, #ytdCards .kpi-card.kpi-preenter, #kpiGrid .kpi-card.kpi-preenter{
+      opacity: 0;
+      transform: translateY(30px) scale(.92) rotateX(16deg);
+      filter: blur(10px);
+    }
+    #allCards .kpi-card.kpi-preenter::after, #ytdCards .kpi-card.kpi-preenter::after, #kpiGrid .kpi-card.kpi-preenter::after{
+      opacity: 0;
+      transform: translate3d(0,16px,0) scale(.86);
+    }
+    #allCards .kpi-card.kpi-enter, #ytdCards .kpi-card.kpi-enter, #kpiGrid .kpi-card.kpi-enter{
+      animation: kpiCardBlast 980ms cubic-bezier(.16,1,.3,1) forwards;
+      animation-delay: var(--card-delay, 0ms);
+    }
+    #allCards .kpi-card.kpi-enter::after, #ytdCards .kpi-card.kpi-enter::after, #kpiGrid .kpi-card.kpi-enter::after{
+      animation: orbWake 1100ms cubic-bezier(.16,1,.3,1) forwards;
+      animation-delay: calc(var(--card-delay, 0ms) + 60ms);
+    }
+    @keyframes kpiCardBlast{
+      0%{ opacity:0; transform: translateY(30px) scale(.92) rotateX(16deg); filter: blur(10px); }
+      58%{ opacity:1; transform: translateY(-8px) scale(1.03) rotateX(0deg); filter: blur(0); }
+      100%{ opacity:1; transform: translateY(0) scale(1) rotateX(0deg); filter: blur(0); }
+    }
+    @keyframes orbWake{
+      0%{ opacity:0; transform: translate3d(0,16px,0) scale(.86); }
+      100%{ opacity:.78; transform: translate3d(0,0,0) scale(1); }
+    }
+    .headline-preenter{
+      opacity: 0;
+      transform: translateY(16px);
+      filter: blur(6px);
+    }
+    .headline-preenter.headline-enter{
+      animation: titleFloat .8s cubic-bezier(.22,1,.36,1) forwards;
+      animation-delay: var(--headline-delay, 0ms);
+    }
+    @keyframes titleFloat{
+      0%{ opacity:0; transform: translateY(16px); filter: blur(6px); }
+      100%{ opacity:1; transform: translateY(0); filter: blur(0); }
+    }
     #allCards .kpi-card{
       min-height: 146px;
       border: 1px solid rgba(37,99,235,0.22);
@@ -440,11 +499,17 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    /* ===== SAFE FULL WIDTH PATCH ===== */
+    .report-fullwidth{ width:100%; max-width:none; }
+    @media (min-width:1280px){
+      .glass{ padding: 28px; }
+    }
+
   </style>
 </head>
 
-<body class="p-6 md:p-10">
-  <div class="max-w-7xl mx-auto">
+<body class="p-3 md:p-4 xl:p-5">
+  <div class="w-full max-w-none mx-auto">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">OWNED Campaign Explorer</div>
@@ -469,7 +534,7 @@
       </div>
     </div>
 
-    <div class="glass p-6">
+    <div class="glass p-6 report-fullwidth">
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
@@ -2586,6 +2651,46 @@
     `).join('');
   }
 
+
+
+  function runKpiEntranceOnce(){
+    const sections = [
+      document.querySelector('#allSummarySection'),
+      document.querySelector('#channelActualsSection'),
+      document.querySelector('#kpiPanel'),
+      document.querySelector('#messageMeta'),
+      document.querySelector('#campaignArea'),
+      document.querySelector('#productsSection'),
+      document.querySelector('#analysisSection')
+    ].filter(Boolean);
+
+    sections.forEach((el, i)=>{
+      el.classList.remove('intro-in');
+      el.classList.add('intro-block');
+      el.style.setProperty('--intro-delay', `${120 + i*110}ms`);
+      requestAnimationFrame(()=> el.classList.add('intro-in'));
+    });
+
+    const headlines = [
+      ...document.querySelectorAll('#allSummarySection h2, #allSummarySection .section-kicker, #channelActualsSection h2, #channelActualsSection .section-kicker')
+    ];
+    headlines.forEach((el, i)=>{
+      el.classList.remove('headline-enter');
+      el.classList.add('headline-preenter');
+      el.style.setProperty('--headline-delay', `${140 + i*90}ms`);
+      requestAnimationFrame(()=> el.classList.add('headline-enter'));
+    });
+
+    const cards = [
+      ...document.querySelectorAll('#allCards .kpi-card, #ytdCards .kpi-card, #kpiGrid .kpi-card')
+    ];
+    cards.forEach((card, i)=>{
+      card.classList.remove('kpi-enter');
+      card.classList.add('kpi-preenter');
+      card.style.setProperty('--card-delay', `${220 + i*55}ms`);
+      requestAnimationFrame(()=> card.classList.add('kpi-enter'));
+    });
+  }
   function renderProducts(){
     if(!SELECTED || !RAW){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.</td></tr>`;
@@ -3467,6 +3572,7 @@
     await computeYTD();
     refreshKpiMadness();
     attachKpiTilt();
+    requestAnimationFrame(()=> runKpiEntranceOnce());
   })();
 
 })();
