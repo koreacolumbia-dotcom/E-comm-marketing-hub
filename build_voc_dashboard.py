@@ -2432,7 +2432,7 @@ def normalize_template_paths(html: str) -> str:
     )
     html = re.sub(
         r"""const dayInput = document\.getElementById\("daySelect"\);\s*if \(dayInput\)\{.*?\n\s*\}""",
-        """const dayInput = document.getElementById("daySelect");
+        lambda _m: """const dayInput = document.getElementById("daySelect");
         if (dayInput){
           const reviewDays = REVIEWS
             .map(r => String(r.created_at || "").slice(0, 10))
