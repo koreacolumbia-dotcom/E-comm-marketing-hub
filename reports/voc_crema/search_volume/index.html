@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>검색량 Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;700;800&display=swap');
+    :root { --brand:#143f8f; --bg0:#f6f8fb; --bg1:#eef3f9; --ink:#0f172a; --muted:#64748b; }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,var(--bg0),var(--bg1));font-family:'Plus Jakarta Sans',sans-serif;color:var(--ink)}
+    .shell{max-width:1480px;margin:0 auto;padding:28px 24px 56px}
+    .glass-card{background:rgba(255,255,255,.72);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.85);border-radius:28px;box-shadow:0 20px 50px rgba(0,45,114,.06)}
+    .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:28px 30px;margin-bottom:22px;animation:fadeUp .5s ease both}
+    .eyebrow{font-size:11px;font-weight:900;letter-spacing:.24em;text-transform:uppercase;color:#64748b}
+    .headline{font-size:34px;line-height:1.08;font-weight:900;letter-spacing:-.03em;margin-top:10px}
+    .sub{font-size:14px;color:#64748b;font-weight:700;margin-top:8px}
+    .summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:22px}
+    .summary-card{padding:22px 22px 20px;position:relative;overflow:hidden;opacity:0;transform:translateY(12px);animation:fadeUp .55s ease forwards;transition:transform .22s ease, box-shadow .22s ease}
+    .summary-card:hover{transform:translateY(-2px);box-shadow:0 24px 54px rgba(0,45,114,.08)}
+    .summary-k{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
+    .summary-v{font-size:30px;font-weight:900;letter-spacing:-.03em;margin-top:10px}
+    .summary-s{font-size:13px;color:#64748b;font-weight:700;margin-top:6px}
+    .section-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;margin-bottom:18px}
+    .card{padding:24px 24px 18px;opacity:0;transform:translateY(10px);animation:fadeUp .55s ease forwards}
+    .card h3{margin:0;font-size:18px;font-weight:900;letter-spacing:-.02em}
+    .card .desc{font-size:13px;color:#64748b;font-weight:700;margin-top:6px}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 18px;animation:fadeUp .55s ease both .08s}
+    .tab{border:1px solid rgba(15,23,42,.06);background:rgba(255,255,255,.72);padding:10px 15px;border-radius:999px;font-size:13px;font-weight:900;color:#64748b;cursor:pointer;transition:all .18s ease}
+    .tab:hover{transform:translateY(-1px) scale(1.02);box-shadow:0 10px 18px rgba(0,45,114,.06);color:#334155}
+    .tab.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 12px 24px rgba(15,23,42,.12);transform:scale(1.04)}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.66);font-size:12px;font-weight:800;color:#475569;border:1px solid rgba(148,163,184,.16)}
+    .chart-wrap{position:relative;height:360px;margin-top:16px}
+    .table-wrap{overflow:auto;margin-top:14px;border-radius:20px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:13px 12px;border-bottom:1px solid rgba(148,163,184,.14);text-align:left;white-space:nowrap}
+    th{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#94a3b8;font-weight:900}
+    td{font-weight:700;color:#1e293b}
+    tbody tr{transition:background .15s ease, transform .18s ease;opacity:0;transform:translateY(8px);animation:fadeUp .4s ease forwards}
+    tbody tr:hover{background:rgba(255,255,255,.5)}
+    .rank-list{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+    .rank-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border-radius:20px;background:rgba(255,255,255,.5);border:1px solid rgba(148,163,184,.12);opacity:0;transform:translateY(8px);transition:transform .18s ease, box-shadow .18s ease;animation:fadeUp .42s ease forwards}
+    .rank-item:hover{transform:translateY(-1px);box-shadow:0 14px 24px rgba(0,45,114,.06)}
+    .rank-left{display:flex;align-items:center;gap:12px;min-width:0}
+    .badge{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#0f172a;font-weight:900;font-size:12px;flex:0 0 auto}
+    .kw{font-size:14px;font-weight:900;color:#0f172a;overflow:hidden;text-overflow:ellipsis}
+    .meta{font-size:12px;color:#64748b;font-weight:700;margin-top:2px}
+    .val{font-size:15px;font-weight:900;color:#0f172a}
+    .mutedbox{margin-top:14px;padding:14px 16px;border-radius:18px;background:rgba(255,255,255,.42);border:1px dashed rgba(148,163,184,.35);font-size:12px;color:#64748b;font-weight:700;line-height:1.65}
+    .empty{padding:24px 18px;text-align:center;color:#64748b;font-size:13px;font-weight:700}
+    .footer-note{font-size:12px;color:#64748b;font-weight:700;margin-top:16px;line-height:1.7}
+    .spark{position:absolute;inset:auto 0 0 auto;width:120px;height:120px;border-radius:999px;background:radial-gradient(circle at center, rgba(20,63,143,.08), rgba(20,63,143,0));pointer-events:none}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @media (max-width: 1180px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.section-grid{grid-template-columns:1fr}.chart-wrap{height:320px}}
+    @media (max-width: 768px){.shell{padding:18px 14px 32px}.topbar{padding:22px 18px}.headline{font-size:28px}.summary-grid{grid-template-columns:1fr}.card{padding:20px 16px 16px}.chart-wrap{height:280px}.tab{font-size:12px;padding:9px 12px}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="glass-card topbar">
+      <div>
+        <div class="eyebrow">Search Volume Monitor</div>
+        <div class="headline">컬럼비아 검색량</div>
+        <div class="sub">실제 검색수 기준 대시보드 · 탭 전환, 숫자 카운팅, 차트 애니메이션 포함</div>
+      </div>
+      <div class="text-right">
+        <div class="pill" id="updatedAt">업데이트 -</div>
+        <div class="pill" style="margin-top:10px" id="periodLabel">기간 -</div>
+      </div>
+    </section>
+
+    <div class="tabs" id="periodTabs"></div>
+
+    <section class="summary-grid" id="summaryGrid"></section>
+
+    <section class="section-grid">
+      <div class="glass-card card">
+        <div class="spark"></div>
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3>플랫폼별 검색량 추이</h3>
+            <div class="desc">네이버·구글 실제 검색량 기준 그래프</div>
+          </div>
+          <div class="pill" id="availabilityPill">데이터 확인 중</div>
+        </div>
+        <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
+        <div class="mutedbox" id="availabilityNote"></div>
+      </div>
+      <div class="glass-card card">
+        <h3>최신 검색량 상위 키워드</h3>
+        <div class="desc">선택 기간의 마지막 시점 기준 총검색수</div>
+        <div class="rank-list" id="latestRank"></div>
+      </div>
+    </section>
+
+    <section class="section-grid">
+      <div class="glass-card card">
+        <h3>키워드별 검색량 추이</h3>
+        <div class="desc">키워드별 실제 검색수 흐름</div>
+        <div class="chart-wrap"><canvas id="keywordChart"></canvas></div>
+      </div>
+      <div class="glass-card card">
+        <h3>증감률 Ranking</h3>
+        <div class="desc">선택 기간 시작 vs 종료 기준</div>
+        <div class="rank-list" id="growthRank"></div>
+      </div>
+    </section>
+
+    <section class="glass-card card">
+      <h3>최신 시점 키워드 스냅샷</h3>
+      <div class="desc">가장 최근 시점 기준 키워드별 실제 검색수 상세</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Date</th>
+              <th>Keyword</th>
+              <th>PC</th>
+              <th>Mobile</th>
+              <th>Total</th>
+              <th>증감률</th>
+            </tr>
+          </thead>
+          <tbody id="snapshotTable"></tbody>
+        </table>
+      </div>
+      <div class="footer-note" id="footerNote"></div>
+    </section>
+  </div>
+
+<script>
+const DASHBOARD_DATA = {"keywords": ["컬럼비아", "컬럼비아 스포츠웨어", "컬럼비아 후리스", "컬럼비아 바람막이", "컬럼비아 등산화"], "generated_at": "2026.03.23 19:04 KST", "snapshot_date": "2026-03-22", "naver_snapshots": [], "google_history": [], "notes": ["Naver fetch failed: 400 Client Error: Bad Request for url: https://api.searchad.naver.com/keywordstool?hintKeywords=%EC%BB%AC%EB%9F%BC%EB%B9%84%EC%95%84+%EC%8A%A4%ED%8F%AC%EC%B8%A0%EC%9B%A8%EC%96%B4&showDetail=1"], "start_date": "2025-12-22", "end_date": "2026-03-22", "geo": "KR"};
+const PERIODS = [
+  { key:'18m', label:'1년 6개월', days:548 },
+  { key:'12m', label:'1년', days:365 },
+  { key:'6m', label:'6개월', days:183 },
+  { key:'3m', label:'3개월', days:92 },
+  { key:'1m', label:'1개월', days:31 },
+  { key:'1w', label:'1주', days:7 },
+];
+
+let currentPeriod = '3m';
+let overviewChart = null;
+let keywordChart = null;
+
+function nf(v){ return `${Number(v || 0).toLocaleString('ko-KR')}건`; }
+function pct(v){
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return '-';
+  const n = Number(v); const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(1)}%`;
+}
+function parseDate(v){ return new Date(v + 'T00:00:00'); }
+function monthToDate(v){ return new Date(v + '-01T00:00:00'); }
+function isGoogleHistoryAvailable(){ return Array.isArray(DASHBOARD_DATA.google_history) && DASHBOARD_DATA.google_history.length > 0; }
+function isNaverSnapshotsAvailable(){ return Array.isArray(DASHBOARD_DATA.naver_snapshots) && DASHBOARD_DATA.naver_snapshots.length > 0; }
+function getPeriodObj(){ return PERIODS.find(x => x.key === currentPeriod) || PERIODS[3]; }
+
+function animateNumber(el, rawTarget, duration=850){
+  if (!el) return;
+  const target = Number(rawTarget || 0);
+  const start = Number(el.dataset.currentValue || 0);
+  const startTs = performance.now();
+  function frame(ts){
+    const progress = Math.min(1, (ts - startTs) / duration);
+    const eased = 1 - Math.pow(1 - progress, 4);
+    const value = Math.round(start + (target - start) * eased);
+    el.textContent = nf(value);
+    if (progress < 1) requestAnimationFrame(frame); else el.dataset.currentValue = String(target);
+  }
+  requestAnimationFrame(frame);
+}
+
+function animateText(el, finalText){
+  if (!el) return;
+  el.style.opacity = 0;
+  el.style.transform = 'translateY(6px)';
+  requestAnimationFrame(() => {
+    el.textContent = finalText;
+    el.style.transition = 'opacity .28s ease, transform .28s ease';
+    el.style.opacity = 1;
+    el.style.transform = 'translateY(0)';
+  });
+}
+
+function staggerItems(selector){
+  document.querySelectorAll(selector).forEach((el, idx) => {
+    el.style.animationDelay = `${idx * 60}ms`;
+  });
+}
+
+function filterNaverSnapshots(){
+  const arr = DASHBOARD_DATA.naver_snapshots || [];
+  if (!arr.length) return [];
+  const maxDt = arr.map(x => parseDate(x.snapshot_date)).sort((a,b)=>a-b).pop();
+  const cutoff = new Date(maxDt); cutoff.setDate(cutoff.getDate() - getPeriodObj().days + 1);
+  return arr.filter(x => parseDate(x.snapshot_date) >= cutoff);
+}
+
+function filterGoogleHistory(){
+  const arr = DASHBOARD_DATA.google_history || [];
+  if (!arr.length) return [];
+  const maxDt = arr.map(x => monthToDate(x.month)).sort((a,b)=>a-b).pop();
+  const cutoff = new Date(maxDt); cutoff.setDate(cutoff.getDate() - getPeriodObj().days + 1);
+  return arr.filter(x => monthToDate(x.month) >= cutoff);
+}
+
+function buildTabs(){
+  const wrap = document.getElementById('periodTabs');
+  wrap.innerHTML = PERIODS.map(p => `<button class="tab ${p.key===currentPeriod?'active':''}" data-key="${p.key}">${p.label}</button>`).join('');
+  wrap.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentPeriod = btn.dataset.key;
+      buildTabs();
+      render();
+    });
+  });
+}
+
+function groupedTotals(records, mode){
+  const map = new Map();
+  records.forEach(row => {
+    const key = mode === 'naver' ? row.snapshot_date : row.month;
+    map.set(key, (map.get(key) || 0) + Number(row.total || row.monthly_searches || 0));
+  });
+  return Array.from(map.entries()).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))).map(([label,value])=>({label,value}));
+}
+
+function keywordSeries(records, mode){
+  const keywords = DASHBOARD_DATA.keywords || [];
+  const labels = Array.from(new Set(records.map(r => mode === 'naver' ? r.snapshot_date : r.month))).sort();
+  const datasetByKw = {};
+  keywords.forEach(kw => datasetByKw[kw] = labels.map(_ => 0));
+  records.forEach(row => {
+    const label = mode === 'naver' ? row.snapshot_date : row.month;
+    const idx = labels.indexOf(label);
+    if (idx >= 0 && datasetByKw[row.keyword]) datasetByKw[row.keyword][idx] = Number(row.total || row.monthly_searches || 0);
+  });
+  return { labels, datasetByKw };
+}
+
+function latestRows(){
+  const naver = filterNaverSnapshots();
+  const google = filterGoogleHistory();
+  const latestNaverDate = naver.length ? naver.map(r => r.snapshot_date).sort().pop() : null;
+  const latestGoogleMonth = google.length ? google.map(r => r.month).sort().pop() : null;
+  return {
+    naver: latestNaverDate ? naver.filter(r => r.snapshot_date === latestNaverDate) : [],
+    google: latestGoogleMonth ? google.filter(r => r.month === latestGoogleMonth) : []
+  };
+}
+
+function growthByKeyword(records, mode){
+  const out = [];
+  (DASHBOARD_DATA.keywords || []).forEach(kw => {
+    const rows = records.filter(r => r.keyword === kw).sort((a,b)=> String(mode==='naver'?a.snapshot_date:a.month).localeCompare(String(mode==='naver'?b.snapshot_date:b.month)));
+    if (!rows.length) return;
+    const first = Number(rows[0].total || rows[0].monthly_searches || 0);
+    const last = Number(rows[rows.length-1].total || rows[rows.length-1].monthly_searches || 0);
+    const growth = first > 0 ? ((last-first)/first)*100 : null;
+    out.push({ keyword: kw, first, last, growth, platform: mode==='naver'?'Naver':'Google' });
+  });
+  return out.sort((a,b)=>(Number(b.growth ?? -999999))-(Number(a.growth ?? -999999)));
+}
+
+function renderSummary(){
+  const latest = latestRows();
+  const latestNaverTotal = latest.naver.reduce((s,r)=>s+Number(r.total||0),0);
+  const latestGoogleTotal = latest.google.reduce((s,r)=>s+Number(r.monthly_searches||0),0);
+  const latestCombined = latestNaverTotal + latestGoogleTotal;
+  const latestTop = [
+    ...latest.naver.map(r => ({keyword:r.keyword, value:Number(r.total||0), platform:'Naver'})),
+    ...latest.google.map(r => ({keyword:r.keyword, value:Number(r.monthly_searches||0), platform:'Google'})),
+  ].sort((a,b)=>b.value-a.value)[0];
+
+  const cards = [
+    {k:'최신 총검색량',v:latestCombined,s:'네이버 + 구글 최신 시점 합산',num:true},
+    {k:'네이버 최신 검색량',v:latestNaverTotal,s:'가장 최근 수집 시점 기준',num:true},
+    {k:'구글 최신 검색량',v:latestGoogleTotal,s:isGoogleHistoryAvailable()?'가장 최근 월 기준':'Google Ads 미연동',num:true},
+    {k:'최고 검색량 키워드',v:latestTop ? `${latestTop.keyword}` : '-',s:latestTop ? `${latestTop.platform} · ${nf(latestTop.value)}` : '최신 데이터 없음',num:false},
+  ];
+  const wrap = document.getElementById('summaryGrid');
+  wrap.innerHTML = cards.map((c, idx) => `
+    <div class="glass-card summary-card" style="animation-delay:${idx * 70}ms">
+      <div class="summary-k">${c.k}</div>
+      <div class="summary-v" data-role="summary-value" data-num="${c.num ? 1 : 0}">${c.num ? '0건' : c.v}</div>
+      <div class="summary-s">${c.s}</div>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('[data-role="summary-value"]').forEach((el, idx) => {
+    if (cards[idx].num) animateNumber(el, cards[idx].v); else animateText(el, cards[idx].v);
+  });
+}
+
+function makeChartOptions(yTitle){
+  return {
+    responsive:true,
+    maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    animation:{duration:900,easing:'easeOutQuart'},
+    transitions:{active:{animation:{duration:260}}},
+    plugins:{
+      legend:{labels:{usePointStyle:true,boxWidth:8,font:{family:'Plus Jakarta Sans',weight:'700'}}},
+      tooltip:{callbacks:{label:(ctx)=> `${ctx.dataset.label}: ${Number(ctx.raw||0).toLocaleString('ko-KR')}건`}}
+    },
+    scales:{
+      x:{grid:{display:false},ticks:{font:{family:'Plus Jakarta Sans',weight:'700'}}},
+      y:{beginAtZero:true,ticks:{callback:(v)=>Number(v).toLocaleString('ko-KR'),font:{family:'Plus Jakarta Sans',weight:'700'}},title:{display:true,text:yTitle,font:{family:'Plus Jakarta Sans',weight:'800'}},grid:{color:'rgba(148,163,184,.14)'}}
+    }
+  };
+}
+
+function peakRadius(data){
+  const max = Math.max(...data, 0);
+  return data.map(v => (v === max && v > 0 ? 4 : 0));
+}
+
+function upsertChart(chartRef, ctx, data, options){
+  if (!chartRef) return new Chart(ctx, {type:'line', data, options});
+  chartRef.data.labels = data.labels;
+  chartRef.data.datasets = data.datasets;
+  chartRef.options = options;
+  chartRef.update();
+  return chartRef;
+}
+
+function buildOverviewChart(){
+  const naver = groupedTotals(filterNaverSnapshots(),'naver');
+  const google = groupedTotals(filterGoogleHistory(),'google');
+  const labels = Array.from(new Set([...naver.map(x=>x.label), ...google.map(x=>x.label)])).sort();
+  const nMap = Object.fromEntries(naver.map(x=>[x.label,x.value]));
+  const gMap = Object.fromEntries(google.map(x=>[x.label,x.value]));
+  const nData = labels.map(l=>nMap[l]||0);
+  const gData = labels.map(l=>gMap[l]||0);
+  const data = {
+    labels,
+    datasets:[
+      {label:'Naver 검색량',data:nData,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.12)',tension:.28,fill:true,pointRadius:peakRadius(nData),pointHoverRadius:6,borderWidth:2},
+      {label:'Google 검색량',data:gData,borderColor:'#0f172a',backgroundColor:'rgba(15,23,42,.08)',tension:.28,fill:false,pointRadius:peakRadius(gData),pointHoverRadius:6,borderWidth:2}
+    ]
+  };
+  const ctx = document.getElementById('overviewChart').getContext('2d');
+  overviewChart = upsertChart(overviewChart, ctx, data, makeChartOptions('검색량'));
+}
+
+function buildKeywordChart(){
+  const naver = keywordSeries(filterNaverSnapshots(),'naver');
+  const google = keywordSeries(filterGoogleHistory(),'google');
+  const labels = Array.from(new Set([...(naver.labels||[]), ...(google.labels||[])])).sort();
+  const keywords = DASHBOARD_DATA.keywords || [];
+  const palette = ['#2563eb','#10b981','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#84cc16','#64748b'];
+  const datasets = keywords.flatMap((kw, idx) => {
+    const arr = [];
+    if (naver.labels.length) {
+      const nMap = Object.fromEntries(naver.labels.map((lb, i)=>[lb, naver.datasetByKw[kw]?.[i]||0]));
+      const series = labels.map(lb=>nMap[lb]||0);
+      arr.push({label:`Naver · ${kw}`,data:series,borderColor:palette[idx % palette.length],backgroundColor:'transparent',tension:.25,pointRadius:2,pointHoverRadius:5,borderWidth:2});
+    }
+    if (google.labels.length) {
+      const gMap = Object.fromEntries(google.labels.map((lb, i)=>[lb, google.datasetByKw[kw]?.[i]||0]));
+      const series = labels.map(lb=>gMap[lb]||0);
+      arr.push({label:`Google · ${kw}`,data:series,borderColor:palette[(idx+3)%palette.length],backgroundColor:'transparent',borderDash:[6,4],tension:.25,pointRadius:2,pointHoverRadius:5,borderWidth:2});
+    }
+    return arr;
+  });
+  const ctx = document.getElementById('keywordChart').getContext('2d');
+  keywordChart = upsertChart(keywordChart, ctx, {labels,datasets}, makeChartOptions('검색량'));
+}
+
+function renderRank(elId, rows, type){
+  const el = document.getElementById(elId);
+  if (!rows.length){ el.innerHTML = `<div class="empty">표시할 데이터가 아직 없어요.</div>`; return; }
+  el.innerHTML = rows.slice(0,8).map((r,idx)=>`
+    <div class="rank-item" style="animation-delay:${idx * 65}ms">
+      <div class="rank-left">
+        <div class="badge">${idx+1}</div>
+        <div>
+          <div class="kw">${r.keyword}</div>
+          <div class="meta">${r.platform}</div>
+        </div>
+      </div>
+      <div class="val">${type==='latest' ? nf(r.value) : pct(r.growth)}</div>
+    </div>
+  `).join('');
+  staggerItems(`#${elId} .rank-item`);
+}
+
+function renderSnapshotTable(){
+  const rows = [];
+  const latest = latestRows();
+  const nGrowthMap = Object.fromEntries(growthByKeyword(filterNaverSnapshots(),'naver').map(x=>[x.keyword,x.growth]));
+  const gGrowthMap = Object.fromEntries(growthByKeyword(filterGoogleHistory(),'google').map(x=>[x.keyword,x.growth]));
+  latest.naver.forEach(r => rows.push({platform:'Naver',date:r.snapshot_date,keyword:r.keyword,pc:r.pc,mobile:r.mobile,total:r.total,delta:nGrowthMap[r.keyword]}));
+  latest.google.forEach(r => rows.push({platform:'Google',date:r.month,keyword:r.keyword,pc:'-',mobile:'-',total:r.monthly_searches,delta:gGrowthMap[r.keyword]}));
+  const body = document.getElementById('snapshotTable');
+  if (!rows.length){ body.innerHTML = `<tr><td colspan="7" class="empty">최신 스냅샷이 아직 없습니다.</td></tr>`; return; }
+  body.innerHTML = rows.map((r, idx) => `
+    <tr style="animation-delay:${idx * 45}ms">
+      <td>${r.platform}</td>
+      <td>${r.date}</td>
+      <td>${r.keyword}</td>
+      <td>${typeof r.pc === 'number' ? nf(r.pc) : r.pc}</td>
+      <td>${typeof r.mobile === 'number' ? nf(r.mobile) : r.mobile}</td>
+      <td>${nf(r.total)}</td>
+      <td>${pct(r.delta)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderMeta(){
+  document.getElementById('updatedAt').textContent = `업데이트 ${DASHBOARD_DATA.generated_at || '-'}`;
+  document.getElementById('periodLabel').textContent = `기간 ${getPeriodObj().label}`;
+  const availability = [
+    isNaverSnapshotsAvailable() ? `Naver 스냅샷 ${Array.from(new Set((DASHBOARD_DATA.naver_snapshots||[]).map(r=>r.snapshot_date))).length}개` : 'Naver 스냅샷 없음',
+    isGoogleHistoryAvailable() ? `Google 월 데이터 ${Array.from(new Set((DASHBOARD_DATA.google_history||[]).map(r=>r.month))).length}개월` : 'Google 미연동'
+  ];
+  document.getElementById('availabilityPill').textContent = availability.join(' · ');
+  document.getElementById('availabilityNote').innerHTML = [
+    '네이버 SearchAd 키워드 도구는 월간 PC·모바일 검색수를 제공합니다. 이 화면의 네이버 라인은 <b>수집 시점의 월간 검색량 스냅샷</b>을 날짜별로 누적한 값입니다.',
+    '구글은 Google Ads Keyword Planner Historical Metrics 연동 시 <b>월별 검색량</b>을 표시합니다. 미연동이면 네이버 검색량만 노출됩니다.',
+    '즉, 이 화면의 숫자는 상대지수나 평균점수가 아니라 <b>실제 검색량 수치</b>입니다.'
+  ].join('<br>');
+  document.getElementById('footerNote').innerHTML = `키워드: ${(DASHBOARD_DATA.keywords||[]).join(', ')}<br>구글 미연동 상태면 실제 검색수는 네이버 기준으로만 표시됩니다.`;
+}
+
+function render(){
+  renderMeta();
+  renderSummary();
+  buildOverviewChart();
+  buildKeywordChart();
+  const latest = latestRows();
+  const latestRank = [
+    ...latest.naver.map(r => ({keyword:r.keyword,platform:'Naver',value:r.total})),
+    ...latest.google.map(r => ({keyword:r.keyword,platform:'Google',value:r.monthly_searches}))
+  ].sort((a,b)=>b.value-a.value);
+  renderRank('latestRank', latestRank, 'latest');
+  const growthRank = [...growthByKeyword(filterNaverSnapshots(),'naver'), ...growthByKeyword(filterGoogleHistory(),'google')]
+    .sort((a,b)=>(Number(b.growth ?? -999999))-(Number(a.growth ?? -999999)));
+  renderRank('growthRank', growthRank, 'growth');
+  renderSnapshotTable();
+}
+
+buildTabs();
+render();
+</script>
+</body>
+</html>
