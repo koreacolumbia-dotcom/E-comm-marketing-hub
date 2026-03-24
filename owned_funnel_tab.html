@@ -55,8 +55,8 @@
     .funnel-row{display:grid;grid-template-columns:300px minmax(0,1fr) 236px;gap:24px;align-items:stretch}
     .funnel-stage-card{position:relative;border:1px solid rgba(191,219,254,.40);background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,250,252,.94));border-radius:28px;box-shadow:0 18px 40px rgba(15,23,42,.07);padding:18px 18px 16px;display:flex;flex-direction:column;justify-content:flex-start;min-height:220px;animation:cardRise .72s cubic-bezier(.2,.82,.25,1) both}.funnel-stage-card::before{content:"";position:absolute;inset:0;background:linear-gradient(145deg,rgba(29,78,216,.06),rgba(255,255,255,0) 52%);pointer-events:none}.funnel-stage-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;position:relative;z-index:1}.funnel-stage-card-title{margin-top:6px;font-size:18px;line-height:1.08;font-weight:900;letter-spacing:-.03em;color:#0f172a}.funnel-stage-card-current{font-size:32px;line-height:.95;font-weight:900;letter-spacing:-.05em;color:#0f172a;white-space:nowrap}.funnel-stage-card-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;position:relative;z-index:1}.funnel-stage-card-ref{margin-top:10px;display:grid;gap:6px;position:relative;z-index:1}.funnel-stage-card-refline{font-size:12px;line-height:1.35;font-weight:800;color:#64748b}.funnel-lane{min-width:0}
     .funnel-step-line{display:none}
-    .funnel-track{position:relative;height:220px;border-radius:30px;border:1px solid rgba(191,219,254,.36);background:linear-gradient(180deg,rgba(239,246,255,.86),rgba(255,255,255,.4));overflow:hidden;padding:0 10px;display:flex;align-items:center;justify-content:center}
-    .funnel-stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 22px 42px rgba(15,23,42,.13);height:168px;border-radius:26px;overflow:hidden;padding:16px 28px;min-width:0;max-width:100%;animation:funnelStageIn .96s cubic-bezier(.18,.86,.22,1) both}
+    .funnel-track{position:relative;height:220px;border-radius:30px;border:1px solid rgba(191,219,254,.36);background:linear-gradient(180deg,rgba(239,246,255,.86),rgba(255,255,255,.4));overflow:hidden;padding:0 10px}.funnel-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 10px}
+    .funnel-stage{position:relative;left:auto;top:auto;transform:none;transform-origin:center center;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;box-shadow:0 22px 42px rgba(15,23,42,.13);height:168px;border-radius:26px;overflow:hidden;padding:16px 28px;min-width:0;max-width:100%;margin:auto;animation:funnelStageIn .96s cubic-bezier(.18,.86,.22,1) both}
     .funnel-stage::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 54%,rgba(0,0,0,.06));pointer-events:none}
     .funnel-stage::after{content:'';position:absolute;left:-24%;top:-40%;width:24%;height:180%;transform:rotate(18deg);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.32),rgba(255,255,255,0));filter:blur(6px);opacity:0;animation:funnelSheen 1.2s ease .35s both}
     .funnel-stage-inner{position:relative;z-index:2;width:100%;height:100%;display:flex;align-items:center;justify-content:center;min-width:0}
@@ -937,8 +937,9 @@
               </div>`}
               <div class="funnel-lane">
                 <div class="funnel-track">
-                  <div class="funnel-stage ${className}" data-stage="${Math.min(i + 1,5)}" style="width:${width.toFixed(1)}%;animation-delay:${i * 90}ms">
-                    <div class="funnel-stage-inner">
+                  <div class="funnel-center">
+                    <div class="funnel-stage ${className}" data-stage="${Math.min(i + 1,5)}" style="width:${width.toFixed(1)}%;animation-delay:${i * 90}ms">
+                      <div class="funnel-stage-inner">
                       ${compact ? `
                         <div class="stage-copy">
                           <div class="stage-title">${esc(stage.label)}</div>
@@ -952,6 +953,7 @@
                           <div class="stage-bar-num">${fmt(stage.value)}</div>
                         </div>
                       `}
+                      </div>
                     </div>
                   </div>
                 </div>
