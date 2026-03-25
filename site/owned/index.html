@@ -23,38 +23,60 @@
       box-shadow: 0 24px 60px rgba(0,45,114,0.07);
     }
     .chip{
+      position: relative;
+      overflow: hidden;
       border: 1px solid rgba(148,163,184,0.35);
-      background: rgba(255,255,255,0.78);
+      background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.74));
       border-radius: 999px;
       padding: 8px 12px;
       font-weight: 900;
       font-size: 12px;
       color: #0f172a;
-      transition: all .15s ease;
+      transition: transform .42s cubic-bezier(.22,1,.36,1), box-shadow .42s cubic-bezier(.22,1,.36,1), border-color .3s ease, background .3s ease, color .3s ease;
       user-select:none;
       white-space: nowrap;
+      will-change: transform, box-shadow;
     }
-    .chip:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .chip::after{
+      content:'';
+      position:absolute; inset:0;
+      background: linear-gradient(120deg, rgba(255,255,255,0) 20%, rgba(255,255,255,.48) 46%, rgba(255,255,255,0) 72%);
+      transform: translateX(-140%);
+      opacity:0;
+      pointer-events:none;
+    }
+    .chip:hover{ transform: translateY(-2px) scale(1.015); box-shadow: 0 14px 32px rgba(0,45,114,0.10); }
+    .chip:hover::after, .chip.active::after{ animation: chipSweep 1.15s ease; opacity:1; }
     .chip.active{
-      background: rgba(0,45,114,0.08);
-      border-color: rgba(0,45,114,0.28);
+      background: linear-gradient(180deg, rgba(0,45,114,0.12), rgba(0,45,114,0.07));
+      border-color: rgba(0,45,114,0.34);
       color: var(--brand);
+      box-shadow: 0 12px 28px rgba(0,45,114,0.10), inset 0 1px 0 rgba(255,255,255,0.45);
     }
     .btn{
+      position: relative;
+      overflow: hidden;
       border-radius: 14px;
       padding: 10px 14px;
       font-weight: 900;
       font-size: 12px;
       border: 1px solid rgba(148,163,184,0.28);
-      background: rgba(255,255,255,0.88);
-      transition: all .15s ease;
+      background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,255,255,0.84));
+      transition: transform .36s cubic-bezier(.22,1,.36,1), box-shadow .36s cubic-bezier(.22,1,.36,1), border-color .25s ease, background .25s ease;
       user-select:none;
       white-space: nowrap;
       display:inline-flex;
       align-items:center;
       gap:8px;
+      will-change: transform, box-shadow;
     }
-    .btn:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    .btn::after{
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background: linear-gradient(120deg, rgba(255,255,255,0) 24%, rgba(255,255,255,.42) 48%, rgba(255,255,255,0) 72%);
+      transform: translateX(-140%); opacity:0;
+    }
+    .btn:hover{ transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,45,114,0.10); }
+    .btn:hover::after{ animation: chipSweep 1.1s ease; opacity:1; }
     .btn-primary{ background: #002d72; border-color: #002d72; color: white; }
     .muted{ color:#64748b; }
     .small-label{
@@ -451,6 +473,54 @@
     @keyframes textShine{
       to{ background-position: 220% center; }
     }
+    @keyframes chipSweep{
+      from{ transform: translateX(-140%); }
+      to{ transform: translateX(140%); }
+    }
+    @keyframes panelSwitchIn{
+      0%{ opacity:.72; transform: translateY(16px) scale(.992); filter: blur(8px); }
+      55%{ opacity:1; transform: translateY(-3px) scale(1.002); filter: blur(0); }
+      100%{ opacity:1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+    .switch-animate{
+      animation: panelSwitchIn .62s cubic-bezier(.22,1,.36,1);
+    }
+    .chip-pulse{ animation: chipPulse .9s cubic-bezier(.22,1,.36,1); }
+    @keyframes chipPulse{
+      0%{ transform: scale(1); }
+      45%{ transform: translateY(-2px) scale(1.04); }
+      100%{ transform: scale(1); }
+    }
+    .kpi-card[data-cvr-band="elite"]{
+      border-color: rgba(37,99,235,.32) !important;
+      box-shadow: 0 24px 52px rgba(37,99,235,.18), 0 0 0 1px rgba(96,165,250,.10) !important;
+    }
+    .kpi-card[data-cvr-band="good"]{
+      border-color: rgba(34,197,94,.34) !important;
+      box-shadow: 0 24px 52px rgba(34,197,94,.16), 0 0 0 1px rgba(74,222,128,.10) !important;
+    }
+    .kpi-card[data-cvr-band="soft"]{
+      border-color: rgba(245,158,11,.34) !important;
+      box-shadow: 0 24px 52px rgba(245,158,11,.15), 0 0 0 1px rgba(251,191,36,.10) !important;
+    }
+    .kpi-card[data-cvr-band="weak"]{
+      border-color: rgba(239,68,68,.34) !important;
+      box-shadow: 0 24px 52px rgba(239,68,68,.15), 0 0 0 1px rgba(248,113,113,.10) !important;
+    }
+    .kpi-card[data-cvr-band] .kpi-value{ position:relative; }
+    .kpi-card[data-cvr-band] .kpi-value::after{
+      content:''; position:absolute; left:0; right:0; bottom:-10px; height:10px; border-radius:999px;
+      opacity:.82; filter: blur(10px); pointer-events:none;
+    }
+    .kpi-card[data-cvr-band="elite"] .kpi-value, .cvr-text[data-cvr-band="elite"]{ color:#2563eb !important; }
+    .kpi-card[data-cvr-band="good"] .kpi-value, .cvr-text[data-cvr-band="good"]{ color:#16a34a !important; }
+    .kpi-card[data-cvr-band="soft"] .kpi-value, .cvr-text[data-cvr-band="soft"]{ color:#d97706 !important; }
+    .kpi-card[data-cvr-band="weak"] .kpi-value, .cvr-text[data-cvr-band="weak"]{ color:#dc2626 !important; }
+    .kpi-card[data-cvr-band="elite"] .kpi-value::after{ background: rgba(37,99,235,.28); }
+    .kpi-card[data-cvr-band="good"] .kpi-value::after{ background: rgba(34,197,94,.24); }
+    .kpi-card[data-cvr-band="soft"] .kpi-value::after{ background: rgba(245,158,11,.24); }
+    .kpi-card[data-cvr-band="weak"] .kpi-value::after{ background: rgba(239,68,68,.24); }
+    .mini-sub:has(.cvr-text){ font-weight: 900; }
 
     .mini-card{
       border: 1px solid rgba(148,163,184,0.22);
@@ -575,8 +645,8 @@
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
-        <button id="chipDaily" class="chip active" type="button">DAILY</button>
-        <button id="chipWeek" class="chip" type="button">WEEK</button>
+        <button id="chipDaily" class="chip" type="button">DAILY</button>
+        <button id="chipWeek" class="chip active" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
 
         <label class="ml-2 flex items-center gap-2 text-xs font-extrabold text-slate-600 select-none">
@@ -997,7 +1067,10 @@
   }
   function finalizeAnimatedViewChange(){
     refreshKpiMadness();
+    applyCvrAccent(document);
     attachKpiTilt();
+    pulseActiveControls();
+    runSectionTransition();
     requestAnimationFrame(()=> runKpiEntranceOnce());
   }
   noticeClose.addEventListener('click', hideNotice);
@@ -1315,6 +1388,57 @@
     else if(/YoY\s*-|vs\s*LY\s*:\s*-|vs\s*LY\s*-|-\d/.test(t)) card.dataset.trend = 'down';
   }
 
+  function getCvrBand(v){
+    const n = Number(v);
+    if(!Number.isFinite(n)) return '';
+    if(n >= 4) return 'elite';
+    if(n >= 2.5) return 'good';
+    if(n >= 1.2) return 'soft';
+    return 'weak';
+  }
+
+  function applyCvrAccent(root=document){
+    const cvrCards = Array.from(root.querySelectorAll('.kpi-card')).filter(card => /CVR/i.test((card.querySelector('.kpi-title')?.textContent || '')));
+    cvrCards.forEach(card => {
+      const valueEl = card.querySelector('.kpi-value');
+      const raw = parseDisplayNumber(valueEl ? valueEl.textContent : '');
+      const band = getCvrBand(raw);
+      if(band) card.dataset.cvrBand = band;
+      else card.removeAttribute('data-cvr-band');
+    });
+
+    ['totEdmLeverage','totLmsLeverage','totKakaoLeverage','kLeverage'].forEach(id => {
+      const el = document.getElementById(id);
+      if(!el) return;
+      el.classList.add('cvr-text');
+      const band = getCvrBand(parseDisplayNumber(el.textContent || ''));
+      if(band) el.dataset.cvrBand = band;
+      else el.removeAttribute('data-cvr-band');
+      const host = el.closest('.mini-sub, .kpi-card');
+      if(host && band) host.dataset.cvrBand = band;
+    });
+  }
+
+  function pulseActiveControls(){
+    [chipDaily, chipWeek, chipRange, chipEDM, chipLMS, chipKAKAO].forEach(el => {
+      if(!el || !el.classList.contains('active')) return;
+      el.classList.remove('chip-pulse');
+      void el.offsetWidth;
+      el.classList.add('chip-pulse');
+      setTimeout(() => el.classList.remove('chip-pulse'), 900);
+    });
+  }
+
+  function runSectionTransition(){
+    [allSummarySection, channelActualsSection, kpiPanel, messageMeta, campaignArea, productsSection, analysisSection].forEach((el, idx) => {
+      if(!el) return;
+      el.classList.remove('switch-animate');
+      void el.offsetWidth;
+      el.style.animationDelay = `${idx * 26}ms`;
+      el.classList.add('switch-animate');
+    });
+  }
+
   function refreshKpiMadness(){
     const all = Array.from(document.querySelectorAll('#allCards .kpi-card'));
     const ytd = Array.from(document.querySelectorAll('#ytdCards .kpi-card'));
@@ -1353,6 +1477,8 @@
       const value = card.querySelector('.kpi-value');
       if(value) animateValueText(value, value.textContent, 800);
     });
+
+    applyCvrAccent(document);
   }
 
   function attachKpiTilt(){
@@ -3010,23 +3136,7 @@
     renderProducts();
   }
 
-  const OWNED_DATA_BASE_CANDIDATES = [
-    'site/data/owned',
-    './site/data/owned',
-    '../site/data/owned',
-    '../../site/data/owned',
-    'data/owned',
-    './data/owned',
-    '../data/owned',
-    '../../data/owned',
-    'reports/owned_portal/data/owned',
-    './reports/owned_portal/data/owned',
-    '../reports/owned_portal/data/owned',
-    '/site/data/owned',
-    '/reports/owned_portal/data/owned',
-    '/data/owned',
-  ];
-  let OWNED_DATA_BASE = null;
+  const BASE_PATH = 'site/data/owned';
   let PORTAL_META = null;
 
   async function fetchOwnedJsonOptional(fileName){
@@ -3084,49 +3194,35 @@
     return await res.json();
   }
 
-  async function resolveOwnedDataBase(){
-    if(OWNED_DATA_BASE) return OWNED_DATA_BASE;
-
-    const seen = new Set();
-    const candidates = [];
-    for(const base of OWNED_DATA_BASE_CANDIDATES){
-      const normalized = String(base || '').replace(/\/$/, '');
-      if(!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      candidates.push(normalized);
-    }
-
-    for(const base of candidates){
-      try{
-        const probe = await fetchJsonDirect(appendCacheBust(`${base}/available_dates.json`));
-        const dates = Array.isArray(probe) ? probe : ((probe && Array.isArray(probe.available_dates)) ? probe.available_dates : []);
-        if(dates.length){
-          OWNED_DATA_BASE = base;
-          return OWNED_DATA_BASE;
-        }
-      }catch(_e){}
-      try{
-        const probeMeta = await fetchJsonDirect(appendCacheBust(`${base}/portal_meta.json`));
-        const dates = Array.isArray(probeMeta && probeMeta.available_dates) ? probeMeta.available_dates : [];
-        if(dates.length){
-          OWNED_DATA_BASE = base;
-          return OWNED_DATA_BASE;
-        }
-      }catch(_e){}
-    }
-    throw new Error('OWNED data base path not found');
+  async function fetchJSON(path){
+    const res = await fetch(appendCacheBust(path), { cache:'no-store' });
+    if(!res.ok) throw new Error(`Fetch failed: ${path} (HTTP ${res.status})`);
+    return await res.json();
   }
 
-  async function fetchJson(url){
-    if(/^https?:\/\//i.test(url) || url.startsWith('/')){
-      return await fetchJsonDirect(appendCacheBust(url));
+  async function loadAvailableDates(){
+    try{
+      const data = await fetchJSON(`${BASE_PATH}/available_dates.json`);
+      if(Array.isArray(data)) return data;
+      if(data && Array.isArray(data.available_dates)) return data.available_dates;
+      return [];
+    }catch(e){
+      console.error('available_dates load 실패', e);
+      return [];
     }
-    return await fetchJsonDirect(url);
+  }
+
+  async function loadPortalMeta(){
+    try{
+      return await fetchJSON(`${BASE_PATH}/portal_meta.json`);
+    }catch(e){
+      console.warn('portal_meta 없음 → fallback 사용');
+      return null;
+    }
   }
 
   async function fetchOwnedJson(fileName){
-    const base = await resolveOwnedDataBase();
-    return await fetchJsonDirect(appendCacheBust(`${base}/${fileName}`));
+    return await fetchJSON(`${BASE_PATH}/${fileName}`);
   }
 
   function normalizeBundle(j){
