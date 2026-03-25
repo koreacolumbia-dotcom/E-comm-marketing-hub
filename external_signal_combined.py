@@ -2052,36 +2052,19 @@ def _summary_table_html(summary_df: pd.DataFrame, platform: str) -> str:
         comment_mentions = int(row["comment_mentions"])
         mention_total = int(row["total_mentions"])
         share = (mention_total / total_mentions * 100) if total_mentions else 0
-        is_columbia = brand == "컬럼비아"
-        row_class = "brand-rank-row brand-rank-row-columbia" if is_columbia else "brand-rank-row"
-        badge_class = (
-            "inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-gradient-to-br from-sky-600 to-indigo-700 text-xs font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.28)] ring-4 ring-sky-100"
-            if is_columbia
-            else "inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-extrabold text-white"
-        )
-        brand_text_class = (
-            "font-extrabold text-sky-800 group-hover:text-sky-700 transition-colors"
-            if is_columbia
-            else "font-extrabold text-slate-800 group-hover:text-sky-700 transition-colors"
-        )
-        number_class = "py-3 pr-4 text-right tabular-nums font-black text-sky-900" if is_columbia else "py-3 pr-4 text-right tabular-nums text-slate-700"
-        mention_class = "py-3 pr-4 text-right tabular-nums font-extrabold text-sky-900" if is_columbia else "py-3 pr-4 text-right tabular-nums font-extrabold text-slate-900"
-        share_class = "py-3 text-right tabular-nums font-black text-sky-700" if is_columbia else "py-3 text-right tabular-nums text-slate-500"
-        columbia_badge = '<span class="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-black tracking-[0.16em] text-sky-700 ring-1 ring-sky-200">COLUMBIA</span>' if is_columbia else ''
-        return f''' 
-        <tr class="{row_class} border-b border-slate-200/80 last:border-b-0 hover:bg-slate-50/70 transition-colors" data-animate style="--index:{rank}">
+        return f'''
+        <tr class="border-b border-slate-200/80 last:border-b-0 hover:bg-slate-50/70 transition-colors">
           <td class="py-3 pr-4">
             <button type="button" class="brand-jump group flex items-center gap-3 text-left" data-platform="{html.escape(platform)}" data-brand="{html.escape(brand)}">
-              <span class="{badge_class}">#{rank}</span>
-              <span class="{brand_text_class}">{html.escape(brand)}</span>
-              {columbia_badge}
+              <span class="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-extrabold text-white">#{rank}</span>
+              <span class="font-extrabold text-slate-800 group-hover:text-sky-700 transition-colors">{html.escape(brand)}</span>
             </button>
           </td>
-          <td class="{number_class}">{posts_count:,}</td>
-          <td class="{number_class}">{title_hits:,}</td>
-          <td class="{number_class}">{comment_mentions:,}</td>
-          <td class="{mention_class}">{mention_total:,}</td>
-          <td class="{share_class}">{share:.1f}%</td>
+          <td class="py-3 pr-4 text-right tabular-nums text-slate-700">{posts_count:,}</td>
+          <td class="py-3 pr-4 text-right tabular-nums text-slate-700">{title_hits:,}</td>
+          <td class="py-3 pr-4 text-right tabular-nums text-slate-700">{comment_mentions:,}</td>
+          <td class="py-3 pr-4 text-right tabular-nums font-extrabold text-slate-900">{mention_total:,}</td>
+          <td class="py-3 text-right tabular-nums text-slate-500">{share:.1f}%</td>
         </tr>
         '''
 
@@ -2650,19 +2633,17 @@ def export_portal(
       radial-gradient(circle at 72% 74%, rgba(249,115,22,.16), transparent 24%),
       linear-gradient(180deg,#f8fbff 0%,#eef4fb 52%,#e8eff8 100%); background-size:120% 120%; animation:ambientShift 18s ease-in-out infinite alternate; }}
     body.embedded {{ background:transparent !important; }}
-    .trend-fill {{ transform-origin:left center; transform:scaleX(0); }}
-    .trend-row.in-view .trend-fill, .tab-panel.is-active .trend-row.in-view .trend-fill {{ animation:growBar .9s cubic-bezier(.2,.7,.2,1) forwards; animation-delay:calc(var(--index,0) * 55ms); }}
-    [data-animate] {{ opacity:0; transform:translateY(18px) scale(.985); will-change:transform, opacity; }}
-    [data-animate].in-view {{ animation:revealUp .68s cubic-bezier(.2,.7,.2,1) forwards; animation-delay:calc(var(--index,0) * 55ms); }}
-    .brand-rank-row-columbia {{ background:linear-gradient(90deg, rgba(14,165,233,0.10), rgba(59,130,246,0.04) 42%, rgba(255,255,255,0)); }}
-    .brand-rank-row-columbia:hover {{ background:linear-gradient(90deg, rgba(14,165,233,0.14), rgba(59,130,246,0.07) 42%, rgba(255,255,255,0)); }}
-    .ghost-link {{ background:none; border:none; cursor:pointer; }}
+    .tab-panel[data-theme="dcinside"] {{ --accent:37 99 235; }}
+    .tab-panel[data-theme="naver_cafe"] {{ --accent:22 163 74; }}
+    .tab-panel[data-theme="eomisae"] {{ --accent:217 119 6; }}
+        .panel-hero {{ position:relative; background:linear-gradient(135deg, rgba(var(--accent),.16), rgba(255,255,255,.96) 38%, rgba(var(--accent),.08)); }}
+    .hero-orb {{ position:absolute; border-radius:999px; filter:blur(8px); pointer-events:none; mix-blend-mode:screen; }}
     .hero-orb-primary {{ width:220px; height:220px; right:-42px; top:-42px; background:radial-gradient(circle, rgba(var(--accent),.28), transparent 70%); animation:floatBlob 12s ease-in-out infinite; }}
     .hero-orb-secondary {{ width:180px; height:180px; left:-32px; bottom:-46px; background:radial-gradient(circle, rgba(var(--accent),.18), transparent 70%); animation:floatBlobReverse 14s ease-in-out infinite; }}
     .tab-panel {{ opacity:0; transform:translateY(18px); pointer-events:none; }}
     .tab-panel.is-active {{ opacity:1; transform:translateY(0); pointer-events:auto; animation:panelIn .65s cubic-bezier(.2,.7,.2,1) both; }}
     .tab-btn.active, .source-switch.active, .info-tab-btn.active {{ color:#fff; background:linear-gradient(135deg, rgba(var(--theme),1), rgba(var(--theme),.82)); box-shadow:0 18px 34px rgba(var(--theme),.24); border-color:transparent; }}
-    @media (prefers-reduced-motion: reduce) {{ *,*::before,*::after {{ animation:none !important; transition:none !important; }} .tab-panel {{ opacity:1; transform:none; pointer-events:auto; }} [data-animate] {{ opacity:1; transform:none; }} .trend-fill {{ transform:scaleX(var(--scale)); }} .brand-rank-row-columbia {{ background:rgba(14,165,233,0.08); }} }}
+    .tab-btn[data-theme="dcinside"], .source-switch[data-theme="dcinside"], .info-tab-btn[data-platform="dcinside"] {{ --theme:37,99,235; }}
     .tab-btn[data-theme="naver_cafe"], .source-switch[data-theme="naver_cafe"], .info-tab-btn[data-platform="naver_cafe"] {{ --theme:22,163,74; }}
     .tab-btn[data-theme="eomisae"], .source-switch[data-theme="eomisae"], .info-tab-btn[data-platform="eomisae"] {{ --theme:217,119,6; }}
         .source-switch.active .text-slate-900, .source-switch.active .text-slate-500, .source-switch.active .text-slate-600 {{ color:#fff !important; }}
@@ -2744,6 +2725,25 @@ def export_portal(
       function escapeSelector(value) {{
         if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
         return String(value).replace(/"/g, '\\\\"');
+      }}
+
+      function formatCount(value) {{
+        return Number(value || 0).toLocaleString('ko-KR');
+      }}
+
+      function setActiveButtons(buttons, predicate) {{
+        buttons.forEach((button) => button.classList.toggle('active', predicate(button)));
+      }}
+
+      function applyInfoTab(platform, target) {{
+        infoTabButtons
+          .filter((button) => button.dataset.platform === platform)
+          .forEach((button) => button.classList.toggle('active', button.dataset.target === target));
+        document.querySelectorAll(`.info-tab-panel[data-platform="${{escapeSelector(platform)}}"]`).forEach((panel) => {{
+          panel.classList.toggle('hidden', panel.dataset.panel !== target);
+        }});
+      }}
+
       function animateCounter(el) {{
         const target = parseFloat(el.dataset.counter || '0');
         if (!Number.isFinite(target)) return;
@@ -2767,67 +2767,14 @@ def export_portal(
         el._raf = requestAnimationFrame(step);
       }}
 
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const revealObserver = prefersReducedMotion ? null : new IntersectionObserver((entries, observer) => {{
-        entries.forEach((entry) => {{
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add('in-view');
-          if (entry.target.matches('[data-counter]') && !entry.target.dataset.counted) {{
-            entry.target.dataset.counted = '1';
-            animateCounter(entry.target);
-          }}
-          observer.unobserve(entry.target);
-        }});
-      }}, {{ root:null, rootMargin:'0px 0px -10% 0px', threshold:0.12 }});
-
-      function registerRevealNodes(scope = document) {{
-        const nodes = Array.from(scope.querySelectorAll('[data-animate], .trend-row, [data-counter]'));
-        nodes.forEach((node) => {{
-          if (prefersReducedMotion) {{
-            node.classList.add('in-view');
-            if (node.matches('[data-counter]') && !node.dataset.counted) {{
-              node.dataset.counted = '1';
-              const target = parseFloat(node.dataset.counter || '0');
-              const decimals = parseInt(node.dataset.decimals || (Number.isInteger(target) ? '0' : '1'), 10);
-              const suffix = node.dataset.suffix || '';
-              const formatter = new Intl.NumberFormat('ko-KR', {{ minimumFractionDigits: decimals, maximumFractionDigits: decimals }});
-              node.textContent = formatter.format(target) + suffix;
-            }}
-            return;
-          }}
-          if (node.classList.contains('in-view')) return;
-          revealObserver.observe(node);
-        }});
-      }}
-        const decimals = parseInt(el.dataset.decimals || (Number.isInteger(target) ? '0' : '1'), 10);
-        const suffix = el.dataset.suffix || '';
-        const formatter = new Intl.NumberFormat('ko-KR', {{ minimumFractionDigits: decimals, maximumFractionDigits: decimals }});
-        if (el._raf) cancelAnimationFrame(el._raf);
-        const start = performance.now();
-        const duration = 850;
-        const step = (now) => {{
-          const progress = Math.min(1, (now - start) / duration);
-          const eased = 1 - Math.pow(1 - progress, 3);
-          el.textContent = formatter.format(target * eased) + suffix;
-          if (progress < 1) {{
-            el._raf = requestAnimationFrame(step);
-      function activate(targetId) {{
-        tabButtons.forEach((button) => button.classList.toggle('active', button.dataset.target === targetId));
-        sourceSwitches.forEach((button) => button.classList.toggle('active', button.dataset.target === targetId));
-        panels.forEach((panel) => {{
-          const isTarget = panel.id === targetId;
-          panel.classList.toggle('hidden', !isTarget);
-          panel.classList.toggle('is-active', isTarget);
-          if (isTarget) {{
-            registerRevealNodes(panel);
-            applyFilters(panel.dataset.platform);
-          }}
-        }});
+      function updateResultCount(panel, count) {{
+        const node = panel.querySelector(`[data-role="result-count"][data-platform="${{panel.dataset.platform}}"]`);
+        if (!node) return;
+        node.textContent = count > 0 ? `현재 조건에서 ${{formatCount(count)}}건을 표시 중입니다.` : '현재 조건에 맞는 결과가 없습니다.';
       }}
 
       function applyFilters(platform) {{
         const panel = document.querySelector(`.tab-panel[data-platform="${{platform}}"]`);
-      registerRevealNodes(document);
         if (!panel) return;
         const state = panelState[platform] || {{ brand: 'all', cafe: 'all', query: '' }};
         const query = (state.query || '').trim().toLowerCase();
@@ -3186,140 +3133,3 @@ def _source_panel_html(panel_id: str, title: str, subtitle: str, summary_html: s
       {sections_html}
     </section>
     '''
-
-
-def export_portal(dc_posts: List[Post], dc_brand_map: Dict[str, List[dict]], dc_summary_df: pd.DataFrame, naver_posts: List[Post], naver_brand_map: Dict[str, List[dict]], naver_summary_df: pd.DataFrame, naver_warning: str | None = None, out_path: str = "reports/external_signal.html"):
-    updated = _now_kst_str()
-    dc_meta = summarize_source(dc_posts, dc_brand_map, dc_summary_df, "DCInside")
-    naver_meta = summarize_source(naver_posts, naver_brand_map, naver_summary_df, "NAVER Cafe")
-    try:
-        payload = {
-            "updated_at": updated,
-            "target_days": int(TARGET_DAYS),
-            "dcinside": {"posts_collected": int(len(dc_posts)), "brands_active": int(len(dc_meta["active_brands"])), "total_mentions": int(dc_meta["total_mentions"]), "week_posts": int(dc_meta["week_posts"]), "week_mentions": int(dc_meta["week_mentions"]), "top5": dc_summary_df.head(5).to_dict(orient="records") if not dc_summary_df.empty else []},
-            "naver_cafe": {"posts_collected": int(len(naver_posts)), "brands_active": int(len(naver_meta["active_brands"])), "total_mentions": int(naver_meta["total_mentions"]), "week_posts": int(naver_meta["week_posts"]), "week_mentions": int(naver_meta["week_mentions"]), "top5": naver_summary_df.head(5).to_dict(orient="records") if not naver_summary_df.empty else [], "warning": naver_warning or ""},
-        }
-        _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
-    except Exception as e:
-        print(f"[WARN] summary.json export failed: {e}")
-
-    dc_panel = _source_panel_html(
-        panel_id="panel-dcinside",
-        title=f"DCInside · {GALLERY_ID} (최근 {int(TARGET_DAYS)}일)",
-        subtitle=f"Updated: {updated} · Posts collected: {len(dc_posts):,} · Active brands: {len(dc_meta['active_brands']):,}",
-        summary_html=_summary_table_html(dc_summary_df),
-        weekly_html=_weekly_html(dc_meta, "DCInside (게시글 작성일 기준)"),
-        sections_html=_brand_sections_html(dc_brand_map, "dcinside"),
-        filter_html=_brand_filter_controls_html(dc_brand_map, "dcinside"),
-    )
-
-    naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
-    if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
-        mode_label = str((NAVER_LAST_RUN_META or {}).get("query_mode", "brand only"))
-        raw_total = int((NAVER_LAST_RUN_META or {}).get("raw_total", 0))
-        kept_total = int((NAVER_LAST_RUN_META or {}).get("kept_total", len(naver_posts)))
-        detail_cache_size = int((NAVER_LAST_RUN_META or {}).get("detail_cache_size", 0))
-        naver_subtitle += f" · Query mode: {mode_label} · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)} · Raw: {raw_total:,} → Kept: {kept_total:,} · Detail cache: {detail_cache_size:,}"
-
-    naver_panel = _source_panel_html(
-        panel_id="panel-naver",
-        title="네이버 카페 · 브랜드 언급 / 필터링 결과",
-        subtitle=naver_subtitle,
-        summary_html=_summary_table_html(naver_summary_df),
-        weekly_html=_weekly_html(naver_meta, "NAVER Cafe (게시글 작성일 기준)"),
-        sections_html=_brand_sections_html(naver_brand_map, "naver_cafe"),
-        filter_html=_brand_filter_controls_html(naver_brand_map, "naver_cafe"),
-        warning=naver_warning or "",
-    )
-
-    full_html = f'''<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>External Signal | DCInside + NAVER Cafe</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root {{ --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }}
-    html, body {{ height: 100%; overflow: auto; margin:0; }}
-    body {{
-      background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      color:#0f172a;
-      min-height:100vh;
-      margin:0;
-    }}
-    .glass {{
-      background: rgba(255,255,255,.65);
-      border: 1px solid rgba(15,23,42,.08);
-      box-shadow: 0 10px 30px rgba(2,6,23,.08);
-      backdrop-filter: blur(10px);
-    }}
-    .tab-btn.active, .brand-filter-btn.active {{ background:#0f172a; color:#fff; border-color:#0f172a; }}
-    .embedded body {{ background: transparent !important; }}
-  </style>
-</head>
-<body class="w-full">
-  <div class="w-full px-0">
-    <div class="glass rounded-none p-5 md:p-7 w-full">
-      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-        <div>
-          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL HUB</div>
-          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside + 네이버 카페 브랜드 언급 모니터링</h1>
-          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · DCInside: 최근 {int(TARGET_DAYS)}일 / NAVER Cafe: Search API + 게시글 상세 본문/작성일</div>
-        </div>
-        <div class="text-xs text-slate-600 font-bold">브랜드 수: {len(BRAND_LIST)} · 탭별로 소스 분리 확인</div>
-      </div>
-
-      <div class="mt-6 flex flex-wrap gap-2">
-        <button class="tab-btn active px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-dcinside">DCInside</button>
-        <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-naver">네이버 카페</button>
-      </div>
-
-      {dc_panel}
-      {naver_panel}
-    </div>
-  </div>
-
-  <script>
-    function toggleMore(btn) {{
-      const box = btn.parentElement.querySelector('.more-box');
-      if (!box) return;
-      box.classList.toggle('hidden');
-      btn.textContent = box.classList.contains('hidden') ? '+ 더보기' : '- 접기';
-    }}
-
-    (function () {{
-      const buttons = Array.from(document.querySelectorAll('.tab-btn'));
-      const panels = Array.from(document.querySelectorAll('.tab-panel'));
-      const brandButtons = Array.from(document.querySelectorAll('.brand-filter-btn'));
-      function activate(targetId) {{
-        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
-        panels.forEach(panel => panel.classList.toggle('hidden', panel.id !== targetId));
-      }}
-      function applyBrandFilter(platform, brand) {{
-        const sections = Array.from(document.querySelectorAll(`.brand-section[data-platform="${{platform}}"]`));
-        const cards = Array.from(document.querySelectorAll(`.mention-card[data-platform="${{platform}}"]`));
-        brandButtons.filter(btn => btn.dataset.platform === platform).forEach(btn => btn.classList.toggle('active', btn.dataset.brand === brand));
-        sections.forEach(sec => sec.classList.toggle('hidden', !(brand === 'all' || sec.dataset.brand === brand)));
-        cards.forEach(card => card.classList.toggle('hidden', !(brand === 'all' || card.dataset.brand === brand)));
-      }}
-      buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.target)));
-      brandButtons.forEach(btn => btn.addEventListener('click', () => applyBrandFilter(btn.dataset.platform, btn.dataset.brand)));
-      activate('panel-dcinside');
-      ['dcinside','naver_cafe'].forEach(platform => applyBrandFilter(platform, 'all'));
-      try {{
-        if (window.self !== window.top) document.body.classList.add('embedded');
-      }} catch (e) {{
-        document.body.classList.add('embedded');
-      }}
-    }})();
-  </script>
-</body>
-</html>
-'''
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write(full_html)
-    print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
