@@ -15,14 +15,6 @@ on:
         options:
           - "false"
           - "true"
-      daily_email_only:
-        description: "Send Daily Digest email only? (no HUB update)"
-        required: true
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
       debug:
         description: "Enable debug logs?"
         required: true
@@ -49,7 +41,7 @@ on:
         default: "2026-03-24"
 
   schedule:
-    # 06:00 KST daily -> Daily Digest + email
+    # 06:00 KST daily -> Daily Digest HUB update only
     - cron: "0 21 * * *"
 
 concurrency:
@@ -86,29 +78,23 @@ jobs:
           set -euo pipefail
 
           DAILY_HUB_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_hub_only == 'true' }}"
-          DAILY_EMAIL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_email_only == 'true' }}"
           RUN_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.backfill == 'true' }}"
 
-          if [ "$DAILY_HUB_ONLY" = "true" ] && [ "$DAILY_EMAIL_ONLY" = "true" ]; then
-            echo "[ERROR] daily_hub_only and daily_email_only cannot both be true."
-            exit 1
-          fi
-
-          echo "run_daily=true" >> "$GITHUB_OUTPUT"
-          echo "run_backfill=$RUN_BACKFILL" >> "$GITHUB_OUTPUT"
-
-          if [ "$DAILY_HUB_ONLY" = "true" ]; then
-            echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
-            echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
-            echo "mode_label=hub_only" >> "$GITHUB_OUTPUT"
-          elif [ "$DAILY_EMAIL_ONLY" = "true" ]; then
-            echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
+          if [ "$RUN_BACKFILL" = "true" ]; then
+            echo "run_daily=false" >> "$GITHUB_OUTPUT"
+            echo "run_backfill=true" >> "$GITHUB_OUTPUT"
             echo "skip_hub_write=true" >> "$GITHUB_OUTPUT"
-            echo "mode_label=email_only" >> "$GITHUB_OUTPUT"
+            echo "mode_label=json_backfill_only" >> "$GITHUB_OUTPUT"
           else
-            echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
-            echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
-            echo "mode_label=normal" >> "$GITHUB_OUTPUT"
+            echo "run_daily=true" >> "$GITHUB_OUTPUT"
+            echo "run_backfill=false" >> "$GITHUB_OUTPUT"
+            if [ "$DAILY_HUB_ONLY" = "true" ]; then
+              echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
+              echo "mode_label=hub_only" >> "$GITHUB_OUTPUT"
+            else
+              echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
+              echo "mode_label=normal" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -138,42 +124,14 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
-            pip install \
-              db-dtypes \
-              pyarrow \
-              google-cloud-bigquery \
-              pandas \
-              python-dateutil \
-              scikit-learn \
-              sentence-transformers \
-              pillow \
-              requests \
-              playwright \
-              openpyxl \
-              matplotlib
+            pip install               db-dtypes               pyarrow               google-cloud-bigquery               pandas               python-dateutil               scikit-learn               sentence-transformers               pillow               requests               openpyxl               matplotlib               pytrends
           fi
-
-          # requirements.txt 와 별개로 Daily Digest 추가 패키지 보강 설치
-          pip install openpyxl matplotlib pytrends
-
-          python -m playwright install --with-deps chromium
 
       - name: Ensure reports dir
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p \
-            reports \
-            reports/daily_digest/daily \
-            reports/daily_digest/weekly \
-            reports/daily_digest/data/daily \
-            reports/daily_digest/data/weekly \
-            reports/search_volume/data \
-            site/data \
-            site/assets \
-            site/assets/products \
-            site/assets/reviews \
-            site/assets/text_images
+          mkdir -p             reports             reports/daily_digest/daily             reports/daily_digest/weekly             reports/daily_digest/data/daily             reports/daily_digest/data/weekly
 
       - name: Set KST time (for badge/meta + yesterday)
         id: set_time
@@ -194,6 +152,7 @@ jobs:
           BACKFILL_START: ${{ steps.modes.outputs.backfill_start }}
           BACKFILL_END: ${{ steps.modes.outputs.backfill_end }}
 
+          DAILY_DIGEST_JSON_ONLY: "true"
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
@@ -266,26 +225,18 @@ jobs:
             DAILY_JSON="reports/daily_digest/data/daily/${CUR}.json"
             WEEKLY_JSON="reports/daily_digest/data/weekly/END_${CUR}.json"
 
-            if [ -f "$DAILY_JSON" ] && [ -f "$WEEKLY_JSON" ]; then
-              echo "[SKIP] Exists (Daily+Weekly JSON): ${CUR}"
-            else
-              echo "[INFO] Build JSON for ${CUR}"
+            echo "[INFO] Build JSON for ${CUR}"
+            rm -f "$DAILY_JSON" "$WEEKLY_JSON" || true
 
-              rm -f "$DAILY_JSON" "$WEEKLY_JSON" || true
+            export YMD="${CUR}"
+            export GA4_START_DATE="${CUR}"
+            export GA4_END_DATE="${CUR}"
 
-              export YMD="${CUR}"
-              export GA4_START_DATE="${CUR}"
-              export GA4_END_DATE="${CUR}"
+            python -u daily_digest_live_final.py --out-dir reports/daily_digest --json-only
 
-              # JSON cache only. Delete any HTML that may have been created by the script.
-              python -u daily_digest_live_final.py --out-dir reports/daily_digest
-
-              rm -f "reports/daily_digest/daily/${CUR}.html" \
-                    "reports/daily_digest/weekly/END_${CUR}.html" || true
-
-              echo "[INFO] Wrote JSON for ${CUR}:"
-              ls -la "$DAILY_JSON" "$WEEKLY_JSON" 2>/dev/null || true
-            fi
+            test -f "$DAILY_JSON"
+            test -f "$WEEKLY_JSON"
+            echo "[INFO] Wrote JSON for ${CUR}"
 
             CUR="$(date -I -d "${CUR} + 1 day")"
           done
@@ -343,10 +294,7 @@ jobs:
           mkdir -p reports/daily_digest/daily reports/daily_digest/weekly reports/daily_digest/data/daily reports/daily_digest/data/weekly
 
           echo "[INFO] Purge old outputs for ${YMD}"
-          rm -f "reports/daily_digest/daily/${YMD}.html" \
-                "reports/daily_digest/data/daily/${YMD}.json" \
-                "reports/daily_digest/weekly/END_${YMD}.html" \
-                "reports/daily_digest/data/weekly/END_${YMD}.json" || true
+          rm -f "reports/daily_digest/daily/${YMD}.html"                 "reports/daily_digest/data/daily/${YMD}.json"                 "reports/daily_digest/weekly/END_${YMD}.html"                 "reports/daily_digest/data/weekly/END_${YMD}.json" || true
 
           echo "[INFO] Build mode: ${{ steps.modes.outputs.mode_label }}"
           echo "[INFO] Build only: ${YMD}"
@@ -361,29 +309,8 @@ jobs:
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
           ls -la reports/daily_digest/data/weekly | tail -n 40 || true
 
-      - name: Render yesterday Daily Digest PNG
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
-        continue-on-error: true
-        shell: bash
-        env:
-          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
-        run: |
-          set -euo pipefail
-
-          HTML="reports/daily_digest/daily/${YMD}.html"
-          PNG="reports/daily_digest/daily/${YMD}.png"
-
-          if [ ! -f "$HTML" ]; then
-            echo "[WARN] Daily HTML not found for PNG render: $HTML"
-            ls -la reports/daily_digest/daily || true
-            exit 0
-          fi
-
-          python -u scripts/render_daily_png.py "$HTML" "$PNG" || true
-          ls -la "$PNG" || true
-
       - name: Commit & push Daily Digest results
-        if: ${{ always() && steps.modes.outputs.skip_hub_write != 'true' }}
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.skip_hub_write != 'true' }}
         continue-on-error: true
         shell: bash
         run: |
@@ -392,7 +319,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A reports/daily_digest scripts || true
+          git add -A reports/daily_digest || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
@@ -402,7 +329,7 @@ jobs:
           git fetch origin main
           git pull --rebase --autostash origin main
 
-          git add -A reports/daily_digest scripts || true
+          git add -A reports/daily_digest || true
           if git diff --cached --quiet; then
             echo "No changes to commit after rebase"
             exit 0
@@ -424,43 +351,3 @@ jobs:
 
           echo "[ERROR] failed to push after retries"
           exit 1
-
-      - name: Send daily email (yesterday daily report PNG)
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
-        continue-on-error: true
-        env:
-          SMTP_HOST: ${{ vars.SMTP_HOST }}
-          SMTP_PORT: ${{ vars.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
-          HUB_URL: ${{ vars.HUB_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          export KST_STAMP="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S KST')"
-          export REPORT_DATE="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
-          export DAILY_DIGEST_PNG_PATH="reports/daily_digest/daily/${REPORT_DATE}.png"
-          export DAILY_DIGEST_HTML_PATH="reports/daily_digest/daily/${REPORT_DATE}.html"
-          export MODE_DAILY="yesterday"
-
-          if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASS:-}" ] || [ -z "${DAILY_RECIPIENTS:-}" ]; then
-            echo "[WARN] SMTP or DAILY_RECIPIENTS config missing -> skip daily email"
-            exit 0
-          fi
-
-          if [ ! -f "${DAILY_DIGEST_PNG_PATH}" ] && [ ! -f "${DAILY_DIGEST_HTML_PATH}" ]; then
-            echo "[WARN] Neither PNG nor HTML report exists -> skip daily email"
-            ls -la reports/daily_digest/daily || true
-            exit 0
-          fi
-
-          if [ -f "scripts/send_daily_email.py" ]; then
-            python -u scripts/send_daily_email.py || true
-          elif [ -f "send_daily_email.py" ]; then
-            python -u send_daily_email.py || true
-          else
-            echo "[WARN] send_daily_email.py not found -> skip daily email"
-            exit 0
-          fi
