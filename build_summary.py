@@ -674,23 +674,132 @@ def _owned_bundle_paths(owned_dir: Path) -> List[Path]:
     return files
 
 
-def _load_owned_bundle_rows_for_ytd(owned_dir: Path, target_end: date) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """
-    Collect YTD campaign rows from all daily owned bundles on disk.
+def _dedupe_dict_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen = set()
+    out: List[Dict[str, Any]] = []
+    for row in rows or []:
+        try:
+            key = json.dumps(row, ensure_ascii=False, sort_keys=True, default=str)
+        except Exception:
+            key = str(row)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+    return out
 
-    Why this is needed:
-    - latest owned_YYYY-MM-DD.json is a *daily* bundle, not a full YTD bundle
-    - relying on only latest bundle.campaigns makes YTD totals incorrect
-    - previous-year rows may also be merged into current-day bundles, so we must de-duplicate
-    """
-    cur_year = str(target_end.year)
-    prev_year = str(target_end.year - 1)
+
+def _normalize_message_log_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    mp: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    for row in rows or []:
+        dt = str((row or {}).get("date") or "").strip()
+        ch = str((row or {}).get("channel") or "").strip().upper()
+        title = str((row or {}).get("message_title") or (row or {}).get("title") or "").strip()
+        body = str((row or {}).get("message_body") or (row or {}).get("content") or "").strip()
+        if not dt or ch not in OWNED_CHANNELS or not title:
+            continue
+        key = (dt, ch, title)
+        if key not in mp:
+            mp[key] = {"date": dt, "channel": ch, "message_title": title, "message_body": body}
+    return sorted(mp.values(), key=lambda r: (str(r.get("date") or ""), str(r.get("channel") or ""), str(r.get("message_title") or "")))
+
+
+def _message_rows_for_year(message_rows: List[Dict[str, Any]], channel: str, year: int, end_date: date) -> List[Dict[str, Any]]:
+    prefix = f"{year}-"
+    end_s = ymd(end_date)
+    out: List[Dict[str, Any]] = []
+    for row in _normalize_message_log_rows(message_rows):
+        if str(row.get("channel") or "").upper() != channel:
+            continue
+        ds = str(row.get("date") or "")
+        if not ds.startswith(prefix):
+            continue
+        if ds <= end_s:
+            out.append(row)
+    return out
+
+
+def _row_group_date(row: Dict[str, Any]) -> str:
+    year_s = str(row.get("year") or "").strip()
+    mmdd_s = str(row.get("mmdd") or "").strip()
+    if re.fullmatch(r"\d{4}", year_s) and re.fullmatch(r"\d{4}", mmdd_s):
+        return f"{year_s}-{mmdd_s[:2]}-{mmdd_s[2:]}"
+    rd = _parse_row_date(row)
+    return ymd(rd) if rd else ""
+
+
+def _filter_rows_to_scheduled_dates(rows: List[Dict[str, Any]], scheduled_dates: set[str]) -> List[Dict[str, Any]]:
+    if not scheduled_dates:
+        return list(rows or [])
+    out: List[Dict[str, Any]] = []
+    for row in rows or []:
+        gd = _row_group_date(row)
+        if gd and gd in scheduled_dates:
+            out.append(row)
+    return out
+
+
+def _summarize_rows_no_send(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    out = {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0}
+    for r in rows or []:
+        ch = str(r.get("channel") or "").strip().upper()
+        if ch not in OWNED_CHANNELS or not _owned_has_group_mmdd(r):
+            continue
+        out["sessions"] += float(_safe_float(r.get("sessions")) or 0.0)
+        out["users"] += float(_safe_float(r.get("users")) or 0.0)
+        out["purchases"] += float(_safe_float(r.get("purchases")) or 0.0)
+        out["revenue"] += float(_safe_float(r.get("revenue")) or 0.0)
+    return out
+
+
+def _fallback_distinct_send_count(rows: List[Dict[str, Any]]) -> int:
+    send_groups = set()
+    for r in rows or []:
+        if _owned_valid_send_row(r):
+            ident = _owned_send_identity(r)
+            if ident:
+                send_groups.add(ident)
+    return len(send_groups)
+
+
+def _channel_summary_from_rows(rows: List[Dict[str, Any]], message_rows: List[Dict[str, Any]], channel: str, end_date: date) -> Dict[str, float]:
+    channel_rows = [
+        r for r in (rows or [])
+        if str(r.get("channel") or "").strip().upper() == channel and _owned_has_group_mmdd(r)
+    ]
+    scheduled_rows = _message_rows_for_year(message_rows, channel, end_date.year, end_date)
+    scheduled_dates = {str(m.get("date") or "") for m in scheduled_rows}
+    metric_rows = _filter_rows_to_scheduled_dates(channel_rows, scheduled_dates) if scheduled_rows else channel_rows
+    agg = _summarize_rows_no_send(metric_rows)
+    send_count = len(scheduled_rows) if scheduled_rows else _fallback_distinct_send_count(channel_rows)
+    agg["send_count"] = float(send_count)
+    agg["avg_leverage"] = (agg["sessions"] / send_count) if send_count else 0.0
+    return agg
+
+
+def _all_channels_summary(rows: List[Dict[str, Any]], message_rows: List[Dict[str, Any]], end_date: date) -> Tuple[Dict[str, float], Dict[str, Dict[str, float]]]:
+    by_channel: Dict[str, Dict[str, float]] = {}
+    total = {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0, "avg_leverage": 0.0}
+    for ch in OWNED_CHANNELS:
+        sm = _channel_summary_from_rows(rows, message_rows, ch, end_date)
+        by_channel[ch] = sm
+        total["sessions"] += sm["sessions"]
+        total["users"] += sm["users"]
+        total["purchases"] += sm["purchases"]
+        total["revenue"] += sm["revenue"]
+        total["send_count"] += sm["send_count"]
+    total["avg_leverage"] = (total["sessions"] / total["send_count"]) if total["send_count"] else 0.0
+    return total, by_channel
+
+
+def _load_owned_ytd_inputs(owned_dir: Path, target_end: date) -> Dict[str, Any]:
+    cur_year = target_end.year
+    prev_year = target_end.year - 1
     cutoff_mmdd = target_end.strftime("%m-%d")
-
     cur_rows: List[Dict[str, Any]] = []
     prev_rows: List[Dict[str, Any]] = []
-    seen_cur = set()
-    seen_prev = set()
+    cur_msg: List[Dict[str, Any]] = []
+    prev_msg: List[Dict[str, Any]] = []
 
     for p in _owned_bundle_paths(owned_dir):
         obj = _load_bundle(p)
@@ -698,32 +807,38 @@ def _load_owned_bundle_rows_for_ytd(owned_dir: Path, target_end: date) -> Tuple[
             continue
         for r in (obj.get("campaigns") or []):
             ch = str(r.get("channel") or "").strip().upper()
-            if ch not in OWNED_CHANNELS:
-                continue
-            if not _owned_has_group_mmdd(r):
+            if ch not in OWNED_CHANNELS or not _owned_has_group_mmdd(r):
                 continue
             row_dt = _parse_row_date(r)
             if not row_dt:
                 continue
-
             row_year = str(r.get("year") or "").strip() or str(row_dt.year)
-            key = (
-                str(r.get("date") or "").strip(),
-                ch,
-                str(r.get("campaign") or "").strip(),
-                str(r.get("term") or "").strip(),
-            )
+            if row_year == str(cur_year) and row_dt.year == cur_year and row_dt <= target_end:
+                cur_rows.append(r)
+            elif row_year == str(prev_year) and row_dt.year == prev_year and row_dt.strftime("%m-%d") <= cutoff_mmdd:
+                prev_rows.append(r)
 
-            if row_year == cur_year:
-                if row_dt.year == target_end.year and row_dt <= target_end and key not in seen_cur:
-                    seen_cur.add(key)
-                    cur_rows.append(r)
-            elif row_year == prev_year:
-                if row_dt.year == (target_end.year - 1) and row_dt.strftime("%m-%d") <= cutoff_mmdd and key not in seen_prev:
-                    seen_prev.add(key)
-                    prev_rows.append(r)
+        for m in (obj.get("message_log") or []):
+            ds = str((m or {}).get("date") or "").strip()
+            ch = str((m or {}).get("channel") or "").strip().upper()
+            if ch not in OWNED_CHANNELS or not ds:
+                continue
+            md = parse_ymd(ds)
+            if not md:
+                continue
+            if md.year == cur_year and md <= target_end:
+                cur_msg.append({**m, "channel": ch})
+            elif md.year == prev_year and md.strftime("%m-%d") <= cutoff_mmdd:
+                prev_msg.append({**m, "channel": ch})
 
-    return cur_rows, prev_rows
+    return {
+        "cur_rows": _dedupe_dict_rows(cur_rows),
+        "prev_rows": _dedupe_dict_rows(prev_rows),
+        "cur_msg": _normalize_message_log_rows(cur_msg),
+        "prev_msg": _normalize_message_log_rows(prev_msg),
+    }
+
+
 def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
     owned_dir = _find_owned_data_dir(reports_dir)
     target_end = kst_yesterday()
@@ -735,42 +850,30 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
     if not owned_dir:
         return result
 
-    latest_bundle = _find_latest_owned_bundle(owned_dir)
-    if latest_bundle:
-        try:
-            obj = json.loads(latest_bundle.read_text(encoding="utf-8"))
-        except Exception:
-            obj = {}
-        ytd_based = _build_owned_result_from_ytd_yoy(obj, owned_dir)
-        if ytd_based:
-            return ytd_based
+    loaded = _load_owned_ytd_inputs(owned_dir, target_end)
+    cur_total, cur_by_ch = _all_channels_summary(loaded["cur_rows"], loaded["cur_msg"], target_end)
+    prev_end = date(target_end.year - 1, target_end.month, target_end.day)
+    prev_total, prev_by_ch = _all_channels_summary(loaded["prev_rows"], loaded["prev_msg"], prev_end)
 
-    # Fallback: compute true YTD by scanning all owned daily bundles on disk.
-    cur_rows, prev_rows = _load_owned_bundle_rows_for_ytd(owned_dir, target_end)
-
-    cur_sum = _aggregate_owned_rows(cur_rows)
-    prev_sum = _aggregate_owned_rows(prev_rows)
-    cur_cvr = (cur_sum["purchases"] / cur_sum["sessions"]) if cur_sum["sessions"] > 0 else None
-    prev_cvr = (prev_sum["purchases"] / prev_sum["sessions"]) if prev_sum["sessions"] > 0 else None
+    cur_cvr = (cur_total["purchases"] / cur_total["sessions"]) if cur_total["sessions"] > 0 else None
+    prev_cvr = (prev_total["purchases"] / prev_total["sessions"]) if prev_total["sessions"] > 0 else None
 
     total_yoy = {
-        "send_count": _ratio(cur_sum["send_count"], prev_sum["send_count"]),
-        "sessions": _ratio(cur_sum["sessions"], prev_sum["sessions"]),
-        "users": _ratio(cur_sum["users"], prev_sum["users"]),
-        "purchases": _ratio(cur_sum["purchases"], prev_sum["purchases"]),
-        "revenue": _ratio(cur_sum["revenue"], prev_sum["revenue"]),
+        "send_count": _ratio(cur_total["send_count"], prev_total["send_count"]),
+        "sessions": _ratio(cur_total["sessions"], prev_total["sessions"]),
+        "users": _ratio(cur_total["users"], prev_total["users"]),
+        "purchases": _ratio(cur_total["purchases"], prev_total["purchases"]),
+        "revenue": _ratio(cur_total["revenue"], prev_total["revenue"]),
         "cvr_pp": (cur_cvr - prev_cvr) if (cur_cvr is not None and prev_cvr is not None) else None,
     }
 
-    total = dict(cur_sum); total["cvr"] = cur_cvr
-    total_prev = dict(prev_sum); total_prev["cvr"] = prev_cvr
-    cur_ch_sum = _aggregate_owned_rows_by_channel(cur_rows)
-    prev_ch_sum = _aggregate_owned_rows_by_channel(prev_rows)
+    total = dict(cur_total); total["cvr"] = cur_cvr
+    total_prev = dict(prev_total); total_prev["cvr"] = prev_cvr
 
     by_channel = {}
     for ch in OWNED_CHANNELS:
-        curv = cur_ch_sum[ch]
-        prevv = prev_ch_sum[ch]
+        curv = cur_by_ch.get(ch) or {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0, "avg_leverage": 0.0}
+        prevv = prev_by_ch.get(ch) or {"sessions": 0.0, "users": 0.0, "purchases": 0.0, "revenue": 0.0, "send_count": 0.0, "avg_leverage": 0.0}
         cur_c = (curv["purchases"] / curv["sessions"]) if curv["sessions"] > 0 else None
         prev_c = (prevv["purchases"] / prevv["sessions"]) if prevv["sessions"] > 0 else None
         by_channel[ch] = {
@@ -792,13 +895,13 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
         "prev_period": f"{target_end.year - 1}-01-01 ~ {target_end.year - 1}-{target_end.strftime('%m-%d')}",
         "total": total, "total_prev": total_prev, "total_yoy": total_yoy,
         "by_channel": by_channel, "updated": now_kst_label(),
-        "source": str(latest_bundle) if latest_bundle else str(owned_dir),
+        "source": str(owned_dir),
     })
     return result
 
 
-
 def build_daily_trend_series(reports_dir: Path, limit: int = 28) -> List[Dict[str, Any]]:
+
     files = list((reports_dir / "daily_digest" / "data" / "daily").glob("*.json"))
     files = [p for p in files if re.match(r"^\d{4}-\d{2}-\d{2}\.json$", p.name)]
     files.sort(key=lambda p: p.name)
@@ -1089,37 +1192,25 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
             ''')
 
         owned_inner = f'''
-        <div class="grid grid-cols-1 xl:grid-cols-[1.2fr_.8fr] gap-4 items-stretch">
-          <div class="insight-panel rounded-[28px] p-5 sm:p-6 reveal">
-            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-              <div>
-                <div class="section-eyebrow">YTD TOTAL</div>
-                <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-950">누적 전체 요약</h3>
-                <p class="mt-2 text-sm text-slate-600">당해연도 1월 1일부터 어제까지 누적 기준이며, 전년은 동일 MM-DD cutoff로 맞춰 비교합니다.</p>
-              </div>
-              <div class="text-xs text-slate-600 leading-6">
-                기간 <b class="text-slate-900">{period}</b><br/>
-                YoY 비교 <b class="text-slate-900">{prev_period}</b><br/>
-                updated {upd}
-              </div>
+        <div class="insight-panel rounded-[28px] p-5 sm:p-6 reveal">
+          <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div>
+              <div class="section-eyebrow">YTD TOTAL</div>
+              <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-950">누적 전체 요약</h3>
+              <p class="mt-2 text-sm text-slate-600">owned campaign 포털 결과에 맞춰 발송 로그 기준 send count를 우선 적용하고, 채널별 누적 성과를 합산해 표시합니다.</p>
             </div>
-            <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">{owned_total_tiles}</div>
-          </div>
-          <div class="logic-panel rounded-[28px] p-5 reveal">
-            <div class="section-eyebrow">LOGIC TRACE</div>
-            <h3 class="mt-2 text-xl font-black tracking-tight text-slate-950">Owned YTD 계산 기준</h3>
-            <div class="mt-4 space-y-3 text-sm text-slate-600">
-              <div class="logic-row"><span>send_count</span><b>date + channel + send_id dedupe (fallback grouping)</b></div>
-              <div class="logic-row"><span>row filter</span><b>has_group_mmdd = true only</b></div>
-              <div class="logic-row"><span>KAKAO rule</span><b>KAKAO_CH_EVENT + KAKAO_CH_MESSAGE_*</b></div>
-              <div class="logic-row"><span>source</span><b class="truncate max-w-[18rem] inline-block align-bottom">{source or owned_dir}</b></div>
+            <div class="text-xs text-slate-600 leading-6 shrink-0">
+              기간 <b class="text-slate-900">{period}</b><br/>
+              YoY 비교 <b class="text-slate-900">{prev_period}</b><br/>
+              updated {upd}
             </div>
           </div>
+          <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">{owned_total_tiles}</div>
         </div>
         <div class="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-4">{''.join(channel_cards)}</div>
         {trend_panel("owned", "Owned YTD Daily Trend", "누적 카드 클릭 시 일자별 owned 추이를 아래 그래프로 전환합니다.")}
-        <div class="mt-3 px-1 text-[11px] text-slate-500">owned_dir: {owned_dir}</div>
         '''
+
         owned_block = section_shell(
             "ownedYtd",
             "OWNED PERFORMANCE",
