@@ -175,44 +175,6 @@
       gap:10px;
       text-align:center;
     }
-    .ytd-loading-overlay{ display:none !important; }
-    .skeleton-zone{ position: relative; }
-    .skeleton-card{ position: relative; overflow: hidden; }
-    .skeleton-card::before{
-      content:'';
-      position:absolute; inset:0;
-      background: linear-gradient(110deg, rgba(255,255,255,0) 20%, rgba(255,255,255,0.7) 42%, rgba(255,255,255,0) 64%);
-      transform: translateX(-120%);
-      animation: shimmer 1.8s ease-in-out infinite;
-      pointer-events:none;
-      z-index: 2;
-    }
-    .skeleton-card .kpi-title,
-    .skeleton-card .kpi-value,
-    .skeleton-card .kpi-sub{
-      color: transparent !important;
-      position: relative;
-    }
-    .skeleton-card .kpi-title::after,
-    .skeleton-card .kpi-value::after,
-    .skeleton-card .kpi-sub::after{
-      content:'';
-      display:block;
-      height: .9em;
-      border-radius: 999px;
-      background: linear-gradient(90deg, rgba(226,232,240,0.95), rgba(241,245,249,0.98), rgba(226,232,240,0.95));
-    }
-    .skeleton-card .kpi-title::after{ width: 58%; margin-top: 2px; height: .8em; }
-    .skeleton-card .kpi-value::after{ width: 66%; margin-top: 10px; height: 1.4em; }
-    .skeleton-card .kpi-sub::after{ width: 48%; margin-top: 8px; height: .9em; }
-    .kpi-card.kpi-reveal{ opacity: 0; transform: translateY(18px) scale(.985); }
-    .kpi-card.kpi-visible{ animation: kpiReveal .75s cubic-bezier(.22,1,.36,1) forwards; }
-    @keyframes shimmer{ to{ transform: translateX(120%); } }
-    @keyframes kpiReveal{
-      0%{ opacity:0; transform: translateY(18px) scale(.985); }
-      60%{ opacity:1; transform: translateY(-4px) scale(1.01); }
-      100%{ opacity:1; transform: translateY(0) scale(1); }
-    }
     @keyframes spin{
       to{ transform: rotate(360deg); }
     }
@@ -293,65 +255,6 @@
       opacity:.8;
     }
 
-
-
-    /* ===== INITIAL ENTRANCE MOTION PATCH ===== */
-    #allSummarySection, #channelActualsSection, #kpiPanel, #messageMeta, #campaignArea, #productsSection, #analysisSection{
-      will-change: transform, opacity, filter;
-    }
-    .intro-block{
-      opacity: 0;
-      transform: translateY(26px) scale(.985);
-      filter: blur(8px);
-    }
-    .intro-block.intro-in{
-      animation: sectionRise .9s cubic-bezier(.22,1,.36,1) forwards;
-      animation-delay: var(--intro-delay, 0ms);
-    }
-    @keyframes sectionRise{
-      0%{ opacity:0; transform: translateY(26px) scale(.985); filter: blur(8px); }
-      60%{ opacity:1; transform: translateY(-4px) scale(1.004); filter: blur(0); }
-      100%{ opacity:1; transform: translateY(0) scale(1); filter: blur(0); }
-    }
-    #allCards .kpi-card.kpi-preenter, #ytdCards .kpi-card.kpi-preenter, #kpiGrid .kpi-card.kpi-preenter{
-      opacity: 0;
-      transform: translateY(30px) scale(.92) rotateX(16deg);
-      filter: blur(10px);
-    }
-    #allCards .kpi-card.kpi-preenter::after, #ytdCards .kpi-card.kpi-preenter::after, #kpiGrid .kpi-card.kpi-preenter::after{
-      opacity: 0;
-      transform: translate3d(0,16px,0) scale(.86);
-    }
-    #allCards .kpi-card.kpi-enter, #ytdCards .kpi-card.kpi-enter, #kpiGrid .kpi-card.kpi-enter{
-      animation: kpiCardBlast 980ms cubic-bezier(.16,1,.3,1) forwards;
-      animation-delay: var(--card-delay, 0ms);
-    }
-    #allCards .kpi-card.kpi-enter::after, #ytdCards .kpi-card.kpi-enter::after, #kpiGrid .kpi-card.kpi-enter::after{
-      animation: orbWake 1100ms cubic-bezier(.16,1,.3,1) forwards;
-      animation-delay: calc(var(--card-delay, 0ms) + 60ms);
-    }
-    @keyframes kpiCardBlast{
-      0%{ opacity:0; transform: translateY(30px) scale(.92) rotateX(16deg); filter: blur(10px); }
-      58%{ opacity:1; transform: translateY(-8px) scale(1.03) rotateX(0deg); filter: blur(0); }
-      100%{ opacity:1; transform: translateY(0) scale(1) rotateX(0deg); filter: blur(0); }
-    }
-    @keyframes orbWake{
-      0%{ opacity:0; transform: translate3d(0,16px,0) scale(.86); }
-      100%{ opacity:.78; transform: translate3d(0,0,0) scale(1); }
-    }
-    .headline-preenter{
-      opacity: 0;
-      transform: translateY(16px);
-      filter: blur(6px);
-    }
-    .headline-preenter.headline-enter{
-      animation: titleFloat .8s cubic-bezier(.22,1,.36,1) forwards;
-      animation-delay: var(--headline-delay, 0ms);
-    }
-    @keyframes titleFloat{
-      0%{ opacity:0; transform: translateY(16px); filter: blur(6px); }
-      100%{ opacity:1; transform: translateY(0); filter: blur(0); }
-    }
     #allCards .kpi-card{
       min-height: 146px;
       border: 1px solid rgba(37,99,235,0.22);
@@ -537,18 +440,58 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
-    /* ===== SAFE FULL WIDTH PATCH ===== */
-    .report-fullwidth{ width:100%; max-width:none; }
-    @media (min-width:1280px){
-      .glass{ padding: 28px; }
+  
+    /* ===== FINAL ENTRANCE + FULL WIDTH PATCH ===== */
+    .page-enter{
+      opacity: 0;
+      transform: translateY(28px) scale(.988);
+      filter: blur(8px);
+      transition:
+        opacity .9s cubic-bezier(.22,1,.36,1),
+        transform .9s cubic-bezier(.22,1,.36,1),
+        filter .9s cubic-bezier(.22,1,.36,1),
+        box-shadow .35s ease;
+      transition-delay: var(--enter-delay, 0ms);
+      will-change: opacity, transform, filter;
+    }
+    body.page-ready .page-enter{
+      opacity: 1;
+      transform: none;
+      filter: blur(0);
+    }
+    .page-enter-soft{
+      opacity: 0;
+      transform: translateY(20px);
+      transition:
+        opacity .8s cubic-bezier(.22,1,.36,1),
+        transform .8s cubic-bezier(.22,1,.36,1);
+      transition-delay: var(--enter-delay, 0ms);
+    }
+    body.page-ready .page-enter-soft{
+      opacity: 1;
+      transform: none;
+    }
+    .report-shell{
+      width: 100%;
+      max-width: none;
+    }
+    .report-main.glass{
+      width: 100%;
+      border-radius: 30px;
+      padding: 24px;
+    }
+    @media (min-width: 1280px){
+      .report-main.glass{
+        padding: 28px;
+      }
     }
 
   </style>
 </head>
 
-<body class="p-3 md:p-4 xl:p-5">
-  <div class="w-full max-w-none mx-auto">
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+<body class="pre-enter p-3 md:p-4 xl:p-5">
+  <div class="report-shell w-full max-w-none">
+    <div class="page-enter flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6" style="--enter-delay:40ms">
       <div>
         <div class="text-4xl font-black tracking-tight">OWNED Campaign Explorer</div>
         <div class="muted font-semibold mt-1">By Date(MMDD, year-split) → TERM 드릴다운 → 구매 상품 (EDM/LMS/KAKAO)</div>
@@ -558,7 +501,7 @@
       </div>
     </div>
 
-    <div id="notice" class="notice mb-4">
+    <div id="notice" class="notice page-enter-soft mb-4" style="--enter-delay:120ms">
       <div class="dot"></div>
       <div id="noticeText">-</div>
       <button id="noticeClose" class="x" type="button">닫기</button>
@@ -572,7 +515,7 @@
       </div>
     </div>
 
-    <div class="glass p-6 report-fullwidth">
+    <div class="report-main glass page-enter" style="--enter-delay:110ms">
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
@@ -638,21 +581,21 @@
             <div class="mini-value"><span id="totEdmSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totEdmRevenue">-</span></div>
             <div class="mini-sub">Send count: <span id="totEdmSendCount">-</span></div>
-            <div class="mini-sub">CVR: <span id="totEdmLeverage">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totEdmLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">LMS</div>
             <div class="mini-value"><span id="totLmsSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totLmsRevenue">-</span></div>
             <div class="mini-sub">Send count: <span id="totLmsSendCount">-</span></div>
-            <div class="mini-sub">CVR: <span id="totLmsLeverage">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totLmsLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">KAKAO</div>
             <div class="mini-value"><span id="totKakaoSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totKakaoRevenue">-</span></div>
             <div class="mini-sub">Send count: <span id="totKakaoSendCount">-</span></div>
-            <div class="mini-sub">CVR: <span id="totKakaoLeverage">-</span></div>
+            <div class="mini-sub">Avg leverage: <span id="totKakaoLeverage">-</span></div>
           </div>
         </div>
       </div>
@@ -663,7 +606,7 @@
           <div class="ytd-loading-card">
             <div class="loading-spinner"></div>
             <div class="loading-title">Loading</div>
-            <div id="ytdLoadingText" class="loading-text" style="display:none"></div>
+            <div id="ytdLoadingText" class="loading-text">YTD loading...</div>
           </div>
         </div>
         <div class="flex items-center gap-3 mb-4">
@@ -671,7 +614,7 @@
           <div class="toggle !py-1 !px-3">YTD</div>
         </div>
         <div id="ytdSummaryLabel" class="small-label mb-3">YTD YoY Summary &#45572;&#51201;</div>
-        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 skeleton-zone">
+        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <div class="kpi-card">
             <div class="kpi-title">ALL 누적 Send count</div>
             <div id="allSendCount" class="kpi-value">-</div>
@@ -700,7 +643,7 @@
         <div class="flex items-center gap-3 mt-5 mb-4">
           <div id="ytdActualsTitle" class="text-xl font-black tracking-tight">YTD Actuals &#45572;&#51201; (EDM)</div>
         </div>
-        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4 skeleton-zone">
+        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -717,7 +660,7 @@
           <div id="ytdTySendCountSub" class="kpi-sub">-</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-title">YTD · TY CVR</div>
+          <div class="kpi-title">YTD · TY Avg leverage</div>
           <div id="ytdTyLeverage" class="kpi-value">-</div>
           <div id="ytdTyLeverageSub" class="kpi-sub">-</div>
         </div>
@@ -737,7 +680,7 @@
           <div id="ytdLySendCountSub" class="kpi-sub">-</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-title">YTD · LY CVR</div>
+          <div class="kpi-title">YTD · LY Avg leverage</div>
           <div id="ytdLyLeverage" class="kpi-value">-</div>
           <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
         </div>
@@ -777,7 +720,7 @@
           <div class="kpi-sub" id="kSendCountSub">-</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-title">CVR</div>
+          <div class="kpi-title">Avg leverage</div>
           <div id="kLeverage" class="kpi-value">-</div>
           <div class="kpi-sub" id="kLeverageSub">-</div>
         </div>
@@ -858,7 +801,7 @@
                 <th style="min-width:140px">Revenue</th>
                 <th style="min-width:120px">Items</th>
                 <th style="min-width:120px">Send count</th>
-                <th style="min-width:140px">CVR</th>
+                <th style="min-width:140px">Avg leverage</th>
               </tr>
             </thead>
             <tbody id="termTb">
@@ -929,6 +872,16 @@
 
 <script>
 (function(){
+  const OWNED_DATA_BASE = './data/owned';
+
+  function ownedDataUrl(fileName){
+    return `${OWNED_DATA_BASE}/${fileName}`;
+  }
+
+  function ownedDataUrlWithTs(fileName){
+    return `${ownedDataUrl(fileName)}?t=${Date.now()}`;
+  }
+
   const notice = document.getElementById('notice');
   const noticeText = document.getElementById('noticeText');
   const noticeClose = document.getElementById('noticeClose');
@@ -936,25 +889,12 @@
   const loadingText = document.getElementById('loadingText');
   const ytdLoadingOverlay = document.getElementById('ytdLoadingOverlay');
   const ytdLoadingText = document.getElementById('ytdLoadingText');
-  const allCards = document.getElementById('allCards');
-  const ytdCards = document.getElementById('ytdCards');
-  let ytdSkeletonArmed = false;
   function showNotice(msg){ noticeText.textContent = msg; notice.style.display='flex'; }
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
-  function setSkeletonState(container, active){
-    if(!container) return;
-    Array.from(container.querySelectorAll('.kpi-card')).forEach(card=>{
-      card.classList.toggle('skeleton-card', !!active);
-      if(active){
-        card.classList.remove('kpi-visible');
-        card.classList.add('kpi-reveal');
-      }
-    });
-  }
   function showLoading(msg){
     if(String(msg || '').indexOf('YTD') === 0 || String(msg || '').indexOf('TY YTD') === 0 || String(msg || '').indexOf('LY YTD') === 0){
       if(loadingOverlay) loadingOverlay.style.display = 'none';
-      showYtdLoading();
+      showYtdLoading(msg);
       return;
     }
     if(loadingText) loadingText.textContent = msg || '데이터 불러오는 중…';
@@ -965,47 +905,16 @@
     if(loadingText) loadingText.textContent = '데이터 불러오는 중…';
   }
   function showYtdLoading(msg){
-    ytdSkeletonArmed = true;
-    setSkeletonState(allCards, true);
-    setSkeletonState(ytdCards, true);
+    if(ytdLoadingText) ytdLoadingText.textContent = msg || 'YTD loading...';
     if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'flex';
-    if(ytdLoadingText) ytdLoadingText.textContent = msg || 'YTD 로딩중... 최신(전일) 데이터 불러오는 중';
-  }
-  function animateKpiGroup(container, baseDelay=0){
-    if(!container) return;
-    Array.from(container.querySelectorAll('.kpi-card')).forEach((card, idx)=>{
-      card.classList.remove('kpi-visible');
-      card.classList.add('kpi-reveal');
-      card.style.animationDelay = `${baseDelay + idx*55}ms`;
-      requestAnimationFrame(()=> card.classList.add('kpi-visible'));
-    });
   }
   function hideYtdLoading(){
-    setSkeletonState(allCards, false);
-    setSkeletonState(ytdCards, false);
     if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
-    if(ytdLoadingText) ytdLoadingText.textContent = 'YTD 로딩중...';
-    if(ytdSkeletonArmed){
-      animateKpiGroup(allCards, 0);
-      animateKpiGroup(ytdCards, 120);
-      ytdSkeletonArmed = false;
-    }
-  }
-  function primeYtdLoading(msg){
-    showYtdLoading(msg || 'YTD 로딩중... 최신(전일) 데이터 불러오는 중');
-    if(allCards) allCards.style.visibility = 'visible';
-    if(ytdCards) ytdCards.style.visibility = 'visible';
-  }
-  function finalizeAnimatedViewChange(){
-    refreshKpiMadness();
-    attachKpiTilt();
-    requestAnimationFrame(()=> runKpiEntranceOnce());
+    if(ytdLoadingText) ytdLoadingText.textContent = 'YTD loading...';
   }
   noticeClose.addEventListener('click', hideNotice);
 
   const btnReload = document.getElementById('btnReload');
-
-  showYtdLoading();
 
   const chipDaily = document.getElementById('chipDaily');
   const chipWeek  = document.getElementById('chipWeek');
@@ -1571,8 +1480,7 @@
     const agg = aggregateRow(metricRows);
     const sendCount = scheduledRows.length ? scheduledRows.length : countDistinctSends(rows || [], expectedYear, endDate);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
-    const cvr = agg.sessions ? ((agg.purchases || 0) / agg.sessions * 100) : 0;
-    return { ...agg, send_count: sendCount, avg_leverage: avgLeverage, cvr };
+    return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
   }
 
   function getCumulativeSendCount(channel, endDate){
@@ -1667,11 +1575,11 @@
       'TY \uB204\uC801 Sessions',
       'TY \uB204\uC801 Revenue',
       'TY \uB204\uC801 Send count',
-      'TY \uB204\uC801 CVR',
+      'TY \uB204\uC801 Avg leverage',
       'LY \uB204\uC801 Sessions',
       'LY \uB204\uC801 Revenue',
       'LY \uB204\uC801 Send count',
-      'LY \uB204\uC801 CVR',
+      'LY \uB204\uC801 Avg leverage',
     ];
 
     allTitles.forEach((el, idx) => {
@@ -1806,7 +1714,7 @@
   }
 
   // ✅ 기본값
-  let VIEW = 'WEEK';     // DAILY | WEEK | RANGE
+  let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
   let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
 
   let RAW = null;         // {kpi:[], prod:[], analysis:[]}
@@ -1952,28 +1860,25 @@
 
     edm.send_count = getCumulativeSendCount('EDM', endDate);
     edm.avg_leverage = edm.send_count ? (edm.sessions / edm.send_count) : 0;
-    edm.cvr = edm.sessions ? (edm.purchases / edm.sessions * 100) : 0;
     lms.send_count = getCumulativeSendCount('LMS', endDate);
     lms.avg_leverage = lms.send_count ? (lms.sessions / lms.send_count) : 0;
-    lms.cvr = lms.sessions ? (lms.purchases / lms.sessions * 100) : 0;
     kakao.send_count = getCumulativeSendCount('KAKAO', endDate);
     kakao.avg_leverage = kakao.send_count ? (kakao.sessions / kakao.send_count) : 0;
-    kakao.cvr = kakao.sessions ? (kakao.purchases / kakao.sessions * 100) : 0;
 
     totEdmSessions.textContent = fmt(edm.sessions);
     totEdmRevenue.textContent = fmtMoney(edm.revenue);
     totEdmSendCount.textContent = fmt(edm.send_count);
-    totEdmLeverage.textContent = `${edm.cvr.toFixed(2)}%`;
+    totEdmLeverage.textContent = fmtRatio(edm.avg_leverage);
 
     totLmsSessions.textContent = fmt(lms.sessions);
     totLmsRevenue.textContent = fmtMoney(lms.revenue);
     totLmsSendCount.textContent = fmt(lms.send_count);
-    totLmsLeverage.textContent = `${lms.cvr.toFixed(2)}%`;
+    totLmsLeverage.textContent = fmtRatio(lms.avg_leverage);
 
     totKakaoSessions.textContent = fmt(kakao.sessions);
     totKakaoRevenue.textContent = fmtMoney(kakao.revenue);
     totKakaoSendCount.textContent = fmt(kakao.send_count);
-    totKakaoLeverage.textContent = `${kakao.cvr.toFixed(2)}%`;
+    totKakaoLeverage.textContent = fmtRatio(kakao.avg_leverage);
   }
 
   function renderCampaignButtons(){
@@ -2082,15 +1987,7 @@
     renderByDate('KAKAO', wrapKakaoDate);
 
     if(!SELECTED){
-      const currentWrap = (CHANNEL==='EDM') ? wrapEDMDate : (CHANNEL==='LMS' ? wrapLMSDate : wrapKakaoDate);
-      const preferredMmdd = getPortalMetaDefaultMmdd(CHANNEL);
-      let firstBtn = null;
-      if(preferredMmdd){
-        firstBtn = Array.from(currentWrap.querySelectorAll('button.chip')).find(btn => String(btn.getAttribute('data-mmdd') || '') === preferredMmdd) || null;
-      }
-      if(!firstBtn){
-        firstBtn = currentWrap.querySelector('button.chip') || [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
-      }
+      const firstBtn = [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
       if(firstBtn){
         SELECTED = {
           type:'group',
@@ -2375,7 +2272,6 @@
     const a = aggregateRow(rows);
     const sendCount = getSelectedSendCount(SELECTED, rows);
     const leverage = sendCount ? (a.sessions / sendCount) : 0;
-    const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
     const selectionMessages = getSelectionMessageRows(SELECTED, rows);
     const meta = (selectionMessages && selectionMessages.length)
       ? {
@@ -2390,8 +2286,9 @@
     kRevenue.textContent = fmtMoney(a.revenue);
     kItems.textContent = fmt(a.items_purchased);
     kSendCount.textContent = fmt(sendCount);
-    kLeverage.textContent = `${cvr.toFixed(2)}%`;
+    kLeverage.textContent = fmtRatio(leverage);
 
+    const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
     const aov = a.purchases ? (a.revenue/a.purchases) : 0;
     const ips = a.purchases ? (a.items_purchased/a.purchases) : 0;
 
@@ -2401,7 +2298,7 @@
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
     kSendCountSub.textContent = `Distinct sends in selected scope`;
-    kLeverageSub.textContent = `Purchases / sessions`;
+    kLeverageSub.textContent = `Sessions / send count`;
     msgTitle.textContent = meta.title || '-';
     msgBody.textContent = meta.body || '-';
     renderFunnelAnalysis();
@@ -2657,7 +2554,7 @@
 
     termTb.innerHTML = rows.map(r=>{
       const sendCount = r.send_keys ? r.send_keys.size : 0;
-      const cvr = Number(r.sessions||0) ? ((Number(r.purchases||0) / Number(r.sessions||0)) * 100) : 0;
+      const leverage = sendCount ? (Number(r.sessions||0) / sendCount) : 0;
       return `
       <tr class="cursor-pointer" data-channel="${r.channel}" data-campaign="${encodeURIComponent(r.campaign||'')}" data-term="${encodeURIComponent(r.term||'')}">
         <td class="mono">${(r.campaign||'-')}</td>
@@ -2668,7 +2565,7 @@
         <td>${fmtMoney(r.revenue||0)}</td>
         <td>${fmt(r.items_purchased||0)}</td>
         <td>${fmt(sendCount)}</td>
-        <td>${cvr.toFixed(2)}%</td>
+        <td>${fmtRatio(leverage)}</td>
       </tr>`;
     }).join('');
 
@@ -2745,46 +2642,6 @@
     `).join('');
   }
 
-
-
-  function runKpiEntranceOnce(){
-    const sections = [
-      document.querySelector('#allSummarySection'),
-      document.querySelector('#channelActualsSection'),
-      document.querySelector('#kpiPanel'),
-      document.querySelector('#messageMeta'),
-      document.querySelector('#campaignArea'),
-      document.querySelector('#productsSection'),
-      document.querySelector('#analysisSection')
-    ].filter(Boolean);
-
-    sections.forEach((el, i)=>{
-      el.classList.remove('intro-in');
-      el.classList.add('intro-block');
-      el.style.setProperty('--intro-delay', `${120 + i*110}ms`);
-      requestAnimationFrame(()=> el.classList.add('intro-in'));
-    });
-
-    const headlines = [
-      ...document.querySelectorAll('#allSummarySection h2, #allSummarySection .section-kicker, #channelActualsSection h2, #channelActualsSection .section-kicker')
-    ];
-    headlines.forEach((el, i)=>{
-      el.classList.remove('headline-enter');
-      el.classList.add('headline-preenter');
-      el.style.setProperty('--headline-delay', `${140 + i*90}ms`);
-      requestAnimationFrame(()=> el.classList.add('headline-enter'));
-    });
-
-    const cards = [
-      ...document.querySelectorAll('#allCards .kpi-card, #ytdCards .kpi-card, #kpiGrid .kpi-card')
-    ];
-    cards.forEach((card, i)=>{
-      card.classList.remove('kpi-enter');
-      card.classList.add('kpi-preenter');
-      card.style.setProperty('--card-delay', `${220 + i*55}ms`);
-      requestAnimationFrame(()=> card.classList.add('kpi-enter'));
-    });
-  }
   function renderProducts(){
     if(!SELECTED || !RAW){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.</td></tr>`;
@@ -2891,7 +2748,8 @@
     for(let i=0;i<dates.length;i+=chunkSize){
       const chunk = dates.slice(i, i+chunkSize);
       showLoading(`누적 USER ID 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
-      const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
+      const urls = chunk.map(d => ownedDataUrlWithTs(`owned_${d}.json`));
+      const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
       res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
     }
     hideLoading();
@@ -3011,83 +2869,10 @@
     renderProducts();
   }
 
-  const OWNED_DATA_BASE = `${window.location.origin}/E-comm-marketing-hub/site/data/owned`;
-  let PORTAL_META = null;
-
-  async function fetchOwnedJsonOptional(fileName){
-    try{ return await fetchOwnedJson(fileName); }catch(_e){ return null; }
-  }
-
-  async function loadPortalMeta(){
-    try{
-      const meta = await fetchOwnedJson('meta.json');
-      PORTAL_META = (meta && typeof meta === 'object') ? meta : null;
-      return PORTAL_META;
-    }catch(_e){
-      PORTAL_META = null;
-      return null;
-    }
-  }
-
-  function getPortalMetaDefaultDate(){
-    const metaDate = String((PORTAL_META && (PORTAL_META.default_date || PORTAL_META.latest_available_date || PORTAL_META.yesterday)) || '').trim();
-    if(/^\d{4}-\d{2}-\d{2}$/.test(metaDate)) return metaDate;
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${day}`;
-  }
-
-  function getPortalMetaDefaultView(){
-    const v = String((PORTAL_META && PORTAL_META.default_view) || 'WEEK').trim().toUpperCase();
-    return (v === 'DAILY' || v === 'WEEK' || v === 'RANGE') ? v : 'WEEK';
-  }
-
-  function getPortalMetaDefaultChannel(){
-    const ch = String((PORTAL_META && PORTAL_META.default_channel) || 'EDM').trim().toUpperCase();
-    return (ch === 'EDM' || ch === 'LMS' || ch === 'KAKAO') ? ch : 'EDM';
-  }
-
-  function getPortalMetaDefaultMmdd(channel){
-    const key = String(channel || '').trim().toUpperCase();
-    const map = (PORTAL_META && PORTAL_META.default_mmdd_by_channel && typeof PORTAL_META.default_mmdd_by_channel === 'object') ? PORTAL_META.default_mmdd_by_channel : {};
-    const v = String(map[key] || '').trim();
-    return /^\d{4}$/.test(v) ? v : '';
-  }
-
-  function getPortalMetaDefaultGroupDate(channel){
-    const key = String(channel || '').trim().toUpperCase();
-    const map = (PORTAL_META && PORTAL_META.latest_group_date_by_channel && typeof PORTAL_META.latest_group_date_by_channel === 'object') ? PORTAL_META.latest_group_date_by_channel : {};
-    const v = String(map[key] || '').trim();
-    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
-  }
-
-  function appendCacheBust(url){
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}t=${Date.now()}`;
-  }
-
-  async function fetchJsonDirect(url){
+  async function fetchJson(url){
     const res = await fetch(url, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
-  }
-
-  async function resolveOwnedDataBase(){
-    return OWNED_DATA_BASE;
-  }
-
-  async function fetchJson(url){
-    if(/^https?:\/\//i.test(url) || url.startsWith('/')){
-      return await fetchJsonDirect(appendCacheBust(url));
-    }
-    return await fetchJsonDirect(url);
-  }
-
-  async function fetchOwnedJson(fileName){
-    return await fetchJsonDirect(appendCacheBust(`${OWNED_DATA_BASE}/${fileName}`));
   }
 
   function normalizeBundle(j){
@@ -3120,7 +2905,6 @@
       items_purchased: Number(r.items_purchased || 0),
       send_count: Number(r.send_count || 0),
       avg_leverage: Number(r.avg_leverage || 0),
-      cvr: Number(r.cvr || 0),
       message_title: r.message_title || r.title || '',
       message_body: r.message_body || r.content || '',
     }));
@@ -3214,9 +2998,10 @@
   async function loadDaily(dStr){
     hideNotice();
     SELECTED = null;
+    const url = ownedDataUrlWithTs(`owned_${dStr}.json`);
 
     try{
-      RAW = normalizeBundle(await fetchOwnedJson(`owned_${dStr}.json`));
+      RAW = normalizeBundle(await fetchJson(url));
     }catch(e){
       RAW = null;
       KPI = [];
@@ -3282,7 +3067,8 @@
     for(let i=0;i<dates.length;i+=chunkSize){
       const chunk = dates.slice(i, i+chunkSize);
       showLoading(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
-      const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
+      const urls = chunk.map(d => ownedDataUrlWithTs(`owned_${d}.json`));
+      const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
       res.forEach((r)=>{
         if(r.status==='fulfilled') all.push(r.value);
       });
@@ -3309,20 +3095,12 @@
   }
 
   async function loadAvailableDates(){
-    showYtdLoading('YTD 로딩중... 메타/날짜 데이터 확인 중');
-    await loadPortalMeta();
-    const metaDates = Array.isArray(PORTAL_META && PORTAL_META.available_dates) ? PORTAL_META.available_dates.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))) : [];
-    if(metaDates.length){
-      AVAILABLE = metaDates.slice().sort();
-      return;
-    }
     try{
-      const j = await fetchOwnedJson(`available_dates.json`);
+      const j = await fetchJson(ownedDataUrlWithTs('available_dates.json'));
       const arr = Array.isArray(j) ? j : (j.available_dates || []);
-      AVAILABLE = arr.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))).slice().sort();
+      AVAILABLE = arr.slice().sort();
     }catch(e){
       AVAILABLE = null;
-      showNotice('available_dates.json 또는 meta.json을 읽지 못했어. 데이터 경로를 확인해줘.');
     }
   }
 
@@ -3365,11 +3143,11 @@
   }
 
   async function computeYTD(){
-    if(!AVAILABLE || !AVAILABLE.length){ showYtdLoading('YTD 로딩중... available_dates 확인 중'); return; }
+    if(!AVAILABLE || !AVAILABLE.length) return;
     updateYtdLabels();
     const end = currentPeriodEndDate();
     const year = String(end).slice(0,4);
-    if(!/^\d{4}$/.test(year)){ showYtdLoading('YTD 로딩중... 기준 날짜 확인 중'); return; }
+    if(!/^\d{4}$/.test(year)) return;
 
     const thisStart = `${year}-01-01`;
     const thisEnd = clampToAvailable(end);
@@ -3390,16 +3168,16 @@
       ytdTySessions.textContent = fmt(TY.sessions);
       ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
       ytdTySendCount.textContent = fmt(TY.send_count);
-      ytdTyLeverage.textContent = `${Number(TY.cvr || 0).toFixed(2)}%`;
+      ytdTyLeverage.textContent = fmtRatio(TY.avg_leverage);
       ytdLySessions.textContent = fmt(LY.sessions);
       ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
       ytdLySendCount.textContent = fmt(LY.send_count);
-      ytdLyLeverage.textContent = `${Number(LY.cvr || 0).toFixed(2)}%`;
+      ytdLyLeverage.textContent = fmtRatio(LY.avg_leverage);
 
       const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
       const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
       const dSend = LY.send_count ? ((TY.send_count - LY.send_count)/LY.send_count*100) : (TY.send_count ? 100 : 0);
-      const dLev  = LY.cvr ? ((TY.cvr - LY.cvr)/LY.cvr*100) : (TY.cvr ? 100 : 0);
+      const dLev  = LY.avg_leverage ? ((TY.avg_leverage - LY.avg_leverage)/LY.avg_leverage*100) : (TY.avg_leverage ? 100 : 0);
       ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
       ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
       ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
@@ -3422,8 +3200,9 @@
       const chunkSize = 10;
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
-        showYtdLoading();
-        const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
+        showLoading(`YTD 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+        const urls = chunk.map(d => ownedDataUrlWithTs(`owned_${d}.json`));
+        const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
 
@@ -3457,16 +3236,16 @@
     ytdTySessions.textContent = fmt(thisSum.sessions);
     ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
     ytdTySendCount.textContent = fmt(thisSum.send_count);
-    ytdTyLeverage.textContent = `${Number(thisSum.cvr || 0).toFixed(2)}%`;
+    ytdTyLeverage.textContent = fmtRatio(thisSum.avg_leverage);
     ytdLySessions.textContent = fmt(prevSum.sessions);
     ytdLyRevenue.textContent  = fmtMoney(prevSum.revenue);
     ytdLySendCount.textContent = fmt(prevSum.send_count);
-    ytdLyLeverage.textContent = `${Number(prevSum.cvr || 0).toFixed(2)}%`;
+    ytdLyLeverage.textContent = fmtRatio(prevSum.avg_leverage);
 
     const dSess = prevSum.sessions ? ((thisSum.sessions - prevSum.sessions)/prevSum.sessions*100) : (thisSum.sessions ? 100 : 0);
     const dRev  = prevSum.revenue  ? ((thisSum.revenue  - prevSum.revenue )/prevSum.revenue *100) : (thisSum.revenue  ? 100 : 0);
     const dSend = prevSum.send_count ? ((thisSum.send_count - prevSum.send_count)/prevSum.send_count*100) : (thisSum.send_count ? 100 : 0);
-    const dLev  = prevSum.cvr ? ((thisSum.cvr - prevSum.cvr)/prevSum.cvr*100) : (thisSum.cvr ? 100 : 0);
+    const dLev  = prevSum.avg_leverage ? ((thisSum.avg_leverage - prevSum.avg_leverage)/prevSum.avg_leverage*100) : (thisSum.avg_leverage ? 100 : 0);
     ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
     ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
     ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
@@ -3521,10 +3300,8 @@
     startPicker.value = s;
     endPicker.value = e;
 
-    primeYtdLoading();
     await loadRange(s, e);
     await computeYTD();
-    finalizeAnimatedViewChange();
   }
 
   async function selectGroup(channel, year, mmdd){
@@ -3555,17 +3332,15 @@
 
   // View toggles
   chipDaily.addEventListener('click', ()=>{
-    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
-    loadDaily(d).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange());
+    loadDaily(d).then(()=>computeYTD());
   });
 
   chipWeek.addEventListener('click', async ()=>{
-    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
     setViewActive();
@@ -3573,21 +3348,18 @@
     datePicker.value = d;
     await loadWeekByDate(d);
     await computeYTD();
-    finalizeAnimatedViewChange();
   });
 
   chipRange.addEventListener('click', ()=>{
-    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
     setViewActive();
     setToLastNDays(7);
-    loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange());
+    loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
   });
 
   // ✅ 채널 클릭 시 디폴트 VIEW = WEEK
   async function onChannelChange(ch){
-    primeYtdLoading();
     CHANNEL = ch;
     updateYtdLabels();
     setChipActive();
@@ -3606,7 +3378,6 @@
     renderTerms();
     renderProducts();
     await computeYTD();
-    finalizeAnimatedViewChange();
   }
 
   chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
@@ -3628,21 +3399,19 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  btnApplyRange.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btn7d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btn30d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btnMTD.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btnWEEK.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnApplyRange.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btn7d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btn30d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnMTD.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnWEEK.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
 
   btnPrev.addEventListener('click', async ()=>{
-    primeYtdLoading();
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,-1));
       datePicker.value = clampToAvailable(d);
       await loadDaily(datePicker.value);
       await computeYTD();
-      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
@@ -3651,7 +3420,6 @@
       datePicker.value = clampToAvailable(d);
       await loadWeekByDate(datePicker.value);
       await computeYTD();
-      finalizeAnimatedViewChange();
       return;
     }
     const s = parseYMD(startPicker.value);
@@ -3660,18 +3428,15 @@
     endPicker.value = clampToAvailable(ymd(addDays(e,-7)));
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
-    finalizeAnimatedViewChange();
   });
 
   btnNext.addEventListener('click', async ()=>{
-    primeYtdLoading();
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,+1));
       datePicker.value = clampToAvailable(d);
       await loadDaily(datePicker.value);
       await computeYTD();
-      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
@@ -3680,7 +3445,6 @@
       datePicker.value = clampToAvailable(d);
       await loadWeekByDate(datePicker.value);
       await computeYTD();
-      finalizeAnimatedViewChange();
       return;
     }
     const s = parseYMD(startPicker.value);
@@ -3689,30 +3453,25 @@
     endPicker.value = clampToAvailable(ymd(addDays(e,+7)));
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
-    finalizeAnimatedViewChange();
   });
 
   btnToday.addEventListener('click', async ()=>{
-    primeYtdLoading();
     const d = clampToAvailable(ymd(new Date()));
     if(VIEW==='DAILY'){
       datePicker.value = d;
       await loadDaily(d);
       await computeYTD();
-      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
       datePicker.value = d;
       await loadWeekByDate(d);
       await computeYTD();
-      finalizeAnimatedViewChange();
       return;
     }
     setToLastNDays(7);
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
-    finalizeAnimatedViewChange();
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
@@ -3733,30 +3492,28 @@
     GROUP_JUMP_MODE = !!toggleGroupJump.checked;
   });
 
+  function runInitialEntrance(){
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        document.body.classList.add('page-ready');
+      });
+    });
+    setTimeout(()=>{
+      refreshKpiMadness();
+      attachKpiTilt();
+    }, 180);
+  }
+
   (async function init(){
+    // defaults
     toggleGroupJump.checked = true;
-    const fallbackYesterday = ymd(addDays(new Date(), -1));
-    if(datePicker && !datePicker.value) datePicker.value = fallbackYesterday;
-    if(startPicker && !startPicker.value) startPicker.value = fallbackYesterday;
-    if(endPicker && !endPicker.value) endPicker.value = fallbackYesterday;
     GROUP_JUMP_MODE = true;
     updateYtdLabels();
-    VIEW = 'WEEK';
-    CHANNEL = 'EDM';
-    setChipActive();
-    setViewActive();
-    primeYtdLoading('YTD 로딩중... 최신(전일) 데이터와 WEEK 기본 화면 준비 중');
-
-    await loadAvailableDates();
-
-    CHANNEL = getPortalMetaDefaultChannel();
-    VIEW = getPortalMetaDefaultView();
 
     setChipActive();
     setDetailViewActive();
-    setViewActive();
     toggleSections();
-    primeYtdLoading();
+    await loadAvailableDates();
 
     if(AVAILABLE && AVAILABLE.length){
       const minD = AVAILABLE[0];
@@ -3766,33 +3523,19 @@
       endPicker.min = minD; endPicker.max = maxD;
     }
 
-    let d = getPortalMetaDefaultDate() || ((AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1)));
-    d = clampToAvailable(d);
-
-    const preferredGroupDate = getPortalMetaDefaultGroupDate(CHANNEL);
-    if(VIEW === 'WEEK' && preferredGroupDate){
-      d = clampToAvailable(preferredGroupDate);
-    }
-
+    const d = (AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1));
     datePicker.value = d;
 
-    if(VIEW === 'DAILY'){
-      await loadDaily(d);
-    }else if(VIEW === 'RANGE'){
-      const s = clampToAvailable(d);
-      const e = clampToAvailable(ymd(addDays(parseYMD(s), 6)));
-      startPicker.value = s;
-      endPicker.value = e;
-      await loadRange(s, e);
-    }else{
-      VIEW = 'WEEK';
-      setViewActive();
-      await loadWeekByDate(d);
-    }
+    VIEW='DAILY';
+    setViewActive();
+    await loadDaily(d);
 
+    // ✅ 첫 화면에서 올해누적(YTD) 바로 계산/표시
     if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
-    finalizeAnimatedViewChange();
+    refreshKpiMadness();
+    attachKpiTilt();
+    runInitialEntrance();
   })();
 
 })();
