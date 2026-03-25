@@ -80,14 +80,20 @@ jobs:
           echo "run_daily=true" >> "$GITHUB_OUTPUT"
 
           if [ "$DAILY_HUB_ONLY" = "true" ]; then
+            echo "build_email_base=false" >> "$GITHUB_OUTPUT"
+            echo "build_hub_animated=true" >> "$GITHUB_OUTPUT"
             echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
             echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
             echo "mode_label=hub_only" >> "$GITHUB_OUTPUT"
           elif [ "$DAILY_EMAIL_ONLY" = "true" ]; then
+            echo "build_email_base=true" >> "$GITHUB_OUTPUT"
+            echo "build_hub_animated=false" >> "$GITHUB_OUTPUT"
             echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
             echo "skip_hub_write=true" >> "$GITHUB_OUTPUT"
             echo "mode_label=email_only" >> "$GITHUB_OUTPUT"
           else
+            echo "build_email_base=true" >> "$GITHUB_OUTPUT"
+            echo "build_hub_animated=true" >> "$GITHUB_OUTPUT"
             echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
             echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
             echo "mode_label=normal" >> "$GITHUB_OUTPUT"
@@ -143,6 +149,11 @@ jobs:
           mkdir -p \
             reports \
             reports/search_volume/data \
+            reports/daily_digest/hub \
+            reports/daily_digest/hub/daily \
+            reports/daily_digest/hub/weekly \
+            reports/daily_digest/hub/data/daily \
+            reports/daily_digest/hub/data/weekly \
             site/data \
             site/assets \
             site/assets/products \
@@ -159,8 +170,8 @@ jobs:
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
 
-      - name: Build Daily Digest (yesterday only)
-        if: ${{ steps.modes.outputs.run_daily == 'true' }}
+      - name: Build Daily Digest Email Base (yesterday only)
+        if: ${{ steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.build_email_base == 'true' }}
         continue-on-error: true
         shell: bash
         env:
@@ -227,8 +238,83 @@ jobs:
           ls -la reports/daily_digest/daily | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
 
+
+      - name: Build Daily Digest HUB Animated (yesterday only)
+        if: ${{ steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.build_hub_animated == 'true' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+
+          DAILY_DIGEST_SKIP_IF_EXISTS: "false"
+          DAILY_DIGEST_USE_DATA_CACHE: "false"
+          DAILY_DIGEST_WRITE_DATA_CACHE: "true"
+          DAILY_DIGEST_SKIP_HUB_WRITE: "false"
+          DAILY_DIGEST_FORCE_HUB_OVERWRITE: "true"
+          DAILY_DIGEST_OUT_DIR: "reports/daily_digest/hub"
+          DAILY_DIGEST_DATA_DIR: "reports/daily_digest/hub/data"
+
+          DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
+          DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
+
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+
+          GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
+          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+          GOOGLE_ADS_ACCESS_TOKEN: ${{ secrets.GOOGLE_ADS_ACCESS_TOKEN }}
+          GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
+          GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
+          GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+
+          NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
+          NAVER_AD_ACCESS_LICENSE: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
+          NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
+
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GA4_PROPERTY_ID:-}" ]; then
+            echo "[WARN] GA4_PROPERTY_ID is empty. skip."
+            exit 0
+          fi
+
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip."
+            exit 0
+          fi
+
+          echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
+
+          mkdir -p reports/daily_digest/hub/daily reports/daily_digest/hub/data/daily reports/daily_digest/hub/weekly reports/daily_digest/hub/data/weekly
+
+          echo "[INFO] Purge old HUB outputs for ${YMD}"
+          rm -f "reports/daily_digest/hub/daily/${YMD}.html" \
+                "reports/daily_digest/hub/weekly/END_${YMD}.html" \
+                "reports/daily_digest/hub/data/daily/${YMD}.json" \
+                "reports/daily_digest/hub/data/weekly/END_${YMD}.json" \
+                "reports/daily_digest/hub/index.html" || true
+
+          echo "[INFO] Build HUB mode: ${{ steps.modes.outputs.mode_label }}"
+          echo "[INFO] Build HUB only: ${YMD}"
+          export GA4_START_DATE="${YMD}"
+          export GA4_END_DATE="${YMD}"
+
+          python -u daily_digest_hub_animated.py --out-dir reports/daily_digest/hub
+
+          echo "[INFO] HUB Outputs:"
+          ls -la reports/daily_digest/hub || true
+          ls -la reports/daily_digest/hub/daily | tail -n 40 || true
+          ls -la reports/daily_digest/hub/data/daily | tail -n 40 || true
+
       - name: Render yesterday Daily Digest PNG
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.build_email_base == 'true' }}
         continue-on-error: true
         shell: bash
         env:
