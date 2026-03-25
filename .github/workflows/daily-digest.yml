@@ -8,29 +8,23 @@ on:
         required: false
         default: "manual"
       daily_hub_only:
-        description: "Build Daily Digest HUB only? (update HUB, no email)"
+        description: "Build Daily Digest HUB only? (update HUB only)"
         required: true
         default: "false"
         type: choice
-        options:
-          - "false"
-          - "true"
+        options: ["false", "true"]
       debug:
         description: "Enable debug logs?"
         required: true
         default: "false"
         type: choice
-        options:
-          - "false"
-          - "true"
+        options: ["false", "true"]
       backfill:
         description: "Run one-time backfill for Daily/Weekly JSON only?"
         required: true
         default: "false"
         type: choice
-        options:
-          - "false"
-          - "true"
+        options: ["false", "true"]
       backfill_start:
         description: "Backfill start date (YYYY-MM-DD)"
         required: false
@@ -41,7 +35,7 @@ on:
         default: "2026-03-24"
 
   schedule:
-    # 06:00 KST daily -> Daily Digest HUB update only
+    # 06:00 KST daily
     - cron: "0 21 * * *"
 
 concurrency:
@@ -84,7 +78,7 @@ jobs:
             echo "run_daily=false" >> "$GITHUB_OUTPUT"
             echo "run_backfill=true" >> "$GITHUB_OUTPUT"
             echo "skip_hub_write=true" >> "$GITHUB_OUTPUT"
-            echo "mode_label=json_backfill_only" >> "$GITHUB_OUTPUT"
+            echo "mode_label=backfill_json_only" >> "$GITHUB_OUTPUT"
           else
             echo "run_daily=true" >> "$GITHUB_OUTPUT"
             echo "run_backfill=false" >> "$GITHUB_OUTPUT"
@@ -124,14 +118,27 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
-            pip install               db-dtypes               pyarrow               google-cloud-bigquery               pandas               python-dateutil               scikit-learn               sentence-transformers               pillow               requests               openpyxl               matplotlib               pytrends
+            pip install \
+              db-dtypes \
+              pyarrow \
+              google-cloud-bigquery \
+              google-analytics-data \
+              pandas \
+              python-dateutil \
+              requests \
+              openpyxl
           fi
 
       - name: Ensure reports dir
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p             reports             reports/daily_digest/daily             reports/daily_digest/weekly             reports/daily_digest/data/daily             reports/daily_digest/data/weekly
+          mkdir -p \
+            reports \
+            reports/daily_digest/daily \
+            reports/daily_digest/weekly \
+            reports/daily_digest/data/daily \
+            reports/daily_digest/data/weekly
 
       - name: Set KST time (for badge/meta + yesterday)
         id: set_time
@@ -151,21 +158,18 @@ jobs:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           BACKFILL_START: ${{ steps.modes.outputs.backfill_start }}
           BACKFILL_END: ${{ steps.modes.outputs.backfill_end }}
-
-          DAILY_DIGEST_JSON_ONLY: "true"
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
           DAILY_DIGEST_SKIP_HUB_WRITE: "true"
-
+          DAILY_DIGEST_JSON_ONLY: "true"
+          DAILY_DIGEST_NO_YOY_PREBUILD: "true"
           DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
-
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
-
           GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
           GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
           GOOGLE_ADS_ACCESS_TOKEN: ${{ secrets.GOOGLE_ADS_ACCESS_TOKEN }}
@@ -173,11 +177,9 @@ jobs:
           GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
           GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
-
           NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
           NAVER_AD_ACCESS_LICENSE: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
           NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
-
         run: |
           set -euo pipefail
 
@@ -185,22 +187,18 @@ jobs:
             echo "[WARN] GA4_PROPERTY_ID is empty. skip backfill."
             exit 0
           fi
-
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
             echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip backfill."
             exit 0
           fi
-
           if [ -z "${BACKFILL_START:-}" ] || [ -z "${BACKFILL_END:-}" ]; then
             echo "[ERROR] BACKFILL_START/BACKFILL_END missing."
             exit 1
           fi
-
           if ! date -d "${BACKFILL_START}" "+%Y-%m-%d" >/dev/null 2>&1; then
             echo "[ERROR] Invalid BACKFILL_START: ${BACKFILL_START}"
             exit 1
           fi
-
           if ! date -d "${BACKFILL_END}" "+%Y-%m-%d" >/dev/null 2>&1; then
             echo "[ERROR] Invalid BACKFILL_END: ${BACKFILL_END}"
             exit 1
@@ -225,18 +223,26 @@ jobs:
             DAILY_JSON="reports/daily_digest/data/daily/${CUR}.json"
             WEEKLY_JSON="reports/daily_digest/data/weekly/END_${CUR}.json"
 
-            echo "[INFO] Build JSON for ${CUR}"
-            rm -f "$DAILY_JSON" "$WEEKLY_JSON" || true
+            if [ -f "$DAILY_JSON" ] && [ -f "$WEEKLY_JSON" ]; then
+              echo "[SKIP] Exists (Daily+Weekly JSON): ${CUR}"
+            else
+              echo "[INFO] Build JSON for ${CUR}"
+              rm -f "$DAILY_JSON" "$WEEKLY_JSON" || true
 
-            export YMD="${CUR}"
-            export GA4_START_DATE="${CUR}"
-            export GA4_END_DATE="${CUR}"
+              export YMD="${CUR}"
+              export GA4_START_DATE="${CUR}"
+              export GA4_END_DATE="${CUR}"
 
-            python -u daily_digest_live_final.py --out-dir reports/daily_digest --json-only
+              python -u daily_digest_live_final.py \
+                --out-dir reports/daily_digest \
+                --json-only \
+                --skip-hub-write \
+                --no-yoy-prebuild \
+                --days 1
 
-            test -f "$DAILY_JSON"
-            test -f "$WEEKLY_JSON"
-            echo "[INFO] Wrote JSON for ${CUR}"
+              echo "[INFO] Wrote JSON for ${CUR}:"
+              ls -la "$DAILY_JSON" "$WEEKLY_JSON" 2>/dev/null || true
+            fi
 
             CUR="$(date -I -d "${CUR} + 1 day")"
           done
@@ -249,20 +255,16 @@ jobs:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
-
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
           DAILY_DIGEST_SKIP_HUB_WRITE: ${{ steps.modes.outputs.skip_hub_write }}
-
           DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
-
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
-
           GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
           GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
           GOOGLE_ADS_ACCESS_TOKEN: ${{ secrets.GOOGLE_ADS_ACCESS_TOKEN }}
@@ -270,11 +272,9 @@ jobs:
           GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
           GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
-
           NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
           NAVER_AD_ACCESS_LICENSE: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
           NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
-
         run: |
           set -euo pipefail
 
@@ -282,7 +282,6 @@ jobs:
             echo "[WARN] GA4_PROPERTY_ID is empty. skip."
             exit 0
           fi
-
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
             echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip."
             exit 0
@@ -294,14 +293,17 @@ jobs:
           mkdir -p reports/daily_digest/daily reports/daily_digest/weekly reports/daily_digest/data/daily reports/daily_digest/data/weekly
 
           echo "[INFO] Purge old outputs for ${YMD}"
-          rm -f "reports/daily_digest/daily/${YMD}.html"                 "reports/daily_digest/data/daily/${YMD}.json"                 "reports/daily_digest/weekly/END_${YMD}.html"                 "reports/daily_digest/data/weekly/END_${YMD}.json" || true
+          rm -f "reports/daily_digest/daily/${YMD}.html" \
+                "reports/daily_digest/data/daily/${YMD}.json" \
+                "reports/daily_digest/weekly/END_${YMD}.html" \
+                "reports/daily_digest/data/weekly/END_${YMD}.json" || true
 
           echo "[INFO] Build mode: ${{ steps.modes.outputs.mode_label }}"
           echo "[INFO] Build only: ${YMD}"
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
 
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest --days 1
 
           echo "[INFO] Outputs:"
           ls -la reports/daily_digest/daily | tail -n 40 || true
@@ -310,7 +312,7 @@ jobs:
           ls -la reports/daily_digest/data/weekly | tail -n 40 || true
 
       - name: Commit & push Daily Digest results
-        if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.skip_hub_write != 'true' }}
+        if: ${{ always() && (steps.modes.outputs.run_backfill == 'true' || steps.modes.outputs.run_daily == 'true') }}
         continue-on-error: true
         shell: bash
         run: |
