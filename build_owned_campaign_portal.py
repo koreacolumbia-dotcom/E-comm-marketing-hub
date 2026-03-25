@@ -1091,7 +1091,7 @@ def build_range(
             write_json(out, bundle)
 
     dates = list_owned_dates(owned_dir)
-    write_json(owned_dir / "available_dates.json", {"available_dates": dates})
+    write_json(owned_dir / "available_dates.json", dates)
 
 
 # -----------------------------
