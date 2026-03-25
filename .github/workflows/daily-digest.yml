@@ -32,7 +32,7 @@ on:
           - "false"
           - "true"
       backfill:
-        description: "Run one-time backfill for Daily/Weekly bundles?"
+        description: "Run one-time backfill for Daily/Weekly JSON only?"
         required: true
         default: "false"
         type: choice
@@ -87,6 +87,7 @@ jobs:
 
           DAILY_HUB_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_hub_only == 'true' }}"
           DAILY_EMAIL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_email_only == 'true' }}"
+          RUN_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.backfill == 'true' }}"
 
           if [ "$DAILY_HUB_ONLY" = "true" ] && [ "$DAILY_EMAIL_ONLY" = "true" ]; then
             echo "[ERROR] daily_hub_only and daily_email_only cannot both be true."
@@ -94,6 +95,7 @@ jobs:
           fi
 
           echo "run_daily=true" >> "$GITHUB_OUTPUT"
+          echo "run_backfill=$RUN_BACKFILL" >> "$GITHUB_OUTPUT"
 
           if [ "$DAILY_HUB_ONLY" = "true" ]; then
             echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
@@ -111,12 +113,10 @@ jobs:
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "debug=${{ inputs.debug }}" >> "$GITHUB_OUTPUT"
-            echo "backfill=${{ inputs.backfill }}" >> "$GITHUB_OUTPUT"
             echo "backfill_start=${{ inputs.backfill_start }}" >> "$GITHUB_OUTPUT"
             echo "backfill_end=${{ inputs.backfill_end }}" >> "$GITHUB_OUTPUT"
           else
             echo "debug=false" >> "$GITHUB_OUTPUT"
-            echo "backfill=false" >> "$GITHUB_OUTPUT"
             echo "backfill_start=" >> "$GITHUB_OUTPUT"
             echo "backfill_end=" >> "$GITHUB_OUTPUT"
           fi
@@ -164,16 +164,16 @@ jobs:
           set -euo pipefail
           mkdir -p \
             reports \
+            reports/daily_digest/daily \
+            reports/daily_digest/weekly \
+            reports/daily_digest/data/daily \
+            reports/daily_digest/data/weekly \
             reports/search_volume/data \
             site/data \
             site/assets \
             site/assets/products \
             site/assets/reviews \
-            site/assets/text_images \
-            reports/daily_digest/daily \
-            reports/daily_digest/data/daily \
-            reports/daily_digest/weekly \
-            reports/daily_digest/data/weekly
+            site/assets/text_images
 
       - name: Set KST time (for badge/meta + yesterday)
         id: set_time
@@ -184,22 +184,29 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-      - name: One-time backfill Daily / Weekly bundles
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill == 'true' }}
+      - name: Backfill Daily / Weekly JSON only
+        if: ${{ steps.modes.outputs.run_backfill == 'true' }}
+        continue-on-error: true
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
-          DAILY_DIGEST_SKIP_IF_EXISTS: "true"
+          BACKFILL_START: ${{ steps.modes.outputs.backfill_start }}
+          BACKFILL_END: ${{ steps.modes.outputs.backfill_end }}
+
+          DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
           DAILY_DIGEST_SKIP_HUB_WRITE: "true"
+
           DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
+
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+
           GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
           GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
           GOOGLE_ADS_ACCESS_TOKEN: ${{ secrets.GOOGLE_ADS_ACCESS_TOKEN }}
@@ -207,74 +214,81 @@ jobs:
           GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
           GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+
           NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
           NAVER_AD_ACCESS_LICENSE: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
           NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
-          BACKFILL_START: ${{ inputs.backfill_start }}
-          BACKFILL_END: ${{ inputs.backfill_end }}
+
         run: |
           set -euo pipefail
 
           if [ -z "${GA4_PROPERTY_ID:-}" ]; then
-            echo "[ERROR] GA4_PROPERTY_ID is empty."
-            exit 1
+            echo "[WARN] GA4_PROPERTY_ID is empty. skip backfill."
+            exit 0
           fi
+
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
-            echo "[ERROR] GOOGLE_SA_JSON_B64 is empty."
-            exit 1
+            echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip backfill."
+            exit 0
           fi
+
           if [ -z "${BACKFILL_START:-}" ] || [ -z "${BACKFILL_END:-}" ]; then
-            echo "[ERROR] BACKFILL_START/BACKFILL_END is required."
+            echo "[ERROR] BACKFILL_START/BACKFILL_END missing."
             exit 1
           fi
 
-          if ! date -d "$BACKFILL_START" '+%Y-%m-%d' >/dev/null 2>&1; then
-            echo "[ERROR] Invalid BACKFILL_START: $BACKFILL_START"
+          if ! date -d "${BACKFILL_START}" "+%Y-%m-%d" >/dev/null 2>&1; then
+            echo "[ERROR] Invalid BACKFILL_START: ${BACKFILL_START}"
             exit 1
           fi
-          if ! date -d "$BACKFILL_END" '+%Y-%m-%d' >/dev/null 2>&1; then
-            echo "[ERROR] Invalid BACKFILL_END: $BACKFILL_END"
+
+          if ! date -d "${BACKFILL_END}" "+%Y-%m-%d" >/dev/null 2>&1; then
+            echo "[ERROR] Invalid BACKFILL_END: ${BACKFILL_END}"
             exit 1
           fi
-          if [ "$(date -d "$BACKFILL_START" +%s)" -gt "$(date -d "$BACKFILL_END" +%s)" ]; then
-            echo "[ERROR] BACKFILL_START must be <= BACKFILL_END"
+
+          START_EPOCH="$(date -d "${BACKFILL_START}" +%s)"
+          END_EPOCH="$(date -d "${BACKFILL_END}" +%s)"
+          if [ "$START_EPOCH" -gt "$END_EPOCH" ]; then
+            echo "[ERROR] backfill_start > backfill_end"
             exit 1
           fi
 
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
 
-          echo "[INFO] Backfill DAILY bundles: $BACKFILL_START ~ $BACKFILL_END"
-          CUR="$BACKFILL_START"
-          while [ "$(date -d "$CUR" +%s)" -le "$(date -d "$BACKFILL_END" +%s)" ]; do
-            export YMD="$CUR"
-            export GA4_START_DATE="$CUR"
-            export GA4_END_DATE="$CUR"
-            echo "[INFO] Build daily for $CUR"
-            python -u daily_digest_live_final.py --out-dir reports/daily_digest || true
-            CUR="$(date -I -d "$CUR + 1 day")"
+          mkdir -p reports/daily_digest/data/daily reports/daily_digest/data/weekly
+
+          echo "[INFO] Backfill DAILY/WEEKLY JSON only: ${BACKFILL_START} ~ ${BACKFILL_END}"
+
+          CUR="${BACKFILL_START}"
+          while [ "$(date -d "$CUR" +%s)" -le "$END_EPOCH" ]; do
+            DAILY_JSON="reports/daily_digest/data/daily/${CUR}.json"
+            WEEKLY_JSON="reports/daily_digest/data/weekly/END_${CUR}.json"
+
+            if [ -f "$DAILY_JSON" ] && [ -f "$WEEKLY_JSON" ]; then
+              echo "[SKIP] Exists (Daily+Weekly JSON): ${CUR}"
+            else
+              echo "[INFO] Build JSON for ${CUR}"
+
+              rm -f "$DAILY_JSON" "$WEEKLY_JSON" || true
+
+              export YMD="${CUR}"
+              export GA4_START_DATE="${CUR}"
+              export GA4_END_DATE="${CUR}"
+
+              # JSON cache only. Delete any HTML that may have been created by the script.
+              python -u daily_digest_live_final.py --out-dir reports/daily_digest
+
+              rm -f "reports/daily_digest/daily/${CUR}.html" \
+                    "reports/daily_digest/weekly/END_${CUR}.html" || true
+
+              echo "[INFO] Wrote JSON for ${CUR}:"
+              ls -la "$DAILY_JSON" "$WEEKLY_JSON" 2>/dev/null || true
+            fi
+
+            CUR="$(date -I -d "${CUR} + 1 day")"
           done
-
-          echo "[INFO] Backfill WEEKLY bundles (Mon~Sun, bundle end = Sunday)"
-          START_DOW="$(date -d "$BACKFILL_START" +%u)"  # 1=Mon ... 7=Sun
-          FIRST_SUN="$(date -I -d "$BACKFILL_START + $((7 - START_DOW)) day")"
-          if [ "$START_DOW" -eq 7 ]; then
-            FIRST_SUN="$BACKFILL_START"
-          fi
-
-          CUR_END="$FIRST_SUN"
-          while [ "$(date -d "$CUR_END" +%s)" -le "$(date -d "$BACKFILL_END" +%s)" ]; do
-            WEEK_START="$(date -I -d "$CUR_END - 6 day")"
-            export GA4_START_DATE="$WEEK_START"
-            export GA4_END_DATE="$CUR_END"
-            echo "[INFO] Build weekly for $WEEK_START ~ $CUR_END"
-            python -u daily_digest_live_final.py --out-dir reports/daily_digest || true
-            CUR_END="$(date -I -d "$CUR_END + 7 day")"
-          done
-
-          echo "[INFO] Backfill complete"
-          ls -la reports/daily_digest/data/daily | tail -n 30 || true
-          ls -la reports/daily_digest/data/weekly | tail -n 30 || true
 
       - name: Build Daily Digest (yesterday only)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
@@ -326,23 +340,26 @@ jobs:
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
 
-          mkdir -p reports/daily_digest/daily reports/daily_digest/data/daily
+          mkdir -p reports/daily_digest/daily reports/daily_digest/weekly reports/daily_digest/data/daily reports/daily_digest/data/weekly
 
           echo "[INFO] Purge old outputs for ${YMD}"
           rm -f "reports/daily_digest/daily/${YMD}.html" \
-                "reports/daily_digest/data/daily/${YMD}.json" || true
+                "reports/daily_digest/data/daily/${YMD}.json" \
+                "reports/daily_digest/weekly/END_${YMD}.html" \
+                "reports/daily_digest/data/weekly/END_${YMD}.json" || true
 
           echo "[INFO] Build mode: ${{ steps.modes.outputs.mode_label }}"
           echo "[INFO] Build only: ${YMD}"
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
 
-          # 배치 버전 실행
           python -u daily_digest_live_final.py --out-dir reports/daily_digest
 
           echo "[INFO] Outputs:"
           ls -la reports/daily_digest/daily | tail -n 40 || true
+          ls -la reports/daily_digest/weekly | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
+          ls -la reports/daily_digest/data/weekly | tail -n 40 || true
 
       - name: Render yesterday Daily Digest PNG
         if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
