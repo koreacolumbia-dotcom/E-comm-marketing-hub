@@ -946,27 +946,40 @@ def build_daily_trend_series(reports_dir: Path, limit: int = 800) -> List[Dict[s
 
 
 def build_weekly_trend_series(reports_dir: Path, limit: int = 200) -> List[Dict[str, Any]]:
-    files = list((reports_dir / "daily_digest" / "data" / "weekly").glob("END_*.json"))
-    files = [p for p in files if re.match(r"^END_\d{4}-\d{2}-\d{2}\.json$", p.name)]
-    files.sort(key=lambda p: p.name)
-    out: List[Dict[str, Any]] = []
-    for p in files[-limit:]:
-        bundle = _load_bundle(p)
-        if not bundle:
+    daily_series = build_daily_trend_series(reports_dir, limit=1200)
+    if not daily_series:
+        return []
+
+    buckets: Dict[Tuple[int, int], Dict[str, Any]] = {}
+    for row in daily_series:
+        dt = parse_ymd(str(row.get("date") or ""))
+        if not dt:
             continue
-        end = _bundle_date_from_path(p) or p.name
-        start = _ymd_minus_days(end, 6) or end
-        k = _extract_kpis_from_bundle(bundle)
-        out.append({
-            "date": end,
-            "label": f"{start[5:]}~{end[5:]}",
-            "sessions": _safe_float(k.get("sessions")) or 0.0,
-            "orders": _safe_float(k.get("orders")) or 0.0,
-            "revenue": _safe_float(k.get("revenue")) or 0.0,
-            "cvr": _safe_float(k.get("cvr")) or 0.0,
-            "signups": _safe_float(k.get("signups")) or 0.0,
+        week_start = dt - timedelta(days=dt.weekday())
+        week_end = week_start + timedelta(days=6)
+        iso_year, iso_week, _ = week_start.isocalendar()
+        key = (iso_year, iso_week)
+        slot = buckets.setdefault(key, {
+            "date": ymd(week_end),
+            "week_start": ymd(week_start),
+            "week_end": ymd(week_end),
+            "label": f"W{iso_week}",
+            "full_label": f"W{iso_week} · {ymd(week_start)} ~ {ymd(week_end)}",
+            "sessions": 0.0,
+            "orders": 0.0,
+            "revenue": 0.0,
+            "signups": 0.0,
         })
-    return out
+        slot["sessions"] += float(_safe_float(row.get("sessions")) or 0.0)
+        slot["orders"] += float(_safe_float(row.get("orders")) or 0.0)
+        slot["revenue"] += float(_safe_float(row.get("revenue")) or 0.0)
+        slot["signups"] += float(_safe_float(row.get("signups")) or 0.0)
+
+    out: List[Dict[str, Any]] = []
+    for _, item in sorted(buckets.items(), key=lambda kv: kv[1]["week_start"]):
+        item["cvr"] = (item["orders"] / item["sessions"]) if item["sessions"] > 0 else 0.0
+        out.append(item)
+    return out[-limit:]
 
 
 def build_owned_trend_series(reports_dir: Path) -> Dict[str, Any]:
@@ -1574,10 +1587,20 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const d = new Date(`${{s}}T00:00:00`);
         return Number.isNaN(d.getTime()) ? null : d;
       }};
-      const fmtShortDate = (s) => (s || '').slice(5);
+      const shiftDate = (s, days=0) => {{
+        const d = parseISODate(s);
+        if (!d) return null;
+        d.setDate(d.getDate() + days);
+        return d;
+      }};
+      const shiftYearKeepDay = (s, years=1) => {{
+        const d = parseISODate(s);
+        if (!d) return null;
+        return new Date(d.getFullYear() - years, d.getMonth(), d.getDate());
+      }};
       const fmtAxisDate = (s, rangeKey='1MONTH') => {{
         if (!s) return '';
-        if (rangeKey === '1YEAR' || rangeKey === '2YEAR') return s.slice(2).replace(/-/g, '.');
+        if (rangeKey === '1YEAR' || rangeKey === '2YEAR') return s.slice(5).replace('-', '.');
         return s.slice(5);
       }};
       const getWeekend = (s) => {{
@@ -1586,33 +1609,67 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const day = d.getDay();
         return day === 6 ? 6 : day === 0 ? 0 : -1;
       }};
-      const rangeDaysMap = {{'7D': 7, '14D': 14, '1MONTH': 31, '1YEAR': 366, '2YEAR': 731}};
       const pickSeries = (section, metric, channel) => {{
-        if (section === 'daily') return (trendData.daily || []).map(x => ({{ date: x.date || '', rawLabel: x.label || x.date || '', value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
-        if (section === 'weekly') return (trendData.weekly || []).map(x => ({{ date: x.date || '', rawLabel: x.label || x.date || '', value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
+        if (section === 'daily') return (trendData.daily || []).map(x => ({{ date: x.date || '', rawLabel: x.label || x.date || '', tipLabel: x.date || '', value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
+        if (section === 'weekly') return (trendData.weekly || []).map(x => ({{ date: x.date || '', weekStart: x.week_start || '', weekEnd: x.week_end || x.date || '', rawLabel: x.label || '', tipLabel: x.full_label || `${{x.label || ''}} · ${{x.week_start || ''}} ~ ${{x.week_end || x.date || ''}}`, value: Number(x[metric] || 0), weekend: -1 }}));
         if (section === 'owned') {{
           const source = channel ? ((((trendData.owned || {{}}).by_channel || {{}})[channel]) || []) : (((trendData.owned || {{}}).total) || []);
-          return source.map(x => ({{ date: x.date || '', rawLabel: x.label || x.date || '', value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
+          return source.map(x => ({{ date: x.date || '', rawLabel: x.label || x.date || '', tipLabel: x.date || '', value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
         }}
         return [];
       }};
+      const rangeStartForSeries = (series, rangeKey) => {{
+        if (!series.length) return null;
+        const latestDate = series[series.length - 1].date;
+        const latest = parseISODate(latestDate);
+        if (!latest) return null;
+        if (rangeKey === '7D') return shiftDate(latestDate, -6);
+        if (rangeKey === '14D') return shiftDate(latestDate, -13);
+        if (rangeKey === '1MONTH') return new Date(latest.getFullYear(), latest.getMonth(), 1);
+        if (rangeKey === '1YEAR') return shiftYearKeepDay(latestDate, 1);
+        if (rangeKey === '2YEAR') return shiftYearKeepDay(latestDate, 2);
+        return null;
+      }};
       const filterSeriesByRange = (series, rangeKey) => {{
         if (!series.length) return [];
-        const days = rangeDaysMap[rangeKey] || 31;
         const latest = parseISODate(series[series.length - 1].date);
-        if (!latest) return series.slice(-Math.min(days, series.length));
-        const cutoff = new Date(latest);
-        cutoff.setDate(cutoff.getDate() - (days - 1));
+        const start = rangeStartForSeries(series, rangeKey);
+        if (!latest || !start) return series;
         const out = series.filter(x => {{
           const d = parseISODate(x.date);
-          return d && d >= cutoff && d <= latest;
+          return d && d >= start && d <= latest;
         }});
         return out.length ? out : series;
+      }};
+      const shouldDrawXAxisLabel = (item, idx, len, section, rangeKey) => {{
+        if (len <= 16) return true;
+        if (section === 'weekly') {{
+          if (rangeKey === '7D' || rangeKey === '14D' || rangeKey === '1MONTH') return true;
+          const mod = rangeKey === '2YEAR' ? 8 : 4;
+          return idx === 0 || idx === len - 1 || (idx % mod === 0);
+        }}
+        if (rangeKey === '1YEAR') {{
+          const day = (item.date || '').slice(8, 10);
+          return idx === 0 || idx === len - 1 || day === '01';
+        }}
+        if (rangeKey === '2YEAR') {{
+          const mmdd = (item.date || '').slice(5);
+          return idx === 0 || idx === len - 1 || mmdd === '01-01' || mmdd.slice(3) === '01';
+        }}
+        return true;
+      }};
+      const axisLabelFor = (item, idx, len, section, rangeKey) => {{
+        if (section === 'weekly') {{
+          return shouldDrawXAxisLabel(item, idx, len, section, rangeKey) ? (item.rawLabel || '') : '';
+        }}
+        if ((rangeKey === '1YEAR' || rangeKey === '2YEAR') && !shouldDrawXAxisLabel(item, idx, len, section, rangeKey)) return '';
+        return fmtAxisDate(item.date || '', rangeKey);
       }};
       const renderTrend = (panel, section, metric, label, channel='') => {{
         const rangeKey = panel.dataset.range || '1MONTH';
         const baseSeries = pickSeries(section, metric, channel).filter(x => Number.isFinite(x.value));
-        const series = filterSeriesByRange(baseSeries, rangeKey).map(x => ({{...x, label: section === 'weekly' ? ((rangeKey === '1YEAR' || rangeKey === '2YEAR') ? fmtAxisDate(x.date || '', rangeKey) : (x.rawLabel || fmtAxisDate(x.date || '', rangeKey))) : fmtAxisDate(x.date || '', rangeKey)}}));
+        const sliced = filterSeriesByRange(baseSeries, rangeKey);
+        const series = sliced.map((x, idx, arr) => ({{...x, label: axisLabelFor(x, idx, arr.length, section, rangeKey)}}));
         const svg = panel.querySelector('[data-trend-svg]');
         const titleEl = panel.querySelector('[data-selected-title]');
         const summaryEl = panel.querySelector('[data-selected-summary]');
@@ -1623,7 +1680,9 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const max = Math.max(...vals);
         const range = (max - min) || (max === 0 ? 1 : Math.abs(max) * 0.15) || 1;
         const padL = 60, padR = 28, padT = 24, padB = 112;
-        const dynamicStep = Math.max(34, rangeKey === '2YEAR' ? 34 : rangeKey === '1YEAR' ? 40 : 58);
+        const dynamicStep = section === 'weekly'
+          ? (rangeKey === '2YEAR' ? 58 : rangeKey === '1YEAR' ? 64 : 84)
+          : (rangeKey === '2YEAR' ? 18 : rangeKey === '1YEAR' ? 26 : 58);
         const W = Math.max(1200, padL + padR + Math.max(series.length - 1, 1) * dynamicStep);
         const H = 420;
         const innerW = W - padL - padR, innerH = H - padT - padB;
@@ -1638,15 +1697,26 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const line = pts.map(p => p.join(',')).join(' ');
         const area = `M ${{padL}} ${{H-padB}} L ${{pts.map(p=>p.join(' ')).join(' L ')}} L ${{pts[pts.length-1][0]}} ${{H-padB}} Z`;
         const grid = [0,1,2,3,4].map(i => {{ const y = padT + (innerH * i / 4); return `<line x1="${{padL}}" y1="${{y}}" x2="${{W-padR}}" y2="${{y}}" stroke="rgba(148,163,184,.26)" stroke-width="1" />`; }}).join('');
-        const weekendBands = series.map((x, i) => {{
+        const weekendBands = (section === 'daily' || section === 'owned') ? series.map((x, i) => {{
           if (x.weekend < 0) return '';
           const left = i === 0 ? pts[i][0] - stepX / 2 : (pts[i-1][0] + pts[i][0]) / 2;
           const right = i === series.length - 1 ? pts[i][0] + stepX / 2 : (pts[i][0] + pts[i+1][0]) / 2;
           const fill = x.weekend === 6 ? 'rgba(37,99,235,.30)' : 'rgba(220,38,38,.30)';
           return `<rect x="${{left}}" y="${{padT}}" width="${{Math.max(0, right-left)}}" height="${{innerH}}" fill="${{fill}}"></rect>`;
+        }}).join('') : '';
+        const circles = pts.map((p,i) => {{
+          const stroke = series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : 'rgba(15,23,42,.76)';
+          const pretty = formatMetric(metric, series[i].value);
+          const tipDate = section === 'weekly' ? (series[i].tipLabel || series[i].rawLabel || '') : (series[i].date || series[i].label || '');
+          return `<g><circle class="trend-anim-fade" cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.4}}" fill="white" stroke="${{stroke}}" stroke-width="${{i===pts.length-1?2:1.6}}" style="animation-delay:${{Math.min(i*0.012, .36)}}s"></circle><circle class="point-hit" cx="${{p[0]}}" cy="${{p[1]}}" r="12" fill="transparent" data-date="${{tipDate}}" data-label="${{series[i].label || series[i].rawLabel || ''}}" data-value="${{pretty}}"><title>${{tipDate}} · ${{pretty}}</title></circle></g>`;
         }}).join('');
-        const circles = pts.map((p,i) => {{ const stroke = series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : 'rgba(15,23,42,.76)'; const pretty = formatMetric(metric, series[i].value); return `<g><circle class="trend-anim-fade" cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.4}}" fill="white" stroke="${{stroke}}" stroke-width="${{i===pts.length-1?2:1.6}}" style="animation-delay:${{Math.min(i*0.012, .36)}}s"></circle><circle class="point-hit" cx="${{p[0]}}" cy="${{p[1]}}" r="12" fill="transparent" data-date="${{series[i].date || ''}}" data-label="${{series[i].label || ''}}" data-value="${{pretty}}"><title>${{series[i].date || series[i].label || ''}} · ${{pretty}}</title></circle></g>`; }}).join('');
-        const labels = pts.map((p, i) => {{ const fill = series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : '#64748b'; const bg = series[i].weekend === 6 ? 'rgba(37,99,235,.18)' : series[i].weekend === 0 ? 'rgba(220,38,38,.18)' : 'transparent'; return `<g class="trend-anim-fade" style="animation-delay:${{Math.min(i*0.006, .32)}}s"><rect x="${{p[0]-22}}" y="${{H-34}}" width="44" height="18" rx="8" fill="${{bg}}"></rect><text x="${{p[0]}}" y="${{H - 21}}" text-anchor="middle" font-size="11" font-weight="800" fill="${{fill}}">${{series[i].label}}</text></g>`; }}).join('');
+        const labels = pts.map((p, i) => {{
+          if (!series[i].label) return '';
+          const fill = section === 'weekly' ? '#475569' : series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : '#64748b';
+          const bg = section === 'weekly' ? 'transparent' : series[i].weekend === 6 ? 'rgba(37,99,235,.18)' : series[i].weekend === 0 ? 'rgba(220,38,38,.18)' : 'transparent';
+          const w = section === 'weekly' ? 36 : 44;
+          return `<g class="trend-anim-fade" style="animation-delay:${{Math.min(i*0.006, .32)}}s"><rect x="${{p[0]-w/2}}" y="${{H-34}}" width="${{w}}" height="18" rx="8" fill="${{bg}}"></rect><text x="${{p[0]}}" y="${{H - 21}}" text-anchor="middle" font-size="11" font-weight="800" fill="${{fill}}">${{series[i].label}}</text></g>`;
+        }}).join('');
         svg.innerHTML = `<defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(59,130,246,.30)"/><stop offset="100%" stop-color="rgba(59,130,246,0.02)"/></linearGradient></defs>${{weekendBands}}${{grid}}<path class="trend-anim-fade" d="${{area}}" fill="url(#trendFill)"></path><polyline class="trend-anim-line" points="${{line}}" fill="none" stroke="rgba(15,23,42,.9)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"></polyline>${{circles}}${{labels}}`;
         const polyline = svg.querySelector('.trend-anim-line');
         if (polyline && polyline.getTotalLength) {{
@@ -1656,7 +1726,9 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const last = series[series.length-1]?.value ?? 0;
         const prev = series.length > 1 ? series[series.length-2]?.value ?? null : null;
         const delta = prev == null || prev === 0 ? null : ((last - prev) / prev);
-        summaryEl.textContent = `최근값 ${{formatMetric(metric, last)}}${{delta == null ? '' : ` · 직전 대비 ${{delta >= 0 ? '+' : ''}}${{(delta * 100).toFixed(1)}}%`}} · ${{series.length}}포인트`;
+        const startTxt = section === 'weekly' ? (series[0]?.tipLabel || series[0]?.date || '') : (series[0]?.date || '');
+        const endTxt = section === 'weekly' ? (series[series.length-1]?.tipLabel || series[series.length-1]?.date || '') : (series[series.length-1]?.date || '');
+        summaryEl.textContent = `${{startTxt}} ~ ${{endTxt}} · 최근값 ${{formatMetric(metric, last)}}${{delta == null ? '' : ` · 직전 대비 ${{delta >= 0 ? '+' : ''}}${{(delta * 100).toFixed(1)}}%`}} · ${{series.length}}포인트`;
         const tip = panel.querySelector('[data-chart-tooltip]');
         const shell = panel.querySelector('.trend-svg-shell');
         const hideTip = () => {{ if (tip) tip.hidden = true; }};
