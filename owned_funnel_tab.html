@@ -194,6 +194,7 @@
       <div class="mt-6 flex flex-wrap items-center gap-2">
         <div class="kicker">Tab</div>
         <button class="chip rounded-full px-4 py-2 text-xs active" data-tab="overview" type="button">Overview</button>
+        <button class="chip rounded-full px-4 py-2 text-xs" data-tab="behavior" type="button">Behavior</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-tab="compare" type="button">Compare</button>
         <button class="chip rounded-full px-4 py-2 text-xs" data-tab="dropoff" type="button">Drop-off</button>
       </div>
@@ -254,6 +255,57 @@
                 </tr>
               </thead>
               <tbody id="groupTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="panel-behavior" class="tab-panel space-y-6">
+        <section class="card p-5 md:p-6">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div class="kicker">Behavior</div>
+              <h2 class="mt-2 text-2xl font-black tracking-tight">User / Event Journey</h2>
+              <p class="mt-2 text-sm font-semibold muted">유저 기준과 이벤트 기준을 탭에서 바로 전환해서 볼 수 있습니다.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2" id="behaviorModeChips">
+              <button class="chip rounded-full px-4 py-2 text-xs active" data-behavior-mode="event" type="button">Event</button>
+              <button class="chip rounded-full px-4 py-2 text-xs" data-behavior-mode="user" type="button">User</button>
+            </div>
+          </div>
+          <div id="behaviorNotice" class="mt-4 text-xs font-semibold muted"></div>
+          <section id="behaviorSummaryCards" class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6"></section>
+        </section>
+
+        <section class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)]">
+          <div class="card p-5 md:p-6">
+            <div class="kicker">Behavior Funnel</div>
+            <h2 id="behaviorHeading" class="mt-2 text-2xl font-black tracking-tight">Event Flow</h2>
+            <div id="behaviorCanvas" class="funnel-wrap mt-6"></div>
+          </div>
+          <div class="card p-5 md:p-6">
+            <div class="kicker">Step Detail</div>
+            <h2 class="mt-2 text-2xl font-black tracking-tight">Behavior Step Metrics</h2>
+            <div id="behaviorStepDetail" class="mt-4 grid grid-cols-1 gap-3"></div>
+          </div>
+        </section>
+
+        <section class="card p-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="kicker">Behavior Matrix</div>
+              <h2 class="mt-2 text-xl font-black tracking-tight">Segment Comparison</h2>
+            </div>
+            <div id="behaviorTableMeta" class="text-sm font-semibold muted"></div>
+          </div>
+          <div class="mt-4 table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Segment</th><th>Base</th><th>Stage 1</th><th>Stage 2</th><th>Stage 3</th><th>Stage 4</th><th>Final</th><th>CVR</th><th>Worst Step</th>
+                </tr>
+              </thead>
+              <tbody id="behaviorTableBody"></tbody>
             </table>
           </div>
         </section>
@@ -379,7 +431,8 @@
         compare: {
           A: { segment: 'ALL', group: '' },
           B: { segment: 'OWNED', group: '' },
-        }
+        },
+        behaviorMode: 'event'
       };
       const els = {
         periodLabel: document.getElementById('periodLabel'),
@@ -414,6 +467,13 @@
         dropOverall: document.getElementById('dropOverall'),
         dropStageRankings: document.getElementById('dropStageRankings'),
         dropSegmentTableBody: document.getElementById('dropSegmentTableBody'),
+        behaviorSummaryCards: document.getElementById('behaviorSummaryCards'),
+        behaviorNotice: document.getElementById('behaviorNotice'),
+        behaviorHeading: document.getElementById('behaviorHeading'),
+        behaviorCanvas: document.getElementById('behaviorCanvas'),
+        behaviorStepDetail: document.getElementById('behaviorStepDetail'),
+        behaviorTableBody: document.getElementById('behaviorTableBody'),
+        behaviorTableMeta: document.getElementById('behaviorTableMeta'),
       };
       const fmt = (n) => Number(n || 0).toLocaleString('en-US');
       const fmtMoney = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -452,6 +512,10 @@
           messageTitle: String(base.message_title || base.messageTitle || ''),
           sessions: Number(base.sessions || 0),
           users: Number(base.users || 0),
+          pdpUsers: Number(base.pdp_users || base.pdpUsers || 0),
+          addToCartUsers: Number(base.add_to_cart_users || base.addToCartUsers || 0),
+          beginCheckoutUsers: Number(base.begin_checkout_users || base.beginCheckoutUsers || 0),
+          purchaseUsers: Number(base.purchase_users || base.purchaseUsers || 0),
           buyerUsers: Number(base.buyer_users || base.buyerUsers || 0),
           purchases: Number(base.purchases || 0),
           revenue: Number(base.revenue || 0),
@@ -623,42 +687,44 @@
           beginCheckout: a.beginCheckout + Number(r.beginCheckout || 0),
           purchaseSessions: a.purchaseSessions + Number(r.purchaseSessions || 0),
           users: a.users + Number(r.users || 0),
+          pdpUsers: a.pdpUsers + Number(r.pdpUsers || 0),
+          addToCartUsers: a.addToCartUsers + Number(r.addToCartUsers || 0),
+          beginCheckoutUsers: a.beginCheckoutUsers + Number(r.beginCheckoutUsers || 0),
+          purchaseUsers: a.purchaseUsers + Number(r.purchaseUsers || 0),
           buyerUsers: a.buyerUsers + Number(r.buyerUsers || 0),
           orders: a.orders + Number(r.purchases || 0),
           revenue: a.revenue + Number(r.revenue || 0),
-        }), { sessions:0,pdpViews:0,addToCart:0,beginCheckout:0,purchaseSessions:0,users:0,buyerUsers:0,orders:0,revenue:0 });
+        }), { sessions:0,pdpViews:0,addToCart:0,beginCheckout:0,purchaseSessions:0,users:0,pdpUsers:0,addToCartUsers:0,beginCheckoutUsers:0,purchaseUsers:0,buyerUsers:0,orders:0,revenue:0 });
         return base;
       }
 
-      function buildBehaviorStages(agg){
-        const fields = [];
+      function buildBehaviorStages(agg, mode='event'){
         const notes = [];
-        const hasNativePdp = agg.pdpViews > 0;
-        const hasNativeCart = agg.addToCart > 0;
-        const hasNativeCheckout = agg.beginCheckout > 0;
-        const hasNativePurchaseSessions = agg.purchaseSessions > 0;
+        const shareBase = mode === 'user' ? agg.users : agg.sessions;
+        let fields = [];
 
-        fields.push({ key:'sessions', label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions, source:'native' });
-
-        if (hasNativePdp) {
-          fields.push({ key:'pdpViews', label:'PDP Views', note:'Product detail views', value:agg.pdpViews, source:'native' });
-        } else if (agg.users > 0) {
-          fields.push({ key:'users', label:'PDP Views (Proxy)', note:'Fallback to users because PDP field is missing', value:agg.users, source:'proxy' });
-          notes.push('PDP stage is using Users as a proxy because pdp_views is not present in the source JSON.');
-        }
-
-        if (hasNativeCart) {
-          fields.push({ key:'addToCart', label:'Add to Cart', note:'Add-to-cart actions/users in scope', value:agg.addToCart, source:'native' });
-        }
-        if (hasNativeCheckout) {
-          fields.push({ key:'beginCheckout', label:'Checkout', note:'Checkout starts in scope', value:agg.beginCheckout, source:'native' });
-        }
-
-        if (hasNativePurchaseSessions) {
-          fields.push({ key:'purchaseSessions', label:'Purchase Sessions', note:'Sessions that reached purchase', value:agg.purchaseSessions, source:'native' });
-        } else if (agg.buyerUsers > 0) {
-          fields.push({ key:'buyerUsers', label:'Purchase Users (Proxy)', note:'Fallback to buyer users because purchase_sessions is missing', value:agg.buyerUsers, source:'proxy' });
-          notes.push('Purchase stage is using Buyer Users as a proxy because purchase_sessions is not present in the source JSON.');
+        if (mode === 'user') {
+          fields = [
+            { key:'users', label:'Users', note:'Unique users in scope', value:agg.users, source:'native' },
+            { key:'pdpUsers', label:'PDP Users', note:'Users who viewed PDP', value:agg.pdpUsers || agg.users, source:agg.pdpUsers ? 'native' : 'proxy' },
+            { key:'addToCartUsers', label:'Cart Users', note:'Users with add-to-cart activity', value:agg.addToCartUsers, source:'native' },
+            { key:'beginCheckoutUsers', label:'Checkout Users', note:'Users who started checkout', value:agg.beginCheckoutUsers, source:'native' },
+            { key:'purchaseUsers', label:'Purchase Session Users', note:'Users who reached purchase session', value:agg.purchaseUsers || agg.buyerUsers, source:agg.purchaseUsers ? 'native' : 'proxy' },
+            { key:'buyerUsers', label:'Buyer Users', note:'Users with purchase events', value:agg.buyerUsers, source:'native' },
+          ].filter((stage, idx) => idx === 0 || stage.value > 0);
+          if (!agg.pdpUsers && agg.users > 0) notes.push('PDP Users is falling back to total users because pdp_users is missing in the loaded JSON.');
+          if (!agg.purchaseUsers && agg.buyerUsers > 0) notes.push('Purchase Session Users is falling back to buyer users because purchase_users is missing in the loaded JSON.');
+        } else {
+          fields = [
+            { key:'sessions', label:'Sessions', note:'Attributed traffic in scope', value:agg.sessions, source:'native' },
+            { key:'pdpViews', label:'PDP Views', note:'Product detail views', value:agg.pdpViews || agg.users, source:agg.pdpViews ? 'native' : 'proxy' },
+            { key:'addToCart', label:'Add to Cart', note:'Add-to-cart events', value:agg.addToCart, source:'native' },
+            { key:'beginCheckout', label:'Checkout', note:'Checkout starts in scope', value:agg.beginCheckout, source:'native' },
+            { key:'purchaseSessions', label:'Purchase Sessions', note:'Sessions that reached purchase', value:agg.purchaseSessions || agg.buyerUsers, source:agg.purchaseSessions ? 'native' : 'proxy' },
+            { key:'orders', label:'Orders', note:'Purchase events / orders', value:agg.orders, source:'native' },
+          ].filter((stage, idx) => idx === 0 || stage.value > 0);
+          if (!agg.pdpViews && agg.users > 0) notes.push('PDP Views is falling back to users because pdp_views is missing in the loaded JSON.');
+          if (!agg.purchaseSessions && agg.buyerUsers > 0) notes.push('Purchase Sessions is falling back to buyer users because purchase_sessions is missing in the loaded JSON.');
         }
 
         const max = Math.max(...fields.map((s) => s.value), 0);
@@ -668,7 +734,7 @@
           const prevValue = idx === 0 ? 0 : fields[idx - 1].value;
           const kept = idx === 0 ? 100 : (prevValue ? (stage.value / prevValue) * 100 : 0);
           const drop = idx === 0 ? 0 : Math.max(0, 100 - kept);
-          return { ...stage, width, kept, drop, share: agg.sessions ? (stage.value / agg.sessions) * 100 : 0 };
+          return { ...stage, width, kept, drop, share: shareBase ? (stage.value / shareBase) * 100 : 0 };
         });
 
         const steps = [];
@@ -681,18 +747,21 @@
           });
         }
 
-        return { stages, notes, steps };
+        return { mode, stages, notes, steps, shareBase };
       }
 
       function modelFor(bundle, segment, group=''){
         const agg = aggregateRows(rowsForSegment(bundle, segment, group));
-        const behavior = buildBehaviorStages(agg);
+        const behavior = buildBehaviorStages(agg, 'event');
+        const userBehavior = buildBehaviorStages(agg, 'user');
         return {
           segment,
           group,
           agg,
           behavior,
+          userBehavior,
           sessionCvr: agg.sessions ? (agg.orders / agg.sessions) * 100 : 0,
+          userCvr: agg.users ? (agg.buyerUsers / agg.users) * 100 : 0,
           aov: agg.orders ? (agg.revenue / agg.orders) : 0,
         };
       }
@@ -1188,8 +1257,84 @@
           render();
         }));
 
+        renderBehavior();
         renderCompare();
         renderDropoffCards();
+      }
+
+
+      function renderBehavior(){
+        const currentModel = modelFor(state.current.current, state.segment, state.selectedGroup);
+        const flow = state.behaviorMode === 'user' ? currentModel.userBehavior : currentModel.behavior;
+        const isUser = state.behaviorMode === 'user';
+        const baseValue = flow.stages[0]?.value || 0;
+        const finalValue = flow.stages[flow.stages.length - 1]?.value || 0;
+        const mid1 = flow.stages[1]?.value || 0;
+        const mid2 = flow.stages[2]?.value || 0;
+        const mid3 = flow.stages[3]?.value || 0;
+        const mid4 = flow.stages[4]?.value || 0;
+        const cvr = isUser ? currentModel.userCvr : currentModel.sessionCvr;
+
+        els.behaviorHeading.textContent = isUser ? 'User Journey' : 'Event Journey';
+        els.behaviorNotice.innerHTML = [
+          `<div>${isUser ? 'Unique-user 기준 퍼널입니다.' : 'Event / session 기준 퍼널입니다.'}</div>`,
+          ...flow.notes.map((note) => `<div class="warn">${esc(note)}</div>`)
+        ].join('');
+
+        const summaryCards = [
+          { label: flow.stages[0]?.label || 'Base', value: fmt(baseValue), referenceValue: isUser ? 'Unique users' : 'Sessions', deltaText: 'Base', tone: 'flat', footnote: isUser ? '선택 구간 내 고유 유저' : '선택 구간 내 세션' },
+          { label: flow.stages[1]?.label || 'Stage 1', value: fmt(mid1), referenceValue: flow.stages[1] ? fmtPct(flow.stages[1].share, 1) : '-', deltaText: flow.steps[0] ? fmtPct(flow.steps[0].kept, 1) : 'N/A', tone: 'flat', footnote: flow.steps[0] ? `${esc(stepPath(flow.steps[0].from, flow.steps[0].to))}` : 'No step' },
+          { label: flow.stages[2]?.label || 'Stage 2', value: fmt(mid2), referenceValue: flow.stages[2] ? fmtPct(flow.stages[2].share, 1) : '-', deltaText: flow.steps[1] ? fmtPct(flow.steps[1].kept, 1) : 'N/A', tone: 'flat', footnote: flow.steps[1] ? `${esc(stepPath(flow.steps[1].from, flow.steps[1].to))}` : 'No step' },
+          { label: flow.stages[3]?.label || 'Stage 3', value: fmt(mid3), referenceValue: flow.stages[3] ? fmtPct(flow.stages[3].share, 1) : '-', deltaText: flow.steps[2] ? fmtPct(flow.steps[2].kept, 1) : 'N/A', tone: 'flat', footnote: flow.steps[2] ? `${esc(stepPath(flow.steps[2].from, flow.steps[2].to))}` : 'No step' },
+          { label: flow.stages[4]?.label || 'Stage 4', value: fmt(mid4), referenceValue: flow.stages[4] ? fmtPct(flow.stages[4].share, 1) : '-', deltaText: flow.steps[3] ? fmtPct(flow.steps[3].kept, 1) : 'N/A', tone: 'flat', footnote: flow.steps[3] ? `${esc(stepPath(flow.steps[3].from, flow.steps[3].to))}` : 'No step' },
+          { label: isUser ? 'User CVR' : 'Session CVR', value: fmtPct(cvr, 2), referenceValue: flow.stages[flow.stages.length - 1] ? fmt(flow.stages[flow.stages.length - 1].value) : '-', deltaText: flow.steps[flow.steps.length - 1] ? fmtPct(flow.steps[flow.steps.length - 1].kept, 1) : 'N/A', tone: 'flat', footnote: isUser ? 'Buyer Users / Users' : 'Orders / Sessions' },
+        ];
+        els.behaviorSummaryCards.innerHTML = summaryCards.map((card, idx) => buildMetricCard(card, idx)).join('');
+
+        renderFunnel(els.behaviorCanvas, flow, '');
+        els.behaviorStepDetail.innerHTML = flow.stages.map((stage, i) => {
+          const step = i === 0 ? null : flow.steps[i - 1];
+          return `
+          <article class="detail-card" style="animation-delay:${i * 70}ms">
+            <div class="detail-top">
+              <div>
+                <div class="kicker">${esc(isUser ? 'User Stage' : 'Event Stage')} ${String(i + 1).padStart(2, '0')}</div>
+                <div class="detail-title">${esc(stage.label)}</div>
+              </div>
+              <div class="detail-value">${fmt(stage.value)}</div>
+            </div>
+            <div class="detail-grid">
+              <div class="detail-stat"><div class="detail-stat-label">Share</div><div class="detail-stat-value">${fmtPct(stage.share,1)}</div></div>
+              <div class="detail-stat"><div class="detail-stat-label">Retained</div><div class="detail-stat-value">${i === 0 ? '100.0%' : fmtPct(stage.kept,1)}</div></div>
+              <div class="detail-stat"><div class="detail-stat-label">Drop-off</div><div class="detail-stat-value">${i === 0 ? '0.0%' : fmtPct(stage.drop,1)}</div></div>
+            </div>
+            <div class="detail-note">${esc(stage.note)}${step ? ` Transition: ${esc(stepPath(step.from, step.to))}.` : ' This is the starting baseline.'}</div>
+          </article>`;
+        }).join('');
+
+        const segmentRows = FILTER_SEGMENTS.map((segment) => {
+          const model = modelFor(state.current.current, segment, '');
+          const view = isUser ? model.userBehavior : model.behavior;
+          const worst = view.steps.slice().sort((a, b) => b.drop - a.drop)[0];
+          return { segment, label: segmentLabel(segment), model, view, worst };
+        });
+        els.behaviorTableMeta.textContent = `${segmentRows.length} segments | ${isUser ? 'User CVR' : 'Session CVR'} 기준`;
+        els.behaviorTableBody.innerHTML = segmentRows.map((row) => {
+          const view = row.view;
+          const stageVals = view.stages.map((s) => fmt(s.value));
+          const finalMetric = isUser ? fmtPct(row.model.userCvr, 2) : fmtPct(row.model.sessionCvr, 2);
+          return `<tr>
+            <td class="font-black">${esc(row.label)}</td>
+            <td>${stageVals[0] || '-'}</td>
+            <td>${stageVals[1] || '-'}</td>
+            <td>${stageVals[2] || '-'}</td>
+            <td>${stageVals[3] || '-'}</td>
+            <td>${stageVals[4] || '-'}</td>
+            <td>${stageVals[5] || '-'}</td>
+            <td>${finalMetric}</td>
+            <td>${row.worst ? `${esc(stepPath(row.worst.from, row.worst.to))} | ${fmtPct(row.worst.drop,1)}` : '-'}</td>
+          </tr>`;
+        }).join('');
       }
 
       function compareOptionsForSegment(segment){
@@ -1376,6 +1521,7 @@
           document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-view') === state.view));
           document.querySelectorAll('[data-segment]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-segment') === state.segment));
           document.querySelectorAll('[data-compare]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-compare') === state.compareMode));
+          document.querySelectorAll('[data-behavior-mode]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-behavior-mode') === state.behaviorMode));
           document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tab') === state.tab));
           document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `panel-${state.tab}`));
 
@@ -1445,6 +1591,11 @@
           document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', async () => {
             state.tab = b.getAttribute('data-tab') || 'overview';
             await refresh();
+          }));
+          document.querySelectorAll('[data-behavior-mode]').forEach((b) => b.addEventListener('click', () => {
+            state.behaviorMode = b.getAttribute('data-behavior-mode') || 'event';
+            document.querySelectorAll('[data-behavior-mode]').forEach((el) => el.classList.toggle('active', el === b));
+            if (state.current) renderBehavior();
           }));
 
           const handleDateChange = async () => { state.selectedGroup = ''; await refresh(); };
