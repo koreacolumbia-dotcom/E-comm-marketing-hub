@@ -663,7 +663,7 @@
           <div class="ytd-loading-card">
             <div class="loading-spinner"></div>
             <div class="loading-title">Loading</div>
-            <div id="ytdLoadingText" class="loading-text">YTD loading...</div>
+            <div id="ytdLoadingText" class="loading-text" style="display:none"></div>
           </div>
         </div>
         <div class="flex items-center gap-3 mb-4">
@@ -990,6 +990,16 @@
       animateKpiGroup(ytdCards, 120);
       ytdSkeletonArmed = false;
     }
+  }
+  function primeYtdLoading(){
+    showYtdLoading();
+    if(allCards) allCards.style.visibility = 'visible';
+    if(ytdCards) ytdCards.style.visibility = 'visible';
+  }
+  function finalizeAnimatedViewChange(){
+    refreshKpiMadness();
+    attachKpiTilt();
+    requestAnimationFrame(()=> runKpiEntranceOnce());
   }
   noticeClose.addEventListener('click', hideNotice);
 
@@ -2869,8 +2879,7 @@
     for(let i=0;i<dates.length;i+=chunkSize){
       const chunk = dates.slice(i, i+chunkSize);
       showLoading(`누적 USER ID 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
-      const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
-      const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
+      const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
       res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
     }
     hideLoading();
@@ -2990,10 +2999,62 @@
     renderProducts();
   }
 
-  async function fetchJson(url){
+  const OWNED_DATA_BASE_CANDIDATES = [
+    'data/owned',
+    './data/owned',
+    '../data/owned',
+    '../../data/owned',
+    'reports/owned_portal/data/owned',
+    './reports/owned_portal/data/owned',
+    '../reports/owned_portal/data/owned',
+    '/reports/owned_portal/data/owned',
+    '/data/owned',
+  ];
+  let OWNED_DATA_BASE = null;
+
+  function appendCacheBust(url){
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}t=${Date.now()}`;
+  }
+
+  async function fetchJsonDirect(url){
     const res = await fetch(url, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
+  }
+
+  async function resolveOwnedDataBase(){
+    if(OWNED_DATA_BASE) return OWNED_DATA_BASE;
+
+    const seen = new Set();
+    const candidates = [];
+    for(const base of OWNED_DATA_BASE_CANDIDATES){
+      const normalized = String(base || '').replace(/\/$/, '');
+      if(!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      candidates.push(normalized);
+    }
+
+    for(const base of candidates){
+      try{
+        await fetchJsonDirect(appendCacheBust(`${base}/available_dates.json`));
+        OWNED_DATA_BASE = base;
+        return OWNED_DATA_BASE;
+      }catch(_e){}
+    }
+    throw new Error('OWNED data base path not found');
+  }
+
+  async function fetchJson(url){
+    if(/^https?:\/\//i.test(url) || url.startsWith('/')){
+      return await fetchJsonDirect(appendCacheBust(url));
+    }
+    return await fetchJsonDirect(url);
+  }
+
+  async function fetchOwnedJson(fileName){
+    const base = await resolveOwnedDataBase();
+    return await fetchJsonDirect(appendCacheBust(`${base}/${fileName}`));
   }
 
   function normalizeBundle(j){
@@ -3119,10 +3180,9 @@
   async function loadDaily(dStr){
     hideNotice();
     SELECTED = null;
-    const url = `data/owned/owned_${dStr}.json?t=${Date.now()}`;
 
     try{
-      RAW = normalizeBundle(await fetchJson(url));
+      RAW = normalizeBundle(await fetchOwnedJson(`owned_${dStr}.json`));
     }catch(e){
       RAW = null;
       KPI = [];
@@ -3188,8 +3248,7 @@
     for(let i=0;i<dates.length;i+=chunkSize){
       const chunk = dates.slice(i, i+chunkSize);
       showLoading(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
-      const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
-      const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
+      const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
       res.forEach((r)=>{
         if(r.status==='fulfilled') all.push(r.value);
       });
@@ -3217,7 +3276,7 @@
 
   async function loadAvailableDates(){
     try{
-      const j = await fetchJson(`data/owned/available_dates.json?t=${Date.now()}`);
+      const j = await fetchOwnedJson(`available_dates.json`);
       const arr = Array.isArray(j) ? j : (j.available_dates || []);
       AVAILABLE = arr.slice().sort();
     }catch(e){
@@ -3264,11 +3323,11 @@
   }
 
   async function computeYTD(){
-    if(!AVAILABLE || !AVAILABLE.length) return;
+    if(!AVAILABLE || !AVAILABLE.length){ hideYtdLoading(); return; }
     updateYtdLabels();
     const end = currentPeriodEndDate();
     const year = String(end).slice(0,4);
-    if(!/^\d{4}$/.test(year)) return;
+    if(!/^\d{4}$/.test(year)){ hideYtdLoading(); return; }
 
     const thisStart = `${year}-01-01`;
     const thisEnd = clampToAvailable(end);
@@ -3322,8 +3381,7 @@
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
         showYtdLoading();
-        const urls = chunk.map(d => `data/owned/owned_${d}.json?t=${Date.now()}`);
-        const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
+        const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
 
@@ -3421,8 +3479,10 @@
     startPicker.value = s;
     endPicker.value = e;
 
+    primeYtdLoading();
     await loadRange(s, e);
     await computeYTD();
+    finalizeAnimatedViewChange();
   }
 
   async function selectGroup(channel, year, mmdd){
@@ -3453,15 +3513,17 @@
 
   // View toggles
   chipDaily.addEventListener('click', ()=>{
+    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
-    loadDaily(d).then(()=>computeYTD());
+    loadDaily(d).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange());
   });
 
   chipWeek.addEventListener('click', async ()=>{
+    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
     setViewActive();
@@ -3469,18 +3531,21 @@
     datePicker.value = d;
     await loadWeekByDate(d);
     await computeYTD();
+    finalizeAnimatedViewChange();
   });
 
   chipRange.addEventListener('click', ()=>{
+    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
     setViewActive();
     setToLastNDays(7);
-    loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
+    loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange());
   });
 
   // ✅ 채널 클릭 시 디폴트 VIEW = WEEK
   async function onChannelChange(ch){
+    primeYtdLoading();
     CHANNEL = ch;
     updateYtdLabels();
     setChipActive();
@@ -3499,6 +3564,7 @@
     renderTerms();
     renderProducts();
     await computeYTD();
+    finalizeAnimatedViewChange();
   }
 
   chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
@@ -3520,19 +3586,21 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  btnApplyRange.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btn7d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btn30d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btnMTD.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btnWEEK.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnApplyRange.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btn7d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btn30d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnMTD.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnWEEK.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
 
   btnPrev.addEventListener('click', async ()=>{
+    primeYtdLoading();
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,-1));
       datePicker.value = clampToAvailable(d);
       await loadDaily(datePicker.value);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
@@ -3541,6 +3609,7 @@
       datePicker.value = clampToAvailable(d);
       await loadWeekByDate(datePicker.value);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     const s = parseYMD(startPicker.value);
@@ -3549,15 +3618,18 @@
     endPicker.value = clampToAvailable(ymd(addDays(e,-7)));
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
+    finalizeAnimatedViewChange();
   });
 
   btnNext.addEventListener('click', async ()=>{
+    primeYtdLoading();
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,+1));
       datePicker.value = clampToAvailable(d);
       await loadDaily(datePicker.value);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
@@ -3566,6 +3638,7 @@
       datePicker.value = clampToAvailable(d);
       await loadWeekByDate(datePicker.value);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     const s = parseYMD(startPicker.value);
@@ -3574,25 +3647,30 @@
     endPicker.value = clampToAvailable(ymd(addDays(e,+7)));
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
+    finalizeAnimatedViewChange();
   });
 
   btnToday.addEventListener('click', async ()=>{
+    primeYtdLoading();
     const d = clampToAvailable(ymd(new Date()));
     if(VIEW==='DAILY'){
       datePicker.value = d;
       await loadDaily(d);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
       datePicker.value = d;
       await loadWeekByDate(d);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     setToLastNDays(7);
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
+    finalizeAnimatedViewChange();
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
@@ -3622,6 +3700,7 @@
     setChipActive();
     setDetailViewActive();
     toggleSections();
+    primeYtdLoading();
     await loadAvailableDates();
 
     if(AVAILABLE && AVAILABLE.length){
@@ -3639,12 +3718,9 @@
     setViewActive();
     await loadDaily(d);
 
-    // ✅ 첫 화면에서 올해누적(YTD) 바로 계산/표시
     if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
-    refreshKpiMadness();
-    attachKpiTilt();
-    requestAnimationFrame(()=> runKpiEntranceOnce());
+    finalizeAnimatedViewChange();
   })();
 
 })();
