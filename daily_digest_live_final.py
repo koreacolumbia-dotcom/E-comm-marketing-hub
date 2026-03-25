@@ -514,6 +514,81 @@ def get_safe_animation_css():
       opacity: 0;
       animation: miniRise .52s ease forwards;
     }
+
+
+    .auto-reveal-card {
+      opacity: 0;
+      transform: perspective(1500px) translateY(46px) scale(.94) rotateX(10deg);
+      transform-origin: center top;
+      filter: blur(10px);
+      will-change: transform, opacity, filter;
+      backface-visibility: hidden;
+    }
+
+    .auto-reveal-card.is-visible {
+      animation: dramaticCardIn 1.02s cubic-bezier(.16,.84,.22,1) both;
+    }
+
+    .reveal-block.is-visible,
+    .kpi-card.is-visible {
+      animation-duration: 1.02s;
+    }
+
+    .reveal-block.is-visible {
+      animation-name: dramaticSectionIn;
+    }
+
+    .kpi-card.is-visible {
+      animation-name: dramaticCardIn;
+    }
+
+    .mode-switch,
+    [data-nav-transition] {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .mode-switch::after,
+    [data-nav-transition]::after,
+    .trend-tab::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      pointer-events: none;
+      border-radius: inherit;
+      background: linear-gradient(
+        120deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,.28) 35%,
+        rgba(255,255,255,0) 68%
+      );
+      background-size: 220% 100%;
+      opacity: 0;
+      transition: opacity .24s ease;
+    }
+
+    .mode-switch:hover::after,
+    [data-nav-transition]:hover::after,
+    .trend-tab:hover::after {
+      opacity: 1;
+      animation: shimmerSweep 1.1s ease;
+    }
+
+    .report-shell.is-entering .auto-reveal-card,
+    .report-shell.is-entering .reveal-block,
+    .report-shell.is-entering .kpi-card {
+      opacity: 0;
+    }
+
+    .trend-panel {
+      transform-origin: center top;
+      will-change: transform, opacity, filter;
+    }
+
+    .trend-panel.is-active {
+      animation: panelSwap .68s cubic-bezier(.18,.84,.22,1) both;
+    }
     """
     return css.replace("{", "{{").replace("}", "}}")
 
@@ -3078,10 +3153,10 @@ def render_page_html(
   function navigateWithAnimation(url){
     if(!url) return;
     document.body.classList.add('page-exit');
-    window.setTimeout(()=>{ window.location.href = url; }, 260);
+    window.setTimeout(()=>{ window.location.href = url; }, 300);
   }
 
-  document.querySelectorAll('[data-nav-transition]').forEach(el=>{
+  document.querySelectorAll('[data-nav-transition]').forEach((el)=>{
     el.addEventListener('click', (event)=>{
       const href = el.getAttribute('href');
       if(!href || href === '#' || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -3090,14 +3165,27 @@ def render_page_html(
     });
   });
 
+  const rootShell = document.querySelector('.report-shell');
+  if(rootShell){
+    rootShell.classList.add('is-entering');
+    window.setTimeout(()=> rootShell.classList.remove('is-entering'), 1200);
+  }
+
   const btn = document.getElementById('paidToggle');
   if(btn){
     let on = false;
     function setPaid(onNext){
       on = !!onNext;
-      document.querySelectorAll('.paid-extra').forEach(el=>{
-        if(on) el.classList.remove('hidden');
-        else el.classList.add('hidden');
+      document.querySelectorAll('.paid-extra').forEach((el, idx)=>{
+        if(on){
+          el.classList.remove('hidden');
+          el.style.animationDelay = (0.04 * idx).toFixed(2) + 's';
+          el.classList.remove('is-visible');
+          void el.getBoundingClientRect();
+          el.classList.add('is-visible');
+        } else {
+          el.classList.add('hidden');
+        }
       });
       btn.textContent = on ? 'Show less' : 'Show more';
     }
@@ -3107,62 +3195,39 @@ def render_page_html(
 
   const trendBtns = Array.from(document.querySelectorAll('[data-trend-tab]'));
   const trendPanels = Array.from(document.querySelectorAll('[data-trend-panel]'));
+
   function restartCharts(scope){
     if(!scope) return;
     scope.querySelectorAll('.trend-chart, .mini-chart').forEach((chart, idx)=>{
       chart.classList.remove('chart-animate');
       void chart.getBoundingClientRect();
-      window.setTimeout(()=> chart.classList.add('chart-animate'), 12 + (idx * 20));
+      window.setTimeout(()=>{
+        chart.classList.add('chart-animate');
+      }, 24 + (idx * 36));
     });
-  }
-  function setTrend(target){
-    trendBtns.forEach(el=>{
-      const active = el.getAttribute('data-trend-tab') === target;
-      el.classList.toggle('border-slate-900', active);
-      el.classList.toggle('bg-slate-900', active);
-      el.classList.toggle('text-white', active);
-      el.classList.toggle('border-slate-200', !active);
-      el.classList.toggle('bg-white', !active);
-      el.classList.toggle('text-slate-500', !active);
-    });
-    trendPanels.forEach(el=>{
-      const active = el.getAttribute('data-trend-panel') === target;
-      if(active){
-        el.classList.remove('hidden');
-        el.classList.remove('is-active');
-        void el.getBoundingClientRect();
-        el.classList.add('is-active');
-        restartCharts(el);
-      } else {
-        el.classList.add('hidden');
-        el.classList.remove('is-active');
-      }
-    });
-  }
-  trendBtns.forEach(el=>{
-    el.addEventListener('click', ()=> setTrend(el.getAttribute('data-trend-tab')));
-  });
-  if(trendBtns.length){
-    setTrend(trendBtns[0].getAttribute('data-trend-tab'));
   }
 
   function animateKpiValue(el){
     const finalText = (el.getAttribute('data-kpi-value') || el.textContent || '').trim();
-    if(!finalText || el.dataset.animated === '1') return;
+    if(!finalText) return;
+
+    if(el.dataset.animated === '1' && el.dataset.forceReplay !== '1') return;
     el.dataset.animated = '1';
+    el.dataset.forceReplay = '0';
 
     const isWon = finalText.includes('₩');
     const endsWithPct = finalText.endsWith('%');
     const raw = finalText.replace(/[^0-9.\-]/g, '');
     const target = Number(raw);
+
     if(!Number.isFinite(target)){
       el.textContent = finalText;
       return;
     }
 
     const decimals = (raw.split('.')[1] || '').length;
-    const duration = 900;
-    const start = performance.now();
+    const duration = isWon ? 1100 : 980;
+    const startTs = performance.now();
 
     function render(v){
       if(isWon){
@@ -3175,56 +3240,170 @@ def render_page_html(
     }
 
     function tick(now){
-      const p = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      render(target * eased);
+      const p = Math.min(1, (now - startTs) / duration);
+      const eased =
+        p < 0.72
+          ? 1 - Math.pow(1 - p / 0.72, 3)
+          : 1 - (Math.pow(1 - p, 2) * 0.08);
+      render(target * Math.min(eased, 1));
       if(p < 1){
         requestAnimationFrame(tick);
       } else {
         el.textContent = finalText;
       }
     }
+
     requestAnimationFrame(tick);
   }
 
-  const revealTargets = Array.from(document.querySelectorAll('.reveal-block, .kpi-card'));
+  function collectRevealTargets(){
+    const explicit = Array.from(document.querySelectorAll('.reveal-block, .kpi-card'));
+
+    const autoCards = Array.from(document.querySelectorAll(
+      '.rounded-2xl.border.border-slate-200.bg-white\/70.p-4, ' +
+      '.rounded-2xl.border.border-slate-200.bg-white.p-4, ' +
+      '.rounded-2xl.border.border-slate-200.bg-white.p-5, ' +
+      '.rounded-2xl.border.border-slate-200.bg-white\/80.p-4'
+    )).filter((el)=>{
+      if(el.classList.contains('kpi-card')) return false;
+      if(el.classList.contains('reveal-block')) return false;
+      if(el.closest('.kpi-card')) return false;
+      return true;
+    });
+
+    autoCards.forEach((el)=> el.classList.add('auto-reveal-card'));
+
+    return Array.from(new Set([
+      ...explicit,
+      ...autoCards
+    ]));
+  }
+
+  const revealTargets = collectRevealTargets();
+
   revealTargets.forEach((el, idx)=>{
-    el.dataset.revealDelay = String(Math.min(idx * 95, 520));
+    el.dataset.revealDelay = String(Math.min(idx * 85, 900));
   });
 
-  function revealElement(el){
-    if(!el || el.classList.contains('is-visible')) return;
+  function revealElement(el, forceReplay){
+    if(!el) return;
+
+    if(forceReplay){
+      el.classList.remove('is-visible');
+      void el.getBoundingClientRect();
+      const valueEl = el.querySelector('.kpi-value');
+      if(valueEl){
+        valueEl.dataset.animated = '0';
+        valueEl.dataset.forceReplay = '1';
+      }
+    } else if(el.classList.contains('is-visible')){
+      return;
+    }
+
     window.setTimeout(()=>{
       el.classList.add('is-visible');
-      el.querySelectorAll('.kpi-value').forEach(animateKpiValue);
-      if(el.classList.contains('kpi-card')){
-        const valueEl = el.querySelector('.kpi-value');
-        if(valueEl) animateKpiValue(valueEl);
-      }
+
+      el.querySelectorAll('.kpi-value').forEach((node)=>{
+        if(forceReplay){
+          node.dataset.animated = '0';
+          node.dataset.forceReplay = '1';
+        }
+        animateKpiValue(node);
+      });
     }, Number(el.dataset.revealDelay || 0));
+  }
+
+  function revealVisibleNow(forceReplay){
+    revealTargets.forEach((el, idx)=>{
+      const rect = el.getBoundingClientRect();
+      if(rect.top < window.innerHeight * 0.96 && rect.bottom > 0){
+        el.dataset.revealDelay = String(Math.min(idx * 70, 700));
+        revealElement(el, forceReplay);
+      }
+    });
   }
 
   if('IntersectionObserver' in window){
     const io = new IntersectionObserver((entries)=>{
       entries.forEach((entry)=>{
         if(entry.isIntersecting){
-          revealElement(entry.target);
+          revealElement(entry.target, false);
           io.unobserve(entry.target);
         }
       });
-    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+    }, { threshold: 0.10, rootMargin: '0px 0px -4% 0px' });
 
     revealTargets.forEach((el)=>{
       io.observe(el);
-      const rect = el.getBoundingClientRect();
-      if(rect.top < window.innerHeight * 0.92){
-        revealElement(el);
-        io.unobserve(el);
-      }
+    });
+
+    window.requestAnimationFrame(()=>{
+      revealVisibleNow(false);
     });
   } else {
-    revealTargets.forEach(revealElement);
+    revealTargets.forEach((el, idx)=>{
+      el.dataset.revealDelay = String(Math.min(idx * 70, 700));
+      revealElement(el, false);
+    });
   }
+
+  function setTrend(target){
+    trendBtns.forEach((el)=>{
+      const active = el.getAttribute('data-trend-tab') === target;
+      el.classList.toggle('border-slate-900', active);
+      el.classList.toggle('bg-slate-900', active);
+      el.classList.toggle('text-white', active);
+      el.classList.toggle('border-slate-200', !active);
+      el.classList.toggle('bg-white', !active);
+      el.classList.toggle('text-slate-500', !active);
+
+      if(active){
+        el.style.transform = 'translateY(-2px) scale(1.03)';
+        window.setTimeout(()=>{ el.style.transform = ''; }, 220);
+      }
+    });
+
+    trendPanels.forEach((el)=>{
+      const active = el.getAttribute('data-trend-panel') === target;
+      if(active){
+        el.classList.remove('hidden');
+        el.classList.remove('is-active');
+        void el.getBoundingClientRect();
+        el.classList.add('is-active');
+        restartCharts(el);
+
+        el.querySelectorAll('.auto-reveal-card, .reveal-block, .kpi-card').forEach((card, idx)=>{
+          card.dataset.revealDelay = String(Math.min(idx * 60, 360));
+          revealElement(card, true);
+        });
+      } else {
+        el.classList.add('hidden');
+        el.classList.remove('is-active');
+      }
+    });
+  }
+
+  trendBtns.forEach((el)=>{
+    el.addEventListener('click', ()=>{
+      setTrend(el.getAttribute('data-trend-tab'));
+    });
+  });
+
+  if(trendBtns.length){
+    setTrend(trendBtns[0].getAttribute('data-trend-tab'));
+  }
+
+  window.addEventListener('pageshow', ()=>{
+    window.setTimeout(()=>{
+      revealVisibleNow(true);
+    }, 90);
+  });
+
+  window.addEventListener('load', ()=>{
+    window.setTimeout(()=>{
+      revealVisibleNow(true);
+    }, 120);
+  });
 })();
 </script>"""
 
