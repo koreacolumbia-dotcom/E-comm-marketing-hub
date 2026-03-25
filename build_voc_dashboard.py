@@ -906,11 +906,40 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     }
 
     .glass-card{
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
       background: rgba(255,255,255,0.55);
       backdrop-filter: blur(20px);
       border: 1px solid rgba(255,255,255,0.75);
       border-radius: 30px;
       box-shadow: 0 20px 50px rgba(0,45,114,0.05);
+    }
+    .glass-card::before{
+      content:"";
+      position:absolute; inset:-1px;
+      border-radius:inherit;
+      background:
+        radial-gradient(1200px 220px at -8% -14%, rgba(255,255,255,0.58), transparent 48%),
+        linear-gradient(135deg, rgba(255,255,255,0.34), transparent 42%, rgba(0,45,114,0.04) 78%, transparent 100%);
+      pointer-events:none;
+      opacity:.95;
+      z-index:0;
+    }
+    .glass-card::after{
+      content:"";
+      position:absolute; top:-140%; left:-38%;
+      width:52%; height:380%;
+      background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.08) 18%, rgba(255,255,255,0.48) 50%, rgba(255,255,255,0.08) 82%, transparent 100%);
+      transform: rotate(22deg);
+      opacity:0;
+      pointer-events:none;
+      z-index:0;
+      transition: opacity .45s ease;
+    }
+    .glass-card:hover::after{
+      opacity:1;
+      animation: glassSweep 1.45s cubic-bezier(.16,1,.3,1) 1;
     }
 
     .topbar{
@@ -1031,6 +1060,169 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
     .ml-grid{ display:grid; grid-template-columns:1fr; gap:14px; }
     @media (min-width: 1024px){ .ml-grid{ grid-template-columns:1fr 1fr; } }
 
+
+    .motion-card,
+    .review-card,
+    .ml-card,
+    .summary-card,
+    .sentence-item{
+      position: relative;
+      transform-style: preserve-3d;
+      will-change: transform, opacity, filter, box-shadow;
+    }
+
+    .summary-card,
+    .review-card,
+    .ml-card{
+      transition:
+        transform .78s cubic-bezier(.16,1,.3,1),
+        box-shadow .78s cubic-bezier(.16,1,.3,1),
+        border-color .55s ease,
+        background-color .55s ease,
+        filter .78s cubic-bezier(.16,1,.3,1);
+    }
+
+    .summary-card::before,
+    .review-card::before,
+    .ml-card::before{
+      content:"";
+      position:absolute; inset:-1px;
+      border-radius:inherit;
+      background:
+        radial-gradient(900px 180px at 0% 0%, rgba(255,255,255,0.46), transparent 44%),
+        linear-gradient(135deg, rgba(255,255,255,0.18), transparent 48%, rgba(0,45,114,0.04) 100%);
+      opacity:.95;
+      pointer-events:none;
+    }
+
+    .summary-card::after,
+    .review-card::after,
+    .ml-card::after{
+      content:"";
+      position:absolute; inset:auto -18% -42% auto;
+      width:56%; height:56%;
+      background: radial-gradient(circle, rgba(0,45,114,0.10), transparent 72%);
+      opacity:0;
+      transform: translate3d(0,12px,0) scale(.82);
+      transition: all .7s cubic-bezier(.16,1,.3,1);
+      pointer-events:none;
+      filter: blur(10px);
+    }
+
+    .summary-card:hover,
+    .review-card:hover,
+    .ml-card:hover{
+      transform: translateY(-10px) scale(1.018) rotateX(0.001deg);
+      box-shadow:
+        0 34px 90px rgba(0,45,114,0.12),
+        0 12px 32px rgba(15,23,42,0.05);
+      border-color: rgba(255,255,255,0.98);
+      filter: saturate(1.04);
+    }
+
+    .summary-card:hover::after,
+    .review-card:hover::after,
+    .ml-card:hover::after{
+      opacity:1;
+      transform: translate3d(0,0,0) scale(1);
+    }
+
+    .chip,
+    .tab-btn{
+      transition:
+        transform .45s cubic-bezier(.16,1,.3,1),
+        box-shadow .45s cubic-bezier(.16,1,.3,1),
+        background-color .25s ease,
+        color .25s ease,
+        border-color .25s ease;
+      will-change: transform, box-shadow;
+    }
+
+    .tab-btn:hover,
+    .chip:hover{
+      transform: translateY(-3px);
+      box-shadow: 0 18px 42px rgba(0,45,114,0.14);
+    }
+
+    .tab-btn:active,
+    .chip:active{
+      transform: translateY(-1px) scale(.985);
+    }
+
+    .reveal{
+      opacity:0;
+      transform: perspective(1400px) translateY(44px) scale(.965) rotateX(9deg);
+      filter: blur(12px);
+      transition:
+        opacity .88s cubic-bezier(.16,1,.3,1),
+        transform .88s cubic-bezier(.16,1,.3,1),
+        filter .88s cubic-bezier(.16,1,.3,1);
+      transition-delay: var(--reveal-delay, 0ms);
+    }
+
+    .reveal.in{
+      opacity:1;
+      transform: perspective(1400px) translateY(0) scale(1) rotateX(0deg);
+      filter: blur(0);
+    }
+
+    .reveal-soft{
+      opacity:0;
+      transform: translateY(18px) scale(.985);
+      filter: blur(8px);
+      transition:
+        opacity .7s cubic-bezier(.16,1,.3,1),
+        transform .7s cubic-bezier(.16,1,.3,1),
+        filter .7s cubic-bezier(.16,1,.3,1);
+      transition-delay: var(--reveal-delay, 0ms);
+    }
+
+    .reveal-soft.in{
+      opacity:1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+
+    .motion-pop{
+      animation: motionPop .9s cubic-bezier(.16,1,.3,1) both;
+    }
+
+    .kpi-number,
+    .motion-number{
+      font-variant-numeric: tabular-nums;
+      letter-spacing:-0.03em;
+    }
+
+    @keyframes glassSweep{
+      0%{ transform: translate3d(-18%, -8%, 0) rotate(22deg); }
+      100%{ transform: translate3d(250%, 18%, 0) rotate(22deg); }
+    }
+
+    @keyframes motionPop{
+      0%{ opacity:0; transform: translateY(18px) scale(.92); filter: blur(8px); }
+      60%{ opacity:1; transform: translateY(-2px) scale(1.02); filter: blur(0); }
+      100%{ opacity:1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .reveal,
+      .reveal-soft,
+      .summary-card,
+      .review-card,
+      .ml-card,
+      .sentence-item,
+      .tab-btn,
+      .chip,
+      .glass-card::after{
+        animation:none !important;
+        transition:none !important;
+        transform:none !important;
+        filter:none !important;
+        opacity:1 !important;
+      }
+    }
+
+
     body.embedded .topbar, body.embedded .layout-header { display:none !important; }
     body.embedded main{ padding: 24px !important; }
   </style>
@@ -1083,7 +1275,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         <!-- 0 ML Signals -->
         <section class="mb-10">
-          <div class="glass-card p-8">
+          <div class="glass-card p-8 motion-card reveal">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">0. ML Signals</div>
@@ -1097,14 +1289,14 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div class="summary-card">
+              <div class="summary-card motion-card reveal-soft">
                 <div class="small-label text-blue-600 mb-2">YESTERDAY</div>
-                <div class="text-3xl font-black"><span id="yCount">-</span> reviews</div>
+                <div class="text-3xl font-black"><span id="yCount" class="kpi-number">-</span> reviews</div>
                 <div class="text-xs font-bold text-slate-500 mt-2">어제 업로드된 리뷰 수 (현재 탭/필터 기준)</div>
                 <div class="text-xs font-bold text-slate-500 mt-3" id="yLowHint">-</div>
               </div>
 
-              <div class="summary-card lg:col-span-2">
+              <div class="summary-card lg:col-span-2 motion-card reveal-soft">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <div class="small-label text-red-600 mb-3">NEGATIVE</div>
@@ -1124,7 +1316,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         <!-- 1 Daily feed -->
         <section class="mb-10">
-          <div class="glass-card p-8">
+          <div class="glass-card p-8 motion-card reveal">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">1. Daily Feed</div>
@@ -1155,7 +1347,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
               <button id="feedMoreBtn" class="chip hidden" onclick="loadMoreFeed()">리뷰 더 보기</button>
             </div>
 
-            <div class="hidden review-card text-center" id="noResults">
+            <div class="hidden review-card text-center motion-card reveal-soft" id="noResults">
               <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
             </div>
           </div>
@@ -1163,7 +1355,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         <!-- 2. Product ML (Cumulative) -->
         <section class="mb-10">
-          <div class="glass-card p-8">
+          <div class="glass-card p-8 motion-card reveal">
             <div class="flex items-end justify-between gap-6 flex-wrap mb-6">
               <div>
                 <div class="small-label text-blue-600 mb-2">2. Product ML (Cumulative)</div>
@@ -1190,7 +1382,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
               </div>
             </div>
 
-            <div class="summary-card mb-4">
+            <div class="summary-card mb-4 motion-card reveal-soft">
               <div class="small-label text-slate-700 mb-2">HOW TO READ</div>
               <div class="text-sm font-extrabold text-slate-800 leading-relaxed">
                 - NEGATIVE: ★1~2 리뷰 원문 2개 노출<br/>
@@ -1201,7 +1393,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
             <div id="mlProductGrid" class="ml-grid"></div>
 
-            <div id="mlNoData" class="hidden review-card text-center">
+            <div id="mlNoData" class="hidden review-card text-center motion-card reveal-soft">
               <div class="text-lg font-black text-slate-800">조건에 맞는 제품 누적 데이터가 없습니다.</div>
               <div class="text-xs font-bold text-slate-500 mt-2">기간/최소 리뷰수/탭(Official/Naver Brand/Musinsa)을 조정해보세요.</div>
             </div>
@@ -1269,6 +1461,83 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         console.error(e);
         hideOverlay();
       }
+    }
+
+    let motionObserver = null;
+
+    function resetRevealState(root){
+      (root || document).querySelectorAll(".reveal, .reveal-soft").forEach(el => {
+        el.classList.remove("in");
+      });
+    }
+
+    function staggerReveal(root){
+      const nodes = Array.from((root || document).querySelectorAll(".reveal, .reveal-soft"));
+      nodes.forEach((el, idx) => {
+        const group = el.closest(".review-grid, .ml-grid, .grid, .glass-card") ? 1 : 0;
+        const base = el.classList.contains("reveal-soft") ? 30 : 46;
+        const delay = Math.min(700, (group ? (idx % 12) : idx) * base);
+        el.style.setProperty("--reveal-delay", `${delay}ms`);
+      });
+    }
+
+    function ensureMotionObserver(){
+      if (motionObserver) return motionObserver;
+      motionObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting){
+            entry.target.classList.add("in");
+            motionObserver.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+      return motionObserver;
+    }
+
+    function initReveal(root){
+      const scope = root || document;
+      staggerReveal(scope);
+      const obs = ensureMotionObserver();
+      scope.querySelectorAll(".reveal, .reveal-soft").forEach(el => {
+        obs.observe(el);
+      });
+    }
+
+    function animateCount(el, to, suffix = "", duration = 1100){
+      if (!el) return;
+      const finalValue = Number(to || 0);
+      if (!Number.isFinite(finalValue)){
+        el.textContent = `${to}${suffix}`;
+        return;
+      }
+      const start = performance.now();
+      const from = 0;
+      const ease = (t) => 1 - Math.pow(1 - t, 4);
+
+      function frame(now){
+        const p = Math.min(1, (now - start) / duration);
+        const eased = ease(p);
+        const cur = from + (finalValue - from) * eased;
+        const out = Math.round(cur);
+        el.textContent = `${out.toLocaleString()}${suffix}`;
+        if (p < 1) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function runCountups(root){
+      (root || document).querySelectorAll("[data-countup]").forEach(el => {
+        const value = el.getAttribute("data-countup");
+        const suffix = el.getAttribute("data-suffix") || "";
+        animateCount(el, Number(value), suffix, 1050);
+      });
+    }
+
+    function refreshMotion(root){
+      const scope = root || document;
+      resetRevealState(scope);
+      initReveal(scope);
+      runCountups(scope);
     }
 
     (function(){
@@ -1494,7 +1763,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         : `<span class="text-xs font-black text-slate-400">리뷰 원문 링크 없음</span>`;
 
       return `
-        <div class="review-card hover:shadow-lg transition" id="review-${esc(r.id)}">
+        <div class="review-card motion-card reveal" id="review-${esc(r.id)}">
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <div class="img-box">${prodImg}</div>
@@ -1551,6 +1820,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       no.classList.add("hidden");
       container.innerHTML = rows.map(reviewCardHTML).join("");
+      refreshMotion(container);
 
       if (moreBtn){
         const remaining = Math.max(0, reviews.length - rows.length);
@@ -1625,14 +1895,14 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     function sentenceListHTML(items, cls, emptyText){
       if (!items.length){
-        return `<div class="sentence-item ${cls} text-slate-400">${esc(emptyText)}</div>`;
+        return `<div class="sentence-item ${cls} text-slate-400 motion-card reveal-soft">${esc(emptyText)}</div>`;
       }
       return items.map(item => {
         const link = item.url
           ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline mt-2 inline-block">리뷰 원문보기</a>`
           : ``;
         return `
-          <div class="sentence-item ${cls}">
+          <div class="sentence-item ${cls} motion-card reveal-soft">
             <div class="text-sm font-black text-slate-900 whitespace-pre-wrap break-words">${esc(item.text)}</div>
             <div class="text-[11px] font-bold text-slate-500 mt-2">${esc(item.product)}${item.code ? ` · ${esc(item.code)}` : ``}</div>
             ${link}
@@ -1649,7 +1919,10 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       const yCnt = yRows.length;
 
       const yCountEl = document.getElementById("yCount");
-      if (yCountEl) yCountEl.textContent = yCnt;
+      if (yCountEl){
+        yCountEl.setAttribute("data-countup", String(yCnt));
+        yCountEl.textContent = "0";
+      }
 
       const lowCnt = yRows.filter(r => (Number(r.rating||0) <= 2) || asArr(r.tags).includes("low")).length;
       const hint = document.getElementById("yLowHint");
@@ -1661,6 +1934,9 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       const posEl = document.getElementById("yPosSentences");
       if (negEl) negEl.innerHTML = sentenceListHTML(pickTopSentences(yRows, "neg"), "neg", "어제 부정 문장이 없습니다.");
       if (posEl) posEl.innerHTML = sentenceListHTML(pickTopSentences(yRows, "pos"), "pos", "어제 긍정 문장이 없습니다.");
+
+      const signalSection = document.getElementById("yCount")?.closest(".glass-card");
+      if (signalSection) refreshMotion(signalSection);
     }
 
     // -----------------------------
@@ -1791,10 +2067,10 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
     function mlSentenceHTML(items, tone, emptyText){
       if (!items || !items.length){
-        return `<div class="sentence-item ${tone} text-slate-400">${esc(emptyText)}</div>`;
+        return `<div class="sentence-item ${tone} text-slate-400 motion-card reveal-soft">${esc(emptyText)}</div>`;
       }
       return items.map((txt, idx) => `
-        <div class="sentence-item ${tone}">
+        <div class="sentence-item ${tone} motion-card reveal-soft">
           <div class="text-[11px] font-black ${tone === "neg" ? "text-red-700" : "text-emerald-700"} mb-1">${tone === "neg" ? "NEGATIVE" : "POSITIVE"} ${idx + 1}</div>
           <div class="whitespace-pre-wrap break-words">${esc(txt)}</div>
         </div>
@@ -1811,7 +2087,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
         : `<span class="text-xs font-bold text-slate-400">상품 URL 없음</span>`;
 
       return `
-        <div class="ml-card">
+        <div class="ml-card motion-card reveal">
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
               <div class="img-box">${img}</div>
@@ -1823,7 +2099,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
             </div>
             <div class="text-right shrink-0">
               <div class="text-xs font-black text-slate-700">LOW(★1~2)</div>
-              <div class="text-2xl font-black text-red-700">${esc(g.lowRate)}%</div>
+              <div class="text-2xl font-black text-red-700"><span class="motion-number" data-countup="${esc(g.lowRate)}" data-suffix="%">0%</span></div>
               <div class="text-[11px] font-bold text-slate-500 mt-1">neg ${esc(g.negCnt)} · pos ${esc(g.posCnt)}</div>
             </div>
           </div>
@@ -1874,6 +2150,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
       no.classList.add("hidden");
       // 너무 길어지면 상위 20개만
       grid.innerHTML = rows.map(mlCardHTML).join("");
+      refreshMotion(grid);
     }
 
     function renderAll(){
@@ -1890,6 +2167,10 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       // ✅ Product ML is cumulative (independent of daily date)
       renderProductML();
+
+      requestAnimationFrame(() => {
+        refreshMotion(document);
+      });
     }
 
     async function boot(){
@@ -2265,6 +2546,7 @@ def normalize_template_paths(html: str) -> str:
 
       no.classList.add("hidden");
       container.innerHTML = rows.map(reviewCardHTML).join("");
+      refreshMotion(container);
     }""",
         html,
         count=1,
@@ -2404,6 +2686,7 @@ def normalize_template_paths(html: str) -> str:
 
       no.classList.add("hidden");
       container.innerHTML = rows.map(reviewCardHTML).join("");
+      refreshMotion(container);
 
       if (moreBtn){
         const remaining = Math.max(0, reviews.length - rows.length);
