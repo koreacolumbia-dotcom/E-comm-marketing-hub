@@ -1423,11 +1423,11 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       .section-meta {{ min-width:0; width:100%; }}
     }}
 
-    .chart-hint { display:inline-flex; align-items:center; justify-content:center; padding:.26rem .45rem; border-radius:999px; font-size:9px; font-weight:900; letter-spacing:.14em; color:#475569; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.9); }
-    .metric-card[data-chart-section], .channel-metric[data-chart-section] { cursor:pointer; }
-    .metric-card.active-chart, .channel-metric.active-chart { transform:translateY(-6px) scale(1.01); box-shadow:0 28px 64px rgba(15,23,42,.14); border-color:color-mix(in srgb, var(--accent, #94a3b8) 40%, white); }
-    .trend-panel { background:linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.7)); border:1px solid rgba(255,255,255,.76); box-shadow:0 18px 48px rgba(15,23,42,.08); }
-    .trend-svg-shell { background:linear-gradient(180deg, rgba(248,250,252,.92), rgba(255,255,255,.88)); border:1px solid rgba(226,232,240,.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.86); }
+    .chart-hint {{ display:inline-flex; align-items:center; justify-content:center; padding:.26rem .45rem; border-radius:999px; font-size:9px; font-weight:900; letter-spacing:.14em; color:#475569; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.9); }}
+    .metric-card[data-chart-section], .channel-metric[data-chart-section] {{ cursor:pointer; }}
+    .metric-card.active-chart, .channel-metric.active-chart {{ transform:translateY(-6px) scale(1.01); box-shadow:0 28px 64px rgba(15,23,42,.14); border-color:color-mix(in srgb, var(--accent, #94a3b8) 40%, white); }}
+    .trend-panel {{ background:linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.7)); border:1px solid rgba(255,255,255,.76); box-shadow:0 18px 48px rgba(15,23,42,.08); }}
+    .trend-svg-shell {{ background:linear-gradient(180deg, rgba(248,250,252,.92), rgba(255,255,255,.88)); border:1px solid rgba(226,232,240,.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.86); }}
   </style>
 </head>
 <body>
