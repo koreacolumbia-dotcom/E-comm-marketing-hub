@@ -923,7 +923,7 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
     return result
 
 
-def build_daily_trend_series(reports_dir: Path, limit: int = 28) -> List[Dict[str, Any]]:
+def build_daily_trend_series(reports_dir: Path, limit: int = 800) -> List[Dict[str, Any]]:
 
     files = list((reports_dir / "daily_digest" / "data" / "daily").glob("*.json"))
     files = [p for p in files if re.match(r"^\d{4}-\d{2}-\d{2}\.json$", p.name)]
@@ -945,7 +945,7 @@ def build_daily_trend_series(reports_dir: Path, limit: int = 28) -> List[Dict[st
     return out
 
 
-def build_weekly_trend_series(reports_dir: Path, limit: int = 12) -> List[Dict[str, Any]]:
+def build_weekly_trend_series(reports_dir: Path, limit: int = 200) -> List[Dict[str, Any]]:
     files = list((reports_dir / "daily_digest" / "data" / "weekly").glob("END_*.json"))
     files = [p for p in files if re.match(r"^END_\d{4}-\d{2}-\d{2}\.json$", p.name)]
     files.sort(key=lambda p: p.name)
@@ -1108,19 +1108,30 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
             </div>
             <div class="trend-legend text-xs text-slate-500">카드를 누르면 해당 KPI 그래프로 전환됩니다.</div>
           </div>
-          <div class="trend-head flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
-            <div>
-              <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">Selected KPI</div>
-              <div class="trend-selected text-lg font-black text-slate-950" data-selected-title>Revenue</div>
+          <div class="trend-head flex flex-col gap-3 mb-3">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">Selected KPI</div>
+                <div class="trend-selected text-lg font-black text-slate-950" data-selected-title>Revenue</div>
+              </div>
+              <div class="trend-summary text-sm text-slate-600" data-selected-summary></div>
             </div>
-            <div class="trend-summary text-sm text-slate-600" data-selected-summary></div>
+            <div class="range-tabs flex flex-wrap gap-2" data-range-tabs>
+              <button type="button" class="range-tab active" data-range="1MONTH">1MONTH</button>
+              <button type="button" class="range-tab" data-range="7D">7D</button>
+              <button type="button" class="range-tab" data-range="14D">14D</button>
+              <button type="button" class="range-tab" data-range="1YEAR">1YEAR</button>
+              <button type="button" class="range-tab" data-range="2YEAR">2YEAR</button>
+            </div>
           </div>
           <div class="trend-svg-shell rounded-[24px] p-3 sm:p-4">
-            <svg class="trend-svg w-full h-[280px] sm:h-[320px]" viewBox="0 0 1000 320" preserveAspectRatio="none" data-trend-svg></svg>
+            <div class="trend-scroll" data-trend-scroll>
+              <svg class="trend-svg h-[360px] sm:h-[420px]" viewBox="0 0 1200 420" preserveAspectRatio="none" data-trend-svg></svg>
+            </div>
           </div>
-          <div class="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-500" data-axis-labels></div>
         </div>
         '''
+
 
     d_wow = daily.get("wow") or {}
     d_yoy = daily.get("yoy") or {}
@@ -1449,7 +1460,17 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     .metric-card[data-chart-section], .channel-metric[data-chart-section] {{ cursor:pointer; }}
     .metric-card.active-chart, .channel-metric.active-chart {{ transform:translateY(-6px) scale(1.01); box-shadow:0 28px 64px rgba(15,23,42,.14); border-color:color-mix(in srgb, var(--accent, #94a3b8) 40%, white); }}
     .trend-panel {{ background:linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.7)); border:1px solid rgba(255,255,255,.76); box-shadow:0 18px 48px rgba(15,23,42,.08); }}
-    .trend-svg-shell {{ background:linear-gradient(180deg, rgba(248,250,252,.92), rgba(255,255,255,.88)); border:1px solid rgba(226,232,240,.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.86); }}
+    .trend-svg-shell {{ background:linear-gradient(180deg, rgba(248,250,252,.92), rgba(255,255,255,.88)); border:1px solid rgba(226,232,240,.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.86); overflow:hidden; }}
+    .trend-scroll {{ overflow-x:auto; overflow-y:hidden; padding-bottom:.25rem; }}
+    .trend-svg {{ min-width:100%; display:block; }}
+    .range-tabs {{ align-items:center; }}
+    .range-tab {{ display:inline-flex; align-items:center; justify-content:center; min-width:74px; padding:.55rem .8rem; border-radius:999px; font-size:11px; font-weight:900; letter-spacing:.12em; color:#475569; background:rgba(255,255,255,.84); border:1px solid rgba(255,255,255,.9); box-shadow:0 10px 22px rgba(15,23,42,.05); transition:transform .22s ease, box-shadow .22s ease, background .22s ease, color .22s ease; }}
+    .range-tab:hover {{ transform:translateY(-1px); box-shadow:0 14px 26px rgba(15,23,42,.08); }}
+    .range-tab.active {{ background:linear-gradient(135deg, rgba(15,23,42,.92), rgba(30,41,59,.88)); color:#fff; box-shadow:0 18px 34px rgba(15,23,42,.16); }}
+    .trend-anim-line {{ stroke-dasharray: var(--path-len, 1200); stroke-dashoffset: var(--path-len, 1200); animation:dashDraw .9s cubic-bezier(.2,.8,.2,1) forwards; }}
+    .trend-anim-fade {{ opacity:0; animation:fadeRise .55s ease forwards; }}
+    @keyframes dashDraw {{ to {{ stroke-dashoffset:0; }} }}
+    @keyframes fadeRise {{ from {{ opacity:0; transform:translateY(8px); }} to {{ opacity:1; transform:translateY(0); }} }}
   </style>
 </head>
 <body>
@@ -1532,30 +1553,62 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         document.querySelectorAll('.metric-value').forEach((el) => valueObserver.observe(el));
       }}
       const trendData = JSON.parse(document.getElementById('trend-data')?.textContent || '{{}}');
+      const parseISODate = (s) => {{
+        if (!s) return null;
+        const d = new Date(`${{s}}T00:00:00`);
+        return Number.isNaN(d.getTime()) ? null : d;
+      }};
+      const fmtShortDate = (s) => (s || '').slice(5);
+      const getWeekend = (s) => {{
+        const d = parseISODate(s);
+        if (!d) return -1;
+        const day = d.getDay();
+        return day === 6 ? 6 : day === 0 ? 0 : -1;
+      }};
+      const rangeDaysMap = {{'7D': 7, '14D': 14, '1MONTH': 31, '1YEAR': 366, '2YEAR': 731}};
       const pickSeries = (section, metric, channel) => {{
-        if (section === 'daily') return (trendData.daily || []).map(x => ({{ label: (x.date || '').slice(5), value: Number(x[metric] || 0) }}));
-        if (section === 'weekly') return (trendData.weekly || []).map(x => ({{ label: x.label || (x.date || '').slice(5), value: Number(x[metric] || 0) }}));
+        if (section === 'daily') return (trendData.daily || []).map(x => ({{ date: x.date || '', label: fmtShortDate(x.date || ''), value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
+        if (section === 'weekly') return (trendData.weekly || []).map(x => ({{ date: x.date || '', label: fmtShortDate(x.date || ''), value: Number(x[metric] || 0), weekend: -1 }}));
         if (section === 'owned') {{
           const source = channel ? ((((trendData.owned || {{}}).by_channel || {{}})[channel]) || []) : (((trendData.owned || {{}}).total) || []);
-          return source.map(x => ({{ label: (x.date || '').slice(5), value: Number(x[metric] || 0) }}));
+          return source.map(x => ({{ date: x.date || '', label: fmtShortDate(x.date || ''), value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
         }}
         return [];
       }};
+      const filterSeriesByRange = (series, rangeKey) => {{
+        if (!series.length) return [];
+        const days = rangeDaysMap[rangeKey] || 31;
+        const latest = parseISODate(series[series.length - 1].date);
+        if (!latest) return series.slice(-Math.min(days, series.length));
+        const cutoff = new Date(latest);
+        cutoff.setDate(cutoff.getDate() - (days - 1));
+        const out = series.filter(x => {{
+          const d = parseISODate(x.date);
+          return d && d >= cutoff && d <= latest;
+        }});
+        return out.length ? out : series;
+      }};
       const renderTrend = (panel, section, metric, label, channel='') => {{
-        const series = pickSeries(section, metric, channel).filter(x => Number.isFinite(x.value));
+        const rangeKey = panel.dataset.range || '1MONTH';
+        const baseSeries = pickSeries(section, metric, channel).filter(x => Number.isFinite(x.value));
+        const series = filterSeriesByRange(baseSeries, rangeKey);
         const svg = panel.querySelector('[data-trend-svg]');
         const titleEl = panel.querySelector('[data-selected-title]');
         const summaryEl = panel.querySelector('[data-selected-summary]');
-        const axisEl = panel.querySelector('[data-axis-labels]');
-        titleEl.textContent = label || metric;
-        if (!series.length) {{ svg.innerHTML=''; summaryEl.textContent='표시할 데이터가 없습니다.'; axisEl.innerHTML=''; return; }}
+        titleEl.textContent = `${{label || metric}} · ${{rangeKey}}`;
+        if (!series.length) {{ svg.innerHTML=''; summaryEl.textContent='표시할 데이터가 없습니다.'; return; }}
         const vals = series.map(x => x.value);
         const min = Math.min(...vals);
         const max = Math.max(...vals);
-        const range = (max - min) || (max === 0 ? 1 : Math.abs(max) * 0.15);
-        const padL = 36, padR = 16, padT = 18, padB = 28, W = 1000, H = 320;
+        const range = (max - min) || (max === 0 ? 1 : Math.abs(max) * 0.15) || 1;
+        const padL = 60, padR = 28, padT = 24, padB = 112;
+        const dynamicStep = Math.max(34, rangeKey === '2YEAR' ? 34 : rangeKey === '1YEAR' ? 40 : 58);
+        const W = Math.max(1200, padL + padR + Math.max(series.length - 1, 1) * dynamicStep);
+        const H = 420;
         const innerW = W - padL - padR, innerH = H - padT - padB;
         const stepX = series.length > 1 ? innerW / (series.length - 1) : innerW / 2;
+        svg.setAttribute('viewBox', `0 0 ${{W}} ${{H}}`);
+        svg.style.width = `${{W}}px`;
         const pts = series.map((p, i) => {{
           const x = padL + (series.length > 1 ? i * stepX : innerW / 2);
           const y = padT + innerH - (((p.value - min) / range) * innerH);
@@ -1563,25 +1616,54 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         }});
         const line = pts.map(p => p.join(',')).join(' ');
         const area = `M ${{padL}} ${{H-padB}} L ${{pts.map(p=>p.join(' ')).join(' L ')}} L ${{pts[pts.length-1][0]}} ${{H-padB}} Z`;
-        const grid = [0,1,2,3].map(i => {{ const y = padT + (innerH * i / 3); return `<line x1="${{padL}}" y1="${{y}}" x2="${{W-padR}}" y2="${{y}}" stroke="rgba(148,163,184,.22)" stroke-width="1" />`; }}).join('');
-        const circles = pts.map((p,i) => `<circle cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.5}}" fill="white" stroke="rgba(15,23,42,.72)" stroke-width="${{i===pts.length-1?2:1.4}}" />`).join('');
-        svg.innerHTML = `<defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(59,130,246,.28)"/><stop offset="100%" stop-color="rgba(59,130,246,0)"/></linearGradient></defs>${{grid}}<path d="${{area}}" fill="url(#trendFill)"></path><polyline points="${{line}}" fill="none" stroke="rgba(15,23,42,.88)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>${{circles}}`;
+        const grid = [0,1,2,3,4].map(i => {{ const y = padT + (innerH * i / 4); return `<line x1="${{padL}}" y1="${{y}}" x2="${{W-padR}}" y2="${{y}}" stroke="rgba(148,163,184,.26)" stroke-width="1" />`; }}).join('');
+        const weekendBands = section === 'daily' ? series.map((x, i) => {{
+          if (x.weekend < 0) return '';
+          const left = i === 0 ? pts[i][0] - stepX / 2 : (pts[i-1][0] + pts[i][0]) / 2;
+          const right = i === series.length - 1 ? pts[i][0] + stepX / 2 : (pts[i][0] + pts[i+1][0]) / 2;
+          const fill = x.weekend === 6 ? 'rgba(37,99,235,.24)' : 'rgba(220,38,38,.24)';
+          return `<rect x="${{left}}" y="${{padT}}" width="${{Math.max(0, right-left)}}" height="${{innerH}}" fill="${{fill}}"></rect>`;
+        }}).join('') : '';
+        const circles = pts.map((p,i) => `<circle class="trend-anim-fade" cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.4}}" fill="white" stroke="rgba(15,23,42,.76)" stroke-width="${{i===pts.length-1?2:1.4}}" style="animation-delay:${{Math.min(i*0.012, .36)}}s"></circle>`).join('');
+        const labels = pts.map((p, i) => `<text class="trend-anim-fade" x="${{p[0]}}" y="${{H - 18}}" transform="rotate(-58 ${{p[0]}} ${{H - 18}})" text-anchor="end" font-size="11" font-weight="800" fill="${{series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : '#64748b'}}" style="animation-delay:${{Math.min(i*0.006, .32)}}s">${{series[i].label}}</text>`).join('');
+        svg.innerHTML = `<defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(59,130,246,.30)"/><stop offset="100%" stop-color="rgba(59,130,246,0.02)"/></linearGradient></defs>${{weekendBands}}${{grid}}<path class="trend-anim-fade" d="${{area}}" fill="url(#trendFill)"></path><polyline class="trend-anim-line" points="${{line}}" fill="none" stroke="rgba(15,23,42,.9)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"></polyline>${{circles}}${{labels}}`;
+        const polyline = svg.querySelector('.trend-anim-line');
+        if (polyline && polyline.getTotalLength) {{
+          const len = polyline.getTotalLength();
+          polyline.style.setProperty('--path-len', String(len));
+        }}
         const last = series[series.length-1]?.value ?? 0;
         const prev = series.length > 1 ? series[series.length-2]?.value ?? null : null;
         const delta = prev == null || prev === 0 ? null : ((last - prev) / prev);
-        summaryEl.textContent = `최근값 ${{formatMetric(metric, last)}}${{delta == null ? '' : ` · 직전 대비 ${{delta >= 0 ? '+' : ''}}${{(delta * 100).toFixed(1)}}%`}}`;
-        const labels = [series[0], series[Math.floor((series.length-1)/2)], series[series.length-1]].filter(Boolean);
-        axisEl.innerHTML = labels.map(x => `<div class="rounded-2xl bg-white/70 border border-white/80 px-3 py-2 text-center font-bold text-slate-600">${{x.label}}</div>`).join('');
+        summaryEl.textContent = `최근값 ${{formatMetric(metric, last)}}${{delta == null ? '' : ` · 직전 대비 ${{delta >= 0 ? '+' : ''}}${{(delta * 100).toFixed(1)}}%`}} · ${{series.length}}포인트`;
+        const scroller = panel.querySelector('[data-trend-scroll]');
+        if (scroller) scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
       }};
       const activate = (card) => {{
         const section = card.dataset.chartSection;
         document.querySelectorAll(`[data-chart-section="${{section}}"]`).forEach(el => el.classList.remove('active-chart'));
         card.classList.add('active-chart');
         const panel = document.querySelector(`[data-trend-section="${{section}}"]`);
-        if (panel) renderTrend(panel, section, card.dataset.chartMetric, card.dataset.chartLabel, card.dataset.chartChannel || '');
+        if (panel) {{
+          panel.dataset.metric = card.dataset.chartMetric;
+          panel.dataset.label = card.dataset.chartLabel;
+          panel.dataset.channel = card.dataset.chartChannel || '';
+          renderTrend(panel, section, card.dataset.chartMetric, card.dataset.chartLabel, card.dataset.chartChannel || '');
+        }}
       }};
       document.querySelectorAll('[data-chart-section]').forEach(card => card.addEventListener('click', () => activate(card)));
-      ['daily','weekly','owned'].forEach(section => {{ const first = document.querySelector(`[data-chart-section="${{section}}"]`); if (first) activate(first); }});
+      document.querySelectorAll('[data-range-tabs]').forEach(tabWrap => {{
+        tabWrap.querySelectorAll('.range-tab').forEach(btn => btn.addEventListener('click', () => {{
+          tabWrap.querySelectorAll('.range-tab').forEach(x => x.classList.remove('active'));
+          btn.classList.add('active');
+          const panel = btn.closest('[data-trend-section]');
+          if (!panel) return;
+          panel.dataset.range = btn.dataset.range || '1MONTH';
+          renderTrend(panel, panel.dataset.trendSection, panel.dataset.metric || 'revenue', panel.dataset.label || 'Revenue', panel.dataset.channel || '');
+        }}));
+      }});
+      ['daily','weekly'].forEach(section => {{ const first = document.querySelector(`[data-chart-section="${{section}}"]`); if (first) activate(first); }});
+
     }})();
   </script>ody>
 </html>'''
