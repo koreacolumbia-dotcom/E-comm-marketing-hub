@@ -2083,7 +2083,14 @@
 
     if(!SELECTED){
       const currentWrap = (CHANNEL==='EDM') ? wrapEDMDate : (CHANNEL==='LMS' ? wrapLMSDate : wrapKakaoDate);
-      const firstBtn = currentWrap.querySelector('button.chip') || [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
+      const preferredMmdd = getPortalMetaDefaultMmdd(CHANNEL);
+      let firstBtn = null;
+      if(preferredMmdd){
+        firstBtn = Array.from(currentWrap.querySelectorAll('button.chip')).find(btn => String(btn.getAttribute('data-mmdd') || '') === preferredMmdd) || null;
+      }
+      if(!firstBtn){
+        firstBtn = currentWrap.querySelector('button.chip') || [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
+      }
       if(firstBtn){
         SELECTED = {
           type:'group',
@@ -3016,6 +3023,51 @@
     '/data/owned',
   ];
   let OWNED_DATA_BASE = null;
+  let PORTAL_META = null;
+
+  async function fetchOwnedJsonOptional(fileName){
+    try{ return await fetchOwnedJson(fileName); }catch(_e){ return null; }
+  }
+
+  async function loadPortalMeta(){
+    try{
+      const meta = await fetchOwnedJson('portal_meta.json');
+      PORTAL_META = (meta && typeof meta === 'object') ? meta : null;
+      return PORTAL_META;
+    }catch(_e){
+      PORTAL_META = null;
+      return null;
+    }
+  }
+
+  function getPortalMetaDefaultDate(){
+    const d = String((PORTAL_META && (PORTAL_META.default_date || PORTAL_META.latest_available_date)) || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
+  }
+
+  function getPortalMetaDefaultView(){
+    const v = String((PORTAL_META && PORTAL_META.default_view) || '').trim().toUpperCase();
+    return (v === 'DAILY' || v === 'WEEK' || v === 'RANGE') ? v : 'WEEK';
+  }
+
+  function getPortalMetaDefaultChannel(){
+    const ch = String((PORTAL_META && PORTAL_META.default_channel) || '').trim().toUpperCase();
+    return (ch === 'EDM' || ch === 'LMS' || ch === 'KAKAO') ? ch : 'EDM';
+  }
+
+  function getPortalMetaDefaultMmdd(channel){
+    const key = String(channel || '').trim().toUpperCase();
+    const map = (PORTAL_META && PORTAL_META.default_mmdd_by_channel && typeof PORTAL_META.default_mmdd_by_channel === 'object') ? PORTAL_META.default_mmdd_by_channel : {};
+    const v = String(map[key] || '').trim();
+    return /^\d{4}$/.test(v) ? v : '';
+  }
+
+  function getPortalMetaDefaultGroupDate(channel){
+    const key = String(channel || '').trim().toUpperCase();
+    const map = (PORTAL_META && PORTAL_META.latest_group_date_by_channel && typeof PORTAL_META.latest_group_date_by_channel === 'object') ? PORTAL_META.latest_group_date_by_channel : {};
+    const v = String(map[key] || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+  }
 
   function appendCacheBust(url){
     const sep = url.includes('?') ? '&' : '?';
@@ -3281,10 +3333,16 @@
   }
 
   async function loadAvailableDates(){
+    await loadPortalMeta();
+    const metaDates = Array.isArray(PORTAL_META && PORTAL_META.available_dates) ? PORTAL_META.available_dates.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))) : [];
+    if(metaDates.length){
+      AVAILABLE = metaDates.slice().sort();
+      return;
+    }
     try{
       const j = await fetchOwnedJson(`available_dates.json`);
       const arr = Array.isArray(j) ? j : (j.available_dates || []);
-      AVAILABLE = arr.slice().sort();
+      AVAILABLE = arr.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))).slice().sort();
     }catch(e){
       AVAILABLE = null;
     }
@@ -3698,16 +3756,20 @@
   });
 
   (async function init(){
-    // defaults
     toggleGroupJump.checked = true;
     GROUP_JUMP_MODE = true;
     updateYtdLabels();
 
+    await loadAvailableDates();
+
+    CHANNEL = getPortalMetaDefaultChannel();
+    VIEW = getPortalMetaDefaultView();
+
     setChipActive();
     setDetailViewActive();
+    setViewActive();
     toggleSections();
     primeYtdLoading();
-    await loadAvailableDates();
 
     if(AVAILABLE && AVAILABLE.length){
       const minD = AVAILABLE[0];
@@ -3717,12 +3779,29 @@
       endPicker.min = minD; endPicker.max = maxD;
     }
 
-    const d = (AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1));
+    let d = getPortalMetaDefaultDate() || ((AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1)));
+    d = clampToAvailable(d);
+
+    const preferredGroupDate = getPortalMetaDefaultGroupDate(CHANNEL);
+    if(VIEW === 'WEEK' && preferredGroupDate){
+      d = clampToAvailable(preferredGroupDate);
+    }
+
     datePicker.value = d;
 
-    VIEW='WEEK';
-    setViewActive();
-    await loadWeekByDate(d);
+    if(VIEW === 'DAILY'){
+      await loadDaily(d);
+    }else if(VIEW === 'RANGE'){
+      const s = clampToAvailable(d);
+      const e = clampToAvailable(ymd(addDays(parseYMD(s), 6)));
+      startPicker.value = s;
+      endPicker.value = e;
+      await loadRange(s, e);
+    }else{
+      VIEW = 'WEEK';
+      setViewActive();
+      await loadWeekByDate(d);
+    }
 
     if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
