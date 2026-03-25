@@ -871,11 +871,15 @@
   </div>
 
 <script>
-
 (function(){
-  if (location.pathname.endsWith('/reports/owned_portal')) {
-    location.replace(location.pathname + '/' + location.search + location.hash);
-    return;
+  const OWNED_DATA_BASE = './data/owned';
+
+  function ownedDataUrl(fileName){
+    return `${OWNED_DATA_BASE}/${fileName}`;
+  }
+
+  function ownedDataUrlWithTs(fileName){
+    return `${ownedDataUrl(fileName)}?t=${Date.now()}`;
   }
 
   const notice = document.getElementById('notice');
@@ -2744,7 +2748,7 @@
     for(let i=0;i<dates.length;i+=chunkSize){
       const chunk = dates.slice(i, i+chunkSize);
       showLoading(`누적 USER ID 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
-      const urls = chunk.map(d => `/E-comm-marketing-hub/reports/owned_portal/data/owned/owned_${d}.json?t=${Date.now()}`);
+      const urls = chunk.map(d => ownedDataUrlWithTs(`owned_${d}.json`));
       const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
       res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
     }
@@ -2994,7 +2998,7 @@
   async function loadDaily(dStr){
     hideNotice();
     SELECTED = null;
-    const url = `/E-comm-marketing-hub/reports/owned_portal/data/owned/owned_${dStr}.json?t=${Date.now()}`;
+    const url = ownedDataUrlWithTs(`owned_${dStr}.json`);
 
     try{
       RAW = normalizeBundle(await fetchJson(url));
@@ -3063,7 +3067,7 @@
     for(let i=0;i<dates.length;i+=chunkSize){
       const chunk = dates.slice(i, i+chunkSize);
       showLoading(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
-      const urls = chunk.map(d => `/E-comm-marketing-hub/reports/owned_portal/data/owned/owned_${d}.json?t=${Date.now()}`);
+      const urls = chunk.map(d => ownedDataUrlWithTs(`owned_${d}.json`));
       const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
       res.forEach((r)=>{
         if(r.status==='fulfilled') all.push(r.value);
@@ -3092,7 +3096,7 @@
 
   async function loadAvailableDates(){
     try{
-      const j = await fetchJson(`/E-comm-marketing-hub/reports/owned_portal/data/owned/available_dates.json?t=${Date.now()}`);
+      const j = await fetchJson(ownedDataUrlWithTs('available_dates.json'));
       const arr = Array.isArray(j) ? j : (j.available_dates || []);
       AVAILABLE = arr.slice().sort();
     }catch(e){
@@ -3197,7 +3201,7 @@
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
         showLoading(`YTD 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
-        const urls = chunk.map(d => `/E-comm-marketing-hub/reports/owned_portal/data/owned/owned_${d}.json?t=${Date.now()}`);
+        const urls = chunk.map(d => ownedDataUrlWithTs(`owned_${d}.json`));
         const res = await Promise.allSettled(urls.map(u => fetchJson(u)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
