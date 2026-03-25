@@ -762,16 +762,39 @@ def _fallback_distinct_send_count(rows: List[Dict[str, Any]]) -> int:
     return len(send_groups)
 
 
+def _mmdd_on_or_before(row: Dict[str, Any], end_date: date) -> bool:
+    mmdd = str(row.get("mmdd") or "").strip()
+    if re.fullmatch(r"\d{4}", mmdd):
+        return mmdd <= end_date.strftime("%m%d")
+    rd = _parse_row_date(row)
+    return bool(rd and rd <= end_date)
+
+
+def _portal_send_count_from_rows(rows: List[Dict[str, Any]], channel: str, end_date: date) -> int:
+    total = 0
+    for r in (rows or []):
+        ch = str(r.get("channel") or "").strip().upper()
+        if ch != channel:
+            continue
+        if not _owned_has_group_mmdd(r):
+            continue
+        if not _mmdd_on_or_before(r, end_date):
+            continue
+        total += int(_safe_float(r.get("send_count")) or 0)
+    return total
+
+
 def _channel_summary_from_rows(rows: List[Dict[str, Any]], message_rows: List[Dict[str, Any]], channel: str, end_date: date) -> Dict[str, float]:
     channel_rows = [
         r for r in (rows or [])
-        if str(r.get("channel") or "").strip().upper() == channel and _owned_has_group_mmdd(r)
+        if str(r.get("channel") or "").strip().upper() == channel and _owned_has_group_mmdd(r) and _mmdd_on_or_before(r, end_date)
     ]
     scheduled_rows = _message_rows_for_year(message_rows, channel, end_date.year, end_date)
     scheduled_dates = {str(m.get("date") or "") for m in scheduled_rows}
     metric_rows = _filter_rows_to_scheduled_dates(channel_rows, scheduled_dates) if scheduled_rows else channel_rows
     agg = _summarize_rows_no_send(metric_rows)
-    send_count = len(scheduled_rows) if scheduled_rows else _fallback_distinct_send_count(channel_rows)
+    portal_send_count = _portal_send_count_from_rows(channel_rows, channel, end_date)
+    send_count = portal_send_count if portal_send_count > 0 else (len(scheduled_rows) if scheduled_rows else _fallback_distinct_send_count(channel_rows))
     agg["send_count"] = float(send_count)
     agg["avg_leverage"] = (agg["sessions"] / send_count) if send_count else 0.0
     return agg
@@ -1159,10 +1182,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         source = owned_ytd.get("source") or ""
 
         owned_total_tiles = "".join([
-            metric_tile("Send Count", fmt_int(tot.get("send_count")), "YoY", fmt_delta_ratio(tot_yoy.get("send_count")), tone_cls_from_delta(tot_yoy.get("send_count")), "LY", fmt_int(tot_prev.get("send_count")), "text-slate-700", "#2dd4bf", "owned", "send_count", "Owned Send Count"),
-            metric_tile("Sessions", fmt_int(tot.get("sessions")), "YoY", fmt_delta_ratio(tot_yoy.get("sessions")), tone_cls_from_delta(tot_yoy.get("sessions")), "LY", fmt_int(tot_prev.get("sessions")), "text-slate-700", "#38bdf8", "owned", "sessions", "Owned Sessions"),
-            metric_tile("Revenue", fmt_krw_symbol(tot.get("revenue")), "YoY", fmt_delta_ratio(tot_yoy.get("revenue")), tone_cls_from_delta(tot_yoy.get("revenue")), "LY", fmt_krw_symbol(tot_prev.get("revenue")), "text-slate-700", "#22c55e", "owned", "revenue", "Owned Revenue"),
-            metric_tile("CVR", fmt_cvr(tot.get("cvr")), "YoY", fmt_pp_from_fraction(tot_yoy.get("cvr_pp")), pp_tone_cls(tot_yoy.get("cvr_pp")), "LY", fmt_cvr(tot_prev.get("cvr")), "text-slate-700", "#f59e0b", "owned", "cvr", "Owned CVR"),
+            metric_tile("Send Count", fmt_int(tot.get("send_count")), "YoY", fmt_delta_ratio(tot_yoy.get("send_count")), tone_cls_from_delta(tot_yoy.get("send_count")), "LY", fmt_int(tot_prev.get("send_count")), "text-slate-700", "#2dd4bf"),
+            metric_tile("Sessions", fmt_int(tot.get("sessions")), "YoY", fmt_delta_ratio(tot_yoy.get("sessions")), tone_cls_from_delta(tot_yoy.get("sessions")), "LY", fmt_int(tot_prev.get("sessions")), "text-slate-700", "#38bdf8"),
+            metric_tile("Revenue", fmt_krw_symbol(tot.get("revenue")), "YoY", fmt_delta_ratio(tot_yoy.get("revenue")), tone_cls_from_delta(tot_yoy.get("revenue")), "LY", fmt_krw_symbol(tot_prev.get("revenue")), "text-slate-700", "#22c55e"),
+            metric_tile("CVR", fmt_cvr(tot.get("cvr")), "YoY", fmt_pp_from_fraction(tot_yoy.get("cvr_pp")), pp_tone_cls(tot_yoy.get("cvr_pp")), "LY", fmt_cvr(tot_prev.get("cvr")), "text-slate-700", "#f59e0b"),
         ])
 
         by_ch = owned_ytd.get("by_channel") or {}
@@ -1183,10 +1206,10 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
                 <span class="channel-pill">LY / YoY</span>
               </div>
               <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="channel-metric" data-chart-section="owned" data-chart-metric="send_count" data-chart-label="{ch} Send Count" data-chart-channel="{ch}"><div class="chart-hint">CLICK</div><div class="k">Send Count</div><div class="v metric-value" data-countup="{fmt_int(cur.get("send_count"))}">{fmt_int(cur.get("send_count"))}</div><div class="s">LY {fmt_int(prev.get("send_count"))} · <b class="{tone_cls_from_delta(yoy.get("send_count"))}">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
-                <div class="channel-metric" data-chart-section="owned" data-chart-metric="sessions" data-chart-label="{ch} Sessions" data-chart-channel="{ch}"><div class="chart-hint">CLICK</div><div class="k">Sessions</div><div class="v metric-value" data-countup="{fmt_int(cur.get("sessions"))}">{fmt_int(cur.get("sessions"))}</div><div class="s">LY {fmt_int(prev.get("sessions"))} · <b class="{tone_cls_from_delta(yoy.get("sessions"))}">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
-                <div class="channel-metric" data-chart-section="owned" data-chart-metric="revenue" data-chart-label="{ch} Revenue" data-chart-channel="{ch}"><div class="chart-hint">CLICK</div><div class="k">Revenue</div><div class="v metric-value" data-countup="{fmt_krw_symbol(cur.get("revenue"))}">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="s">LY {fmt_krw_symbol(prev.get("revenue"))} · <b class="{tone_cls_from_delta(yoy.get("revenue"))}">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
-                <div class="channel-metric" data-chart-section="owned" data-chart-metric="cvr" data-chart-label="{ch} CVR" data-chart-channel="{ch}"><div class="chart-hint">CLICK</div><div class="k">CVR</div><div class="v metric-value" data-countup="{fmt_cvr(cur.get("cvr"))}">{fmt_cvr(cur.get("cvr"))}</div><div class="s">LY {fmt_cvr(prev.get("cvr"))} · <b class="{pp_tone_cls(yoy.get("cvr_pp"))}">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
+                <div class="channel-metric"><div class="k">Send Count</div><div class="v metric-value" data-countup="{fmt_int(cur.get("send_count"))}">{fmt_int(cur.get("send_count"))}</div><div class="s">LY {fmt_int(prev.get("send_count"))} · <b class="{tone_cls_from_delta(yoy.get("send_count"))}">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
+                <div class="channel-metric"><div class="k">Sessions</div><div class="v metric-value" data-countup="{fmt_int(cur.get("sessions"))}">{fmt_int(cur.get("sessions"))}</div><div class="s">LY {fmt_int(prev.get("sessions"))} · <b class="{tone_cls_from_delta(yoy.get("sessions"))}">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
+                <div class="channel-metric"><div class="k">Revenue</div><div class="v metric-value" data-countup="{fmt_krw_symbol(cur.get("revenue"))}">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="s">LY {fmt_krw_symbol(prev.get("revenue"))} · <b class="{tone_cls_from_delta(yoy.get("revenue"))}">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
+                <div class="channel-metric"><div class="k">CVR</div><div class="v metric-value" data-countup="{fmt_cvr(cur.get("cvr"))}">{fmt_cvr(cur.get("cvr"))}</div><div class="s">LY {fmt_cvr(prev.get("cvr"))} · <b class="{pp_tone_cls(yoy.get("cvr_pp"))}">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
               </div>
             </article>
             ''')
@@ -1208,7 +1231,6 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
           <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">{owned_total_tiles}</div>
         </div>
         <div class="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-4">{''.join(channel_cards)}</div>
-        {trend_panel("owned", "Owned YTD Daily Trend", "누적 카드 클릭 시 일자별 owned 추이를 아래 그래프로 전환합니다.")}
         '''
 
         owned_block = section_shell(
