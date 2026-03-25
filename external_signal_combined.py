@@ -1714,6 +1714,7 @@ def _source_panel_html(panel_id: str, title: str, subtitle: str, summary_html: s
 # =================================================================
 # 6. HTML 생성
 # =================================================================
+
 def export_portal(
     dc_posts: List[Post],
     dc_brand_map: Dict[str, List[dict]],
@@ -1771,11 +1772,14 @@ def export_portal(
 
     dc_panel = _source_panel_html(
         panel_id="panel-dcinside",
+        platform="dcinside",
         title=f"DCInside · {GALLERY_ID} (최근 {int(TARGET_DAYS)}일)",
         subtitle=f"Updated: {updated} · Posts collected: {len(dc_posts):,} · Active brands: {len(dc_meta['active_brands']):,}",
+        insight="실시간 반응이 빠른 갤러리 기반 언급 흐름입니다.",
         summary_html=_summary_table_html(dc_summary_df, "dcinside"),
         weekly_html=_weekly_html(dc_meta, "DCInside"),
         sections_html=_brand_sections_html(dc_brand_map, "dcinside"),
+        toolbar_html=_filter_toolbar_html(dc_brand_map, "dcinside", "DCInside 탭 내 검색"),
     )
 
     naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
@@ -1799,33 +1803,28 @@ def export_portal(
 
     naver_panel = _source_panel_html(
         panel_id="panel-naver",
+        platform="naver_cafe",
         title="네이버 카페 · 브랜드 언급 / 필터링 결과",
         subtitle=naver_subtitle,
+        insight="카페 맥락과 세그먼트 기준으로 언급 흐름을 탐색합니다.",
         summary_html=_summary_table_html(naver_summary_df, "naver_cafe"),
         weekly_html=_weekly_html(naver_meta, "NAVER Cafe Search API (수집시각 기준)"),
         sections_html=_brand_sections_html(naver_brand_map, "naver_cafe"),
         warning=naver_warning or "",
-        extra_html=_naver_scope_html() + _naver_cafe_filter_html(naver_brand_map),
+        toolbar_html=_filter_toolbar_html(naver_brand_map, "naver_cafe", "네이버 카페 탭 내 검색") + _naver_scope_html() + _naver_cafe_filter_html(naver_brand_map),
     )
 
     eomisae_panel = _source_panel_html(
         panel_id="panel-eomisae",
+        platform="eomisae",
         title="어미새 · 자유게시판 + 패션게시판",
         subtitle=f"Updated: {updated} · Posts collected: {len(eomisae_posts):,} · Active brands: {len(eomisae_meta['active_brands']):,}",
+        insight="구매 문맥과 커뮤니티 반응이 함께 보이는 보드입니다.",
         summary_html=_summary_table_html(eomisae_summary_df, "eomisae"),
         weekly_html=_weekly_html(eomisae_meta, "Eomisae"),
         sections_html=_brand_sections_html(eomisae_brand_map, "eomisae"),
         warning=eomisae_warning or "",
-    )
-
-    ppomppu_panel = _source_panel_html(
-        panel_id="panel-ppomppu",
-        title="뽐뿌 · 등산포럼",
-        subtitle=f"Updated: {updated} · Posts collected: {len(ppomppu_posts):,} · Active brands: {len(ppomppu_meta['active_brands']):,}",
-        summary_html=_summary_table_html(ppomppu_summary_df),
-        weekly_html=_weekly_html(ppomppu_meta, "Ppomppu climb"),
-        sections_html=_brand_sections_html(ppomppu_brand_map, "ppomppu"),
-        warning=ppomppu_warning or "",
+        toolbar_html=_filter_toolbar_html(eomisae_brand_map, "eomisae", "어미새 탭 내 검색"),
     )
 
     full_html = f'''<!DOCTYPE html>
@@ -1833,105 +1832,34 @@ def export_portal(
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>External Signal | DCInside + NAVER Cafe + Eomisae + Ppomppu</title>
+  <title>External Signal | DCInside + NAVER Cafe + Eomisae</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root {{ --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }}
-    html, body {{ height: 100%; overflow: auto; }}
-    body {{
-      background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      color:#0f172a;
-      min-height:100vh;
-    }}
-    .glass {{
-      background: rgba(255,255,255,.65);
-      border: 1px solid rgba(15,23,42,.08);
-      box-shadow: 0 10px 30px rgba(2,6,23,.08);
-      backdrop-filter: blur(10px);
-    }}
-    .tab-btn.active, .cafe-filter-btn.active {{ background:#0f172a; color:#fff; border-color:#0f172a; }}
-    .embedded body {{ background: transparent !important; }}
-  </style>
 </head>
-<body class="p-3 md:p-3">
-  <div class="w-full">
-    <div class="glass rounded-[32px] p-5 md:p-7 w-full">
-      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <div class="mx-auto w-full max-w-[1800px] p-3 md:p-4">
+    <div class="rounded-[32px] border border-slate-200 bg-white/85 p-4 shadow-sm md:p-6">
+      <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL HUB</div>
-          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside + NAVER Cafe + Eomisae + Ppomppu</h1>
-          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · 최근 {int(TARGET_DAYS)}일 기준 소스별 브랜드 언급 모니터링</div>
+          <div class="text-xs font-extrabold tracking-[0.18em] text-slate-500">EXTERNAL SIGNAL HUB</div>
+          <h1 class="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-900 md:text-4xl">DCInside + NAVER Cafe + Eomisae</h1>
+          <div class="mt-2 text-xs font-bold text-slate-500 md:text-sm">Updated: {updated} · 최근 {int(TARGET_DAYS)}일 기준 소스별 브랜드 언급 모니터링</div>
         </div>
-        <div class="text-xs text-slate-600 font-bold">브랜드 수: {len(BRAND_LIST)} · 탭별로 소스 분리 확인</div>
+        <div class="text-xs font-bold text-slate-500 md:text-sm">브랜드 수: {len(BRAND_LIST)} · 3개 소스 통합 뷰</div>
       </div>
 
       <div class="mt-6 flex flex-wrap gap-2">
-        <button class="tab-btn active px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-dcinside">DCInside</button>
-        <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-naver">네이버 카페</button>
-        <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-eomisae">어미새</button>
-        <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-ppomppu">뽐뿌</button>
+        <button class="tab-btn active rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold" data-target="panel-dcinside">DCInside</button>
+        <button class="tab-btn rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold" data-target="panel-naver">네이버 카페</button>
+        <button class="tab-btn rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold" data-target="panel-eomisae">어미새</button>
       </div>
 
       {dc_panel}
       {naver_panel}
       {eomisae_panel}
-      {ppomppu_panel}
     </div>
   </div>
-
-  <script>
-    function toggleMore(btn) {{
-      const box = btn.parentElement.querySelector('.more-box');
-      if (!box) return;
-      box.classList.toggle('hidden');
-      btn.textContent = box.classList.contains('hidden') ? '+ 더보기' : '- 접기';
-    }}
-
-    (function () {{
-      const buttons = Array.from(document.querySelectorAll('.tab-btn'));
-      const panels = Array.from(document.querySelectorAll('.tab-panel'));
-      const cafeButtons = Array.from(document.querySelectorAll('.cafe-filter-btn'));
-      function activate(targetId) {{
-        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
-        panels.forEach(panel => panel.classList.toggle('hidden', panel.id !== targetId));
-      }}
-      function applyCafeFilter(platform, cafeKey) {{
-        const scopedButtons = cafeButtons.filter(btn => btn.dataset.platform === platform);
-        const sections = Array.from(document.querySelectorAll(`.brand-section[data-platform="${{platform}}"]`));
-        const emptyBox = document.querySelector(`.cafe-filter-empty[data-platform="${{platform}}"]`);
-        scopedButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.cafe === cafeKey));
-        let visibleSections = 0;
-        sections.forEach(section => {{
-          const cards = Array.from(section.querySelectorAll(`.mention-card[data-platform="${{platform}}"]`));
-          let visibleCount = 0;
-          cards.forEach(card => {{
-            const show = cafeKey === 'all' || card.dataset.cafe === cafeKey;
-            card.classList.toggle('hidden', !show);
-            if (show) visibleCount += 1;
-          }});
-          section.classList.toggle('hidden', visibleCount === 0);
-          if (visibleCount > 0) visibleSections += 1;
-          const countNode = section.querySelector('[data-role="mention-count"]');
-          if (countNode) countNode.textContent = `${{visibleCount}} mentions`;
-        }});
-        if (emptyBox) emptyBox.classList.toggle('hidden', visibleSections > 0);
-      }}
-      buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.target)));
-      cafeButtons.forEach(btn => btn.addEventListener('click', () => applyCafeFilter(btn.dataset.platform, btn.dataset.cafe)));
-      activate('panel-dcinside');
-      applyCafeFilter('naver_cafe', 'all');
-      try {{
-        if (window.self !== window.top) document.body.classList.add('embedded');
-      }} catch (e) {{
-        document.body.classList.add('embedded');
-      }}
-    }})();
-  </script>
 </body>
-</html>
-'''
+</html>'''
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:
@@ -1939,8 +1867,6 @@ def export_portal(
 
     print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
 
-
-# ================= UX/UI upgrade patch: premium tabs + animated interactions =================
 def _ui_compact_text(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip())
 
@@ -2037,7 +1963,7 @@ def _panel_kpi_html(posts_count: int, meta: dict, summary_df: pd.DataFrame) -> s
     return "".join(html_cards)
 
 
-def _summary_table_html(summary_df: pd.DataFrame, platform: str) -> str:
+def _summary_table_html(summary_df: pd.DataFrame, platform: str = "") -> str:
     if summary_df is None or summary_df.empty:
         return '<div class="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm font-bold text-slate-500">요약 데이터가 아직 없습니다.</div>'
 
@@ -2417,16 +2343,17 @@ def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str
 
 def _source_panel_html(
     panel_id: str,
-    platform: str,
-    title: str,
-    subtitle: str,
-    insight: str,
-    kpi_html: str,
-    summary_html: str,
-    weekly_html: str,
-    sections_html: str,
+    platform: str = "",
+    title: str = "",
+    subtitle: str = "",
+    insight: str = "",
+    kpi_html: str = "",
+    summary_html: str = "",
+    weekly_html: str = "",
+    sections_html: str = "",
     warning: str = "",
     toolbar_html: str = "",
+    extra_html: str = "",
 ) -> str:
     theme = _panel_theme(platform)
     warning_html = ""
@@ -2449,7 +2376,7 @@ def _source_panel_html(
         <div class="relative z-10 mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">{kpi_html}</div>
       </div>
       {warning_html}
-      {toolbar_html}
+      {toolbar_html or extra_html}
       <div class="mt-6 grid grid-cols-1 xl:grid-cols-[1.05fr_.95fr] gap-4">
         <div class="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl">{summary_html}</div>
         <div class="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl">{weekly_html}</div>
