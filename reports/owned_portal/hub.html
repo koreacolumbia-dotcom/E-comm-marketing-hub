@@ -576,8 +576,8 @@
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
-        <button id="chipDaily" class="chip active" type="button">DAILY</button>
-        <button id="chipWeek" class="chip" type="button">WEEK</button>
+        <button id="chipDaily" class="chip" type="button">DAILY</button>
+        <button id="chipWeek" class="chip active" type="button">WEEK</button>
         <button id="chipRange" class="chip" type="button">RANGE</button>
 
         <label class="ml-2 flex items-center gap-2 text-xs font-extrabold text-slate-600 select-none">
@@ -3012,6 +3012,11 @@
   }
 
   const OWNED_DATA_BASE_CANDIDATES = [
+    'site/data/owned',
+    './site/data/owned',
+    '../site/data/owned',
+    '../../site/data/owned',
+    '/site/data/owned',
     'data/owned',
     './data/owned',
     '../data/owned',
