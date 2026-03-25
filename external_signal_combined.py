@@ -2459,7 +2459,7 @@ def _source_panel_html(
     '''
 
 
-def export_portal(
+def export_portal_legacy_unused(
     dc_posts: List[Post],
     dc_brand_map: Dict[str, List[dict]],
     dc_summary_df: pd.DataFrame,
