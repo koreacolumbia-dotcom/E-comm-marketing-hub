@@ -2872,6 +2872,24 @@ def render_page_html(
                 compare_cell("YOY", float(getattr(r, 'rev_yoy', 0) or 0), enabled=True),
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
 
+    # Other detail rows
+    other_html = ""
+    if other_detail is not None and (not other_detail.empty):
+        for r in other_detail.itertuples(index=False):
+            _detail = getattr(r, "detail_key", getattr(r, "sub_channel", ""))
+            _orders = getattr(r, 'orders', getattr(r, 'transactions', 0))
+            _sessions = float(getattr(r, 'sessions', 0) or 0)
+            _cvr = (float(_orders or 0) / _sessions) if _sessions else float(getattr(r, 'cvr', 0) or 0)
+            other_html += table_row([
+                esc(_detail),
+                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
+                f"<div class='text-right'>{fmt_int(_orders)}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right'>{fmt_pct(_cvr,2)}</div>",
+                compare_cell(wow_label, float(getattr(r, 'dod', 0) or 0), enabled=True),
+                compare_cell("YOY", float(getattr(r, 'yoy', 0) or 0), enabled=True),
+            ], bold=(str(_detail).strip().lower() == "total"))
+
     # Paid detail rows (merged with budget / target ROAS / ROAS)
     paid_compare_lookup: Dict[str, Dict[str, float]] = {}
     paid_compare_total = {"target_roas": 0.0, "budget": 0.0, "roas": 0.0, "cvr": 0.0}
@@ -3266,6 +3284,27 @@ def render_page_html(
       </table></div>
     </div>
 
+    <div class="reveal-block mt-4 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">OTHER DETAIL</div>
+        <div class="text-[11px] text-slate-500">Breakdown of Channel Snapshot → Other</div>
+      </div>
+      <div class="mt-3 overflow-x-auto"><table class="w-full table-auto text-sm min-w-[1100px]">
+        <thead class="text-xs text-slate-500">
+          <tr>
+            <th class="px-2 py-2 text-left whitespace-nowrap">Detail</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">{wow_label} (Sessions)</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YOY (Sessions)</th>
+          </tr>
+        </thead>
+        <tbody>{other_html or "<tr><td colspan='7' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+      </table></div>
+    </div>
+
     <div class="reveal-block mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
@@ -3490,7 +3529,7 @@ def build_one(
                 category_pdp_trend=rt["category_pdp_trend"],
                 search_new=rt["search_new"],
                 search_rising=rt["search_rising"],
-                other_detail=rt["other_detail"],
+                other_detail=(rt["other_detail"] if rt.get("other_detail") is not None and not rt["other_detail"].empty else get_other_detail_3way(client, rt["w"])),
                 paid_media_compare=rt["paid_media_compare"],
                 nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
                 bundle_rel_path=bundle_rel,
@@ -3521,7 +3560,7 @@ def build_one(
 
     paid_detail = get_paid_detail_3way(client, w, paid_ad_totals=paid_ad_totals)
     paid_top3 = get_paid_top3(client, w)
-    other_detail = pd.DataFrame()
+    other_detail = get_other_detail_3way(client, w)
     target_roas_map = load_target_roas_map(TARGET_ROAS_XLS_PATH)
     paid_media_compare = get_paid_media_comparison_table(client, w, target_roas_map)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
