@@ -1092,6 +1092,16 @@ def build_range(
 
     dates = list_owned_dates(owned_dir)
     write_json(owned_dir / "available_dates.json", dates)
+    latest_date = dates[-1] if dates else None
+    meta = {
+        "built_kst": (datetime.utcnow() + KST).strftime("%Y.%m.%d (%a) %H:%M KST"),
+        "latest_available_date": latest_date,
+        "default_date": latest_date,
+        "default_view": "WEEK",
+        "default_channel": "EDM",
+        "available_dates_count": len(dates),
+    }
+    write_json(owned_dir / "meta.json", meta)
 
 
 # -----------------------------
