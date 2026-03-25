@@ -175,7 +175,6 @@
       gap:10px;
       text-align:center;
     }
-    .ytd-loading-overlay{ display:none !important; }
     .skeleton-zone{ position: relative; }
     .skeleton-card{ position: relative; overflow: hidden; }
     .skeleton-card::before{
@@ -3012,6 +3011,10 @@
   }
 
   const OWNED_DATA_BASE_CANDIDATES = [
+    'site/data/owned',
+    './site/data/owned',
+    '../site/data/owned',
+    '../../site/data/owned',
     'data/owned',
     './data/owned',
     '../data/owned',
@@ -3019,6 +3022,7 @@
     'reports/owned_portal/data/owned',
     './reports/owned_portal/data/owned',
     '../reports/owned_portal/data/owned',
+    '/site/data/owned',
     '/reports/owned_portal/data/owned',
     '/data/owned',
   ];
@@ -3094,9 +3098,20 @@
 
     for(const base of candidates){
       try{
-        await fetchJsonDirect(appendCacheBust(`${base}/available_dates.json`));
-        OWNED_DATA_BASE = base;
-        return OWNED_DATA_BASE;
+        const probe = await fetchJsonDirect(appendCacheBust(`${base}/available_dates.json`));
+        const dates = Array.isArray(probe) ? probe : ((probe && Array.isArray(probe.available_dates)) ? probe.available_dates : []);
+        if(dates.length){
+          OWNED_DATA_BASE = base;
+          return OWNED_DATA_BASE;
+        }
+      }catch(_e){}
+      try{
+        const probeMeta = await fetchJsonDirect(appendCacheBust(`${base}/portal_meta.json`));
+        const dates = Array.isArray(probeMeta && probeMeta.available_dates) ? probeMeta.available_dates : [];
+        if(dates.length){
+          OWNED_DATA_BASE = base;
+          return OWNED_DATA_BASE;
+        }
       }catch(_e){}
     }
     throw new Error('OWNED data base path not found');
@@ -3342,12 +3357,12 @@
     }
     try{
       const j = await fetchOwnedJson(`available_dates.json`);
-      const arr = Array.isArray(j) ? j : (j.available_dates || []);
+      const arr = Array.isArray(j) ? j : ((j && Array.isArray(j.available_dates)) ? j.available_dates : []);
       AVAILABLE = arr.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))).slice().sort();
-    }catch(e){
-      AVAILABLE = null;
-      showNotice('available_dates.json 또는 portal_meta.json을 읽지 못했어. 데이터 경로를 확인해줘.');
-    }
+      if(AVAILABLE.length) return;
+    }catch(e){}
+    AVAILABLE = null;
+    showNotice('available_dates.json 또는 portal_meta.json을 읽지 못했어. 데이터 경로를 확인해줘.');
   }
 
   function setToLastNDays(n){
