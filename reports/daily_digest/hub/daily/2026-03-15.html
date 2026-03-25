@@ -1,0 +1,1397 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSK E-COMM | Daily Digest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    body{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }
+      
+    body,
+    body.bg-slate-50 {{
+      margin: 0;
+      padding: 0;
+      background:
+        radial-gradient(circle at top left, rgba(59,130,246,.10), transparent 32%),
+        radial-gradient(circle at top right, rgba(14,165,233,.08), transparent 26%),
+        linear-gradient(180deg, #f8fbff 0%, #f8fafc 38%, #f3f6fb 100%);
+    }}
+
+    @keyframes pageReveal {{
+      0% {{
+        opacity: 0;
+        transform: perspective(1200px) rotateX(3.5deg) translate3d(0, 34px, 0) scale(.982);
+        filter: blur(8px);
+      }}
+      60% {{
+        opacity: 1;
+        transform: perspective(1200px) rotateX(0deg) translate3d(0, -4px, 0) scale(1.004);
+        filter: blur(0);
+      }}
+      100% {{
+        opacity: 1;
+        transform: perspective(1200px) rotateX(0deg) translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }}
+    }}
+
+    @keyframes sectionReveal {{
+      0% {{
+        opacity: 0;
+        transform: translate3d(0, 28px, 0) scale(.985);
+        filter: blur(6px);
+      }}
+      65% {{
+        opacity: 1;
+        transform: translate3d(0, -3px, 0) scale(1.003);
+        filter: blur(0);
+      }}
+      100% {{
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }}
+    }}
+
+    @keyframes cardReveal {{
+      0% {{
+        opacity: 0;
+        transform: translateY(24px) scale(.975);
+        box-shadow: 0 0 0 rgba(15,23,42,0);
+      }}
+      70% {{
+        opacity: 1;
+        transform: translateY(-2px) scale(1.01);
+        box-shadow: 0 24px 48px rgba(15,23,42,.10);
+      }}
+      100% {{
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        box-shadow: 0 12px 28px rgba(15,23,42,.06);
+      }}
+    }}
+
+
+    @keyframes dramaticCardIn {{
+      0% {{
+        opacity: 0;
+        transform: perspective(1400px) translateY(42px) scale(.94) rotateX(9deg);
+        filter: blur(10px);
+        box-shadow: 0 0 0 rgba(15,23,42,0);
+      }}
+      58% {{
+        opacity: 1;
+        transform: perspective(1400px) translateY(-10px) scale(1.02) rotateX(-1.3deg);
+        filter: blur(0);
+        box-shadow: 0 30px 56px rgba(15,23,42,.14);
+      }}
+      76% {{
+        opacity: 1;
+        transform: perspective(1400px) translateY(2px) scale(.997) rotateX(.35deg);
+        filter: blur(0);
+      }}
+      100% {{
+        opacity: 1;
+        transform: perspective(1400px) translateY(0) scale(1) rotateX(0);
+        filter: blur(0);
+        box-shadow: 0 14px 30px rgba(15,23,42,.08);
+      }}
+    }}
+
+    @keyframes dramaticSectionIn {{
+      0% {{
+        opacity: 0;
+        transform: perspective(1600px) translateY(54px) scale(.965) rotateX(8deg);
+        filter: blur(12px);
+      }}
+      60% {{
+        opacity: 1;
+        transform: perspective(1600px) translateY(-12px) scale(1.008) rotateX(-1deg);
+        filter: blur(0);
+      }}
+      78% {{
+        opacity: 1;
+        transform: perspective(1600px) translateY(2px) scale(.998) rotateX(.3deg);
+        filter: blur(0);
+      }}
+      100% {{
+        opacity: 1;
+        transform: perspective(1600px) translateY(0) scale(1) rotateX(0);
+        filter: blur(0);
+      }}
+    }}
+
+    @keyframes pageExit {{
+      0% {{
+        opacity: 1;
+        transform: perspective(1200px) rotateX(0deg) translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }}
+      100% {{
+        opacity: 0;
+        transform: perspective(1200px) rotateX(2.5deg) translate3d(0, -16px, 0) scale(.992);
+        filter: blur(8px);
+      }}
+    }}
+
+    @keyframes shimmerSweep {{
+      0% {{ background-position: 200% 0; }}
+      100% {{ background-position: -200% 0; }}
+    }}
+
+    @keyframes panelSwap {{
+      0% {{
+        opacity: 0;
+        transform: translate3d(0, 22px, 0) scale(.986);
+        filter: blur(10px);
+      }}
+      70% {{
+        opacity: 1;
+        transform: translate3d(0, -2px, 0) scale(1.004);
+        filter: blur(0);
+      }}
+      100% {{
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }}
+    }}
+
+    @keyframes lineDraw {{
+      0% {{
+        opacity: 0;
+        stroke-dashoffset: 1400;
+      }}
+      100% {{
+        opacity: 1;
+        stroke-dashoffset: 0;
+      }}
+    }}
+
+    @keyframes dotPop {{
+      0% {{
+        opacity: 0;
+        transform: scale(.2);
+      }}
+      75% {{
+        opacity: 1;
+        transform: scale(1.16);
+      }}
+      100% {{
+        opacity: 1;
+        transform: scale(1);
+      }}
+    }}
+
+    @keyframes fadeGrid {{
+      0% {{ opacity: 0; }}
+      100% {{ opacity: 1; }}
+    }}
+
+    @keyframes miniRise {{
+      0% {{
+        opacity: 0;
+        transform: translateY(10px);
+      }}
+      100% {{
+        opacity: 1;
+        transform: translateY(0);
+      }}
+    }}
+
+    .report-shell {{
+      width: calc(100vw - 8px) !important;
+      max-width: calc(100vw - 8px) !important;
+      min-width: calc(100vw - 8px) !important;
+      margin: 0 auto !important;
+      padding-left: 8px;
+      padding-right: 8px;
+      box-sizing: border-box;
+      animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
+      transform-origin: top center;
+      overflow-x: visible;
+    }}
+
+    body.page-exit .report-shell {{
+      animation: pageExit .28s cubic-bezier(.4,0,.2,1) both;
+    }}
+
+    body.page-exit {{
+      overflow: hidden;
+    }}
+
+    body > .report-shell {{
+      animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
+      transform-origin: top center;
+    }}
+
+    .reveal-block,
+    .kpi-card {{
+      opacity: 0;
+      transform: perspective(1400px) translateY(42px) scale(.94) rotateX(9deg);
+      transform-origin: center top;
+      filter: blur(10px);
+      will-change: transform, opacity, filter;
+    }}
+
+    .reveal-block.is-visible {{
+      animation: dramaticSectionIn .96s cubic-bezier(.16,.84,.22,1) both;
+    }}
+
+    .kpi-card.is-visible {{
+      animation: dramaticCardIn .98s cubic-bezier(.16,.84,.22,1) both;
+    }}
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {{
+      position: relative;
+      overflow: hidden;
+      transition:
+        transform .28s cubic-bezier(.2,.8,.2,1),
+        box-shadow .28s cubic-bezier(.2,.8,.2,1),
+        border-color .28s ease;
+      will-change: transform, box-shadow;
+    }}
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4::before,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4::before,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5::before,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4::before {{
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(
+        110deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,.38) 45%,
+        rgba(255,255,255,0) 70%
+      );
+      background-size: 220% 100%;
+      opacity: .55;
+      animation: shimmerSweep 2.4s ease-out 1;
+    }}
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {{
+      transform: translateY(-4px) scale(1.006);
+      box-shadow: 0 22px 44px rgba(15,23,42,.10);
+      border-color: rgba(148,163,184,.55);
+    }}
+
+    .overflow-x-auto table tbody tr {{
+      transition: background-color .2s ease, transform .2s ease;
+    }}
+
+    .overflow-x-auto table tbody tr:hover {{
+      background-color: rgba(248,250,252,.9);
+    }}
+
+    .paid-extra {{
+      transition: opacity .42s cubic-bezier(.2,.8,.2,1), transform .42s cubic-bezier(.2,.8,.2,1), max-height .42s ease;
+      transform-origin: top center;
+    }}
+
+    .paid-extra.hidden {{
+      opacity: 0;
+      transform: translateY(12px) scale(.985);
+      max-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }}
+
+    .kpi-card {{
+      transform-style: preserve-3d;
+    }}
+
+    .metric-chip,
+    .section-signal {{
+      backdrop-filter: blur(18px);
+    }}
+
+    .metric-chip {{
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      border: 1px solid rgba(148,163,184,.24);
+      border-radius: 999px;
+      padding: .38rem .7rem;
+      background: rgba(255,255,255,.72);
+      box-shadow: 0 10px 22px rgba(15,23,42,.05);
+    }}
+
+    .section-signal {{
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 1.25rem;
+      background: linear-gradient(135deg, rgba(255,255,255,.84), rgba(248,250,252,.78));
+      box-shadow: 0 14px 32px rgba(15,23,42,.06);
+    }}
+
+    .mode-switch,
+    .trend-tab {{
+      transition:
+        transform .28s cubic-bezier(.2,.8,.2,1),
+        box-shadow .28s cubic-bezier(.2,.8,.2,1),
+        border-color .28s ease,
+        background-color .28s ease,
+        color .28s ease;
+      will-change: transform, box-shadow;
+    }}
+
+    .mode-switch:hover,
+    .trend-tab:hover {{
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(15,23,42,.08);
+    }}
+
+    .compare-cell {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: .45rem;
+      min-width: 132px;
+    }}
+
+    .compare-pill {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      padding: .18rem .42rem;
+      border-radius: 999px;
+      background: rgba(15,23,42,.06);
+      border: 1px solid rgba(148,163,184,.20);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      color: #475569;
+      text-transform: uppercase;
+    }}
+
+    .compare-pill.is-muted {{
+      opacity: .7;
+    }}
+
+    .paid-detail-shell {{
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: visible;
+      padding-bottom: 6px;
+      scrollbar-gutter: stable both-edges;
+      -webkit-overflow-scrolling: touch;
+    }}
+
+    .paid-detail-table {{
+      width: 100%;
+      min-width: 1540px !important;
+    }}
+
+    .paid-detail-table th:first-child,
+    .paid-detail-table td:first-child {{
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: rgba(255,255,255,.98);
+      box-shadow: 8px 0 14px rgba(248,250,252,.86);
+    }}
+
+    .paid-detail-table th:first-child {{
+      z-index: 2;
+    }}
+
+    .kpi-value {{
+      display: inline-block;
+      letter-spacing: -.02em;
+      text-shadow: 0 10px 28px rgba(15,23,42,.08);
+      animation: kpiFloat .92s cubic-bezier(.18,.84,.22,1) both;
+      will-change: transform, opacity;
+    }}
+
+    @keyframes kpiFloat {{
+      0% {{
+        opacity: 0;
+        transform: translate3d(0, 16px, 0) scale(.92);
+        filter: blur(8px);
+      }}
+      62% {{
+        opacity: 1;
+        transform: translate3d(0, -2px, 0) scale(1.035);
+        filter: blur(0);
+      }}
+      100% {{
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }}
+    }}
+
+    .paid-detail-table tbody tr {{
+      animation: sectionReveal .7s cubic-bezier(.2,.8,.2,1) both;
+    }}
+
+    .trend-panel.is-active {{
+      animation: panelSwap .58s cubic-bezier(.2,.8,.2,1) both;
+    }}
+
+    .trend-chart,
+    .mini-chart {{
+      overflow: visible;
+    }}
+
+    .trend-chart.chart-animate .trend-grid,
+    .mini-chart.chart-animate .mini-grid {{
+      opacity: 0;
+      animation: fadeGrid .52s ease forwards;
+    }}
+
+    .trend-chart.chart-animate .trend-line {{
+      opacity: 0;
+      stroke-dasharray: 1400;
+      stroke-dashoffset: 1400;
+      animation: lineDraw 1.28s cubic-bezier(.22,.86,.24,1) forwards;
+      filter: drop-shadow(0 10px 18px rgba(15,23,42,.10));
+    }}
+
+    .trend-chart.chart-animate .trend-dot,
+    .mini-chart.chart-animate .mini-dot {{
+      opacity: 0;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: dotPop .46s cubic-bezier(.2,.9,.2,1) forwards;
+    }}
+
+    .mini-chart.chart-animate .mini-line {{
+      opacity: 0;
+      stroke-dasharray: 680;
+      stroke-dashoffset: 680;
+      animation: lineDraw .96s cubic-bezier(.22,.86,.24,1) forwards;
+    }}
+
+    .mini-chart.chart-animate .mini-area {{
+      opacity: 0;
+      animation: miniRise .52s ease forwards;
+    }}
+
+
+    .auto-reveal-card {{
+      opacity: 0;
+      transform: perspective(1500px) translateY(46px) scale(.94) rotateX(10deg);
+      transform-origin: center top;
+      filter: blur(10px);
+      will-change: transform, opacity, filter;
+      backface-visibility: hidden;
+    }}
+
+    .auto-reveal-card.is-visible {{
+      animation: dramaticCardIn 1.02s cubic-bezier(.16,.84,.22,1) both;
+    }}
+
+    .reveal-block.is-visible,
+    .kpi-card.is-visible {{
+      animation-duration: 1.02s;
+    }}
+
+    .reveal-block.is-visible {{
+      animation-name: dramaticSectionIn;
+    }}
+
+    .kpi-card.is-visible {{
+      animation-name: dramaticCardIn;
+    }}
+
+    .mode-switch,
+    [data-nav-transition] {{
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }}
+
+    .mode-switch::after,
+    [data-nav-transition]::after,
+    .trend-tab::after {{
+      content: "";
+      position: absolute;
+      inset: -1px;
+      pointer-events: none;
+      border-radius: inherit;
+      background: linear-gradient(
+        120deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,.28) 35%,
+        rgba(255,255,255,0) 68%
+      );
+      background-size: 220% 100%;
+      opacity: 0;
+      transition: opacity .24s ease;
+    }}
+
+    .mode-switch:hover::after,
+    [data-nav-transition]:hover::after,
+    .trend-tab:hover::after {{
+      opacity: 1;
+      animation: shimmerSweep 1.1s ease;
+    }}
+
+    .report-shell.is-entering .auto-reveal-card,
+    .report-shell.is-entering .reveal-block,
+    .report-shell.is-entering .kpi-card {{
+      opacity: 0;
+    }}
+
+    .trend-panel {{
+      transform-origin: center top;
+      will-change: transform, opacity, filter;
+    }}
+
+    .trend-panel.is-active {{
+      animation: panelSwap .68s cubic-bezier(.18,.84,.22,1) both;
+    }}
+    
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="report-shell mx-auto px-1 py-2 lg:px-2 lg:py-3">
+    <div class="reveal-block section-signal mt-2 flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div class="text-sm font-bold text-slate-700">데이터 기간 · 2026-03-15</div>
+      <div class="text-xs text-slate-500">WOW: Sessions vs 2026-03-08 | YOY: Sessions vs 2025-03-16 | KPI cards compare the metric shown on each card. Channel Snapshot and Paid Detail compare columns use Sessions.</div>
+    </div>
+
+    <div class="reveal-block mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
+      
+        <div class="kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Sessions</div>
+          <div class="kpi-value mt-1 text-xl font-black text-slate-900" data-kpi-value="10,137">10,137</div>
+          <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+            <span class="metric-chip"><span class="compare-pill">WOW</span><b class="text-orange-700">-0.1%</b></span>
+            <span class="metric-chip"><span class="compare-pill">YOY</span><b class="text-blue-600">+18.4%</b></span>
+          </div>
+        </div>
+        
+        <div class="kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Revenue</div>
+          <div class="kpi-value mt-1 text-xl font-black text-slate-900" data-kpi-value="₩8,322,821">₩8,322,821</div>
+          <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+            <span class="metric-chip"><span class="compare-pill">WOW</span><b class="text-orange-700">-6.1%</b></span>
+            <span class="metric-chip"><span class="compare-pill">YOY</span><b class="text-orange-700">-1.1%</b></span>
+          </div>
+        </div>
+        
+        <div class="kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Orders</div>
+          <div class="kpi-value mt-1 text-xl font-black text-slate-900" data-kpi-value="73">73</div>
+          <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+            <span class="metric-chip"><span class="compare-pill">WOW</span><b class="text-blue-600">+2.8%</b></span>
+            <span class="metric-chip"><span class="compare-pill">YOY</span><b class="text-orange-700">-6.4%</b></span>
+          </div>
+        </div>
+        
+        <div class="kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">CVR</div>
+          <div class="kpi-value mt-1 text-xl font-black text-slate-900" data-kpi-value="0.72%">0.72%</div>
+          <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+            <span class="metric-chip"><span class="compare-pill">WOW</span><b class="text-blue-600">+0.02%p</b></span>
+            <span class="metric-chip"><span class="compare-pill">YOY</span><b class="text-orange-700">-0.19%p</b></span>
+          </div>
+        </div>
+        
+        <div class="kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Sign-up Users</div>
+          <div class="kpi-value mt-1 text-xl font-black text-slate-900" data-kpi-value="63">63</div>
+          <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+            <span class="metric-chip"><span class="compare-pill">WOW</span><b class="text-blue-600">+1.6%</b></span>
+            <span class="metric-chip"><span class="compare-pill">YOY</span><b class="text-orange-700">-31.5%</b></span>
+          </div>
+        </div>
+        
+    </div>
+
+    <div class="reveal-block mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
+      <div class="mt-3 overflow-x-auto"><table class="w-full table-auto text-sm min-w-[980px]">
+        <thead class="text-xs text-slate-500">
+          <tr>
+            <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">WOW (Sessions)</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YOY (Sessions)</th>
+          </tr>
+        </thead>
+        <tbody><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Organic</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1,316</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>18</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩1,970,006</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1.37%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-0.2%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-27.1%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Paid AD</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>4,259</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>43</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩5,178,245</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1.01%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-7.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+24.0%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Owned</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>383</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>11</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩1,150,470</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2.87%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+37.3%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+12.0%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Awareness</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>4,034</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+6.7%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+52.5%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>SNS</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-50.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-99.5%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>Other</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>143</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩24,100</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.70%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-22.7%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+100.0%</div></td></tr><tr class='bg-slate-50 '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'>Total</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>10,137</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>73</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>₩8,322,821</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>0.72%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right text-orange-700'>-0.1%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold pr-4'><div class='text-right text-blue-600'>+18.4%</div></td></tr></tbody>
+      </table></div>
+    </div>
+
+    <div class="reveal-block mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
+        <div class="text-[11px] text-slate-500">Wider canvas + sticky Sub column</div>
+      </div>
+      <div class="mt-3 paid-detail-shell">
+        <table class="paid-detail-table w-full table-auto text-sm min-w-[1360px]">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">WOW (Sessions)</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YOY (Sessions)</th>
+            </tr>
+          </thead>
+          <tbody><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naver brand search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1,178</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>32</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩3,774,565</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2.72%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+7.7%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+26.7%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>naver search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>205</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩55,600</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.49%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+5.1%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+2462.5%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>criteo</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>625</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩119,000</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.16%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-21.6%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-13.8%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>meta</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1,377</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩324,700</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.15%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+2.6%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+26.8%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>google demand gen</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>358</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-3.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-slate-400'>-</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>google pmax</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>4</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+300.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-orange-700'>-99.3%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>google search</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>278</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>7</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩904,380</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2.52%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+1.1%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+929.6%</div></td></tr><tr class=' '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>instagram</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>199</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-58.7%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-slate-400'>-</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>(data not available)</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>9</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+80.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-slate-400'>-</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>chatgpt.com</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>5</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+150.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-blue-600'>+25.0%</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>mpointadmin.hyundaicard.com</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>4</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-20.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-slate-400'>-</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>m.search.daum.net</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>2</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+100.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-slate-400'>-</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>(not set)</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-orange-700'>-50.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-slate-400'>-</div></td></tr><tr class=' paid-extra hidden'><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'>kakao</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>1</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>0.00%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right'>-</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium'><div class='text-right text-blue-600'>+0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-medium pr-4'><div class='text-right text-slate-400'>-</div></td></tr><tr class='bg-slate-50 '><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'>Total</td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>4,259</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>43</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>₩5,178,245</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>1.01%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>₩0</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right'>0.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold'><div class='text-right text-orange-700'>-7.0%</div></td><td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap font-extrabold pr-4'><div class='text-right text-blue-600'>+24.0%</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="mt-3 flex justify-end">
+        <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Show more</button>
+      </div>
+    </div>
+
+    <div class="mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Trend (Index)</div>
+        <div class="flex flex-wrap items-center gap-2"><button type='button' data-trend-tab='7d' class='trend-tab rounded-full border px-3 py-1 text-xs font-extrabold border-slate-900 bg-slate-900 text-white'>7D</button><button type='button' data-trend-tab='14d' class='trend-tab rounded-full border px-3 py-1 text-xs font-extrabold border-slate-200 bg-white text-slate-500 hover:bg-slate-50'>14D</button><button type='button' data-trend-tab='1m' class='trend-tab rounded-full border px-3 py-1 text-xs font-extrabold border-slate-200 bg-white text-slate-500 hover:bg-slate-50'>1M</button></div>
+      </div>
+      <div data-trend-panel='7d' class='trend-panel mt-3 is-active'><svg class='trend-chart chart-animate' width='100%' viewBox='0 0 980 280' preserveAspectRatio='none' style='display:block;'><rect x='811.0' y='18' width='153.0' height='200.0' fill='#eff6ff' opacity='0.35'/><line class='trend-grid' style='animation-delay:0.00s' x1='46' y1='218.0' x2='964' y2='218.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.04s' x1='46' y1='178.0' x2='964' y2='178.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.08s' x1='46' y1='138.0' x2='964' y2='138.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.12s' x1='46' y1='98.0' x2='964' y2='98.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.16s' x1='46' y1='58.0' x2='964' y2='58.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.20s' x1='46' y1='18.0' x2='964' y2='18.0' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='18' x2='46' y2='218' stroke='#c7d2fe' stroke-width='1'/><line x1='46' y1='218' x2='964' y2='218' stroke='#c7d2fe' stroke-width='1'/><polyline class='trend-line trend-line-1' style='animation-delay:0.18s' fill='none' stroke='#0055a5' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,146.8 199.0,165.4 352.0,131.8 505.0,34.9 658.0,150.5 811.0,138.1 964.0,135.2'/><polyline class='trend-line trend-line-2' style='animation-delay:0.32s' fill='none' stroke='#16a34a' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,146.8 199.0,149.1 352.0,152.0 505.0,144.7 658.0,204.4 811.0,173.6 964.0,156.5'/><polyline class='trend-line trend-line-3' style='animation-delay:0.46s' fill='none' stroke='#c2410c' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,146.8 199.0,149.6 352.0,152.9 505.0,192.9 658.0,160.2 811.0,138.8 964.0,121.2'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.34s' cx='46.0' cy='146.8' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.37s' cx='199.0' cy='165.4' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.39s' cx='352.0' cy='131.8' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.42s' cx='505.0' cy='34.9' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.44s' cx='658.0' cy='150.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.47s' cx='811.0' cy='138.1' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.49s' cx='964.0' cy='135.2' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.46s' cx='46.0' cy='146.8' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.49s' cx='199.0' cy='149.1' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.51s' cx='352.0' cy='152.0' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.54s' cx='505.0' cy='144.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.56s' cx='658.0' cy='204.4' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.58s' cx='811.0' cy='173.6' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.61s' cx='964.0' cy='156.5' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.58s' cx='46.0' cy='146.8' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.61s' cx='199.0' cy='149.6' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.63s' cx='352.0' cy='152.9' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.66s' cx='505.0' cy='192.9' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.68s' cx='658.0' cy='160.2' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.71s' cx='811.0' cy='138.8' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.73s' cx='964.0' cy='121.2' r='2.3' fill='#c2410c'/><text x='38' y='221.0' text-anchor='end' font-size='10' fill='#6b7280'>74</text><text x='38' y='181.0' text-anchor='end' font-size='10' fill='#6b7280'>89</text><text x='38' y='141.0' text-anchor='end' font-size='10' fill='#6b7280'>103</text><text x='38' y='101.0' text-anchor='end' font-size='10' fill='#6b7280'>118</text><text x='38' y='61.0' text-anchor='end' font-size='10' fill='#6b7280'>133</text><text x='38' y='21.0' text-anchor='end' font-size='10' fill='#6b7280'>147</text><text x='46.0' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='46.0' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>M</text><text x='199.0' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='199.0' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='352.0' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='352.0' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>W</text><text x='505.0' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='505.0' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='658.0' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='658.0' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>F</text><text x='811.0' y='236' text-anchor='middle' font-size='9' fill='#2563eb'>03/14</text><text x='811.0' y='249' text-anchor='middle' font-size='9' fill='#2563eb'>S</text><text x='964.0' y='236' text-anchor='middle' font-size='9' fill='#dc2626'>03/15</text><text x='964.0' y='249' text-anchor='middle' font-size='9' fill='#dc2626'>S</text><text x='46' y='272' font-size='10' fill='#94a3b8'>Index (D-7 start = 100)</text><g transform='translate(46,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#0055a5' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Sessions</text></g><g transform='translate(211,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#16a34a' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Revenue</text></g><g transform='translate(376,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#c2410c' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>CVR</text></g></svg></div><div data-trend-panel='14d' class='trend-panel mt-3 hidden'><svg class='trend-chart chart-animate' width='100%' viewBox='0 0 980 280' preserveAspectRatio='none' style='display:block;'><rect x='399.1' y='18' width='70.6' height='200.0' fill='#eff6ff' opacity='0.35'/><rect x='469.7' y='18' width='70.6' height='200.0' fill='#fef2f2' opacity='0.35'/><rect x='893.4' y='18' width='70.6' height='200.0' fill='#eff6ff' opacity='0.35'/><line class='trend-grid' style='animation-delay:0.00s' x1='46' y1='218.0' x2='964' y2='218.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.04s' x1='46' y1='178.0' x2='964' y2='178.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.08s' x1='46' y1='138.0' x2='964' y2='138.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.12s' x1='46' y1='98.0' x2='964' y2='98.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.16s' x1='46' y1='58.0' x2='964' y2='58.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.20s' x1='46' y1='18.0' x2='964' y2='18.0' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='18' x2='46' y2='218' stroke='#c7d2fe' stroke-width='1'/><line x1='46' y1='218' x2='964' y2='218' stroke='#c7d2fe' stroke-width='1'/><polyline class='trend-line trend-line-1' style='animation-delay:0.18s' fill='none' stroke='#0055a5' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,165.5 116.6,204.4 187.2,150.4 257.8,182.5 328.5,189.0 399.1,177.5 469.7,163.9 540.3,172.9 610.9,187.2 681.5,161.5 752.2,87.2 822.8,175.8 893.4,166.3 964.0,164.1'/><polyline class='trend-line trend-line-2' style='animation-delay:0.32s' fill='none' stroke='#16a34a' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,165.5 116.6,146.5 187.2,34.9 257.8,158.2 328.5,179.8 399.1,192.7 469.7,110.6 540.3,117.7 610.9,119.9 681.5,122.7 752.2,115.6 822.8,173.6 893.4,143.7 964.0,127.1'/><polyline class='trend-line trend-line-3' style='animation-delay:0.46s' fill='none' stroke='#c2410c' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,165.5 116.6,132.0 187.2,118.3 257.8,167.8 328.5,165.0 399.1,173.1 469.7,109.7 540.3,125.8 610.9,128.4 681.5,131.5 752.2,169.2 822.8,138.4 893.4,118.2 964.0,101.8'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.34s' cx='46.0' cy='165.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.37s' cx='116.6' cy='204.4' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.39s' cx='187.2' cy='150.4' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.42s' cx='257.8' cy='182.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.44s' cx='328.5' cy='189.0' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.47s' cx='399.1' cy='177.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.49s' cx='469.7' cy='163.9' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.52s' cx='540.3' cy='172.9' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.54s' cx='610.9' cy='187.2' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.57s' cx='681.5' cy='161.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.59s' cx='752.2' cy='87.2' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.61s' cx='822.8' cy='175.8' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.64s' cx='893.4' cy='166.3' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.67s' cx='964.0' cy='164.1' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.46s' cx='46.0' cy='165.5' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.49s' cx='116.6' cy='146.5' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.51s' cx='187.2' cy='34.9' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.54s' cx='257.8' cy='158.2' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.56s' cx='328.5' cy='179.8' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.58s' cx='399.1' cy='192.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.61s' cx='469.7' cy='110.6' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.64s' cx='540.3' cy='117.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.66s' cx='610.9' cy='119.9' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.69s' cx='681.5' cy='122.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.71s' cx='752.2' cy='115.6' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.74s' cx='822.8' cy='173.6' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.76s' cx='893.4' cy='143.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.79s' cx='964.0' cy='127.1' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.58s' cx='46.0' cy='165.5' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.61s' cx='116.6' cy='132.0' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.63s' cx='187.2' cy='118.3' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.66s' cx='257.8' cy='167.8' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.68s' cx='328.5' cy='165.0' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.71s' cx='399.1' cy='173.1' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.73s' cx='469.7' cy='109.7' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.76s' cx='540.3' cy='125.8' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.78s' cx='610.9' cy='128.4' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.81s' cx='681.5' cy='131.5' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.83s' cx='752.2' cy='169.2' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.86s' cx='822.8' cy='138.4' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.88s' cx='893.4' cy='118.2' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.91s' cx='964.0' cy='101.8' r='2.3' fill='#c2410c'/><text x='38' y='221.0' text-anchor='end' font-size='10' fill='#6b7280'>76</text><text x='38' y='181.0' text-anchor='end' font-size='10' fill='#6b7280'>94</text><text x='38' y='141.0' text-anchor='end' font-size='10' fill='#6b7280'>113</text><text x='38' y='101.0' text-anchor='end' font-size='10' fill='#6b7280'>131</text><text x='38' y='61.0' text-anchor='end' font-size='10' fill='#6b7280'>150</text><text x='38' y='21.0' text-anchor='end' font-size='10' fill='#6b7280'>168</text><text x='46.0' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/02</text><text x='46.0' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>M</text><text x='116.6' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/03</text><text x='116.6' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='187.2' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/04</text><text x='187.2' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>W</text><text x='257.8' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/05</text><text x='257.8' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='328.5' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/06</text><text x='328.5' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>F</text><text x='399.1' y='236' text-anchor='middle' font-size='9' fill='#2563eb'>03/07</text><text x='399.1' y='249' text-anchor='middle' font-size='9' fill='#2563eb'>S</text><text x='469.7' y='236' text-anchor='middle' font-size='9' fill='#dc2626'>03/08</text><text x='469.7' y='249' text-anchor='middle' font-size='9' fill='#dc2626'>S</text><text x='540.3' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='540.3' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>M</text><text x='610.9' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='610.9' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='681.5' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='681.5' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>W</text><text x='752.2' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='752.2' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='822.8' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='822.8' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>F</text><text x='893.4' y='236' text-anchor='middle' font-size='9' fill='#2563eb'>03/14</text><text x='893.4' y='249' text-anchor='middle' font-size='9' fill='#2563eb'>S</text><text x='964.0' y='236' text-anchor='middle' font-size='9' fill='#dc2626'>03/15</text><text x='964.0' y='249' text-anchor='middle' font-size='9' fill='#dc2626'>S</text><text x='46' y='272' font-size='10' fill='#94a3b8'>Index (D-14 start = 100)</text><g transform='translate(46,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#0055a5' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Sessions</text></g><g transform='translate(211,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#16a34a' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Revenue</text></g><g transform='translate(376,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#c2410c' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>CVR</text></g></svg></div><div data-trend-panel='1m' class='trend-panel mt-3 hidden'><svg class='trend-chart chart-animate' width='100%' viewBox='0 0 980 280' preserveAspectRatio='none' style='display:block;'><rect x='46.0' y='18' width='31.7' height='200.0' fill='#eff6ff' opacity='0.35'/><rect x='77.7' y='18' width='31.7' height='200.0' fill='#fef2f2' opacity='0.35'/><rect x='267.6' y='18' width='31.7' height='200.0' fill='#eff6ff' opacity='0.35'/><rect x='299.2' y='18' width='31.7' height='200.0' fill='#fef2f2' opacity='0.35'/><rect x='489.2' y='18' width='31.7' height='200.0' fill='#eff6ff' opacity='0.35'/><rect x='520.8' y='18' width='31.7' height='200.0' fill='#fef2f2' opacity='0.35'/><rect x='710.8' y='18' width='31.7' height='200.0' fill='#eff6ff' opacity='0.35'/><rect x='742.4' y='18' width='31.7' height='200.0' fill='#fef2f2' opacity='0.35'/><rect x='932.3' y='18' width='31.7' height='200.0' fill='#eff6ff' opacity='0.35'/><line class='trend-grid' style='animation-delay:0.00s' x1='46' y1='218.0' x2='964' y2='218.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.04s' x1='46' y1='178.0' x2='964' y2='178.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.08s' x1='46' y1='138.0' x2='964' y2='138.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.12s' x1='46' y1='98.0' x2='964' y2='98.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.16s' x1='46' y1='58.0' x2='964' y2='58.0' stroke='#eef2ff' stroke-width='1'/><line class='trend-grid' style='animation-delay:0.20s' x1='46' y1='18.0' x2='964' y2='18.0' stroke='#eef2ff' stroke-width='1'/><line x1='46' y1='18' x2='46' y2='218' stroke='#c7d2fe' stroke-width='1'/><line x1='46' y1='218' x2='964' y2='218' stroke='#c7d2fe' stroke-width='1'/><polyline class='trend-line trend-line-1' style='animation-delay:0.18s' fill='none' stroke='#0055a5' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,153.0 77.7,174.9 109.3,178.7 141.0,169.4 172.6,172.3 204.3,173.2 235.9,175.4 267.6,180.1 299.2,154.9 330.9,173.8 362.6,181.3 394.2,182.2 425.9,145.5 457.5,163.1 489.2,164.8 520.8,161.5 552.5,160.3 584.1,170.6 615.8,156.3 647.4,164.8 679.1,166.5 710.8,163.5 742.4,159.9 774.1,162.3 805.7,166.0 837.4,159.2 869.0,139.6 900.7,163.0 932.3,160.5 964.0,159.9'/><polyline class='trend-line trend-line-2' style='animation-delay:0.32s' fill='none' stroke='#16a34a' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,153.0 77.7,184.2 109.3,178.1 141.0,161.8 172.6,160.5 204.3,170.7 235.9,181.9 267.6,185.3 299.2,64.1 330.9,186.9 362.6,198.3 394.2,194.1 425.9,191.0 457.5,191.3 489.2,189.6 520.8,192.4 552.5,194.5 584.1,192.5 615.8,180.7 647.4,193.7 679.1,196.0 710.8,197.3 742.4,188.7 774.1,189.4 805.7,189.7 837.4,190.0 869.0,189.2 900.7,195.3 932.3,192.2 964.0,190.4'/><polyline class='trend-line trend-line-3' style='animation-delay:0.46s' fill='none' stroke='#c2410c' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='46.0,153.0 77.7,172.5 109.3,170.6 141.0,125.8 172.6,151.9 204.3,162.4 235.9,179.4 267.6,180.1 299.2,34.9 330.9,192.7 362.6,199.2 394.2,194.5 425.9,203.9 457.5,201.8 489.2,199.0 520.8,203.2 552.5,204.0 584.1,201.9 615.8,201.1 647.4,204.1 679.1,203.9 710.8,204.4 742.4,200.5 774.1,201.5 805.7,201.7 837.4,201.9 869.0,204.2 900.7,202.3 932.3,201.1 964.0,200.0'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.34s' cx='46.0' cy='153.0' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.37s' cx='77.7' cy='174.9' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.39s' cx='109.3' cy='178.7' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.42s' cx='141.0' cy='169.4' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.44s' cx='172.6' cy='172.3' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.47s' cx='204.3' cy='173.2' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.49s' cx='235.9' cy='175.4' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.52s' cx='267.6' cy='180.1' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.54s' cx='299.2' cy='154.9' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.57s' cx='330.9' cy='173.8' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.59s' cx='362.6' cy='181.3' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.61s' cx='394.2' cy='182.2' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.64s' cx='425.9' cy='145.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.67s' cx='457.5' cy='163.1' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.69s' cx='489.2' cy='164.8' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.72s' cx='520.8' cy='161.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.74s' cx='552.5' cy='160.3' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.77s' cx='584.1' cy='170.6' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.79s' cx='615.8' cy='156.3' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.82s' cx='647.4' cy='164.8' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.84s' cx='679.1' cy='166.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.86s' cx='710.8' cy='163.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.89s' cx='742.4' cy='159.9' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.92s' cx='774.1' cy='162.3' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.94s' cx='805.7' cy='166.0' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.97s' cx='837.4' cy='159.2' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:0.99s' cx='869.0' cy='139.6' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:1.02s' cx='900.7' cy='163.0' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:1.04s' cx='932.3' cy='160.5' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-1' style='animation-delay:1.07s' cx='964.0' cy='159.9' r='2.3' fill='#0055a5'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.46s' cx='46.0' cy='153.0' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.49s' cx='77.7' cy='184.2' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.51s' cx='109.3' cy='178.1' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.54s' cx='141.0' cy='161.8' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.56s' cx='172.6' cy='160.5' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.58s' cx='204.3' cy='170.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.61s' cx='235.9' cy='181.9' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.64s' cx='267.6' cy='185.3' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.66s' cx='299.2' cy='64.1' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.69s' cx='330.9' cy='186.9' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.71s' cx='362.6' cy='198.3' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.74s' cx='394.2' cy='194.1' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.76s' cx='425.9' cy='191.0' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.79s' cx='457.5' cy='191.3' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.81s' cx='489.2' cy='189.6' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.83s' cx='520.8' cy='192.4' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.86s' cx='552.5' cy='194.5' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.89s' cx='584.1' cy='192.5' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.91s' cx='615.8' cy='180.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.94s' cx='647.4' cy='193.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.96s' cx='679.1' cy='196.0' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:0.99s' cx='710.8' cy='197.3' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:1.01s' cx='742.4' cy='188.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:1.04s' cx='774.1' cy='189.4' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:1.06s' cx='805.7' cy='189.7' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:1.08s' cx='837.4' cy='190.0' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:1.11s' cx='869.0' cy='189.2' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:1.14s' cx='900.7' cy='195.3' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:1.16s' cx='932.3' cy='192.2' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-2' style='animation-delay:1.19s' cx='964.0' cy='190.4' r='2.3' fill='#16a34a'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.58s' cx='46.0' cy='153.0' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.61s' cx='77.7' cy='172.5' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.63s' cx='109.3' cy='170.6' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.66s' cx='141.0' cy='125.8' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.68s' cx='172.6' cy='151.9' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.71s' cx='204.3' cy='162.4' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.73s' cx='235.9' cy='179.4' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.76s' cx='267.6' cy='180.1' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.78s' cx='299.2' cy='34.9' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.81s' cx='330.9' cy='192.7' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.83s' cx='362.6' cy='199.2' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.86s' cx='394.2' cy='194.5' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.88s' cx='425.9' cy='203.9' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.91s' cx='457.5' cy='201.8' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.93s' cx='489.2' cy='199.0' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.96s' cx='520.8' cy='203.2' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:0.98s' cx='552.5' cy='204.0' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.01s' cx='584.1' cy='201.9' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.03s' cx='615.8' cy='201.1' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.06s' cx='647.4' cy='204.1' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.08s' cx='679.1' cy='203.9' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.10s' cx='710.8' cy='204.4' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.13s' cx='742.4' cy='200.5' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.16s' cx='774.1' cy='201.5' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.18s' cx='805.7' cy='201.7' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.21s' cx='837.4' cy='201.9' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.23s' cx='869.0' cy='204.2' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.26s' cx='900.7' cy='202.3' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.28s' cx='932.3' cy='201.1' r='2.3' fill='#c2410c'/><circle class='trend-dot trend-dot-3' style='animation-delay:1.31s' cx='964.0' cy='200.0' r='2.3' fill='#c2410c'/><text x='38' y='221.0' text-anchor='end' font-size='10' fill='#6b7280'>-1</text><text x='38' y='181.0' text-anchor='end' font-size='10' fill='#6b7280'>61</text><text x='38' y='141.0' text-anchor='end' font-size='10' fill='#6b7280'>123</text><text x='38' y='101.0' text-anchor='end' font-size='10' fill='#6b7280'>186</text><text x='38' y='61.0' text-anchor='end' font-size='10' fill='#6b7280'>248</text><text x='38' y='21.0' text-anchor='end' font-size='10' fill='#6b7280'>310</text><text x='46.0' y='236' text-anchor='middle' font-size='9' fill='#2563eb'>02/14</text><text x='46.0' y='249' text-anchor='middle' font-size='9' fill='#2563eb'>S</text><text x='77.7' y='236' text-anchor='middle' font-size='9' fill='#dc2626'>02/15</text><text x='77.7' y='249' text-anchor='middle' font-size='9' fill='#dc2626'>S</text><text x='109.3' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/16</text><text x='109.3' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>M</text><text x='141.0' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/17</text><text x='141.0' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='172.6' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/18</text><text x='172.6' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>W</text><text x='204.3' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/19</text><text x='204.3' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='235.9' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/20</text><text x='235.9' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>F</text><text x='267.6' y='236' text-anchor='middle' font-size='9' fill='#2563eb'>02/21</text><text x='267.6' y='249' text-anchor='middle' font-size='9' fill='#2563eb'>S</text><text x='299.2' y='236' text-anchor='middle' font-size='9' fill='#dc2626'>02/22</text><text x='299.2' y='249' text-anchor='middle' font-size='9' fill='#dc2626'>S</text><text x='330.9' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/23</text><text x='330.9' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>M</text><text x='362.6' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/24</text><text x='362.6' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='394.2' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/25</text><text x='394.2' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>W</text><text x='425.9' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/26</text><text x='425.9' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='457.5' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>02/27</text><text x='457.5' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>F</text><text x='489.2' y='236' text-anchor='middle' font-size='9' fill='#2563eb'>02/28</text><text x='489.2' y='249' text-anchor='middle' font-size='9' fill='#2563eb'>S</text><text x='520.8' y='236' text-anchor='middle' font-size='9' fill='#dc2626'>03/01</text><text x='520.8' y='249' text-anchor='middle' font-size='9' fill='#dc2626'>S</text><text x='552.5' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/02</text><text x='552.5' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>M</text><text x='584.1' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/03</text><text x='584.1' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='615.8' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/04</text><text x='615.8' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>W</text><text x='647.4' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/05</text><text x='647.4' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='679.1' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/06</text><text x='679.1' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>F</text><text x='710.8' y='236' text-anchor='middle' font-size='9' fill='#2563eb'>03/07</text><text x='710.8' y='249' text-anchor='middle' font-size='9' fill='#2563eb'>S</text><text x='742.4' y='236' text-anchor='middle' font-size='9' fill='#dc2626'>03/08</text><text x='742.4' y='249' text-anchor='middle' font-size='9' fill='#dc2626'>S</text><text x='774.1' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='774.1' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>M</text><text x='805.7' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/10</text><text x='805.7' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='837.4' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='837.4' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>W</text><text x='869.0' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='869.0' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>T</text><text x='900.7' y='236' text-anchor='middle' font-size='9' fill='#6b7280'>03/13</text><text x='900.7' y='249' text-anchor='middle' font-size='9' fill='#6b7280'>F</text><text x='932.3' y='236' text-anchor='middle' font-size='9' fill='#2563eb'>03/14</text><text x='932.3' y='249' text-anchor='middle' font-size='9' fill='#2563eb'>S</text><text x='964.0' y='236' text-anchor='middle' font-size='9' fill='#dc2626'>03/15</text><text x='964.0' y='249' text-anchor='middle' font-size='9' fill='#dc2626'>S</text><text x='46' y='272' font-size='10' fill='#94a3b8'>Index (D-30 start = 100)</text><g transform='translate(46,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#0055a5' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Sessions</text></g><g transform='translate(211,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#16a34a' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>Revenue</text></g><g transform='translate(376,8)'><line x1='0' y1='8' x2='18' y2='8' stroke='#c2410c' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>CVR</text></g></svg></div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 5)</div>
+        <div class="mt-3 space-y-2">
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C65BM0944081.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">TERRASTRIDE SLR</div>
+                <div class="text-xs text-slate-500">C65BM0944081 · Qty 3 · Views 14</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="240" height="70" viewBox="0 0 240 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='230' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='230' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='230' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='230' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,44.3 197.7,44.3 230.0,13.7 230.0,48.0" fill="#0055a5" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0055a5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,44.3 197.7,44.3 230.0,13.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.26s' cx='68.3' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.30s' cx='100.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.34s' cx='133.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.38s' cx='165.3' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.42s' cx='197.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.46s' cx='230.0' cy='13.7' r='2.8' fill='#0055a5'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>3</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>2</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='133.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='230.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C54YM3496211.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">Ms Hike Bowl Cove™ Fleece Jacket</div>
+                <div class="text-xs text-slate-500">C54YM3496211 · Qty 2 · Views 12</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="240" height="70" viewBox="0 0 240 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='230' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='230' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='230' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='230' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,44.3 197.7,44.3 230.0,13.7 230.0,48.0" fill="#0055a5" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0055a5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,44.3 197.7,44.3 230.0,13.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.26s' cx='68.3' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.30s' cx='100.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.34s' cx='133.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.38s' cx='165.3' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.42s' cx='197.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.46s' cx='230.0' cy='13.7' r='2.8' fill='#0055a5'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='133.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='230.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C54YM8496211.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">Ms Hike Bowl Cove™ Fleece Jogger Pants</div>
+                <div class="text-xs text-slate-500">C54YM8496211 · Qty 2 · Views 9</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="240" height="70" viewBox="0 0 240 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='230' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='230' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='230' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='230' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,29.0 197.7,44.3 230.0,13.7 230.0,48.0" fill="#0055a5" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0055a5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,29.0 197.7,44.3 230.0,13.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.26s' cx='68.3' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.30s' cx='100.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.34s' cx='133.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.38s' cx='165.3' cy='29.0' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.42s' cx='197.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.46s' cx='230.0' cy='13.7' r='2.8' fill='#0055a5'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='133.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='230.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C61YM8506010.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">M’s Caney Cove Jogger Pants</div>
+                <div class="text-xs text-slate-500">C61YM8506010 · Qty 2 · Views 20</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="240" height="70" viewBox="0 0 240 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='230' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='230' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='230' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='230' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,44.3 197.7,44.3 230.0,13.7 230.0,48.0" fill="#0055a5" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0055a5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,44.3 197.7,44.3 230.0,13.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.26s' cx='68.3' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.30s' cx='100.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.34s' cx='133.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.38s' cx='165.3' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.42s' cx='197.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.46s' cx='230.0' cy='13.7' r='2.8' fill='#0055a5'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='133.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='230.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <img src='https://assetscdn49.styleship.com/assets/columbia/data/ProductImages/a/4/C62XE2326010.jpg' class='w-8 h-8 rounded-xl object-cover border border-slate-200'/>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">Clearmont II Jacket</div>
+                <div class="text-xs text-slate-500">C62XE2326010 · Qty 2 · Views 46</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="240" height="70" viewBox="0 0 240 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='230' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='230' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='230' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='230' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,29.0 197.7,44.3 230.0,13.7 230.0,48.0" fill="#0055a5" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0055a5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 68.3,44.3 100.7,44.3 133.0,44.3 165.3,29.0 197.7,44.3 230.0,13.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.26s' cx='68.3' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.30s' cx='100.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.34s' cx='133.0' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.38s' cx='165.3' cy='29.0' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.42s' cx='197.7' cy='44.3' r='2.8' fill='#0055a5'/><circle class='mini-dot' style='animation-delay:0.46s' cx='230.0' cy='13.7' r='2.8' fill='#0055a5'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='133.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='230.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products (Top 5)</div>
+        <div class="mt-3 space-y-2">
+            <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class='w-8 h-8 rounded-xl bg-slate-100 border border-slate-200'></div>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">18 oz SS Coffee Vacuum Bottle</div>
+                <div class="text-xs text-slate-500">C46RUS001191 · Qty 2 · Views 33</div>
+              </div>
+              <div class="text-sm font-black text-blue-600">Qty ? +1</div>
+            </div>
+            </div>
+      </div>
+    </div>
+
+    <div class="mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend (Category)</div>
+      <div class="mt-3 space-y-2">
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Padding/Slim Down</div>
+                <div class="text-xs text-slate-500">D1 447 · 7D Avg 369</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,30.5 71.7,37.8 107.3,44.3 143.0,18.6 178.7,25.5 214.3,21.6 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,30.5 71.7,37.8 107.3,44.3 143.0,18.6 178.7,25.5 214.3,21.6 250.0,13.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='30.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='37.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='18.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='25.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='21.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>447</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>360</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>274</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Mid/Heavy Down</div>
+                <div class="text-xs text-slate-500">D1 22 · 7D Avg 91</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,13.7 71.7,23.3 107.3,38.9 143.0,39.2 178.7,44.1 214.3,44.3 250.0,43.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,13.7 71.7,23.3 107.3,38.9 143.0,39.2 178.7,44.1 214.3,44.3 250.0,43.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='23.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='38.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='39.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='43.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>269</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>143</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>17</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Interchange</div>
+                <div class="text-xs text-slate-500">D1 259 · 7D Avg 319</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,13.7 71.7,20.1 107.3,21.1 143.0,16.9 178.7,41.6 214.3,44.3 250.0,35.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,13.7 71.7,20.1 107.3,21.1 143.0,16.9 178.7,41.6 214.3,44.3 250.0,35.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='20.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='21.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='16.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='41.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='35.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>427</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>308</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>189</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Rain</div>
+                <div class="text-xs text-slate-500">D1 1,588 · 7D Avg 1,725</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,37.9 71.7,21.8 107.3,24.9 143.0,13.7 178.7,44.3 214.3,35.8 250.0,34.2 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,37.9 71.7,21.8 107.3,24.9 143.0,13.7 178.7,44.3 214.3,35.8 250.0,34.2"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='37.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='21.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='24.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='35.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='34.2' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2321</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1774</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1226</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">FLEECE · Fleece Pullover</div>
+                <div class="text-xs text-slate-500">D1 122 · 7D Avg 133</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,26.9 71.7,13.7 107.3,40.1 143.0,36.3 178.7,30.2 214.3,44.3 250.0,38.2 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,26.9 71.7,13.7 107.3,40.1 143.0,36.3 178.7,30.2 214.3,44.3 250.0,38.2"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='26.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='40.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='36.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='30.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='38.2' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>174</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>142</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>109</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">FLEECE · Jacket</div>
+                <div class="text-xs text-slate-500">D1 29 · 7D Avg 30</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,13.7 71.7,43.5 107.3,44.3 143.0,38.8 178.7,30.2 214.3,34.1 250.0,34.9 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,13.7 71.7,43.5 107.3,44.3 143.0,38.8 178.7,30.2 214.3,34.1 250.0,34.9"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='43.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='38.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='30.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='34.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='34.9' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>56</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>36</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>17</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Fleece Top</div>
+                <div class="text-xs text-slate-500">D1 0 · 7D Avg 0</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 71.7,44.3 107.3,44.3 143.0,13.7 178.7,13.7 214.3,44.3 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 71.7,44.3 107.3,44.3 143.0,13.7 178.7,13.7 214.3,44.3 250.0,44.3"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Round T-shirt</div>
+                <div class="text-xs text-slate-500">D1 936 · 7D Avg 766</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,43.3 71.7,44.3 107.3,32.3 143.0,13.7 178.7,31.1 214.3,27.1 250.0,22.2 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,43.3 71.7,44.3 107.3,32.3 143.0,13.7 178.7,31.1 214.3,27.1 250.0,22.2"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='43.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='32.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='31.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='27.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='22.2' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1109</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>798</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>486</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Polo/Zip Up</div>
+                <div class="text-xs text-slate-500">D1 291 · 7D Avg 297</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 71.7,33.6 107.3,39.7 143.0,13.7 178.7,39.7 214.3,26.9 250.0,33.9 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 71.7,33.6 107.3,39.7 143.0,13.7 178.7,39.7 214.3,26.9 250.0,33.9"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='33.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='39.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='39.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='26.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='33.9' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>451</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>330</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>208</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">PANTS · Pants</div>
+                <div class="text-xs text-slate-500">D1 911 · 7D Avg 887</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 71.7,41.5 107.3,32.1 143.0,13.7 178.7,42.8 214.3,36.1 250.0,34.0 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 71.7,41.5 107.3,32.1 143.0,13.7 178.7,42.8 214.3,36.1 250.0,34.0"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='41.5' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='32.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='42.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='36.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='34.0' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1432</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1039</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>646</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Boots</div>
+                <div class="text-xs text-slate-500">D1 9 · 7D Avg 9</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,44.3 71.7,31.6 107.3,13.7 143.0,29.0 178.7,29.0 214.3,41.8 250.0,31.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,44.3 71.7,31.6 107.3,13.7 143.0,29.0 178.7,29.0 214.3,41.8 250.0,31.6"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='31.6' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='29.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='29.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='41.8' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='31.6' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>16</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>10</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>4</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Omni-Max</div>
+                <div class="text-xs text-slate-500">D1 297 · 7D Avg 269</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,14.3 71.7,13.7 107.3,19.4 143.0,16.0 178.7,36.3 214.3,44.3 250.0,14.5 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,14.3 71.7,13.7 107.3,19.4 143.0,16.0 178.7,36.3 214.3,44.3 250.0,14.5"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='14.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='19.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='16.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='36.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='14.5' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>300</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>246</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>193</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Hiking</div>
+                <div class="text-xs text-slate-500">D1 994 · 7D Avg 896</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,14.1 71.7,28.0 107.3,13.7 143.0,29.4 178.7,44.3 214.3,44.2 250.0,20.1 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,14.1 71.7,28.0 107.3,13.7 143.0,29.4 178.7,44.3 214.3,44.2 250.0,20.1"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='14.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='28.0' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='29.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='44.2' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='20.1' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1078</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>879</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>680</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            
+            <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Sneakers</div>
+                <div class="text-xs text-slate-500">D1 410 · 7D Avg 328</div>
+              </div>
+              <div class="shrink-0">
+    <svg class="mini-chart chart-animate" width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      <line class='mini-grid' style='animation-delay:0.00s' x1='36' y1='48.0' x2='250' y2='48.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.03s' x1='36' y1='29.0' x2='250' y2='29.0' stroke='#eef2fb' stroke-width='1'/><line class='mini-grid' style='animation-delay:0.06s' x1='36' y1='10.0' x2='250' y2='10.0' stroke='#eef2fb' stroke-width='1'/>
+      
+      <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+      <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
+    
+      <polygon class="mini-area" points="36.0,48.0 36.0,30.1 71.7,44.3 107.3,32.9 143.0,27.9 178.7,32.4 214.3,15.1 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline class="mini-line" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="36.0,30.1 71.7,44.3 107.3,32.9 143.0,27.9 178.7,32.4 214.3,15.1 250.0,13.7"/>
+      <circle class='mini-dot' style='animation-delay:0.22s' cx='36.0' cy='30.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.26s' cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.30s' cx='107.3' cy='32.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.34s' cx='143.0' cy='27.9' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.38s' cx='178.7' cy='32.4' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.42s' cx='214.3' cy='15.1' r='2.8' fill='#0f766e'/><circle class='mini-dot' style='animation-delay:0.46s' cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>410</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>322</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>235</text>
+      <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/15</text>
+    </svg>
+    </div>
+            </div>
+            </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · New</div>
+        <div class="mt-3 space-y-2"><div class='flex justify-between text-sm'><span class='font-extrabold'>중등산화</span><span class='text-slate-500'>7</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>TRS</span><span class='text-slate-500'>5</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>낚시</span><span class='text-slate-500'>4</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>아이벡스</span><span class='text-slate-500'>4</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>3586</span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>우드</span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>옴니쉴드 봄 자켓 </span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>Tee</span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>upf</span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>8320</span><span class='text-slate-500'>3</span></div></div>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · Rising</div>
+        <div class="mt-3 space-y-2"><div class='flex justify-between text-sm'><span class='font-extrabold'>트래킹화</span><span class='text-slate-500'>8</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>락 다운</span><span class='text-slate-500'>5</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>뉴튼릿지</span><span class='text-slate-500'>10</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>타이거</span><span class='text-slate-500'>5</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>부가부</span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>3502</span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>더플백</span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>백</span><span class='text-slate-500'>3</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>헬베시아</span><span class='text-slate-500'>8</span></div><div class='flex justify-between text-sm'><span class='font-extrabold'>조끼</span><span class='text-slate-500'>6</span></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+(function(){
+  function navigateWithAnimation(url){
+    if(!url) return;
+    document.body.classList.add('page-exit');
+    window.setTimeout(()=>{ window.location.href = url; }, 300);
+  }
+
+  document.querySelectorAll('[data-nav-transition]').forEach((el)=>{
+    el.addEventListener('click', (event)=>{
+      const href = el.getAttribute('href');
+      if(!href || href === '#' || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      navigateWithAnimation(href);
+    });
+  });
+
+  const rootShell = document.querySelector('.report-shell');
+  if(rootShell){
+    rootShell.classList.add('is-entering');
+    window.setTimeout(()=> rootShell.classList.remove('is-entering'), 1200);
+  }
+
+  const btn = document.getElementById('paidToggle');
+  if(btn){
+    let on = false;
+    function setPaid(onNext){
+      on = !!onNext;
+      document.querySelectorAll('.paid-extra').forEach((el, idx)=>{
+        if(on){
+          el.classList.remove('hidden');
+          el.style.animationDelay = (0.04 * idx).toFixed(2) + 's';
+          el.classList.remove('is-visible');
+          void el.getBoundingClientRect();
+          el.classList.add('is-visible');
+        } else {
+          el.classList.add('hidden');
+        }
+      });
+      btn.textContent = on ? 'Show less' : 'Show more';
+    }
+    btn.addEventListener('click', ()=> setPaid(!on));
+    setPaid(false);
+  }
+
+  const trendBtns = Array.from(document.querySelectorAll('[data-trend-tab]'));
+  const trendPanels = Array.from(document.querySelectorAll('[data-trend-panel]'));
+
+  function restartCharts(scope){
+    if(!scope) return;
+    scope.querySelectorAll('.trend-chart, .mini-chart').forEach((chart, idx)=>{
+      chart.classList.remove('chart-animate');
+      void chart.getBoundingClientRect();
+      window.setTimeout(()=>{
+        chart.classList.add('chart-animate');
+      }, 24 + (idx * 36));
+    });
+  }
+
+  function animateKpiValue(el){
+    const finalText = (el.getAttribute('data-kpi-value') || el.textContent || '').trim();
+    if(!finalText) return;
+
+    if(el.dataset.animated === '1' && el.dataset.forceReplay !== '1') return;
+    el.dataset.animated = '1';
+    el.dataset.forceReplay = '0';
+
+    const isWon = finalText.includes('₩');
+    const endsWithPct = finalText.endsWith('%');
+    const raw = finalText.replace(/[^0-9.\-]/g, '');
+    const target = Number(raw);
+
+    if(!Number.isFinite(target)){
+      el.textContent = finalText;
+      return;
+    }
+
+    const decimals = (raw.split('.')[1] || '').length;
+    const duration = isWon ? 1100 : 980;
+    const startTs = performance.now();
+
+    function render(v){
+      if(isWon){
+        el.textContent = '₩' + Math.round(v).toLocaleString('en-US');
+      } else if(endsWithPct){
+        el.textContent = v.toFixed(Math.min(decimals, 2)) + '%';
+      } else {
+        el.textContent = Math.round(v).toLocaleString('en-US');
+      }
+    }
+
+    function tick(now){
+      const p = Math.min(1, (now - startTs) / duration);
+      const eased =
+        p < 0.72
+          ? 1 - Math.pow(1 - p / 0.72, 3)
+          : 1 - (Math.pow(1 - p, 2) * 0.08);
+      render(target * Math.min(eased, 1));
+      if(p < 1){
+        requestAnimationFrame(tick);
+      } else {
+        el.textContent = finalText;
+      }
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  function collectRevealTargets(){
+    const explicit = Array.from(document.querySelectorAll('.reveal-block, .kpi-card'));
+
+    const autoCards = Array.from(document.querySelectorAll(
+      '.rounded-2xl.border.border-slate-200.bg-white\/70.p-4, ' +
+      '.rounded-2xl.border.border-slate-200.bg-white.p-4, ' +
+      '.rounded-2xl.border.border-slate-200.bg-white.p-5, ' +
+      '.rounded-2xl.border.border-slate-200.bg-white\/80.p-4'
+    )).filter((el)=>{
+      if(el.classList.contains('kpi-card')) return false;
+      if(el.classList.contains('reveal-block')) return false;
+      if(el.closest('.kpi-card')) return false;
+      return true;
+    });
+
+    autoCards.forEach((el)=> el.classList.add('auto-reveal-card'));
+
+    return Array.from(new Set([
+      ...explicit,
+      ...autoCards
+    ]));
+  }
+
+  const revealTargets = collectRevealTargets();
+
+  revealTargets.forEach((el, idx)=>{
+    el.dataset.revealDelay = String(Math.min(idx * 85, 900));
+  });
+
+  function revealElement(el, forceReplay){
+    if(!el) return;
+
+    if(forceReplay){
+      el.classList.remove('is-visible');
+      void el.getBoundingClientRect();
+      const valueEl = el.querySelector('.kpi-value');
+      if(valueEl){
+        valueEl.dataset.animated = '0';
+        valueEl.dataset.forceReplay = '1';
+      }
+    } else if(el.classList.contains('is-visible')){
+      return;
+    }
+
+    window.setTimeout(()=>{
+      el.classList.add('is-visible');
+
+      el.querySelectorAll('.kpi-value').forEach((node)=>{
+        if(forceReplay){
+          node.dataset.animated = '0';
+          node.dataset.forceReplay = '1';
+        }
+        animateKpiValue(node);
+      });
+    }, Number(el.dataset.revealDelay || 0));
+  }
+
+  function revealVisibleNow(forceReplay){
+    revealTargets.forEach((el, idx)=>{
+      const rect = el.getBoundingClientRect();
+      if(rect.top < window.innerHeight * 0.96 && rect.bottom > 0){
+        el.dataset.revealDelay = String(Math.min(idx * 70, 700));
+        revealElement(el, forceReplay);
+      }
+    });
+  }
+
+  if('IntersectionObserver' in window){
+    const io = new IntersectionObserver((entries)=>{
+      entries.forEach((entry)=>{
+        if(entry.isIntersecting){
+          revealElement(entry.target, false);
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.10, rootMargin: '0px 0px -4% 0px' });
+
+    revealTargets.forEach((el)=>{
+      io.observe(el);
+    });
+
+    window.requestAnimationFrame(()=>{
+      revealVisibleNow(false);
+    });
+  } else {
+    revealTargets.forEach((el, idx)=>{
+      el.dataset.revealDelay = String(Math.min(idx * 70, 700));
+      revealElement(el, false);
+    });
+  }
+
+  function setTrend(target){
+    trendBtns.forEach((el)=>{
+      const active = el.getAttribute('data-trend-tab') === target;
+      el.classList.toggle('border-slate-900', active);
+      el.classList.toggle('bg-slate-900', active);
+      el.classList.toggle('text-white', active);
+      el.classList.toggle('border-slate-200', !active);
+      el.classList.toggle('bg-white', !active);
+      el.classList.toggle('text-slate-500', !active);
+
+      if(active){
+        el.style.transform = 'translateY(-2px) scale(1.03)';
+        window.setTimeout(()=>{ el.style.transform = ''; }, 220);
+      }
+    });
+
+    trendPanels.forEach((el)=>{
+      const active = el.getAttribute('data-trend-panel') === target;
+      if(active){
+        el.classList.remove('hidden');
+        el.classList.remove('is-active');
+        void el.getBoundingClientRect();
+        el.classList.add('is-active');
+        restartCharts(el);
+
+        el.querySelectorAll('.auto-reveal-card, .reveal-block, .kpi-card').forEach((card, idx)=>{
+          card.dataset.revealDelay = String(Math.min(idx * 60, 360));
+          revealElement(card, true);
+        });
+        window.setTimeout(()=>{ try{ notifyParentHeight(); }catch(_e){} }, 120);
+        window.setTimeout(()=>{ try{ notifyParentHeight(); }catch(_e){} }, 520);
+      } else {
+        el.classList.add('hidden');
+        el.classList.remove('is-active');
+      }
+    });
+  }
+
+  trendBtns.forEach((el)=>{
+    el.addEventListener('click', ()=>{
+      setTrend(el.getAttribute('data-trend-tab'));
+    });
+  });
+
+  if(trendBtns.length){
+    setTrend(trendBtns[0].getAttribute('data-trend-tab'));
+  }
+
+  function notifyParentHeight(){
+    try{
+      const h = Math.max(
+        document.body ? document.body.scrollHeight : 0,
+        document.documentElement ? document.documentElement.scrollHeight : 0,
+        document.body ? document.body.offsetHeight : 0,
+        document.documentElement ? document.documentElement.offsetHeight : 0
+      );
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage({ type: 'dailyDigestResize', height: h }, '*');
+      }
+    }catch(_e){}
+  }
+
+  window.addEventListener('pageshow', ()=>{
+    window.setTimeout(()=>{
+      revealVisibleNow(true);
+      notifyParentHeight();
+      window.setTimeout(notifyParentHeight, 220);
+      window.setTimeout(notifyParentHeight, 900);
+    }, 90);
+  });
+
+  window.addEventListener('load', ()=>{
+    window.setTimeout(()=>{
+      revealVisibleNow(true);
+      notifyParentHeight();
+      window.setTimeout(notifyParentHeight, 220);
+      window.setTimeout(notifyParentHeight, 900);
+    }, 120);
+  });
+
+  window.addEventListener('resize', notifyParentHeight);
+  window.setInterval(notifyParentHeight, 1500);
+})();
+</script>
+
+</body>
+</html>
