@@ -16,6 +16,7 @@ OWNED Campaign → Product Explorer (GA4 BigQuery Export)
    - items_purchased = SUM(items.quantity)
 6) ✅ purchases는 transaction_id distinct 우선(중복 purchase event 방지), 없으면 event count fallback
 7) ✅ recent-days의 end는 KST 전일(yesterday) 기준
+8) ✅ KAKAO send count strict rule: only KAKAO_CH_EVENT campaign + KAKAO_CH_MESSAGE_YYYYMMDD term are countable; KAKAO_CH_MENU_* excluded
 """
 
 from __future__ import annotations
@@ -701,91 +702,6 @@ def list_owned_dates(owned_dir: Path) -> List[str]:
     return sorted(set(dates))
 
 
-def _row_bool(v: Any) -> bool:
-    if isinstance(v, bool):
-        return v
-    s = str(v or "").strip().lower()
-    return s in {"1", "true", "t", "y", "yes"}
-
-
-def is_visible_mmdd_row(row: Dict[str, Any]) -> bool:
-    row = row or {}
-    if not _row_bool(row.get("has_group_mmdd")):
-        return False
-
-    year = str(row.get("year") or "").strip()
-    mmdd = str(row.get("mmdd") or "").strip()
-    if not re.fullmatch(r"\d{4}", year) or not re.fullmatch(r"\d{4}", mmdd):
-        return False
-
-    channel = str(row.get("channel") or "").strip().upper()
-    campaign = str(row.get("campaign") or "").strip().upper()
-    term = str(row.get("term") or "").strip().upper()
-
-    if channel == "KAKAO":
-        if "KAKAO_CH_MENU" in campaign or "KAKAO_CH_MENU" in term:
-            return False
-        return campaign.startswith("KAKAO_CH_EVENT") and term.startswith("KAKAO_CH_MESSAGE_")
-
-    return True
-
-
-def build_portal_meta(owned_dir: Path, latest_bundle: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    available_dates = list_owned_dates(owned_dir)
-    latest_date = available_dates[-1] if available_dates else ""
-
-    bundle = latest_bundle or {}
-    if latest_date and not bundle:
-        latest_path = owned_dir / f"owned_{latest_date}.json"
-        if latest_path.exists():
-            try:
-                bundle = json.loads(latest_path.read_text(encoding="utf-8"))
-            except Exception:
-                bundle = {}
-
-    campaigns = list(bundle.get("campaigns") or [])
-    latest_mmdd_by_channel: Dict[str, str] = {"EDM": "", "LMS": "", "KAKAO": ""}
-    latest_group_date_by_channel: Dict[str, str] = {"EDM": "", "LMS": "", "KAKAO": ""}
-
-    for channel in ["EDM", "LMS", "KAKAO"]:
-        rows = [
-            r for r in campaigns
-            if str((r or {}).get("channel") or "").strip().upper() == channel and is_visible_mmdd_row(r)
-        ]
-        rows = sorted(
-            rows,
-            key=lambda r: (
-                str((r or {}).get("date") or ""),
-                str((r or {}).get("year") or ""),
-                str((r or {}).get("mmdd") or ""),
-                str((r or {}).get("campaign") or ""),
-                str((r or {}).get("term") or ""),
-            ),
-            reverse=True,
-        )
-        if rows:
-            latest_mmdd_by_channel[channel] = str(rows[0].get("mmdd") or "")
-            latest_group_date_by_channel[channel] = str(rows[0].get("date") or "")
-
-    generated_at_kst = (datetime.utcnow() + KST).strftime("%Y-%m-%d %H:%M:%S")
-    return {
-        "generated_at_kst": generated_at_kst,
-        "available_dates": available_dates,
-        "latest_available_date": latest_date,
-        "default_date": latest_date,
-        "default_view": "WEEK",
-        "default_channel": "EDM",
-        "default_mmdd_by_channel": latest_mmdd_by_channel,
-        "latest_group_date_by_channel": latest_group_date_by_channel,
-        "notes": {
-            "default_date_basis": "latest available OWNED bundle date (usually KST yesterday)",
-            "default_view_basis": "WEEK",
-            "default_channel_basis": "EDM",
-            "kakao_send_count_rule": "Only KAKAO_CH_EVENT campaign + KAKAO_CH_MESSAGE_ term rows are countable and visible in By Date(MMDD).",
-        },
-    }
-
-
 # -----------------------------
 # Message workbook helpers
 # -----------------------------
@@ -1021,14 +937,6 @@ def build_day_bundle(
         if col in camp.columns:
             camp[col] = camp[col].fillna(0).astype(float)
 
-    if "cvr" not in camp.columns:
-        camp["cvr"] = camp.apply(
-            lambda r: (float(r.get("purchases", 0) or 0) / float(r.get("sessions", 0) or 0)) if float(r.get("sessions", 0) or 0) > 0 else 0.0,
-            axis=1,
-        )
-    else:
-        camp["cvr"] = camp["cvr"].fillna(0).astype(float)
-
     for col in ["items", "item_revenue"]:
         if col in prod.columns:
             prod[col] = prod[col].fillna(0).astype(float)
@@ -1090,7 +998,6 @@ def build_day_bundle(
                 items_purchased=int(r["items_purchased"]),
                 send_count=int(r.get("send_count", 0) or 0),
                 avg_leverage=float(r.get("avg_leverage", 0) or 0),
-                cvr=float(r.get("cvr", 0) or 0),
                 message_title=message_meta.get("message_title") or schedule_title or str(r.get("message_title", "") or ""),
                 message_body=message_meta.get("message_body", str(r.get("message_body", "") or "")),
             )
@@ -1185,18 +1092,6 @@ def build_range(
 
     dates = list_owned_dates(owned_dir)
     write_json(owned_dir / "available_dates.json", {"available_dates": dates})
-
-    latest_bundle: Dict[str, Any] = {}
-    if dates:
-        latest_path = owned_dir / f"owned_{dates[-1]}.json"
-        if latest_path.exists():
-            try:
-                latest_bundle = json.loads(latest_path.read_text(encoding="utf-8"))
-            except Exception:
-                latest_bundle = {}
-
-    portal_meta = build_portal_meta(owned_dir, latest_bundle=latest_bundle)
-    write_json(owned_dir / "portal_meta.json", portal_meta)
 
 
 # -----------------------------
@@ -1342,11 +1237,7 @@ def main() -> None:
     print(f"[OK] message workbook: {message_workbook}")
     if owned_message_source and owned_message_source.exists():
         print(f"[OK] owned message source: {owned_message_source}")
-    dates = list_owned_dates(owned_dir)
-    print(f"[OK] available_dates count: {len(dates)}")
-    if dates:
-        print(f"[OK] latest available date: {dates[-1]}")
-    print(f"[OK] portal meta: {owned_dir / 'portal_meta.json'}")
+    print(f"[OK] available_dates count: {len(list_owned_dates(owned_dir))}")
 
 
 if __name__ == "__main__":
