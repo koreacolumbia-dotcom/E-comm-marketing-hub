@@ -42,552 +42,49 @@ from __future__ import annotations
 
 
 # ===============================
-# SAFE ANIMATION CSS (MORE DRAMATIC)
+# SAFE ANIMATION CSS (NO SYNTAX ERROR)
 # ===============================
 def get_safe_animation_css():
     css = """
-    body,
-    body.bg-slate-50 {
-      margin: 0;
-      padding: 0;
-      background:
-        radial-gradient(circle at top left, rgba(59,130,246,.10), transparent 32%),
-        radial-gradient(circle at top right, rgba(14,165,233,.08), transparent 26%),
-        linear-gradient(180deg, #f8fbff 0%, #f8fafc 38%, #f3f6fb 100%);
+    @keyframes fadeUp {
+      0% { opacity: 0; transform: translate3d(0, 20px, 0) scale(.985); }
+      100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
     }
 
-    @keyframes pageReveal {
-      0% {
-        opacity: 0;
-        transform: perspective(1200px) rotateX(3.5deg) translate3d(0, 34px, 0) scale(.982);
-        filter: blur(8px);
-      }
-      60% {
-        opacity: 1;
-        transform: perspective(1200px) rotateX(0deg) translate3d(0, -4px, 0) scale(1.004);
-        filter: blur(0);
-      }
-      100% {
-        opacity: 1;
-        transform: perspective(1200px) rotateX(0deg) translate3d(0, 0, 0) scale(1);
-        filter: blur(0);
-      }
+    @keyframes slideUpSoft {
+      0% { opacity: 0; transform: translateY(18px); }
+      100% { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes sectionReveal {
-      0% {
-        opacity: 0;
-        transform: translate3d(0, 28px, 0) scale(.985);
-        filter: blur(6px);
-      }
-      65% {
-        opacity: 1;
-        transform: translate3d(0, -3px, 0) scale(1.003);
-        filter: blur(0);
-      }
-      100% {
-        opacity: 1;
-        transform: translate3d(0, 0, 0) scale(1);
-        filter: blur(0);
-      }
+    @keyframes softPulse {
+      0% { box-shadow: 0 0 0 rgba(15,23,42,0); }
+      100% { box-shadow: 0 18px 40px rgba(15,23,42,.08); }
     }
 
-    @keyframes cardReveal {
-      0% {
-        opacity: 0;
-        transform: translateY(24px) scale(.975);
-        box-shadow: 0 0 0 rgba(15,23,42,0);
-      }
-      70% {
-        opacity: 1;
-        transform: translateY(-2px) scale(1.01);
-        box-shadow: 0 24px 48px rgba(15,23,42,.10);
-      }
-      100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-        box-shadow: 0 12px 28px rgba(15,23,42,.06);
-      }
+    body > .mx-auto.max-w-7xl.p-6 {
+      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
     }
 
-
-    @keyframes dramaticCardIn {
-      0% {
-        opacity: 0;
-        transform: perspective(1400px) translateY(42px) scale(.94) rotateX(9deg);
-        filter: blur(10px);
-        box-shadow: 0 0 0 rgba(15,23,42,0);
-      }
-      58% {
-        opacity: 1;
-        transform: perspective(1400px) translateY(-10px) scale(1.02) rotateX(-1.3deg);
-        filter: blur(0);
-        box-shadow: 0 30px 56px rgba(15,23,42,.14);
-      }
-      76% {
-        opacity: 1;
-        transform: perspective(1400px) translateY(2px) scale(.997) rotateX(.35deg);
-        filter: blur(0);
-      }
-      100% {
-        opacity: 1;
-        transform: perspective(1400px) translateY(0) scale(1) rotateX(0);
-        filter: blur(0);
-        box-shadow: 0 14px 30px rgba(15,23,42,.08);
-      }
-    }
-
-    @keyframes dramaticSectionIn {
-      0% {
-        opacity: 0;
-        transform: perspective(1600px) translateY(54px) scale(.965) rotateX(8deg);
-        filter: blur(12px);
-      }
-      60% {
-        opacity: 1;
-        transform: perspective(1600px) translateY(-12px) scale(1.008) rotateX(-1deg);
-        filter: blur(0);
-      }
-      78% {
-        opacity: 1;
-        transform: perspective(1600px) translateY(2px) scale(.998) rotateX(.3deg);
-        filter: blur(0);
-      }
-      100% {
-        opacity: 1;
-        transform: perspective(1600px) translateY(0) scale(1) rotateX(0);
-        filter: blur(0);
-      }
-    }
-
-    @keyframes pageExit {
-      0% {
-        opacity: 1;
-        transform: perspective(1200px) rotateX(0deg) translate3d(0, 0, 0) scale(1);
-        filter: blur(0);
-      }
-      100% {
-        opacity: 0;
-        transform: perspective(1200px) rotateX(2.5deg) translate3d(0, -16px, 0) scale(.992);
-        filter: blur(8px);
-      }
-    }
-
-    @keyframes shimmerSweep {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-
-    @keyframes panelSwap {
-      0% {
-        opacity: 0;
-        transform: translate3d(0, 22px, 0) scale(.986);
-        filter: blur(10px);
-      }
-      70% {
-        opacity: 1;
-        transform: translate3d(0, -2px, 0) scale(1.004);
-        filter: blur(0);
-      }
-      100% {
-        opacity: 1;
-        transform: translate3d(0, 0, 0) scale(1);
-        filter: blur(0);
-      }
-    }
-
-    @keyframes lineDraw {
-      0% {
-        opacity: 0;
-        stroke-dashoffset: 1400;
-      }
-      100% {
-        opacity: 1;
-        stroke-dashoffset: 0;
-      }
-    }
-
-    @keyframes dotPop {
-      0% {
-        opacity: 0;
-        transform: scale(.2);
-      }
-      75% {
-        opacity: 1;
-        transform: scale(1.16);
-      }
-      100% {
-        opacity: 1;
-        transform: scale(1);
-      }
-    }
-
-    @keyframes fadeGrid {
-      0% { opacity: 0; }
-      100% { opacity: 1; }
-    }
-
-    @keyframes miniRise {
-      0% {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      100% {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .report-shell {
-      width: calc(100vw - 8px) !important;
-      max-width: calc(100vw - 8px) !important;
-      min-width: calc(100vw - 8px) !important;
-      margin: 0 auto !important;
-      padding-left: 8px;
-      padding-right: 8px;
-      box-sizing: border-box;
-      animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
-      transform-origin: top center;
-      overflow-x: visible;
-    }
-
-    body.page-exit .report-shell {
-      animation: pageExit .28s cubic-bezier(.4,0,.2,1) both;
-    }
-
-    body.page-exit {
-      overflow: hidden;
-    }
-
-    body > .report-shell {
-      animation: pageReveal .95s cubic-bezier(.18,.84,.22,1) both;
-      transform-origin: top center;
-    }
-
-    .reveal-block,
-    .kpi-card {
-      opacity: 0;
-      transform: perspective(1400px) translateY(42px) scale(.94) rotateX(9deg);
-      transform-origin: center top;
-      filter: blur(10px);
-      will-change: transform, opacity, filter;
-    }
-
-    .reveal-block.is-visible {
-      animation: dramaticSectionIn .96s cubic-bezier(.16,.84,.22,1) both;
-    }
-
-    .kpi-card.is-visible {
-      animation: dramaticCardIn .98s cubic-bezier(.16,.84,.22,1) both;
+    body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {
+      animation: slideUpSoft .7s cubic-bezier(.2,.8,.2,1) both;
     }
 
     .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
     .rounded-2xl.border.border-slate-200.bg-white.p-4,
     .rounded-2xl.border.border-slate-200.bg-white.p-5,
     .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {
-      position: relative;
-      overflow: hidden;
-      transition:
-        transform .28s cubic-bezier(.2,.8,.2,1),
-        box-shadow .28s cubic-bezier(.2,.8,.2,1),
-        border-color .28s ease;
-      will-change: transform, box-shadow;
-    }
-
-    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4::before,
-    .rounded-2xl.border.border-slate-200.bg-white.p-4::before,
-    .rounded-2xl.border.border-slate-200.bg-white.p-5::before,
-    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background: linear-gradient(
-        110deg,
-        rgba(255,255,255,0) 0%,
-        rgba(255,255,255,.38) 45%,
-        rgba(255,255,255,0) 70%
-      );
-      background-size: 220% 100%;
-      opacity: .55;
-      animation: shimmerSweep 2.4s ease-out 1;
+      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
+      transition: transform .2s ease, box-shadow .2s ease;
     }
 
     .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
     .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
     .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
     .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {
-      transform: translateY(-4px) scale(1.006);
-      box-shadow: 0 22px 44px rgba(15,23,42,.10);
-      border-color: rgba(148,163,184,.55);
-    }
-
-    .overflow-x-auto table tbody tr {
-      transition: background-color .2s ease, transform .2s ease;
-    }
-
-    .overflow-x-auto table tbody tr:hover {
-      background-color: rgba(248,250,252,.9);
-    }
-
-    .paid-extra {
-      transition: opacity .42s cubic-bezier(.2,.8,.2,1), transform .42s cubic-bezier(.2,.8,.2,1), max-height .42s ease;
-      transform-origin: top center;
-    }
-
-    .paid-extra.hidden {
-      opacity: 0;
-      transform: translateY(12px) scale(.985);
-      max-height: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }
-
-    .kpi-card {
-      transform-style: preserve-3d;
-    }
-
-    .metric-chip,
-    .section-signal {
-      backdrop-filter: blur(18px);
-    }
-
-    .metric-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: .45rem;
-      border: 1px solid rgba(148,163,184,.24);
-      border-radius: 999px;
-      padding: .38rem .7rem;
-      background: rgba(255,255,255,.72);
-      box-shadow: 0 10px 22px rgba(15,23,42,.05);
-    }
-
-    .section-signal {
-      border: 1px solid rgba(148,163,184,.18);
-      border-radius: 1.25rem;
-      background: linear-gradient(135deg, rgba(255,255,255,.84), rgba(248,250,252,.78));
-      box-shadow: 0 14px 32px rgba(15,23,42,.06);
-    }
-
-    .mode-switch,
-    .trend-tab {
-      transition:
-        transform .28s cubic-bezier(.2,.8,.2,1),
-        box-shadow .28s cubic-bezier(.2,.8,.2,1),
-        border-color .28s ease,
-        background-color .28s ease,
-        color .28s ease;
-      will-change: transform, box-shadow;
-    }
-
-    .mode-switch:hover,
-    .trend-tab:hover {
       transform: translateY(-2px);
-      box-shadow: 0 12px 24px rgba(15,23,42,.08);
-    }
-
-    .compare-cell {
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: .45rem;
-      min-width: 132px;
-    }
-
-    .compare-pill {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 42px;
-      padding: .18rem .42rem;
-      border-radius: 999px;
-      background: rgba(15,23,42,.06);
-      border: 1px solid rgba(148,163,184,.20);
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: .08em;
-      color: #475569;
-      text-transform: uppercase;
-    }
-
-    .compare-pill.is-muted {
-      opacity: .7;
-    }
-
-    .paid-detail-shell {
-      width: 100%;
-      overflow-x: auto;
-      overflow-y: visible;
-      padding-bottom: 6px;
-      scrollbar-gutter: stable both-edges;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .paid-detail-table {
-      width: 100%;
-      min-width: 1540px !important;
-    }
-
-    .paid-detail-table th:first-child,
-    .paid-detail-table td:first-child {
-      position: sticky;
-      left: 0;
-      z-index: 1;
-      background: rgba(255,255,255,.98);
-      box-shadow: 8px 0 14px rgba(248,250,252,.86);
-    }
-
-    .paid-detail-table th:first-child {
-      z-index: 2;
-    }
-
-    .kpi-value {
-      display: inline-block;
-      letter-spacing: -.02em;
-      text-shadow: 0 10px 28px rgba(15,23,42,.08);
-      animation: kpiFloat .92s cubic-bezier(.18,.84,.22,1) both;
-      will-change: transform, opacity;
-    }
-
-    @keyframes kpiFloat {
-      0% {
-        opacity: 0;
-        transform: translate3d(0, 16px, 0) scale(.92);
-        filter: blur(8px);
-      }
-      62% {
-        opacity: 1;
-        transform: translate3d(0, -2px, 0) scale(1.035);
-        filter: blur(0);
-      }
-      100% {
-        opacity: 1;
-        transform: translate3d(0, 0, 0) scale(1);
-        filter: blur(0);
-      }
-    }
-
-    .paid-detail-table tbody tr {
-      animation: sectionReveal .7s cubic-bezier(.2,.8,.2,1) both;
-    }
-
-    .trend-panel.is-active {
-      animation: panelSwap .58s cubic-bezier(.2,.8,.2,1) both;
-    }
-
-    .trend-chart,
-    .mini-chart {
-      overflow: visible;
-    }
-
-    .trend-chart.chart-animate .trend-grid,
-    .mini-chart.chart-animate .mini-grid {
-      opacity: 0;
-      animation: fadeGrid .52s ease forwards;
-    }
-
-    .trend-chart.chart-animate .trend-line {
-      opacity: 0;
-      stroke-dasharray: 1400;
-      stroke-dashoffset: 1400;
-      animation: lineDraw 1.28s cubic-bezier(.22,.86,.24,1) forwards;
-      filter: drop-shadow(0 10px 18px rgba(15,23,42,.10));
-    }
-
-    .trend-chart.chart-animate .trend-dot,
-    .mini-chart.chart-animate .mini-dot {
-      opacity: 0;
-      transform-box: fill-box;
-      transform-origin: center;
-      animation: dotPop .46s cubic-bezier(.2,.9,.2,1) forwards;
-    }
-
-    .mini-chart.chart-animate .mini-line {
-      opacity: 0;
-      stroke-dasharray: 680;
-      stroke-dashoffset: 680;
-      animation: lineDraw .96s cubic-bezier(.22,.86,.24,1) forwards;
-    }
-
-    .mini-chart.chart-animate .mini-area {
-      opacity: 0;
-      animation: miniRise .52s ease forwards;
-    }
-
-
-    .auto-reveal-card {
-      opacity: 0;
-      transform: perspective(1500px) translateY(46px) scale(.94) rotateX(10deg);
-      transform-origin: center top;
-      filter: blur(10px);
-      will-change: transform, opacity, filter;
-      backface-visibility: hidden;
-    }
-
-    .auto-reveal-card.is-visible {
-      animation: dramaticCardIn 1.02s cubic-bezier(.16,.84,.22,1) both;
-    }
-
-    .reveal-block.is-visible,
-    .kpi-card.is-visible {
-      animation-duration: 1.02s;
-    }
-
-    .reveal-block.is-visible {
-      animation-name: dramaticSectionIn;
-    }
-
-    .kpi-card.is-visible {
-      animation-name: dramaticCardIn;
-    }
-
-    .mode-switch,
-    [data-nav-transition] {
-      position: relative;
-      overflow: hidden;
-      isolation: isolate;
-    }
-
-    .mode-switch::after,
-    [data-nav-transition]::after,
-    .trend-tab::after {
-      content: "";
-      position: absolute;
-      inset: -1px;
-      pointer-events: none;
-      border-radius: inherit;
-      background: linear-gradient(
-        120deg,
-        rgba(255,255,255,0) 0%,
-        rgba(255,255,255,.28) 35%,
-        rgba(255,255,255,0) 68%
-      );
-      background-size: 220% 100%;
-      opacity: 0;
-      transition: opacity .24s ease;
-    }
-
-    .mode-switch:hover::after,
-    [data-nav-transition]:hover::after,
-    .trend-tab:hover::after {
-      opacity: 1;
-      animation: shimmerSweep 1.1s ease;
-    }
-
-    .report-shell.is-entering .auto-reveal-card,
-    .report-shell.is-entering .reveal-block,
-    .report-shell.is-entering .kpi-card {
-      opacity: 0;
-    }
-
-    .trend-panel {
-      transform-origin: center top;
-      will-change: transform, opacity, filter;
-    }
-
-    .trend-panel.is-active {
-      animation: panelSwap .68s cubic-bezier(.18,.84,.22,1) both;
+      box-shadow: 0 18px 40px rgba(15,23,42,.08);
     }
     """
     return css.replace("{", "{{").replace("}", "}}")
@@ -886,7 +383,7 @@ def combined_index_svg(
         frac = t / ticks
         y = pad_t + inner_h * (1 - frac)
         val = y_min2 + (y_max2 - y_min2) * frac
-        grid.append(f"<line class='trend-grid' style='animation-delay:{t*0.04:.2f}s' x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
+        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
         ylabels_svg.append(f"<text x='{pad_l-8}' y='{y+3:.1f}' text-anchor='end' font-size='10' fill='#6b7280'>{val:.0f}</text>")
 
     xlabels_svg = []
@@ -904,17 +401,8 @@ def combined_index_svg(
         pts = [xy(i, v) for i, v in enumerate(s)]
         poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
         color = colors[sidx]
-        polys.append(
-            f"<polyline class='trend-line trend-line-{sidx+1}' "
-            f"style='animation-delay:{0.18 + sidx*0.12:.2f}s' "
-            f"fill='none' stroke='{color}' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round' points='{poly}'/>"
-        )
-        dots.append(
-            "".join([
-                f"<circle class='trend-dot trend-dot-{sidx+1}' style='animation-delay:{0.34 + sidx*0.12 + i*0.03:.2f}s' cx='{x:.1f}' cy='{y:.1f}' r='3.0' fill='{color}'/>"
-                for i, (x, y) in enumerate(pts)
-            ])
-        )
+        polys.append(f"<polyline fill='none' stroke='{color}' stroke-width='2.6' points='{poly}'/>")
+        dots.append("".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='3.0' fill='{color}'/>" for x, y in pts]))
 
     legend_items = []
     lx, ly = pad_l, 8
@@ -927,7 +415,7 @@ def combined_index_svg(
         )
 
     return f"""
-    <svg class="trend-chart chart-animate" width="100%" viewBox="0 0 {width} {height}" preserveAspectRatio="none" style="display:block;">
+    <svg width="100%" viewBox="0 0 {width} {height}" preserveAspectRatio="none" style="display:block;">
       {''.join(grid)}
       {axes}
       {''.join(polys)}
@@ -969,7 +457,7 @@ def spark_svg(
     grid = []
     for frac in [0.0, 0.5, 1.0]:
         y = pad_t + inner_h * (1 - frac)
-        grid.append(f"<line class='mini-grid' style='animation-delay:{frac*0.06:.2f}s' x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2fb' stroke-width='1'/>")
+        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2fb' stroke-width='1'/>")
 
     axes = f"""
       <line x1='{pad_l}' y1='{pad_t}' x2='{pad_l}' y2='{height-pad_b}' stroke='#cbd5e1' stroke-width='1'/>
@@ -993,17 +481,14 @@ def spark_svg(
 
     area = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
     area_poly = f"{pad_l:.1f},{height-pad_b:.1f} {area} {width-pad_r:.1f},{height-pad_b:.1f}"
-    dots = "".join([
-        f"<circle class='mini-dot' style='animation-delay:{0.22 + i*0.04:.2f}s' cx='{x:.1f}' cy='{y:.1f}' r='2.8' fill='{stroke}'/>"
-        for i, (x, y) in enumerate(pts)
-    ])
+    dots = "".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.8' fill='{stroke}'/>" for x, y in pts])
 
     return f"""
-    <svg class="mini-chart chart-animate" width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+    <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
       {''.join(grid)}
       {axes}
-      <polygon class="mini-area" points="{area_poly}" fill="{stroke}" opacity="0.08"></polygon>
-      <polyline class="mini-line" fill="none" stroke="{stroke}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="{poly}"/>
+      <polygon points="{area_poly}" fill="{stroke}" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="{stroke}" stroke-width="2.4" points="{poly}"/>
       {dots}
       {ylabels_svg}
       {''.join(xlabels_svg)}
@@ -1099,7 +584,7 @@ def build_window(end_date: dt.date, mode: str) -> DigestWindow:
         cur_end = end_date
         prev_end = end_date - dt.timedelta(days=7)
         prev_start = prev_end
-        compare_label = "WOW"
+        compare_label = "WoW"
 
         yoy_override = parse_yyyy_mm_dd(YOY_DAILY_DATE_OVERRIDE)
         if yoy_override:
@@ -1118,7 +603,7 @@ def build_window(end_date: dt.date, mode: str) -> DigestWindow:
 
         prev_end = end_date - dt.timedelta(days=7)
         prev_start = prev_end - dt.timedelta(days=6)
-        compare_label = "WOW"
+        compare_label = "WoW"
 
         yoy_end_override = parse_yyyy_mm_dd(YOY_WEEKLY_END_OVERRIDE)
         if yoy_end_override:
@@ -1564,9 +1049,7 @@ def get_paid_detail_3way(
     merged["has_yoy"] = merged["sub"].astype(str).isin(yoy_subs)
 
     # Ensure core labels always exist in the visible table.
-    # NOTE: top-level "google" row is intentionally hidden from the table because
-    # google demand gen / pmax / search are already shown as detailed rows.
-    core = [c for c in PAID_DETAIL_SOURCES if c != "google"]
+    core = list(PAID_DETAIL_SOURCES)
     for c in core:
         if c not in set(merged["sub"].tolist()):
             merged = pd.concat([merged, pd.DataFrame([{
@@ -1577,13 +1060,11 @@ def get_paid_detail_3way(
             }])], ignore_index=True)
 
     # Show core rows plus top "others", but compute Total from the full Paid AD base.
-    # Exclude the top-level google aggregate row from the visible table only.
-    visible = merged[merged["sub"].astype(str).str.lower() != "google"].copy()
-    others = visible[~visible["sub"].isin(core)].copy()
+    others = merged[~merged["sub"].isin(core)].copy()
     others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False]).head(6)
 
     ordered = pd.concat([
-        visible[visible["sub"].isin(core)].assign(_ord=lambda d: d["sub"].apply(lambda x: core.index(x))).sort_values("_ord"),
+        merged[merged["sub"].isin(core)].assign(_ord=lambda d: d["sub"].apply(lambda x: core.index(x))).sort_values("_ord"),
         others.assign(_ord=999),
     ], ignore_index=True)
 
@@ -1765,7 +1246,7 @@ def combined_index_svg_monthly(
         frac = t / 5
         y = pad_t + inner_h * (1 - frac)
         val = y_min2 + (y_max2 - y_min2) * frac
-        grid.append(f"<line class='trend-grid' style='animation-delay:{t*0.04:.2f}s' x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
+        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
         ylabels_svg.append(f"<text x='{pad_l-8}' y='{y+3:.1f}' text-anchor='end' font-size='10' fill='#6b7280'>{val:.0f}</text>")
 
     weekend_marks = []
@@ -1793,21 +1274,12 @@ def combined_index_svg_monthly(
         pts = [xy(i, v) for i, v in enumerate(s)]
         poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
         color = colors[sidx]
-        polys.append(
-            f"<polyline class='trend-line trend-line-{sidx+1}' "
-            f"style='animation-delay:{0.18 + sidx*0.14:.2f}s' "
-            f"fill='none' stroke='{color}' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' points='{poly}'/>"
-        )
-        dots.append(
-            "".join([
-                f"<circle class='trend-dot trend-dot-{sidx+1}' style='animation-delay:{0.34 + sidx*0.12 + i*0.025:.2f}s' cx='{x:.1f}' cy='{y:.1f}' r='2.3' fill='{color}'/>"
-                for i, (x, y) in enumerate(pts)
-            ])
-        )
+        polys.append(f"<polyline fill='none' stroke='{color}' stroke-width='2.3' points='{poly}'/>")
+        dots.append("".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.3' fill='{color}'/>" for x, y in pts]))
     legend_items = []
     for i, lab in enumerate(labels):
         legend_items.append(f"<g transform='translate({pad_l + i*165},8)'><line x1='0' y1='8' x2='18' y2='8' stroke='{colors[i]}' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>{lab}</text></g>")
-    return f"<svg class='trend-chart chart-animate' width='100%' viewBox='0 0 {width} {height}' preserveAspectRatio='none' style='display:block;'>{''.join(weekend_marks)}{''.join(grid)}{axes}{''.join(polys)}{''.join(dots)}{''.join(ylabels_svg)}{''.join(xlabels_svg)}<text x='{pad_l}' y='{height-8}' font-size='10' fill='#94a3b8'>{footer_label}</text>{''.join(legend_items)}</svg>"
+    return f"<svg width='100%' viewBox='0 0 {width} {height}' preserveAspectRatio='none' style='display:block;'>{''.join(weekend_marks)}{''.join(grid)}{axes}{''.join(polys)}{''.join(dots)}{''.join(ylabels_svg)}{''.join(xlabels_svg)}<text x='{pad_l}' y='{height-8}' font-size='10' fill='#94a3b8'>{footer_label}</text>{''.join(legend_items)}</svg>"
 
 def trend_svg_from_series(series: dict, days: int = 30) -> str:
     raw_dates = [parse_yyyy_mm_dd(d) for d in series.get("dates", [])]
@@ -2892,32 +2364,12 @@ def render_page_html(
     def delta_cls(v: float) -> str:
         return "text-blue-600" if v >= 0 else "text-orange-700"
 
-    def period_label(start_date: dt.date, end_date: dt.date) -> str:
-        if start_date == end_date:
-            return ymd(start_date)
-        return f"{ymd(start_date)} ~ {ymd(end_date)}"
-
-    wow_label = (w.compare_label or "WOW").upper()
-    daily_href = f"../daily/{ymd(w.end_date)}.html"
-    weekly_href = f"../weekly/END_{ymd(w.end_date)}.html"
-    compare_basis_text = f"{wow_label}: Sessions vs {period_label(w.prev_start, w.prev_end)}"
-    yoy_basis_text = f"YOY: Sessions vs {period_label(w.yoy_start, w.yoy_end)}"
-    metric_basis_text = "KPI cards compare the metric shown on each card. Channel Snapshot and Paid Detail compare columns use Sessions."
-
-    def compare_cell(label: str, value: float, enabled: bool = True) -> str:
-        if not enabled:
-            return "<div class='text-right text-slate-400'>-</div>"
-        return f"<div class='text-right {delta_cls(value)}'>{('+' if value >= 0 else '')}{fmt_pct(value, 1)}</div>"
-
     def top_kpi_card(title: str, value: str, delta_main: str, delta_yoy_s: str, cls_main: str, cls_yoy: str) -> str:
         return f"""
-        <div class="kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
-          <div class="kpi-value mt-1 text-xl font-black text-slate-900" data-kpi-value="{esc(value)}">{esc(value)}</div>
-          <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
-            <span class="metric-chip"><span class="compare-pill">{wow_label}</span><b class="{cls_main}">{esc(delta_main)}</b></span>
-            <span class="metric-chip"><span class="compare-pill">YOY</span><b class="{cls_yoy}">{esc(delta_yoy_s)}</b></span>
-          </div>
+          <div class="mt-1 text-xl font-black text-slate-900">{esc(value)}</div>
+          <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> · YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
         </div>
         """
 
@@ -2947,64 +2399,11 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
-                compare_cell(wow_label, float(getattr(r, 'rev_dod', 0) or 0), enabled=True),
-                compare_cell("YOY", float(getattr(r, 'rev_yoy', 0) or 0), enabled=True),
+                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_dod', 0) or 0))}'>{('+' if float(getattr(r,'rev_dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_dod',0) or 0),1)}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
 
-    # Paid detail rows (merged with budget / target ROAS / ROAS)
-    paid_compare_lookup: Dict[str, Dict[str, float]] = {}
-    paid_compare_total = {"target_roas": 0.0, "budget": 0.0, "roas": 0.0, "cvr": 0.0}
-    if paid_media_compare is not None and (not paid_media_compare.empty):
-        spend_total_map = fetch_platform_spend_map(w.cur_start, w.cur_end)
-        budget_total = float(sum(float(v or 0) for v in spend_total_map.values()))
-
-        revenue_total = 0.0
-        cvr_total = 0.0
-        if paid_detail is not None and (not paid_detail.empty) and "sub_channel" in paid_detail.columns:
-            _paid_total = paid_detail[paid_detail["sub_channel"].astype(str).str.strip().str.lower() == "total"].copy()
-            if not _paid_total.empty:
-                if "purchaseRevenue" in _paid_total.columns:
-                    revenue_total = float(pd.to_numeric(_paid_total["purchaseRevenue"], errors="coerce").fillna(0).iloc[0])
-                if "cvr" in _paid_total.columns:
-                    cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
-
-        roas_total = (revenue_total / budget_total) if budget_total else 0.0
-        target_roas_total = 0.0
-        if budget_total > 0:
-            _rows = []
-            for _media_key, _budget_val in spend_total_map.items():
-                _rows.append({"media": str(_media_key or "").strip().lower(), "budget": float(_budget_val or 0)})
-            _tmp_target = pd.DataFrame(_rows)
-            if not _tmp_target.empty:
-                try:
-                    target_roas_map_local = load_target_roas_map(TARGET_ROAS_XLS_PATH)
-                except Exception:
-                    target_roas_map_local = {}
-                _tmp_target["target_roas"] = _tmp_target["media"].map(
-                    lambda x: float(target_roas_map_local.get(str(x).strip().lower(), target_roas_map_local.get(str(x).title().lower(), 0.0)) or 0.0)
-                )
-                _budget_sum = float(pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum())
-                if _budget_sum > 0:
-                    target_roas_total = float(((pd.to_numeric(_tmp_target["target_roas"], errors="coerce").fillna(0) * pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0)).sum()) / _budget_sum)
-
-        paid_compare_total = {
-            "target_roas": float(target_roas_total or 0),
-            "budget": float(budget_total or 0),
-            "roas": float(roas_total or 0),
-            "cvr": float(cvr_total or 0),
-        }
-
-        for r in paid_media_compare.itertuples(index=False):
-            key = str(getattr(r, 'channel', '') or '').strip().lower()
-            if not key:
-                continue
-            paid_compare_lookup[key] = {
-                "target_roas": float(getattr(r, 'target_roas', 0) or 0),
-                "budget": float(getattr(r, 'budget', 0) or 0),
-                "roas": float(getattr(r, 'roas', 0) or 0),
-                "cvr": float(getattr(r, 'cvr', 0) or 0),
-            }
-
+    # Paid detail rows
     paid_html = ""
     paid_total_row = ""
     if paid_detail is not None and (not paid_detail.empty):
@@ -3014,9 +2413,8 @@ def render_page_html(
 
         for r in paid_detail.itertuples(index=False):
             sub = str(getattr(r, "sub_channel", "") or "").strip()
-            sub_key = sub.lower()
-            is_total = (sub_key == "total")
-            is_bold = is_total or (sub_key == "google")
+            is_total = (sub.lower() == "total")
+            is_bold = (sub.lower() == "total") or (sub.lower() == "google")
             has_yoy = bool(getattr(r, "has_yoy", False))
 
             row_cls = ""
@@ -3026,12 +2424,11 @@ def render_page_html(
                 idx_non_total += 1
 
             yoy_val = float(getattr(r, 'yoy', 0) or 0)
-            yoy_html = compare_cell("YOY", yoy_val, enabled=(is_total or has_yoy))
-
-            compare_metric = paid_compare_total if is_total else paid_compare_lookup.get(sub_key, paid_compare_lookup.get(map_sub_to_media(sub_key), {}))
-            target_roas_val = float(compare_metric.get("target_roas", 0) or 0)
-            budget_val = float(compare_metric.get("budget", 0) or 0)
-            roas_val = float(compare_metric.get("roas", 0) or 0)
+            yoy_html = (
+                f"<div class='text-right {delta_cls(yoy_val)}'>{('+' if yoy_val>=0 else '')}{fmt_pct(yoy_val,1)}</div>"
+                if (is_total or has_yoy)
+                else "<div class='text-right text-slate-400'>-</div>"
+            )
 
             row_html = table_row([
                 esc(sub),
@@ -3039,10 +2436,7 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
-                f"<div class='text-right'>{fmt_pct(target_roas_val,1) if (is_total or budget_val or target_roas_val) else '-'}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(budget_val) if (is_total or budget_val) else '-'}</div>",
-                f"<div class='text-right'>{fmt_pct(roas_val,1) if (is_total or budget_val or roas_val) else '-'}</div>",
-                compare_cell(wow_label, float(getattr(r, 'dod', 0) or 0), enabled=True),
+                f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
                 yoy_html,
             ], bold=is_bold, row_class=row_cls)
 
@@ -3110,6 +2504,61 @@ def render_page_html(
             rising_terms_html += f"<div class='flex justify-between text-sm'><span class='font-extrabold'>{esc(getattr(r,'searchTerm',''))}</span><span class='text-slate-500'>{fmt_int(getattr(r,'count',0))}</span></div>"
 
     paid_media_compare_html = ""
+    if paid_media_compare is not None and (not paid_media_compare.empty):
+        # TOTAL should use true platform totals, not a sum of visible rows,
+        # because the table may contain both top-level media rows and sub rows.
+        spend_total_map = fetch_platform_spend_map(w.cur_start, w.cur_end)
+        budget_total = float(sum(float(v or 0) for v in spend_total_map.values()))
+
+        revenue_total = 0.0
+        cvr_total = 0.0
+        if paid_detail is not None and (not paid_detail.empty) and "sub_channel" in paid_detail.columns:
+            _paid_total = paid_detail[paid_detail["sub_channel"].astype(str).str.strip().str.lower() == "total"].copy()
+            if not _paid_total.empty:
+                if "purchaseRevenue" in _paid_total.columns:
+                    revenue_total = float(pd.to_numeric(_paid_total["purchaseRevenue"], errors="coerce").fillna(0).iloc[0])
+                if "cvr" in _paid_total.columns:
+                    cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
+
+        roas_total = (revenue_total / budget_total) if budget_total else 0.0
+
+        target_roas_total = 0.0
+        if budget_total > 0:
+            _rows = []
+            for _media_key, _budget_val in spend_total_map.items():
+                _rows.append({
+                    "media": str(_media_key or "").strip().lower(),
+                    "budget": float(_budget_val or 0),
+                })
+            _tmp_target = pd.DataFrame(_rows)
+            if not _tmp_target.empty:
+                _tmp_target["target_roas"] = _tmp_target["media"].map(
+                    lambda x: float(target_roas_map.get(x, target_roas_map.get(str(x).title().lower(), 0.0)) or 0.0)
+                )
+                if float(pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()) > 0:
+                    target_roas_total = float(
+                        (
+                            pd.to_numeric(_tmp_target["target_roas"], errors="coerce").fillna(0) *
+                            pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0)
+                        ).sum() / pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()
+                    )
+
+        paid_media_compare_html += table_row([
+            "<span class='font-extrabold'>TOTAL</span>",
+            f"<div class='text-right font-extrabold'>{fmt_pct(float(target_roas_total or 0),1)}</div>",
+            f"<div class='text-right font-extrabold'>{fmt_currency_krw(budget_total)}</div>",
+            f"<div class='text-right font-extrabold'>{fmt_pct(float(roas_total or 0),1)}</div>",
+            f"<div class='text-right font-extrabold'>{fmt_pct(float(cvr_total or 0),2)}</div>",
+        ], bold=True)
+
+        for r in paid_media_compare.itertuples(index=False):
+            paid_media_compare_html += table_row([
+                esc(getattr(r, 'channel', '')),
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'target_roas', 0) or 0),1)}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget', 0))}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas', 0) or 0),1)}</div>",
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
+            ])
 
     kpis_cards = "".join([
         top_kpi_card("Sessions", fmt_int(cur["sessions"]),
@@ -3140,52 +2589,24 @@ def render_page_html(
         ("1m", "1M", trend_svgs.get("1m", "")),
     ]
     trend_tabs_html = "".join([
-        f"<button type='button' data-trend-tab='{key}' class='trend-tab rounded-full border px-3 py-1 text-xs font-extrabold {'border-slate-900 bg-slate-900 text-white' if i == 0 else 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}'>{label}</button>"
+        f"<button type='button' data-trend-tab='{key}' class='rounded-full border px-3 py-1 text-xs font-extrabold transition {'border-slate-900 bg-slate-900 text-white' if i == 0 else 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}'>{label}</button>"
         for i, (key, label, _) in enumerate(trend_tabs)
     ])
     trend_panels_html = "".join([
-        f"<div data-trend-panel='{key}' class='trend-panel mt-3{' hidden' if i != 0 else ' is-active'}'>{svg}</div>"
+        f"<div data-trend-panel='{key}' class='mt-3{' hidden' if i != 0 else ''}'>{svg}</div>"
         for i, (key, _, svg) in enumerate(trend_tabs)
     ])
 
     paid_toggle_js = """<script>
 (function(){
-  function navigateWithAnimation(url){
-    if(!url) return;
-    document.body.classList.add('page-exit');
-    window.setTimeout(()=>{ window.location.href = url; }, 300);
-  }
-
-  document.querySelectorAll('[data-nav-transition]').forEach((el)=>{
-    el.addEventListener('click', (event)=>{
-      const href = el.getAttribute('href');
-      if(!href || href === '#' || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      event.preventDefault();
-      navigateWithAnimation(href);
-    });
-  });
-
-  const rootShell = document.querySelector('.report-shell');
-  if(rootShell){
-    rootShell.classList.add('is-entering');
-    window.setTimeout(()=> rootShell.classList.remove('is-entering'), 1200);
-  }
-
   const btn = document.getElementById('paidToggle');
   if(btn){
     let on = false;
     function setPaid(onNext){
       on = !!onNext;
-      document.querySelectorAll('.paid-extra').forEach((el, idx)=>{
-        if(on){
-          el.classList.remove('hidden');
-          el.style.animationDelay = (0.04 * idx).toFixed(2) + 's';
-          el.classList.remove('is-visible');
-          void el.getBoundingClientRect();
-          el.classList.add('is-visible');
-        } else {
-          el.classList.add('hidden');
-        }
+      document.querySelectorAll('.paid-extra').forEach(el=>{
+        if(on) el.classList.remove('hidden');
+        else el.classList.add('hidden');
       });
       btn.textContent = on ? 'Show less' : 'Show more';
     }
@@ -3195,160 +2616,8 @@ def render_page_html(
 
   const trendBtns = Array.from(document.querySelectorAll('[data-trend-tab]'));
   const trendPanels = Array.from(document.querySelectorAll('[data-trend-panel]'));
-
-  function restartCharts(scope){
-    if(!scope) return;
-    scope.querySelectorAll('.trend-chart, .mini-chart').forEach((chart, idx)=>{
-      chart.classList.remove('chart-animate');
-      void chart.getBoundingClientRect();
-      window.setTimeout(()=>{
-        chart.classList.add('chart-animate');
-      }, 24 + (idx * 36));
-    });
-  }
-
-  function animateKpiValue(el){
-    const finalText = (el.getAttribute('data-kpi-value') || el.textContent || '').trim();
-    if(!finalText) return;
-
-    if(el.dataset.animated === '1' && el.dataset.forceReplay !== '1') return;
-    el.dataset.animated = '1';
-    el.dataset.forceReplay = '0';
-
-    const isWon = finalText.includes('₩');
-    const endsWithPct = finalText.endsWith('%');
-    const raw = finalText.replace(/[^0-9.\-]/g, '');
-    const target = Number(raw);
-
-    if(!Number.isFinite(target)){
-      el.textContent = finalText;
-      return;
-    }
-
-    const decimals = (raw.split('.')[1] || '').length;
-    const duration = isWon ? 1100 : 980;
-    const startTs = performance.now();
-
-    function render(v){
-      if(isWon){
-        el.textContent = '₩' + Math.round(v).toLocaleString('en-US');
-      } else if(endsWithPct){
-        el.textContent = v.toFixed(Math.min(decimals, 2)) + '%';
-      } else {
-        el.textContent = Math.round(v).toLocaleString('en-US');
-      }
-    }
-
-    function tick(now){
-      const p = Math.min(1, (now - startTs) / duration);
-      const eased =
-        p < 0.72
-          ? 1 - Math.pow(1 - p / 0.72, 3)
-          : 1 - (Math.pow(1 - p, 2) * 0.08);
-      render(target * Math.min(eased, 1));
-      if(p < 1){
-        requestAnimationFrame(tick);
-      } else {
-        el.textContent = finalText;
-      }
-    }
-
-    requestAnimationFrame(tick);
-  }
-
-  function collectRevealTargets(){
-    const explicit = Array.from(document.querySelectorAll('.reveal-block, .kpi-card'));
-
-    const autoCards = Array.from(document.querySelectorAll(
-      '.rounded-2xl.border.border-slate-200.bg-white\/70.p-4, ' +
-      '.rounded-2xl.border.border-slate-200.bg-white.p-4, ' +
-      '.rounded-2xl.border.border-slate-200.bg-white.p-5, ' +
-      '.rounded-2xl.border.border-slate-200.bg-white\/80.p-4'
-    )).filter((el)=>{
-      if(el.classList.contains('kpi-card')) return false;
-      if(el.classList.contains('reveal-block')) return false;
-      if(el.closest('.kpi-card')) return false;
-      return true;
-    });
-
-    autoCards.forEach((el)=> el.classList.add('auto-reveal-card'));
-
-    return Array.from(new Set([
-      ...explicit,
-      ...autoCards
-    ]));
-  }
-
-  const revealTargets = collectRevealTargets();
-
-  revealTargets.forEach((el, idx)=>{
-    el.dataset.revealDelay = String(Math.min(idx * 85, 900));
-  });
-
-  function revealElement(el, forceReplay){
-    if(!el) return;
-
-    if(forceReplay){
-      el.classList.remove('is-visible');
-      void el.getBoundingClientRect();
-      const valueEl = el.querySelector('.kpi-value');
-      if(valueEl){
-        valueEl.dataset.animated = '0';
-        valueEl.dataset.forceReplay = '1';
-      }
-    } else if(el.classList.contains('is-visible')){
-      return;
-    }
-
-    window.setTimeout(()=>{
-      el.classList.add('is-visible');
-
-      el.querySelectorAll('.kpi-value').forEach((node)=>{
-        if(forceReplay){
-          node.dataset.animated = '0';
-          node.dataset.forceReplay = '1';
-        }
-        animateKpiValue(node);
-      });
-    }, Number(el.dataset.revealDelay || 0));
-  }
-
-  function revealVisibleNow(forceReplay){
-    revealTargets.forEach((el, idx)=>{
-      const rect = el.getBoundingClientRect();
-      if(rect.top < window.innerHeight * 0.96 && rect.bottom > 0){
-        el.dataset.revealDelay = String(Math.min(idx * 70, 700));
-        revealElement(el, forceReplay);
-      }
-    });
-  }
-
-  if('IntersectionObserver' in window){
-    const io = new IntersectionObserver((entries)=>{
-      entries.forEach((entry)=>{
-        if(entry.isIntersecting){
-          revealElement(entry.target, false);
-          io.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.10, rootMargin: '0px 0px -4% 0px' });
-
-    revealTargets.forEach((el)=>{
-      io.observe(el);
-    });
-
-    window.requestAnimationFrame(()=>{
-      revealVisibleNow(false);
-    });
-  } else {
-    revealTargets.forEach((el, idx)=>{
-      el.dataset.revealDelay = String(Math.min(idx * 70, 700));
-      revealElement(el, false);
-    });
-  }
-
   function setTrend(target){
-    trendBtns.forEach((el)=>{
+    trendBtns.forEach(el=>{
       const active = el.getAttribute('data-trend-tab') === target;
       el.classList.toggle('border-slate-900', active);
       el.classList.toggle('bg-slate-900', active);
@@ -3356,54 +2625,19 @@ def render_page_html(
       el.classList.toggle('border-slate-200', !active);
       el.classList.toggle('bg-white', !active);
       el.classList.toggle('text-slate-500', !active);
-
-      if(active){
-        el.style.transform = 'translateY(-2px) scale(1.03)';
-        window.setTimeout(()=>{ el.style.transform = ''; }, 220);
-      }
     });
-
-    trendPanels.forEach((el)=>{
+    trendPanels.forEach(el=>{
       const active = el.getAttribute('data-trend-panel') === target;
-      if(active){
-        el.classList.remove('hidden');
-        el.classList.remove('is-active');
-        void el.getBoundingClientRect();
-        el.classList.add('is-active');
-        restartCharts(el);
-
-        el.querySelectorAll('.auto-reveal-card, .reveal-block, .kpi-card').forEach((card, idx)=>{
-          card.dataset.revealDelay = String(Math.min(idx * 60, 360));
-          revealElement(card, true);
-        });
-      } else {
-        el.classList.add('hidden');
-        el.classList.remove('is-active');
-      }
+      if(active) el.classList.remove('hidden');
+      else el.classList.add('hidden');
     });
   }
-
-  trendBtns.forEach((el)=>{
-    el.addEventListener('click', ()=>{
-      setTrend(el.getAttribute('data-trend-tab'));
-    });
+  trendBtns.forEach(el=>{
+    el.addEventListener('click', ()=> setTrend(el.getAttribute('data-trend-tab')));
   });
-
   if(trendBtns.length){
     setTrend(trendBtns[0].getAttribute('data-trend-tab'));
   }
-
-  window.addEventListener('pageshow', ()=>{
-    window.setTimeout(()=>{
-      revealVisibleNow(true);
-    }, 90);
-  });
-
-  window.addEventListener('load', ()=>{
-    window.setTimeout(()=>{
-      revealVisibleNow(true);
-    }, 120);
-  });
 })();
 </script>"""
 
@@ -3421,17 +2655,23 @@ def render_page_html(
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto px-1 py-2 lg:px-2 lg:py-3">
-    <div class="reveal-block section-signal mt-2 flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-      <div class="text-sm font-bold text-slate-700">데이터 기간 · {period_label(w.cur_start, w.cur_end)}</div>
-      <div class="text-xs text-slate-500">{esc(compare_basis_text)} | {esc(yoy_basis_text)} | {esc(metric_basis_text)}</div>
+  <div class="mx-auto max-w-7xl p-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="text-2xl font-black">Daily Digest</div>
+        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
+        <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+      </div>
     </div>
 
-    <div class="reveal-block mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
+    <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
       {kpis_cards}
     </div>
 
-    <div class="reveal-block mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
       <div class="mt-3 overflow-x-auto"><table class="w-full table-auto text-sm min-w-[980px]">
         <thead class="text-xs text-slate-500">
@@ -3441,21 +2681,18 @@ def render_page_html(
             <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">{wow_label} (Sessions)</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YOY (Sessions)</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
           </tr>
         </thead>
         <tbody>{chan_html}</tbody>
       </table></div>
     </div>
 
-    <div class="reveal-block mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PAID DETAIL</div>
-        <div class="text-[11px] text-slate-500">Wider canvas + sticky Sub column</div>
-      </div>
-      <div class="mt-3 paid-detail-shell">
-        <table class="paid-detail-table w-full table-auto text-sm min-w-[1360px]">
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
+      <div class="mt-3 overflow-x-auto">
+        <table class="w-full table-auto text-sm min-w-[1120px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
@@ -3463,14 +2700,11 @@ def render_page_html(
               <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">{wow_label} (Sessions)</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YOY (Sessions)</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
           </thead>
-          <tbody>{paid_html or "<tr><td colspan='10' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+          <tbody>{paid_html}</tbody>
         </table>
       </div>
       <div class="mt-3 flex justify-end">
@@ -3478,7 +2712,25 @@ def render_page_html(
       </div>
     </div>
 
-    <div class="mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
+      <div class="mt-3 overflow-x-auto">
+        <table class="w-full table-auto text-sm min-w-[760px]">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
+            </tr>
+          </thead>
+          <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Trend (Index)</div>
         <div class="flex flex-wrap items-center gap-2">{trend_tabs_html}</div>
@@ -3498,7 +2750,7 @@ def render_page_html(
       </div>
     </div>
 
-    <div class="mt-6 w-full rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">PDP View Trend (Category)</div>
       <div class="mt-3 space-y-2">{pdp_rows}</div>
     </div>
@@ -3548,7 +2800,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div class="report-shell mx-auto px-1 py-2 lg:px-2 lg:py-3">
+  <div class="mx-auto max-w-7xl p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest Hub</div>
@@ -3566,8 +2818,8 @@ def render_hub_index(dates: List[dt.date]) -> str:
           </select>
         </div>
         <div class="mt-3 flex gap-2">
-          <button id="openDaily" class="mode-switch flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
-          <button id="openWeekly" class="mode-switch flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
+          <button id="openDaily" class="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
+          <button id="openWeekly" class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
         </div>
       </div>
 
@@ -3590,33 +2842,17 @@ def render_hub_index(dates: List[dt.date]) -> str:
     $("#openDate").value = latest;
   }}
 
-  function goWithAnimation(url) {{
-    document.body.classList.add("page-exit");
-    window.setTimeout(() => {{
-      window.location.href = url;
-    }}, 260);
-  }}
-
   function renderRecent() {{
     const items = dates.slice(-10).reverse();
     $("#recentList").innerHTML = items.map(d => `
       <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3">
         <div class="text-sm font-extrabold">${{esc(d)}}</div>
         <div class="flex gap-2">
-          <a data-nav-transition="true" class="mode-switch rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${{esc(d)}}.html">Daily</a>
-          <a data-nav-transition="true" class="mode-switch rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${{esc(d)}}.html">Weekly</a>
+          <a class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${{esc(d)}}.html">Daily</a>
+          <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${{esc(d)}}.html">Weekly</a>
         </div>
       </div>
     `).join("");
-
-    document.querySelectorAll('[data-nav-transition]').forEach(el => {{
-      el.addEventListener('click', (event) => {{
-        const href = el.getAttribute('href');
-        if(!href || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        event.preventDefault();
-        goWithAnimation(href);
-      }});
-    }});
   }}
 
   function init() {{
@@ -3624,11 +2860,11 @@ def render_hub_index(dates: List[dt.date]) -> str:
     renderRecent();
     $("#openDaily").addEventListener("click", () => {{
       const d = $("#openDate").value;
-      goWithAnimation("daily/" + d + ".html");
+      window.location.href = "daily/" + d + ".html";
     }});
     $("#openWeekly").addEventListener("click", () => {{
       const d = $("#openDate").value;
-      goWithAnimation("weekly/END_" + d + ".html");
+      window.location.href = "weekly/END_" + d + ".html";
     }});
   }}
   document.addEventListener("DOMContentLoaded", init);
@@ -3860,3 +3096,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
