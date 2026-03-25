@@ -61,7 +61,10 @@ jobs:
           ls -la reports/external_signal.html || true
 
       - name: Commit & push results
+        shell: bash
         run: |
+          set -euo pipefail
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -73,4 +76,26 @@ jobs:
           fi
 
           git commit -m "External Signal update"
-          git push origin HEAD:main
+
+          # 🔥 핵심: push 직전에 최신 main 다시 동기화
+          git fetch origin main
+
+          # 충돌 대비 재시도 로직
+          for i in 1 2 3; do
+            echo "Attempt $i: rebase + push"
+
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                echo "Push success"
+                exit 0
+              fi
+            fi
+
+            echo "Retrying..."
+            git rebase --abort || true
+            git fetch origin main
+            sleep 2
+          done
+
+          echo "❌ Push failed after retries"
+          exit 1
