@@ -1124,10 +1124,11 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
               <button type="button" class="range-tab" data-range="2YEAR">2YEAR</button>
             </div>
           </div>
-          <div class="trend-svg-shell rounded-[24px] p-3 sm:p-4">
+          <div class="trend-svg-shell rounded-[24px] p-3 sm:p-4 relative">
             <div class="trend-scroll" data-trend-scroll>
               <svg class="trend-svg h-[360px] sm:h-[420px]" viewBox="0 0 1200 420" preserveAspectRatio="none" data-trend-svg></svg>
             </div>
+            <div class="chart-tooltip" data-chart-tooltip hidden></div>
           </div>
         </div>
         '''
@@ -1149,6 +1150,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "dailyKpi",
         "DAILY SNAPSHOT",
         "Daily KPI Summary",
+        "전일 핵심 퍼포먼스를 한 번에 비교할 수 있도록 카드 간 위계를 분리하고, 증감률은 즉시 눈에 들어오게 구성했습니다.",
         f'기준일 <b class="text-slate-900">{daily.get("date") or "-"}</b><br/>updated {daily.get("updated") or ""}',
         "#60a5fa",
         f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{daily_tiles}</div>{trend_panel("daily", "Daily KPI Trend", "최근 일자 기준으로 카드 선택 KPI의 흐름을 보여줍니다.")}',
@@ -1165,6 +1167,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "weeklyKpi",
         "WEEKLY TREND",
         "Weekly KPI Summary (7D)",
+        "최근 7일 누적 흐름을 별도 톤으로 구분해 일간 카드와 헷갈리지 않도록 분리했습니다.",
         f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
         "#8b5cf6",
         f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{weekly_tiles}</div>{trend_panel("weekly", "Weekly KPI Trend", "주간 누적 추이를 기준으로 선택 KPI를 비교합니다.")}',
@@ -1174,6 +1177,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "ownedYtd",
         "OWNED PERFORMANCE",
         "OWNED YTD YoY (EDM + LMS + KAKAO)",
+        "build_owned_campaign 포털 로직을 직접 반영해 send_id 우선 dedupe / fallback grouping을 적용하고, has_group_mmdd=true 캠페인만 누적 대상으로 사용합니다.",
         f'상태 <b class="text-slate-900">{"ENABLED" if owned_ytd.get("enabled") else "DISABLED"}</b><br/>updated {owned_ytd.get("updated") or ""}',
         "#14b8a6",
         '<div class="empty-state rounded-[28px] p-6 text-sm text-slate-600">OWNED 데이터가 아직 없습니다.</div>',
@@ -1260,8 +1264,8 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;700;800&display=swap');
     :root {{
       --brand:#002d72;
-      --bg-a:#f6f8fb;
-      --bg-b:#eef4ff;
+      --bg-a:#f2f5f8;
+      --bg-b:#e9eef4;
       --ink:#0f172a;
     }}
     * {{ box-sizing:border-box; }}
@@ -1271,10 +1275,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       min-height:100vh;
       color:var(--ink);
       font-family:'Plus Jakarta Sans',sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(96,165,250,.22), transparent 32%),
-        radial-gradient(circle at top right, rgba(45,212,191,.18), transparent 28%),
-        linear-gradient(180deg, var(--bg-b) 0%, #f8fafc 34%, #eef2ff 100%);
+      background:linear-gradient(180deg, #eef2f6 0%, #f4f6f8 42%, #eef2f6 100%);
     }}
     .hero-shell {{
       position:relative;
@@ -1290,7 +1291,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       inset:-20% auto auto -10%;
       width:18rem;
       height:18rem;
-      background:radial-gradient(circle, rgba(96,165,250,.28), transparent 65%);
+      background:radial-gradient(circle, rgba(148,163,184,.18), transparent 65%);
       filter:blur(10px);
       pointer-events:none;
     }}
@@ -1301,7 +1302,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       top:-4rem;
       width:16rem;
       height:16rem;
-      background:radial-gradient(circle, rgba(20,184,166,.22), transparent 66%);
+      background:radial-gradient(circle, rgba(203,213,225,.18), transparent 66%);
       filter:blur(6px);
       pointer-events:none;
     }}
@@ -1417,6 +1418,26 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       box-shadow:0 10px 24px rgba(15,23,42,.06);
     }}
     .nav-chip:hover {{ transform:translateY(-2px); background:rgba(255,255,255,.92); }}
+    .chart-tooltip {{
+      position:absolute;
+      left:0;
+      top:0;
+      transform:translate(-50%, calc(-100% - 12px));
+      pointer-events:none;
+      z-index:30;
+      min-width:132px;
+      padding:.65rem .75rem;
+      border-radius:16px;
+      background:rgba(15,23,42,.96);
+      color:#f8fafc;
+      box-shadow:0 18px 42px rgba(15,23,42,.22);
+      border:1px solid rgba(255,255,255,.12);
+      backdrop-filter:blur(10px);
+      white-space:nowrap;
+    }}
+    .chart-tooltip .t-date {{ display:block; font-size:11px; font-weight:800; letter-spacing:.08em; color:#cbd5e1; margin-bottom:.25rem; }}
+    .chart-tooltip .t-value {{ display:block; font-size:14px; font-weight:900; color:#ffffff; }}
+    .point-hit {{ cursor:pointer; pointer-events:all; }}
     .reveal {{ opacity:0; transform:translateY(24px) scale(.985); animation:riseIn .9s cubic-bezier(.2,.8,.2,1) forwards; }}
     .summary-section:nth-of-type(1) {{ animation-delay:.08s; }}
     .summary-section:nth-of-type(2) {{ animation-delay:.18s; }}
@@ -1624,7 +1645,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
           const fill = x.weekend === 6 ? 'rgba(37,99,235,.30)' : 'rgba(220,38,38,.30)';
           return `<rect x="${{left}}" y="${{padT}}" width="${{Math.max(0, right-left)}}" height="${{innerH}}" fill="${{fill}}"></rect>`;
         }}).join('');
-        const circles = pts.map((p,i) => `<circle class="trend-anim-fade" cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.4}}" fill="white" stroke="${{series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : 'rgba(15,23,42,.76)'}}" stroke-width="${{i===pts.length-1?2:1.6}}" style="animation-delay:${{Math.min(i*0.012, .36)}}s"></circle>`).join('');
+        const circles = pts.map((p,i) => {{ const stroke = series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : 'rgba(15,23,42,.76)'; const pretty = formatMetric(metric, series[i].value); return `<g><circle class="trend-anim-fade" cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.4}}" fill="white" stroke="${{stroke}}" stroke-width="${{i===pts.length-1?2:1.6}}" style="animation-delay:${{Math.min(i*0.012, .36)}}s"></circle><circle class="point-hit" cx="${{p[0]}}" cy="${{p[1]}}" r="12" fill="transparent" data-date="${{series[i].date || ''}}" data-label="${{series[i].label || ''}}" data-value="${{pretty}}"><title>${{series[i].date || series[i].label || ''}} · ${{pretty}}</title></circle></g>`; }}).join('');
         const labels = pts.map((p, i) => {{ const fill = series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : '#64748b'; const bg = series[i].weekend === 6 ? 'rgba(37,99,235,.18)' : series[i].weekend === 0 ? 'rgba(220,38,38,.18)' : 'transparent'; return `<g class="trend-anim-fade" style="animation-delay:${{Math.min(i*0.006, .32)}}s"><rect x="${{p[0]-22}}" y="${{H-34}}" width="44" height="18" rx="8" fill="${{bg}}"></rect><text x="${{p[0]}}" y="${{H - 21}}" text-anchor="middle" font-size="11" font-weight="800" fill="${{fill}}">${{series[i].label}}</text></g>`; }}).join('');
         svg.innerHTML = `<defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(59,130,246,.30)"/><stop offset="100%" stop-color="rgba(59,130,246,0.02)"/></linearGradient></defs>${{weekendBands}}${{grid}}<path class="trend-anim-fade" d="${{area}}" fill="url(#trendFill)"></path><polyline class="trend-anim-line" points="${{line}}" fill="none" stroke="rgba(15,23,42,.9)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"></polyline>${{circles}}${{labels}}`;
         const polyline = svg.querySelector('.trend-anim-line');
@@ -1636,8 +1657,28 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const prev = series.length > 1 ? series[series.length-2]?.value ?? null : null;
         const delta = prev == null || prev === 0 ? null : ((last - prev) / prev);
         summaryEl.textContent = `최근값 ${{formatMetric(metric, last)}}${{delta == null ? '' : ` · 직전 대비 ${{delta >= 0 ? '+' : ''}}${{(delta * 100).toFixed(1)}}%`}} · ${{series.length}}포인트`;
+        const tip = panel.querySelector('[data-chart-tooltip]');
+        const shell = panel.querySelector('.trend-svg-shell');
+        const hideTip = () => {{ if (tip) tip.hidden = true; }};
+        const showTip = (evt) => {{
+          if (!tip || !shell) return;
+          const t = evt.currentTarget;
+          tip.innerHTML = `<span class="t-date">${{t.dataset.date || t.dataset.label || ''}}</span><span class="t-value">${{t.dataset.value || ''}}</span>`;
+          const rect = shell.getBoundingClientRect();
+          tip.style.left = `${{evt.clientX - rect.left}}px`;
+          tip.style.top = `${{evt.clientY - rect.top}}px`;
+          tip.hidden = false;
+        }};
+        svg.querySelectorAll('.point-hit').forEach(node => {{
+          node.addEventListener('mouseenter', showTip);
+          node.addEventListener('mousemove', showTip);
+          node.addEventListener('mouseleave', hideTip);
+        }});
         const scroller = panel.querySelector('[data-trend-scroll]');
-        if (scroller) scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+        if (scroller) {{
+          scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+          scroller.addEventListener('scroll', hideTip, {{ passive:true }});
+        }}
       }};
       const activate = (card) => {{
         const section = card.dataset.chartSection;
@@ -1665,7 +1706,8 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       ['daily','weekly'].forEach(section => {{ const first = document.querySelector(`[data-chart-section="${{section}}"]`); if (first) activate(first); }});
 
     }})();
-  </script>ody>
+  </script>
+</body>
 </html>'''
 
 
