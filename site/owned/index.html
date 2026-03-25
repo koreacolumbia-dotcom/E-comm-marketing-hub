@@ -3012,15 +3012,8 @@
   }
 
   const OWNED_DATA_BASE_CANDIDATES = [
-    'data/owned',
-    './data/owned',
     '../data/owned',
-    '../../data/owned',
-    'reports/owned_portal/data/owned',
-    './reports/owned_portal/data/owned',
-    '../reports/owned_portal/data/owned',
-    '/reports/owned_portal/data/owned',
-    '/data/owned',
+    '/E-comm-marketing-hub/site/data/owned',
   ];
   let OWNED_DATA_BASE = null;
   let PORTAL_META = null;
@@ -3031,7 +3024,7 @@
 
   async function loadPortalMeta(){
     try{
-      const meta = await fetchOwnedJson('portal_meta.json');
+      const meta = await fetchOwnedJson('meta.json');
       PORTAL_META = (meta && typeof meta === 'object') ? meta : null;
       return PORTAL_META;
     }catch(_e){
@@ -3346,7 +3339,7 @@
       AVAILABLE = arr.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))).slice().sort();
     }catch(e){
       AVAILABLE = null;
-      showNotice('available_dates.json 또는 portal_meta.json을 읽지 못했어. 데이터 경로를 확인해줘.');
+      showNotice('available_dates.json 또는 meta.json을 읽지 못했어. 데이터 경로를 확인해줘.');
     }
   }
 
@@ -3831,7 +3824,7 @@
       finalizeAnimatedViewChange();
     }catch(err){
       console.error('INIT ERROR', err);
-      showNotice('초기 데이터 로딩에 실패했어. site/data/owned 경로와 meta.json을 확인해줘.');
+      showNotice('초기 데이터 로딩에 실패했어. ../data/owned 또는 /E-comm-marketing-hub/site/data/owned 경로와 meta.json을 확인해줘.');
       hideYtdLoading();
     }
   })();
