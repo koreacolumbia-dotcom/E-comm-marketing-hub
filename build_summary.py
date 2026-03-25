@@ -1193,7 +1193,6 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         source = owned_ytd.get("source") or ""
 
         owned_total_tiles = "".join([
-            metric_tile("Send Count", fmt_int(tot.get("send_count")), "YoY", fmt_delta_ratio(tot_yoy.get("send_count")), tone_cls_from_delta(tot_yoy.get("send_count")), "LY", fmt_int(tot_prev.get("send_count")), "text-slate-700", "#2dd4bf"),
             metric_tile("Sessions", fmt_int(tot.get("sessions")), "YoY", fmt_delta_ratio(tot_yoy.get("sessions")), tone_cls_from_delta(tot_yoy.get("sessions")), "LY", fmt_int(tot_prev.get("sessions")), "text-slate-700", "#38bdf8"),
             metric_tile("Revenue", fmt_krw_symbol(tot.get("revenue")), "YoY", fmt_delta_ratio(tot_yoy.get("revenue")), tone_cls_from_delta(tot_yoy.get("revenue")), "LY", fmt_krw_symbol(tot_prev.get("revenue")), "text-slate-700", "#22c55e"),
             metric_tile("CVR", fmt_cvr(tot.get("cvr")), "YoY", fmt_pp_from_fraction(tot_yoy.get("cvr_pp")), pp_tone_cls(tot_yoy.get("cvr_pp")), "LY", fmt_cvr(tot_prev.get("cvr")), "text-slate-700", "#f59e0b"),
@@ -1216,8 +1215,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
                 </div>
                 <span class="channel-pill">LY / YoY</span>
               </div>
-              <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="channel-metric"><div class="k">Send Count</div><div class="v metric-value" data-countup="{fmt_int(cur.get("send_count"))}">{fmt_int(cur.get("send_count"))}</div><div class="s">LY {fmt_int(prev.get("send_count"))} · <b class="{tone_cls_from_delta(yoy.get("send_count"))}">{fmt_delta_ratio(yoy.get("send_count"))}</b></div></div>
+              <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div class="channel-metric"><div class="k">Sessions</div><div class="v metric-value" data-countup="{fmt_int(cur.get("sessions"))}">{fmt_int(cur.get("sessions"))}</div><div class="s">LY {fmt_int(prev.get("sessions"))} · <b class="{tone_cls_from_delta(yoy.get("sessions"))}">{fmt_delta_ratio(yoy.get("sessions"))}</b></div></div>
                 <div class="channel-metric"><div class="k">Revenue</div><div class="v metric-value" data-countup="{fmt_krw_symbol(cur.get("revenue"))}">{fmt_krw_symbol(cur.get("revenue"))}</div><div class="s">LY {fmt_krw_symbol(prev.get("revenue"))} · <b class="{tone_cls_from_delta(yoy.get("revenue"))}">{fmt_delta_ratio(yoy.get("revenue"))}</b></div></div>
                 <div class="channel-metric"><div class="k">CVR</div><div class="v metric-value" data-countup="{fmt_cvr(cur.get("cvr"))}">{fmt_cvr(cur.get("cvr"))}</div><div class="s">LY {fmt_cvr(prev.get("cvr"))} · <b class="{pp_tone_cls(yoy.get("cvr_pp"))}">{fmt_pp_from_fraction(yoy.get("cvr_pp"))}</b></div></div>
@@ -1231,7 +1229,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
             <div>
               <div class="section-eyebrow">YTD TOTAL</div>
               <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-950">누적 전체 요약</h3>
-              <p class="mt-2 text-sm text-slate-600">owned campaign 포털 결과에 맞춰 발송 로그 기준 send count를 우선 적용하고, 채널별 누적 성과를 합산해 표시합니다.</p>
+              <p class="mt-2 text-sm text-slate-600">owned campaign 포털 결과 기준으로 채널별 누적 성과를 합산해 표시합니다.</p>
             </div>
             <div class="text-xs text-slate-600 leading-6 shrink-0">
               기간 <b class="text-slate-900">{period}</b><br/>
@@ -1239,9 +1237,9 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
               updated {upd}
             </div>
           </div>
-          <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">{owned_total_tiles}</div>
+          <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">{owned_total_tiles}</div>
         </div>
-        <div class="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-4">{''.join(channel_cards)}</div>
+        <div class="mt-4 grid grid-cols-1 2xl:grid-cols-3 gap-4">{''.join(channel_cards)}</div>
         '''
 
         owned_block = section_shell(
@@ -1559,6 +1557,11 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         return Number.isNaN(d.getTime()) ? null : d;
       }};
       const fmtShortDate = (s) => (s || '').slice(5);
+      const fmtAxisDate = (s, rangeKey='1MONTH') => {{
+        if (!s) return '';
+        if (rangeKey === '1YEAR' || rangeKey === '2YEAR') return s.slice(2).replace(/-/g, '.');
+        return s.slice(5);
+      }};
       const getWeekend = (s) => {{
         const d = parseISODate(s);
         if (!d) return -1;
@@ -1567,11 +1570,11 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       }};
       const rangeDaysMap = {{'7D': 7, '14D': 14, '1MONTH': 31, '1YEAR': 366, '2YEAR': 731}};
       const pickSeries = (section, metric, channel) => {{
-        if (section === 'daily') return (trendData.daily || []).map(x => ({{ date: x.date || '', label: fmtShortDate(x.date || ''), value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
-        if (section === 'weekly') return (trendData.weekly || []).map(x => ({{ date: x.date || '', label: fmtShortDate(x.date || ''), value: Number(x[metric] || 0), weekend: -1 }}));
+        if (section === 'daily') return (trendData.daily || []).map(x => ({{ date: x.date || '', rawLabel: x.label || x.date || '', value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
+        if (section === 'weekly') return (trendData.weekly || []).map(x => ({{ date: x.date || '', rawLabel: x.label || x.date || '', value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
         if (section === 'owned') {{
           const source = channel ? ((((trendData.owned || {{}}).by_channel || {{}})[channel]) || []) : (((trendData.owned || {{}}).total) || []);
-          return source.map(x => ({{ date: x.date || '', label: fmtShortDate(x.date || ''), value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
+          return source.map(x => ({{ date: x.date || '', rawLabel: x.label || x.date || '', value: Number(x[metric] || 0), weekend: getWeekend(x.date || '') }}));
         }}
         return [];
       }};
@@ -1591,7 +1594,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
       const renderTrend = (panel, section, metric, label, channel='') => {{
         const rangeKey = panel.dataset.range || '1MONTH';
         const baseSeries = pickSeries(section, metric, channel).filter(x => Number.isFinite(x.value));
-        const series = filterSeriesByRange(baseSeries, rangeKey);
+        const series = filterSeriesByRange(baseSeries, rangeKey).map(x => ({{...x, label: section === 'weekly' ? ((rangeKey === '1YEAR' || rangeKey === '2YEAR') ? fmtAxisDate(x.date || '', rangeKey) : (x.rawLabel || fmtAxisDate(x.date || '', rangeKey))) : fmtAxisDate(x.date || '', rangeKey)}}));
         const svg = panel.querySelector('[data-trend-svg]');
         const titleEl = panel.querySelector('[data-selected-title]');
         const summaryEl = panel.querySelector('[data-selected-summary]');
@@ -1617,15 +1620,15 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         const line = pts.map(p => p.join(',')).join(' ');
         const area = `M ${{padL}} ${{H-padB}} L ${{pts.map(p=>p.join(' ')).join(' L ')}} L ${{pts[pts.length-1][0]}} ${{H-padB}} Z`;
         const grid = [0,1,2,3,4].map(i => {{ const y = padT + (innerH * i / 4); return `<line x1="${{padL}}" y1="${{y}}" x2="${{W-padR}}" y2="${{y}}" stroke="rgba(148,163,184,.26)" stroke-width="1" />`; }}).join('');
-        const weekendBands = section === 'daily' ? series.map((x, i) => {{
+        const weekendBands = series.map((x, i) => {{
           if (x.weekend < 0) return '';
           const left = i === 0 ? pts[i][0] - stepX / 2 : (pts[i-1][0] + pts[i][0]) / 2;
           const right = i === series.length - 1 ? pts[i][0] + stepX / 2 : (pts[i][0] + pts[i+1][0]) / 2;
-          const fill = x.weekend === 6 ? 'rgba(37,99,235,.24)' : 'rgba(220,38,38,.24)';
+          const fill = x.weekend === 6 ? 'rgba(37,99,235,.30)' : 'rgba(220,38,38,.30)';
           return `<rect x="${{left}}" y="${{padT}}" width="${{Math.max(0, right-left)}}" height="${{innerH}}" fill="${{fill}}"></rect>`;
-        }}).join('') : '';
-        const circles = pts.map((p,i) => `<circle class="trend-anim-fade" cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.4}}" fill="white" stroke="rgba(15,23,42,.76)" stroke-width="${{i===pts.length-1?2:1.4}}" style="animation-delay:${{Math.min(i*0.012, .36)}}s"></circle>`).join('');
-        const labels = pts.map((p, i) => `<text class="trend-anim-fade" x="${{p[0]}}" y="${{H - 18}}" transform="rotate(-58 ${{p[0]}} ${{H - 18}})" text-anchor="end" font-size="11" font-weight="800" fill="${{series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : '#64748b'}}" style="animation-delay:${{Math.min(i*0.006, .32)}}s">${{series[i].label}}</text>`).join('');
+        }}).join('');
+        const circles = pts.map((p,i) => `<circle class="trend-anim-fade" cx="${{p[0]}}" cy="${{p[1]}}" r="${{i===pts.length-1?5.5:3.4}}" fill="white" stroke="${{series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : 'rgba(15,23,42,.76)'}}" stroke-width="${{i===pts.length-1?2:1.6}}" style="animation-delay:${{Math.min(i*0.012, .36)}}s"></circle>`).join('');
+        const labels = pts.map((p, i) => {{ const fill = series[i].weekend === 6 ? '#1d4ed8' : series[i].weekend === 0 ? '#b91c1c' : '#64748b'; const bg = series[i].weekend === 6 ? 'rgba(37,99,235,.18)' : series[i].weekend === 0 ? 'rgba(220,38,38,.18)' : 'transparent'; return `<g class="trend-anim-fade" style="animation-delay:${{Math.min(i*0.006, .32)}}s"><rect x="${{p[0]-22}}" y="${{H-34}}" width="44" height="18" rx="8" fill="${{bg}}"></rect><text x="${{p[0]}}" y="${{H - 21}}" text-anchor="middle" font-size="11" font-weight="800" fill="${{fill}}">${{series[i].label}}</text></g>`; }}).join('');
         svg.innerHTML = `<defs><linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(59,130,246,.30)"/><stop offset="100%" stop-color="rgba(59,130,246,0.02)"/></linearGradient></defs>${{weekendBands}}${{grid}}<path class="trend-anim-fade" d="${{area}}" fill="url(#trendFill)"></path><polyline class="trend-anim-line" points="${{line}}" fill="none" stroke="rgba(15,23,42,.9)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"></polyline>${{circles}}${{labels}}`;
         const polyline = svg.querySelector('.trend-anim-line');
         if (polyline && polyline.getTotalLength) {{
