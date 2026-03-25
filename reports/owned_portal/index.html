@@ -964,12 +964,12 @@
     if(loadingOverlay) loadingOverlay.style.display = 'none';
     if(loadingText) loadingText.textContent = '데이터 불러오는 중…';
   }
-  function showYtdLoading(){
+  function showYtdLoading(msg){
     ytdSkeletonArmed = true;
     setSkeletonState(allCards, true);
     setSkeletonState(ytdCards, true);
-    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
-    if(ytdLoadingText) ytdLoadingText.textContent = '';
+    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'flex';
+    if(ytdLoadingText) ytdLoadingText.textContent = msg || 'YTD 로딩중... 최신(전일) 데이터 불러오는 중';
   }
   function animateKpiGroup(container, baseDelay=0){
     if(!container) return;
@@ -984,15 +984,15 @@
     setSkeletonState(allCards, false);
     setSkeletonState(ytdCards, false);
     if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
-    if(ytdLoadingText) ytdLoadingText.textContent = '';
+    if(ytdLoadingText) ytdLoadingText.textContent = 'YTD 로딩중...';
     if(ytdSkeletonArmed){
       animateKpiGroup(allCards, 0);
       animateKpiGroup(ytdCards, 120);
       ytdSkeletonArmed = false;
     }
   }
-  function primeYtdLoading(){
-    showYtdLoading();
+  function primeYtdLoading(msg){
+    showYtdLoading(msg || 'YTD 로딩중... 최신(전일) 데이터 불러오는 중');
     if(allCards) allCards.style.visibility = 'visible';
     if(ytdCards) ytdCards.style.visibility = 'visible';
   }
@@ -3333,6 +3333,7 @@
   }
 
   async function loadAvailableDates(){
+    showYtdLoading('YTD 로딩중... 메타/날짜 데이터 확인 중');
     await loadPortalMeta();
     const metaDates = Array.isArray(PORTAL_META && PORTAL_META.available_dates) ? PORTAL_META.available_dates.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))) : [];
     if(metaDates.length){
@@ -3345,6 +3346,7 @@
       AVAILABLE = arr.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))).slice().sort();
     }catch(e){
       AVAILABLE = null;
+      showNotice('available_dates.json 또는 portal_meta.json을 읽지 못했어. 데이터 경로를 확인해줘.');
     }
   }
 
@@ -3387,11 +3389,11 @@
   }
 
   async function computeYTD(){
-    if(!AVAILABLE || !AVAILABLE.length){ hideYtdLoading(); return; }
+    if(!AVAILABLE || !AVAILABLE.length){ showYtdLoading('YTD 로딩중... available_dates 확인 중'); return; }
     updateYtdLabels();
     const end = currentPeriodEndDate();
     const year = String(end).slice(0,4);
-    if(!/^\d{4}$/.test(year)){ hideYtdLoading(); return; }
+    if(!/^\d{4}$/.test(year)){ showYtdLoading('YTD 로딩중... 기준 날짜 확인 중'); return; }
 
     const thisStart = `${year}-01-01`;
     const thisEnd = clampToAvailable(end);
@@ -3757,8 +3759,17 @@
 
   (async function init(){
     toggleGroupJump.checked = true;
+    const fallbackYesterday = ymd(addDays(new Date(), -1));
+    if(datePicker && !datePicker.value) datePicker.value = fallbackYesterday;
+    if(startPicker && !startPicker.value) startPicker.value = fallbackYesterday;
+    if(endPicker && !endPicker.value) endPicker.value = fallbackYesterday;
     GROUP_JUMP_MODE = true;
     updateYtdLabels();
+    VIEW = 'WEEK';
+    CHANNEL = 'EDM';
+    setChipActive();
+    setViewActive();
+    primeYtdLoading('YTD 로딩중... 최신(전일) 데이터와 WEEK 기본 화면 준비 중');
 
     await loadAvailableDates();
 
