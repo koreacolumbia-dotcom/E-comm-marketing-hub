@@ -3031,6 +3031,7 @@ def parse_args():
     parser.add_argument("--days", dest="days", type=int, default=None, help="How many end dates to build")
     parser.add_argument("--json-only", dest="json_only", action="store_true", help="Write bundle JSON only and skip HTML/HUB generation")
     parser.add_argument("--skip-hub-write", dest="skip_hub_write", action="store_true", help="Skip HUB index write")
+    parser.add_argument("--no-yoy-prebuild", dest="no_yoy_prebuild", action="store_true", help="Do not add YoY helper dates to the build queue")
     return parser.parse_args()
 
 
@@ -3052,6 +3053,8 @@ def main():
         SKIP_HUB_WRITE = True
     if JSON_ONLY:
         SKIP_HUB_WRITE = True
+
+    no_yoy_prebuild = bool(args.no_yoy_prebuild or JSON_ONLY or (os.getenv("DAILY_DIGEST_NO_YOY_PREBUILD", "false").strip().lower() in ("1", "true", "yes", "y")))
 
     if not PROPERTY_ID:
         raise SystemExit("ERROR: GA4_PROPERTY_ID is empty. Set env var GA4_PROPERTY_ID and retry.")
@@ -3089,11 +3092,16 @@ def main():
     ensure_dir(os.path.join(DATA_DIR, "weekly"))
     ensure_dir(os.path.join(OUT_DIR, "cache", "pdp"))
 
-    yoy_dates: List[dt.date] = []
-    for d in dates:
-        yoy_dates.append(build_window(end_date=d, mode="daily").yoy_end)
-        yoy_dates.append(build_window(end_date=d, mode="weekly").yoy_end)
-    all_dates = sorted(set(dates + yoy_dates))
+    if no_yoy_prebuild:
+        all_dates = sorted(set(dates))
+    else:
+        yoy_dates: List[dt.date] = []
+        for d in dates:
+            yoy_dates.append(build_window(end_date=d, mode="daily").yoy_end)
+            yoy_dates.append(build_window(end_date=d, mode="weekly").yoy_end)
+        all_dates = sorted(set(dates + yoy_dates))
+
+    print(f"[INFO] Build queue dates={len(all_dates)} (requested={len(dates)}, no_yoy_prebuild={str(no_yoy_prebuild).lower()}, json_only={str(JSON_ONLY).lower()})")
 
     for d in all_dates:
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
