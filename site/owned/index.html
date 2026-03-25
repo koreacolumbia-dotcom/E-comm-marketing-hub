@@ -3011,11 +3011,7 @@
     renderProducts();
   }
 
-  const OWNED_DATA_BASE_CANDIDATES = [
-    '../data/owned',
-    '/E-comm-marketing-hub/site/data/owned',
-  ];
-  let OWNED_DATA_BASE = null;
+  const OWNED_DATA_BASE = `${window.location.origin}/E-comm-marketing-hub/site/data/owned`;
   let PORTAL_META = null;
 
   async function fetchOwnedJsonOptional(fileName){
@@ -3034,17 +3030,23 @@
   }
 
   function getPortalMetaDefaultDate(){
-    const d = String((PORTAL_META && (PORTAL_META.default_date || PORTAL_META.latest_available_date)) || '').trim();
-    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
+    const metaDate = String((PORTAL_META && (PORTAL_META.default_date || PORTAL_META.latest_available_date || PORTAL_META.yesterday)) || '').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(metaDate)) return metaDate;
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
   }
 
   function getPortalMetaDefaultView(){
-    const v = String((PORTAL_META && PORTAL_META.default_view) || '').trim().toUpperCase();
+    const v = String((PORTAL_META && PORTAL_META.default_view) || 'WEEK').trim().toUpperCase();
     return (v === 'DAILY' || v === 'WEEK' || v === 'RANGE') ? v : 'WEEK';
   }
 
   function getPortalMetaDefaultChannel(){
-    const ch = String((PORTAL_META && PORTAL_META.default_channel) || '').trim().toUpperCase();
+    const ch = String((PORTAL_META && PORTAL_META.default_channel) || 'EDM').trim().toUpperCase();
     return (ch === 'EDM' || ch === 'LMS' || ch === 'KAKAO') ? ch : 'EDM';
   }
 
@@ -3074,25 +3076,7 @@
   }
 
   async function resolveOwnedDataBase(){
-    if(OWNED_DATA_BASE) return OWNED_DATA_BASE;
-
-    const seen = new Set();
-    const candidates = [];
-    for(const base of OWNED_DATA_BASE_CANDIDATES){
-      const normalized = String(base || '').replace(/\/$/, '');
-      if(!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      candidates.push(normalized);
-    }
-
-    for(const base of candidates){
-      try{
-        await fetchJsonDirect(appendCacheBust(`${base}/available_dates.json`));
-        OWNED_DATA_BASE = base;
-        return OWNED_DATA_BASE;
-      }catch(_e){}
-    }
-    throw new Error('OWNED data base path not found');
+    return OWNED_DATA_BASE;
   }
 
   async function fetchJson(url){
@@ -3103,8 +3087,7 @@
   }
 
   async function fetchOwnedJson(fileName){
-    const base = await resolveOwnedDataBase();
-    return await fetchJsonDirect(appendCacheBust(`${base}/${fileName}`));
+    return await fetchJsonDirect(appendCacheBust(`${OWNED_DATA_BASE}/${fileName}`));
   }
 
   function normalizeBundle(j){
@@ -3758,75 +3741,58 @@
     if(endPicker && !endPicker.value) endPicker.value = fallbackYesterday;
     GROUP_JUMP_MODE = true;
     updateYtdLabels();
-
     VIEW = 'WEEK';
     CHANNEL = 'EDM';
     setChipActive();
     setViewActive();
-    setDetailViewActive();
-    toggleSections();
     primeYtdLoading('YTD 로딩중... 최신(전일) 데이터와 WEEK 기본 화면 준비 중');
 
-    try{
-      const dates = await loadAvailableDates();
-      if(!dates || !dates.length){
-        throw new Error('No available dates loaded');
-      }
+    await loadAvailableDates();
 
-      CHANNEL = getPortalMetaDefaultChannel();
-      VIEW = getPortalMetaDefaultView();
-      if(VIEW !== 'DAILY' && VIEW !== 'RANGE' && VIEW !== 'WEEK') VIEW = 'WEEK';
+    CHANNEL = getPortalMetaDefaultChannel();
+    VIEW = getPortalMetaDefaultView();
 
-      setChipActive();
-      setDetailViewActive();
-      setViewActive();
-      toggleSections();
-      primeYtdLoading('YTD 로딩중... 기본 날짜와 초기 화면 설정 중');
+    setChipActive();
+    setDetailViewActive();
+    setViewActive();
+    toggleSections();
+    primeYtdLoading();
 
+    if(AVAILABLE && AVAILABLE.length){
       const minD = AVAILABLE[0];
       const maxD = AVAILABLE[AVAILABLE.length - 1];
       datePicker.min = minD; datePicker.max = maxD;
       startPicker.min = minD; startPicker.max = maxD;
       endPicker.min = minD; endPicker.max = maxD;
-
-      let d = String((PORTAL_META && PORTAL_META.yesterday) || '').trim()
-        || getPortalMetaDefaultDate()
-        || maxD
-        || fallbackYesterday;
-
-      d = clampToAvailable(d);
-
-      const preferredGroupDate = getPortalMetaDefaultGroupDate(CHANNEL);
-      if(VIEW === 'WEEK' && preferredGroupDate){
-        d = clampToAvailable(preferredGroupDate);
-      }
-
-      datePicker.value = d;
-      startPicker.value = d;
-      endPicker.value = d;
-
-      if(VIEW === 'DAILY'){
-        await loadDaily(d);
-      }else if(VIEW === 'RANGE'){
-        const s = clampToAvailable(d);
-        const e = clampToAvailable(ymd(addDays(parseYMD(s), 6)));
-        startPicker.value = s;
-        endPicker.value = e;
-        await loadRange(s, e);
-      }else{
-        VIEW = 'WEEK';
-        setViewActive();
-        await loadWeekByDate(d);
-      }
-
-      if(ytdCards) ytdCards.style.display = '';
-      await computeYTD();
-      finalizeAnimatedViewChange();
-    }catch(err){
-      console.error('INIT ERROR', err);
-      showNotice('초기 데이터 로딩에 실패했어. ../data/owned 또는 /E-comm-marketing-hub/site/data/owned 경로와 meta.json을 확인해줘.');
-      hideYtdLoading();
     }
+
+    let d = getPortalMetaDefaultDate() || ((AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1)));
+    d = clampToAvailable(d);
+
+    const preferredGroupDate = getPortalMetaDefaultGroupDate(CHANNEL);
+    if(VIEW === 'WEEK' && preferredGroupDate){
+      d = clampToAvailable(preferredGroupDate);
+    }
+
+    datePicker.value = d;
+
+    if(VIEW === 'DAILY'){
+      await loadDaily(d);
+    }else if(VIEW === 'RANGE'){
+      const s = clampToAvailable(d);
+      const e = clampToAvailable(ymd(addDays(parseYMD(s), 6)));
+      startPicker.value = s;
+      endPicker.value = e;
+      await loadRange(s, e);
+    }else{
+      VIEW = 'WEEK';
+      setViewActive();
+      await loadWeekByDate(d);
+    }
+
+    if(ytdCards) ytdCards.style.display = '';
+    await computeYTD();
+    finalizeAnimatedViewChange();
   })();
 
 })();
