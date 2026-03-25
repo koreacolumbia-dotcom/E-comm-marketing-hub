@@ -94,6 +94,8 @@ import json
 import base64
 import datetime as dt
 import re
+import argparse
+import sys
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
@@ -156,6 +158,7 @@ SKIP_HUB_WRITE = os.getenv("DAILY_DIGEST_SKIP_HUB_WRITE", "true").strip().lower(
 USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
+JSON_ONLY = os.getenv("DAILY_DIGEST_JSON_ONLY", "false").strip().lower() in ("1", "true", "yes", "y")
 
 # Paid detail fixed order / labels
 PAID_DETAIL_SOURCES = [
@@ -2992,6 +2995,9 @@ def build_one(
     if WRITE_DATA_CACHE:
         write_json(bpath, bundle)
 
+    if JSON_ONLY:
+        return "", bundle
+
     bundle_rel = "../data/weekly/END_" + ymd(w.end_date) + ".json" if w.mode == "weekly" else "../data/daily/" + ymd(w.end_date) + ".json"
     html = render_page_html(
         logo_b64=logo_b64,
@@ -3019,7 +3025,34 @@ def build_one(
 # =========================
 # Main
 # =========================
+def parse_args():
+    parser = argparse.ArgumentParser(description="Columbia Daily Digest builder")
+    parser.add_argument("--out-dir", dest="out_dir", default=None, help="Output directory override")
+    parser.add_argument("--days", dest="days", type=int, default=None, help="How many end dates to build")
+    parser.add_argument("--json-only", dest="json_only", action="store_true", help="Write bundle JSON only and skip HTML/HUB generation")
+    parser.add_argument("--skip-hub-write", dest="skip_hub_write", action="store_true", help="Skip HUB index write")
+    return parser.parse_args()
+
+
 def main():
+    global OUT_DIR, DATA_DIR, DAYS_TO_BUILD, SKIP_HUB_WRITE, JSON_ONLY
+
+    args = parse_args()
+
+    if args.out_dir:
+        OUT_DIR = args.out_dir
+        DATA_DIR = os.getenv("DAILY_DIGEST_DATA_DIR", os.path.join(OUT_DIR, "data")).strip()
+
+    if args.days is not None and args.days > 0:
+        DAYS_TO_BUILD = args.days
+
+    if args.json_only:
+        JSON_ONLY = True
+    if args.skip_hub_write:
+        SKIP_HUB_WRITE = True
+    if JSON_ONLY:
+        SKIP_HUB_WRITE = True
+
     if not PROPERTY_ID:
         raise SystemExit("ERROR: GA4_PROPERTY_ID is empty. Set env var GA4_PROPERTY_ID and retry.")
 
@@ -3036,10 +3069,15 @@ def main():
     today_kst = dt.datetime.now(ZoneInfo("Asia/Seoul")).date()
     latest_end = today_kst - dt.timedelta(days=1)
 
-    dates = [latest_end - dt.timedelta(days=i) for i in range(max(1, DAYS_TO_BUILD))]
-    dates = [d for d in dates if d.year >= 2000]
+    explicit_ymd = (os.getenv("YMD", "").strip() or os.getenv("GA4_END_DATE", "").strip())
+    explicit_date = parse_yyyy_mm_dd(explicit_ymd)
+    if explicit_date:
+        dates = [explicit_date]
+    else:
+        dates = [latest_end - dt.timedelta(days=i) for i in range(max(1, DAYS_TO_BUILD))]
+        dates = [d for d in dates if d.year >= 2000]
 
-    logo_b64 = load_logo_base64(LOGO_PATH)
+    logo_b64 = "" if JSON_ONLY else load_logo_base64(LOGO_PATH)
     image_map = load_image_map_from_excel_urls(IMAGE_XLS_PATH)
 
     ensure_dir(OUT_DIR)
@@ -3061,30 +3099,35 @@ def main():
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
 
-        # Always rebuild the latest end date even if SKIP_IF_EXISTS is enabled.
-        force_rebuild = (d == latest_end)
+        force_rebuild = (d == latest_end) or (explicit_date is not None)
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
             print(f"[SKIP] Exists (Daily): {out_daily}")
         else:
             html_daily, _bundle = build_one(client, end_date=d, mode="daily", image_map=image_map, logo_b64=logo_b64)
-            with open(out_daily, "w", encoding="utf-8") as f:
-                f.write(html_daily)
-            print(f"[OK] Wrote: {out_daily} (force={force_rebuild})")
+            if not JSON_ONLY:
+                with open(out_daily, "w", encoding="utf-8") as f:
+                    f.write(html_daily)
+                print(f"[OK] Wrote: {out_daily} (force={force_rebuild})")
+            else:
+                print(f"[OK] Wrote JSON bundle only for daily end_date={ymd(d)}")
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_weekly):
             print(f"[SKIP] Exists (Weekly): {out_weekly}")
         else:
             html_weekly, _bundle = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
-            with open(out_weekly, "w", encoding="utf-8") as f:
-                f.write(html_weekly)
-            print(f"[OK] Wrote: {out_weekly} (force={force_rebuild})")
+            if not JSON_ONLY:
+                with open(out_weekly, "w", encoding="utf-8") as f:
+                    f.write(html_weekly)
+                print(f"[OK] Wrote: {out_weekly} (force={force_rebuild})")
+            else:
+                print(f"[OK] Wrote JSON bundle only for weekly end_date={ymd(d)}")
 
     hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
 
-    if SKIP_HUB_WRITE:
-        print(f"[SKIP] HUB write disabled (keeping existing): {hub_path}")
+    if JSON_ONLY or SKIP_HUB_WRITE:
+        print(f"[SKIP] HUB write disabled: {hub_path}")
     elif (not force_overwrite) and os.path.exists(hub_path):
         print(f"[SKIP] HUB exists (no overwrite): {hub_path}")
     else:
