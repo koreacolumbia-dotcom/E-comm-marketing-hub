@@ -584,13 +584,14 @@ jobs:
           mkdir -p reports/owned_portal reports/owned_portal/data/owned site/owned site/data/owned
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
-            echo "[INFO] OWNED force seed: 2025-01-01 ~ ${YMD}"
+            echo "[INFO] OWNED force seed: 2025-01-01 ~ ${YMD} (overwrite)"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
               --start "2025-01-01" \
               --end "${YMD}" \
-              --site-dir reports/owned_portal
+              --site-dir reports/owned_portal \
+              --overwrite
           elif [ "${OWNED_SEEDED}" != "true" ]; then
             echo "[INFO] OWNED first YoY seed missing -> one-time fill: 2025-01-01 ~ ${YMD}"
             python -u build_owned_campaign_portal.py \
@@ -615,8 +616,15 @@ jobs:
           import json
           from pathlib import Path
 
+          def strict_load(path: Path):
+              text = path.read_text(encoding="utf-8")
+              return json.loads(
+                  text,
+                  parse_constant=lambda x: (_ for _ in ()).throw(ValueError(f"invalid constant: {x}"))
+              )
+
           p = Path("reports/owned_portal/data/owned/available_dates.json")
-          data = json.load(p.open("r", encoding="utf-8"))
+          data = strict_load(p)
           if not isinstance(data, list) or not data:
               raise SystemExit("[ERROR] available_dates.json is empty or invalid")
 
@@ -625,7 +633,7 @@ jobs:
           if not sample.exists():
               raise SystemExit(f"[ERROR] sample daily bundle missing: {sample}")
 
-          daily = json.load(sample.open("r", encoding="utf-8"))
+          daily = strict_load(sample)
           for key in ("date", "campaigns", "products", "product_users", "message_log"):
               if key not in daily:
                   raise SystemExit(f"[ERROR] {sample.name} missing key: {key}")
@@ -633,18 +641,22 @@ jobs:
           print(f"[OK] available_dates={len(data)} latest={latest} campaigns={len(daily.get('campaigns', []))}")
           PY
 
-          HTML_SRC="reports/owned_portal/index_patched_owned_portal.html"
-          HTML_DST="reports/owned_portal/index.html"
+          HTML_SRC=""
+          for cand in \
+            "reports/owned_portal/index.html" \
+            "reports/owned_portal/index_patched_owned_portal.html"
+          do
+            if [ -f "$cand" ]; then
+              HTML_SRC="$cand"
+              break
+            fi
+          done
 
-          if [ ! -f "$HTML_SRC" ] && [ -f "reports/owned_portal/ index_patched_owned_portal.html" ]; then
-            HTML_SRC="reports/owned_portal/ index_patched_owned_portal.html"
-          fi
-
-          if [ -f "$HTML_SRC" ]; then
-            echo "[INFO] Applying OWNED HTML only: $HTML_SRC"
-            cp -f "$HTML_SRC" "$HTML_DST"
+          if [ -n "$HTML_SRC" ]; then
+            echo "[INFO] Applying OWNED HTML: $HTML_SRC"
+            cp -f "$HTML_SRC" reports/owned_portal/index.html
           else
-            echo "[ERROR] Required OWNED HTML source missing: $HTML_SRC"
+            echo "[ERROR] Required OWNED HTML source missing"
             echo "[DEBUG] Current directory:"
             pwd
             echo "[DEBUG] Root files:"
@@ -699,11 +711,23 @@ jobs:
             cp -f reports/owned_portal/data/meta.json site/data/owned/meta.json
           fi
 
-          if [ -f "reports/owned_portal/index.html" ]; then
-            echo "[OK] found owned html"
-            cp -f reports/owned_portal/index.html site/owned/index.html
+          HTML_PUBLISH_SRC=""
+          for cand in \
+            "reports/owned_portal/index.html" \
+            "reports/owned_portal/index_patched_owned_portal.html"
+          do
+            if [ -f "$cand" ]; then
+              HTML_PUBLISH_SRC="$cand"
+              break
+            fi
+          done
+
+          if [ -n "$HTML_PUBLISH_SRC" ]; then
+            echo "[OK] found owned html: $HTML_PUBLISH_SRC"
+            cp -f "$HTML_PUBLISH_SRC" site/owned/index.html
           else
-            echo "[ERROR] reports/owned_portal/index.html missing"
+            echo "[ERROR] OWNED HTML missing"
+            ls -al reports/owned_portal || true
             exit 1
           fi
 
