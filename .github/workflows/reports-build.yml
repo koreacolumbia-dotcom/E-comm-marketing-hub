@@ -560,7 +560,7 @@ jobs:
 
       - name: Build OWNED campaign portal (seed once, then incremental)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         env:
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
@@ -581,7 +581,7 @@ jobs:
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
 
-          mkdir -p reports/owned_portal
+          mkdir -p reports/owned_portal reports/owned_portal/data/owned site/owned site/data/owned
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
             echo "[INFO] OWNED force seed: 2025-01-01 ~ ${YMD}"
@@ -590,8 +590,7 @@ jobs:
               --dataset "${BQ_DATASET}" \
               --start "2025-01-01" \
               --end "${YMD}" \
-              --site-dir reports/owned_portal \
-              || true
+              --site-dir reports/owned_portal
           elif [ "${OWNED_SEEDED}" != "true" ]; then
             echo "[INFO] OWNED first YoY seed missing -> one-time fill: 2025-01-01 ~ ${YMD}"
             python -u build_owned_campaign_portal.py \
@@ -599,17 +598,40 @@ jobs:
               --dataset "${BQ_DATASET}" \
               --start "2025-01-01" \
               --end "${YMD}" \
-              --site-dir reports/owned_portal \
-              || true
+              --site-dir reports/owned_portal
           else
             echo "[INFO] OWNED incremental only: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
               --recent-days "${OWNED_RECENT_DAYS}" \
-              --site-dir reports/owned_portal \
-              || true
+              --site-dir reports/owned_portal
           fi
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path("reports/owned_portal/data/owned/available_dates.json")
+          if not p.exists():
+              raise SystemExit("[ERROR] available_dates.json missing")
+
+          data = json.load(p.open("r", encoding="utf-8"))
+          if not isinstance(data, list) or not data:
+              raise SystemExit("[ERROR] available_dates.json is empty or invalid")
+
+          latest = data[-1]
+          sample = Path("reports/owned_portal/data/owned") / f"owned_{latest}.json"
+          if not sample.exists():
+              raise SystemExit(f"[ERROR] sample daily bundle missing: {sample}")
+
+          daily = json.load(sample.open("r", encoding="utf-8"))
+          for key in ("date", "campaigns", "products", "product_users", "message_log"):
+              if key not in daily:
+                  raise SystemExit(f"[ERROR] {sample.name} missing key: {key}")
+
+          print(f"[OK] available_dates={len(data)} latest={latest} campaigns={len(daily.get('campaigns', []))}")
+          PY
 
           echo "[INFO] Owned outputs:"
           ls -la reports/owned_portal || true
@@ -617,14 +639,14 @@ jobs:
 
       - name: Write OWNED meta.json (fix init 404)
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         env:
           KST: ${{ steps.set_time.outputs.kst }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
-          mkdir -p reports/owned_portal/data
+          mkdir -p reports/owned_portal reports/owned_portal/data/owned site/owned site/data/owned/data
           CNT="0"
           P="reports/owned_portal/data/owned/available_dates.json"
           if [ -f "$P" ]; then
@@ -635,19 +657,20 @@ jobs:
 
       - name: Publish OWNED portal to site/
         if: ${{ steps.modes.outputs.run_owned == 'true' }}
-        continue-on-error: true
+        continue-on-error: false
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p site/data/owned
+          mkdir -p site/data/owned site/owned
+          test -d reports/owned_portal/data/owned || { echo "[ERROR] reports/owned_portal/data/owned missing"; exit 1; }
+          test -f reports/owned_portal/data/owned/available_dates.json || { echo "[ERROR] available_dates.json missing before publish"; exit 1; }
           rsync -a --delete reports/owned_portal/data/owned/ site/data/owned/
           if [ -f "reports/owned_portal/data/meta.json" ]; then
-            cp -f reports/owned_portal/data/meta.json site/data/owned/meta.json || true
+            cp -f reports/owned_portal/data/meta.json site/data/owned/meta.json
           fi
-          mkdir -p site/owned
-          if [ -f "reports/owned_portal/index.html" ]; then
-            cp -f reports/owned_portal/index.html site/owned/index.html
-          fi
+          test -f reports/owned_portal/index.html || { echo "[ERROR] reports/owned_portal/index.html missing before publish"; exit 1; }
+          cp -f reports/owned_portal/index.html site/owned/index.html
+          test -f site/owned/index.html || { echo "[ERROR] site/owned/index.html missing after publish"; exit 1; }
 
       - name: Build Funnel Analysis assets (seed once, then incremental)
         if: ${{ steps.modes.outputs.run_owned == 'true' || steps.modes.outputs.run_funnel == 'true' }}
