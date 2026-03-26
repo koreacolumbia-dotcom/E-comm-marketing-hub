@@ -2781,102 +2781,61 @@ def render_page_html(
 # =========================
 # Hub page
 # =========================
+
 def render_hub_index(dates: List[dt.date]) -> str:
     dates = sorted(dates)
     if not dates:
         dates = [dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1)]
-    latest = dates[-1]
-
-    date_opts = "\n".join([f"<option value='{d.strftime('%Y-%m-%d')}'>{d.strftime('%Y-%m-%d')}</option>" for d in reversed(dates)])
+    latest = dates[-1].strftime("%Y-%m-%d")
 
     return f"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="0; url=daily/{latest}.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CSK E-COMM | Daily Digest Hub</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    window.location.replace("daily/{latest}.html");
+  </script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
-      {get_safe_animation_css()}
+    body {{
+      font-family: Arial, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }}
+    .box {{
+      text-align: center;
+      padding: 24px;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }}
+    a {{
+      color: #0f172a;
+      font-weight: 700;
+      text-decoration: none;
+    }}
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-7xl p-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="text-2xl font-black">Daily Digest Hub</div>
-        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">STATIC</div>
-      </div>
-      <div class="text-sm text-slate-500">Data cache 기반</div>
-    </div>
-
-    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Open report</div>
-        <div class="mt-3 flex items-center gap-2">
-          <select id="openDate" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            {date_opts}
-          </select>
-        </div>
-        <div class="mt-3 flex gap-2">
-          <button id="openDaily" class="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
-          <button id="openWeekly" class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
-        </div>
-      </div>
-
-      <div class="md:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Recent</div>
-        <div id="recentList" class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2"></div>
-      </div>
+<body>
+  <div class="box">
+    <div style="font-size:20px; font-weight:800; margin-bottom:8px;">Opening latest Daily Digest…</div>
+    <div style="font-size:14px; color:#475569;">
+      If you are not redirected, open
+      <a href="daily/{latest}.html">today’s report</a>.
     </div>
   </div>
-
-<script>
-(() => {{
-  const dates = {json.dumps([d.strftime("%Y-%m-%d") for d in dates])};
-  const latest = "{latest.strftime('%Y-%m-%d')}";
-
-  const $ = (s) => document.querySelector(s);
-  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}}[c]));
-
-  function initDefaults() {{
-    $("#openDate").value = latest;
-  }}
-
-  function renderRecent() {{
-    const items = dates.slice(-10).reverse();
-    $("#recentList").innerHTML = items.map(d => `
-      <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3">
-        <div class="text-sm font-extrabold">${{esc(d)}}</div>
-        <div class="flex gap-2">
-          <a class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${{esc(d)}}.html">Daily</a>
-          <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${{esc(d)}}.html">Weekly</a>
-        </div>
-      </div>
-    `).join("");
-  }}
-
-  function init() {{
-    initDefaults();
-    renderRecent();
-    $("#openDaily").addEventListener("click", () => {{
-      const d = $("#openDate").value;
-      window.location.href = "daily/" + d + ".html";
-    }});
-    $("#openWeekly").addEventListener("click", () => {{
-      const d = $("#openDate").value;
-      window.location.href = "weekly/END_" + d + ".html";
-    }});
-  }}
-  document.addEventListener("DOMContentLoaded", init);
-}})();
-</script>
-
 </body>
 </html>
 """
+
 
 
 # =========================
