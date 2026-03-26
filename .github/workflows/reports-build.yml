@@ -633,11 +633,20 @@ jobs:
           print(f"[OK] available_dates={len(data)} latest={latest} campaigns={len(daily.get('campaigns', []))}")
           PY
 
-          if [ -f "index_patched_owned_portal.html" ]; then
-            echo "[INFO] Applying OWNED HTML only: index_patched_owned_portal.html"
-            cp -f index_patched_owned_portal.html reports/owned_portal/index.html
+          HTML_SRC="reports/owned_portal/index_patched_owned_portal.html"
+          HTML_DST="reports/owned_portal/index.html"
+
+          if [ -f "$HTML_SRC" ]; then
+            echo "[INFO] Applying OWNED HTML only: $HTML_SRC"
+            cp -f "$HTML_SRC" "$HTML_DST"
           else
-            echo "[ERROR] Required OWNED HTML source missing: index_patched_owned_portal.html"
+            echo "[ERROR] Required OWNED HTML source missing: $HTML_SRC"
+            echo "[DEBUG] Current directory:"
+            pwd
+            echo "[DEBUG] Root files:"
+            ls -al
+            echo "[DEBUG] owned_portal files:"
+            ls -al reports/owned_portal || true
             exit 1
           fi
 
