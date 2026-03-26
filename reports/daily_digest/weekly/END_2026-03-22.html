@@ -8,18 +8,52 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }
+  
+    .toolbar-card{background:rgba(255,255,255,0.88);border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05)}
+    .toolbar-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .toolbar-label{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
+    .toolbar-chip{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;color:#0f172a}
+    .toolbar-chip.active{background:#0f172a;color:#fff;border-color:#0f172a}
+    .toolbar-btn{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a}
+    .toolbar-btn.primary{background:#002d72;color:#fff;border-color:#002d72}
+    .toolbar-input{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;min-width:160px}
+    .compare-frame{width:100%;border:0;border-radius:18px;min-height:2600px;background:transparent}
+    .compare-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+    @media (min-width:1280px){.compare-grid.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+    
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div class="mx-auto max-w-7xl p-6">
+    <div id="reportToolbar" class="toolbar-card">
+      <div class="toolbar-row">
+        <div class="toolbar-label">Mode</div>
+        <button id="modeDaily" class="toolbar-chip" type="button">Daily</button>
+        <button id="modeWeekly" class="toolbar-chip active" type="button">Weekly (7D)</button>
+        <div class="toolbar-label">Date</div>
+        <input id="aDate" class="toolbar-input" type="date" value="2026-03-22" />
+        <button id="btnPrev" class="toolbar-btn" type="button">이전</button>
+        <button id="btnNext" class="toolbar-btn" type="button">다음</button>
+        <button id="btnYesterday" class="toolbar-btn" type="button">어제</button>
+        <button id="btnToday" class="toolbar-btn" type="button">오늘(있으면)</button>
+      </div>
+      <div class="toolbar-row" style="margin-top:12px;">
+        <div class="toolbar-label">Compare</div>
+        <button id="btnCompareToggle" class="toolbar-chip" type="button">비교 OFF</button>
+        <button id="btnPresetPrev" class="toolbar-btn" type="button">전기준</button>
+        <button id="btnPresetYoY" class="toolbar-btn" type="button">YoY</button>
+        <input id="bDate" class="toolbar-input" type="date" value="2026-03-15" />
+        <button id="btnCompareGo" class="toolbar-btn primary" type="button">비교하기</button>
+      </div>
+    </div>
+    <div id="compareGrid" class="compare-grid" style="margin-top:16px;">
+      <div id="primaryReport">
+    
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">WEEKLY</div>
         <div class="text-sm text-slate-500">2026-03-16 ~ 2026-03-22 · WoW vs 2026-03-09 ~ 2026-03-15 · YoY 2025-03-17 ~ 2025-03-23</div>
-      </div>
-      <div class="flex items-center gap-2">
-        <a href="../index.html" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
 
@@ -294,7 +328,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Padding/Slim Down</div>
-                <div class="text-xs text-slate-500">D1 205 · 7D Avg 244</div>
+                <div class="text-xs text-slate-500">D1 205 · 7D Avg 241</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -303,10 +337,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,32.0 71.7,13.7 107.3,32.8 143.0,22.5 178.7,44.3 214.3,41.6 250.0,40.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,32.0 71.7,13.7 107.3,32.8 143.0,22.5 178.7,44.3 214.3,41.6 250.0,40.6"/>
-      <circle cx='36.0' cy='32.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='32.8' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='22.5' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='41.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='40.6' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>336</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>262</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>187</text>
+      <polygon points="36.0,48.0 36.0,35.0 71.7,13.7 107.3,32.7 143.0,21.4 178.7,44.3 214.3,41.5 250.0,40.4 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,35.0 71.7,13.7 107.3,32.7 143.0,21.4 178.7,44.3 214.3,41.5 250.0,40.4"/>
+      <circle cx='36.0' cy='35.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='32.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='21.4' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='41.5' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='40.4' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>329</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>258</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>187</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/22</text>
     </svg>
     </div>
@@ -441,7 +475,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Round T-shirt</div>
-                <div class="text-xs text-slate-500">D1 567 · 7D Avg 649</div>
+                <div class="text-xs text-slate-500">D1 509 · 7D Avg 549</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -450,10 +484,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,42.5 71.7,44.3 107.3,13.7 143.0,19.8 178.7,25.4 214.3,37.9 250.0,40.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,42.5 71.7,44.3 107.3,13.7 143.0,19.8 178.7,25.4 214.3,37.9 250.0,40.6"/>
-      <circle cx='36.0' cy='42.5' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='19.8' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='25.4' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='37.9' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='40.6' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>826</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>678</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>531</text>
+      <polygon points="36.0,48.0 36.0,33.2 71.7,42.0 107.3,13.7 143.0,22.5 178.7,31.8 214.3,44.3 250.0,37.9 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,33.2 71.7,42.0 107.3,13.7 143.0,22.5 178.7,31.8 214.3,44.3 250.0,37.9"/>
+      <circle cx='36.0' cy='33.2' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='42.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='22.5' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='31.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='37.9' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>679</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>572</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>464</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/22</text>
     </svg>
     </div>
@@ -462,7 +496,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Polo/Zip Up</div>
-                <div class="text-xs text-slate-500">D1 282 · 7D Avg 280</div>
+                <div class="text-xs text-slate-500">D1 273 · 7D Avg 275</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -471,10 +505,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,44.3 71.7,44.1 107.3,29.9 143.0,13.7 178.7,35.1 214.3,40.8 250.0,34.2 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,44.1 107.3,29.9 143.0,13.7 178.7,35.1 214.3,40.8 250.0,34.2"/>
-      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='44.1' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='29.9' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='35.1' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='40.8' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='34.2' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>387</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>308</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>230</text>
+      <polygon points="36.0,48.0 36.0,44.3 71.7,43.0 107.3,22.9 143.0,13.7 178.7,35.4 214.3,38.6 250.0,33.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,43.0 107.3,22.9 143.0,13.7 178.7,35.4 214.3,38.6 250.0,33.7"/>
+      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='43.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='22.9' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='35.4' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='38.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='33.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>347</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>290</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>234</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/22</text>
     </svg>
     </div>
@@ -483,7 +517,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">PANTS · Pants</div>
-                <div class="text-xs text-slate-500">D1 886 · 7D Avg 897</div>
+                <div class="text-xs text-slate-500">D1 783 · 7D Avg 816</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -492,10 +526,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,42.3 71.7,22.2 107.3,13.7 143.0,15.6 178.7,44.3 214.3,44.1 250.0,32.0 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,42.3 71.7,22.2 107.3,13.7 143.0,15.6 178.7,44.3 214.3,44.1 250.0,32.0"/>
-      <circle cx='36.0' cy='42.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='22.2' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='15.6' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='44.1' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='32.0' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1028</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>909</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>790</text>
+      <polygon points="36.0,48.0 36.0,36.9 71.7,20.6 107.3,13.7 143.0,16.3 178.7,44.3 214.3,39.5 250.0,33.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,36.9 71.7,20.6 107.3,13.7 143.0,16.3 178.7,44.3 214.3,39.5 250.0,33.7"/>
+      <circle cx='36.0' cy='36.9' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='20.6' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='16.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='39.5' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='33.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>933</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>818</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>703</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/22</text>
     </svg>
     </div>
@@ -567,7 +601,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Sneakers</div>
-                <div class="text-xs text-slate-500">D1 385 · 7D Avg 359</div>
+                <div class="text-xs text-slate-500">D1 353 · 7D Avg 312</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -576,10 +610,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,38.7 71.7,27.3 107.3,25.7 143.0,13.7 178.7,27.2 214.3,44.3 250.0,25.5 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,38.7 71.7,27.3 107.3,25.7 143.0,13.7 178.7,27.2 214.3,44.3 250.0,25.5"/>
-      <circle cx='36.0' cy='38.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='27.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='25.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='27.2' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='25.5' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>473</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>358</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>244</text>
+      <polygon points="36.0,48.0 36.0,40.9 71.7,26.0 107.3,27.8 143.0,13.7 178.7,24.7 214.3,44.3 250.0,21.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,40.9 71.7,26.0 107.3,27.8 143.0,13.7 178.7,24.7 214.3,44.3 250.0,21.7"/>
+      <circle cx='36.0' cy='40.9' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='26.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='27.8' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='24.7' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='21.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>402</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>308</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>215</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/16</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/19</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/22</text>
     </svg>
     </div>
@@ -598,6 +632,14 @@
       </div>
     </div>
 
+
+      </div>
+      <div id="compareReportWrap" class="hidden">
+        <div class="mb-2 text-xs font-extrabold tracking-widest text-slate-500 uppercase">Compare Report</div>
+        <iframe id="compareFrame" class="compare-frame" loading="eager" scrolling="no"></iframe>
+      </div>
+    </div>
+    
   </div>
 
   <script>
@@ -644,5 +686,144 @@
 })();
 </script>
 
+
+  <script>
+  (() => {
+    const EMBED = new URLSearchParams(window.location.search).get("embed") === "1";
+    const CURRENT_MODE = "weekly";
+    const CURRENT_DATE = "2026-03-22";
+    const toolbar = document.getElementById("reportToolbar");
+    const compareGrid = document.getElementById("compareGrid");
+    const compareWrap = document.getElementById("compareReportWrap");
+    const compareFrame = document.getElementById("compareFrame");
+    const modeDaily = document.getElementById("modeDaily");
+    const modeWeekly = document.getElementById("modeWeekly");
+    const aDate = document.getElementById("aDate");
+    const bDate = document.getElementById("bDate");
+    const btnPrev = document.getElementById("btnPrev");
+    const btnNext = document.getElementById("btnNext");
+    const btnYesterday = document.getElementById("btnYesterday");
+    const btnToday = document.getElementById("btnToday");
+    const btnCompareToggle = document.getElementById("btnCompareToggle");
+    const btnPresetPrev = document.getElementById("btnPresetPrev");
+    const btnPresetYoY = document.getElementById("btnPresetYoY");
+    const btnCompareGo = document.getElementById("btnCompareGo");
+    let mode = CURRENT_MODE;
+    let compareOn = false;
+
+    function fmtYMD(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${dd}`;
+    }
+    function parseYMD(s) {
+      const [y, m, d] = String(s || "").split("-").map(Number);
+      return new Date(y, (m || 1) - 1, d || 1);
+    }
+    function addDays(d, n) {
+      const x = new Date(d);
+      x.setDate(x.getDate() + n);
+      return x;
+    }
+    function kstNowDate() {
+      const now = new Date();
+      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+      return new Date(utc + 9 * 60 * 60000);
+    }
+    function stepDays() { return mode === "weekly" ? 7 : 1; }
+    function buildReportUrl(nextMode, dateStr, embed) {
+      const base = nextMode === "daily" ? `../daily/${dateStr}.html` : `../weekly/END_${dateStr}.html`;
+      return embed ? `${base}?embed=1` : base;
+    }
+    function buildCachePath(nextMode, dateStr) {
+      return nextMode === "daily" ? `../data/daily/${dateStr}.json` : `../data/weekly/END_${dateStr}.json`;
+    }
+    async function yoyEndFor(dateStr) {
+      try {
+        const res = await fetch(buildCachePath(mode, dateStr) + `?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("no cache");
+        const j = await res.json();
+        const y = j && j.yoy && j.yoy.end ? String(j.yoy.end) : "";
+        if (!y) throw new Error("no yoy.end");
+        return y;
+      } catch (e) {
+        return fmtYMD(addDays(parseYMD(dateStr), -364));
+      }
+    }
+    function resizeCompareFrame() {
+      try {
+        const doc = compareFrame.contentDocument || compareFrame.contentWindow.document;
+        if (!doc) return;
+        const h = Math.max(doc.body ? doc.body.scrollHeight : 0, doc.documentElement ? doc.documentElement.scrollHeight : 0);
+        if (h > 0) compareFrame.style.height = `${h + 12}px`;
+      } catch (e) {}
+    }
+    function setMode(nextMode) {
+      mode = nextMode;
+      modeDaily.classList.toggle("active", mode === "daily");
+      modeWeekly.classList.toggle("active", mode === "weekly");
+    }
+    function setCompare(on) {
+      compareOn = !!on;
+      btnCompareToggle.textContent = compareOn ? "비교 ON" : "비교 OFF";
+      btnCompareToggle.classList.toggle("active", compareOn);
+      compareWrap.classList.toggle("hidden", !compareOn);
+      compareGrid.classList.toggle("dual", compareOn);
+    }
+    function goCurrent(dateStr) {
+      window.location.href = buildReportUrl(mode, dateStr, false);
+    }
+    function openCompare() {
+      const dateStr = String(bDate.value || "").trim();
+      if (!dateStr) return;
+      setCompare(true);
+      compareFrame.src = buildReportUrl(mode, dateStr, true);
+    }
+
+    if (EMBED) {
+      if (toolbar) toolbar.remove();
+      return;
+    }
+
+    compareFrame && compareFrame.addEventListener("load", () => {
+      resizeCompareFrame();
+      setTimeout(resizeCompareFrame, 300);
+      setTimeout(resizeCompareFrame, 900);
+    });
+
+    setMode(CURRENT_MODE);
+    aDate.value = CURRENT_DATE;
+    bDate.value = "2026-03-15";
+    setCompare(false);
+
+    modeDaily && modeDaily.addEventListener("click", () => {
+      setMode("daily");
+      goCurrent(aDate.value || CURRENT_DATE);
+    });
+    modeWeekly && modeWeekly.addEventListener("click", () => {
+      setMode("weekly");
+      goCurrent(aDate.value || CURRENT_DATE);
+    });
+    btnPrev && btnPrev.addEventListener("click", () => goCurrent(fmtYMD(addDays(parseYMD(aDate.value || CURRENT_DATE), -stepDays()))));
+    btnNext && btnNext.addEventListener("click", () => goCurrent(fmtYMD(addDays(parseYMD(aDate.value || CURRENT_DATE), stepDays()))));
+    btnYesterday && btnYesterday.addEventListener("click", () => goCurrent(fmtYMD(addDays(kstNowDate(), -1))));
+    btnToday && btnToday.addEventListener("click", () => goCurrent(fmtYMD(kstNowDate())));
+    aDate && aDate.addEventListener("change", () => {
+      if (aDate.value) goCurrent(aDate.value);
+    });
+    btnCompareToggle && btnCompareToggle.addEventListener("click", () => setCompare(!compareOn));
+    btnPresetPrev && btnPresetPrev.addEventListener("click", () => {
+      bDate.value = fmtYMD(addDays(parseYMD(aDate.value || CURRENT_DATE), -stepDays()));
+      openCompare();
+    });
+    btnPresetYoY && btnPresetYoY.addEventListener("click", async () => {
+      bDate.value = await yoyEndFor(aDate.value || CURRENT_DATE);
+      openCompare();
+    });
+    btnCompareGo && btnCompareGo.addEventListener("click", openCompare);
+  })();
+  </script>
+    
 </body>
 </html>
