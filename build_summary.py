@@ -1112,20 +1112,20 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
 
     def trend_panel(section_key: str, title: str, subtitle: str) -> str:
         range_tabs = [
-            ('1MONTH', '1MONTH'),
-            ('1YEAR', '1YEAR'),
-            ('2YEAR', '2YEAR'),
-        ] if section_key == 'weekly' else [
-            ('1MONTH', '1MONTH'),
-            ('7D', '7D'),
-            ('14D', '14D'),
-            ('1YEAR', '1YEAR'),
-            ('2YEAR', '2YEAR'),
+            ("1MONTH", "1MONTH"),
+            ("1YEAR", "1YEAR"),
+            ("2YEAR", "2YEAR"),
+        ] if section_key == "weekly" else [
+            ("1MONTH", "1MONTH"),
+            ("7D", "7D"),
+            ("14D", "14D"),
+            ("1YEAR", "1YEAR"),
+            ("2YEAR", "2YEAR"),
         ]
-        range_btns = ''.join([
-            f'<button type="button" class="range-tab{' active' if i == 0 else ''}" data-range="{key}">{label}</button>'
+        range_btns = "".join(
+            f'<button type="button" class="range-tab{" active" if i == 0 else ""}" data-range="{key}">{label}</button>'
             for i, (key, label) in enumerate(range_tabs)
-        ])
+        )
         return f'''
         <div class="trend-panel reveal mt-4 rounded-[28px] p-5 sm:p-6" data-trend-section="{section_key}">
           <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
@@ -1156,7 +1156,6 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
           </div>
         </div>
         '''
-
 
     d_wow = daily.get("wow") or {}
     d_yoy = daily.get("yoy") or {}
@@ -1499,23 +1498,27 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     .chart-hint {{ display:inline-flex; align-items:center; justify-content:center; padding:.26rem .45rem; border-radius:999px; font-size:9px; font-weight:900; letter-spacing:.14em; color:#475569; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.9); }}
     .metric-card[data-chart-section], .channel-metric[data-chart-section] {{ cursor:pointer; }}
     .metric-card.active-chart, .channel-metric.active-chart {{ transform:translateY(-6px) scale(1.01); box-shadow:0 28px 64px rgba(15,23,42,.14); border-color:color-mix(in srgb, var(--accent, #94a3b8) 40%, white); }}
-    .summary-kpi-grid {{
-      display:grid;
-      gap:1rem;
-      grid-template-columns:repeat(1, minmax(0,1fr));
-      align-items:stretch;
-    }}
-    @media (min-width: 640px) {{
-      .summary-kpi-grid {{ grid-template-columns:repeat(2, minmax(0,1fr)); }}
-    }}
-    @media (min-width: 1280px) {{
-      .summary-kpi-grid--five {{ grid-template-columns:repeat(5, minmax(0,1fr)); }}
-    }}
-    .summary-kpi-grid > .metric-card {{ width:100%; min-width:0; height:100%; }}
     .trend-panel {{ background:linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.7)); border:1px solid rgba(255,255,255,.76); box-shadow:0 18px 48px rgba(15,23,42,.08); }}
     .trend-svg-shell {{ background:linear-gradient(180deg, rgba(248,250,252,.92), rgba(255,255,255,.88)); border:1px solid rgba(226,232,240,.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.86); overflow:hidden; }}
     .trend-scroll {{ overflow-x:auto; overflow-y:hidden; padding-bottom:.25rem; }}
     .trend-svg {{ min-width:100%; display:block; }}
+    .summary-kpi-grid {{
+      display:grid;
+      grid-template-columns:repeat(1, minmax(0, 1fr));
+      gap:1rem;
+      width:100%;
+    }}
+    .summary-kpi-grid--five {{ grid-template-columns:repeat(1, minmax(0, 1fr)); }}
+    @media (min-width: 640px) {{
+      .summary-kpi-grid--five {{ grid-template-columns:repeat(2, minmax(0, 1fr)); }}
+    }}
+    @media (min-width: 1280px) {{
+      .summary-kpi-grid--five {{ grid-template-columns:repeat(5, minmax(0, 1fr)); }}
+    }}
+    .summary-kpi-grid .metric-card {{
+      width:100%;
+      min-width:0;
+    }}
     .range-tabs {{ align-items:center; }}
     .range-tab {{ display:inline-flex; align-items:center; justify-content:center; min-width:74px; padding:.55rem .8rem; border-radius:999px; font-size:11px; font-weight:900; letter-spacing:.12em; color:#475569; background:rgba(255,255,255,.84); border:1px solid rgba(255,255,255,.9); box-shadow:0 10px 22px rgba(15,23,42,.05); transition:transform .22s ease, box-shadow .22s ease, background .22s ease, color .22s ease; }}
     .range-tab:hover {{ transform:translateY(-1px); box-shadow:0 14px 26px rgba(15,23,42,.08); }}
@@ -1527,7 +1530,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
   </style>
 </head>
 <body>
-  <div class="w-full max-w-none px-3 sm:px-5 lg:px-6 2xl:px-8 py-5 sm:py-8">
+  <div class="w-full max-w-none px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
     <header class="hero-shell reveal rounded-[36px] px-5 py-6 sm:px-7 sm:py-8 mb-7">
       <div class="hero-shimmer"></div>
       <div class="relative z-10 flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
