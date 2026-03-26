@@ -2779,898 +2779,6 @@ def export_portal(
     print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
 
 
-
-
-# ================= PATCHED FULL VERSION (dynamic ranking / toolbar tabs / remove ppomppu) =================
-from collections import Counter
-
-def process_data(posts: List[Post]):
-    patterns = build_brand_patterns()
-    brand_map: Dict[str, List[dict]] = {b: [] for b in BRAND_LIST}
-    summary = {
-        b: {"posts_count": 0, "title_hits": 0, "comment_mentions": 0, "total_mentions": 0}
-        for b in BRAND_LIST
-    }
-
-    for p in posts:
-        title = normalize_text(p.title)
-        content = normalize_text(p.content)
-        comments = normalize_text(p.comments)
-
-        title_sents = [title] if title else []
-        content_sents = split_sentences(content)
-        comment_sents = split_sentences(comments)
-
-        post_has_brand = {b: False for b in BRAND_LIST}
-        title_has_brand = {b: False for b in BRAND_LIST}
-
-        for b in BRAND_LIST:
-            if contains_brand(title, b, patterns):
-                title_has_brand[b] = True
-                summary[b]["title_hits"] += 1
-                post_has_brand[b] = True
-
-            for s in title_sents:
-                if sentence_has_brand(s, b, patterns) and len(s) > 3:
-                    brand_map[b].append(
-                        {
-                            "text": s,
-                            "url": p.url,
-                            "title": title,
-                            "source": "title",
-                            "platform": p.platform,
-                            "query": p.query,
-                            "cafe_key": p.cafe_key,
-                            "cafe_name": p.cafe_name,
-                            "date": p.created_at.strftime("%Y-%m-%d"),
-                        }
-                    )
-                    summary[b]["total_mentions"] += 1
-                    post_has_brand[b] = True
-
-            for s in content_sents:
-                if sentence_has_brand(s, b, patterns) and len(s) > 5:
-                    brand_map[b].append(
-                        {
-                            "text": s,
-                            "url": p.url,
-                            "title": title,
-                            "source": "content",
-                            "platform": p.platform,
-                            "query": p.query,
-                            "cafe_key": p.cafe_key,
-                            "cafe_name": p.cafe_name,
-                            "date": p.created_at.strftime("%Y-%m-%d"),
-                        }
-                    )
-                    summary[b]["total_mentions"] += 1
-                    post_has_brand[b] = True
-
-            for s in comment_sents:
-                if sentence_has_brand(s, b, patterns) and len(s) > 5:
-                    brand_map[b].append(
-                        {
-                            "text": s,
-                            "url": p.url,
-                            "title": title,
-                            "source": "comment",
-                            "platform": p.platform,
-                            "query": p.query,
-                            "cafe_key": p.cafe_key,
-                            "cafe_name": p.cafe_name,
-                            "date": p.created_at.strftime("%Y-%m-%d"),
-                        }
-                    )
-                    summary[b]["comment_mentions"] += 1
-                    summary[b]["total_mentions"] += 1
-                    post_has_brand[b] = True
-
-            if title_has_brand[b]:
-                for s in comment_sents:
-                    if sentence_has_brand(s, b, patterns) and len(s) > 5:
-                        brand_map[b].append(
-                            {
-                                "text": s,
-                                "url": p.url,
-                                "title": title,
-                                "source": "comment(boosted_by_title)",
-                                "platform": p.platform,
-                                "query": p.query,
-                                "cafe_key": p.cafe_key,
-                                "cafe_name": p.cafe_name,
-                                "date": p.created_at.strftime("%Y-%m-%d"),
-                            }
-                        )
-
-        for b in BRAND_LIST:
-            if post_has_brand[b]:
-                summary[b]["posts_count"] += 1
-
-    for b in BRAND_LIST:
-        seen = set()
-        uniq = []
-        for item in brand_map[b]:
-            key = (
-                item.get("url", ""),
-                item.get("text", ""),
-                item.get("source", ""),
-                item.get("platform", ""),
-            )
-            if key in seen:
-                continue
-            seen.add(key)
-            uniq.append(item)
-        brand_map[b] = uniq
-        summary[b]["total_mentions"] = len(uniq)
-        summary[b]["comment_mentions"] = sum(
-            1 for x in uniq if str(x.get("source", "")).startswith("comment")
-        )
-
-    summary_df = pd.DataFrame(
-        [
-            {
-                "brand": b,
-                "posts_count": summary[b]["posts_count"],
-                "title_hits": summary[b]["title_hits"],
-                "comment_mentions": summary[b]["comment_mentions"],
-                "total_mentions": summary[b]["total_mentions"],
-            }
-            for b in BRAND_LIST
-        ]
-    )
-    summary_df = summary_df[
-        ~((summary_df["posts_count"] == 0) & (summary_df["title_hits"] == 0))
-    ].copy()
-
-    if not summary_df.empty:
-        summary_df = summary_df.sort_values(
-            ["total_mentions", "posts_count", "title_hits", "brand"],
-            ascending=[False, False, False, True],
-        ).reset_index(drop=True)
-
-    return brand_map, summary_df
-
-
-def _detail_brand_order(
-    brand_map: Dict[str, List[dict]],
-    platform: str,
-) -> List[str]:
-    counts = []
-    for brand in BRAND_LIST:
-        cnt = sum(1 for x in brand_map.get(brand, []) if x.get("platform") == platform)
-        if cnt > 0:
-            counts.append((brand, cnt))
-
-    if not counts:
-        return []
-
-    ordered: List[str] = []
-    if any(brand == "컬럼비아" for brand, _ in counts):
-        ordered.append("컬럼비아")
-
-    others = sorted(
-        [item for item in counts if item[0] != "컬럼비아"],
-        key=lambda x: (-x[1], x[0]),
-    )
-    ordered.extend([brand for brand, _ in others])
-    return ordered
-
-
-def _patched_platform_brand_counts(
-    brand_map: Dict[str, List[dict]],
-    platform: str,
-) -> List[tuple[str, int]]:
-    counts = []
-    for brand in BRAND_LIST:
-        cnt = sum(1 for x in brand_map.get(brand, []) if x.get("platform") == platform)
-        if cnt > 0:
-            counts.append((brand, cnt))
-    counts.sort(key=lambda x: (-x[1], x[0]))
-    return counts
-
-
-def _patched_summary_table_html(summary_df: pd.DataFrame) -> str:
-    if summary_df is None or summary_df.empty:
-        return (
-            "<div class='rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 "
-            "text-center text-sm font-bold text-slate-500'>브랜드 랭킹 데이터가 없습니다.</div>"
-        )
-
-    rows = []
-    for idx, row in summary_df.reset_index(drop=True).iterrows():
-        rows.append(
-            f"""
-            <tr class="border-b border-slate-100 last:border-0">
-              <td class="px-4 py-3 text-sm font-black text-slate-500">{idx + 1}</td>
-              <td class="px-4 py-3 text-sm font-black text-slate-900">{html.escape(str(row["brand"]))}</td>
-              <td class="px-4 py-3 text-right text-sm font-black text-slate-900">{int(row["total_mentions"]):,}</td>
-              <td class="px-4 py-3 text-right text-sm font-bold text-slate-600">{int(row["posts_count"]):,}</td>
-              <td class="px-4 py-3 text-right text-sm font-bold text-slate-600">{int(row["title_hits"]):,}</td>
-              <td class="px-4 py-3 text-right text-sm font-bold text-slate-600">{int(row["comment_mentions"]):,}</td>
-            </tr>
-            """
-        )
-
-    return f"""
-    <div class="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl">
-      <div class="flex items-end justify-between gap-3">
-        <div>
-          <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">BRAND RANKING</div>
-          <h3 class="mt-2 text-xl font-black tracking-[-0.03em] text-slate-900">언급량 기준 브랜드 랭킹</h3>
-        </div>
-      </div>
-      <div class="mt-4 overflow-hidden rounded-3xl border border-slate-200">
-        <table class="min-w-full bg-white">
-          <thead class="bg-slate-50">
-            <tr>
-              <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500">Rank</th>
-              <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500">Brand</th>
-              <th class="px-4 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">Mentions</th>
-              <th class="px-4 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">Posts</th>
-              <th class="px-4 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">Title Hits</th>
-              <th class="px-4 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">Comment</th>
-            </tr>
-          </thead>
-          <tbody>{''.join(rows)}</tbody>
-        </table>
-      </div>
-    </div>
-    """
-
-
-def _patched_weekly_html(meta: dict, source_label: str) -> str:
-    return f"""
-    <div class="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl">
-      <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">SOURCE SNAPSHOT</div>
-      <h3 class="mt-2 text-xl font-black tracking-[-0.03em] text-slate-900">{html.escape(source_label)}</h3>
-      <div class="mt-4 grid grid-cols-2 gap-3">
-        <div class="rounded-3xl bg-slate-50 p-4">
-          <div class="text-xs font-black text-slate-500">최근 {int(TARGET_DAYS)}일 게시글</div>
-          <div class="mt-2 text-2xl font-black text-slate-900">{int(meta.get("week_posts", 0)):,}</div>
-        </div>
-        <div class="rounded-3xl bg-slate-50 p-4">
-          <div class="text-xs font-black text-slate-500">최근 {int(TARGET_DAYS)}일 멘션</div>
-          <div class="mt-2 text-2xl font-black text-slate-900">{int(meta.get("week_mentions", 0)):,}</div>
-        </div>
-        <div class="rounded-3xl bg-slate-50 p-4">
-          <div class="text-xs font-black text-slate-500">활성 브랜드</div>
-          <div class="mt-2 text-2xl font-black text-slate-900">{len(meta.get("active_brands", [])):,}</div>
-        </div>
-        <div class="rounded-3xl bg-slate-50 p-4">
-          <div class="text-xs font-black text-slate-500">총 멘션</div>
-          <div class="mt-2 text-2xl font-black text-slate-900">{int(meta.get("total_mentions", 0)):,}</div>
-        </div>
-      </div>
-    </div>
-    """
-
-
-def _platform_scope_text(platform: str) -> str:
-    if platform == "dcinside":
-        return f"DCInside · {GALLERY_ID} 갤러리 · 최근 {int(TARGET_DAYS)}일"
-    if platform == "naver_cafe":
-        return f"NAVER Cafe · 허용 카페 {len(_NAVER_ALLOWED_CAFE_IDS)}곳 · 최근 {int(TARGET_DAYS)}일"
-    if platform == "eomisae":
-        return f"Eomisae · 자유게시판 + 패션게시판 · 최근 {int(TARGET_DAYS)}일"
-    return f"최근 {int(TARGET_DAYS)}일"
-
-
-def _scope_items_html(platform: str, brand_map: Dict[str, List[dict]]) -> str:
-    if platform == "naver_cafe":
-        cafes = _naver_allowed_cafe_catalog()
-        if not cafes:
-            return '<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">허용 카페 정보가 없습니다.</div>'
-        chips = []
-        for cafe in cafes:
-            chips.append(
-                f'<a class="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700" '
-                f'href="{html.escape(cafe["url"])}" target="_blank" rel="noopener noreferrer">{html.escape(cafe["label"])}</a>'
-            )
-        return f'<div class="flex flex-wrap gap-2">{"".join(chips)}</div>'
-    return (
-        f'<div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-black text-slate-700">'
-        f'{html.escape(_platform_scope_text(platform))}'
-        f'</div>'
-    )
-
-
-def _segment_items_html(platform: str, brand_map: Dict[str, List[dict]]) -> str:
-    if platform == "naver_cafe":
-        cafes = _naver_active_cafe_catalog(brand_map)
-        if not cafes:
-            return '<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">활성 카페가 없습니다.</div>'
-        buttons = [
-            '<button type="button" class="filter-chip cafe-filter-btn active" data-platform="naver_cafe" data-cafe="all">전체 카페</button>'
-        ]
-        for cafe in cafes:
-            buttons.append(
-                f'<button type="button" class="filter-chip cafe-filter-btn" data-platform="naver_cafe" '
-                f'data-cafe="{html.escape(cafe["key"])}">{html.escape(cafe["label"])}</button>'
-            )
-        return f'<div class="flex flex-wrap gap-2">{"".join(buttons)}</div>'
-    return (
-        '<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 '
-        'text-sm font-bold text-slate-500">이 탭은 네이버 카페에서 카페별 세그먼트 필터를 지원합니다.</div>'
-    )
-
-
-def _patched_filter_toolbar_html(
-    brand_map: Dict[str, List[dict]],
-    platform: str,
-    search_placeholder: str,
-) -> str:
-    brand_counts = _patched_platform_brand_counts(brand_map, platform)
-    brand_buttons = [
-        f'<button type="button" class="filter-chip brand-filter-btn active" '
-        f'data-platform="{html.escape(platform)}" data-brand="all">전체 브랜드</button>'
-    ]
-    for brand, count in brand_counts:
-        brand_buttons.append(
-            f'<button type="button" class="filter-chip brand-filter-btn" data-platform="{html.escape(platform)}" '
-            f'data-brand="{html.escape(brand)}">{html.escape(brand)} <span>{count}</span></button>'
-        )
-
-    base = f"{platform}-tools"
-    return f"""
-    <div class="mt-6 rounded-[30px] border border-white/70 bg-white/70 p-4 shadow-sm backdrop-blur-xl">
-      <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4">
-        <div class="rounded-3xl border border-slate-200 bg-white/80 p-4">
-          <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">SEARCH WITHIN TAB</div>
-          <div class="mt-2 text-sm font-black text-slate-700">제목, 본문, 카페명, 출처까지 함께 검색합니다.</div>
-          <div class="relative mt-3">
-            <input type="text"
-                   class="panel-search-input h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 pr-24 text-sm font-bold text-slate-900 outline-none"
-                   data-platform="{html.escape(platform)}"
-                   placeholder="{html.escape(search_placeholder)}"
-                   aria-label="{html.escape(search_placeholder)}" />
-            <button type="button"
-                    class="search-clear-btn absolute right-2 top-2 rounded-xl bg-slate-200 px-3 py-2 text-xs font-black text-slate-700"
-                    data-platform="{html.escape(platform)}">지우기</button>
-          </div>
-          <div class="mt-3 text-xs font-black text-slate-500" data-role="result-count" data-platform="{html.escape(platform)}">전체 결과를 표시 중입니다.</div>
-        </div>
-
-        <div class="rounded-3xl border border-slate-200 bg-white/80 p-4">
-          <div class="flex flex-wrap gap-2">
-            <button type="button" class="tool-tab-btn active" data-platform="{html.escape(platform)}" data-target="{base}-focus">Brand Focus</button>
-            <button type="button" class="tool-tab-btn" data-platform="{html.escape(platform)}" data-target="{base}-scope">Scope</button>
-            <button type="button" class="tool-tab-btn" data-platform="{html.escape(platform)}" data-target="{base}-segment">Segment Filter</button>
-          </div>
-
-          <div id="{base}-focus" class="tool-tab-panel mt-4" data-platform="{html.escape(platform)}">
-            <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">BRAND FOCUS</div>
-            <div class="mt-2 text-sm font-black text-slate-700">브랜드 상세 카드 범위를 빠르게 좁힙니다.</div>
-            <div class="mt-3 flex flex-wrap gap-2">{''.join(brand_buttons)}</div>
-          </div>
-
-          <div id="{base}-scope" class="tool-tab-panel mt-4 hidden" data-platform="{html.escape(platform)}">
-            <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">SCOPE</div>
-            <div class="mt-2 text-sm font-black text-slate-700">현재 소스의 수집 범위입니다.</div>
-            <div class="mt-3">{_scope_items_html(platform, brand_map)}</div>
-          </div>
-
-          <div id="{base}-segment" class="tool-tab-panel mt-4 hidden" data-platform="{html.escape(platform)}">
-            <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">SEGMENT FILTER</div>
-            <div class="mt-2 text-sm font-black text-slate-700">소스별 세그먼트를 빠르게 전환합니다.</div>
-            <div class="mt-3">{_segment_items_html(platform, brand_map)}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
-
-
-def _patched_brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str:
-    sections = []
-    for section_idx, brand in enumerate(_detail_brand_order(brand_map, platform)):
-        items = [x for x in brand_map.get(brand, []) if x.get("platform") == platform]
-        if not items:
-            continue
-        cards = []
-        for card_idx, it in enumerate(items[:40]):
-            raw_title = (it.get("title") or it.get("url") or "")[:120]
-            raw_text = _ui_compact_text(it.get("text") or "")
-            text = html.escape(raw_text or "본문 미리보기를 준비 중입니다.")
-            url = html.escape(it.get("url") or "")
-            src = html.escape(it.get("source") or "")
-            date = html.escape(it.get("date") or "")
-            query = (it.get("query") or "").strip()
-            cafe_key_raw = (it.get("cafe_key") or "").strip() or "unknown"
-            cafe_name_raw = (it.get("cafe_name") or "").strip()
-            context_badge = cafe_name_raw or query or cafe_key_raw
-            search_blob = html.escape(
-                _ui_excerpt(
-                    " ".join(
-                        [
-                            brand,
-                            raw_title,
-                            raw_text,
-                            it.get("source") or "",
-                            context_badge,
-                            query,
-                        ]
-                    ).lower(),
-                    600,
-                )
-            )
-            toggle = ""
-            if len(raw_text) > 220:
-                toggle = '<button type="button" class="ghost-link mt-3 text-xs font-extrabold text-sky-700" onclick="toggleCard(this)">본문 더보기</button>'
-            cards.append(
-                f"""
-                <article
-                  class="mention-card rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-                  data-platform="{html.escape(platform)}"
-                  data-brand="{html.escape(brand)}"
-                  data-cafe="{html.escape(cafe_key_raw)}"
-                  data-search="{search_blob}"
-                >
-                  <div class="flex flex-wrap gap-2 text-[11px] font-black text-slate-500">
-                    <span class="meta-pill rounded-full bg-slate-100 px-3 py-1">{src}</span>
-                    <span class="meta-pill rounded-full bg-slate-100 px-3 py-1">{date}</span>
-                    <span class="meta-pill rounded-full bg-slate-100 px-3 py-1">context: {html.escape(context_badge)}</span>
-                  </div>
-                  <div class="mt-4 flex items-start justify-between gap-4">
-                    <div class="min-w-0">
-                      <a class="mention-title block text-base font-black leading-6 tracking-[-0.02em] text-slate-900 transition hover:text-sky-700"
-                         href="{url}" target="_blank" rel="noopener noreferrer">{html.escape(raw_title)}</a>
-                      <div class="mention-copy snippet-collapsed mt-3 whitespace-pre-wrap break-words text-sm font-semibold leading-7 text-slate-700">{text}</div>
-                      {toggle}
-                    </div>
-                    <a class="mention-cta shrink-0 rounded-full bg-sky-50 px-3 py-2 text-xs font-black text-sky-700"
-                       href="{url}" target="_blank" rel="noopener noreferrer">원문 보기</a>
-                  </div>
-                </article>
-                """
-            )
-
-        sections.append(
-            f"""
-            <section class="brand-section mt-7" data-platform="{html.escape(platform)}" data-brand="{html.escape(brand)}">
-              <div class="rounded-[30px] border border-white/70 bg-white/75 p-5 shadow-sm backdrop-blur-xl">
-                <div class="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">BRAND DETAIL</div>
-                    <h3 class="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-900">{html.escape(brand)}</h3>
-                  </div>
-                  <div class="section-stats rounded-full bg-slate-100 px-4 py-2 text-xs font-black text-slate-600" data-role="mention-count">{len(items):,}건 노출</div>
-                </div>
-                <div class="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">{''.join(cards)}</div>
-              </div>
-            </section>
-            """
-        )
-    if not sections:
-        return (
-            f"<div class='mt-6 rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 "
-            f"text-center text-sm font-bold text-slate-500' data-platform='{html.escape(platform)}'>브랜드 언급이 아직 없습니다.</div>"
-        )
-    return "\n".join(sections) + (
-        f'\n<div class="filter-empty mt-6 hidden rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 '
-        f'text-center text-sm font-bold text-slate-500" data-platform="{html.escape(platform)}">현재 필터 조건에 맞는 결과가 없습니다.</div>'
-    )
-
-
-def _patched_source_panel_html(
-    panel_id: str,
-    title: str,
-    subtitle: str,
-    summary_html: str,
-    weekly_html: str,
-    sections_html: str,
-    toolbar_html: str = "",
-    warning: str = "",
-) -> str:
-    warning_html = ""
-    if warning:
-        warning_html = (
-            f'<div class="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">'
-            f'{html.escape(warning)}</div>'
-        )
-    return f"""
-    <section id="{panel_id}" class="tab-panel hidden">
-      <div class="mt-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-        <div>
-          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL</div>
-          <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900">{html.escape(title)}</h2>
-          <div class="mt-1 text-xs text-slate-500 font-bold">{html.escape(subtitle)}</div>
-        </div>
-      </div>
-      {warning_html}
-      {toolbar_html}
-      <div class="mt-6 grid grid-cols-1 2xl:grid-cols-2 gap-4">
-        {summary_html}
-        {weekly_html}
-      </div>
-      {sections_html}
-    </section>
-    """
-
-
-def _lead_source_card(panel_id: str, label: str, posts_count: int, mentions_count: int, active_brands: int, summary_df: pd.DataFrame) -> str:
-    lead_brand = "-"
-    lead_mentions = 0
-    if summary_df is not None and not summary_df.empty:
-        lead_brand = str(summary_df.iloc[0]["brand"])
-        lead_mentions = int(summary_df.iloc[0]["total_mentions"])
-    return f"""
-    <button type="button"
-            class="lead-card tab-btn rounded-[32px] border border-white/70 bg-white/75 p-6 text-left shadow-sm backdrop-blur-xl"
-            data-target="{panel_id}">
-      <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">SOURCE CARD</div>
-      <div class="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-900">{html.escape(label)}</div>
-      <div class="mt-4 grid grid-cols-3 gap-3">
-        <div class="rounded-2xl bg-slate-50 p-3">
-          <div class="text-[11px] font-black text-slate-500">POSTS</div>
-          <div class="mt-2 text-xl font-black text-slate-900">{posts_count:,}</div>
-        </div>
-        <div class="rounded-2xl bg-slate-50 p-3">
-          <div class="text-[11px] font-black text-slate-500">MENTIONS</div>
-          <div class="mt-2 text-xl font-black text-slate-900">{mentions_count:,}</div>
-        </div>
-        <div class="rounded-2xl bg-slate-50 p-3">
-          <div class="text-[11px] font-black text-slate-500">BRANDS</div>
-          <div class="mt-2 text-xl font-black text-slate-900">{active_brands:,}</div>
-        </div>
-      </div>
-      <div class="mt-4 rounded-2xl bg-sky-50 px-4 py-3 text-sm font-black text-sky-800">선두 브랜드: {html.escape(lead_brand)} · {lead_mentions:,} mentions</div>
-    </button>
-    """
-
-
-def export_portal(
-    dc_posts: List[Post],
-    dc_brand_map: Dict[str, List[dict]],
-    dc_summary_df: pd.DataFrame,
-    naver_posts: List[Post],
-    naver_brand_map: Dict[str, List[dict]],
-    naver_summary_df: pd.DataFrame,
-    eomisae_posts: List[Post],
-    eomisae_brand_map: Dict[str, List[dict]],
-    eomisae_summary_df: pd.DataFrame,
-    naver_warning: str | None = None,
-    eomisae_warning: str | None = None,
-    out_path: str = "reports/external_signal.html",
-):
-    updated = _now_kst_str()
-
-    dc_meta = summarize_source(dc_posts, dc_brand_map, dc_summary_df, "DCInside")
-    naver_meta = summarize_source(naver_posts, naver_brand_map, naver_summary_df, "NAVER Cafe")
-    eomisae_meta = summarize_source(eomisae_posts, eomisae_brand_map, eomisae_summary_df, "Eomisae")
-
-    try:
-        payload = {
-            "updated_at": updated,
-            "target_days": int(TARGET_DAYS),
-            "dcinside": {
-                "posts_collected": int(len(dc_posts)),
-                "brands_active": int(len(dc_meta["active_brands"])),
-                "total_mentions": int(dc_meta["total_mentions"]),
-                "week_posts": int(dc_meta["week_posts"]),
-                "week_mentions": int(dc_meta["week_mentions"]),
-                "top5": dc_summary_df.head(5).to_dict(orient="records") if not dc_summary_df.empty else [],
-            },
-            "naver_cafe": {
-                "posts_collected": int(len(naver_posts)),
-                "brands_active": int(len(naver_meta["active_brands"])),
-                "total_mentions": int(naver_meta["total_mentions"]),
-                "week_posts": int(naver_meta["week_posts"]),
-                "week_mentions": int(naver_meta["week_mentions"]),
-                "top5": naver_summary_df.head(5).to_dict(orient="records") if not naver_summary_df.empty else [],
-                "warning": naver_warning or "",
-            },
-            "eomisae": {
-                "posts_collected": int(len(eomisae_posts)),
-                "brands_active": int(len(eomisae_meta["active_brands"])),
-                "total_mentions": int(eomisae_meta["total_mentions"]),
-                "week_posts": int(eomisae_meta["week_posts"]),
-                "week_mentions": int(eomisae_meta["week_mentions"]),
-                "top5": eomisae_summary_df.head(5).to_dict(orient="records") if not eomisae_summary_df.empty else [],
-                "warning": eomisae_warning or "",
-            },
-        }
-        _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
-    except Exception as e:
-        print(f"[WARN] summary.json export failed: {e}")
-
-    naver_subtitle = f"Updated: {updated} · Posts {len(naver_posts):,} · Active brands {len(naver_meta['active_brands']):,}"
-    if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
-        mode_label = str((NAVER_LAST_RUN_META or {}).get("query_mode", "brand only"))
-        raw_total = int((NAVER_LAST_RUN_META or {}).get("raw_total", 0))
-        kept_total = int((NAVER_LAST_RUN_META or {}).get("kept_total", len(naver_posts)))
-        detail_cache_size = int((NAVER_LAST_RUN_META or {}).get("detail_cache_size", 0))
-        naver_subtitle += (
-            f" · Query {mode_label} · Allowed cafes {len(_NAVER_ALLOWED_CAFE_IDS)}"
-            f" · Raw {raw_total:,} → Kept {kept_total:,} · Cache {detail_cache_size:,}"
-        )
-
-    naver_reason_totals = (NAVER_LAST_RUN_META or {}).get("reason_totals", {}) or {}
-    if naver_reason_totals:
-        reason_line = (
-            f"drop preview={int(naver_reason_totals.get('brand_miss_preview', 0)):,}, "
-            f"brand={int(naver_reason_totals.get('brand_miss', 0)):,}, "
-            f"context={int(naver_reason_totals.get('ambiguous_no_context', 0)):,}, "
-            f"old={int(naver_reason_totals.get('out_of_range', 0)):,}, "
-            f"dup={int(naver_reason_totals.get('dup', 0)):,}"
-        )
-        naver_warning = f"{naver_warning} | {reason_line}" if naver_warning else reason_line
-
-    dc_panel = _patched_source_panel_html(
-        panel_id="panel-dcinside",
-        title=f"DCInside · {GALLERY_ID} 갤러리",
-        subtitle=f"Updated: {updated} · Posts {len(dc_posts):,} · Active brands {len(dc_meta['active_brands']):,}",
-        summary_html=_patched_summary_table_html(dc_summary_df),
-        weekly_html=_patched_weekly_html(dc_meta, "DCInside"),
-        sections_html=_patched_brand_sections_html(dc_brand_map, "dcinside"),
-        toolbar_html=_patched_filter_toolbar_html(
-            dc_brand_map,
-            "dcinside",
-            "DCInside 안에서 브랜드·키워드를 검색해보세요",
-        ),
-    )
-    naver_panel = _patched_source_panel_html(
-        panel_id="panel-naver",
-        title="NAVER Cafe · 브랜드 언급 탐색",
-        subtitle=naver_subtitle,
-        summary_html=_patched_summary_table_html(naver_summary_df),
-        weekly_html=_patched_weekly_html(naver_meta, "NAVER Cafe"),
-        sections_html=_patched_brand_sections_html(naver_brand_map, "naver_cafe"),
-        toolbar_html=_patched_filter_toolbar_html(
-            naver_brand_map,
-            "naver_cafe",
-            "NAVER Cafe 안에서 브랜드·카페·문맥 키워드를 검색해보세요",
-        ),
-        warning=naver_warning or "",
-    )
-    eomisae_panel = _patched_source_panel_html(
-        panel_id="panel-eomisae",
-        title="Eomisae · 자유게시판 + 패션게시판",
-        subtitle=f"Updated: {updated} · Posts {len(eomisae_posts):,} · Active brands {len(eomisae_meta['active_brands']):,}",
-        summary_html=_patched_summary_table_html(eomisae_summary_df),
-        weekly_html=_patched_weekly_html(eomisae_meta, "Eomisae"),
-        sections_html=_patched_brand_sections_html(eomisae_brand_map, "eomisae"),
-        toolbar_html=_patched_filter_toolbar_html(
-            eomisae_brand_map,
-            "eomisae",
-            "어미새 안에서 브랜드·상황 키워드를 검색해보세요",
-        ),
-        warning=eomisae_warning or "",
-    )
-
-    source_cards_html = "".join(
-        [
-            _lead_source_card("panel-dcinside", "DCInside", len(dc_posts), int(dc_meta["total_mentions"]), len(dc_meta["active_brands"]), dc_summary_df),
-            _lead_source_card("panel-naver", "NAVER Cafe", len(naver_posts), int(naver_meta["total_mentions"]), len(naver_meta["active_brands"]), naver_summary_df),
-            _lead_source_card("panel-eomisae", "Eomisae", len(eomisae_posts), int(eomisae_meta["total_mentions"]), len(eomisae_meta["active_brands"]), eomisae_summary_df),
-        ]
-    )
-
-    full_html = f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>External Signal Hub</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root {{
-      --bg0:#f5f7fb;
-      --bg1:#edf3fb;
-      --ink:#0f172a;
-      --muted:#64748b;
-      --line:rgba(15,23,42,.08);
-    }}
-    html, body {{ min-height:100%; margin:0; }}
-    body {{
-      background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-      color: var(--ink);
-    }}
-    .glass {{
-      background: rgba(255,255,255,.74);
-      border: 1px solid rgba(255,255,255,.75);
-      box-shadow: 0 12px 36px rgba(15,23,42,.08);
-      backdrop-filter: blur(12px);
-    }}
-    .tab-btn.active,
-    .brand-filter-btn.active,
-    .cafe-filter-btn.active,
-    .tool-tab-btn.active {{
-      background:#0f172a;
-      color:#fff;
-      border-color:#0f172a;
-    }}
-    .tool-tab-btn {{
-      border:1px solid #cbd5e1;
-      background:#fff;
-      color:#0f172a;
-      border-radius:1rem;
-      padding:.65rem .95rem;
-      font-size:.82rem;
-      font-weight:800;
-    }}
-    .filter-chip {{
-      border:1px solid #cbd5e1;
-      background:#fff;
-      color:#0f172a;
-      border-radius:9999px;
-      padding:.65rem .9rem;
-      font-size:.84rem;
-      font-weight:800;
-    }}
-    .filter-chip span {{
-      margin-left:.3rem;
-      color:#64748b;
-    }}
-    .snippet-collapsed {{
-      display:-webkit-box;
-      -webkit-line-clamp:4;
-      -webkit-box-orient:vertical;
-      overflow:hidden;
-    }}
-    .snippet-expanded {{
-      display:block;
-    }}
-    .lead-card {{
-      transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-    }}
-    .lead-card:hover {{
-      transform:translateY(-4px);
-      box-shadow:0 16px 40px rgba(15,23,42,.12);
-      border-color:rgba(14,165,233,.45);
-    }}
-  </style>
-</head>
-<body>
-  <div class="mx-auto w-full max-w-[1800px] px-4 py-6 md:px-6 lg:px-8">
-    <div class="glass rounded-[36px] p-6 md:p-8">
-      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-          <div class="text-xs font-black tracking-[0.22em] text-slate-500">EXTERNAL SIGNAL HUB</div>
-          <h1 class="mt-2 text-3xl md:text-4xl font-black tracking-[-0.04em] text-slate-900">브랜드 언급 모니터링</h1>
-          <div class="mt-2 text-sm font-bold text-slate-500">Updated: {updated} · 최근 {int(TARGET_DAYS)}일 기준 · DCInside / NAVER Cafe / Eomisae</div>
-        </div>
-        <div class="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700">브랜드 수 {len(BRAND_LIST)}개 · 선두 브랜드는 언급량 기준으로 자동 변경</div>
-      </div>
-
-      <div class="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {source_cards_html}
-      </div>
-
-      <div class="mt-6 flex flex-wrap gap-2">
-        <button type="button" class="tab-btn active rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold" data-target="panel-dcinside">DCInside</button>
-        <button type="button" class="tab-btn rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold" data-target="panel-naver">네이버 카페</button>
-        <button type="button" class="tab-btn rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-extrabold" data-target="panel-eomisae">어미새</button>
-      </div>
-
-      {dc_panel}
-      {naver_panel}
-      {eomisae_panel}
-    </div>
-  </div>
-
-  <script>
-    function toggleCard(btn) {{
-      const block = btn.parentElement.querySelector('.mention-copy');
-      if (!block) return;
-      const isCollapsed = block.classList.contains('snippet-collapsed');
-      block.classList.toggle('snippet-collapsed', !isCollapsed);
-      block.classList.toggle('snippet-expanded', isCollapsed);
-      btn.textContent = isCollapsed ? '본문 접기' : '본문 더보기';
-    }}
-
-    function activatePanel(panelId) {{
-      document.querySelectorAll('.tab-panel').forEach(el => el.classList.add('hidden'));
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      const panel = document.getElementById(panelId);
-      if (panel) panel.classList.remove('hidden');
-      document.querySelectorAll(`.tab-btn[data-target="${{panelId}}"]`).forEach(btn => btn.classList.add('active'));
-    }}
-
-    function activateToolTab(platform, targetId) {{
-      document.querySelectorAll(`.tool-tab-btn[data-platform="${{platform}}"]`).forEach(btn => btn.classList.remove('active'));
-      document.querySelectorAll(`.tool-tab-panel[data-platform="${{platform}}"]`).forEach(p => p.classList.add('hidden'));
-      const target = document.getElementById(targetId);
-      if (target) target.classList.remove('hidden');
-      document.querySelectorAll(`.tool-tab-btn[data-platform="${{platform}}"][data-target="${{targetId}}"]`).forEach(btn => btn.classList.add('active'));
-    }}
-
-    function updatePanelCount(platform) {{
-      const cards = Array.from(document.querySelectorAll(`.mention-card[data-platform="${{platform}}"]`));
-      const visible = cards.filter(card => !card.classList.contains('hidden')).length;
-      const label = document.querySelector(`[data-role="result-count"][data-platform="${{platform}}"]`);
-      if (label) {{
-        label.textContent = visible === cards.length
-          ? '전체 결과를 표시 중입니다.'
-          : `현재 ${{visible.toLocaleString()}}건을 표시 중입니다.`;
-      }}
-      const empty = document.querySelector(`.filter-empty[data-platform="${{platform}}"]`);
-      if (empty) empty.classList.toggle('hidden', visible !== 0);
-    }}
-
-    function applyFilters(platform) {{
-      const activeBrand = document.querySelector(`.brand-filter-btn.active[data-platform="${{platform}}"]`)?.dataset.brand || 'all';
-      const activeCafe = document.querySelector(`.cafe-filter-btn.active[data-platform="${{platform}}"]`)?.dataset.cafe || 'all';
-      const query = (document.querySelector(`.panel-search-input[data-platform="${{platform}}"]`)?.value || '').trim().toLowerCase();
-
-      document.querySelectorAll(`.mention-card[data-platform="${{platform}}"]`).forEach(card => {{
-        const brandOk = activeBrand === 'all' || card.dataset.brand === activeBrand;
-        const cafeOk = activeCafe === 'all' || card.dataset.cafe === activeCafe;
-        const searchTarget = (card.dataset.search || '').toLowerCase();
-        const queryOk = !query || searchTarget.includes(query);
-        card.classList.toggle('hidden', !(brandOk && cafeOk && queryOk));
-      }});
-
-      document.querySelectorAll(`.brand-section[data-platform="${{platform}}"]`).forEach(section => {{
-        const cards = Array.from(section.querySelectorAll('.mention-card'));
-        const visible = cards.filter(card => !card.classList.contains('hidden')).length;
-        const countEl = section.querySelector('[data-role="mention-count"]');
-        if (countEl) countEl.textContent = `${{visible.toLocaleString()}}건 노출`;
-        section.classList.toggle('hidden', visible === 0);
-      }});
-
-      updatePanelCount(platform);
-    }}
-
-    document.querySelectorAll('.tab-btn').forEach(btn => {{
-      btn.addEventListener('click', () => activatePanel(btn.dataset.target));
-    }});
-
-    document.querySelectorAll('.lead-card').forEach(btn => {{
-      btn.addEventListener('click', () => {{
-        activatePanel(btn.dataset.target);
-        const panel = document.getElementById(btn.dataset.target);
-        if (panel) panel.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
-      }});
-    }});
-
-    document.querySelectorAll('.tool-tab-btn').forEach(btn => {{
-      btn.addEventListener('click', () => activateToolTab(btn.dataset.platform, btn.dataset.target));
-    }});
-
-    document.querySelectorAll('.brand-filter-btn').forEach(btn => {{
-      btn.addEventListener('click', () => {{
-        document.querySelectorAll(`.brand-filter-btn[data-platform="${{btn.dataset.platform}}"]`).forEach(x => x.classList.remove('active'));
-        btn.classList.add('active');
-        applyFilters(btn.dataset.platform);
-      }});
-    }});
-
-    document.querySelectorAll('.cafe-filter-btn').forEach(btn => {{
-      btn.addEventListener('click', () => {{
-        document.querySelectorAll(`.cafe-filter-btn[data-platform="${{btn.dataset.platform}}"]`).forEach(x => x.classList.remove('active'));
-        btn.classList.add('active');
-        applyFilters(btn.dataset.platform);
-      }});
-    }});
-
-    document.querySelectorAll('.panel-search-input').forEach(input => {{
-      input.addEventListener('input', () => applyFilters(input.dataset.platform));
-    }});
-
-    document.querySelectorAll('.search-clear-btn').forEach(btn => {{
-      btn.addEventListener('click', () => {{
-        const input = document.querySelector(`.panel-search-input[data-platform="${{btn.dataset.platform}}"]`);
-        if (input) input.value = '';
-        applyFilters(btn.dataset.platform);
-      }});
-    }});
-
-    activatePanel('panel-dcinside');
-    ['dcinside', 'naver_cafe', 'eomisae'].forEach(platform => applyFilters(platform));
-  </script>
-</body>
-</html>
-"""
-
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(full_html)
-
-    print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
-
-
 # =================================================================
 # main
 # =================================================================
@@ -3684,6 +2792,9 @@ if __name__ == "__main__":
     eomisae_posts, eomisae_warning = crawl_eomisae_engine(days=TARGET_DAYS)
     eomisae_brand_map, eomisae_summary_df = process_data(eomisae_posts) if eomisae_posts else ({b: [] for b in BRAND_LIST}, pd.DataFrame())
 
+    ppomppu_posts, ppomppu_warning = crawl_ppomppu_engine(days=TARGET_DAYS)
+    ppomppu_brand_map, ppomppu_summary_df = process_data(ppomppu_posts) if ppomppu_posts else ({b: [] for b in BRAND_LIST}, pd.DataFrame())
+
     export_portal(
         dc_posts=dc_posts,
         dc_brand_map=dc_brand_map,
@@ -3694,13 +2805,387 @@ if __name__ == "__main__":
         eomisae_posts=eomisae_posts,
         eomisae_brand_map=eomisae_brand_map,
         eomisae_summary_df=eomisae_summary_df,
+        ppomppu_posts=ppomppu_posts,
+        ppomppu_brand_map=ppomppu_brand_map,
+        ppomppu_summary_df=ppomppu_summary_df,
         naver_warning=naver_warning,
         eomisae_warning=eomisae_warning,
+        ppomppu_warning=ppomppu_warning,
     )
 
     if not dc_posts:
         print("⚠️ DCInside 수집 데이터 0건")
     if not naver_posts:
         print("⚠️ NAVER Cafe 수집 데이터 0건")
+
     if not eomisae_posts:
         print("[WARN] Eomisae 수집 데이터 0건")
+    if not ppomppu_posts:
+        print("[WARN] Ppomppu 수집 데이터 0건")
+
+# ================= PATCH: full-width + weakly-supervised ML sentiment + brand filters =================
+from collections import Counter
+
+POSITIVE_HINTS = {
+    "좋", "만족", "추천", "예쁘", "이쁘", "편하", "편안", "가볍", "튼튼", "따뜻", "따듯", "훌륭", "최고",
+    "잘샀", "재구매", "실용", "탄탄", "마음에", "괜찮", "우수", "짱", "고급", "핏 좋", "기대 이상"
+}
+NEGATIVE_HINTS = {
+    "별로", "아쉽", "실망", "무겁", "불편", "비싸", "두껍", "얇", "구림", "최악", "문제", "하자", "환불",
+    "교환", "불량", "답답", "미끄", "후회", "냄새", "찢어", "약하", "애매"
+}
+
+def _sentiment_seed_label(text: str) -> int | None:
+    s = (text or "").lower()
+    pos = sum(1 for kw in POSITIVE_HINTS if kw in s)
+    neg = sum(1 for kw in NEGATIVE_HINTS if kw in s)
+    if pos >= 1 and neg == 0:
+        return 1
+    if neg >= 1 and pos == 0:
+        return 0
+    return None
+
+
+def build_sentiment_model(posts: List[Post]):
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.linear_model import LogisticRegression
+    except Exception:
+        return None, None
+    train_texts, train_labels = [], []
+    for p in posts:
+        candidates = ([p.title] if p.title else []) + split_sentences(p.content) + split_sentences(p.comments)
+        for sent in candidates:
+            label = _sentiment_seed_label(sent)
+            if label is None:
+                continue
+            train_texts.append(sent)
+            train_labels.append(label)
+    if len(train_texts) < 10 or len(set(train_labels)) < 2:
+        return None, None
+    vec = TfidfVectorizer(ngram_range=(1, 2), min_df=1, max_features=8000, sublinear_tf=True)
+    X = vec.fit_transform(train_texts)
+    clf = LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42)
+    clf.fit(X, train_labels)
+    return vec, clf
+
+
+def predict_sentiment_label(text: str, vec, clf) -> tuple[str, float]:
+    seeded = _sentiment_seed_label(text)
+    if vec is not None and clf is not None and text:
+        try:
+            proba = clf.predict_proba(vec.transform([text]))[0]
+            neg_p = float(proba[0]); pos_p = float(proba[1])
+            if max(pos_p, neg_p) >= 0.60:
+                return ("positive", pos_p) if pos_p >= neg_p else ("negative", neg_p)
+        except Exception:
+            pass
+    if seeded == 1:
+        return "positive", 0.58
+    if seeded == 0:
+        return "negative", 0.58
+    return "neutral", 0.0
+
+
+def process_data(posts: List[Post]):
+    patterns = build_brand_patterns()
+    vec, clf = build_sentiment_model(posts)
+    brand_map: Dict[str, List[dict]] = {b: [] for b in BRAND_LIST}
+    summary = {b: {"posts_count": 0, "title_hits": 0, "comment_mentions": 0, "total_mentions": 0} for b in BRAND_LIST}
+
+    for p in posts:
+        title = normalize_text(p.title)
+        content = normalize_text(p.content)
+        comments = normalize_text(p.comments)
+        title_sents = [title] if title else []
+        content_sents = split_sentences(content)
+        comment_sents = split_sentences(comments)
+        post_has_brand = {b: False for b in BRAND_LIST}
+        title_has_brand = {b: False for b in BRAND_LIST}
+
+        def add_item(brand, sentence, source):
+            sentiment, score = predict_sentiment_label(sentence, vec, clf)
+            brand_map[brand].append({
+                "text": sentence,
+                "url": p.url,
+                "title": title,
+                "source": source,
+                "platform": p.platform,
+                "query": p.query,
+                "date": p.created_at.strftime("%Y-%m-%d"),
+                "sentiment": sentiment,
+                "sentiment_score": round(score, 3),
+            })
+
+        for b in BRAND_LIST:
+            if contains_brand(title, b, patterns):
+                title_has_brand[b] = True
+                summary[b]["title_hits"] += 1
+                post_has_brand[b] = True
+            for s in title_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 3:
+                    add_item(b, s, "title")
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
+            for s in content_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                    add_item(b, s, "content")
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
+            for s in comment_sents:
+                if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                    add_item(b, s, "comment")
+                    summary[b]["comment_mentions"] += 1
+                    summary[b]["total_mentions"] += 1
+                    post_has_brand[b] = True
+            if title_has_brand[b]:
+                for s in comment_sents:
+                    if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                        add_item(b, s, "comment(boosted_by_title)")
+        for b in BRAND_LIST:
+            if post_has_brand[b]:
+                summary[b]["posts_count"] += 1
+
+    for b in BRAND_LIST:
+        seen = set(); uniq = []
+        for item in brand_map[b]:
+            key = (item.get("url", ""), item.get("text", ""), item.get("source", ""), item.get("platform", ""))
+            if key in seen:
+                continue
+            seen.add(key); uniq.append(item)
+        brand_map[b] = uniq
+        summary[b]["total_mentions"] = len(uniq)
+        summary[b]["comment_mentions"] = sum(1 for x in uniq if str(x.get("source", "")).startswith("comment"))
+
+    summary_df = pd.DataFrame([
+        {"brand": b, "posts_count": summary[b]["posts_count"], "title_hits": summary[b]["title_hits"], "comment_mentions": summary[b]["comment_mentions"], "total_mentions": summary[b]["total_mentions"]}
+        for b in BRAND_LIST
+    ])
+    summary_df = summary_df[~((summary_df["posts_count"] == 0) & (summary_df["title_hits"] == 0))].copy()
+    if not summary_df.empty:
+        summary_df["__pin_columbia"] = summary_df["brand"].apply(lambda x: 0 if x == "컬럼비아" else 1)
+        summary_df = summary_df.sort_values(["__pin_columbia", "total_mentions", "posts_count"], ascending=[True, False, False]).drop(columns=["__pin_columbia"])
+    return brand_map, summary_df
+
+
+def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str:
+    sections = []
+    for brand in BRAND_LIST:
+        items = [x for x in brand_map.get(brand, []) if x.get("platform") == platform]
+        if not items:
+            continue
+        counts = Counter((it.get("sentiment") or "neutral") for it in items)
+        cards = []
+        for it in items[:40]:
+            title = html.escape((it.get("title") or it.get("url") or "")[:120])
+            body_text = html.escape((it.get("text") or "").strip())
+            url = html.escape(it.get("url") or "")
+            src = html.escape(it.get("source") or "")
+            date = html.escape(it.get("date") or "")
+            query = html.escape(it.get("query") or "")
+            sentiment = (it.get("sentiment") or "neutral").strip()
+            score = float(it.get("sentiment_score") or 0)
+            senti_class = {"positive": "bg-emerald-50 text-emerald-700 border-emerald-200", "negative": "bg-rose-50 text-rose-700 border-rose-200"}.get(sentiment, "bg-slate-100 text-slate-600 border-slate-200")
+            senti_label = {"positive": "긍정", "negative": "부정"}.get(sentiment, "중립")
+            query_badge = f'<span class="px-2 py-1 rounded-full bg-slate-100">cafe: {query}</span>' if query else ''
+            score_text = f" {score:.2f}" if score else ""
+            cards.append(f'''
+                <div class="mention-card p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition" data-brand="{html.escape(brand)}" data-platform="{html.escape(platform)}">
+                  <div class="flex flex-wrap gap-2 text-[11px] text-slate-500 font-bold mb-1">
+                    <span class="px-2 py-1 rounded-full bg-slate-100">{src}</span>
+                    <span class="px-2 py-1 rounded-full bg-slate-100">{date}</span>
+                    {query_badge}
+                    <span class="px-2 py-1 rounded-full border {senti_class}">{senti_label}{score_text}</span>
+                  </div>
+                  <a class="text-sm font-extrabold text-blue-700 hover:underline" href="{url}" target="_blank" rel="noopener noreferrer">{title}</a>
+                  <div class="mt-2 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{body_text}</div>
+                </div>
+            ''')
+        sections.append(f'''
+            <section class="mt-6 brand-section" data-brand="{html.escape(brand)}" data-platform="{html.escape(platform)}">
+              <div class="flex items-baseline justify-between gap-3 flex-wrap">
+                <h3 class="text-lg font-extrabold text-slate-800">{html.escape(brand)}</h3>
+                <div class="flex flex-wrap items-center gap-2 text-xs font-bold tabular-nums">
+                  <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-600">{len(items)} mentions</span>
+                  <span class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">긍정 {counts.get('positive',0)}</span>
+                  <span class="px-2 py-1 rounded-full bg-rose-50 text-rose-700">부정 {counts.get('negative',0)}</span>
+                  <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-600">중립 {counts.get('neutral',0)}</span>
+                </div>
+              </div>
+              <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">{''.join(cards)}</div>
+            </section>
+        ''')
+    if not sections:
+        return "<div class='mt-6 text-slate-500 font-bold'>브랜드 언급이 없습니다.</div>"
+    return "\n".join(sections)
+
+
+def _brand_filter_controls_html(brand_map: Dict[str, List[dict]], platform: str) -> str:
+    active_brands = [b for b in BRAND_LIST if any(x.get("platform") == platform for x in brand_map.get(b, []))]
+    if not active_brands:
+        return ""
+    buttons = [f'<button class="brand-filter-btn active px-3 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-platform="{html.escape(platform)}" data-brand="all">전체</button>']
+    for brand in active_brands:
+        buttons.append(f'<button class="brand-filter-btn px-3 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-platform="{html.escape(platform)}" data-brand="{html.escape(brand)}">{html.escape(brand)}</button>')
+    return f'<div class="mt-6 flex flex-wrap gap-2">{"".join(buttons)}</div>'
+
+
+def _source_panel_html(panel_id: str, title: str, subtitle: str, summary_html: str, weekly_html: str, sections_html: str, filter_html: str = "", warning: str = "") -> str:
+    warning_html = ""
+    if warning:
+        warning_html = f'<div class="mt-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-sm font-bold">{html.escape(warning)}</div>'
+    return f'''
+    <section id="{panel_id}" class="tab-panel hidden">
+      <div class="mt-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL</div>
+          <h2 class="text-2xl md:text-3xl font-extrabold text-slate-900">{html.escape(title)}</h2>
+          <div class="mt-1 text-xs text-slate-500 font-bold">{html.escape(subtitle)}</div>
+        </div>
+      </div>
+      {warning_html}
+      {filter_html}
+      <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="glass rounded-3xl p-5">{summary_html}</div>
+        <div class="glass rounded-3xl p-5">{weekly_html}</div>
+      </div>
+      {sections_html}
+    </section>
+    '''
+
+
+def export_portal(dc_posts: List[Post], dc_brand_map: Dict[str, List[dict]], dc_summary_df: pd.DataFrame, naver_posts: List[Post], naver_brand_map: Dict[str, List[dict]], naver_summary_df: pd.DataFrame, naver_warning: str | None = None, out_path: str = "reports/external_signal.html"):
+    updated = _now_kst_str()
+    dc_meta = summarize_source(dc_posts, dc_brand_map, dc_summary_df, "DCInside")
+    naver_meta = summarize_source(naver_posts, naver_brand_map, naver_summary_df, "NAVER Cafe")
+    try:
+        payload = {
+            "updated_at": updated,
+            "target_days": int(TARGET_DAYS),
+            "dcinside": {"posts_collected": int(len(dc_posts)), "brands_active": int(len(dc_meta["active_brands"])), "total_mentions": int(dc_meta["total_mentions"]), "week_posts": int(dc_meta["week_posts"]), "week_mentions": int(dc_meta["week_mentions"]), "top5": dc_summary_df.head(5).to_dict(orient="records") if not dc_summary_df.empty else []},
+            "naver_cafe": {"posts_collected": int(len(naver_posts)), "brands_active": int(len(naver_meta["active_brands"])), "total_mentions": int(naver_meta["total_mentions"]), "week_posts": int(naver_meta["week_posts"]), "week_mentions": int(naver_meta["week_mentions"]), "top5": naver_summary_df.head(5).to_dict(orient="records") if not naver_summary_df.empty else [], "warning": naver_warning or ""},
+        }
+        _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
+    except Exception as e:
+        print(f"[WARN] summary.json export failed: {e}")
+
+    dc_panel = _source_panel_html(
+        panel_id="panel-dcinside",
+        title=f"DCInside · {GALLERY_ID} (최근 {int(TARGET_DAYS)}일)",
+        subtitle=f"Updated: {updated} · Posts collected: {len(dc_posts):,} · Active brands: {len(dc_meta['active_brands']):,}",
+        summary_html=_summary_table_html(dc_summary_df),
+        weekly_html=_weekly_html(dc_meta, "DCInside (게시글 작성일 기준)"),
+        sections_html=_brand_sections_html(dc_brand_map, "dcinside"),
+        filter_html=_brand_filter_controls_html(dc_brand_map, "dcinside"),
+    )
+
+    naver_subtitle = f"Updated: {updated} · Posts collected: {len(naver_posts):,} · Active brands: {len(naver_meta['active_brands']):,}"
+    if NAVER_CLIENT_ID and NAVER_CLIENT_SECRET:
+        mode_label = str((NAVER_LAST_RUN_META or {}).get("query_mode", "brand only"))
+        raw_total = int((NAVER_LAST_RUN_META or {}).get("raw_total", 0))
+        kept_total = int((NAVER_LAST_RUN_META or {}).get("kept_total", len(naver_posts)))
+        detail_cache_size = int((NAVER_LAST_RUN_META or {}).get("detail_cache_size", 0))
+        naver_subtitle += f" · Query mode: {mode_label} · Allowed cafes: {len(_NAVER_ALLOWED_CAFE_IDS)} · Raw: {raw_total:,} → Kept: {kept_total:,} · Detail cache: {detail_cache_size:,}"
+
+    naver_panel = _source_panel_html(
+        panel_id="panel-naver",
+        title="네이버 카페 · 브랜드 언급 / 필터링 결과",
+        subtitle=naver_subtitle,
+        summary_html=_summary_table_html(naver_summary_df),
+        weekly_html=_weekly_html(naver_meta, "NAVER Cafe (게시글 작성일 기준)"),
+        sections_html=_brand_sections_html(naver_brand_map, "naver_cafe"),
+        filter_html=_brand_filter_controls_html(naver_brand_map, "naver_cafe"),
+        warning=naver_warning or "",
+    )
+
+    full_html = f'''<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>External Signal | DCInside + NAVER Cafe</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root {{ --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }}
+    html, body {{ height: 100%; overflow: auto; margin:0; }}
+    body {{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+      margin:0;
+    }}
+    .glass {{
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(15,23,42,.08);
+      box-shadow: 0 10px 30px rgba(2,6,23,.08);
+      backdrop-filter: blur(10px);
+    }}
+    .tab-btn.active, .brand-filter-btn.active {{ background:#0f172a; color:#fff; border-color:#0f172a; }}
+    .embedded body {{ background: transparent !important; }}
+  </style>
+</head>
+<body class="w-full">
+  <div class="w-full px-0">
+    <div class="glass rounded-none p-5 md:p-7 w-full">
+      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <div class="text-xs text-slate-500 font-extrabold tracking-wide">EXTERNAL SIGNAL HUB</div>
+          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">DCInside + 네이버 카페 브랜드 언급 모니터링</h1>
+          <div class="mt-1 text-xs text-slate-500 font-bold">Updated: {updated} · DCInside: 최근 {int(TARGET_DAYS)}일 / NAVER Cafe: Search API + 게시글 상세 본문/작성일</div>
+        </div>
+        <div class="text-xs text-slate-600 font-bold">브랜드 수: {len(BRAND_LIST)} · 탭별로 소스 분리 확인</div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap gap-2">
+        <button class="tab-btn active px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-dcinside">DCInside</button>
+        <button class="tab-btn px-4 py-2 rounded-2xl border border-slate-300 bg-white text-sm font-extrabold" data-target="panel-naver">네이버 카페</button>
+      </div>
+
+      {dc_panel}
+      {naver_panel}
+    </div>
+  </div>
+
+  <script>
+    function toggleMore(btn) {{
+      const box = btn.parentElement.querySelector('.more-box');
+      if (!box) return;
+      box.classList.toggle('hidden');
+      btn.textContent = box.classList.contains('hidden') ? '+ 더보기' : '- 접기';
+    }}
+
+    (function () {{
+      const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+      const panels = Array.from(document.querySelectorAll('.tab-panel'));
+      const brandButtons = Array.from(document.querySelectorAll('.brand-filter-btn'));
+      function activate(targetId) {{
+        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === targetId));
+        panels.forEach(panel => panel.classList.toggle('hidden', panel.id !== targetId));
+      }}
+      function applyBrandFilter(platform, brand) {{
+        const sections = Array.from(document.querySelectorAll(`.brand-section[data-platform="${{platform}}"]`));
+        const cards = Array.from(document.querySelectorAll(`.mention-card[data-platform="${{platform}}"]`));
+        brandButtons.filter(btn => btn.dataset.platform === platform).forEach(btn => btn.classList.toggle('active', btn.dataset.brand === brand));
+        sections.forEach(sec => sec.classList.toggle('hidden', !(brand === 'all' || sec.dataset.brand === brand)));
+        cards.forEach(card => card.classList.toggle('hidden', !(brand === 'all' || card.dataset.brand === brand)));
+      }}
+      buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.target)));
+      brandButtons.forEach(btn => btn.addEventListener('click', () => applyBrandFilter(btn.dataset.platform, btn.dataset.brand)));
+      activate('panel-dcinside');
+      ['dcinside','naver_cafe'].forEach(platform => applyBrandFilter(platform, 'all'));
+      try {{
+        if (window.self !== window.top) document.body.classList.add('embedded');
+      }} catch (e) {{
+        document.body.classList.add('embedded');
+      }}
+    }})();
+  </script>
+</body>
+</html>
+'''
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(full_html)
+    print(f"✅ [성공] External Signal 리포트 생성 완료: {out_path}")
