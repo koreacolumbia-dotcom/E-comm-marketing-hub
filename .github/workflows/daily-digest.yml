@@ -3,23 +3,30 @@ name: Daily Digest
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: "Run mode"
+      reason:
+        description: "Manual run reason (optional)"
+        required: false
+        default: "manual"
+        type: string
+      daily_hub_only:
+        description: "Build Daily Digest HUB only? (no email)"
         required: true
-        default: "daily_and_email"
+        default: "false"
         type: choice
         options:
-          - daily_only
-          - daily_and_email
+          - "false"
+          - "true"
       debug:
         description: "Enable debug logs?"
         required: true
         default: "false"
         type: choice
-        options: ["false", "true"]
+        options:
+          - "false"
+          - "true"
 
   schedule:
-    # 06:00 KST daily
+    # 06:00 KST daily -> Daily Digest + email
     - cron: "0 21 * * *"
 
 concurrency:
@@ -55,23 +62,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            MODE="${{ inputs.mode }}"
-            DEBUG="${{ inputs.debug }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.daily_hub_only }}" = "true" ]; then
+            DAILY_HUB_ONLY="true"
           else
-            MODE="daily_and_email"
-            DEBUG="false"
+            DAILY_HUB_ONLY="false"
           fi
 
-          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
-          echo "debug=${DEBUG}" >> "$GITHUB_OUTPUT"
-
-          if [ "$MODE" = "daily_only" ]; then
-            echo "send_email=false" >> "$GITHUB_OUTPUT"
-            echo "mode_label=daily_only" >> "$GITHUB_OUTPUT"
+          echo "run_daily=true" >> "$GITHUB_OUTPUT"
+          if [ "$DAILY_HUB_ONLY" = "true" ]; then
+            echo "send_daily_email=false" >> "$GITHUB_OUTPUT"
           else
-            echo "send_email=true" >> "$GITHUB_OUTPUT"
-            echo "mode_label=daily_and_email" >> "$GITHUB_OUTPUT"
+            echo "send_daily_email=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "debug=${{ inputs.debug }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "debug=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Python
@@ -95,12 +102,21 @@ jobs:
               db-dtypes \
               pyarrow \
               google-cloud-bigquery \
-              google-analytics-data \
               pandas \
               python-dateutil \
+              scikit-learn \
+              sentence-transformers \
+              pillow \
               requests \
-              openpyxl
+              playwright \
+              openpyxl \
+              matplotlib
           fi
+
+          # requirements.txt 와 별개로 Daily Digest 추가 패키지 보강 설치
+          pip install openpyxl matplotlib pytrends
+
+          python -m playwright install --with-deps chromium
 
       - name: Ensure reports dir
         shell: bash
@@ -108,10 +124,12 @@ jobs:
           set -euo pipefail
           mkdir -p \
             reports \
-            reports/daily_digest/daily \
-            reports/daily_digest/weekly \
-            reports/daily_digest/data/daily \
-            reports/daily_digest/data/weekly
+            reports/search_volume/data \
+            site/data \
+            site/assets \
+            site/assets/products \
+            site/assets/reviews \
+            site/assets/text_images
 
       - name: Set KST time (for badge/meta + yesterday)
         id: set_time
@@ -122,21 +140,29 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-      - name: Build Daily Digest
+
+      - name: Build Daily Digest (yesterday only)
+        if: ${{ steps.modes.outputs.run_daily == 'true' }}
+        continue-on-error: true
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
-          DAILY_DIGEST_USE_DATA_CACHE: "true"
+          DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
-    DAILY_DIGEST_SKIP_HUB_WRITE: "false"
+          DAILY_DIGEST_SKIP_HUB_WRITE: "false"
+
+          DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
+
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+
           GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
           GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
           GOOGLE_ADS_ACCESS_TOKEN: ${{ secrets.GOOGLE_ADS_ACCESS_TOKEN }}
@@ -144,54 +170,46 @@ jobs:
           GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
           GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+
           NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
           NAVER_AD_ACCESS_LICENSE: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
           NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
+
         run: |
           set -euo pipefail
 
           if [ -z "${GA4_PROPERTY_ID:-}" ]; then
-            echo "[ERROR] GA4_PROPERTY_ID is empty."
-            exit 1
+            echo "[WARN] GA4_PROPERTY_ID is empty. skip."
+            exit 0
           fi
+
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
-            echo "[ERROR] GOOGLE_SA_JSON_B64 is empty."
-            exit 1
+            echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip."
+            exit 0
           fi
 
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
 
-          mkdir -p reports/daily_digest/daily reports/daily_digest/weekly reports/daily_digest/data/daily reports/daily_digest/data/weekly
+          mkdir -p reports/daily_digest/daily reports/daily_digest/data/daily
 
           echo "[INFO] Purge old outputs for ${YMD}"
           rm -f "reports/daily_digest/daily/${YMD}.html" \
-                "reports/daily_digest/data/daily/${YMD}.json" \
-                "reports/daily_digest/weekly/END_${YMD}.html" \
-                "reports/daily_digest/data/weekly/END_${YMD}.json" || true
+                "reports/daily_digest/data/daily/${YMD}.json" || true
 
-          echo "[INFO] Build mode: ${{ steps.modes.outputs.mode_label }}"
           echo "[INFO] Build only: ${YMD}"
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
 
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest --days 1
+          # 배치 버전 실행
+          python -u daily_digest_live_final.py --out-dir reports/daily_digest
 
           echo "[INFO] Outputs:"
           ls -la reports/daily_digest/daily | tail -n 40 || true
-          ls -la reports/daily_digest/weekly | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
-          ls -la reports/daily_digest/data/weekly | tail -n 40 || true
-          ls -la reports/daily_digest | tail -n 40 || true
 
-          echo "[INFO] Validate required outputs"
-          test -f "reports/daily_digest/daily/${YMD}.html"
-          test -f "reports/daily_digest/data/daily/${YMD}.json"
-          test -f "reports/daily_digest/weekly/END_${YMD}.html"
-          test -f "reports/daily_digest/data/weekly/END_${YMD}.json"
-          test -f "reports/daily_digest/index.html"
-
-      - name: Render Daily Digest PNG
+      - name: Render yesterday Daily Digest PNG
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' }}
         continue-on-error: true
         shell: bash
         env:
@@ -199,62 +217,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ ! -f "scripts/render_daily_png.py" ]; then
-            echo "[WARN] scripts/render_daily_png.py not found. skip png render."
+          HTML="reports/daily_digest/daily/${YMD}.html"
+          PNG="reports/daily_digest/daily/${YMD}.png"
+
+          if [ ! -f "$HTML" ]; then
+            echo "[WARN] Daily HTML not found for PNG render: $HTML"
+            ls -la reports/daily_digest/daily || true
             exit 0
           fi
 
-          python -m playwright install chromium || true
+          python -u scripts/render_daily_png.py "$HTML" "$PNG" || true
+          ls -la "$PNG" || true
 
-          python -u scripts/render_daily_png.py \
-            "reports/daily_digest/daily/${YMD}.html" \
-            "reports/daily_digest/daily/${YMD}.png" || true
-
-          if [ -f "reports/daily_digest/daily/${YMD}.png" ]; then
-            echo "[OK] PNG rendered: reports/daily_digest/daily/${YMD}.png"
-          else
-            echo "[WARN] PNG render failed or file missing."
-          fi
-
-      - name: Send Daily Digest Email
-        if: ${{ steps.modes.outputs.send_email == 'true' }}
-        continue-on-error: true
-        shell: bash
-        env:
-          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          DAILY_RECIPIENTS_PRIMARY: ${{ secrets.DAILY_RECIPIENTS }}
-          DAILY_RECIPIENTS_FALLBACK: ${{ secrets.EMAIL_TO }}
-          HUB_URL_SECRET: ${{ secrets.HUB_URL }}
-          HUB_URL_VAR: ${{ vars.HUB_URL }}
-          KST_STAMP: ${{ steps.set_time.outputs.kst }}
-          REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
-          DAILY_DIGEST_PNG_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.png
-          DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
-          MODE_DAILY_ONLY: "false"
-          MODE_VOC_ONLY: "false"
-          MODE_BLOG_ONLY: "false"
-        run: |
-          set -euo pipefail
-
-          export DAILY_RECIPIENTS="${DAILY_RECIPIENTS_PRIMARY:-${DAILY_RECIPIENTS_FALLBACK:-}}"
-          export HUB_URL="${HUB_URL_SECRET:-${HUB_URL_VAR:-}}"
-
-          if [ ! -f "scripts/send_daily_email.py" ]; then
-            echo "[WARN] scripts/send_daily_email.py not found. skip email."
-            exit 0
-          fi
-
-          if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_PORT:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASS:-}" ] || [ -z "${DAILY_RECIPIENTS:-}" ]; then
-            echo "[WARN] SMTP / email secrets missing. skip email."
-            exit 0
-          fi
-
-          echo "[INFO] Send Daily Digest email for ${YMD}"
-          python -u scripts/send_daily_email.py
 
       - name: Commit & push Daily Digest results
         if: ${{ always() }}
@@ -266,7 +240,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A reports/daily_digest || true
+          git add -A reports/daily_digest scripts || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
@@ -276,7 +250,7 @@ jobs:
           git fetch origin main
           git pull --rebase --autostash origin main
 
-          git add -A reports/daily_digest || true
+          git add -A reports/daily_digest scripts || true
           if git diff --cached --quiet; then
             echo "No changes to commit after rebase"
             exit 0
@@ -298,3 +272,43 @@ jobs:
 
           echo "[ERROR] failed to push after retries"
           exit 1
+
+      - name: Send daily email (yesterday daily report PNG)
+        if: ${{ always() && steps.modes.outputs.run_daily == 'true' && steps.modes.outputs.send_daily_email == 'true' }}
+        continue-on-error: true
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DAILY_RECIPIENTS: ${{ vars.DAILY_RECIPIENTS }}
+          HUB_URL: ${{ vars.HUB_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export KST_STAMP="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S KST')"
+          export REPORT_DATE="$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')"
+          export DAILY_DIGEST_PNG_PATH="reports/daily_digest/daily/${REPORT_DATE}.png"
+          export DAILY_DIGEST_HTML_PATH="reports/daily_digest/daily/${REPORT_DATE}.html"
+          export MODE_DAILY="yesterday"
+
+          if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASS:-}" ] || [ -z "${DAILY_RECIPIENTS:-}" ]; then
+            echo "[WARN] SMTP or DAILY_RECIPIENTS config missing -> skip daily email"
+            exit 0
+          fi
+
+          if [ ! -f "${DAILY_DIGEST_PNG_PATH}" ] && [ ! -f "${DAILY_DIGEST_HTML_PATH}" ]; then
+            echo "[WARN] Neither PNG nor HTML report exists -> skip daily email"
+            ls -la reports/daily_digest/daily || true
+            exit 0
+          fi
+
+          if [ -f "scripts/send_daily_email.py" ]; then
+            python -u scripts/send_daily_email.py || true
+          elif [ -f "send_daily_email.py" ]; then
+            python -u send_daily_email.py || true
+          else
+            echo "[WARN] send_daily_email.py not found -> skip daily email"
+            exit 0
+          fi
