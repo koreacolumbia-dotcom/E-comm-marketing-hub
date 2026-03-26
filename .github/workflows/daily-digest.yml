@@ -131,7 +131,7 @@ jobs:
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "true"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
-          DAILY_DIGEST_SKIP_HUB_WRITE: "true"
+    DAILY_DIGEST_SKIP_HUB_WRITE: "false"
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
@@ -170,9 +170,6 @@ jobs:
                 "reports/daily_digest/weekly/END_${YMD}.html" \
                 "reports/daily_digest/data/weekly/END_${YMD}.json" || true
 
-          # 허브도 항상 새로 쓰게 유도
-          rm -f "reports/daily_digest/index.html" || true
-
           echo "[INFO] Build mode: ${{ steps.modes.outputs.mode_label }}"
           echo "[INFO] Build only: ${YMD}"
           export GA4_START_DATE="${YMD}"
@@ -193,6 +190,31 @@ jobs:
           test -f "reports/daily_digest/weekly/END_${YMD}.html"
           test -f "reports/daily_digest/data/weekly/END_${YMD}.json"
           test -f "reports/daily_digest/index.html"
+
+      - name: Render Daily Digest PNG
+        continue-on-error: true
+        shell: bash
+        env:
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "scripts/render_daily_png.py" ]; then
+            echo "[WARN] scripts/render_daily_png.py not found. skip png render."
+            exit 0
+          fi
+
+          python -m playwright install chromium || true
+
+          python -u scripts/render_daily_png.py \
+            "reports/daily_digest/daily/${YMD}.html" \
+            "reports/daily_digest/daily/${YMD}.png" || true
+
+          if [ -f "reports/daily_digest/daily/${YMD}.png" ]; then
+            echo "[OK] PNG rendered: reports/daily_digest/daily/${YMD}.png"
+          else
+            echo "[WARN] PNG render failed or file missing."
+          fi
 
       - name: Send Daily Digest Email
         if: ${{ steps.modes.outputs.send_email == 'true' }}
