@@ -3012,17 +3012,29 @@
     renderProducts();
   }
 
-  const OWNED_DATA_BASE_CANDIDATES = [
-    'data/owned',
-    './data/owned',
-    '../data/owned',
-    '../../data/owned',
-    'reports/owned_portal/data/owned',
-    './reports/owned_portal/data/owned',
-    '../reports/owned_portal/data/owned',
-    '/reports/owned_portal/data/owned',
-    '/data/owned',
-  ];
+  function getOwnedDataBaseCandidates(){
+    const parts = String(location.pathname || '').split('/').filter(Boolean);
+    const repoBase = parts.length ? `/${parts[0]}` : '';
+    return [
+      '../data/owned',
+      'data/owned',
+      './data/owned',
+      '../../data/owned',
+      '../site/data/owned',
+      './site/data/owned',
+      '../../site/data/owned',
+      'site/data/owned',
+      'reports/owned_portal/data/owned',
+      './reports/owned_portal/data/owned',
+      '../reports/owned_portal/data/owned',
+      `${repoBase}/site/data/owned`,
+      `${repoBase}/data/owned`,
+      `${repoBase}/reports/owned_portal/data/owned`,
+      '/site/data/owned',
+      '/data/owned',
+      '/reports/owned_portal/data/owned',
+    ];
+  }
   let OWNED_DATA_BASE = null;
   let PORTAL_META = null;
 
@@ -3092,7 +3104,7 @@
 
     const seen = new Set();
     const candidates = [];
-    for(const base of OWNED_DATA_BASE_CANDIDATES){
+    for(const base of getOwnedDataBaseCandidates()){
       const normalized = String(base || '').replace(/\/$/, '');
       if(!normalized || seen.has(normalized)) continue;
       seen.add(normalized);
