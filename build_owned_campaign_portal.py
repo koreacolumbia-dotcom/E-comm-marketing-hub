@@ -1264,6 +1264,7 @@ def parse_args() -> argparse.Namespace:
     )
     ap.add_argument("--overwrite", action="store_true", help="Overwrite existing daily JSONs in the range")
     ap.add_argument("--merge-prev-year", action="store_true", help="Also merge previous-year same-MM-DD rows into each daily bundle")
+    # HTML source selection is handled by the workflow. This script only writes data bundles/meta under <site-dir>/data/owned.
     return ap.parse_args()
 
 
