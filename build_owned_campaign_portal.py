@@ -516,8 +516,8 @@ owned_labeled AS (
       THEN COALESCE(NULLIF(utm_term,''), NULLIF(utm_campaign,''), '(not_set)')
       WHEN (
         lc_campaign IN ('edm', 'edm_top', 'edm_bottom', 'email_mkt', 'email', 'lms', 'lms_ecom', 'sms')
-        OR lc_campaign LIKE 'edm\_%' ESCAPE '\\'
-        OR lc_campaign LIKE 'email\_%' ESCAPE '\\'
+        OR STARTS_WITH(lc_campaign, 'edm_')
+        OR STARTS_WITH(lc_campaign, 'email_')
       ) AND NULLIF(utm_term,'') IS NOT NULL
       THEN utm_term
       ELSE COALESCE(NULLIF(utm_campaign,''), NULLIF(utm_term,''), '(not_set)')
