@@ -311,6 +311,36 @@ jobs:
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
           ls -la reports/daily_digest/data/weekly | tail -n 40 || true
 
+      - name: Send Daily Digest Email
+        if: ${{ steps.modes.outputs.run_daily == 'true' && (github.event_name != 'workflow_dispatch' || inputs.daily_hub_only != 'true') }}
+        continue-on-error: true
+        shell: bash
+        env:
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_CC: ${{ secrets.EMAIL_CC }}
+          EMAIL_BCC: ${{ secrets.EMAIL_BCC }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "scripts/send_daily_email.py" ]; then
+            echo "[WARN] scripts/send_daily_email.py not found. skip email."
+            exit 0
+          fi
+
+          if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_PORT:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASSWORD:-}" ] || [ -z "${EMAIL_FROM:-}" ] || [ -z "${EMAIL_TO:-}" ]; then
+            echo "[WARN] SMTP / email secrets missing. skip email."
+            exit 0
+          fi
+
+          echo "[INFO] Send Daily Digest email for ${YMD}"
+          python -u scripts/send_daily_email.py
+
       - name: Commit & push Daily Digest results
         if: ${{ always() && (steps.modes.outputs.run_backfill == 'true' || steps.modes.outputs.run_daily == 'true') }}
         continue-on-error: true
