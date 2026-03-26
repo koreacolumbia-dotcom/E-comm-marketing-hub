@@ -274,6 +274,85 @@
       display:grid;
       gap:22px;
     }
+    .ytd-control-shell{
+      position: relative;
+      overflow: hidden;
+      border-radius: 28px;
+      padding: 18px 18px 16px;
+      border: 1px solid rgba(148,163,184,0.18);
+      background:
+        radial-gradient(440px 180px at 0% 0%, rgba(59,130,246,0.18), transparent 60%),
+        linear-gradient(180deg, rgba(15,23,42,0.68), rgba(15,23,42,0.54));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 40px rgba(2,6,23,0.2);
+    }
+    .ytd-control-shell::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 34%, rgba(255,255,255,0.04));
+    }
+    .ytd-control-head{
+      position: relative;
+      z-index: 1;
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+      margin-bottom: 16px;
+    }
+    .ytd-control-copy{
+      max-width: 760px;
+      margin-top: 10px;
+      color: rgba(226,232,240,0.76);
+      font-size: 13px;
+      line-height: 1.6;
+      font-weight: 700;
+    }
+    .ytd-control-shell .small-label{
+      color: rgba(191,219,254,0.7);
+    }
+    .ytd-control-shell .chip{
+      background: rgba(15,23,42,0.62);
+      border-color: rgba(148,163,184,0.24);
+      color: rgba(226,232,240,0.92);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .ytd-control-shell .chip:hover{
+      box-shadow: 0 12px 28px rgba(2,6,23,0.22);
+    }
+    .ytd-control-shell .chip.active{
+      background: linear-gradient(135deg, rgba(96,165,250,0.32), rgba(59,130,246,0.18));
+      border-color: rgba(96,165,250,0.55);
+      color: #ffffff;
+    }
+    .ytd-control-shell .btn{
+      background: rgba(15,23,42,0.72);
+      border-color: rgba(148,163,184,0.24);
+      color: rgba(226,232,240,0.94);
+    }
+    .ytd-control-shell .btn-primary{
+      background: rgba(255,255,255,0.92);
+      border-color: rgba(255,255,255,0.92);
+      color: #0f172a;
+    }
+    .ytd-control-shell input[type="date"],
+    .ytd-control-shell input[type="text"],
+    .ytd-control-shell select{
+      background: rgba(248,250,252,0.96);
+      border-color: rgba(148,163,184,0.22);
+      color: #0f172a;
+    }
+    .ytd-control-shell label{
+      color: rgba(226,232,240,0.9) !important;
+    }
+    .ytd-control-shell .toggle{
+      border-color: rgba(191,219,254,0.22);
+      background: rgba(255,255,255,0.94);
+      color: #0f172a;
+      box-shadow: 0 12px 30px rgba(15,23,42,0.16);
+    }
     .ytd-hero{
       display:flex;
       align-items:flex-start;
@@ -730,7 +809,7 @@
 
     <div class="glass p-6 report-fullwidth">
       <!-- Controls -->
-      <div class="flex flex-wrap items-center gap-3 mb-5">
+      <div class="hidden legacy-controls flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
         <button id="chipWeek" class="chip" type="button">WEEK</button>
@@ -823,6 +902,65 @@
           </div>
         </div>
         <div class="ytd-shell">
+          <div class="ytd-control-shell">
+            <div class="ytd-control-head">
+              <div>
+                <div class="section-kicker">YTD CONTROL HUB</div>
+                <div class="ytd-control-copy">모드 전환, 채널 전환, 날짜 이동, MMDD 점프, 검색을 누적 허브 안에서 바로 보이도록 정리했습니다. 상단 탭이 묻히지 않게 먼저 보이고, 탭을 바꿀 때마다 누적 카드 애니메이션과 자연스럽게 연결됩니다.</div>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="small-label">View</div>
+              <button id="chipDaily" class="chip active" type="button">DAILY</button>
+              <button id="chipWeek" class="chip" type="button">WEEK</button>
+              <button id="chipRange" class="chip" type="button">RANGE</button>
+
+              <label class="ml-2 flex items-center gap-2 text-xs font-extrabold select-none">
+                <input id="toggleGroupJump" type="checkbox" class="accent-slate-900" />
+                MMDD 클릭 시 날짜로 이동
+              </label>
+
+              <div class="ml-2 small-label">Date</div>
+              <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
+              <div id="weekHint" class="hidden text-xs font-extrabold text-slate-300">(Mon ~ Sun)</div>
+
+              <div id="rangeBox" class="hidden items-center gap-2">
+                <div class="small-label">From</div>
+                <div class="w-[160px]"><input id="startPicker" type="date" /></div>
+                <div class="small-label">To</div>
+                <div class="w-[160px]"><input id="endPicker" type="date" /></div>
+
+                <button id="btnApplyRange" class="btn btn-primary" type="button">적용</button>
+                <button id="btn7d" class="btn" type="button">7D</button>
+                <button id="btn30d" class="btn" type="button">30D</button>
+                <button id="btnMTD" class="btn" type="button">MTD</button>
+                <button id="btnWEEK" class="btn" type="button">WEEK</button>
+              </div>
+
+              <button id="btnPrev" class="btn" type="button">◀</button>
+              <button id="btnNext" class="btn" type="button">▶</button>
+              <button id="btnToday" class="btn" type="button">오늘</button>
+
+              <div class="ml-2 small-label">Channel</div>
+              <button id="chipEDM" class="chip active" type="button">EDM</button>
+              <button id="chipLMS" class="chip" type="button">LMS</button>
+              <button id="chipKAKAO" class="chip" type="button">KAKAO</button>
+
+              <div class="ml-2 small-label">Search</div>
+              <div class="w-[260px]"><input id="q" type="text" placeholder="campaign/term/0226 검색" /></div>
+
+              <div class="ml-auto flex items-center gap-2">
+                <div class="small-label">Top</div>
+                <select id="topN" class="w-[120px]">
+                  <option value="30" selected>30</option>
+                  <option value="60">60</option>
+                  <option value="120">120</option>
+                  <option value="300">300</option>
+                </select>
+                <button id="btnYTD" class="toggle" type="button">YTD · This year vs Previous year</button>
+              </div>
+            </div>
+          </div>
           <div class="ytd-hero">
             <div>
               <div id="ytdSummaryLabel" class="section-kicker">ALL PERFORMANCE</div>
@@ -1105,6 +1243,9 @@
 
 <script>
 (function(){
+  const legacyControls = document.querySelector('.legacy-controls');
+  if(legacyControls) legacyControls.remove();
+
   const notice = document.getElementById('notice');
   const noticeText = document.getElementById('noticeText');
   const noticeClose = document.getElementById('noticeClose');
@@ -1670,6 +1811,20 @@
     return (rows || []).filter(r => scheduledDates.has(getRowGroupDate(r)));
   }
 
+  function prefersScheduledSendCount(channel){
+    return String(channel || '').trim().toUpperCase() !== 'KAKAO';
+  }
+
+  function getPreferredSendCount(rows, channel, endDate, messageLog){
+    const expectedYear = String(endDate || '').slice(0,4);
+    const normalizedChannel = String(channel || '').trim().toUpperCase();
+    const scheduledRows = getScheduledMessageRowsUpTo(messageLog || [], normalizedChannel, endDate);
+    if(prefersScheduledSendCount(normalizedChannel) && scheduledRows.length){
+      return scheduledRows.length;
+    }
+    return countDistinctSends(rows || [], expectedYear, endDate);
+  }
+
   function getCampaignChipSourceRows(){
     const qq = (q.value||'').trim().toLowerCase();
     const cutoffDate = getCampaignChipCutoffDate();
@@ -1745,25 +1900,20 @@
   }
 
   function getChannelSummary(rows, channel, endDate, messageLog){
-    const expectedYear = String(endDate || '').slice(0,4);
-    const scheduledRows = getScheduledMessageRowsUpTo(messageLog, channel, endDate);
-    const metricRows = scheduledRows.length ? filterRowsToScheduledDates(rows || [], channel, endDate, messageLog) : (rows || []);
-    const agg = aggregateRow(metricRows);
-    const sendCount = scheduledRows.length ? scheduledRows.length : countDistinctSends(rows || [], expectedYear, endDate);
+    const agg = aggregateRow(rows || []);
+    const sendCount = getPreferredSendCount(rows || [], channel, endDate, messageLog);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     const cvr = agg.sessions ? ((agg.purchases || 0) / agg.sessions * 100) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage, cvr };
   }
 
   function getCumulativeSendCount(channel, endDate){
-    const expectedYear = String(endDate || '').slice(0,4);
     const sourceRows = ((GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []))
       .filter(r => r.channel === channel);
     const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
       ? GROUP_SOURCE_MESSAGE_LOG
       : (((RAW && RAW.message_log) || []));
-    const scheduledRows = getScheduledMessageRowsUpTo(sourceMessageLog, channel, endDate);
-    return scheduledRows.length ? scheduledRows.length : countDistinctSends(sourceRows, expectedYear, endDate);
+    return getPreferredSendCount(sourceRows, channel, endDate, sourceMessageLog);
   }
 
   function getAllChannelsSummary(rows, endDate, messageLog){
@@ -1772,10 +1922,7 @@
     const channels = ['EDM', 'LMS', 'KAKAO'];
     const sendCount = channels.reduce((sum, channel) => {
       const channelRows = sourceRows.filter(r => r.channel === channel);
-      const scheduledRows = getScheduledMessageRowsUpTo(messageLog || [], channel, endDate);
-      const channelSendCount = scheduledRows.length
-        ? scheduledRows.length
-        : countDistinctSends(channelRows, String(endDate || '').slice(0,4), endDate);
+      const channelSendCount = getPreferredSendCount(channelRows, channel, endDate, messageLog || []);
       return sum + channelSendCount;
     }, 0);
     return {
@@ -2297,10 +2444,7 @@
         if(!byYear.has(g.year)) byYear.set(g.year, []);
         byYear.get(g.year).push(g);
       }
-      const currentYear = String(getCampaignChipCutoffDate() || '').slice(0,4);
-      const years = Array.from(byYear.keys())
-        .filter(yr => !currentYear || String(yr) === currentYear)
-        .sort((a,b)=> b.localeCompare(a));
+      const years = Array.from(byYear.keys()).sort((a,b)=> b.localeCompare(a));
 
       let html = '';
       for(const yr of years){
