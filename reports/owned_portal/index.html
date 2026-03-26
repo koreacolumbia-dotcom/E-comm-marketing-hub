@@ -4054,19 +4054,21 @@
   }
 
   async function selectGroup(channel, year, mmdd){
-    if(GROUP_JUMP_MODE){
-      const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
-      if(resolvedDate){
-        await load7dFromDate(resolvedDate);
-        SELECTED = {type:'group', channel, year, mmdd};
-        filterKPI();
-        updateChannelTotals();
-        renderCampaignButtons();
-        aggregateKPIForSelected();
-        renderTerms();
-        renderProducts();
-        return;
+    const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
+    if(resolvedDate){
+      if(toggleGroupJump){
+        toggleGroupJump.checked = true;
       }
+      GROUP_JUMP_MODE = true;
+      await load7dFromDate(resolvedDate);
+      SELECTED = {type:'group', channel, year, mmdd};
+      filterKPI();
+      updateChannelTotals();
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderTerms();
+      renderProducts();
+      return;
     }
 
     WEEK_ANCHORED_MODE = false;
