@@ -41,6 +41,53 @@ Outputs
 from __future__ import annotations
 
 
+# ===============================
+# SAFE ANIMATION CSS (NO SYNTAX ERROR)
+# ===============================
+def get_safe_animation_css():
+    css = """
+    @keyframes fadeUp {
+      0% { opacity: 0; transform: translate3d(0, 20px, 0) scale(.985); }
+      100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    }
+
+    @keyframes slideUpSoft {
+      0% { opacity: 0; transform: translateY(18px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes softPulse {
+      0% { box-shadow: 0 0 0 rgba(15,23,42,0); }
+      100% { box-shadow: 0 18px 40px rgba(15,23,42,.08); }
+    }
+
+    body > .mx-auto.max-w-7xl.p-6 {
+      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
+    body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {
+      animation: slideUpSoft .7s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {
+      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
+    .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
+    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(15,23,42,.08);
+    }
+    """
+    return css.replace("{", "{{").replace("}", "}}")
 
 import os
 import json
@@ -2039,6 +2086,7 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
 
         cur_roas = (revenue_val / cur_spend) if cur_spend else 0.0
         cur_cvr = (orders_val / sessions_val) if sessions_val else 0.0
+        media = map_sub_to_media(key)
 
         rows.append({
             'channel': key,
@@ -2450,7 +2498,6 @@ def render_page_html(
                     cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
 
         roas_total = (revenue_total / budget_total) if budget_total else 0.0
-
         paid_media_compare_html += table_row([
             "<span class='font-extrabold'>TOTAL</span>",
             f"<div class='text-right font-extrabold'>{fmt_currency_krw(budget_total)}</div>",
@@ -2617,16 +2664,17 @@ def render_page_html(
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
       <div class="mt-3 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[640px]">
+        <table class="w-full table-auto text-sm min-w-[760px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
             </tr>
           </thead>
-          <tbody>{paid_media_compare_html or "<tr><td colspan='4' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+          <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
         </table>
       </div>
     </div>
@@ -2676,8 +2724,6 @@ def render_page_html(
 """
 
 
-
-
 # =========================
 # Index redirect page (latest daily)
 # =========================
@@ -2694,14 +2740,12 @@ def render_latest_daily_index(latest_date: dt.date) -> str:
     location.replace({json.dumps(target)});
   </script>
 </head>
-<body>
-  <p>Redirecting to the latest daily report: <a href="{target}">{target}</a></p>
-</body>
+<body></body>
 </html>
 """
 
+
 # =========================
-# Build one# =========================
 # Build one report (with bundle cache)
 # =========================
 def build_one(
@@ -2736,7 +2780,7 @@ def build_one(
                 search_rising=rt["search_rising"],
                 other_detail=rt["other_detail"],
                 paid_media_compare=rt["paid_media_compare"],
-                nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
+                nav_links={"daily_index": "../index.html", "weekly_index": "../index.html"},
                 bundle_rel_path=bundle_rel,
             )
             return html, cached
@@ -2837,7 +2881,7 @@ def build_one(
         search_rising=search["rising"],
         other_detail=other_detail,
         paid_media_compare=paid_media_compare,
-        nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
+        nav_links={"daily_index": "../index.html", "weekly_index": "../index.html"},
         bundle_rel_path=bundle_rel,
     )
     return html, bundle
@@ -2951,12 +2995,11 @@ def main():
                 print(f"[OK] Wrote: {out_weekly} (force={force_rebuild})")
             else:
                 print(f"[OK] Wrote JSON bundle only for weekly end_date={ymd(d)}")
-
     index_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
 
-    if JSON_ONLY or SKIP_HUB_WRITE:
-        print(f"[SKIP] index write disabled: {index_path}")
+    if JSON_ONLY:
+        print(f"[SKIP] index write disabled in JSON_ONLY mode: {index_path}")
     elif (not force_overwrite) and os.path.exists(index_path):
         print(f"[SKIP] index exists (no overwrite): {index_path}")
     else:
