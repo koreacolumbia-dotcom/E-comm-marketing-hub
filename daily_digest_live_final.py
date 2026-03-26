@@ -2614,17 +2614,28 @@ def render_page_html(
 
 def inject_report_toolbar(html: str, w: WindowSpec) -> str:
     toolbar_css = """
-    .toolbar-card{background:rgba(255,255,255,0.88);border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05)}
+    .toolbar-card{background:rgba(255,255,255,0.88);border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05);transition:transform .28s ease,box-shadow .28s ease}
+    .toolbar-card:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(15,23,42,0.08)}
     .toolbar-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .toolbar-label{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
-    .toolbar-chip{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;color:#0f172a}
+    .toolbar-chip{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;color:#0f172a;transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
     .toolbar-chip.active{background:#0f172a;color:#fff;border-color:#0f172a}
-    .toolbar-btn{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a}
+    .toolbar-chip:hover,.toolbar-btn:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(15,23,42,0.08)}
+    .toolbar-btn{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
     .toolbar-btn.primary{background:#002d72;color:#fff;border-color:#002d72}
-    .toolbar-input{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;min-width:160px}
-    .compare-frame{width:100%;border:0;border-radius:18px;min-height:2600px;background:transparent}
+    .toolbar-input{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;min-width:160px;transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease}
+    .toolbar-input:focus{outline:none;border-color:rgba(0,45,114,0.42);box-shadow:0 0 0 4px rgba(0,45,114,0.08);transform:translateY(-1px)}
+    .compare-frame{width:100%;border:0;border-radius:18px;min-height:2600px;background:transparent;opacity:0;transform:translateY(18px) scale(.985);transition:opacity .4s ease,transform .4s ease}
+    .compare-frame.ready{opacity:1;transform:translateY(0) scale(1)}
     .compare-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
     @media (min-width:1280px){.compare-grid.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+    .anim-target{opacity:0;transform:translateY(22px) scale(.985)}
+    .page-ready .anim-target{animation:card-rise .72s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:var(--stagger,0ms)}
+    .page-ready .toolbar-card.anim-target{animation-name:toolbar-rise}
+    .page-transition-out .anim-target,.page-transition-out #primaryReport,.page-transition-out #compareReportWrap{animation:page-out .24s ease forwards !important}
+    @keyframes card-rise{0%{opacity:0;transform:translateY(22px) scale(.985)}60%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes toolbar-rise{0%{opacity:0;transform:translateY(16px) scale(.99)}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes page-out{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(14px) scale(.992)}}
     """
     toolbar_html = f"""
     <div id="reportToolbar" class="toolbar-card">
@@ -2669,6 +2680,7 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
     const compareGrid = document.getElementById("compareGrid");
     const compareWrap = document.getElementById("compareReportWrap");
     const compareFrame = document.getElementById("compareFrame");
+    const primaryReport = document.getElementById("primaryReport");
     const modeDaily = document.getElementById("modeDaily");
     const modeWeekly = document.getElementById("modeWeekly");
     const aDate = document.getElementById("aDate");
@@ -2732,6 +2744,28 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
         if (h > 0) compareFrame.style.height = `${{h + 12}}px`;
       }} catch (e) {{}}
     }}
+    function applyEntryAnimation() {{
+      const targets = [];
+      if (toolbar) targets.push(toolbar);
+      if (primaryReport) {{
+        Array.from(primaryReport.children).forEach((el) => {{
+          if (el && el.nodeType === 1) targets.push(el);
+        }});
+      }}
+      targets.forEach((el, idx) => {{
+        el.classList.add("anim-target");
+        el.style.setProperty("--stagger", `${{idx * 70}}ms`);
+      }});
+      requestAnimationFrame(() => document.body.classList.add("page-ready"));
+    }}
+    function startTransitionAndGo(url) {{
+      if (!url) return;
+      if (document.body.classList.contains("page-transition-out")) return;
+      document.body.classList.add("page-transition-out");
+      window.setTimeout(() => {{
+        window.location.href = url;
+      }}, 210);
+    }}
     function setMode(nextMode) {{
       mode = nextMode;
       modeDaily.classList.toggle("active", mode === "daily");
@@ -2745,12 +2779,13 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
       compareGrid.classList.toggle("dual", compareOn);
     }}
     function goCurrent(dateStr) {{
-      window.location.href = buildReportUrl(mode, dateStr, false);
+      startTransitionAndGo(buildReportUrl(mode, dateStr, false));
     }}
     function openCompare() {{
       const dateStr = String(bDate.value || "").trim();
       if (!dateStr) return;
       setCompare(true);
+      compareFrame.classList.remove("ready");
       compareFrame.src = buildReportUrl(mode, dateStr, true);
     }}
 
@@ -2763,12 +2798,14 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
       resizeCompareFrame();
       setTimeout(resizeCompareFrame, 300);
       setTimeout(resizeCompareFrame, 900);
+      compareFrame.classList.add("ready");
     }});
 
     setMode(CURRENT_MODE);
     aDate.value = CURRENT_DATE;
     bDate.value = {json.dumps(ymd(w.prev_end))};
     setCompare(false);
+    applyEntryAnimation();
 
     modeDaily && modeDaily.addEventListener("click", () => {{
       setMode("daily");
