@@ -644,9 +644,8 @@ jobs:
           PY
 
           HTML_SRC=""
-          for cand in \
-            "reports/owned_portal/index.html" \
-            "reports/owned_portal/index_patched_owned_portal.html"
+          HTML_DST="reports/owned_portal/index.html"
+          for cand in "reports/owned_portal/index_patched_owned_portal.html" "reports/owned_portal/index.html"
           do
             if [ -f "$cand" ]; then
               HTML_SRC="$cand"
@@ -655,8 +654,17 @@ jobs:
           done
 
           if [ -n "$HTML_SRC" ]; then
-            echo "[INFO] Applying OWNED HTML: $HTML_SRC"
-            cp -f "$HTML_SRC" reports/owned_portal/index.html
+            HTML_SRC_CLEAN="$(printf '%s' "$HTML_SRC" | tr -d '\r')"
+            HTML_DST_CLEAN="$(printf '%s' "$HTML_DST" | tr -d '\r')"
+            HTML_SRC_REAL="$(realpath "$HTML_SRC_CLEAN")"
+            HTML_DST_REAL="$(realpath -m "$HTML_DST_CLEAN")"
+
+            echo "[INFO] Applying OWNED HTML: $HTML_SRC_CLEAN"
+            if [ "$HTML_SRC_REAL" = "$HTML_DST_REAL" ]; then
+              echo "[INFO] OWNED HTML already in place"
+            else
+              cp -f "$HTML_SRC_CLEAN" "$HTML_DST_CLEAN"
+            fi
           else
             echo "[ERROR] Required OWNED HTML source missing"
             echo "[DEBUG] Current directory:"
