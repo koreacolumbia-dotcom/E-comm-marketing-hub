@@ -2559,6 +2559,7 @@
     return out;
   }
 
+
   async function fetchJson(url){
     const res = await fetch(url, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2915,7 +2916,7 @@
       const chunkSize = 10;
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
-        showLoading(`데이터 로딩중이에용 ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+        showLoading(`YTD 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
         const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
