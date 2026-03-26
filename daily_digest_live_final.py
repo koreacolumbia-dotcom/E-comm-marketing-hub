@@ -41,53 +41,6 @@ Outputs
 from __future__ import annotations
 
 
-# ===============================
-# SAFE ANIMATION CSS (NO SYNTAX ERROR)
-# ===============================
-def get_safe_animation_css():
-    css = """
-    @keyframes fadeUp {
-      0% { opacity: 0; transform: translate3d(0, 20px, 0) scale(.985); }
-      100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-    }
-
-    @keyframes slideUpSoft {
-      0% { opacity: 0; transform: translateY(18px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes softPulse {
-      0% { box-shadow: 0 0 0 rgba(15,23,42,0); }
-      100% { box-shadow: 0 18px 40px rgba(15,23,42,.08); }
-    }
-
-    body > .mx-auto.max-w-7xl.p-6 {
-      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
-    }
-
-    body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
-    body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
-    body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {
-      animation: slideUpSoft .7s cubic-bezier(.2,.8,.2,1) both;
-    }
-
-    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
-    .rounded-2xl.border.border-slate-200.bg-white.p-4,
-    .rounded-2xl.border.border-slate-200.bg-white.p-5,
-    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {
-      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
-      transition: transform .2s ease, box-shadow .2s ease;
-    }
-
-    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
-    .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
-    .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
-    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 18px 40px rgba(15,23,42,.08);
-    }
-    """
-    return css.replace("{", "{{").replace("}", "}}")
 
 import os
 import json
@@ -2654,7 +2607,6 @@ def render_page_html(
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
-      {get_safe_animation_css()}
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -2664,9 +2616,6 @@ def render_page_html(
         <div class="text-2xl font-black">Daily Digest</div>
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
         <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
-      </div>
-      <div class="flex items-center gap-2">
-        <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
 
@@ -2778,108 +2727,33 @@ def render_page_html(
 """
 
 
-# =========================
-# Hub page
-# =========================
-def render_hub_index(dates: List[dt.date]) -> str:
-    dates = sorted(dates)
-    if not dates:
-        dates = [dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1)]
-    latest = dates[-1]
 
-    date_opts = "\n".join([f"<option value='{d.strftime('%Y-%m-%d')}'>{d.strftime('%Y-%m-%d')}</option>" for d in reversed(dates)])
 
+# =========================
+# Index redirect page (latest daily)
+# =========================
+def render_latest_daily_index(latest_date: dt.date) -> str:
+    target = f"daily/{latest_date.strftime('%Y-%m-%d')}.html"
+    target_esc = esc(target)
     return f"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="0; url={target_esc}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CSK E-COMM | Daily Digest Hub</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
-      {get_safe_animation_css()}
-  </style>
+  <title>CSK E-COMM | Daily Digest</title>
+  <script>
+    location.replace({json.dumps(target)});
+  </script>
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-7xl p-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="text-2xl font-black">Daily Digest Hub</div>
-        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">STATIC</div>
-      </div>
-      <div class="text-sm text-slate-500">Data cache 기반</div>
-    </div>
-
-    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Open report</div>
-        <div class="mt-3 flex items-center gap-2">
-          <select id="openDate" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            {date_opts}
-          </select>
-        </div>
-        <div class="mt-3 flex gap-2">
-          <button id="openDaily" class="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
-          <button id="openWeekly" class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
-        </div>
-      </div>
-
-      <div class="md:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Recent</div>
-        <div id="recentList" class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2"></div>
-      </div>
-    </div>
-  </div>
-
-<script>
-(() => {{
-  const dates = {json.dumps([d.strftime("%Y-%m-%d") for d in dates])};
-  const latest = "{latest.strftime('%Y-%m-%d')}";
-
-  const $ = (s) => document.querySelector(s);
-  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}}[c]));
-
-  function initDefaults() {{
-    $("#openDate").value = latest;
-  }}
-
-  function renderRecent() {{
-    const items = dates.slice(-10).reverse();
-    $("#recentList").innerHTML = items.map(d => `
-      <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3">
-        <div class="text-sm font-extrabold">${{esc(d)}}</div>
-        <div class="flex gap-2">
-          <a class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${{esc(d)}}.html">Daily</a>
-          <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${{esc(d)}}.html">Weekly</a>
-        </div>
-      </div>
-    `).join("");
-  }}
-
-  function init() {{
-    initDefaults();
-    renderRecent();
-    $("#openDaily").addEventListener("click", () => {{
-      const d = $("#openDate").value;
-      window.location.href = "daily/" + d + ".html";
-    }});
-    $("#openWeekly").addEventListener("click", () => {{
-      const d = $("#openDate").value;
-      window.location.href = "weekly/END_" + d + ".html";
-    }});
-  }}
-  document.addEventListener("DOMContentLoaded", init);
-}})();
-</script>
-
+<body>
+  <p>Redirecting to the latest daily report: <a href="{target_esc}">{target_esc}</a></p>
 </body>
 </html>
 """
 
-
 # =========================
+# Build one# =========================
 # Build one report (with bundle cache)
 # =========================
 def build_one(
@@ -3131,18 +3005,19 @@ def main():
             else:
                 print(f"[OK] Wrote JSON bundle only for weekly end_date={ymd(d)}")
 
-    hub_path = os.path.join(OUT_DIR, "index.html")
+    index_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
 
     if JSON_ONLY or SKIP_HUB_WRITE:
-        print(f"[SKIP] HUB write disabled: {hub_path}")
-    elif (not force_overwrite) and os.path.exists(hub_path):
-        print(f"[SKIP] HUB exists (no overwrite): {hub_path}")
+        print(f"[SKIP] index write disabled: {index_path}")
+    elif (not force_overwrite) and os.path.exists(index_path):
+        print(f"[SKIP] index exists (no overwrite): {index_path}")
     else:
-        hub = render_hub_index(dates=dates)
-        with open(hub_path, "w", encoding="utf-8") as f:
-            f.write(hub)
-        print(f"[OK] Wrote HUB: {hub_path}")
+        latest_daily = max(dates) if dates else (dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1))
+        index_html = render_latest_daily_index(latest_daily)
+        with open(index_path, "w", encoding="utf-8") as f:
+            f.write(index_html)
+        print(f"[OK] Wrote latest daily redirect index: {index_path} -> daily/{latest_daily.strftime('%Y-%m-%d')}.html")
 
 
 if __name__ == "__main__":
