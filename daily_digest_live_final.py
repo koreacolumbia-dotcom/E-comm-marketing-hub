@@ -2683,12 +2683,11 @@ def render_page_html(
 # =========================
 def render_latest_daily_index(latest_date: dt.date) -> str:
     target = f"daily/{latest_date.strftime('%Y-%m-%d')}.html"
-    target_esc = esc(target)
     return f"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0; url={target_esc}" />
+  <meta http-equiv="refresh" content="0; url={target}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CSK E-COMM | Daily Digest</title>
   <script>
@@ -2696,7 +2695,7 @@ def render_latest_daily_index(latest_date: dt.date) -> str:
   </script>
 </head>
 <body>
-  <p>Redirecting to the latest daily report: <a href="{target_esc}">{target_esc}</a></p>
+  <p>Redirecting to the latest daily report: <a href="{target}">{target}</a></p>
 </body>
 </html>
 """
