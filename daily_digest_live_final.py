@@ -40,62 +40,11 @@ Outputs
 
 from __future__ import annotations
 
-
-# ===============================
-# SAFE ANIMATION CSS (NO SYNTAX ERROR)
-# ===============================
-def get_safe_animation_css():
-    css = """
-    @keyframes fadeUp {
-      0% { opacity: 0; transform: translate3d(0, 20px, 0) scale(.985); }
-      100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-    }
-
-    @keyframes slideUpSoft {
-      0% { opacity: 0; transform: translateY(18px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes softPulse {
-      0% { box-shadow: 0 0 0 rgba(15,23,42,0); }
-      100% { box-shadow: 0 18px 40px rgba(15,23,42,.08); }
-    }
-
-    body > .mx-auto.max-w-7xl.p-6 {
-      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
-    }
-
-    body > .mx-auto.max-w-7xl.p-6 > div.mt-6,
-    body > .mx-auto.max-w-7xl.p-6 > section.mt-6,
-    body > .mx-auto.max-w-7xl.p-6 > article.mt-6 {
-      animation: slideUpSoft .7s cubic-bezier(.2,.8,.2,1) both;
-    }
-
-    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4,
-    .rounded-2xl.border.border-slate-200.bg-white.p-4,
-    .rounded-2xl.border.border-slate-200.bg-white.p-5,
-    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4 {
-      animation: fadeUp .7s cubic-bezier(.2,.8,.2,1) both;
-      transition: transform .2s ease, box-shadow .2s ease;
-    }
-
-    .rounded-2xl.border.border-slate-200.bg-white\/70.p-4:hover,
-    .rounded-2xl.border.border-slate-200.bg-white.p-4:hover,
-    .rounded-2xl.border.border-slate-200.bg-white.p-5:hover,
-    .rounded-2xl.border.border-slate-200.bg-white\/80.p-4:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 18px 40px rgba(15,23,42,.08);
-    }
-    """
-    return css.replace("{", "{{").replace("}", "}}")
-
 import os
 import json
 import base64
 import datetime as dt
 import re
-import argparse
-import sys
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
@@ -158,7 +107,6 @@ SKIP_HUB_WRITE = os.getenv("DAILY_DIGEST_SKIP_HUB_WRITE", "true").strip().lower(
 USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
-JSON_ONLY = os.getenv("DAILY_DIGEST_JSON_ONLY", "false").strip().lower() in ("1", "true", "yes", "y")
 
 # Paid detail fixed order / labels
 PAID_DETAIL_SOURCES = [
@@ -173,6 +121,7 @@ PAID_DETAIL_SOURCES = [
     "instagram",
 ]
 
+TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
 MEDIA_SPEND_XLS_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_XLS_PATH", os.path.join(DATA_DIR, "paid_media_spend.xlsx")).strip()
 MEDIA_SPEND_HISTORY_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_HISTORY_PATH", os.path.join(DATA_DIR, "paid_media_spend_history.csv")).strip()
 MEDIA_SPEND_VENDOR_DIR = os.getenv("DAILY_DIGEST_MEDIA_SPEND_VENDOR_DIR", DATA_DIR).strip()
@@ -963,14 +912,12 @@ def get_channel_snapshot_3way(
 
     m["dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     m["yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
-    m["cvr"] = m.apply(lambda r: (float(r["transactions_cur"]) / float(r["sessions_cur"])) if float(r["sessions_cur"]) else 0.0, axis=1)
 
     out = pd.DataFrame({
         "bucket": m["bucket"],
         "sessions": m["sessions_cur"],
         "transactions": m["transactions_cur"],
         "purchaseRevenue": m["revenue_cur"],
-        "cvr": m["cvr"],
         "rev_dod": m["dod"],
         "rev_yoy": m["yoy"],
     })
@@ -985,13 +932,12 @@ def get_channel_snapshot_3way(
         "sessions": total_sessions_cur,
         "transactions": total_orders_cur,
         "purchaseRevenue": total_revenue_cur,
-        "cvr": (total_orders_cur / total_sessions_cur) if total_sessions_cur else 0.0,
         "rev_dod": pct_change(total_sessions_cur, total_sessions_prev),
         "rev_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
     }])
 
     out = pd.concat([out, total], ignore_index=True)
-    return out[["bucket", "sessions", "transactions", "purchaseRevenue", "cvr", "rev_dod", "rev_yoy"]]
+    return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod", "rev_yoy"]]
 
 
 # =========================
@@ -1007,7 +953,7 @@ def get_paid_detail_3way(
     DoD / YoY are session based.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
-    mets = ["sessions", "transactions", "purchaseRevenue"]
+    mets = ["sessions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
@@ -1044,18 +990,17 @@ def get_paid_detail_3way(
 
     def agg(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=["sub", "sessions", "transactions", "purchaseRevenue"])
-        return df.groupby("sub", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
+            return pd.DataFrame(columns=["sub", "sessions", "purchaseRevenue"])
+        return df.groupby("sub", as_index=False)[["sessions", "purchaseRevenue"]].sum()
 
-    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "transactions": "transactions_cur", "purchaseRevenue": "rev_cur"})
-    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "transactions": "transactions_prev", "purchaseRevenue": "rev_prev"})
-    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "transactions": "transactions_yoy", "purchaseRevenue": "rev_yoy_base"})
+    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "purchaseRevenue": "rev_cur"})
+    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "purchaseRevenue": "rev_prev"})
+    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "purchaseRevenue": "rev_yoy_base"})
     yoy_subs = set(yoy_a["sub"].astype(str).tolist()) if not yoy_a.empty else set()
 
     merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
     merged["dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     merged["yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
-    merged["cvr"] = merged.apply(lambda r: (float(r["transactions_cur"]) / float(r["sessions_cur"])) if float(r["sessions_cur"]) else 0.0, axis=1)
     merged["has_yoy"] = merged["sub"].astype(str).isin(yoy_subs)
 
     # Ensure core labels always exist in the visible table.
@@ -1063,10 +1008,10 @@ def get_paid_detail_3way(
     for c in core:
         if c not in set(merged["sub"].tolist()):
             merged = pd.concat([merged, pd.DataFrame([{
-                "sub": c, "sessions_cur": 0.0, "transactions_cur": 0.0, "rev_cur": 0.0,
-                "sessions_prev": 0.0, "transactions_prev": 0.0, "rev_prev": 0.0,
-                "sessions_yoy": 0.0, "transactions_yoy": 0.0, "rev_yoy_base": 0.0,
-                "dod": 0.0, "yoy": 0.0, "cvr": 0.0, "has_yoy": False
+                "sub": c, "sessions_cur": 0.0, "rev_cur": 0.0,
+                "sessions_prev": 0.0, "rev_prev": 0.0,
+                "sessions_yoy": 0.0, "rev_yoy_base": 0.0,
+                "dod": 0.0, "yoy": 0.0, "has_yoy": False
             }])], ignore_index=True)
 
     # Show core rows plus top "others", but compute Total from the full Paid AD base.
@@ -1084,24 +1029,20 @@ def get_paid_detail_3way(
     merged_cur_s = float(merged["sessions_cur"].sum()) if not merged.empty else 0.0
     merged_prev_s = float(merged["sessions_prev"].sum()) if not merged.empty else 0.0
     merged_yoy_s = float(merged["sessions_yoy"].sum()) if not merged.empty else 0.0
-    merged_cur_t = float(merged["transactions_cur"].sum()) if not merged.empty else 0.0
     merged_cur_r = float(merged["rev_cur"].sum()) if not merged.empty else 0.0
 
     if paid_ad_totals:
         cur_sessions_val = paid_ad_totals.get("current", {}).get("sessions", merged_cur_s)
-        cur_transactions_val = paid_ad_totals.get("current", {}).get("transactions", merged_cur_t)
         cur_revenue_val = paid_ad_totals.get("current", {}).get("revenue", merged_cur_r)
         prev_sessions_val = paid_ad_totals.get("prev", {}).get("sessions", None)
         yoy_sessions_val = paid_ad_totals.get("yoy", {}).get("sessions", None)
 
         t_cur_s = merged_cur_s if cur_sessions_val is None else float(cur_sessions_val or 0.0)
-        t_cur_t = merged_cur_t if cur_transactions_val is None else float(cur_transactions_val or 0.0)
         t_cur_r = merged_cur_r if cur_revenue_val is None else float(cur_revenue_val or 0.0)
         t_prev_s = merged_prev_s if prev_sessions_val in (None, 0, 0.0) else float(prev_sessions_val)
         t_yoy_s = merged_yoy_s if yoy_sessions_val in (None, 0, 0.0) else float(yoy_sessions_val)
     else:
         t_cur_s = merged_cur_s
-        t_cur_t = merged_cur_t
         t_prev_s = merged_prev_s
         t_yoy_s = merged_yoy_s
         t_cur_r = merged_cur_r
@@ -1109,19 +1050,16 @@ def get_paid_detail_3way(
     total_row = {
         "sub_channel": "Total",
         "sessions": t_cur_s,
-        "transactions": t_cur_t,
         "purchaseRevenue": t_cur_r,
-        "cvr": (t_cur_t / t_cur_s) if t_cur_s else 0.0,
         "dod": pct_change(t_cur_s, t_prev_s),
         "yoy": pct_change(t_cur_s, t_yoy_s),
         "has_yoy": (t_yoy_s not in (None, 0, 0.0)),
     }
 
-    out = ordered[["sub", "sessions_cur", "transactions_cur", "rev_cur", "cvr", "dod", "yoy", "has_yoy"]].copy()
+    out = ordered[["sub", "sessions_cur", "rev_cur", "dod", "yoy", "has_yoy"]].copy()
     out = out.rename(columns={
         "sub": "sub_channel",
         "sessions_cur": "sessions",
-        "transactions_cur": "transactions",
         "rev_cur": "purchaseRevenue",
     })
     out = pd.concat([out, pd.DataFrame([total_row])], ignore_index=True)
@@ -1919,6 +1857,28 @@ def refresh_glink_spend_history(source_dir: str, out_path: str) -> pd.DataFrame:
         print(f"[WARN] Could not write spend history: {out_path} | {type(e).__name__}: {e}")
     return out
 
+def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
+    df = safe_read_table(xlsx_path)
+    if df.empty:
+        return {}
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
+    tr_col = cols.get('target_roas') or cols.get('target roas') or cols.get('target') or cols.get('목표 roas') or cols.get('목표roas')
+    if not ch_col or not tr_col:
+        return {}
+    out = {}
+    for _, r in df.iterrows():
+        ch = str(r.get(ch_col, '') or '').strip().lower()
+        if not ch:
+            continue
+        try:
+            val = float(r.get(tr_col, 0) or 0)
+        except Exception:
+            continue
+        if val > 10:  # permit 300 for 300%
+            val = val / 100.0
+        out[ch] = val
+    return out
 
 def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date, group_key: str = "channel") -> Dict[str, float]:
     df = refresh_glink_spend_history(MEDIA_SPEND_VENDOR_DIR, MEDIA_SPEND_HISTORY_PATH)
@@ -2003,10 +1963,9 @@ def get_other_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> p
     out = out.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).head(12)
     return out
 
-def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
+def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
-
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
@@ -2017,116 +1976,60 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
             return pd.DataFrame(columns=dims + mets)
         for c in mets:
             df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
-        df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium', '')), str(r.get('sessionCampaignName', ''))), axis=1)
+        df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
         df = df[df['bucket'] == 'Paid AD'].copy()
-        df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium', '')), str(r.get('sessionCampaignName', ''))), axis=1)
+        df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
         return df
-
     cur = fetch(w.cur_start, w.cur_end)
-
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=['sub', f'sessions{suffix}', f'orders{suffix}', f'revenue{suffix}'])
-        g = df.groupby('sub', as_index=False)[['sessions', 'transactions', 'purchaseRevenue']].sum()
-        return g.rename(columns={'sessions': f'sessions{suffix}', 'transactions': f'orders{suffix}', 'purchaseRevenue': f'revenue{suffix}'})
+            return pd.DataFrame(columns=['sub',f'sessions{suffix}',f'orders{suffix}',f'revenue{suffix}'])
+        g = df.groupby('sub', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
+        return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'orders{suffix}','purchaseRevenue':f'revenue{suffix}'})
+    merged = agg(cur,'_cur').fillna(0.0)
+    spend_cur = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, w.cur_start, w.cur_end, group_key="sub_channel")
+    if spend_cur:
+        top_level_spend = {}
+        for sub_key, spend in spend_cur.items():
+            media_key = map_sub_to_media(sub_key)
+            top_level_spend[media_key] = top_level_spend.get(media_key, 0.0) + float(spend or 0.0)
+        for media_key, spend in top_level_spend.items():
+            if media_key not in spend_cur:
+                spend_cur[media_key] = spend
 
-    merged = agg(cur, '_cur').fillna(0.0)
+    subs = list(PAID_DETAIL_SOURCES)
+    extras = []
+    merged_subs = merged["sub"].astype(str).tolist() if not merged.empty else []
+    for key in merged_subs + list(spend_cur.keys()):
+        k = str(key or "").strip()
+        if k and k not in subs and k not in extras:
+            extras.append(k)
+    subs.extend(extras)
 
-    # Manual spend:
-    # - sub_channel spend: used for detailed rows
-    # - channel/top-level spend: used for naver / google / meta rollups
-    spend_by_sub = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, w.cur_start, w.cur_end, group_key="sub_channel")
-    spend_by_media = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, w.cur_start, w.cur_end, group_key="channel")
-
-    # Build a lookup from GA4 paid revenue/orders/sessions by sub
-    sub_metrics: Dict[str, Dict[str, float]] = {}
-    if not merged.empty:
-        for r in merged.itertuples(index=False):
-            sub_key = str(getattr(r, 'sub', '') or '').strip().lower()
-            if not sub_key:
-                continue
-            sub_metrics[sub_key] = {
-                'sessions': float(getattr(r, 'sessions_cur', 0) or 0),
-                'orders': float(getattr(r, 'orders_cur', 0) or 0),
-                'revenue': float(getattr(r, 'revenue_cur', 0) or 0),
-            }
-
-    # Build top-level media rollups from the detailed sub rows so naver/google/meta
-    # can have valid revenue/ROAS/CVR when a top-level spend row exists.
-    media_rollups: Dict[str, Dict[str, float]] = {}
-    for sub_key, vals in sub_metrics.items():
-        media_key = map_sub_to_media(sub_key)
-        media_rollups.setdefault(media_key, {'sessions': 0.0, 'orders': 0.0, 'revenue': 0.0})
-        media_rollups[media_key]['sessions'] += float(vals.get('sessions', 0) or 0)
-        media_rollups[media_key]['orders'] += float(vals.get('orders', 0) or 0)
-        media_rollups[media_key]['revenue'] += float(vals.get('revenue', 0) or 0)
-
-    base_order = list(PAID_DETAIL_SOURCES)
-    top_level_media_order = ['meta']
-    keys = []
-
-    for k in base_order + top_level_media_order:
-        if k not in keys:
-            keys.append(k)
-    for k in list(spend_by_sub.keys()) + list(spend_by_media.keys()) + list(sub_metrics.keys()) + list(media_rollups.keys()):
-        k = str(k or '').strip().lower()
-        if k and k not in keys:
-            keys.append(k)
-
-    rows = []
-    for key in keys:
-        # Prefer exact sub metrics for detailed rows; fallback to media rollup for top-level rows
-        metric = sub_metrics.get(key)
-        if metric is None:
-            metric = media_rollups.get(key, {'sessions': 0.0, 'orders': 0.0, 'revenue': 0.0})
-
-        # Detailed rows use sub spend; top-level rows use media/channel spend
-        if key in sub_metrics:
-            cur_spend = float(spend_by_sub.get(key, 0) or 0)
+    rows=[]
+    for sub in subs:
+        row = merged[merged['sub']==sub]
+        if row.empty:
+            rc = {'sessions_cur':0.0,'orders_cur':0.0,'revenue_cur':0.0}
         else:
-            cur_spend = float(spend_by_media.get(key, 0) or 0)
-
-        # If a detailed key is missing sub spend but exists in top-level spend, do not backfill
-        # from top-level to avoid double-counting. Top-level rows handle that spend separately.
-
-        revenue_val = float(metric.get('revenue', 0) or 0)
-        sessions_val = float(metric.get('sessions', 0) or 0)
-        orders_val = float(metric.get('orders', 0) or 0)
-
-        cur_roas = (revenue_val / cur_spend) if cur_spend else 0.0
-        cur_cvr = (orders_val / sessions_val) if sessions_val else 0.0
-        media = map_sub_to_media(key)
-
+            rr = row.iloc[0]
+            rc = {k: float(rr.get(k,0) or 0) for k in ['sessions_cur','orders_cur','revenue_cur']}
+        cur_spend = float(spend_cur.get(sub,0) or 0)
+        cur_roas = (rc['revenue_cur']/cur_spend) if cur_spend else 0.0
+        cur_cvr = (rc['orders_cur']/rc['sessions_cur']) if rc['sessions_cur'] else 0.0
+        media = map_sub_to_media(sub)
         rows.append({
-            'channel': key,
+            'channel': sub,
+            'target_roas': float(
+                target_roas_map.get(sub, target_roas_map.get(media, target_roas_map.get(media.title().lower(), 0.0))) or 0
+            ),
             'budget': cur_spend,
             'roas': cur_roas,
             'cvr': cur_cvr,
-            'revenue': revenue_val,
-            'orders': orders_val,
-            'sessions': sessions_val,
-            'is_top_level': key in top_level_media_order,
         })
-
     out = pd.DataFrame(rows)
     if out.empty:
         return out
-
-    # Keep rows that carry either spend or performance signal.
-    out = out[
-        (pd.to_numeric(out["budget"], errors="coerce").fillna(0) != 0) |
-        (pd.to_numeric(out["roas"], errors="coerce").fillna(0) != 0) |
-        (pd.to_numeric(out["cvr"], errors="coerce").fillna(0) != 0) |
-        (pd.to_numeric(out["revenue"], errors="coerce").fillna(0) != 0)
-    ].copy()
-
-    # Remove top-level rollup rows when detailed rows already exist to avoid double counting/confusing hierarchy.
-    out = out[~out["channel"].astype(str).str.strip().str.lower().isin(["naver", "google"])].copy()
-
-    order_map = {k: i for i, k in enumerate(base_order + top_level_media_order)}
-    out["__ord"] = out["channel"].astype(str).str.strip().str.lower().map(lambda x: order_map.get(x, 999))
-    out = out.sort_values(["__ord", "channel"]).drop(columns="__ord")
-    return out
     out = out[(out["budget"] != 0) | (out["roas"] != 0) | (out["cvr"] != 0)].copy()
     return out
 
@@ -2384,7 +2287,6 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
                 f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_dod', 0) or 0))}'>{('+' if float(getattr(r,'rev_dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_dod',0) or 0),1)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
             ], bold=(str(getattr(r, "bucket", "")) == "Total"))
@@ -2419,9 +2321,7 @@ def render_page_html(
             row_html = table_row([
                 esc(sub),
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
-                f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
                 yoy_html,
             ], bold=is_bold, row_class=row_cls)
@@ -2491,32 +2391,10 @@ def render_page_html(
 
     paid_media_compare_html = ""
     if paid_media_compare is not None and (not paid_media_compare.empty):
-        # TOTAL should use true platform totals, not a sum of visible rows,
-        # because the table may contain both top-level media rows and sub rows.
-        spend_total_map = fetch_platform_spend_map(w.cur_start, w.cur_end)
-        budget_total = float(sum(float(v or 0) for v in spend_total_map.values()))
-
-        revenue_total = 0.0
-        cvr_total = 0.0
-        if paid_detail is not None and (not paid_detail.empty) and "sub_channel" in paid_detail.columns:
-            _paid_total = paid_detail[paid_detail["sub_channel"].astype(str).str.strip().str.lower() == "total"].copy()
-            if not _paid_total.empty:
-                if "purchaseRevenue" in _paid_total.columns:
-                    revenue_total = float(pd.to_numeric(_paid_total["purchaseRevenue"], errors="coerce").fillna(0).iloc[0])
-                if "cvr" in _paid_total.columns:
-                    cvr_total = float(pd.to_numeric(_paid_total["cvr"], errors="coerce").fillna(0).iloc[0])
-
-        roas_total = (revenue_total / budget_total) if budget_total else 0.0
-        paid_media_compare_html += table_row([
-            "<span class='font-extrabold'>TOTAL</span>",
-            f"<div class='text-right font-extrabold'>{fmt_currency_krw(budget_total)}</div>",
-            f"<div class='text-right font-extrabold'>{fmt_pct(float(roas_total or 0),1)}</div>",
-            f"<div class='text-right font-extrabold'>{fmt_pct(float(cvr_total or 0),2)}</div>",
-        ], bold=True)
-
         for r in paid_media_compare.itertuples(index=False):
             paid_media_compare_html += table_row([
                 esc(getattr(r, 'channel', '')),
+                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'target_roas', 0) or 0),1)}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget', 0))}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas', 0) or 0),1)}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
@@ -2623,6 +2501,9 @@ def render_page_html(
         <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">{w.mode.upper()}</div>
         <div class="text-sm text-slate-500">{ymd(w.cur_start)} ~ {ymd(w.cur_end)} · {w.compare_label} vs {ymd(w.prev_start)} ~ {ymd(w.prev_end)} · YoY {ymd(w.yoy_start)} ~ {ymd(w.yoy_end)}</div>
       </div>
+      <div class="flex items-center gap-2">
+        <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
+      </div>
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
@@ -2631,33 +2512,30 @@ def render_page_html(
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
-      <div class="mt-3 overflow-x-auto"><table class="w-full table-auto text-sm min-w-[980px]">
+      <table class="mt-3 w-full table-auto text-sm">
         <thead class="text-xs text-slate-500">
           <tr>
             <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
             <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
           </tr>
         </thead>
         <tbody>{chan_html}</tbody>
-      </table></div>
+      </table>
     </div>
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
       <div class="mt-3 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[1120px]">
+        <table class="w-full table-auto text-sm min-w-[920px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">CVR</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
@@ -2677,7 +2555,7 @@ def render_page_html(
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
@@ -2734,22 +2612,659 @@ def render_page_html(
 
 
 # =========================
-# Index redirect page (latest daily)
+# Hub page
 # =========================
-def render_latest_daily_index(latest_date: dt.date) -> str:
-    target = f"daily/{latest_date.strftime('%Y-%m-%d')}.html"
+def render_hub_index(dates: List[dt.date]) -> str:
+    return render_hub_index_compare(dates)
+
+    dates = sorted(dates)
+    if not dates:
+        dates = [dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1)]
+    latest = dates[-1]
+
+    date_opts = "\n".join([f"<option value='{d.strftime('%Y-%m-%d')}'>{d.strftime('%Y-%m-%d')}</option>" for d in reversed(dates)])
+
     return f"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0; url={target}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CSK E-COMM | Daily Digest</title>
-  <script>
-    location.replace({json.dumps(target)});
-  </script>
+  <title>CSK E-COMM | Daily Digest Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
+  </style>
 </head>
-<body></body>
+<body class="bg-slate-50 text-slate-900">
+  <div class="mx-auto max-w-7xl p-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="text-2xl font-black">Daily Digest Hub</div>
+        <div class="rounded-full bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">STATIC</div>
+      </div>
+      <div class="text-sm text-slate-500">Data cache 기반</div>
+    </div>
+
+    <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Open report</div>
+        <div class="mt-3 flex items-center gap-2">
+          <select id="openDate" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            {date_opts}
+          </select>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button id="openDaily" class="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-extrabold text-white hover:bg-slate-800">Daily</button>
+          <button id="openWeekly" class="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold hover:bg-slate-50">Weekly</button>
+        </div>
+      </div>
+
+      <div class="md:col-span-2 rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Recent</div>
+        <div id="recentList" class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {{
+  const dates = {json.dumps([d.strftime("%Y-%m-%d") for d in dates])};
+  const latest = "{latest.strftime('%Y-%m-%d')}";
+
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}}[c]));
+
+  function initDefaults() {{
+    $("#openDate").value = latest;
+  }}
+
+  function renderRecent() {{
+    const items = dates.slice(-10).reverse();
+    $("#recentList").innerHTML = items.map(d => `
+      <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3">
+        <div class="text-sm font-extrabold">${{esc(d)}}</div>
+        <div class="flex gap-2">
+          <a class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white hover:bg-slate-800" href="daily/${{esc(d)}}.html">Daily</a>
+          <a class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold hover:bg-slate-50" href="weekly/END_${{esc(d)}}.html">Weekly</a>
+        </div>
+      </div>
+    `).join("");
+  }}
+
+  function init() {{
+    initDefaults();
+    renderRecent();
+    $("#openDaily").addEventListener("click", () => {{
+      const d = $("#openDate").value;
+      window.location.href = "daily/" + d + ".html";
+    }});
+    $("#openWeekly").addEventListener("click", () => {{
+      const d = $("#openDate").value;
+      window.location.href = "weekly/END_" + d + ".html";
+    }});
+  }}
+  document.addEventListener("DOMContentLoaded", init);
+}})();
+</script>
+
+</body>
+</html>
+"""
+
+
+def render_hub_index_compare(dates: List[dt.date]) -> str:
+    dates = sorted(dates)
+    if not dates:
+        dates = [dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1)]
+    latest = dates[-1]
+    known_dates = [d.strftime("%Y-%m-%d") for d in dates]
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Digest Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root {{ --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }}
+
+    html, body {{ height: 100%; overflow: auto; }}
+    body {{
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+    }}
+    .glass {{
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.85);
+      border-radius: 26px;
+      box-shadow: 0 24px 60px rgba(0,45,114,0.07);
+    }}
+    .chip {{
+      border: 1px solid rgba(148,163,184,0.35);
+      background: rgba(255,255,255,0.78);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+    }}
+    .chip:hover {{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }}
+    .chip.active {{
+      background: rgba(0,45,114,0.08);
+      border-color: rgba(0,45,114,0.28);
+      color: var(--brand);
+    }}
+    .btn {{
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.88);
+      transition: all .15s ease;
+      user-select:none;
+      white-space: nowrap;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }}
+    .btn:hover {{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }}
+    .btn-primary {{ background: #002d72; border-color: #002d72; color: white; }}
+    .btn:disabled, .chip:disabled {{
+      opacity: .55;
+      cursor: not-allowed;
+      transform:none !important;
+      box-shadow:none !important;
+    }}
+    .muted {{ color:#64748b; }}
+    .small-label {{
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }}
+    input[type="date"] {{
+      border: 1px solid rgba(148,163,184,0.28);
+      background: rgba(255,255,255,0.90);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-weight: 900;
+      font-size: 12px;
+      color: #0f172a;
+      outline: none;
+      width: 100%;
+    }}
+    input[type="date"]:focus {{
+      border-color: rgba(0,45,114,0.40);
+      box-shadow: 0 0 0 4px rgba(0,45,114,0.08);
+    }}
+    .viewer-frame {{
+      width: 100%;
+      border: 0;
+      border-radius: 18px;
+      background: transparent;
+      overflow: hidden;
+      display:block;
+      height: 3200px;
+    }}
+    .loading-backdrop {{
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }}
+    .loading-card {{
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(148,163,184,0.22);
+      border-radius: 18px;
+      padding: 14px 16px;
+      box-shadow: 0 18px 48px rgba(0,0,0,0.12);
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-weight:900;
+      color:#0f172a;
+    }}
+    .spinner {{
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 3px solid rgba(2,45,114,0.18);
+      border-top-color: rgba(2,45,114,0.95);
+      animation: spin 0.8s linear infinite;
+    }}
+    @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+    .btn .btn-spin {{
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.45);
+      border-top-color: rgba(255,255,255,0.95);
+      animation: spin 0.8s linear infinite;
+      display:none;
+    }}
+    .btn.loading .btn-spin {{ display:inline-block; }}
+    .toolbar-row {{
+      overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 2px;
+    }}
+    .toolbar-row::-webkit-scrollbar {{ height: 8px; }}
+    .toolbar-row::-webkit-scrollbar-thumb {{ background: rgba(148,163,184,0.35); border-radius: 999px; }}
+  </style>
+</head>
+
+<body class="p-6 md:p-10">
+  <div class="max-w-7xl mx-auto">
+    <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div>
+        <div class="text-4xl font-black tracking-tight">Daily Digest Hub</div>
+        <div class="mt-1 font-semibold muted">날짜 선택, Compare, YoY 비교를 허브에서 바로 확인할 수 있습니다.</div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-end gap-3">
+        <div class="flex items-center gap-2">
+          <div class="mr-2 small-label">Mode</div>
+          <button id="modeDaily" class="chip active" type="button">Daily</button>
+          <button id="modeWeekly" class="chip" type="button">Weekly (7D)</button>
+        </div>
+        <button id="btnReload" class="btn btn-primary" type="button"><span class="btn-spin"></span>새로고침</button>
+      </div>
+    </div>
+
+    <div class="glass p-5">
+      <div class="toolbar-row mb-3 flex items-center gap-2 whitespace-nowrap">
+        <div class="small-label">Date</div>
+        <div class="w-[160px]"><input id="aDate" type="date" /></div>
+        <button id="btnPrev" class="btn" type="button">이전</button>
+        <button id="btnNext" class="btn" type="button">다음</button>
+        <button id="btnYesterday" class="btn" type="button">어제</button>
+        <button id="btnToday" class="btn" type="button">오늘(있으면)</button>
+
+        <div class="ml-2 small-label">Compare</div>
+        <button id="btnCompareToggle" class="chip" type="button">비교 OFF</button>
+        <button id="btnPresetPrev" class="btn" type="button">전기준</button>
+        <button id="btnPresetYoY" class="btn" type="button">YoY</button>
+        <div class="w-[160px]"><input id="bDate" type="date" /></div>
+        <button id="btnCompareGo" class="btn btn-primary" type="button"><span class="btn-spin"></span>비교하기</button>
+      </div>
+
+      <div id="viewerGrid" class="grid grid-cols-1 gap-4">
+        <div>
+          <div class="mb-2 text-xs font-semibold muted" id="viewerATitle">A: -</div>
+          <iframe id="viewerA" class="viewer-frame" loading="eager" scrolling="no"></iframe>
+        </div>
+
+        <div id="viewerBWrap" class="hidden">
+          <div class="mb-2 text-xs font-semibold muted" id="viewerBTitle">B: -</div>
+          <iframe id="viewerB" class="viewer-frame" loading="eager" scrolling="no"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" class="loading-backdrop">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div id="loadingText">로딩 중...</div>
+    </div>
+  </div>
+
+<script>
+(() => {{
+  const BASE = "";
+  const KNOWN_DATES = {json.dumps(known_dates)};
+  const LATEST = "{latest.strftime('%Y-%m-%d')}";
+
+  function kstNowDate() {{
+    const now = new Date();
+    const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+    return new Date(utc + 9 * 60 * 60000);
+  }}
+  function fmtYMD(d) {{
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${{y}}-${{m}}-${{dd}}`;
+  }}
+  function parseYMD(s) {{
+    const [y, m, d] = String(s || "").split("-").map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  }}
+  function addDays(d, n) {{
+    const x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
+  }}
+
+  const modeDaily = document.getElementById("modeDaily");
+  const modeWeekly = document.getElementById("modeWeekly");
+  const btnReload = document.getElementById("btnReload");
+  const aDate = document.getElementById("aDate");
+  const bDate = document.getElementById("bDate");
+  const btnPrev = document.getElementById("btnPrev");
+  const btnNext = document.getElementById("btnNext");
+  const btnYesterday = document.getElementById("btnYesterday");
+  const btnToday = document.getElementById("btnToday");
+  const btnCompareToggle = document.getElementById("btnCompareToggle");
+  const btnPresetPrev = document.getElementById("btnPresetPrev");
+  const btnPresetYoY = document.getElementById("btnPresetYoY");
+  const btnCompareGo = document.getElementById("btnCompareGo");
+  const viewerA = document.getElementById("viewerA");
+  const viewerB = document.getElementById("viewerB");
+  const viewerBWrap = document.getElementById("viewerBWrap");
+  const viewerGrid = document.getElementById("viewerGrid");
+  const viewerATitle = document.getElementById("viewerATitle");
+  const viewerBTitle = document.getElementById("viewerBTitle");
+  const loading = document.getElementById("loading");
+  const loadingText = document.getElementById("loadingText");
+
+  let MODE = "daily";
+  let COMPARE = false;
+
+  function stepDays() {{ return MODE === "weekly" ? 7 : 1; }}
+  function buildReportPath(dateStr) {{
+    const base = MODE === "daily" ? `${{BASE}}daily/${{dateStr}}.html` : `${{BASE}}weekly/END_${{dateStr}}.html`;
+    return base + "?embed=1";
+  }}
+  function buildReportBase(dateStr) {{
+    return MODE === "daily" ? `${{BASE}}daily/${{dateStr}}.html` : `${{BASE}}weekly/END_${{dateStr}}.html`;
+  }}
+  function buildCachePath(dateStr) {{
+    return MODE === "daily" ? `${{BASE}}data/daily/${{dateStr}}.json` : `${{BASE}}data/weekly/END_${{dateStr}}.json`;
+  }}
+
+  const ACTION_BTNS = [btnReload, btnCompareGo];
+  const MODE_BTNS = [modeDaily, modeWeekly, btnCompareToggle, btnPresetPrev, btnPresetYoY, btnPrev, btnNext, btnYesterday, btnToday];
+
+  function setBusy(on, msg) {{
+    if (on) {{
+      loadingText.textContent = msg || "로딩 중...";
+      loading.style.display = "flex";
+      for (const b of ACTION_BTNS) {{ b.disabled = true; b.classList.add("loading"); }}
+      for (const b of MODE_BTNS) {{ b.disabled = true; }}
+    }} else {{
+      loading.style.display = "none";
+      for (const b of ACTION_BTNS) {{ b.disabled = false; b.classList.remove("loading"); }}
+      for (const b of MODE_BTNS) {{ b.disabled = false; }}
+    }}
+  }}
+
+  const LS_KEY = "ddhub_exists_cache_v10";
+  const TTL_MS = 6 * 60 * 60 * 1000;
+  const RECENT_DAYS_NO_NEG_CACHE = 3;
+  const memCache = new Map();
+
+  function loadLS() {{ try {{ return JSON.parse(localStorage.getItem(LS_KEY) || "{{}}") || {{}}; }} catch (e) {{ return {{}}; }} }}
+  function saveLS(obj) {{ try {{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }} catch (e) {{}} }}
+
+  function isRecentDateStr(dateStr) {{
+    try {{
+      const d = parseYMD(dateStr);
+      const now = kstNowDate();
+      const diffDays = Math.floor((now - d) / (24 * 60 * 60 * 1000));
+      return diffDays >= 0 && diffDays <= RECENT_DAYS_NO_NEG_CACHE;
+    }} catch (e) {{
+      return false;
+    }}
+  }}
+
+  function cacheGet(u) {{
+    if (memCache.has(u)) return memCache.get(u);
+    const db = loadLS();
+    const hit = db[u];
+    if (hit && (Date.now() - hit.ts) < TTL_MS) {{
+      memCache.set(u, hit.ok);
+      return hit.ok;
+    }}
+    return null;
+  }}
+  function cacheSet(u, ok) {{
+    memCache.set(u, ok);
+    const db = loadLS();
+    db[u] = {{ ok: !!ok, ts: Date.now() }};
+    const keys = Object.keys(db);
+    if (keys.length > 900) {{
+      keys.sort((a, b) => (db[a].ts || 0) - (db[b].ts || 0));
+      for (let i = 0; i < keys.length - 700; i += 1) delete db[keys[i]];
+    }}
+    saveLS(db);
+  }}
+
+  async function existsReport(dateStr) {{
+    const base = buildReportBase(dateStr);
+    const cached = cacheGet(base);
+    if (cached !== null) {{
+      if (!(cached === false && isRecentDateStr(dateStr))) return cached;
+    }}
+    try {{
+      const res = await fetch(base + `?t=${{Date.now()}}`, {{ method: "HEAD", cache: "no-store" }});
+      cacheSet(base, res.ok);
+      return res.ok;
+    }} catch (e) {{
+      cacheSet(base, false);
+      return false;
+    }}
+  }}
+
+  function resizeFrameToContent(frame) {{
+    try {{
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if (!doc) return;
+      let style = doc.getElementById("hub_scrub_css");
+      if (!style) {{
+        style = doc.createElement("style");
+        style.id = "hub_scrub_css";
+        style.type = "text/css";
+        style.textContent = "html, body { overflow: visible !important; height: auto !important; } body { margin:0 !important; min-height:auto !important; }";
+        doc.head.appendChild(style);
+      }}
+      const h = Math.max(doc.body ? doc.body.scrollHeight : 0, doc.documentElement ? doc.documentElement.scrollHeight : 0);
+      if (h && Number.isFinite(h)) frame.style.height = `${{h + 12}}px`;
+    }} catch (e) {{}}
+  }}
+
+  function onFrameLoad(frame) {{
+    resizeFrameToContent(frame);
+    let n = 0;
+    const t = setInterval(() => {{
+      resizeFrameToContent(frame);
+      n += 1;
+      if (n >= 10) clearInterval(t);
+    }}, 250);
+  }}
+
+  viewerA.addEventListener("load", () => {{ onFrameLoad(viewerA); setBusy(false); }});
+  viewerB.addEventListener("load", () => {{ onFrameLoad(viewerB); setBusy(false); }});
+
+  async function loadA(dateStr) {{
+    viewerA.src = buildReportPath(dateStr);
+    viewerATitle.textContent = `A: ${{MODE.toUpperCase()}} · ${{dateStr}}`;
+  }}
+  async function loadB(dateStr) {{
+    viewerB.src = buildReportPath(dateStr);
+    viewerBTitle.textContent = `B: ${{MODE.toUpperCase()}} · ${{dateStr}}`;
+  }}
+
+  async function yoyEndFor(dateStr) {{
+    try {{
+      const res = await fetch(buildCachePath(dateStr) + `?t=${{Date.now()}}`, {{ cache: "no-store" }});
+      if (!res.ok) throw new Error("no cache");
+      const j = await res.json();
+      const y = j && j.yoy && j.yoy.end ? String(j.yoy.end) : "";
+      if (!y) throw new Error("no yoy.end");
+      return y;
+    }} catch (e) {{
+      return fmtYMD(addDays(parseYMD(dateStr), -364));
+    }}
+  }}
+
+  function updateCompareLayout() {{
+    if (COMPARE) {{
+      viewerBWrap.classList.remove("hidden");
+      viewerGrid.className = "grid grid-cols-1 gap-4 lg:grid-cols-2";
+    }} else {{
+      viewerBWrap.classList.add("hidden");
+      viewerGrid.className = "grid grid-cols-1 gap-4";
+    }}
+  }}
+
+  function setCompare(on) {{
+    COMPARE = !!on;
+    btnCompareToggle.classList.toggle("active", COMPARE);
+    btnCompareToggle.textContent = COMPARE ? "비교 ON" : "비교 OFF";
+    updateCompareLayout();
+  }}
+
+  function nearestKnownDate(preferredDateStr) {{
+    if (!KNOWN_DATES.length) return preferredDateStr;
+    if (KNOWN_DATES.includes(preferredDateStr)) return preferredDateStr;
+    for (let i = KNOWN_DATES.length - 1; i >= 0; i -= 1) {{
+      if (KNOWN_DATES[i] <= preferredDateStr) return KNOWN_DATES[i];
+    }}
+    return KNOWN_DATES[KNOWN_DATES.length - 1];
+  }}
+
+  async function resolveLatestAvailableDate(preferredDateStr, maxScanDays) {{
+    const known = nearestKnownDate(preferredDateStr);
+    if (await existsReport(known)) return known;
+    let d0 = parseYMD(preferredDateStr);
+    for (let i = 0; i <= maxScanDays; i += 1) {{
+      const cand = fmtYMD(addDays(d0, -i));
+      if (await existsReport(cand)) return cand;
+    }}
+    return known || preferredDateStr;
+  }}
+
+  async function applyA() {{
+    const d = String(aDate.value || "").trim();
+    if (!d) return;
+    setBusy(true, "A 리포트 로딩 중...");
+    let target = d;
+    if (!(await existsReport(target))) {{
+      const step = stepDays();
+      const tries = [-step, +step, -1, +1, -2, +2];
+      for (const delta of tries) {{
+        const cand = fmtYMD(addDays(parseYMD(target), delta));
+        if (await existsReport(cand)) {{
+          target = cand;
+          break;
+        }}
+      }}
+      aDate.value = target;
+    }}
+    await loadA(target);
+  }}
+
+  async function doCompare() {{
+    const a = String(aDate.value || "").trim();
+    const b = String(bDate.value || "").trim();
+    if (!a || !b) return;
+    setCompare(true);
+    setBusy(true, "A/B 리포트 로딩 중...");
+    await applyA();
+    let targetB = b;
+    if (!(await existsReport(targetB))) {{
+      targetB = aDate.value;
+      bDate.value = targetB;
+    }}
+    await loadB(targetB);
+  }}
+
+  async function setMode(next) {{
+    MODE = next;
+    modeDaily.classList.toggle("active", MODE === "daily");
+    modeWeekly.classList.toggle("active", MODE === "weekly");
+    setBusy(true, "모드 변경 중...");
+    const baseY = LATEST || fmtYMD(addDays(kstNowDate(), -1));
+    const latest = await resolveLatestAvailableDate(baseY, 30);
+    aDate.value = latest;
+    bDate.value = fmtYMD(addDays(parseYMD(latest), -stepDays()));
+    await applyA();
+    if (COMPARE) await doCompare();
+  }}
+
+  modeDaily.addEventListener("click", () => setMode("daily"));
+  modeWeekly.addEventListener("click", () => setMode("weekly"));
+  btnReload.addEventListener("click", () => {{
+    setBusy(true, "새로고침 중...");
+    try {{
+      localStorage.removeItem(LS_KEY);
+      memCache.clear();
+    }} catch (e) {{}}
+    location.reload();
+  }});
+  btnCompareToggle.addEventListener("click", () => setCompare(!COMPARE));
+  btnPresetPrev.addEventListener("click", () => {{
+    const a = aDate.value;
+    if (!a) return;
+    bDate.value = fmtYMD(addDays(parseYMD(a), -stepDays()));
+    setCompare(true);
+  }});
+  btnPresetYoY.addEventListener("click", async () => {{
+    const a = aDate.value;
+    if (!a) return;
+    setBusy(true, "YoY 날짜 계산 중...");
+    bDate.value = await yoyEndFor(a);
+    setBusy(false);
+    setCompare(true);
+  }});
+  btnCompareGo.addEventListener("click", doCompare);
+  btnYesterday.addEventListener("click", async () => {{
+    const baseY = LATEST || fmtYMD(addDays(kstNowDate(), -1));
+    setBusy(true, "최신 리포트 탐색 중...");
+    aDate.value = await resolveLatestAvailableDate(baseY, 30);
+    setBusy(false);
+    applyA();
+  }});
+  btnToday.addEventListener("click", async () => {{
+    setBusy(true, "오늘 리포트 확인 중...");
+    const t = fmtYMD(kstNowDate());
+    aDate.value = (await existsReport(t)) ? t : await resolveLatestAvailableDate(LATEST || fmtYMD(addDays(kstNowDate(), -1)), 30);
+    setBusy(false);
+    applyA();
+  }});
+  btnPrev.addEventListener("click", () => {{
+    const cur = aDate.value;
+    if (!cur) return;
+    aDate.value = fmtYMD(addDays(parseYMD(cur), -stepDays()));
+    applyA();
+  }});
+  btnNext.addEventListener("click", () => {{
+    const cur = aDate.value;
+    if (!cur) return;
+    aDate.value = fmtYMD(addDays(parseYMD(cur), +stepDays()));
+    applyA();
+  }});
+
+  (async function init() {{
+    setCompare(false);
+    const baseY = LATEST || fmtYMD(addDays(kstNowDate(), -1));
+    setBusy(true, "최신 리포트 탐색 중...");
+    const latest = await resolveLatestAvailableDate(baseY, 30);
+    setBusy(false);
+    aDate.value = latest;
+    bDate.value = fmtYMD(addDays(parseYMD(latest), -1));
+    await setMode("daily");
+  }})();
+}})();
+</script>
+
+</body>
 </html>
 """
 
@@ -2789,7 +3304,7 @@ def build_one(
                 search_rising=rt["search_rising"],
                 other_detail=rt["other_detail"],
                 paid_media_compare=rt["paid_media_compare"],
-                nav_links={"daily_index": "../index.html", "weekly_index": "../index.html"},
+                nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
                 bundle_rel_path=bundle_rel,
             )
             return html, cached
@@ -2802,7 +3317,7 @@ def build_one(
 
     # Extract Paid AD totals from Channel Snapshot for Paid Detail alignment.
     paid_ad_totals = {
-        "current": {"sessions": None, "transactions": None, "revenue": None},
+        "current": {"sessions": None, "revenue": None},
         "prev": {"sessions": None, "revenue": None},
         "yoy": {"sessions": None, "revenue": None},
     }
@@ -2811,7 +3326,6 @@ def build_one(
         row = channel_snapshot[channel_snapshot["bucket"] == "Paid AD"]
         if not row.empty:
             paid_ad_totals["current"]["sessions"] = float(row.iloc[0]["sessions"])
-            paid_ad_totals["current"]["transactions"] = float(row.iloc[0].get("transactions", 0) or 0.0)
             paid_ad_totals["current"]["revenue"] = float(row.iloc[0]["purchaseRevenue"])
     except Exception:
         pass
@@ -2819,7 +3333,8 @@ def build_one(
     paid_detail = get_paid_detail_3way(client, w, paid_ad_totals=paid_ad_totals)
     paid_top3 = get_paid_top3(client, w)
     other_detail = pd.DataFrame()
-    paid_media_compare = get_paid_media_comparison_table(client, w)
+    target_roas_map = load_target_roas_map(TARGET_ROAS_XLS_PATH)
+    paid_media_compare = get_paid_media_comparison_table(client, w, target_roas_map)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
 
     trend_series = get_trend_view_series(client, w)
@@ -2869,9 +3384,6 @@ def build_one(
     if WRITE_DATA_CACHE:
         write_json(bpath, bundle)
 
-    if JSON_ONLY:
-        return "", bundle
-
     bundle_rel = "../data/weekly/END_" + ymd(w.end_date) + ".json" if w.mode == "weekly" else "../data/daily/" + ymd(w.end_date) + ".json"
     html = render_page_html(
         logo_b64=logo_b64,
@@ -2890,7 +3402,7 @@ def build_one(
         search_rising=search["rising"],
         other_detail=other_detail,
         paid_media_compare=paid_media_compare,
-        nav_links={"daily_index": "../index.html", "weekly_index": "../index.html"},
+        nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
         bundle_rel_path=bundle_rel,
     )
     return html, bundle
@@ -2899,37 +3411,7 @@ def build_one(
 # =========================
 # Main
 # =========================
-def parse_args():
-    parser = argparse.ArgumentParser(description="Columbia Daily Digest builder")
-    parser.add_argument("--out-dir", dest="out_dir", default=None, help="Output directory override")
-    parser.add_argument("--days", dest="days", type=int, default=None, help="How many end dates to build")
-    parser.add_argument("--json-only", dest="json_only", action="store_true", help="Write bundle JSON only and skip HTML/HUB generation")
-    parser.add_argument("--skip-hub-write", dest="skip_hub_write", action="store_true", help="Skip HUB index write")
-    parser.add_argument("--no-yoy-prebuild", dest="no_yoy_prebuild", action="store_true", help="Do not add YoY helper dates to the build queue")
-    return parser.parse_args()
-
-
 def main():
-    global OUT_DIR, DATA_DIR, DAYS_TO_BUILD, SKIP_HUB_WRITE, JSON_ONLY
-
-    args = parse_args()
-
-    if args.out_dir:
-        OUT_DIR = args.out_dir
-        DATA_DIR = os.getenv("DAILY_DIGEST_DATA_DIR", os.path.join(OUT_DIR, "data")).strip()
-
-    if args.days is not None and args.days > 0:
-        DAYS_TO_BUILD = args.days
-
-    if args.json_only:
-        JSON_ONLY = True
-    if args.skip_hub_write:
-        SKIP_HUB_WRITE = True
-    if JSON_ONLY:
-        SKIP_HUB_WRITE = True
-
-    no_yoy_prebuild = bool(args.no_yoy_prebuild or JSON_ONLY or (os.getenv("DAILY_DIGEST_NO_YOY_PREBUILD", "false").strip().lower() in ("1", "true", "yes", "y")))
-
     if not PROPERTY_ID:
         raise SystemExit("ERROR: GA4_PROPERTY_ID is empty. Set env var GA4_PROPERTY_ID and retry.")
 
@@ -2946,15 +3428,10 @@ def main():
     today_kst = dt.datetime.now(ZoneInfo("Asia/Seoul")).date()
     latest_end = today_kst - dt.timedelta(days=1)
 
-    explicit_ymd = (os.getenv("YMD", "").strip() or os.getenv("GA4_END_DATE", "").strip())
-    explicit_date = parse_yyyy_mm_dd(explicit_ymd)
-    if explicit_date:
-        dates = [explicit_date]
-    else:
-        dates = [latest_end - dt.timedelta(days=i) for i in range(max(1, DAYS_TO_BUILD))]
-        dates = [d for d in dates if d.year >= 2000]
+    dates = [latest_end - dt.timedelta(days=i) for i in range(max(1, DAYS_TO_BUILD))]
+    dates = [d for d in dates if d.year >= 2000]
 
-    logo_b64 = "" if JSON_ONLY else load_logo_base64(LOGO_PATH)
+    logo_b64 = load_logo_base64(LOGO_PATH)
     image_map = load_image_map_from_excel_urls(IMAGE_XLS_PATH)
 
     ensure_dir(OUT_DIR)
@@ -2966,57 +3443,47 @@ def main():
     ensure_dir(os.path.join(DATA_DIR, "weekly"))
     ensure_dir(os.path.join(OUT_DIR, "cache", "pdp"))
 
-    if no_yoy_prebuild:
-        all_dates = sorted(set(dates))
-    else:
-        yoy_dates: List[dt.date] = []
-        for d in dates:
-            yoy_dates.append(build_window(end_date=d, mode="daily").yoy_end)
-            yoy_dates.append(build_window(end_date=d, mode="weekly").yoy_end)
-        all_dates = sorted(set(dates + yoy_dates))
-
-    print(f"[INFO] Build queue dates={len(all_dates)} (requested={len(dates)}, no_yoy_prebuild={str(no_yoy_prebuild).lower()}, json_only={str(JSON_ONLY).lower()})")
+    yoy_dates: List[dt.date] = []
+    for d in dates:
+        yoy_dates.append(build_window(end_date=d, mode="daily").yoy_end)
+        yoy_dates.append(build_window(end_date=d, mode="weekly").yoy_end)
+    all_dates = sorted(set(dates + yoy_dates))
 
     for d in all_dates:
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
 
-        force_rebuild = (d == latest_end) or (explicit_date is not None)
+        # Always rebuild the latest end date even if SKIP_IF_EXISTS is enabled.
+        force_rebuild = (d == latest_end)
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
             print(f"[SKIP] Exists (Daily): {out_daily}")
         else:
             html_daily, _bundle = build_one(client, end_date=d, mode="daily", image_map=image_map, logo_b64=logo_b64)
-            if not JSON_ONLY:
-                with open(out_daily, "w", encoding="utf-8") as f:
-                    f.write(html_daily)
-                print(f"[OK] Wrote: {out_daily} (force={force_rebuild})")
-            else:
-                print(f"[OK] Wrote JSON bundle only for daily end_date={ymd(d)}")
+            with open(out_daily, "w", encoding="utf-8") as f:
+                f.write(html_daily)
+            print(f"[OK] Wrote: {out_daily} (force={force_rebuild})")
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_weekly):
             print(f"[SKIP] Exists (Weekly): {out_weekly}")
         else:
             html_weekly, _bundle = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
-            if not JSON_ONLY:
-                with open(out_weekly, "w", encoding="utf-8") as f:
-                    f.write(html_weekly)
-                print(f"[OK] Wrote: {out_weekly} (force={force_rebuild})")
-            else:
-                print(f"[OK] Wrote JSON bundle only for weekly end_date={ymd(d)}")
-    index_path = os.path.join(OUT_DIR, "index.html")
+            with open(out_weekly, "w", encoding="utf-8") as f:
+                f.write(html_weekly)
+            print(f"[OK] Wrote: {out_weekly} (force={force_rebuild})")
+
+    hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
 
-    if JSON_ONLY:
-        print(f"[SKIP] index write disabled in JSON_ONLY mode: {index_path}")
-    elif (not force_overwrite) and os.path.exists(index_path):
-        print(f"[SKIP] index exists (no overwrite): {index_path}")
+    if SKIP_HUB_WRITE:
+        print(f"[SKIP] HUB write disabled (keeping existing): {hub_path}")
+    elif (not force_overwrite) and os.path.exists(hub_path):
+        print(f"[SKIP] HUB exists (no overwrite): {hub_path}")
     else:
-        latest_daily = max(dates) if dates else (dt.datetime.now(ZoneInfo("Asia/Seoul")).date() - dt.timedelta(days=1))
-        index_html = render_latest_daily_index(latest_daily)
-        with open(index_path, "w", encoding="utf-8") as f:
-            f.write(index_html)
-        print(f"[OK] Wrote latest daily redirect index: {index_path} -> daily/{latest_daily.strftime('%Y-%m-%d')}.html")
+        hub = render_hub_index(dates=dates)
+        with open(hub_path, "w", encoding="utf-8") as f:
+            f.write(hub)
+        print(f"[OK] Wrote HUB: {hub_path}")
 
 
 if __name__ == "__main__":
