@@ -1111,6 +1111,21 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         '''
 
     def trend_panel(section_key: str, title: str, subtitle: str) -> str:
+        range_tabs = [
+            ('1MONTH', '1MONTH'),
+            ('1YEAR', '1YEAR'),
+            ('2YEAR', '2YEAR'),
+        ] if section_key == 'weekly' else [
+            ('1MONTH', '1MONTH'),
+            ('7D', '7D'),
+            ('14D', '14D'),
+            ('1YEAR', '1YEAR'),
+            ('2YEAR', '2YEAR'),
+        ]
+        range_btns = ''.join([
+            f'<button type="button" class="range-tab{' active' if i == 0 else ''}" data-range="{key}">{label}</button>'
+            for i, (key, label) in enumerate(range_tabs)
+        ])
         return f'''
         <div class="trend-panel reveal mt-4 rounded-[28px] p-5 sm:p-6" data-trend-section="{section_key}">
           <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
@@ -1130,11 +1145,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
               <div class="trend-summary text-sm text-slate-600" data-selected-summary></div>
             </div>
             <div class="range-tabs flex flex-wrap gap-2" data-range-tabs>
-              <button type="button" class="range-tab active" data-range="1MONTH">1MONTH</button>
-              <button type="button" class="range-tab" data-range="7D">7D</button>
-              <button type="button" class="range-tab" data-range="14D">14D</button>
-              <button type="button" class="range-tab" data-range="1YEAR">1YEAR</button>
-              <button type="button" class="range-tab" data-range="2YEAR">2YEAR</button>
+              {range_btns}
             </div>
           </div>
           <div class="trend-svg-shell rounded-[24px] p-3 sm:p-4 relative">
@@ -1166,7 +1177,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "전일 핵심 퍼포먼스를 한 번에 비교할 수 있도록 카드 간 위계를 분리하고, 증감률은 즉시 눈에 들어오게 구성했습니다.",
         f'기준일 <b class="text-slate-900">{daily.get("date") or "-"}</b><br/>updated {daily.get("updated") or ""}',
         "#60a5fa",
-        f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{daily_tiles}</div>{trend_panel("daily", "Daily KPI Trend", "최근 일자 기준으로 카드 선택 KPI의 흐름을 보여줍니다.")}',
+        f'<div class="summary-kpi-grid summary-kpi-grid--five">{daily_tiles}</div>{trend_panel("daily", "Daily KPI Trend", "최근 일자 기준으로 카드 선택 KPI의 흐름을 보여줍니다.")}',
     )
 
     weekly_tiles = "".join([
@@ -1183,7 +1194,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "최근 7일 누적 흐름을 별도 톤으로 구분해 일간 카드와 헷갈리지 않도록 분리했습니다.",
         f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
         "#8b5cf6",
-        f'<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">{weekly_tiles}</div>{trend_panel("weekly", "Weekly KPI Trend", "주간 누적 추이를 기준으로 선택 KPI를 비교합니다.")}',
+        f'<div class="summary-kpi-grid summary-kpi-grid--five">{weekly_tiles}</div>{trend_panel("weekly", "Weekly KPI Trend", "주간 누적 추이를 기준으로 선택 KPI를 비교합니다.")}',
     )
 
     owned_block = section_shell(
@@ -1488,6 +1499,19 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     .chart-hint {{ display:inline-flex; align-items:center; justify-content:center; padding:.26rem .45rem; border-radius:999px; font-size:9px; font-weight:900; letter-spacing:.14em; color:#475569; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.9); }}
     .metric-card[data-chart-section], .channel-metric[data-chart-section] {{ cursor:pointer; }}
     .metric-card.active-chart, .channel-metric.active-chart {{ transform:translateY(-6px) scale(1.01); box-shadow:0 28px 64px rgba(15,23,42,.14); border-color:color-mix(in srgb, var(--accent, #94a3b8) 40%, white); }}
+    .summary-kpi-grid {{
+      display:grid;
+      gap:1rem;
+      grid-template-columns:repeat(1, minmax(0,1fr));
+      align-items:stretch;
+    }}
+    @media (min-width: 640px) {{
+      .summary-kpi-grid {{ grid-template-columns:repeat(2, minmax(0,1fr)); }}
+    }}
+    @media (min-width: 1280px) {{
+      .summary-kpi-grid--five {{ grid-template-columns:repeat(5, minmax(0,1fr)); }}
+    }}
+    .summary-kpi-grid > .metric-card {{ width:100%; min-width:0; height:100%; }}
     .trend-panel {{ background:linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.7)); border:1px solid rgba(255,255,255,.76); box-shadow:0 18px 48px rgba(15,23,42,.08); }}
     .trend-svg-shell {{ background:linear-gradient(180deg, rgba(248,250,252,.92), rgba(255,255,255,.88)); border:1px solid rgba(226,232,240,.9); box-shadow: inset 0 1px 0 rgba(255,255,255,.86); overflow:hidden; }}
     .trend-scroll {{ overflow-x:auto; overflow-y:hidden; padding-bottom:.25rem; }}
@@ -1503,7 +1527,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
   </style>
 </head>
 <body>
-  <div class="mx-auto max-w-[1820px] px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
+  <div class="w-full max-w-none px-3 sm:px-5 lg:px-6 2xl:px-8 py-5 sm:py-8">
     <header class="hero-shell reveal rounded-[36px] px-5 py-6 sm:px-7 sm:py-8 mb-7">
       <div class="hero-shimmer"></div>
       <div class="relative z-10 flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
