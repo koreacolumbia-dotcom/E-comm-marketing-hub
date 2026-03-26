@@ -636,6 +636,10 @@ jobs:
           HTML_SRC="reports/owned_portal/index_patched_owned_portal.html"
           HTML_DST="reports/owned_portal/index.html"
 
+          if [ ! -f "$HTML_SRC" ] && [ -f "reports/owned_portal/ index_patched_owned_portal.html" ]; then
+            HTML_SRC="reports/owned_portal/ index_patched_owned_portal.html"
+          fi
+
           if [ -f "$HTML_SRC" ]; then
             echo "[INFO] Applying OWNED HTML only: $HTML_SRC"
             cp -f "$HTML_SRC" "$HTML_DST"
