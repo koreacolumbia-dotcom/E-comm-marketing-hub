@@ -203,20 +203,30 @@ jobs:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASS }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          EMAIL_CC: ${{ secrets.EMAIL_CC }}
-          EMAIL_BCC: ${{ secrets.EMAIL_BCC }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DAILY_RECIPIENTS_PRIMARY: ${{ secrets.DAILY_RECIPIENTS }}
+          DAILY_RECIPIENTS_FALLBACK: ${{ secrets.EMAIL_TO }}
+          HUB_URL_SECRET: ${{ secrets.HUB_URL }}
+          HUB_URL_VAR: ${{ vars.HUB_URL }}
+          KST_STAMP: ${{ steps.set_time.outputs.kst }}
+          REPORT_DATE: ${{ steps.set_time.outputs.yesterday_ymd }}
+          DAILY_DIGEST_PNG_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.png
+          DAILY_DIGEST_HTML_PATH: reports/daily_digest/daily/${{ steps.set_time.outputs.yesterday_ymd }}.html
+          MODE_DAILY_ONLY: "false"
+          MODE_VOC_ONLY: "false"
+          MODE_BLOG_ONLY: "false"
         run: |
           set -euo pipefail
+
+          export DAILY_RECIPIENTS="${DAILY_RECIPIENTS_PRIMARY:-${DAILY_RECIPIENTS_FALLBACK:-}}"
+          export HUB_URL="${HUB_URL_SECRET:-${HUB_URL_VAR:-}}"
 
           if [ ! -f "scripts/send_daily_email.py" ]; then
             echo "[WARN] scripts/send_daily_email.py not found. skip email."
             exit 0
           fi
 
-          if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_PORT:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASSWORD:-}" ] || [ -z "${EMAIL_FROM:-}" ] || [ -z "${EMAIL_TO:-}" ]; then
+          if [ -z "${SMTP_HOST:-}" ] || [ -z "${SMTP_PORT:-}" ] || [ -z "${SMTP_USER:-}" ] || [ -z "${SMTP_PASS:-}" ] || [ -z "${DAILY_RECIPIENTS:-}" ]; then
             echo "[WARN] SMTP / email secrets missing. skip email."
             exit 0
           fi
