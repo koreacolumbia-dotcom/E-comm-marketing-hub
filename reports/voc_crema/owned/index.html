@@ -161,24 +161,26 @@
       align-items: center;
       justify-content: center;
       z-index: 20;
-      pointer-events: none;
       padding: 24px;
+      background: rgba(6,11,25,0.48);
+      backdrop-filter: blur(10px);
     }
     .ytd-loading-card{
-      min-width: 240px;
-      max-width: 360px;
-      border: 1px solid rgba(148,163,184,0.18);
-      background: rgba(255,255,255,0.95);
-      border-radius: 24px;
-      box-shadow: 0 24px 60px rgba(0,45,114,0.12);
-      padding: 18px 22px;
+      min-width: 280px;
+      max-width: 420px;
+      border: 1px solid rgba(148,163,184,0.24);
+      background:
+        radial-gradient(160px 120px at 15% 10%, rgba(59,130,246,0.28), transparent 70%),
+        linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.9));
+      border-radius: 26px;
+      box-shadow: 0 32px 80px rgba(2,6,23,0.34);
+      padding: 22px 24px;
       display:flex;
       flex-direction:column;
       align-items:center;
-      gap:10px;
+      gap:12px;
       text-align:center;
     }
-    .ytd-loading-overlay{ display:none !important; }
     .skeleton-zone{ position: relative; }
     .skeleton-card{ position: relative; overflow: hidden; }
     .skeleton-card::before{
@@ -237,23 +239,146 @@
     #ytdWrap{
       position: relative;
       overflow: hidden;
-      border-radius: 34px;
-      padding: 22px;
+      border-radius: 36px;
+      padding: 28px;
       background:
-        radial-gradient(1200px 380px at -10% -15%, rgba(59,130,246,0.14), transparent 60%),
-        radial-gradient(900px 340px at 110% 10%, rgba(249,115,22,0.12), transparent 55%),
-        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
-      border: 1px solid rgba(148,163,184,0.18);
-      box-shadow: 0 24px 80px rgba(15,23,42,0.08);
+        radial-gradient(920px 480px at -8% -10%, rgba(37,99,235,0.32), transparent 58%),
+        radial-gradient(840px 420px at 108% 4%, rgba(148,163,184,0.16), transparent 52%),
+        linear-gradient(180deg, #040816 0%, #08101e 48%, #0b1222 100%);
+      border: 1px solid rgba(148,163,184,0.16);
+      box-shadow: 0 34px 96px rgba(2,6,23,0.34);
     }
     #ytdWrap::before{
       content:'';
       position:absolute;
       inset:0;
       pointer-events:none;
-      background: linear-gradient(135deg, rgba(255,255,255,0.24), transparent 45%, rgba(255,255,255,0.12));
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.08), transparent 28%, transparent 72%, rgba(255,255,255,0.04)),
+        radial-gradient(480px 220px at 50% 0%, rgba(255,255,255,0.08), transparent 68%);
     }
-    #allCards, #ytdCards{ perspective: 1400px; }
+    #ytdWrap::after{
+      content:'';
+      position:absolute;
+      inset:auto -8% -22% auto;
+      width:420px;
+      height:420px;
+      border-radius:999px;
+      background: radial-gradient(circle at center, rgba(59,130,246,0.2), transparent 66%);
+      filter: blur(18px);
+      pointer-events:none;
+    }
+    .ytd-shell{
+      position:relative;
+      z-index:1;
+      display:grid;
+      gap:22px;
+    }
+    .ytd-hero{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:18px;
+      flex-wrap:wrap;
+      padding: 2px 2px 0;
+    }
+    .ytd-hero-copy{
+      max-width: 760px;
+      font-size: 14px;
+      line-height: 1.65;
+      font-weight: 700;
+      color: rgba(226,232,240,0.72);
+      margin-top: 10px;
+    }
+    .section-kicker{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.18);
+      background: rgba(15,23,42,0.34);
+      color: rgba(226,232,240,0.84);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      width: fit-content;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .ytd-stage{
+      position:relative;
+      overflow:hidden;
+      border-radius: 30px;
+      padding: 22px;
+    }
+    .ytd-stage::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent 42%, rgba(255,255,255,0.06));
+    }
+    .ytd-stage-summary{
+      border: 1px solid rgba(96,165,250,0.2);
+      background:
+        radial-gradient(520px 200px at 0% 0%, rgba(59,130,246,0.2), transparent 62%),
+        linear-gradient(180deg, rgba(10,18,38,0.82), rgba(12,24,52,0.72));
+      box-shadow: 0 24px 58px rgba(30,64,175,0.18);
+    }
+    .ytd-stage-channel{
+      border: 1px solid rgba(226,232,240,0.8);
+      background:
+        radial-gradient(520px 220px at 100% 0%, rgba(59,130,246,0.08), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.96));
+      box-shadow: 0 24px 60px rgba(15,23,42,0.14);
+    }
+    .ytd-panel-head{
+      position:relative;
+      z-index:1;
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+      margin-bottom:18px;
+    }
+    .ytd-panel-head h2{
+      margin:0;
+      font-size: clamp(1.55rem, 2vw, 2.08rem);
+      line-height: 1.02;
+      letter-spacing: -0.04em;
+      font-weight: 900;
+    }
+    .ytd-panel-copy{
+      max-width: 440px;
+      font-size: 13px;
+      line-height: 1.65;
+      font-weight: 700;
+    }
+    .ytd-stage-summary .ytd-panel-head h2{ color:#ffffff; }
+    .ytd-stage-summary .ytd-panel-copy{ color: rgba(226,232,240,0.74); }
+    .ytd-stage-channel .ytd-panel-head h2{ color:#0f172a; }
+    .ytd-stage-channel .ytd-panel-copy{ color:#64748b; }
+    #ytdLoadingOverlay .loading-title{
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: rgba(191,219,254,0.84);
+    }
+    #ytdLoadingOverlay .loading-text{
+      display:block;
+      font-size: 16px;
+      line-height: 1.5;
+      font-weight: 900;
+      color:#f8fafc;
+    }
+    #allCards, #ytdCards{
+      position:relative;
+      z-index:1;
+      perspective: 1400px;
+    }
     #allCards .kpi-card, #ytdCards .kpi-card{
       position: relative;
       overflow: hidden;
@@ -355,11 +480,27 @@
       0%{ opacity:0; transform: translateY(16px); filter: blur(6px); }
       100%{ opacity:1; transform: translateY(0); filter: blur(0); }
     }
+    .tab-switch-pulse{
+      animation: tabSwitchPulse .62s cubic-bezier(.22,1,.36,1);
+    }
+    .tab-surface-swap{
+      animation: tabSurfaceSwap .72s cubic-bezier(.22,1,.36,1);
+    }
+    @keyframes tabSwitchPulse{
+      0%{ transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59,130,246,0); }
+      45%{ transform: translateY(-3px) scale(1.04); box-shadow: 0 16px 30px rgba(59,130,246,0.18); }
+      100%{ transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59,130,246,0); }
+    }
+    @keyframes tabSurfaceSwap{
+      0%{ opacity:.76; transform: translateY(18px) scale(.988); filter: blur(10px); }
+      100%{ opacity:1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
     #allCards .kpi-card{
-      min-height: 146px;
-      border: 1px solid rgba(37,99,235,0.22);
-      background: linear-gradient(180deg, rgba(13,32,77,0.96), rgba(19,52,120,0.92));
-      box-shadow: 0 22px 44px rgba(19,52,120,0.24), inset 0 1px 0 rgba(255,255,255,0.08);
+      min-height: 154px;
+      border: 1px solid rgba(96,165,250,0.24);
+      background: linear-gradient(180deg, rgba(12,22,46,0.88), rgba(18,44,102,0.78));
+      box-shadow: 0 24px 52px rgba(30,64,175,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
+      backdrop-filter: blur(14px);
     }
     #allCards .kpi-card::after{
       background: radial-gradient(circle at center, rgba(96,165,250,.7), rgba(59,130,246,.18) 55%, transparent 70%);
@@ -367,7 +508,7 @@
     #allCards .kpi-title{ color: rgba(191,219,254,0.82); }
     #allCards .kpi-value{
       color:#ffffff;
-      font-size: 2.05rem;
+      font-size: 2.18rem;
       line-height: 1;
       letter-spacing:-0.04em;
       text-shadow: 0 8px 22px rgba(96,165,250,0.18);
@@ -375,33 +516,45 @@
     #allCards .kpi-sub{ color: rgba(219,234,254,0.82); }
     #allCards .kpi-card .kpi-sub:first-of-type{ font-weight: 900; }
 
-    #ytdCards .kpi-card{ min-height: 138px; }
+    #ytdCards .kpi-card{
+      min-height: 146px;
+      backdrop-filter: blur(12px);
+    }
     #ytdCards .kpi-card:nth-child(-n+4){
-      border: 1px solid rgba(249,115,22,0.28);
-      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,247,237,0.96));
-      box-shadow: 0 18px 38px rgba(249,115,22,0.12);
+      border: 1px solid rgba(59,130,246,0.16);
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(239,246,255,0.96));
+      box-shadow: 0 20px 46px rgba(37,99,235,0.12);
     }
     #ytdCards .kpi-card:nth-child(-n+4)::after{
-      background: radial-gradient(circle at center, rgba(251,146,60,.45), rgba(251,146,60,.12) 55%, transparent 70%);
+      background: radial-gradient(circle at center, rgba(96,165,250,.4), rgba(96,165,250,.12) 55%, transparent 70%);
     }
     #ytdCards .kpi-card:nth-child(n+5){
       border: 1px solid rgba(148,163,184,0.26);
-      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98));
-      box-shadow: 0 16px 34px rgba(15,23,42,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.94));
+      box-shadow: 0 16px 38px rgba(15,23,42,0.08);
     }
     #ytdCards .kpi-card:nth-child(n+5)::after{
       background: radial-gradient(circle at center, rgba(148,163,184,.32), rgba(203,213,225,.08) 55%, transparent 70%);
     }
     #ytdCards .kpi-card:nth-child(-n+4) .kpi-value{
-      font-size: 2.2rem;
+      font-size: 2.18rem;
       line-height: 1;
       letter-spacing:-0.05em;
-      color:#111827;
+      color:#08101f;
     }
     #ytdCards .kpi-card:nth-child(n+5) .kpi-value{
       font-size: 1.95rem;
       line-height: 1;
       color:#0f172a;
+    }
+    #ytdCards .kpi-card:nth-child(-n+4) .kpi-sub:first-of-type{ color:#2563eb; }
+    #ytdCards .kpi-card:nth-child(n+5) .kpi-sub:first-of-type{ color:#64748b; }
+    @media (max-width: 768px){
+      #ytdWrap{ padding: 20px; border-radius: 28px; }
+      .ytd-stage{ padding: 18px; border-radius: 24px; }
+      .ytd-panel-head h2{ font-size: 1.42rem; }
+      #allCards .kpi-value, #ytdCards .kpi-card:nth-child(-n+4) .kpi-value{ font-size: 1.92rem; }
+      #ytdCards .kpi-card:nth-child(n+5) .kpi-value{ font-size: 1.72rem; }
     }
 
     .kpi-pop-in{
@@ -665,16 +818,28 @@
         <div id="ytdLoadingOverlay" class="ytd-loading-overlay">
           <div class="ytd-loading-card">
             <div class="loading-spinner"></div>
-            <div class="loading-title">Loading</div>
-            <div id="ytdLoadingText" class="loading-text" style="display:none"></div>
+            <div class="loading-title">데이터 로딩중이에용</div>
+            <div id="ytdLoadingText" class="loading-text">데이터 로딩중이에용...</div>
           </div>
         </div>
-        <div class="flex items-center gap-3 mb-4">
-          <div id="ytdSummaryTitle" class="text-xl font-black tracking-tight">OWNED YTD YoY &#45572;&#51201; (ALL)</div>
-          <div class="toggle !py-1 !px-3">YTD</div>
-        </div>
-        <div id="ytdSummaryLabel" class="small-label mb-3">YTD YoY Summary &#45572;&#51201;</div>
-        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 skeleton-zone">
+        <div class="ytd-shell">
+          <div class="ytd-hero">
+            <div>
+              <div id="ytdSummaryLabel" class="section-kicker">ALL PERFORMANCE</div>
+              <div id="ytdSummaryTitle" class="text-[clamp(2.4rem,5vw,4.3rem)] font-black tracking-tight text-white mt-4">OWNED YTD 누적 허브</div>
+              <div class="ytd-hero-copy">전체 누적 흐름과 선택 채널 누적 KPI를 한 화면 안에서 또렷하게 나눠서 볼 수 있게 정리했어요. 위쪽은 전체 흐름, 아래쪽은 채널별 누적 비교에 집중합니다.</div>
+            </div>
+            <div class="toggle !py-1 !px-3">YTD</div>
+          </div>
+          <section id="allSummarySection" class="ytd-stage ytd-stage-summary">
+            <div class="ytd-panel-head">
+              <div>
+                <div class="section-kicker">TOTAL ACCUMULATION</div>
+                <h2 class="mt-4">전체 누적 KPI</h2>
+              </div>
+              <div class="ytd-panel-copy">ALL 기준 누적 send count, sessions, revenue, CVR을 한 번에 비교하고 YoY 흐름까지 빠르게 읽을 수 있는 영역입니다.</div>
+            </div>
+            <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 skeleton-zone">
           <div class="kpi-card">
             <div class="kpi-title">ALL 누적 Send count</div>
             <div id="allSendCount" class="kpi-value">-</div>
@@ -699,11 +864,17 @@
             <div id="allLeverageSub" class="kpi-sub">YoY -</div>
             <div id="allLeverageLy" class="kpi-sub">LY -</div>
           </div>
-        </div>
-        <div class="flex items-center gap-3 mt-5 mb-4">
-          <div id="ytdActualsTitle" class="text-xl font-black tracking-tight">YTD Actuals &#45572;&#51201; (EDM)</div>
-        </div>
-        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4 skeleton-zone">
+            </div>
+          </section>
+          <section id="channelActualsSection" class="ytd-stage ytd-stage-channel">
+            <div class="ytd-panel-head">
+              <div>
+                <div class="section-kicker">CHANNEL DEEP DIVE</div>
+                <h2 id="ytdActualsTitle" class="mt-4">채널 누적 KPI (EDM)</h2>
+              </div>
+              <div class="ytd-panel-copy">선택 채널의 TY와 LY 누적 성과를 카드 톤으로 나눠서 읽기 쉽게 구성했습니다. 위 4장은 현재 연도, 아래 4장은 전년 동일 기간입니다.</div>
+            </div>
+            <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 skeleton-zone">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -744,7 +915,9 @@
           <div id="ytdLyLeverage" class="kpi-value">-</div>
           <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
         </div>
-      </div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <!-- KPI (selection) -->
@@ -1230,11 +1403,17 @@
     return campaign.includes('KAKAO_CH_MENU') || term.includes('KAKAO_CH_MENU');
   }
 
+  function isKakaoMessageSendValue(v){
+    const value = String(v || '').trim().toUpperCase();
+    if(!value || value.includes('KAKAO_CH_MENU')) return false;
+    return value.includes('KAKAO_CH_MESSAGE_');
+  }
+
   function isKakaoCountableSendRow(r){
     const campaign = String((r && (r.campaign || '')) || '').trim().toUpperCase();
     const term = String((r && (r.term || '')) || '').trim().toUpperCase();
     if(isKakaoMenuRow(r)) return false;
-    return campaign.startsWith('KAKAO_CH_EVENT') && term.startsWith('KAKAO_CH_MESSAGE_');
+    return isKakaoMessageSendValue(campaign) || isKakaoMessageSendValue(term);
   }
 
   function isCountableSendRow(r){
@@ -1673,6 +1852,70 @@
       'LY \uB204\uC801 Revenue',
       'LY \uB204\uC801 Send count',
       'LY \uB204\uC801 CVR',
+    ];
+
+    allTitles.forEach((el, idx) => {
+      if(el && allTitleText[idx]) el.textContent = allTitleText[idx];
+    });
+    actualTitles.forEach((el, idx) => {
+      if(el && actualTitleText[idx]) el.textContent = actualTitleText[idx];
+    });
+  }
+
+  function getFriendlyYtdLoadingMessage(){
+    return '데이터 로딩중이에용...';
+  }
+
+  function showYtdLoading(msg){
+    ytdSkeletonArmed = true;
+    setSkeletonState(allCards, true);
+    setSkeletonState(ytdCards, true);
+    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'flex';
+    if(ytdLoadingText) ytdLoadingText.textContent = getFriendlyYtdLoadingMessage();
+  }
+
+  function hideYtdLoading(){
+    setSkeletonState(allCards, false);
+    setSkeletonState(ytdCards, false);
+    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
+    if(ytdLoadingText) ytdLoadingText.textContent = getFriendlyYtdLoadingMessage();
+    if(ytdSkeletonArmed){
+      animateKpiGroup(allCards, 0);
+      animateKpiGroup(ytdCards, 120);
+      ytdSkeletonArmed = false;
+    }
+  }
+
+  function primeYtdLoading(msg){
+    showYtdLoading(msg || getFriendlyYtdLoadingMessage());
+    if(allCards) allCards.style.visibility = 'visible';
+    if(ytdCards) ytdCards.style.visibility = 'visible';
+  }
+
+  function updateYtdLabels(){
+    const actualsChannel = getYtdChannelLabel(CHANNEL);
+    if(ytdSummaryTitle) ytdSummaryTitle.textContent = 'OWNED YTD 누적 허브';
+    if(ytdSummaryLabel) ytdSummaryLabel.textContent = 'ALL PERFORMANCE';
+    if(ytdActualsTitle) ytdActualsTitle.textContent = `${actualsChannel} 채널 누적 KPI`;
+
+    const allTitles = allCards ? Array.from(allCards.querySelectorAll('.kpi-title')) : [];
+    const actualTitles = ytdCards ? Array.from(ytdCards.querySelectorAll('.kpi-title')) : [];
+
+    const allTitleText = [
+      'ALL 누적 Send count',
+      'ALL 누적 Sessions',
+      'ALL 누적 Revenue',
+      'ALL 누적 CVR',
+    ];
+    const actualTitleText = [
+      'TY 누적 Sessions',
+      'TY 누적 Revenue',
+      'TY 누적 Send count',
+      'TY 누적 CVR',
+      'LY 누적 Sessions',
+      'LY 누적 Revenue',
+      'LY 누적 Send count',
+      'LY 누적 CVR',
     ];
 
     allTitles.forEach((el, idx) => {
@@ -2786,6 +3029,40 @@
       requestAnimationFrame(()=> card.classList.add('kpi-enter'));
     });
   }
+
+  function pulseActiveTabControl(el){
+    if(!el) return;
+    el.classList.remove('tab-switch-pulse');
+    void el.offsetWidth;
+    el.classList.add('tab-switch-pulse');
+  }
+
+  function animateTabSurfaceSwap(){
+    [
+      document.querySelector('#ytdWrap'),
+      document.querySelector('#kpiPanel'),
+      document.querySelector('#campaignArea'),
+      document.querySelector('#productsSection'),
+      document.querySelector('#analysisSection')
+    ].filter(Boolean).forEach((el, idx)=>{
+      el.classList.remove('tab-surface-swap');
+      el.style.animationDelay = `${idx * 55}ms`;
+      void el.offsetWidth;
+      el.classList.add('tab-surface-swap');
+    });
+  }
+
+  function finalizeAnimatedViewChange(){
+    refreshKpiMadness();
+    attachKpiTilt();
+    animateTabSurfaceSwap();
+    requestAnimationFrame(()=> runKpiEntranceOnce());
+    requestAnimationFrame(()=>{
+      pulseActiveTabControl(VIEW === 'DAILY' ? chipDaily : (VIEW === 'RANGE' ? chipRange : chipWeek));
+      pulseActiveTabControl(CHANNEL === 'EDM' ? chipEDM : (CHANNEL === 'LMS' ? chipLMS : chipKAKAO));
+    });
+  }
+
   function renderProducts(){
     if(!SELECTED || !RAW){
       tb.innerHTML = `<tr><td colspan="4" class="muted font-semibold">TERM 또는 날짜그룹을 선택하면 상품 리스트가 표시돼.</td></tr>`;
@@ -3093,10 +3370,72 @@
     return `${url}${sep}t=${encodeURIComponent(v)}`;
   }
 
+  function isLooseJsonBoundary(ch){
+    return !ch || /[\s,\]\}:]/.test(ch);
+  }
+
+  function sanitizeLooseJsonText(text){
+    let out = '';
+    let inString = false;
+    let escaped = false;
+
+    for(let i = 0; i < text.length; i++){
+      const ch = text[i];
+
+      if(inString){
+        out += ch;
+        if(escaped){
+          escaped = false;
+        }else if(ch === '\\'){
+          escaped = true;
+        }else if(ch === '"'){
+          inString = false;
+        }
+        continue;
+      }
+
+      if(ch === '"'){
+        inString = true;
+        out += ch;
+        continue;
+      }
+
+      const prev = text[i - 1];
+      if(text.startsWith('-Infinity', i) && isLooseJsonBoundary(prev) && isLooseJsonBoundary(text[i + 9])){
+        out += 'null';
+        i += 8;
+        continue;
+      }
+      if(text.startsWith('Infinity', i) && isLooseJsonBoundary(prev) && isLooseJsonBoundary(text[i + 8])){
+        out += 'null';
+        i += 7;
+        continue;
+      }
+      if(text.startsWith('NaN', i) && isLooseJsonBoundary(prev) && isLooseJsonBoundary(text[i + 3])){
+        out += 'null';
+        i += 2;
+        continue;
+      }
+
+      out += ch;
+    }
+
+    return out;
+  }
+
   async function fetchJsonDirect(url){
     const res = await fetch(url, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    const text = await res.text();
+    try{
+      return JSON.parse(text);
+    }catch(err){
+      const sanitized = sanitizeLooseJsonText(text);
+      if(sanitized !== text){
+        return JSON.parse(sanitized);
+      }
+      throw new Error(`JSON parse failed for ${url}: ${err.message}`);
+    }
   }
 
   async function resolveOwnedDataBase(){
