@@ -2915,7 +2915,7 @@
       const chunkSize = 10;
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
-        showLoading(`YTD 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+        showLoading(`데이터 로딩중이에용 ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
         const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
