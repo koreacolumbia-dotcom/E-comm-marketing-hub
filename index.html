@@ -6,529 +6,539 @@
   <title>CSK E-COMM | AUTOMATION MARKETING HUB</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
 
-    body{
+    :root {
+      --brand: #002d72;
+      --bg0: #f6f8fb;
+      --bg1: #eef3f9;
+    }
+
+    html, body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
       font-family: 'Plus Jakarta Sans', sans-serif;
-      color:#0f172a;
-      min-height:100vh;
-    }
-    .glass-card{
-      background: rgba(255,255,255,0.60);
-      backdrop-filter: blur(18px);
-      border: 1px solid rgba(255,255,255,0.75);
-      border-radius: 28px;
-      box-shadow: 0 20px 50px rgba(0,45,114,0.06);
-    }
-    .sidebar{
-      background: rgba(255,255,255,0.72);
-      backdrop-filter: blur(16px);
-      border-right: 1px solid rgba(255,255,255,0.85);
-    }
-    .nav-item{
-      border-radius: 18px;
-      padding: 14px 16px;
-      display:flex;
-      align-items:center;
-      gap:12px;
-      font-weight: 800;
-      transition: all .15s ease;
-      cursor:pointer;
-      user-select:none;
-    }
-    .nav-item.active{
-      background:#ffffff;
-      color: var(--brand);
-      box-shadow: 0 10px 20px rgba(0,45,114,0.06);
-    }
-    .nav-item:not(.active){
-      color: #94a3b8;
-    }
-    .nav-item:not(.active):hover{
-      background: rgba(255,255,255,0.55);
-      color:#334155;
+      color: #0f172a;
+      min-height: 100vh;
     }
 
-    .nav-section{ margin-top: 18px; }
-    .nav-section:first-child{ margin-top: 0; }
-    .nav-section-title{
+    .glass-card {
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      border-radius: 28px;
+      box-shadow: 0 20px 50px rgba(0, 45, 114, 0.06);
+    }
+
+    .sidebar {
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid rgba(255, 255, 255, 0.85);
+    }
+
+    .nav-item {
+      border-radius: 18px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      transition: all 0.15s ease;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .nav-item.active {
+      background: #ffffff;
+      color: var(--brand);
+      box-shadow: 0 10px 20px rgba(0, 45, 114, 0.06);
+    }
+
+    .nav-item:not(.active) {
+      color: #94a3b8;
+    }
+
+    .nav-item:not(.active):hover {
+      background: rgba(255, 255, 255, 0.55);
+      color: #334155;
+    }
+
+    .nav-item.disabled,
+    .mo-tab.disabled {
+      opacity: 0.68;
+    }
+
+    .nav-section {
+      margin-top: 18px;
+    }
+
+    .nav-section:first-child {
+      margin-top: 0;
+    }
+
+    .nav-section-title {
       font-size: 10px;
       font-weight: 900;
-      letter-spacing: .22em;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
       color: #94a3b8;
       padding: 0 10px;
       margin-bottom: 10px;
     }
-    .nav-divider{
+
+    .nav-divider {
       height: 1px;
-      background: rgba(148,163,184,0.22);
+      background: rgba(148, 163, 184, 0.22);
       margin: 14px 10px;
     }
-    .nav-item i{
+
+    .nav-item i {
       width: 18px;
       text-align: center;
       font-size: 14px;
-      opacity: .95;
+      opacity: 0.95;
     }
 
-    /* ===== Mobile Bottom Tab ===== */
-    .mo-tabbar{
-      background: rgba(255,255,255,0.82);
+    .mo-tabbar {
+      background: rgba(255, 255, 255, 0.82);
       backdrop-filter: blur(16px);
-      border-top: 1px solid rgba(255,255,255,0.85);
+      border-top: 1px solid rgba(255, 255, 255, 0.85);
     }
-    .mo-tab{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      gap:6px;
+
+    .mo-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       padding: 10px 8px;
       border-radius: 16px;
       font-weight: 900;
-      transition: all .15s ease;
-      color:#94a3b8;
-      user-select:none;
-      cursor:pointer;
+      transition: all 0.15s ease;
+      color: #94a3b8;
+      user-select: none;
+      cursor: pointer;
       white-space: nowrap;
     }
-    .mo-tab.active{
+
+    .mo-tab.active {
       color: var(--brand);
-      background: rgba(0,45,114,0.06);
+      background: rgba(0, 45, 114, 0.06);
     }
-    .safe-bottom{
+
+    .safe-bottom {
       padding-bottom: env(safe-area-inset-bottom);
     }
 
-    /* ===== Loading overlay (iframe) ===== */
-    .loading-overlay{
+    .loading-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(248,250,252,0.72);
+      background: rgba(248, 250, 252, 0.72);
       backdrop-filter: blur(8px);
       display: none;
       align-items: center;
       justify-content: center;
       z-index: 9999;
     }
-    .spinner{
+
+    .spinner {
       width: 42px;
       height: 42px;
       border-radius: 999px;
-      border: 4px solid rgba(0,0,0,0.10);
-      border-top-color: rgba(0,45,114,0.85);
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-top-color: rgba(0, 45, 114, 0.85);
       animation: spin 0.9s linear infinite;
     }
-    @keyframes spin{ to { transform: rotate(360deg); } }
-    .muted { color:#64748b; }
 
-    /* ??iframe 湲곕낯: ?대? ?ㅽ겕濡ㅼ쓣 留뚮뱾吏 ?딅룄濡?*/
-    #frame{ overflow:hidden; background:#fff; }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .muted {
+      color: #64748b;
+    }
+
+    #frame {
+      overflow: hidden;
+      background: #fff;
+      width: 100%;
+      min-height: 760px;
+    }
   </style>
 </head>
 
 <body class="flex">
+  <div class="loading-overlay" id="hub-loading" aria-live="polite" aria-busy="true">
+    <div class="glass-card px-6 py-5 flex items-center gap-4">
+      <div class="spinner"></div>
+      <div>
+        <div class="text-sm font-black">리포트 불러오는 중…</div>
+        <div class="text-xs font-semibold muted mt-1">잠시만 기다려 주세요</div>
+      </div>
+    </div>
+  </div>
 
-<!-- ??Loading overlay -->
-<div class="loading-overlay" id="hub-loading" aria-live="polite" aria-busy="true">
-  <div class="glass-card px-6 py-5 flex items-center gap-4">
-    <div class="spinner"></div>
+  <aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
+    <div class="flex items-center gap-4 mb-10 px-2">
+      <img
+        src="./Columbia_logo.png"
+        alt="Columbia"
+        class="w-14 h-14 object-contain"
+      />
+      <div>
+        <div class="text-xl font-black tracking-tight">
+          CSK <span class="text-blue-600">E-COMM</span>
+        </div>
+        <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">
+          AUTOMATION MARKETING HUB
+        </div>
+      </div>
+    </div>
+
     <div>
-      <div class="text-sm font-black">리포트 불러오는 중…</div>
-      <div class="text-xs font-semibold muted mt-1">?좎떆留뚯슂</div>
-    </div>
-  </div>
-</div>
+      <div class="nav-section">
+        <div class="nav-section-title">Overview</div>
+        <div class="space-y-3">
+          <div class="nav-item active" data-key="summary" data-target="__home__" data-label="Summary">
+            <i class="fa-solid fa-chart-simple"></i><span>Summary</span>
+          </div>
 
-<!-- ================= Sidebar (PC) ================= -->
-<aside class="w-72 h-screen sticky top-0 sidebar hidden lg:flex flex-col p-8">
+          <div class="nav-item disabled" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Digest">
+            <i class="fa-solid fa-calendar-day"></i><span>Daily Digest</span>
+          </div>
 
-  <!-- BRAND -->
-  <div class="flex items-center gap-4 mb-10 px-2">
-    <img
-      src="Columbia_logo.png"
-      alt="Columbia"
-      class="w-14 h-14 object-contain"
-    />
-    <div>
-      <div class="text-xl font-black tracking-tight">
-        CSK <span class="text-blue-600">E-COMM</span>
-      </div>
-      <div class="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400">
-        AUTOMATION MARKETING HUB
-      </div>
-    </div>
-  </div>
+          <div class="nav-item" data-key="funnel" data-target="reports/daily_digest/owned_funnel_tab.html" data-label="Funnel Analysis">
+            <i class="fa-solid fa-filter"></i><span>Funnel 분석</span>
+          </div>
 
-  <!-- NAV (PC) -->
-  <div>
+          <div class="nav-item disabled" data-key="searchtrends" data-target="reports/search_trends/index.html" data-label="Search Trends">
+            <i class="fa-solid fa-magnifying-glass-chart"></i><span>검색 트렌드</span>
+          </div>
 
-    <!-- OVERVIEW -->
-    <div class="nav-section">
-      <div class="nav-section-title">Overview</div>
-      <div class="space-y-3">
-        <div class="nav-item active" data-key="summary" data-target="reports/index.html" data-label="Summary">
-          <i class="fa-solid fa-chart-simple"></i><span>Summary</span>
-        </div>
-
-        <div class="nav-item" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Digest">
-          <i class="fa-solid fa-calendar-day"></i><span>Daily Digest</span>
-        </div>
-
-        <!-- ??NEW: OWNED Portal (EDM/LMS/KAKAO) -->
-        <div class="nav-item" data-key="funnel" data-target="reports/daily_digest/owned_funnel_tab.html" data-label="Funnel Analysis">
-          <i class="fa-solid fa-filter"></i><span>Funnel 遺꾩꽍</span>
-        </div>
-
-        <div class="nav-item" data-key="searchtrends" data-target="reports/search_trends/index.html" data-label="寃?됰웾 異붿씠">
-          <i class="fa-solid fa-magnifying-glass-chart"></i><span>寃?됰웾 異붿씠</span>
-        </div>
-
-        <div class="nav-item" data-key="owned" data-target="reports/owned_portal/index.html" data-label="OWNED Portal">
-          <i class="fa-solid fa-envelope"></i><span>OWNED MESSAGE</span>
+          <div class="nav-item disabled" data-key="owned" data-target="reports/owned_portal/index.html" data-label="Owned Message">
+            <i class="fa-solid fa-envelope"></i><span>OWNED MESSAGE</span>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="nav-divider"></div>
+      <div class="nav-divider"></div>
 
-    <!-- PRICE / COMPETITOR -->
-    <div class="nav-section">
-      <div class="nav-section-title">Price & Competitor</div>
-      <div class="space-y-3">
-        <div class="nav-item" data-key="price" data-target="reports/naver_lowest_price.html" data-label="?ㅼ씠踰?理쒖?媛">
-          <i class="fa-solid fa-won-sign"></i><span>?ㅼ씠踰?理쒖?媛</span>
+      <div class="nav-section">
+        <div class="nav-section-title">Price & Competitor</div>
+        <div class="space-y-3">
+          <div class="nav-item disabled" data-key="price" data-target="reports/naver_lowest_price.html" data-label="Naver Lowest Price">
+            <i class="fa-solid fa-won-sign"></i><span>네이버 최저가</span>
+          </div>
+
+          <div class="nav-item disabled" data-key="hero" data-target="reports/hero_main.html" data-label="Competitor Hero">
+            <i class="fa-solid fa-image"></i><span>경쟁사 기획전 배너</span>
+          </div>
         </div>
-        <div class="nav-item" data-key="hero" data-target="reports/hero_main.html" data-label="寃쎌웳??湲고쉷??諛곕꼫">
-          <i class="fa-solid fa-image"></i><span>寃쎌웳??湲고쉷??諛곕꼫</span>
+      </div>
+
+      <div class="nav-divider"></div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">VOC</div>
+        <div class="space-y-3">
+          <div class="nav-item disabled" data-key="voc" data-target="reports/external_signal.html" data-label="Community VOC">
+            <i class="fa-solid fa-tower-broadcast"></i><span>커뮤니티</span>
+          </div>
+
+          <div class="nav-item disabled" data-key="crema" data-target="reports/voc_crema/index.html" data-label="Review VOC">
+            <i class="fa-solid fa-comments"></i><span>구매 후기</span>
+          </div>
+
+          <div class="nav-item disabled" data-key="blogvoc" data-target="reports/voc_blog/index.html" data-label="Blog VOC">
+            <i class="fa-solid fa-pen-nib"></i><span>네이버 블로그</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="nav-divider"></div>
+    <div class="mt-auto pt-8 px-2">
+      <div class="glass-card p-4">
+        <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">Update</div>
 
-    <!-- VOC -->
-    <div class="nav-section">
-      <div class="nav-section-title">VOC</div>
-      <div class="space-y-3">
-        <div class="nav-item" data-key="voc" data-target="reports/external_signal.html" data-label="?붿떆?몄궗?대뱶 VOC">
-          <i class="fa-solid fa-tower-broadcast"></i><span>而ㅻ??덊떚</span>
-        </div>
+        <div class="mt-3 space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-[10px] font-extrabold text-slate-400">업데이트</div>
+            <div id="sb-updated-at" class="text-[11px] font-black text-slate-700 text-right">-</div>
+          </div>
 
-        <div class="nav-item" data-key="crema" data-target="reports/voc_crema/index.html" data-label="援щℓ?꾧린 VOC">
-          <i class="fa-solid fa-comments"></i><span>援щℓ?꾧린</span>
-        </div>
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-[10px] font-extrabold text-slate-400">기간</div>
+            <div id="sb-period" class="text-[11px] font-black text-slate-700 text-right">-</div>
+          </div>
 
-        <div class="nav-item" data-key="blogvoc" data-target="reports/voc_blog/index.html" data-label="?ㅼ씠踰?釉붾줈洹?VOC">
-          <i class="fa-solid fa-pen-nib"></i><span>네이버 블로그</span>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Sidebar Footer Meta -->
-  <div class="mt-auto pt-8 px-2">
-    <div class="glass-card p-4">
-      <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">Update</div>
-
-      <div class="mt-3 space-y-2">
-        <div class="flex items-center justify-between gap-3">
-          <div class="text-[10px] font-extrabold text-slate-400">?낅뜲?댄듃</div>
-          <div id="sb-updated-at" class="text-[11px] font-black text-slate-700 text-right">-</div>
-        </div>
-
-        <div class="flex items-center justify-between gap-3">
-          <div class="text-[10px] font-extrabold text-slate-400">湲곌컙</div>
-          <div id="sb-period" class="text-[11px] font-black text-slate-700 text-right">-</div>
-        </div>
-
-        <div class="text-[9px] text-slate-400 font-bold mt-2">
-          湲곗?: ?꾩옱 ??meta.json
+          <div class="text-[9px] text-slate-400 font-bold mt-2">
+            기준: 사용 가능한 로컬 HTML 기준
+          </div>
         </div>
       </div>
+
+      <div class="pt-4 text-[10px] text-slate-400 font-bold">
+        CSK E-COMM
+      </div>
     </div>
+  </aside>
 
-    <div class="pt-4 text-[10px] text-slate-400 font-bold">
-      짤 CSK E-COMM
+  <main class="flex-1 p-4 md:p-8 lg:p-10 pb-24 lg:pb-0">
+    <section class="glass-card p-3 md:p-4 lg:p-5">
+      <iframe
+        id="frame"
+        title="CSK E-COMM Report Viewer"
+        class="w-full rounded-2xl border-0 bg-white"
+        loading="eager">
+      </iframe>
+    </section>
+  </main>
+
+  <nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
+    <div class="max-w-2xl mx-auto grid grid-cols-5 gap-2">
+      <div class="mo-tab active" data-key="summary" data-target="__home__" data-label="Summary">
+        <i class="fa-solid fa-chart-simple text-base"></i>
+        <div class="text-[10px]">요약</div>
+      </div>
+
+      <div class="mo-tab disabled" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Digest">
+        <i class="fa-solid fa-calendar-day text-base"></i>
+        <div class="text-[10px]">데일리</div>
+      </div>
+
+      <div class="mo-tab" data-key="funnel" data-target="reports/daily_digest/owned_funnel_tab.html" data-label="Funnel Analysis">
+        <i class="fa-solid fa-filter text-base"></i>
+        <div class="text-[10px]">Funnel</div>
+      </div>
+
+      <div class="mo-tab disabled" data-key="owned" data-target="reports/owned_portal/index.html" data-label="Owned Message">
+        <i class="fa-solid fa-envelope text-base"></i>
+        <div class="text-[10px]">OWNED</div>
+      </div>
+
+      <div class="mo-tab disabled" data-key="voc" data-target="reports/external_signal.html" data-label="Community VOC">
+        <i class="fa-solid fa-comments text-base"></i>
+        <div class="text-[10px]">VOC</div>
+      </div>
     </div>
-  </div>
-</aside>
+  </nav>
 
-<!-- ================= Main ================= -->
-<!-- ???ㅻ뜑 ?쒓굅: iframe留??ш쾶 -->
-<main class="flex-1 p-4 md:p-8 lg:p-10 pb-24 lg:pb-0">
+  <script>
+    (function () {
+      const PROJECT_ROOT = "../OneDrive - Columbia Sportswear Company/문서/daily digest/";
+      const frame = document.getElementById("frame");
+      const pcItems = Array.from(document.querySelectorAll(".nav-item[data-target]"));
+      const moTabs = Array.from(document.querySelectorAll(".mo-tab[data-target]"));
+      const loading = document.getElementById("hub-loading");
+      const allNav = [...pcItems, ...moTabs];
 
-  <section class="glass-card p-3 md:p-4 lg:p-5">
-    <iframe
-      id="frame"
-      src="reports/index.html"
-      class="w-full rounded-2xl border-0 bg-white"
-      style="min-height: 760px;"
-      loading="eager">
-    </iframe>
-  </section>
+      const AVAILABLE_TARGETS = new Set([
+        "reports/daily_digest/owned_funnel_tab.html"
+      ]);
 
-</main>
-
-<!-- ================= Mobile Bottom Tabbar (MO) ================= -->
-<nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
-  <!-- ??7 -> 8 columns -->
-  <div class="max-w-2xl mx-auto grid grid-cols-9 gap-2">
-    <div class="mo-tab active" data-key="summary" data-target="reports/index.html" data-label="Summary">
-      <i class="fa-solid fa-chart-simple text-base"></i>
-      <div class="text-[10px]">?붿빟</div>
-    </div>
-
-    <div class="mo-tab" data-key="daily" data-target="reports/daily_digest/index.html" data-label="Daily Digest">
-      <i class="fa-solid fa-calendar-day text-base"></i>
-      <div class="text-[10px]">데일리</div>
-    </div>
-
-    <!-- ??NEW: OWNED Portal -->
-    <div class="mo-tab" data-key="funnel" data-target="reports/daily_digest/owned_funnel_tab.html" data-label="Funnel Analysis">
-      <i class="fa-solid fa-filter text-base"></i>
-      <div class="text-[10px]">Funnel</div>
-    </div>
-
-    <div class="mo-tab" data-key="searchtrends" data-target="reports/search_trends/index.html" data-label="寃?됰웾 異붿씠">
-      <i class="fa-solid fa-magnifying-glass-chart text-base"></i>
-      <div class="text-[10px]">寃?됰웾</div>
-    </div>
-
-    <div class="mo-tab" data-key="owned" data-target="reports/owned_portal/index.html" data-label="OWNED Portal">
-      <i class="fa-solid fa-envelope text-base"></i>
-      <div class="text-[10px]">OWNED</div>
-    </div>
-
-    <div class="mo-tab" data-key="price" data-target="reports/naver_lowest_price.html" data-label="?ㅼ씠踰?理쒖?媛">
-      <i class="fa-solid fa-won-sign text-base"></i>
-      <div class="text-[10px]">理쒖?媛</div>
-    </div>
-    <div class="mo-tab" data-key="hero" data-target="reports/hero_main.html" data-label="寃쎌웳??湲고쉷??諛곕꼫">
-      <i class="fa-solid fa-image text-base"></i>
-      <div class="text-[10px]">諛곕꼫</div>
-    </div>
-    <div class="mo-tab" data-key="voc" data-target="reports/external_signal.html" data-label="?붿떆?몄궗?대뱶 VOC">
-      <i class="fa-solid fa-tower-broadcast text-base"></i>
-      <div class="text-[10px]">而ㅻ?</div>
-    </div>
-    <div class="mo-tab" data-key="crema" data-target="reports/voc_crema/index.html" data-label="援щℓ?꾧린 VOC">
-      <i class="fa-solid fa-comments text-base"></i>
-      <div class="text-[10px]">?꾧린</div>
-    </div>
-    <div class="mo-tab" data-key="blogvoc" data-target="reports/voc_blog/index.html" data-label="?ㅼ씠踰?釉붾줈洹?VOC">
-      <i class="fa-solid fa-pen-nib text-base"></i>
-      <div class="text-[10px]">블로그</div>
-    </div>
-  </div>
-</nav>
-
-<script>
-  (function () {
-    const frame = document.getElementById("frame");
-    const pcItems = Array.from(document.querySelectorAll(".nav-item[data-target]"));
-    const moTabs  = Array.from(document.querySelectorAll(".mo-tab[data-target]"));
-    const loading = document.getElementById("hub-loading");
-
-    const allNav = [...pcItems, ...moTabs];
-    if (!frame || allNav.length === 0) return;
-
-    const META_PATH_BY_KEY = {
-      summary: "reports/meta.json",
-      daily:   "reports/meta.json",
-      owned:   "reports/owned_portal/data/meta.json",   // ??NEW
-      searchtrends: "reports/search_trends/data/meta.json",
-      price:   "reports/meta.json",
-      hero:    "reports/meta.json",
-      voc:     "reports/meta.json",
-      crema:   "reports/voc_crema/data/meta.json",
-      blogvoc: "reports/voc_blog/data/meta.json",
-    };
-
-    const showLoading = (on) => {
-      if (!loading) return;
-      loading.style.display = on ? "flex" : "none";
-    };
-
-    function toAbsHref(relativePath) {
-      try { return new URL(relativePath, window.location.href).href; }
-      catch (e) { return relativePath; }
-    }
-
-    function setActiveByTarget(target) {
-      allNav.forEach(el => el.classList.remove("active"));
-      const matches = allNav.filter(el => el.getAttribute("data-target") === target);
-      matches.forEach(el => el.classList.add("active"));
-    }
-
-    function setActiveByKey(key) {
-      allNav.forEach(el => el.classList.remove("active"));
-      const matches = allNav.filter(el => (el.getAttribute("data-key") || "") === key);
-      matches.forEach(el => el.classList.add("active"));
-    }
-
-    function getKeyByTarget(target) {
-      const el = allNav.find(x => x.getAttribute("data-target") === target);
-      return el ? (el.getAttribute("data-key") || "") : "";
-    }
-
-    function pad2(n){ return String(n).padStart(2, "0"); }
-    function fmtKST(d){
-      const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-      const kst = new Date(utc + (9 * 60 * 60000));
-      return `${kst.getFullYear()}.${pad2(kst.getMonth()+1)}.${pad2(kst.getDate())} ${pad2(kst.getHours())}:${pad2(kst.getMinutes())} KST`;
-    }
-    function fmtD(d){
-      return `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())}`;
-    }
-
-    function fmtYMD(d){
-      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-    }
-
-    function kstNowDate(){
-      const now = new Date();
-      const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-      return new Date(utc + (9 * 60 * 60000));
-    }
-
-    async function headExists(relativePath) {
-      try {
-        const res = await fetch(toAbsHref(relativePath) + `?t=${Date.now()}`, { method: "HEAD", cache: "no-store" });
-        return res.ok;
-      } catch (e) {
-        return false;
-      }
-    }
-
-    async function resolveLatestDailyDigestTarget(maxScanDays = 30) {
-      const base = kstNowDate();
-      for (let offset = 1; offset <= maxScanDays; offset += 1) {
-        const cand = new Date(base);
-        cand.setDate(cand.getDate() - offset);
-        const target = `reports/daily_digest/daily/${fmtYMD(cand)}.html`;
-        if (await headExists(target)) return target;
-      }
-      return "reports/daily_digest/index.html";
-    }
-
-    async function setSidebarMetaByKey(key) {
-      const elUpdated = document.getElementById("sb-updated-at");
-      const elPeriod  = document.getElementById("sb-period");
-      if (!elUpdated || !elPeriod) return;
-
-      const metaPath = META_PATH_BY_KEY[key] || "reports/meta.json";
-      try {
-        const res = await fetch(metaPath + `?t=${Date.now()}`, { cache: "no-store" });
-        if (!res.ok) throw new Error("meta.json not found");
-        const meta = await res.json();
-        elUpdated.textContent = meta.updated_at_kst || "-";
-        elPeriod.textContent  = meta.period_text || "-";
-      } catch (e) {
-        const now = new Date();
-        elUpdated.textContent = fmtKST(now);
-
-        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-        const kst = new Date(utc + (9 * 60 * 60000));
-        const end = new Date(kst);
-        const start = new Date(kst); start.setDate(start.getDate()-6);
-        elPeriod.textContent = `理쒓렐 7??(${fmtD(start)} ~ ${fmtD(end)})`;
-      }
-    }
-
-    // ???듭떖: iframe ?대? ?ㅽ겕濡??쒓굅 + iframe ?믪씠瑜??대? 臾몄꽌 ?믪씠濡?留욎땄
-    function resizeIframeToContent() {
-      try {
-        const doc = frame.contentDocument || frame.contentWindow.document;
-        if (!doc) return;
-
-        doc.documentElement.style.overflow = "hidden";
-        doc.body.style.overflow = "hidden";
-        doc.body.style.margin = "0";
-
-        const h = Math.max(
-          doc.body.scrollHeight,
-          doc.documentElement.scrollHeight,
-          doc.body.offsetHeight,
-          doc.documentElement.offsetHeight
-        );
-
-        frame.style.height = (h + 12) + "px";
-      } catch (e) {
-        console.warn("iframe resize blocked", e);
-      }
-    }
-
-    async function navigate(target) {
-      if (!target) return;
-      const key = getKeyByTarget(target);
-      let resolvedTarget = target;
-
-      if (key === "daily" && target === "reports/daily_digest/index.html") {
-        resolvedTarget = await resolveLatestDailyDigestTarget();
-      }
-
-      showLoading(true);
-
-      const onLoadOnce = () => {
-        showLoading(false);
-        frame.removeEventListener("load", onLoadOnce);
-
-        resizeIframeToContent();
-        setTimeout(resizeIframeToContent, 250);
-        setTimeout(resizeIframeToContent, 900);
+      const META_PATH_BY_KEY = {
+        funnel: "reports/daily_digest/data/meta.json"
       };
-      frame.addEventListener("load", onLoadOnce);
 
-      frame.src = toAbsHref(resolvedTarget);
-      if (key) setActiveByKey(key);
-      else setActiveByTarget(target);
-
-      if (key) window.location.hash = key;
-      setSidebarMetaByKey(key);
-    }
-
-    allNav.forEach(el => {
-      el.addEventListener("click", () => navigate(el.getAttribute("data-target")));
-    });
-
-    function initialNavigate() {
-      const hashKey = (window.location.hash || "").replace("#", "").trim();
-      if (hashKey) {
-        const el = allNav.find(x => x.getAttribute("data-key") === hashKey);
-        if (el) { navigate(el.getAttribute("data-target")); return; }
+      function showLoading(on) {
+        if (!loading) return;
+        loading.style.display = on ? "flex" : "none";
       }
-      navigate(frame.getAttribute("src"));
-    }
-    initialNavigate();
 
-    window.addEventListener("message", (event) => {
-      try {
-        const data = event && event.data ? event.data : null;
-        if (!data || data.type !== "dailyDigestResize") return;
-        const nextHeight = Number(data.height || 0);
-        if (Number.isFinite(nextHeight) && nextHeight > 200) {
-          frame.style.height = (nextHeight + 16) + "px";
-          setTimeout(resizeIframeToContent, 80);
+      function resolveProjectUrl(relativePath) {
+        return new URL(relativePath, new URL(PROJECT_ROOT, window.location.href)).href;
+      }
+
+      function setActiveByKey(key) {
+        allNav.forEach((el) => el.classList.remove("active"));
+        allNav
+          .filter((el) => (el.getAttribute("data-key") || "") === key)
+          .forEach((el) => el.classList.add("active"));
+      }
+
+      function getKeyByTarget(target) {
+        const match = allNav.find((el) => el.getAttribute("data-target") === target);
+        return match ? (match.getAttribute("data-key") || "") : "";
+      }
+
+      function pad2(n) {
+        return String(n).padStart(2, "0");
+      }
+
+      function fmtKST(d) {
+        const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+        const kst = new Date(utc + (9 * 60 * 60000));
+        return kst.getFullYear() + "." + pad2(kst.getMonth() + 1) + "." + pad2(kst.getDate()) + " " + pad2(kst.getHours()) + ":" + pad2(kst.getMinutes()) + " KST";
+      }
+
+      function fmtD(d) {
+        return d.getFullYear() + "." + pad2(d.getMonth() + 1) + "." + pad2(d.getDate());
+      }
+
+      function setSidebarMeta(key) {
+        const elUpdated = document.getElementById("sb-updated-at");
+        const elPeriod = document.getElementById("sb-period");
+        if (!elUpdated || !elPeriod) return;
+
+        const now = new Date();
+        const end = new Date(now);
+        const start = new Date(now);
+        start.setDate(start.getDate() - 6);
+
+        elUpdated.textContent = fmtKST(now);
+        elPeriod.textContent = "최근 7일 (" + fmtD(start) + " ~ " + fmtD(end) + ")";
+
+        const metaPath = META_PATH_BY_KEY[key];
+        if (!metaPath || window.location.protocol === "file:") return;
+
+        fetch(resolveProjectUrl(metaPath) + "?t=" + Date.now(), { cache: "no-store" })
+          .then((res) => {
+            if (!res.ok) throw new Error("meta.json not found");
+            return res.json();
+          })
+          .then((meta) => {
+            elUpdated.textContent = meta.updated_at_kst || elUpdated.textContent;
+            elPeriod.textContent = meta.period_text || elPeriod.textContent;
+          })
+          .catch(() => {});
+      }
+
+      function renderInlineDoc(title, body, note) {
+        const escapedTitle = title
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        const escapedBody = body
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        const escapedNote = note
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+
+        frame.removeAttribute("src");
+        frame.srcdoc =
+          "<!doctype html><html lang=\"ko\"><head><meta charset=\"UTF-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />" +
+          "<script src=\"https://cdn.tailwindcss.com\"><\/script>" +
+          "<style>body{margin:0;background:linear-gradient(180deg,#ffffff,#f8fafc);font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a} .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px} .card{max-width:760px;width:100%;border:1px solid rgba(148,163,184,.22);background:rgba(255,255,255,.9);border-radius:28px;box-shadow:0 24px 60px rgba(15,23,42,.08);padding:32px} .eyebrow{font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#64748b} h1{font-size:28px;line-height:1.15;font-weight:900;margin:12px 0 10px} p{font-size:15px;line-height:1.7;color:#334155;margin:0} .note{margin-top:18px;padding:14px 16px;border-radius:18px;background:#eff6ff;border:1px solid #bfdbfe;font-size:13px;font-weight:700;color:#1e3a8a}</style></head>" +
+          "<body><div class=\"wrap\"><div class=\"card\"><div class=\"eyebrow\">CSK E-COMM HUB</div><h1>" + escapedTitle + "</h1><p>" + escapedBody + "</p><div class=\"note\">" + escapedNote + "</div></div></div></body></html>";
+      }
+
+      function resizeIframeToContent() {
+        try {
+          const doc = frame.contentDocument || frame.contentWindow.document;
+          if (!doc) return;
+          doc.documentElement.style.overflow = "hidden";
+          doc.body.style.overflow = "hidden";
+          doc.body.style.margin = "0";
+
+          const nextHeight = Math.max(
+            doc.body.scrollHeight,
+            doc.documentElement.scrollHeight,
+            doc.body.offsetHeight,
+            doc.documentElement.offsetHeight,
+            760
+          );
+
+          frame.style.height = (nextHeight + 12) + "px";
+        } catch (error) {
+          frame.style.height = "760px";
         }
-      } catch (e) {
-        console.warn("iframe message resize blocked", e);
       }
-    });
 
-    window.addEventListener("resize", () => {
-      resizeIframeToContent();
-      setTimeout(resizeIframeToContent, 120);
-    });
-  })();
-</script>
+      function navigate(target) {
+        if (!target) return;
 
+        const key = getKeyByTarget(target);
+        setActiveByKey(key);
+        window.location.hash = key;
+        setSidebarMeta(key);
+
+        if (target === "__home__") {
+          renderInlineDoc(
+            "허브 화면을 정리했습니다.",
+            "깨진 한글과 잘못된 링크를 복구했고, 현재 이 환경에서 실제로 열 수 있는 리포트만 연결해 두었습니다.",
+            "지금 바로 확인 가능한 메뉴는 Funnel 분석입니다. 나머지 메뉴는 연결된 HTML 파일이 아직 이 로컬 폴더에 없습니다."
+          );
+          resizeIframeToContent();
+          return;
+        }
+
+        if (!AVAILABLE_TARGETS.has(target)) {
+          renderInlineDoc(
+            "이 메뉴는 아직 로컬 파일이 없습니다.",
+            "메뉴 자체는 살려 두었지만, 연결된 리포트 HTML이 현재 프로젝트 폴더에 없어서 빈 화면 대신 안내 카드로 대체했습니다.",
+            "필요한 파일이 생성되면 이 메뉴를 같은 경로에 연결해서 바로 열 수 있습니다: " + target
+          );
+          resizeIframeToContent();
+          return;
+        }
+
+        showLoading(true);
+        frame.removeAttribute("srcdoc");
+
+        const onLoadOnce = function () {
+          showLoading(false);
+          frame.removeEventListener("load", onLoadOnce);
+          resizeIframeToContent();
+          setTimeout(resizeIframeToContent, 250);
+          setTimeout(resizeIframeToContent, 900);
+        };
+
+        frame.addEventListener("load", onLoadOnce);
+        frame.src = resolveProjectUrl(target);
+      }
+
+      allNav.forEach((el) => {
+        el.addEventListener("click", function () {
+          navigate(el.getAttribute("data-target"));
+        });
+      });
+
+      function initialNavigate() {
+        const hashKey = (window.location.hash || "").replace("#", "").trim();
+        if (hashKey) {
+          const match = allNav.find((el) => (el.getAttribute("data-key") || "") === hashKey);
+          if (match) {
+            navigate(match.getAttribute("data-target"));
+            return;
+          }
+        }
+
+        navigate("__home__");
+      }
+
+      initialNavigate();
+
+      window.addEventListener("message", function (event) {
+        try {
+          const data = event && event.data ? event.data : null;
+          if (!data || data.type !== "dailyDigestResize") return;
+          const nextHeight = Number(data.height || 0);
+          if (Number.isFinite(nextHeight) && nextHeight > 200) {
+            frame.style.height = (nextHeight + 16) + "px";
+            setTimeout(resizeIframeToContent, 80);
+          }
+        } catch (error) {
+          frame.style.height = frame.style.height || "760px";
+        }
+      });
+
+      window.addEventListener("resize", function () {
+        resizeIframeToContent();
+        setTimeout(resizeIframeToContent, 120);
+      });
+    })();
+  </script>
 </body>
 </html>
