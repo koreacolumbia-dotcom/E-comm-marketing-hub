@@ -436,8 +436,16 @@ def spark_svg(
     pad_l=36, pad_r=10, pad_t=10, pad_b=22,
     stroke="#0055a5",
 ) -> str:
+    ys = [float(v) for v in (ys or [0.0])]
+    if not xlabels:
+        xlabels = ["--"] * len(ys)
+    elif len(xlabels) < len(ys):
+        xlabels = list(xlabels) + ["--"] * (len(ys) - len(xlabels))
+    elif len(xlabels) > len(ys):
+        xlabels = list(xlabels[:len(ys)])
+
     n = len(xlabels)
-    y_min, y_max = min(ys), max(ys) if ys else (0.0, 1.0)
+    y_min, y_max = min(ys), max(ys)
     if y_max == y_min:
         y_max += 1
     span = y_max - y_min
@@ -1658,6 +1666,7 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
                     'itemCategory': f"{c1} · {sub_label}",
                     'views_d1': float(d1),
                     'views_avg7d': float(avg7),
+                    'ys': list(ys),
                     'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
                 })
 
@@ -1668,12 +1677,12 @@ def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dic
                     "itemCategory": r["itemCategory"],
                     "views_d1": r["views_d1"],
                     "views_avg7d": r["views_avg7d"],
-                    "ys": []
+                    "ys": r["ys"]
                 } for r in rows
             ]
         }
 
-        return pd.DataFrame(rows), pdp_series
+        return pd.DataFrame(rows)[["itemCategory", "views_d1", "views_avg7d", "trend_svg"]], pdp_series
 
     except Exception as e:
         print(f"[WARN] PDP Category Trend BigQuery failed: {type(e).__name__}: {e}")
@@ -2240,7 +2249,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     bs_base = pd.DataFrame(bundle.get("best_sellers", []))
     bs_series = bundle.get("best_sellers_series", {"x": [], "items": []})
     x = bs_series.get("x", [])
-    items_map = {it.get("itemId"): it.get("ys", [0.0]*7) for it in bs_series.get("items", []) if it.get("itemId")}
+    items_map = {it.get("itemId"): (it.get("ys") or [0.0] * max(len(x), 7)) for it in bs_series.get("items", []) if it.get("itemId")}
     bs_trend_svgs = []
     for _, r in bs_base.iterrows():
         sku = str(r.get("itemId", "")).strip()
@@ -2259,7 +2268,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     pdp_series = bundle.get("pdp_series", {"x": [], "rows": []})
     pdp_rows = []
     for row in pdp_series.get("rows", []):
-        ys = row.get("ys", [0.0]*7)
+        ys = row.get("ys") or [0.0] * max(len(pdp_series.get("x", [])), 7)
         pdp_rows.append({
             "itemCategory": row.get("itemCategory", ""),
             "views_d1": row.get("views_d1", 0.0),
@@ -3012,4 +3021,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
