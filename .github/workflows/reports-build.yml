@@ -608,14 +608,14 @@ jobs:
               --site-dir reports/owned_portal
           fi
 
+          test -d reports/owned_portal/data/owned || { echo "[ERROR] reports/owned_portal/data/owned missing after build"; exit 1; }
+          test -f reports/owned_portal/data/owned/available_dates.json || { echo "[ERROR] available_dates.json missing after build"; exit 1; }
+
           python - <<'PY'
           import json
           from pathlib import Path
 
           p = Path("reports/owned_portal/data/owned/available_dates.json")
-          if not p.exists():
-              raise SystemExit("[ERROR] available_dates.json missing")
-
           data = json.load(p.open("r", encoding="utf-8"))
           if not isinstance(data, list) or not data:
               raise SystemExit("[ERROR] available_dates.json is empty or invalid")
@@ -633,6 +633,19 @@ jobs:
           print(f"[OK] available_dates={len(data)} latest={latest} campaigns={len(daily.get('campaigns', []))}")
           PY
 
+          if [ -f "index_patched_owned_portal.html" ]; then
+            echo "[INFO] Applying OWNED HTML: index_patched_owned_portal.html"
+            cp -f index_patched_owned_portal.html reports/owned_portal/index.html
+          elif [ -f "index.html" ]; then
+            echo "[INFO] Applying OWNED HTML fallback: index.html"
+            cp -f index.html reports/owned_portal/index.html
+          else
+            echo "[ERROR] OWNED portal HTML source not found (index_patched_owned_portal.html or index.html)"
+            exit 1
+          fi
+
+          test -f reports/owned_portal/index.html || { echo "[ERROR] reports/owned_portal/index.html missing after build"; exit 1; }
+
           echo "[INFO] Owned outputs:"
           ls -la reports/owned_portal || true
           ls -la reports/owned_portal/data/owned | head -n 120 || true
@@ -646,7 +659,7 @@ jobs:
           YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
         run: |
           set -euo pipefail
-          mkdir -p reports/owned_portal reports/owned_portal/data/owned site/owned site/data/owned/data
+          mkdir -p reports/owned_portal reports/owned_portal/data
           CNT="0"
           P="reports/owned_portal/data/owned/available_dates.json"
           if [ -f "$P" ]; then
