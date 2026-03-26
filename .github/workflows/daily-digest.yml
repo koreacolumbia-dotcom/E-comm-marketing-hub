@@ -123,7 +123,6 @@ jobs:
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       - name: Build Daily Digest (Hub upload)
-        continue-on-error: true
         shell: bash
         env:
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
@@ -133,6 +132,7 @@ jobs:
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
           DAILY_DIGEST_SKIP_HUB_WRITE: "false"
+          DAILY_DIGEST_FORCE_HUB_OVERWRITE: "true"
           DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
           META_APP_ID: ${{ secrets.META_APP_ID }}
@@ -153,12 +153,12 @@ jobs:
           set -euo pipefail
 
           if [ -z "${GA4_PROPERTY_ID:-}" ]; then
-            echo "[WARN] GA4_PROPERTY_ID is empty. skip."
-            exit 0
+            echo "[ERROR] GA4_PROPERTY_ID is empty."
+            exit 1
           fi
           if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
-            echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip."
-            exit 0
+            echo "[ERROR] GOOGLE_SA_JSON_B64 is empty."
+            exit 1
           fi
 
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
@@ -172,6 +172,9 @@ jobs:
                 "reports/daily_digest/weekly/END_${YMD}.html" \
                 "reports/daily_digest/data/weekly/END_${YMD}.json" || true
 
+          # 허브도 항상 새로 쓰게 유도
+          rm -f "reports/daily_digest/index.html" || true
+
           echo "[INFO] Build mode: ${{ steps.modes.outputs.mode_label }}"
           echo "[INFO] Build only: ${YMD}"
           export GA4_START_DATE="${YMD}"
@@ -184,6 +187,14 @@ jobs:
           ls -la reports/daily_digest/weekly | tail -n 40 || true
           ls -la reports/daily_digest/data/daily | tail -n 40 || true
           ls -la reports/daily_digest/data/weekly | tail -n 40 || true
+          ls -la reports/daily_digest | tail -n 40 || true
+
+          echo "[INFO] Validate required outputs"
+          test -f "reports/daily_digest/daily/${YMD}.html"
+          test -f "reports/daily_digest/data/daily/${YMD}.json"
+          test -f "reports/daily_digest/weekly/END_${YMD}.html"
+          test -f "reports/daily_digest/data/weekly/END_${YMD}.json"
+          test -f "reports/daily_digest/index.html"
 
       - name: Send Daily Digest Email
         if: ${{ steps.modes.outputs.send_email == 'true' }}
