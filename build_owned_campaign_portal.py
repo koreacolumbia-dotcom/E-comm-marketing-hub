@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -745,9 +746,41 @@ def ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
 
 
+def sanitize_for_json(value: Any) -> Any:
+    if value is None:
+        return None
+
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+
+    if isinstance(value, (list, tuple)):
+        return [sanitize_for_json(v) for v in value]
+
+    if isinstance(value, dict):
+        return {str(k): sanitize_for_json(v) for k, v in value.items()}
+
+    if hasattr(value, "item"):
+        try:
+            return sanitize_for_json(value.item())
+        except Exception:
+            pass
+
+    return value
+
+
 def write_json(p: Path, obj: Any) -> None:
     ensure_dir(p.parent)
-    p.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    safe_obj = sanitize_for_json(obj)
+    p.write_text(
+        json.dumps(safe_obj, ensure_ascii=False, indent=2, allow_nan=False),
+        encoding="utf-8",
+    )
 
 
 def list_owned_dates(owned_dir: Path) -> List[str]:
