@@ -3583,7 +3583,7 @@ def export_portal(
       if (label) {{
         label.textContent = visible === cards.length
           ? '전체 결과를 표시 중입니다.'
-          : `현재 ${visible.toLocaleString()}건을 표시 중입니다.`;
+          : `현재 ${{visible.toLocaleString()}}건을 표시 중입니다.`;
       }}
       const empty = document.querySelector(`.filter-empty[data-platform="${{platform}}"]`);
       if (empty) empty.classList.toggle('hidden', visible !== 0);
