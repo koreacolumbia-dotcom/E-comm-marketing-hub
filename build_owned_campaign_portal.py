@@ -145,6 +145,18 @@ def is_generic_send_token(value: Any) -> bool:
     return bool(re.fullmatch(r"(?:EDM|EMAIL|LMS|SMS|KAKAO)(?:_[A-Z]+)?", s))
 
 
+def is_kakao_menu_value(value: Any) -> bool:
+    s = str(value or "").strip().upper()
+    return "KAKAO_CH_MENU" in s
+
+
+def is_kakao_message_group_candidate(value: Any) -> bool:
+    s = str(value or "").strip().upper()
+    if not s or is_kakao_menu_value(s):
+        return False
+    return "KAKAO_CH_MESSAGE_" in s
+
+
 def resolve_row_grouping_fields(row: pd.Series) -> tuple[str, str, bool, str]:
     raw_date = str(row.get("date", "") or "")
     channel = str(row.get("channel", "") or "").strip().upper()
@@ -169,7 +181,11 @@ def resolve_row_grouping_fields(row: pd.Series) -> tuple[str, str, bool, str]:
     if term and term != "-":
         candidates.append(term)
 
-    year, mmdd, has_group = extract_group_year_mmdd(*candidates, fallback_date=raw_date)
+    if channel == "KAKAO":
+        kakao_group_candidates = [v for v in [campaign, term] if is_kakao_message_group_candidate(v)]
+        year, mmdd, has_group = extract_group_year_mmdd(*kakao_group_candidates, fallback_date=raw_date)
+    else:
+        year, mmdd, has_group = extract_group_year_mmdd(*candidates, fallback_date=raw_date)
 
     resolved_send_id = send_id
     if (not resolved_send_id) or is_generic_send_token(resolved_send_id):
@@ -190,9 +206,11 @@ def is_countable_send_row(row: pd.Series) -> bool:
     campaign = str(row.get("campaign", "") or "").strip().upper()
     term = str(row.get("term", "") or "").strip().upper()
 
-    # KAKAO send count only includes event campaigns whose term starts with
-    # KAKAO_CH_MESSAGE_<date>. Menu campaigns must never be counted.
-    return campaign.startswith("KAKAO_CH_EVENT") and term.startswith("KAKAO_CH_MESSAGE_")
+    # KAKAO send count / MMDD grouping only includes rows where campaign or
+    # term contains KAKAO_CH_MESSAGE_<date>. Menu campaigns must never count.
+    if is_kakao_menu_value(campaign) or is_kakao_menu_value(term):
+        return False
+    return is_kakao_message_group_candidate(campaign) or is_kakao_message_group_candidate(term)
 
 
 def apply_send_group_metrics(camp: pd.DataFrame) -> pd.DataFrame:
