@@ -9,17 +9,28 @@
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }
   
-    .toolbar-card{background:rgba(255,255,255,0.88);border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05)}
+    .toolbar-card{background:rgba(255,255,255,0.88);border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05);transition:transform .28s ease,box-shadow .28s ease}
+    .toolbar-card:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(15,23,42,0.08)}
     .toolbar-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .toolbar-label{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
-    .toolbar-chip{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;color:#0f172a}
+    .toolbar-chip{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;color:#0f172a;transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
     .toolbar-chip.active{background:#0f172a;color:#fff;border-color:#0f172a}
-    .toolbar-btn{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a}
+    .toolbar-chip:hover,.toolbar-btn:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(15,23,42,0.08)}
+    .toolbar-btn{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
     .toolbar-btn.primary{background:#002d72;color:#fff;border-color:#002d72}
-    .toolbar-input{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;min-width:160px}
-    .compare-frame{width:100%;border:0;border-radius:18px;min-height:2600px;background:transparent}
+    .toolbar-input{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;min-width:160px;transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease}
+    .toolbar-input:focus{outline:none;border-color:rgba(0,45,114,0.42);box-shadow:0 0 0 4px rgba(0,45,114,0.08);transform:translateY(-1px)}
+    .compare-frame{width:100%;border:0;border-radius:18px;min-height:2600px;background:transparent;opacity:0;transform:translateY(18px) scale(.985);transition:opacity .4s ease,transform .4s ease}
+    .compare-frame.ready{opacity:1;transform:translateY(0) scale(1)}
     .compare-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
     @media (min-width:1280px){.compare-grid.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+    .anim-target{opacity:0;transform:translateY(22px) scale(.985)}
+    .page-ready .anim-target{animation:card-rise .72s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:var(--stagger,0ms)}
+    .page-ready .toolbar-card.anim-target{animation-name:toolbar-rise}
+    .page-transition-out .anim-target,.page-transition-out #primaryReport,.page-transition-out #compareReportWrap{animation:page-out .24s ease forwards !important}
+    @keyframes card-rise{0%{opacity:0;transform:translateY(22px) scale(.985)}60%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes toolbar-rise{0%{opacity:0;transform:translateY(16px) scale(.99)}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes page-out{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(14px) scale(.992)}}
     
   </style>
 </head>
@@ -304,7 +315,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Mid/Heavy Down</div>
-                <div class="text-xs text-slate-500">D1 12 · 7D Avg 265</div>
+                <div class="text-xs text-slate-500">D1 12 · 7D Avg 254</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -313,10 +324,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,13.7 71.7,15.0 107.3,30.3 143.0,30.5 178.7,39.8 214.3,42.6 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,13.7 71.7,15.0 107.3,30.3 143.0,30.5 178.7,39.8 214.3,42.6 250.0,44.3"/>
-      <circle cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='15.0' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='30.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='30.5' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='39.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='42.6' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>590</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>301</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>12</text>
+      <polygon points="36.0,48.0 36.0,13.7 71.7,14.7 107.3,30.1 143.0,30.1 178.7,39.7 214.3,42.5 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,13.7 71.7,14.7 107.3,30.1 143.0,30.1 178.7,39.7 214.3,42.5 250.0,44.3"/>
+      <circle cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='14.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='30.1' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='30.1' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='39.7' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='42.5' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>557</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>284</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>12</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/08</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/14</text>
     </svg>
     </div>
@@ -346,7 +357,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">OUTER · Rain</div>
-                <div class="text-xs text-slate-500">D1 1,710 · 7D Avg 2,161</div>
+                <div class="text-xs text-slate-500">D1 1,695 · 7D Avg 2,138</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -355,10 +366,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,23.7 71.7,13.7 107.3,29.9 143.0,34.4 178.7,33.1 214.3,27.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,23.7 71.7,13.7 107.3,29.9 143.0,34.4 178.7,33.1 214.3,27.7 250.0,44.3"/>
-      <circle cx='36.0' cy='23.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='29.9' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='34.4' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='33.1' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='27.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2645</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>2178</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1710</text>
+      <polygon points="36.0,48.0 36.0,24.7 71.7,13.7 107.3,29.7 143.0,34.0 178.7,33.1 214.3,27.4 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,24.7 71.7,13.7 107.3,29.7 143.0,34.0 178.7,33.1 214.3,27.4 250.0,44.3"/>
+      <circle cx='36.0' cy='24.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='29.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='34.0' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='33.1' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='27.4' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>2614</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>2154</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1695</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/08</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/14</text>
     </svg>
     </div>
@@ -472,7 +483,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">PANTS · Pants</div>
-                <div class="text-xs text-slate-500">D1 693 · 7D Avg 801</div>
+                <div class="text-xs text-slate-500">D1 687 · 7D Avg 794</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -481,10 +492,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,22.7 71.7,25.7 107.3,16.3 143.0,29.9 178.7,25.7 214.3,13.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,22.7 71.7,25.7 107.3,16.3 143.0,29.9 178.7,25.7 214.3,13.7 250.0,44.3"/>
-      <circle cx='36.0' cy='22.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='25.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='16.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='29.9' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='25.7' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>869</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>781</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>693</text>
+      <polygon points="36.0,48.0 36.0,23.0 71.7,25.8 107.3,17.1 143.0,30.8 178.7,26.0 214.3,13.7 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,23.0 71.7,25.8 107.3,17.1 143.0,30.8 178.7,26.0 214.3,13.7 250.0,44.3"/>
+      <circle cx='36.0' cy='23.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='25.8' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='17.1' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='30.8' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='26.0' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>864</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>776</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>687</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/08</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/14</text>
     </svg>
     </div>
@@ -493,7 +504,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Boots</div>
-                <div class="text-xs text-slate-500">D1 78 · 7D Avg 52</div>
+                <div class="text-xs text-slate-500">D1 79 · 7D Avg 52</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -502,10 +513,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,44.3 71.7,36.1 107.3,27.9 143.0,41.3 178.7,36.8 214.3,32.4 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,36.1 107.3,27.9 143.0,41.3 178.7,36.8 214.3,32.4 250.0,13.7"/>
-      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='36.1' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='27.9' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='41.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='36.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='32.4' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>78</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>58</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>37</text>
+      <polygon points="36.0,48.0 36.0,44.3 71.7,36.3 107.3,28.3 143.0,41.4 178.7,37.0 214.3,31.9 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,36.3 107.3,28.3 143.0,41.4 178.7,37.0 214.3,31.9 250.0,13.7"/>
+      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='36.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='28.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='41.4' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='37.0' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='31.9' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>79</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>58</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>37</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/08</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/14</text>
     </svg>
     </div>
@@ -535,7 +546,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Hiking</div>
-                <div class="text-xs text-slate-500">D1 2,634 · 7D Avg 2,414</div>
+                <div class="text-xs text-slate-500">D1 2,624 · 7D Avg 2,404</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -544,10 +555,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,44.3 71.7,35.2 107.3,35.2 143.0,35.0 178.7,38.5 214.3,13.7 250.0,26.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,35.2 107.3,35.2 143.0,35.0 178.7,38.5 214.3,13.7 250.0,26.3"/>
-      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='35.2' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='35.2' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='35.0' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='38.5' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='26.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>3069</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>2539</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>2009</text>
+      <polygon points="36.0,48.0 36.0,44.3 71.7,35.2 107.3,35.1 143.0,34.8 178.7,38.4 214.3,13.7 250.0,26.2 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,35.2 107.3,35.1 143.0,34.8 178.7,38.4 214.3,13.7 250.0,26.2"/>
+      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='35.2' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='35.1' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='34.8' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='38.4' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='26.2' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>3058</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>2526</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1994</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/08</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/14</text>
     </svg>
     </div>
@@ -556,7 +567,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">FOOTWEAR · Sneakers</div>
-                <div class="text-xs text-slate-500">D1 615 · 7D Avg 428</div>
+                <div class="text-xs text-slate-500">D1 625 · 7D Avg 434</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -565,10 +576,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,37.0 71.7,41.5 107.3,42.2 143.0,33.7 178.7,44.3 214.3,20.9 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,37.0 71.7,41.5 107.3,42.2 143.0,33.7 178.7,44.3 214.3,20.9 250.0,13.7"/>
-      <circle cx='36.0' cy='37.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='41.5' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='42.2' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='33.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='20.9' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>615</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>469</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>323</text>
+      <polygon points="36.0,48.0 36.0,37.4 71.7,41.9 107.3,42.4 143.0,34.2 178.7,44.3 214.3,21.5 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,37.4 71.7,41.9 107.3,42.4 143.0,34.2 178.7,44.3 214.3,21.5 250.0,13.7"/>
+      <circle cx='36.0' cy='37.4' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='41.9' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='42.4' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='34.2' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='21.5' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>625</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>478</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>332</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/08</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/11</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>03/14</text>
     </svg>
     </div>
@@ -651,6 +662,7 @@
     const compareGrid = document.getElementById("compareGrid");
     const compareWrap = document.getElementById("compareReportWrap");
     const compareFrame = document.getElementById("compareFrame");
+    const primaryReport = document.getElementById("primaryReport");
     const modeDaily = document.getElementById("modeDaily");
     const modeWeekly = document.getElementById("modeWeekly");
     const aDate = document.getElementById("aDate");
@@ -714,6 +726,28 @@
         if (h > 0) compareFrame.style.height = `${h + 12}px`;
       } catch (e) {}
     }
+    function applyEntryAnimation() {
+      const targets = [];
+      if (toolbar) targets.push(toolbar);
+      if (primaryReport) {
+        Array.from(primaryReport.children).forEach((el) => {
+          if (el && el.nodeType === 1) targets.push(el);
+        });
+      }
+      targets.forEach((el, idx) => {
+        el.classList.add("anim-target");
+        el.style.setProperty("--stagger", `${idx * 70}ms`);
+      });
+      requestAnimationFrame(() => document.body.classList.add("page-ready"));
+    }
+    function startTransitionAndGo(url) {
+      if (!url) return;
+      if (document.body.classList.contains("page-transition-out")) return;
+      document.body.classList.add("page-transition-out");
+      window.setTimeout(() => {
+        window.location.href = url;
+      }, 210);
+    }
     function setMode(nextMode) {
       mode = nextMode;
       modeDaily.classList.toggle("active", mode === "daily");
@@ -727,12 +761,13 @@
       compareGrid.classList.toggle("dual", compareOn);
     }
     function goCurrent(dateStr) {
-      window.location.href = buildReportUrl(mode, dateStr, false);
+      startTransitionAndGo(buildReportUrl(mode, dateStr, false));
     }
     function openCompare() {
       const dateStr = String(bDate.value || "").trim();
       if (!dateStr) return;
       setCompare(true);
+      compareFrame.classList.remove("ready");
       compareFrame.src = buildReportUrl(mode, dateStr, true);
     }
 
@@ -745,12 +780,14 @@
       resizeCompareFrame();
       setTimeout(resizeCompareFrame, 300);
       setTimeout(resizeCompareFrame, 900);
+      compareFrame.classList.add("ready");
     });
 
     setMode(CURRENT_MODE);
     aDate.value = CURRENT_DATE;
     bDate.value = "2025-03-07";
     setCompare(false);
+    applyEntryAnimation();
 
     modeDaily && modeDaily.addEventListener("click", () => {
       setMode("daily");
