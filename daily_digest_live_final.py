@@ -2481,7 +2481,7 @@ def render_page_html(
 })();
 </script>"""
 
-    return f"""<!doctype html>
+    html = f"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -2609,6 +2609,207 @@ def render_page_html(
 </body>
 </html>
 """
+    return inject_report_toolbar(html, w)
+
+
+def inject_report_toolbar(html: str, w: WindowSpec) -> str:
+    toolbar_css = """
+    .toolbar-card{background:rgba(255,255,255,0.88);border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05)}
+    .toolbar-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .toolbar-label{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
+    .toolbar-chip{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;color:#0f172a}
+    .toolbar-chip.active{background:#0f172a;color:#fff;border-color:#0f172a}
+    .toolbar-btn{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a}
+    .toolbar-btn.primary{background:#002d72;color:#fff;border-color:#002d72}
+    .toolbar-input{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;min-width:160px}
+    .compare-frame{width:100%;border:0;border-radius:18px;min-height:2600px;background:transparent}
+    .compare-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+    @media (min-width:1280px){.compare-grid.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+    """
+    toolbar_html = f"""
+    <div id="reportToolbar" class="toolbar-card">
+      <div class="toolbar-row">
+        <div class="toolbar-label">Mode</div>
+        <button id="modeDaily" class="toolbar-chip{' active' if w.mode == 'daily' else ''}" type="button">Daily</button>
+        <button id="modeWeekly" class="toolbar-chip{' active' if w.mode == 'weekly' else ''}" type="button">Weekly (7D)</button>
+        <div class="toolbar-label">Date</div>
+        <input id="aDate" class="toolbar-input" type="date" value="{ymd(w.end_date)}" />
+        <button id="btnPrev" class="toolbar-btn" type="button">이전</button>
+        <button id="btnNext" class="toolbar-btn" type="button">다음</button>
+        <button id="btnYesterday" class="toolbar-btn" type="button">어제</button>
+        <button id="btnToday" class="toolbar-btn" type="button">오늘(있으면)</button>
+      </div>
+      <div class="toolbar-row" style="margin-top:12px;">
+        <div class="toolbar-label">Compare</div>
+        <button id="btnCompareToggle" class="toolbar-chip" type="button">비교 OFF</button>
+        <button id="btnPresetPrev" class="toolbar-btn" type="button">전기준</button>
+        <button id="btnPresetYoY" class="toolbar-btn" type="button">YoY</button>
+        <input id="bDate" class="toolbar-input" type="date" value="{ymd(w.prev_end)}" />
+        <button id="btnCompareGo" class="toolbar-btn primary" type="button">비교하기</button>
+      </div>
+    </div>
+    <div id="compareGrid" class="compare-grid" style="margin-top:16px;">
+      <div id="primaryReport">
+    """
+    compare_tail = """
+      </div>
+      <div id="compareReportWrap" class="hidden">
+        <div class="mb-2 text-xs font-extrabold tracking-widest text-slate-500 uppercase">Compare Report</div>
+        <iframe id="compareFrame" class="compare-frame" loading="eager" scrolling="no"></iframe>
+      </div>
+    </div>
+    """
+    toolbar_script = f"""
+  <script>
+  (() => {{
+    const EMBED = new URLSearchParams(window.location.search).get("embed") === "1";
+    const CURRENT_MODE = {json.dumps(w.mode)};
+    const CURRENT_DATE = {json.dumps(ymd(w.end_date))};
+    const toolbar = document.getElementById("reportToolbar");
+    const compareGrid = document.getElementById("compareGrid");
+    const compareWrap = document.getElementById("compareReportWrap");
+    const compareFrame = document.getElementById("compareFrame");
+    const modeDaily = document.getElementById("modeDaily");
+    const modeWeekly = document.getElementById("modeWeekly");
+    const aDate = document.getElementById("aDate");
+    const bDate = document.getElementById("bDate");
+    const btnPrev = document.getElementById("btnPrev");
+    const btnNext = document.getElementById("btnNext");
+    const btnYesterday = document.getElementById("btnYesterday");
+    const btnToday = document.getElementById("btnToday");
+    const btnCompareToggle = document.getElementById("btnCompareToggle");
+    const btnPresetPrev = document.getElementById("btnPresetPrev");
+    const btnPresetYoY = document.getElementById("btnPresetYoY");
+    const btnCompareGo = document.getElementById("btnCompareGo");
+    let mode = CURRENT_MODE;
+    let compareOn = false;
+
+    function fmtYMD(d) {{
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${{y}}-${{m}}-${{dd}}`;
+    }}
+    function parseYMD(s) {{
+      const [y, m, d] = String(s || "").split("-").map(Number);
+      return new Date(y, (m || 1) - 1, d || 1);
+    }}
+    function addDays(d, n) {{
+      const x = new Date(d);
+      x.setDate(x.getDate() + n);
+      return x;
+    }}
+    function kstNowDate() {{
+      const now = new Date();
+      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+      return new Date(utc + 9 * 60 * 60000);
+    }}
+    function stepDays() {{ return mode === "weekly" ? 7 : 1; }}
+    function buildReportUrl(nextMode, dateStr, embed) {{
+      const base = nextMode === "daily" ? `../daily/${{dateStr}}.html` : `../weekly/END_${{dateStr}}.html`;
+      return embed ? `${{base}}?embed=1` : base;
+    }}
+    function buildCachePath(nextMode, dateStr) {{
+      return nextMode === "daily" ? `../data/daily/${{dateStr}}.json` : `../data/weekly/END_${{dateStr}}.json`;
+    }}
+    async function yoyEndFor(dateStr) {{
+      try {{
+        const res = await fetch(buildCachePath(mode, dateStr) + `?t=${{Date.now()}}`, {{ cache: "no-store" }});
+        if (!res.ok) throw new Error("no cache");
+        const j = await res.json();
+        const y = j && j.yoy && j.yoy.end ? String(j.yoy.end) : "";
+        if (!y) throw new Error("no yoy.end");
+        return y;
+      }} catch (e) {{
+        return fmtYMD(addDays(parseYMD(dateStr), -364));
+      }}
+    }}
+    function resizeCompareFrame() {{
+      try {{
+        const doc = compareFrame.contentDocument || compareFrame.contentWindow.document;
+        if (!doc) return;
+        const h = Math.max(doc.body ? doc.body.scrollHeight : 0, doc.documentElement ? doc.documentElement.scrollHeight : 0);
+        if (h > 0) compareFrame.style.height = `${{h + 12}}px`;
+      }} catch (e) {{}}
+    }}
+    function setMode(nextMode) {{
+      mode = nextMode;
+      modeDaily.classList.toggle("active", mode === "daily");
+      modeWeekly.classList.toggle("active", mode === "weekly");
+    }}
+    function setCompare(on) {{
+      compareOn = !!on;
+      btnCompareToggle.textContent = compareOn ? "비교 ON" : "비교 OFF";
+      btnCompareToggle.classList.toggle("active", compareOn);
+      compareWrap.classList.toggle("hidden", !compareOn);
+      compareGrid.classList.toggle("dual", compareOn);
+    }}
+    function goCurrent(dateStr) {{
+      window.location.href = buildReportUrl(mode, dateStr, false);
+    }}
+    function openCompare() {{
+      const dateStr = String(bDate.value || "").trim();
+      if (!dateStr) return;
+      setCompare(true);
+      compareFrame.src = buildReportUrl(mode, dateStr, true);
+    }}
+
+    if (EMBED) {{
+      if (toolbar) toolbar.remove();
+      return;
+    }}
+
+    compareFrame && compareFrame.addEventListener("load", () => {{
+      resizeCompareFrame();
+      setTimeout(resizeCompareFrame, 300);
+      setTimeout(resizeCompareFrame, 900);
+    }});
+
+    setMode(CURRENT_MODE);
+    aDate.value = CURRENT_DATE;
+    bDate.value = {json.dumps(ymd(w.prev_end))};
+    setCompare(false);
+
+    modeDaily && modeDaily.addEventListener("click", () => {{
+      setMode("daily");
+      goCurrent(aDate.value || CURRENT_DATE);
+    }});
+    modeWeekly && modeWeekly.addEventListener("click", () => {{
+      setMode("weekly");
+      goCurrent(aDate.value || CURRENT_DATE);
+    }});
+    btnPrev && btnPrev.addEventListener("click", () => goCurrent(fmtYMD(addDays(parseYMD(aDate.value || CURRENT_DATE), -stepDays()))));
+    btnNext && btnNext.addEventListener("click", () => goCurrent(fmtYMD(addDays(parseYMD(aDate.value || CURRENT_DATE), stepDays()))));
+    btnYesterday && btnYesterday.addEventListener("click", () => goCurrent(fmtYMD(addDays(kstNowDate(), -1))));
+    btnToday && btnToday.addEventListener("click", () => goCurrent(fmtYMD(kstNowDate())));
+    aDate && aDate.addEventListener("change", () => {{
+      if (aDate.value) goCurrent(aDate.value);
+    }});
+    btnCompareToggle && btnCompareToggle.addEventListener("click", () => setCompare(!compareOn));
+    btnPresetPrev && btnPresetPrev.addEventListener("click", () => {{
+      bDate.value = fmtYMD(addDays(parseYMD(aDate.value || CURRENT_DATE), -stepDays()));
+      openCompare();
+    }});
+    btnPresetYoY && btnPresetYoY.addEventListener("click", async () => {{
+      bDate.value = await yoyEndFor(aDate.value || CURRENT_DATE);
+      openCompare();
+    }});
+    btnCompareGo && btnCompareGo.addEventListener("click", openCompare);
+  }})();
+  </script>
+    """
+
+    html = html.replace("</style>", toolbar_css + "\n  </style>", 1)
+    html = html.replace('<div class="mx-auto max-w-7xl p-6">', '<div class="mx-auto max-w-7xl p-6">' + toolbar_html, 1)
+    html = re.sub(
+        r'\s*<div class="flex items-center gap-2">\s*<a href="[^"]*" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>\s*</div>',
+        '',
+        html,
+        count=1,
+    )
+    html = html.replace("\n  </div>\n\n  <script>", "\n" + compare_tail + "\n  </div>\n\n  <script>", 1)
+    html = html.replace("</body>", toolbar_script + "\n</body>", 1)
+    return html
 
 
 # =========================
