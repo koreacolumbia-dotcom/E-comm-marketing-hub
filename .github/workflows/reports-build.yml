@@ -634,13 +634,10 @@ jobs:
           PY
 
           if [ -f "index_patched_owned_portal.html" ]; then
-            echo "[INFO] Applying OWNED HTML: index_patched_owned_portal.html"
+            echo "[INFO] Applying OWNED HTML only: index_patched_owned_portal.html"
             cp -f index_patched_owned_portal.html reports/owned_portal/index.html
-          elif [ -f "index.html" ]; then
-            echo "[INFO] Applying OWNED HTML fallback: index.html"
-            cp -f index.html reports/owned_portal/index.html
           else
-            echo "[ERROR] OWNED portal HTML source not found (index_patched_owned_portal.html or index.html)"
+            echo "[ERROR] Required OWNED HTML source missing: index_patched_owned_portal.html"
             exit 1
           fi
 
@@ -674,16 +671,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "[INFO] Publish OWNED portal"
           mkdir -p site/data/owned site/owned
-          test -d reports/owned_portal/data/owned || { echo "[ERROR] reports/owned_portal/data/owned missing"; exit 1; }
-          test -f reports/owned_portal/data/owned/available_dates.json || { echo "[ERROR] available_dates.json missing before publish"; exit 1; }
-          rsync -a --delete reports/owned_portal/data/owned/ site/data/owned/
+
+          if [ -d "reports/owned_portal/data/owned" ]; then
+            echo "[OK] found owned data dir"
+            rsync -a --delete reports/owned_portal/data/owned/ site/data/owned/
+          else
+            echo "[ERROR] reports/owned_portal/data/owned missing"
+            exit 1
+          fi
+
           if [ -f "reports/owned_portal/data/meta.json" ]; then
             cp -f reports/owned_portal/data/meta.json site/data/owned/meta.json
           fi
-          test -f reports/owned_portal/index.html || { echo "[ERROR] reports/owned_portal/index.html missing before publish"; exit 1; }
-          cp -f reports/owned_portal/index.html site/owned/index.html
+
+          if [ -f "reports/owned_portal/index.html" ]; then
+            echo "[OK] found owned html"
+            cp -f reports/owned_portal/index.html site/owned/index.html
+          else
+            echo "[ERROR] reports/owned_portal/index.html missing"
+            exit 1
+          fi
+
           test -f site/owned/index.html || { echo "[ERROR] site/owned/index.html missing after publish"; exit 1; }
+
+          echo "[INFO] Published OWNED outputs:"
+          ls -la site/owned || true
+          ls -la site/data/owned | head -n 50 || true
 
       - name: Build Funnel Analysis assets (seed once, then incremental)
         if: ${{ steps.modes.outputs.run_owned == 'true' || steps.modes.outputs.run_funnel == 'true' }}
