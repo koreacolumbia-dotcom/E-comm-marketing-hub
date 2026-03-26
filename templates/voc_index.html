@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOC Dashboard | Official Mall Reviews</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    :root{
+      --brand:#0d3b8e;--brand-strong:#062859;--ink:#0f172a;--muted:#64748b;
+      --line:rgba(255,255,255,.78);--glass:rgba(255,255,255,.68);--shadow:0 28px 80px rgba(13,59,142,.12);
+      --bg-a:#f4f7fc;--bg-b:#edf3fb;--bg-c:#dfeaf8;
+    }
+    *{box-sizing:border-box} html,body{min-height:100%}
+    body{
+      margin:0;color:var(--ink);font-family:"Pretendard","Plus Jakarta Sans",sans-serif;overflow-x:hidden;
+      background:
+        radial-gradient(circle at 10% 15%, rgba(37,99,235,.14), transparent 26%),
+        radial-gradient(circle at 88% 10%, rgba(14,165,233,.12), transparent 24%),
+        radial-gradient(circle at 82% 82%, rgba(59,130,246,.1), transparent 28%),
+        linear-gradient(180deg,var(--bg-a) 0%,var(--bg-b) 52%,var(--bg-c) 100%);
+    }
+    body::before,body::after{
+      content:"";position:fixed;width:32rem;height:32rem;border-radius:9999px;filter:blur(40px);opacity:.32;pointer-events:none;z-index:0;
+      animation:floatOrb 14s ease-in-out infinite;
+    }
+    body::before{top:-10rem;right:-8rem;background:linear-gradient(135deg,rgba(13,59,142,.4),rgba(56,189,248,.1))}
+    body::after{bottom:-12rem;left:-10rem;background:linear-gradient(135deg,rgba(125,211,252,.24),rgba(13,59,142,.18));animation-delay:-6s}
+    @keyframes floatOrb{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(0,-16px,0) scale(1.06)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes shimmer{0%{transform:translateX(-120%)}100%{transform:translateX(180%)}}
+    @keyframes revealUp{from{opacity:0;transform:translate3d(0,26px,0) scale(.985)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+    @keyframes pulseSoft{0%,100%{box-shadow:0 0 0 0 rgba(13,59,142,0)}50%{box-shadow:0 0 0 8px rgba(13,59,142,.06)}}
+    .shell{position:relative;z-index:1}
+    .hero-card,.glass-card,.summary-card,.review-card,.ml-detail-card,.list-panel{
+      background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--line);box-shadow:var(--shadow)
+    }
+    .hero-card{
+      position:relative;overflow:hidden;border-radius:36px;padding:28px;
+      background:linear-gradient(135deg,rgba(255,255,255,.86),rgba(244,249,255,.64)),linear-gradient(135deg,rgba(13,59,142,.08),transparent 56%)
+    }
+    .hero-card::after{
+      content:"";position:absolute;inset:0 auto 0 -24%;width:28%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.46),transparent);
+      transform:skewX(-18deg);animation:shimmer 7s ease-in-out infinite;pointer-events:none
+    }
+    .hero-badge,.meta-pill,.chip,.ghost-chip,.tab-chip,.badge{
+      display:inline-flex;align-items:center;gap:8px;border-radius:9999px;font-weight:900
+    }
+    .hero-badge{
+      padding:10px 14px;background:rgba(255,255,255,.88);color:var(--brand);border:1px solid rgba(13,59,142,.1);font-size:12px;letter-spacing:.16em;text-transform:uppercase
+    }
+    .meta-pill{
+      padding:9px 12px;background:rgba(255,255,255,.74);border:1px solid rgba(255,255,255,.92);color:var(--muted);font-size:12px
+    }
+    .glass-card{border-radius:32px;padding:28px;transition:transform .35s ease,box-shadow .35s ease,border-color .35s ease}
+    .glass-card:hover{transform:translateY(-3px);box-shadow:0 36px 90px rgba(13,59,142,.14);border-color:rgba(255,255,255,.92)}
+    .summary-card{border-radius:24px;padding:18px 20px;background:rgba(255,255,255,.76)}
+    .small-label{font-size:10px;letter-spacing:.28em;text-transform:uppercase;font-weight:900}
+    .subtle-text{color:var(--muted);font-size:13px;font-weight:700;line-height:1.65}
+    .input-glass{
+      width:100%;border-radius:18px;padding:13px 16px;border:1px solid rgba(255,255,255,.88);background:rgba(255,255,255,.74);
+      font-weight:800;color:var(--ink);outline:none;transition:border-color .25s ease,transform .25s ease,box-shadow .25s ease
+    }
+    .input-glass:focus{border-color:rgba(13,59,142,.26);box-shadow:0 0 0 6px rgba(13,59,142,.08);transform:translateY(-1px)}
+    .chip,.ghost-chip,.tab-chip{
+      position:relative;overflow:hidden;justify-content:center;padding:10px 16px;border:1px solid rgba(255,255,255,.9);background:rgba(255,255,255,.72);
+      color:#334155;font-size:12px;transition:transform .25s ease,box-shadow .25s ease,background .25s ease,color .25s ease;cursor:pointer;user-select:none;white-space:nowrap
+    }
+    .chip::after,.ghost-chip::after,.tab-chip::after{
+      content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent,rgba(255,255,255,.48),transparent);transform:translateX(-180%);transition:transform .65s ease
+    }
+    .chip:hover,.ghost-chip:hover,.tab-chip:hover{transform:translateY(-2px);box-shadow:0 18px 34px rgba(13,59,142,.12)}
+    .chip:hover::after,.ghost-chip:hover::after,.tab-chip:hover::after{transform:translateX(180%)}
+    .chip.active,.tab-chip.active{
+      color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand-strong));border-color:rgba(13,59,142,.95);
+      box-shadow:0 20px 42px rgba(13,59,142,.22);animation:pulseSoft 2.2s ease-in-out infinite
+    }
+    .ghost-chip{color:var(--brand);background:rgba(13,59,142,.08);border-color:rgba(13,59,142,.08)}
+    .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(245,248,252,.7);backdrop-filter:blur(12px);z-index:9999}
+    .overlay.show{display:flex}
+    .spinner{width:58px;height:58px;border-radius:9999px;border:6px solid rgba(13,59,142,.1);border-top-color:var(--brand);animation:spin .95s linear infinite}
+    .review-grid{display:grid;grid-template-columns:1fr;gap:16px}
+    @media (min-width:900px){.review-grid{grid-template-columns:1fr 1fr}}
+    @media (min-width:1380px){.review-grid{grid-template-columns:1fr 1fr 1fr}}
+    .review-card,.ml-detail-card,.list-panel{
+      border-radius:26px;padding:18px;background:rgba(255,255,255,.74);transition:transform .3s ease,box-shadow .3s ease
+    }
+    .review-card:hover,.ml-detail-card:hover,.list-panel:hover{transform:translateY(-3px);box-shadow:0 24px 56px rgba(13,59,142,.14)}
+    .badge{padding:6px 10px;font-size:11px;border:1px solid rgba(255,255,255,.92);background:rgba(255,255,255,.78);color:#334155}
+    .badge.neg{background:rgba(220,38,38,.1);color:#b91c1c;border-color:rgba(220,38,38,.18)}
+    .badge.pos{background:rgba(5,150,105,.1);color:#047857;border-color:rgba(5,150,105,.18)}
+    .badge.size{background:rgba(37,99,235,.1);color:#1d4ed8;border-color:rgba(37,99,235,.18)}
+    .img-box{width:76px;height:76px;border-radius:20px;overflow:hidden;background:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.94);flex-shrink:0}
+    .img-box.large{width:104px;height:104px;border-radius:24px}.img-box img{width:100%;height:100%;object-fit:cover;display:block}
+    .line-clamp-1,.line-clamp-2,.line-clamp-3{overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical}
+    .line-clamp-1{-webkit-line-clamp:1}.line-clamp-2{-webkit-line-clamp:2}.line-clamp-3{-webkit-line-clamp:3}
+    .sentence-list,.detail-review-list,.product-list{display:grid;gap:10px}
+    .sentence-item,.detail-review{
+      border-radius:18px;padding:14px 16px;font-size:13px;font-weight:800;line-height:1.65;border:1px solid rgba(255,255,255,.88);background:rgba(255,255,255,.76)
+    }
+    .sentence-item.neg{background:rgba(220,38,38,.07);border-color:rgba(220,38,38,.16)}
+    .sentence-item.pos{background:rgba(5,150,105,.07);border-color:rgba(5,150,105,.16)}
+    .empty-state{border-radius:26px;padding:28px;text-align:center;color:var(--muted);font-weight:800;background:rgba(255,255,255,.76);border:1px dashed rgba(13,59,142,.14)}
+    .stat-card{border-radius:22px;padding:16px;background:linear-gradient(180deg,rgba(255,255,255,.86),rgba(244,248,255,.72));border:1px solid rgba(255,255,255,.92)}
+    .ml-shell{display:grid;grid-template-columns:1fr;gap:18px}
+    @media (min-width:1100px){.ml-shell{grid-template-columns:420px minmax(0,1fr);align-items:start}}
+    .product-list{max-height:980px;overflow:auto;padding-right:4px}
+    .product-list::-webkit-scrollbar{width:10px}.product-list::-webkit-scrollbar-thumb{background:rgba(13,59,142,.14);border-radius:9999px}
+    .product-item{
+      border-radius:22px;padding:14px;background:rgba(255,255,255,.84);border:1px solid rgba(255,255,255,.94);cursor:pointer;
+      transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease
+    }
+    .product-item:hover{transform:translateY(-2px);box-shadow:0 18px 40px rgba(13,59,142,.12)}
+    .product-item.active{border-color:rgba(13,59,142,.3);background:linear-gradient(135deg,rgba(13,59,142,.12),rgba(255,255,255,.9));box-shadow:0 20px 42px rgba(13,59,142,.14)}
+    .section-reveal{opacity:0;transform:translate3d(0,24px,0);transition:opacity .7s ease,transform .7s ease}
+    .section-reveal.is-visible{opacity:1;transform:translate3d(0,0,0)}
+    .card-animate{opacity:0;animation:revealUp .72s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:var(--delay,0ms)}
+    .embedded .layout-header{display:none!important}.embedded main{padding-top:24px!important}
+    @media (max-width:1099px){.ml-panel.mobile-hidden{display:none}}
+  </style>
+</head>
+<body>
+  <div id="errorBanner" class="hidden mx-auto mt-6 max-w-[1720px] px-4 md:px-6 xl:px-8 shell">
+    <div class="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700 shadow-sm">
+      <div class="mb-1 text-xs font-black uppercase tracking-[0.28em]">Data Error</div>
+      <div id="errorBannerText">VOC 데이터를 불러오지 못했습니다.</div>
+    </div>
+  </div>
+
+  <div id="overlay" class="overlay">
+    <div class="flex flex-col items-center gap-3">
+      <div class="spinner"></div>
+      <div id="overlayText" class="text-sm font-black text-slate-700">Loading...</div>
+    </div>
+  </div>
+
+  <main class="shell w-full px-4 py-6 md:px-6 md:py-8 xl:px-8">
+    <div class="mx-auto w-full max-w-[1720px]">
+      <div class="layout-header mb-8 section-reveal">
+        <header class="hero-card">
+          <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div class="max-w-4xl">
+              <div class="hero-badge mb-4">
+                <i class="fa-solid fa-sparkles"></i>
+                Official Mall Review Intelligence
+              </div>
+              <h1 class="mb-3 text-4xl font-black tracking-tight text-slate-950 md:text-5xl xl:text-6xl">
+                Official몰 리뷰 VOC 대시보드
+              </h1>
+              <p class="max-w-3xl text-sm font-bold leading-7 text-slate-500 md:text-base">
+                외부몰 크롤링 흐름은 제외하고, 공식몰 리뷰만 기준으로 일별 피드와 제품별 누적 ML 분석을 바로 볼 수 있게 정리했습니다.
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="meta-pill">
+                <i class="fa-solid fa-store"></i>
+                Official Only
+              </div>
+              <div class="meta-pill" id="headerMeta">-</div>
+            </div>
+          </div>
+        </header>
+      </div>
+
+      <section class="mb-10 section-reveal">
+        <div class="glass-card">
+          <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div class="small-label mb-2 text-blue-700">0. ML Signals</div>
+              <div class="text-2xl font-black text-slate-900" id="signalsTitle">일별 리뷰 핵심 문장</div>
+              <div class="subtle-text mt-2" id="signalsSubtitle">선택한 기간에서 부정/긍정 대표 문장을 빠르게 확인합니다.</div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button class="chip active" id="chip-daily" onclick="toggleChip('daily')"><i class="fa-regular fa-calendar"></i>Daily</button>
+              <button class="chip" id="chip-7d" onclick="toggleChip('7d')"><i class="fa-solid fa-wave-square"></i>7D</button>
+              <button class="chip" id="chip-low" onclick="toggleChip('low')"><i class="fa-solid fa-triangle-exclamation"></i>Low Only</button>
+              <button class="ghost-chip" onclick="exportSignalsCSV()"><i class="fa-solid fa-file-csv"></i>CSV Export</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div class="summary-card card-animate" style="--delay:40ms;">
+              <div class="small-label mb-2 text-blue-700" id="windowLabel">DAILY</div>
+              <div class="text-3xl font-black text-slate-900"><span id="yCount">-</span> reviews</div>
+              <div class="subtle-text mt-2" id="windowCountSub">선택한 날짜 기준 리뷰 수입니다.</div>
+              <div class="mt-4 text-xs font-black text-slate-500" id="yLowHint">-</div>
+            </div>
+
+            <div class="summary-card card-animate lg:col-span-2" style="--delay:110ms;">
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <div class="small-label mb-3 text-red-600">NEGATIVE</div>
+                  <div id="yNegSentences" class="sentence-list"></div>
+                </div>
+                <div>
+                  <div class="small-label mb-3 text-emerald-600">POSITIVE</div>
+                  <div id="yPosSentences" class="sentence-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-10 section-reveal">
+        <div class="glass-card">
+          <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div class="small-label mb-2 text-blue-700">1. Daily Feed</div>
+              <div class="text-2xl font-black text-slate-900" id="feedTitle">선택 기간 리뷰 피드</div>
+              <div class="subtle-text mt-2" id="feedSubtitle">날짜, 제품, 옵션, 텍스트로 좁혀서 실제 리뷰를 바로 확인할 수 있습니다.</div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="meta-pill" id="dailyFeedMeta">0건</div>
+              <button class="ghost-chip" onclick="exportDailyFeedCSV()"><i class="fa-solid fa-file-csv"></i>CSV Export</button>
+            </div>
+          </div>
+
+          <div class="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-5">
+            <input id="daySelect" type="date" class="input-glass" onchange="renderAll()" />
+            <select id="productSelect" class="input-glass" onchange="renderAll()"><option value="">전체 제품</option></select>
+            <select id="sizeSelect" class="input-glass" onchange="renderAll()"><option value="">전체 옵션 사이즈</option></select>
+            <select id="sortSelect" class="input-glass" onchange="renderAll()">
+              <option value="upload">정렬: 업로드 순</option>
+              <option value="latest">최신순</option>
+              <option value="long">리뷰 길이 긴 순</option>
+              <option value="low">낮은 평점 순</option>
+            </select>
+            <input id="qInput" class="input-glass" placeholder="텍스트 검색" oninput="renderAll()" />
+          </div>
+
+          <div id="dailyFeed" class="review-grid"></div>
+          <div class="mt-5 flex justify-center">
+            <button id="feedMoreBtn" class="chip hidden" onclick="loadMoreFeed()"><i class="fa-solid fa-angles-down"></i>리뷰 더 보기</button>
+          </div>
+          <div class="empty-state mt-4 hidden" id="noResults">현재 조건에 맞는 리뷰가 없습니다.</div>
+        </div>
+      </section>
+
+      <section class="mb-10 section-reveal">
+        <div class="glass-card">
+          <div class="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div class="small-label mb-2 text-blue-700">2. Product ML (Cumulative)</div>
+              <div class="text-2xl font-black text-slate-900">제품별 리뷰 누적 분석</div>
+              <div class="subtle-text mt-2">전체 제품을 리스트업해두고, 검색하거나 클릭해서 선택 제품 상세를 바로 볼 수 있게 구성했습니다.</div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button class="tab-chip active" id="mlTabBrowse" onclick="setMLTab('browse')"><i class="fa-solid fa-list"></i>All Products</button>
+              <button class="tab-chip" id="mlTabDetail" onclick="setMLTab('detail')"><i class="fa-solid fa-chart-line"></i>Selected Product</button>
+              <button class="ghost-chip" onclick="exportProductMLCSV()"><i class="fa-solid fa-file-csv"></i>CSV Export</button>
+            </div>
+          </div>
+
+          <div class="mb-5 grid grid-cols-1 gap-3 xl:grid-cols-3">
+            <input id="mlSearchInput" class="input-glass" placeholder="제품명 또는 코드 검색" oninput="renderAll()" />
+            <select id="mlWindow" class="input-glass" onchange="renderAll()">
+              <option value="365" selected>최근 1년</option>
+              <option value="180">최근 6개월</option>
+              <option value="90">최근 3개월</option>
+              <option value="0">전체 기간</option>
+            </select>
+            <select id="mlMinReviews" class="input-glass" onchange="renderAll()">
+              <option value="3" selected>최소 리뷰 3개</option>
+              <option value="5">최소 리뷰 5개</option>
+              <option value="10">최소 리뷰 10개</option>
+              <option value="1">최소 리뷰 1개</option>
+            </select>
+          </div>
+
+          <div class="summary-card mb-5">
+            <div class="small-label mb-2 text-slate-700">HOW TO READ</div>
+            <div class="subtle-text">
+              NEGATIVE는 평점 1~2점 리뷰 문장 중심으로, POSITIVE는 평점 4~5점 리뷰 문장 중심으로 보여줍니다.
+              제품 리스트에서 항목을 클릭하면 상세 패널이 바뀌고, 선택 제품 리뷰 CSV도 바로 내려받을 수 있습니다.
+            </div>
+          </div>
+
+          <div class="ml-shell">
+            <aside id="mlBrowsePanel" class="ml-panel list-panel">
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div class="small-label mb-2 text-blue-700">Product Index</div>
+                  <div class="text-lg font-black text-slate-900">전체 제품 리스트</div>
+                </div>
+                <div class="meta-pill" id="mlListCount">0개</div>
+              </div>
+              <div id="mlProductList" class="product-list"></div>
+            </aside>
+
+            <section id="mlDetailPanel" class="ml-panel">
+              <div id="mlDetail"></div>
+              <div id="mlNoData" class="empty-state hidden">현재 조건에 맞는 제품 누적 데이터가 없습니다.</div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <footer class="pb-8 text-xs font-bold text-slate-500">
+        <div>* 데이터 소스: <code>data/reviews.json</code> / <code>data/meta.json</code></div>
+        <div>* 현재 화면은 공식몰 리뷰만 기준으로 렌더링합니다.</div>
+      </footer>
+    </div>
+  </main>
+  <script>
+    let META = null;
+    let REVIEWS = [];
+    let signalsSnapshot = null;
+    const uiState = { viewMode: "daily", feedLimit: 24, chips: { low: false }, mlTab: "browse", mlSelectedCode: "" };
+
+    function esc(v){ return String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;"); }
+    function asArr(v){ return Array.isArray(v) ? v : []; }
+    function normalizeSource(v){
+      const s = String(v || "").trim().toLowerCase();
+      if (!s) return "";
+      if (s.includes("musinsa")) return "musinsa";
+      if (s.includes("naver")) return "naver";
+      if (s.includes("official")) return "official";
+      return s;
+    }
+    function fmtDT(v){ if (!v) return "-"; const t = String(v).replace("T"," ").replace("+09:00","").replace("Z",""); return t.slice(0,16); }
+    function pad2(n){ return String(n).padStart(2,"0"); }
+    function kstNow(){ const n = new Date(); const utc = n.getTime() + (n.getTimezoneOffset() * 60000); return new Date(utc + (9 * 60 * 60000)); }
+    function kstDateStr(offsetDays=0){ const k = kstNow(); k.setDate(k.getDate() + offsetDays); return `${k.getFullYear()}-${pad2(k.getMonth()+1)}-${pad2(k.getDate())}`; }
+    function parseDate10(v){ if (!v) return null; const d = new Date(`${String(v).slice(0,10)}T00:00:00`); return Number.isNaN(d.getTime()) ? null : d; }
+
+    async function fetchJsonOrThrow(urls){
+      function defaultCandidatesForUrl(src){
+        const raw = String(src || "");
+        const fileName = raw.split("/").pop();
+        if (!fileName || (fileName !== "meta.json" && fileName !== "reviews.json")) return [];
+
+        const rel = [
+          `./data/${fileName}`,
+          `data/${fileName}`,
+          `../data/${fileName}`,
+          `../../data/${fileName}`,
+          `./site/data/${fileName}`,
+          `site/data/${fileName}`,
+          `../site/data/${fileName}`,
+          `../../site/data/${fileName}`,
+          `./reports/voc_crema/data/${fileName}`,
+          `reports/voc_crema/data/${fileName}`,
+          `../reports/voc_crema/data/${fileName}`,
+          `../../reports/voc_crema/data/${fileName}`,
+        ];
+
+        const abs = [];
+        const pathname = String(window.location.pathname || "");
+        ["/site/reports/voc_crema/", "/reports/voc_crema/", "/site/", "/reports/"].forEach(anchor => {
+          const idx = pathname.indexOf(anchor);
+          if (idx < 0) return;
+          const base = pathname.slice(0, idx) || "";
+          abs.push(`${base}/data/${fileName}`);
+          abs.push(`${base}/site/data/${fileName}`);
+          abs.push(`${base}/reports/voc_crema/data/${fileName}`);
+        });
+
+        return [...new Set([...rel, ...abs].filter(Boolean))];
+      }
+
+      async function fetchWithTimeout(url, timeoutMs = 3500){
+        const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const opts = { cache: "no-store" };
+        let timer = null;
+        if (ctrl){
+          opts.signal = ctrl.signal;
+          timer = setTimeout(() => ctrl.abort(), timeoutMs);
+        }
+        try{
+          return await fetch(url, opts);
+        }finally{
+          if (timer) clearTimeout(timer);
+        }
+      }
+
+      const seeds = Array.isArray(urls) ? urls : [urls];
+      const candidates = [...new Set(seeds.concat(seeds.flatMap(defaultCandidatesForUrl)).filter(Boolean))];
+      let lastError = null;
+      for (const url of candidates){
+        try{
+          const response = await fetchWithTimeout(url);
+          if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${url}`);
+          return await response.json();
+        }catch(error){
+          lastError = error;
+          console.warn("[VOC] JSON load failed:", url, error);
+        }
+      }
+
+      const preview = candidates.slice(0, 6).join(", ");
+      throw lastError || new Error(`Failed to load JSON from: ${preview}`);
+    }
+
+    function showOverlay(message){ document.getElementById("overlayText").textContent = message || "Loading..."; document.getElementById("overlay")?.classList.add("show"); }
+    function hideOverlay(){ document.getElementById("overlay")?.classList.remove("show"); }
+    function showError(message){ document.getElementById("errorBannerText").textContent = message || "VOC 데이터를 불러오지 못했습니다."; document.getElementById("errorBanner")?.classList.remove("hidden"); }
+    function runWithOverlay(message, fn){
+      try{
+        showOverlay(message);
+        const result = fn();
+        if (result && typeof result.then === "function") return result.finally(() => hideOverlay());
+        hideOverlay();
+        return result;
+      }catch(error){
+        console.error(error);
+        hideOverlay();
+      }
+    }
+
+    function getBaseReviews(){ return REVIEWS.slice(); }
+    function resetFeedLimit(){ uiState.feedLimit = uiState.viewMode === "7d" ? 60 : 24; }
+    function currentDayValue(){ return (document.getElementById("daySelect")?.value || META?.dashboard_default_day || META?.period_end || kstDateStr(-1)).trim(); }
+    function renderHeader(){ const headerMeta = document.getElementById("headerMeta"); if (headerMeta) headerMeta.textContent = `${META?.updated_at || "-"} · ${META?.period_text || "-"}`; }
+
+    function syncDayBounds(){
+      const input = document.getElementById("daySelect");
+      if (!input) return;
+      const current = input.value;
+      const days = getBaseReviews().map(r => String(r.created_at || "").slice(0,10)).filter(v => /^\d{4}-\d{2}-\d{2}$/.test(v)).sort();
+      const minDay = days[0] || META?.period_start || "";
+      const maxDay = days[days.length - 1] || META?.period_end || kstDateStr(-1);
+      if (minDay) input.min = minDay;
+      if (maxDay) input.max = maxDay;
+      const preferredDay = META?.dashboard_default_day || maxDay;
+      const next = current && current >= minDay && current <= maxDay ? current : preferredDay;
+      if (next) input.value = next;
+    }
+
+    function renderMLTabUI(){
+      const browse = uiState.mlTab === "browse";
+      document.getElementById("mlTabBrowse")?.classList.toggle("active", browse);
+      document.getElementById("mlTabDetail")?.classList.toggle("active", !browse);
+      if (window.innerWidth >= 1100){
+        document.getElementById("mlBrowsePanel")?.classList.remove("mobile-hidden");
+        document.getElementById("mlDetailPanel")?.classList.remove("mobile-hidden");
+        return;
+      }
+      document.getElementById("mlBrowsePanel")?.classList.toggle("mobile-hidden", !browse);
+      document.getElementById("mlDetailPanel")?.classList.toggle("mobile-hidden", browse);
+    }
+
+    function syncWindowUI(){
+      const is7d = uiState.viewMode === "7d";
+      document.getElementById("chip-daily")?.classList.toggle("active", !is7d);
+      document.getElementById("chip-7d")?.classList.toggle("active", is7d);
+      document.getElementById("chip-low")?.classList.toggle("active", !!uiState.chips.low);
+      syncDayBounds();
+      renderMLTabUI();
+    }
+
+    function updateWindowCopy(){
+      const is7d = uiState.viewMode === "7d";
+      const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+      set("signalsTitle", is7d ? "최근 7일 리뷰 핵심 문장" : "일별 리뷰 핵심 문장");
+      set("signalsSubtitle", is7d ? "최근 7일 누적 기준으로 부정/긍정 대표 문장을 보여줍니다." : "선택한 날짜 기준으로 부정/긍정 대표 문장을 보여줍니다.");
+      set("windowLabel", is7d ? "7 DAYS" : "DAILY");
+      set("windowCountSub", is7d ? "최근 7일 동안 수집된 리뷰 수입니다." : "선택한 날짜 기준 리뷰 수입니다.");
+      set("feedTitle", is7d ? "최근 7일 리뷰 피드" : "선택 날짜 리뷰 피드");
+      set("feedSubtitle", is7d ? "최근 7일 누적 리뷰를 제품/옵션/텍스트 조건으로 좁혀 볼 수 있습니다." : "선택 날짜 리뷰를 제품/옵션/텍스트 조건으로 좁혀 볼 수 있습니다.");
+    }
+
+    function toggleChip(name){
+      if (name === "daily" || name === "7d"){ uiState.viewMode = name; resetFeedLimit(); }
+      else if (name === "low"){ uiState.chips.low = !uiState.chips.low; }
+      renderAll();
+    }
+
+    function setMLTab(tab){
+      uiState.mlTab = tab;
+      renderMLTabUI();
+      const target = tab === "detail" ? document.getElementById("mlDetailPanel") : document.getElementById("mlBrowsePanel");
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function focusProduct(code){
+      const select = document.getElementById("productSelect");
+      if (select) select.value = code;
+      uiState.viewMode = "daily";
+      resetFeedLimit();
+      renderAll();
+      document.getElementById("dailyFeed")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function loadMoreFeed(){ uiState.feedLimit += uiState.viewMode === "7d" ? 60 : 24; renderDailyFeed(getFilteredReviews()); }
+
+    function renderProductSelect(){
+      const select = document.getElementById("productSelect");
+      if (!select) return;
+      const current = select.value;
+      const byCode = new Map();
+      for (const row of getBaseReviews()){
+        const code = String(row.product_code || "").trim();
+        if (code && !byCode.has(code)) byCode.set(code, row.product_name || code);
+      }
+      select.innerHTML = ['<option value="">전체 제품</option>'].concat(
+        Array.from(byCode.entries()).sort((a,b) => String(a[1]).localeCompare(String(b[1]), "ko")).map(([code,name]) => `<option value="${esc(code)}">${esc(name)} (${esc(code)})</option>`)
+      ).join("");
+      select.value = byCode.has(current) ? current : "";
+    }
+
+    function renderSizeSelect(){
+      const select = document.getElementById("sizeSelect");
+      if (!select) return;
+      const current = select.value;
+      const sizes = new Set();
+      for (const row of getBaseReviews()){
+        const size = String(row.option_size || "").trim();
+        if (size) sizes.add(size);
+      }
+      select.innerHTML = ['<option value="">전체 옵션 사이즈</option>'].concat(
+        Array.from(sizes).sort((a,b) => String(a).localeCompare(String(b), "ko")).map(size => `<option value="${esc(size)}">${esc(size)}</option>`)
+      ).join("");
+      select.value = sizes.has(current) ? current : "";
+    }
+
+    function getFilteredReviews(){
+      let rows = getBaseReviews();
+      const day = currentDayValue();
+      if (uiState.viewMode === "daily" && day){
+        rows = rows.filter(row => String(row.created_at || "").slice(0,10) === day);
+      }else if (uiState.viewMode === "7d" && day){
+        const baseDay = parseDate10(day);
+        if (baseDay){
+          const start = new Date(baseDay); start.setDate(start.getDate() - 6);
+          rows = rows.filter(row => { const date = parseDate10(row.created_at); return date ? date >= start && date <= baseDay : false; });
+        }
+      }
+      const product = (document.getElementById("productSelect")?.value || "").trim();
+      if (product) rows = rows.filter(row => String(row.product_code || "") === product);
+      const size = (document.getElementById("sizeSelect")?.value || "").trim();
+      if (size) rows = rows.filter(row => String(row.option_size || "") === size);
+      if (uiState.chips.low) rows = rows.filter(row => Number(row.rating || 0) <= 2 || asArr(row.tags).includes("low"));
+      const query = (document.getElementById("qInput")?.value || "").trim().toLowerCase();
+      if (query){
+        rows = rows.filter(row => {
+          const text = String(row.text || "").toLowerCase();
+          const name = String(row.product_name || "").toLowerCase();
+          const code = String(row.product_code || "").toLowerCase();
+          return text.includes(query) || name.includes(query) || code.includes(query);
+        });
+      }
+      const sort = document.getElementById("sortSelect")?.value || "upload";
+      if (sort === "latest") rows.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      else if (sort === "long") rows.sort((a,b) => String(b.text || "").length - String(a.text || "").length);
+      else if (sort === "low") rows.sort((a,b) => (Number(a.rating || 0) - Number(b.rating || 0)) || (new Date(b.created_at || 0) - new Date(a.created_at || 0)));
+      else rows.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      return rows;
+    }
+
+    function pickTopSentences(rows, mode, limit=2){
+      const out = [], seen = new Set();
+      for (const row of rows){
+        const rating = Number(row.rating || 0);
+        const text = String(row.text || "").trim().replace(/\s+/g, " ");
+        if (!text) continue;
+        if (mode === "neg" && !(rating > 0 && rating <= 2)) continue;
+        if (mode === "pos" && !(rating >= 4)) continue;
+        const key = text.slice(0,120);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ text, product: row.product_name || row.product_code || "-", code: row.product_code || "", url: row.review_original_url || row.product_url || "", createdAt: fmtDT(row.created_at) });
+        if (out.length >= limit) break;
+      }
+      return out;
+    }
+
+    function sentenceListHTML(items, cls, emptyText){
+      if (!items.length) return `<div class="sentence-item ${cls} card-animate" style="--delay:0ms;">${esc(emptyText)}</div>`;
+      return items.map((item,index) => `
+        <div class="sentence-item ${cls} card-animate" style="--delay:${index * 70}ms;">
+          <div class="text-sm font-black text-slate-900 whitespace-pre-wrap break-words">${esc(item.text)}</div>
+          <div class="mt-2 text-[11px] font-bold text-slate-500">${esc(item.product)}${item.code ? ` · ${esc(item.code)}` : ""} · ${esc(item.createdAt)}</div>
+          ${item.url ? `<a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block text-xs font-black text-blue-600 hover:underline">리뷰 원문 보기</a>` : ""}
+        </div>
+      `).join("");
+    }
+
+    function getSignalsSnapshot(rows){
+      const sorted = rows.slice().sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      return {
+        mode: uiState.viewMode,
+        day: currentDayValue(),
+        reviewCount: sorted.length,
+        lowCount: sorted.filter(row => Number(row.rating || 0) <= 2 || asArr(row.tags).includes("low")).length,
+        negative: pickTopSentences(sorted, "neg"),
+        positive: pickTopSentences(sorted, "pos")
+      };
+    }
+
+    function renderMLSignals(filteredRows){
+      signalsSnapshot = getSignalsSnapshot(filteredRows);
+      const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+      set("yCount", signalsSnapshot.reviewCount);
+      set("yLowHint", signalsSnapshot.reviewCount ? `Low 리뷰 추정 ${signalsSnapshot.lowCount}건` : (signalsSnapshot.mode === "7d" ? "최근 7일 데이터가 없습니다." : "선택 날짜 데이터가 없습니다."));
+      document.getElementById("yNegSentences").innerHTML = sentenceListHTML(signalsSnapshot.negative, "neg", signalsSnapshot.mode === "7d" ? "최근 7일 부정 문장이 없습니다." : "선택 날짜 부정 문장이 없습니다.");
+      document.getElementById("yPosSentences").innerHTML = sentenceListHTML(signalsSnapshot.positive, "pos", signalsSnapshot.mode === "7d" ? "최근 7일 긍정 문장이 없습니다." : "선택 날짜 긍정 문장이 없습니다.");
+    }
+
+    function reviewCardHTML(row, index){
+      const tags = [];
+      const rowTags = asArr(row.tags);
+      if (Number(row.rating || 0) >= 4 || rowTags.includes("pos")) tags.push('<span class="badge pos"><i class="fa-solid fa-face-smile"></i> POS</span>');
+      if (rowTags.includes("size")) tags.push('<span class="badge size"><i class="fa-solid fa-ruler"></i> SIZE</span>');
+      if (Number(row.rating || 0) <= 2 || rowTags.includes("low")) tags.push('<span class="badge neg"><i class="fa-solid fa-triangle-exclamation"></i> NEG</span>');
+      if (rowTags.includes("req")) tags.push('<span class="badge neg"><i class="fa-solid fa-wrench"></i> REQUEST</span>');
+      const productImage = row.local_product_image ? `<img src="${esc(row.local_product_image)}" alt="">` : '<div class="flex h-full w-full items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>';
+      const reviewThumb = row.local_review_thumb ? `<img src="${esc(row.local_review_thumb)}" alt="" class="h-20 w-20 rounded-2xl border border-white/90 bg-slate-50 object-contain" />` : "";
+      const linkUrl = String(row.review_original_url || row.product_url || "").trim();
+      return `
+        <article class="review-card card-animate" style="--delay:${Math.min(index,8) * 55}ms;" id="review-${esc(row.id)}">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-3">
+              <div class="img-box">${productImage}</div>
+              <div class="min-w-0">
+                <div class="line-clamp-2 font-black text-slate-900">${esc(row.product_name || row.product_code || "제품명 없음")}</div>
+                <div class="mt-1 text-xs font-bold text-slate-500">code: ${esc(row.product_code || "-")} · id: ${esc(row.id || "-")}</div>
+              </div>
+            </div>
+            <div class="shrink-0 text-right">
+              <div class="text-sm font-black text-slate-900">★ ${esc(row.rating || "-")}</div>
+              <div class="mt-1 text-[11px] font-bold text-slate-500">${esc(fmtDT(row.created_at))}</div>
+            </div>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            ${row.option_size ? `<span class="badge"><i class="fa-solid fa-tag"></i> ${esc(row.option_size)}</span>` : ""}
+            ${tags.join("")}
+          </div>
+          <div class="mt-4 flex items-start justify-between gap-4">
+            <div class="min-w-0 flex-1">
+              <div class="whitespace-pre-wrap break-words text-sm font-extrabold leading-relaxed text-slate-800">${esc(row.text || "")}</div>
+              <div class="mt-3">${linkUrl ? `<a href="${esc(linkUrl)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline">리뷰 원문 보기</a>` : '<span class="text-xs font-black text-slate-400">원문 링크 없음</span>'}</div>
+            </div>
+            ${reviewThumb ? `<div class="shrink-0">${reviewThumb}</div>` : ""}
+          </div>
+        </article>
+      `;
+    }
+
+    function renderDailyFeed(rows){
+      const container = document.getElementById("dailyFeed");
+      const empty = document.getElementById("noResults");
+      const moreBtn = document.getElementById("feedMoreBtn");
+      const meta = document.getElementById("dailyFeedMeta");
+      const baseLimit = uiState.viewMode === "7d" ? 60 : 24;
+      if (!Number.isFinite(uiState.feedLimit) || uiState.feedLimit < baseLimit) uiState.feedLimit = baseLimit;
+      if (meta) meta.textContent = `${rows.length.toLocaleString("ko-KR")}건`;
+      const visibleRows = rows.slice(0, uiState.feedLimit);
+      if (!visibleRows.length){
+        container.innerHTML = "";
+        empty.classList.remove("hidden");
+        moreBtn?.classList.add("hidden");
+        return;
+      }
+      empty.classList.add("hidden");
+      container.innerHTML = visibleRows.map((row,index) => reviewCardHTML(row,index)).join("");
+      if (moreBtn){
+        const remaining = Math.max(0, rows.length - visibleRows.length);
+        if (remaining > 0){
+          moreBtn.classList.remove("hidden");
+          moreBtn.innerHTML = `<i class="fa-solid fa-angles-down"></i> 리뷰 더 보기 (${remaining.toLocaleString("ko-KR")}건 남음)`;
+        }else{
+          moreBtn.classList.add("hidden");
+        }
+      }
+    }
+
+    function topSentences(texts, limit=3){
+      const out = [], seen = new Set();
+      for (const text of texts){
+        const clean = String(text || "").trim().replace(/\s+/g, " ");
+        if (!clean) continue;
+        const key = clean.slice(0,120);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(clean);
+        if (out.length >= limit) break;
+      }
+      return out;
+    }
+
+    function buildProductMLRows(){
+      const winDays = Number(document.getElementById("mlWindow")?.value || 365);
+      const minReviews = Number(document.getElementById("mlMinReviews")?.value || 3);
+      const query = (document.getElementById("mlSearchInput")?.value || "").trim().toLowerCase();
+      const now = kstNow();
+      const cutoff = winDays > 0 ? new Date(now.getTime() - winDays * 24 * 60 * 60 * 1000) : null;
+      let base = getBaseReviews();
+      if (cutoff){
+        base = base.filter(row => { const d = parseDate10(row.created_at); return d ? d >= cutoff : false; });
+      }
+      const byProduct = new Map();
+      for (const row of base){
+        const code = String(row.product_code || "").trim();
+        if (!code) continue;
+        if (!byProduct.has(code)){
+          byProduct.set(code, { product_code: code, product_name: row.product_name || code, product_url: row.product_url || "", local_product_image: row.local_product_image || "", reviewRows: [], negTexts: [], posTexts: [], totalReviews: 0, negCount: 0, posCount: 0, sizeCount: 0, ratingSum: 0, lastReviewedAt: row.created_at || "" });
+        }
+        const item = byProduct.get(code);
+        const rating = Number(row.rating || 0);
+        const text = String(row.text || "").trim();
+        item.reviewRows.push(row); item.totalReviews += 1; item.ratingSum += Number.isFinite(rating) ? rating : 0;
+        if (asArr(row.tags).includes("size")) item.sizeCount += 1;
+        if (rating > 0 && rating <= 2){ item.negCount += 1; if (text) item.negTexts.push(text); }
+        if (rating >= 4){ item.posCount += 1; if (text) item.posTexts.push(text); }
+        if (String(row.created_at || "") > String(item.lastReviewedAt || "")) item.lastReviewedAt = row.created_at || item.lastReviewedAt;
+      }
+      let rows = Array.from(byProduct.values()).filter(item => item.totalReviews >= minReviews).map(item => ({
+        ...item,
+        avgRating: Number((item.totalReviews ? item.ratingSum / item.totalReviews : 0).toFixed(2)),
+        lowRate: Math.round((item.negCount / Math.max(1,item.totalReviews)) * 100),
+        sizeRate: Math.round((item.sizeCount / Math.max(1,item.totalReviews)) * 100),
+        negSentences: topSentences(item.negTexts, 3),
+        posSentences: topSentences(item.posTexts, 3),
+      }));
+      if (query) rows = rows.filter(item => String(item.product_name || "").toLowerCase().includes(query) || String(item.product_code || "").toLowerCase().includes(query));
+      rows.sort((a,b) => (b.totalReviews - a.totalReviews) || (b.lowRate - a.lowRate) || String(a.product_name || "").localeCompare(String(b.product_name || ""), "ko"));
+      return { rows };
+    }
+
+    function ensureMLSelection(rows){
+      if (!rows.length){ uiState.mlSelectedCode = ""; return null; }
+      const existing = rows.find(item => item.product_code === uiState.mlSelectedCode);
+      if (existing) return existing;
+      uiState.mlSelectedCode = rows[0].product_code;
+      return rows[0];
+    }
+
+    function mlProductItemHTML(item, index){
+      const image = item.local_product_image ? `<img src="${esc(item.local_product_image)}" alt="">` : '<div class="flex h-full w-full items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>';
+      const active = uiState.mlSelectedCode === item.product_code;
+      return `
+        <button class="product-item card-animate ${active ? "active" : ""}" style="--delay:${Math.min(index,10) * 42}ms;" onclick="selectMLProduct('${esc(item.product_code)}')">
+          <div class="flex items-center gap-3">
+            <div class="img-box">${image}</div>
+            <div class="min-w-0 flex-1 text-left">
+              <div class="line-clamp-2 font-black text-slate-900">${esc(item.product_name)}</div>
+              <div class="mt-1 text-xs font-bold text-slate-500">${esc(item.product_code)} · ${item.totalReviews.toLocaleString("ko-KR")} reviews</div>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <span class="badge neg">NEG ${item.lowRate}%</span>
+                <span class="badge pos">AVG ${esc(item.avgRating)}</span>
+              </div>
+            </div>
+          </div>
+        </button>
+      `;
+    }
+
+    function mlSentenceHTML(items, tone, emptyText){
+      if (!items.length) return `<div class="sentence-item ${tone}">${esc(emptyText)}</div>`;
+      return items.map((text,index) => `
+        <div class="sentence-item ${tone}">
+          <div class="mb-1 text-[11px] font-black ${tone === "neg" ? "text-red-700" : "text-emerald-700"}">${tone === "neg" ? "NEGATIVE" : "POSITIVE"} ${index + 1}</div>
+          <div class="whitespace-pre-wrap break-words">${esc(text)}</div>
+        </div>
+      `).join("");
+    }
+
+    function buildSelectedProductRows(item){ return item.reviewRows.slice().sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)); }
+
+    function renderProductML(){
+      const list = document.getElementById("mlProductList");
+      const count = document.getElementById("mlListCount");
+      const detail = document.getElementById("mlDetail");
+      const empty = document.getElementById("mlNoData");
+      const { rows } = buildProductMLRows();
+      count.textContent = `${rows.length.toLocaleString("ko-KR")}개`;
+      if (!rows.length){
+        list.innerHTML = ""; detail.innerHTML = ""; empty.classList.remove("hidden"); return;
+      }
+      empty.classList.add("hidden");
+      list.innerHTML = rows.map((item,index) => mlProductItemHTML(item,index)).join("");
+      const selected = ensureMLSelection(rows);
+      if (!selected){ detail.innerHTML = ""; return; }
+      const selectedRows = buildSelectedProductRows(selected);
+      const image = selected.local_product_image ? `<img src="${esc(selected.local_product_image)}" alt="">` : '<div class="flex h-full w-full items-center justify-center text-[10px] text-slate-400">NO IMAGE</div>';
+      const productLink = selected.product_url ? `<a href="${esc(selected.product_url)}" target="_blank" rel="noopener noreferrer" class="text-xs font-black text-blue-600 hover:underline">상품 페이지 열기</a>` : '<span class="text-xs font-black text-slate-400">상품 URL 없음</span>';
+      detail.innerHTML = `
+        <div class="ml-detail-card card-animate" style="--delay:0ms;">
+          <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div class="flex min-w-0 items-center gap-4">
+              <div class="img-box large">${image}</div>
+              <div class="min-w-0">
+                <div class="text-xs font-black uppercase tracking-[0.24em] text-blue-700">Selected Product</div>
+                <h3 class="mt-2 text-2xl font-black text-slate-900">${esc(selected.product_name)}</h3>
+                <div class="mt-2 text-sm font-bold text-slate-500">code: ${esc(selected.product_code)} · last review: ${esc(fmtDT(selected.lastReviewedAt))}</div>
+                <div class="mt-2">${productLink}</div>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="chip" onclick="focusProduct('${esc(selected.product_code)}')"><i class="fa-solid fa-filter"></i>Daily Feed에서 보기</button>
+              <button class="ghost-chip" onclick="exportSelectedProductCSV()"><i class="fa-solid fa-file-csv"></i>선택 제품 CSV</button>
+            </div>
+          </div>
+          <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="stat-card"><div class="small-label mb-2 text-slate-500">Reviews</div><div class="text-3xl font-black text-slate-900">${selected.totalReviews.toLocaleString("ko-KR")}</div></div>
+            <div class="stat-card"><div class="small-label mb-2 text-red-600">NEG Rate</div><div class="text-3xl font-black text-red-700">${selected.lowRate}%</div></div>
+            <div class="stat-card"><div class="small-label mb-2 text-emerald-600">AVG Rating</div><div class="text-3xl font-black text-emerald-700">${esc(selected.avgRating)}</div></div>
+            <div class="stat-card"><div class="small-label mb-2 text-blue-600">Size Mention</div><div class="text-3xl font-black text-blue-700">${selected.sizeRate}%</div></div>
+          </div>
+          <div class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div class="summary-card"><div class="small-label mb-3 text-red-600">NEGATIVE</div><div class="sentence-list">${mlSentenceHTML(selected.negSentences, "neg", "부정 문장이 없습니다.")}</div></div>
+            <div class="summary-card"><div class="small-label mb-3 text-emerald-600">POSITIVE</div><div class="sentence-list">${mlSentenceHTML(selected.posSentences, "pos", "긍정 문장이 없습니다.")}</div></div>
+          </div>
+          <div class="mt-6">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <div><div class="small-label mb-2 text-slate-700">Latest Reviews</div><div class="text-lg font-black text-slate-900">선택 제품 최신 리뷰</div></div>
+              <div class="meta-pill">${selectedRows.length.toLocaleString("ko-KR")}건</div>
+            </div>
+            <div class="detail-review-list">
+              ${selectedRows.slice(0,12).map((row,index) => `
+                <div class="detail-review card-animate" style="--delay:${Math.min(index,10) * 45}ms;">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex flex-wrap gap-2">
+                      <span class="badge">★ ${esc(row.rating || "-")}</span>
+                      ${row.option_size ? `<span class="badge"><i class="fa-solid fa-tag"></i> ${esc(row.option_size)}</span>` : ""}
+                    </div>
+                    <div class="text-[11px] font-bold text-slate-500">${esc(fmtDT(row.created_at))}</div>
+                  </div>
+                  <div class="mt-3 whitespace-pre-wrap break-words text-sm font-extrabold leading-relaxed text-slate-800">${esc(row.text || "")}</div>
+                  ${(row.review_original_url || row.product_url) ? `<a href="${esc(row.review_original_url || row.product_url)}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block text-xs font-black text-blue-600 hover:underline">리뷰 원문 보기</a>` : ""}
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function selectMLProduct(code){ uiState.mlSelectedCode = code; uiState.mlTab = "detail"; renderAll(); if (window.innerWidth < 1100) document.getElementById("mlDetailPanel")?.scrollIntoView({ behavior: "smooth", block: "start" }); }
+
+    function csvEscape(v){ return `"${String(v ?? "").replaceAll('"','""')}"`; }
+    function exportCSV(filename, rows){
+      if (!rows.length){ window.alert("내보낼 데이터가 없습니다."); return; }
+      const headerSet = new Set(); rows.forEach(row => Object.keys(row).forEach(key => headerSet.add(key)));
+      const headers = Array.from(headerSet);
+      const csv = [headers.map(csvEscape).join(","), ...rows.map(row => headers.map(key => csvEscape(row[key])).join(","))].join("\r\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob); const a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+
+    function exportSignalsCSV(){
+      const s = signalsSnapshot || getSignalsSnapshot(getFilteredReviews());
+      exportCSV(`official_ml_signals_${currentDayValue() || "latest"}.csv`, [
+        { section: "summary", window_mode: s.mode, day: s.day, review_count: s.reviewCount, low_count: s.lowCount },
+        ...s.negative.map((item,index) => ({ section: "negative_sentence", rank: index + 1, text: item.text, product_name: item.product, product_code: item.code, created_at: item.createdAt, url: item.url })),
+        ...s.positive.map((item,index) => ({ section: "positive_sentence", rank: index + 1, text: item.text, product_name: item.product, product_code: item.code, created_at: item.createdAt, url: item.url })),
+      ]);
+    }
+    function exportDailyFeedCSV(){ exportCSV(`official_daily_feed_${currentDayValue() || "latest"}.csv`, getFilteredReviews().map(row => ({ id: row.id, created_at: row.created_at, product_code: row.product_code, product_name: row.product_name, option_size: row.option_size, rating: row.rating, tags: asArr(row.tags).join("|"), text: row.text, review_original_url: row.review_original_url || row.product_url || "" }))); }
+    function exportProductMLCSV(){ const { rows } = buildProductMLRows(); exportCSV(`official_product_ml_${currentDayValue() || "latest"}.csv`, rows.map(item => ({ product_code: item.product_code, product_name: item.product_name, total_reviews: item.totalReviews, neg_count: item.negCount, pos_count: item.posCount, low_rate: item.lowRate, avg_rating: item.avgRating, size_rate: item.sizeRate, last_reviewed_at: item.lastReviewedAt, product_url: item.product_url, negative_top_1: item.negSentences[0] || "", negative_top_2: item.negSentences[1] || "", positive_top_1: item.posSentences[0] || "", positive_top_2: item.posSentences[1] || "" }))); }
+    function exportSelectedProductCSV(){
+      const { rows } = buildProductMLRows();
+      const selected = rows.find(item => item.product_code === uiState.mlSelectedCode);
+      if (!selected){ window.alert("선택된 제품이 없습니다."); return; }
+      exportCSV(`official_product_${selected.product_code}_reviews.csv`, buildSelectedProductRows(selected).map(row => ({ id: row.id, created_at: row.created_at, product_code: row.product_code, product_name: row.product_name, option_size: row.option_size, rating: row.rating, tags: asArr(row.tags).join("|"), text: row.text, review_original_url: row.review_original_url || row.product_url || "" })));
+    }
+
+    function renderAll(){
+      syncWindowUI();
+      updateWindowCopy();
+      renderHeader();
+      renderProductSelect();
+      renderSizeSelect();
+      const filtered = getFilteredReviews();
+      renderMLSignals(filtered);
+      renderDailyFeed(filtered);
+      renderProductML();
+    }
+
+    async function boot(){
+      runWithOverlay("Loading VOC data...", async () => {
+        try{
+          const [meta, reviews] = await Promise.all([
+            fetchJsonOrThrow(["./data/meta.json","./reports/voc_crema/data/meta.json","../data/meta.json"]),
+            fetchJsonOrThrow(["./data/reviews.json","./reports/voc_crema/data/reviews.json","../data/reviews.json"]),
+          ]);
+          META = meta || {};
+          const loadedRows = Array.isArray(reviews?.reviews) ? reviews.reviews : [];
+          const officialRows = loadedRows.filter(row => { const source = normalizeSource(row.source); return !source || source === "official"; });
+          REVIEWS = officialRows.length ? officialRows : loadedRows;
+          if (!META.updated_at) throw new Error("meta.json is missing updated_at");
+          if (!REVIEWS.length) throw new Error("reviews.json contains no review rows");
+          syncDayBounds();
+          resetFeedLimit();
+          renderAll();
+        }catch(error){
+          console.error(error);
+          hideOverlay();
+          showError(`VOC 데이터를 불러오지 못했습니다. ${error?.message || ""}`.trim());
+        }
+      });
+    }
+
+    (function(){
+      const params = new URLSearchParams(location.search);
+      if (params.get("embed") === "1") document.body.classList.add("embedded");
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting){
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: .16 });
+      window.addEventListener("DOMContentLoaded", () => document.querySelectorAll(".section-reveal").forEach(node => observer.observe(node)));
+      window.addEventListener("resize", renderMLTabUI);
+    })();
+
+    boot();
+  </script>
+</body>
+</html>
