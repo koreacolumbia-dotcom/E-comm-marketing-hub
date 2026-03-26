@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>OWNED Campaign Explorer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -158,22 +161,62 @@
       align-items: center;
       justify-content: center;
       z-index: 20;
-      pointer-events: none;
       padding: 24px;
+      background: rgba(6,11,25,0.48);
+      backdrop-filter: blur(10px);
     }
     .ytd-loading-card{
-      min-width: 240px;
-      max-width: 360px;
-      border: 1px solid rgba(148,163,184,0.18);
-      background: rgba(255,255,255,0.95);
-      border-radius: 24px;
-      box-shadow: 0 24px 60px rgba(0,45,114,0.12);
-      padding: 18px 22px;
+      min-width: 280px;
+      max-width: 420px;
+      border: 1px solid rgba(148,163,184,0.24);
+      background:
+        radial-gradient(160px 120px at 15% 10%, rgba(59,130,246,0.28), transparent 70%),
+        linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.9));
+      border-radius: 26px;
+      box-shadow: 0 32px 80px rgba(2,6,23,0.34);
+      padding: 22px 24px;
       display:flex;
       flex-direction:column;
       align-items:center;
-      gap:10px;
+      gap:12px;
       text-align:center;
+    }
+    .skeleton-zone{ position: relative; }
+    .skeleton-card{ position: relative; overflow: hidden; }
+    .skeleton-card::before{
+      content:'';
+      position:absolute; inset:0;
+      background: linear-gradient(110deg, rgba(255,255,255,0) 20%, rgba(255,255,255,0.7) 42%, rgba(255,255,255,0) 64%);
+      transform: translateX(-120%);
+      animation: shimmer 1.8s ease-in-out infinite;
+      pointer-events:none;
+      z-index: 2;
+    }
+    .skeleton-card .kpi-title,
+    .skeleton-card .kpi-value,
+    .skeleton-card .kpi-sub{
+      color: transparent !important;
+      position: relative;
+    }
+    .skeleton-card .kpi-title::after,
+    .skeleton-card .kpi-value::after,
+    .skeleton-card .kpi-sub::after{
+      content:'';
+      display:block;
+      height: .9em;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(226,232,240,0.95), rgba(241,245,249,0.98), rgba(226,232,240,0.95));
+    }
+    .skeleton-card .kpi-title::after{ width: 58%; margin-top: 2px; height: .8em; }
+    .skeleton-card .kpi-value::after{ width: 66%; margin-top: 10px; height: 1.4em; }
+    .skeleton-card .kpi-sub::after{ width: 48%; margin-top: 8px; height: .9em; }
+    .kpi-card.kpi-reveal{ opacity: 0; transform: translateY(18px) scale(.985); }
+    .kpi-card.kpi-visible{ animation: kpiReveal .75s cubic-bezier(.22,1,.36,1) forwards; }
+    @keyframes shimmer{ to{ transform: translateX(120%); } }
+    @keyframes kpiReveal{
+      0%{ opacity:0; transform: translateY(18px) scale(.985); }
+      60%{ opacity:1; transform: translateY(-4px) scale(1.01); }
+      100%{ opacity:1; transform: translateY(0) scale(1); }
     }
     @keyframes spin{
       to{ transform: rotate(360deg); }
@@ -189,6 +232,382 @@
     .kpi-title{ font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color:#94a3b8; }
     .kpi-value{ font-size: 20px; font-weight: 900; margin-top: 6px; }
     .kpi-sub{ font-size: 12px; font-weight: 800; color:#64748b; margin-top: 2px; }
+
+
+
+    /* ===== KPI MADNESS PATCH ===== */
+    #ytdWrap{
+      position: relative;
+      overflow: hidden;
+      border-radius: 36px;
+      padding: 28px;
+      background:
+        radial-gradient(920px 480px at -8% -10%, rgba(37,99,235,0.32), transparent 58%),
+        radial-gradient(840px 420px at 108% 4%, rgba(148,163,184,0.16), transparent 52%),
+        linear-gradient(180deg, #040816 0%, #08101e 48%, #0b1222 100%);
+      border: 1px solid rgba(148,163,184,0.16);
+      box-shadow: 0 34px 96px rgba(2,6,23,0.34);
+    }
+    #ytdWrap::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.08), transparent 28%, transparent 72%, rgba(255,255,255,0.04)),
+        radial-gradient(480px 220px at 50% 0%, rgba(255,255,255,0.08), transparent 68%);
+    }
+    #ytdWrap::after{
+      content:'';
+      position:absolute;
+      inset:auto -8% -22% auto;
+      width:420px;
+      height:420px;
+      border-radius:999px;
+      background: radial-gradient(circle at center, rgba(59,130,246,0.2), transparent 66%);
+      filter: blur(18px);
+      pointer-events:none;
+    }
+    .ytd-shell{
+      position:relative;
+      z-index:1;
+      display:grid;
+      gap:22px;
+    }
+    .ytd-hero{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:18px;
+      flex-wrap:wrap;
+      padding: 2px 2px 0;
+    }
+    .ytd-hero-copy{
+      max-width: 760px;
+      font-size: 14px;
+      line-height: 1.65;
+      font-weight: 700;
+      color: rgba(226,232,240,0.72);
+      margin-top: 10px;
+    }
+    .section-kicker{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.18);
+      background: rgba(15,23,42,0.34);
+      color: rgba(226,232,240,0.84);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      width: fit-content;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .ytd-stage{
+      position:relative;
+      overflow:hidden;
+      border-radius: 30px;
+      padding: 22px;
+    }
+    .ytd-stage::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent 42%, rgba(255,255,255,0.06));
+    }
+    .ytd-stage-summary{
+      border: 1px solid rgba(96,165,250,0.2);
+      background:
+        radial-gradient(520px 200px at 0% 0%, rgba(59,130,246,0.2), transparent 62%),
+        linear-gradient(180deg, rgba(10,18,38,0.82), rgba(12,24,52,0.72));
+      box-shadow: 0 24px 58px rgba(30,64,175,0.18);
+    }
+    .ytd-stage-channel{
+      border: 1px solid rgba(226,232,240,0.8);
+      background:
+        radial-gradient(520px 220px at 100% 0%, rgba(59,130,246,0.08), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.96));
+      box-shadow: 0 24px 60px rgba(15,23,42,0.14);
+    }
+    .ytd-panel-head{
+      position:relative;
+      z-index:1;
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+      margin-bottom:18px;
+    }
+    .ytd-panel-head h2{
+      margin:0;
+      font-size: clamp(1.55rem, 2vw, 2.08rem);
+      line-height: 1.02;
+      letter-spacing: -0.04em;
+      font-weight: 900;
+    }
+    .ytd-panel-copy{
+      max-width: 440px;
+      font-size: 13px;
+      line-height: 1.65;
+      font-weight: 700;
+    }
+    .ytd-stage-summary .ytd-panel-head h2{ color:#ffffff; }
+    .ytd-stage-summary .ytd-panel-copy{ color: rgba(226,232,240,0.74); }
+    .ytd-stage-channel .ytd-panel-head h2{ color:#0f172a; }
+    .ytd-stage-channel .ytd-panel-copy{ color:#64748b; }
+    #ytdLoadingOverlay .loading-title{
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: rgba(191,219,254,0.84);
+    }
+    #ytdLoadingOverlay .loading-text{
+      display:block;
+      font-size: 16px;
+      line-height: 1.5;
+      font-weight: 900;
+      color:#f8fafc;
+    }
+    #allCards, #ytdCards{
+      position:relative;
+      z-index:1;
+      perspective: 1400px;
+    }
+    #allCards .kpi-card, #ytdCards .kpi-card{
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      transform-style: preserve-3d;
+      transition: transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s cubic-bezier(.22,1,.36,1), border-color .35s ease, background .35s ease;
+      will-change: transform, box-shadow;
+    }
+    #allCards .kpi-card::before, #ytdCards .kpi-card::before{
+      content:'';
+      position:absolute;
+      inset:-1px;
+      border-radius: inherit;
+      padding:1px;
+      background: linear-gradient(135deg, rgba(255,255,255,.75), rgba(255,255,255,.1), rgba(255,255,255,.35));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+      opacity:.9;
+      pointer-events:none;
+    }
+    #allCards .kpi-card::after, #ytdCards .kpi-card::after{
+      content:'';
+      position:absolute;
+      width:180px;
+      height:180px;
+      right:-60px;
+      top:-70px;
+      border-radius:999px;
+      filter: blur(8px);
+      opacity:.55;
+      pointer-events:none;
+      transition: transform .55s cubic-bezier(.22,1,.36,1), opacity .35s ease;
+    }
+    #allCards .kpi-card:hover, #ytdCards .kpi-card:hover{
+      transform: translateY(-10px) rotateX(6deg) rotateY(-6deg) scale(1.02);
+    }
+    #allCards .kpi-card:hover::after, #ytdCards .kpi-card:hover::after{
+      transform: translate3d(-8px, 10px, 0) scale(1.08);
+      opacity:.8;
+    }
+
+
+
+    /* ===== INITIAL ENTRANCE MOTION PATCH ===== */
+    #allSummarySection, #channelActualsSection, #kpiPanel, #messageMeta, #campaignArea, #productsSection, #analysisSection{
+      will-change: transform, opacity, filter;
+    }
+    .intro-block{
+      opacity: 0;
+      transform: translateY(26px) scale(.985);
+      filter: blur(8px);
+    }
+    .intro-block.intro-in{
+      animation: sectionRise .9s cubic-bezier(.22,1,.36,1) forwards;
+      animation-delay: var(--intro-delay, 0ms);
+    }
+    @keyframes sectionRise{
+      0%{ opacity:0; transform: translateY(26px) scale(.985); filter: blur(8px); }
+      60%{ opacity:1; transform: translateY(-4px) scale(1.004); filter: blur(0); }
+      100%{ opacity:1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+    #allCards .kpi-card.kpi-preenter, #ytdCards .kpi-card.kpi-preenter, #kpiGrid .kpi-card.kpi-preenter{
+      opacity: 0;
+      transform: translateY(30px) scale(.92) rotateX(16deg);
+      filter: blur(10px);
+    }
+    #allCards .kpi-card.kpi-preenter::after, #ytdCards .kpi-card.kpi-preenter::after, #kpiGrid .kpi-card.kpi-preenter::after{
+      opacity: 0;
+      transform: translate3d(0,16px,0) scale(.86);
+    }
+    #allCards .kpi-card.kpi-enter, #ytdCards .kpi-card.kpi-enter, #kpiGrid .kpi-card.kpi-enter{
+      animation: kpiCardBlast 980ms cubic-bezier(.16,1,.3,1) forwards;
+      animation-delay: var(--card-delay, 0ms);
+    }
+    #allCards .kpi-card.kpi-enter::after, #ytdCards .kpi-card.kpi-enter::after, #kpiGrid .kpi-card.kpi-enter::after{
+      animation: orbWake 1100ms cubic-bezier(.16,1,.3,1) forwards;
+      animation-delay: calc(var(--card-delay, 0ms) + 60ms);
+    }
+    @keyframes kpiCardBlast{
+      0%{ opacity:0; transform: translateY(30px) scale(.92) rotateX(16deg); filter: blur(10px); }
+      58%{ opacity:1; transform: translateY(-8px) scale(1.03) rotateX(0deg); filter: blur(0); }
+      100%{ opacity:1; transform: translateY(0) scale(1) rotateX(0deg); filter: blur(0); }
+    }
+    @keyframes orbWake{
+      0%{ opacity:0; transform: translate3d(0,16px,0) scale(.86); }
+      100%{ opacity:.78; transform: translate3d(0,0,0) scale(1); }
+    }
+    .headline-preenter{
+      opacity: 0;
+      transform: translateY(16px);
+      filter: blur(6px);
+    }
+    .headline-preenter.headline-enter{
+      animation: titleFloat .8s cubic-bezier(.22,1,.36,1) forwards;
+      animation-delay: var(--headline-delay, 0ms);
+    }
+    @keyframes titleFloat{
+      0%{ opacity:0; transform: translateY(16px); filter: blur(6px); }
+      100%{ opacity:1; transform: translateY(0); filter: blur(0); }
+    }
+    .tab-switch-pulse{
+      animation: tabSwitchPulse .62s cubic-bezier(.22,1,.36,1);
+    }
+    .tab-surface-swap{
+      animation: tabSurfaceSwap .72s cubic-bezier(.22,1,.36,1);
+    }
+    @keyframes tabSwitchPulse{
+      0%{ transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59,130,246,0); }
+      45%{ transform: translateY(-3px) scale(1.04); box-shadow: 0 16px 30px rgba(59,130,246,0.18); }
+      100%{ transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(59,130,246,0); }
+    }
+    @keyframes tabSurfaceSwap{
+      0%{ opacity:.76; transform: translateY(18px) scale(.988); filter: blur(10px); }
+      100%{ opacity:1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+    #allCards .kpi-card{
+      min-height: 154px;
+      border: 1px solid rgba(96,165,250,0.24);
+      background: linear-gradient(180deg, rgba(12,22,46,0.88), rgba(18,44,102,0.78));
+      box-shadow: 0 24px 52px rgba(30,64,175,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
+      backdrop-filter: blur(14px);
+    }
+    #allCards .kpi-card::after{
+      background: radial-gradient(circle at center, rgba(96,165,250,.7), rgba(59,130,246,.18) 55%, transparent 70%);
+    }
+    #allCards .kpi-title{ color: rgba(191,219,254,0.82); }
+    #allCards .kpi-value{
+      color:#ffffff;
+      font-size: 2.18rem;
+      line-height: 1;
+      letter-spacing:-0.04em;
+      text-shadow: 0 8px 22px rgba(96,165,250,0.18);
+    }
+    #allCards .kpi-sub{ color: rgba(219,234,254,0.82); }
+    #allCards .kpi-card .kpi-sub:first-of-type{ font-weight: 900; }
+
+    #ytdCards .kpi-card{
+      min-height: 146px;
+      backdrop-filter: blur(12px);
+    }
+    #ytdCards .kpi-card:nth-child(-n+4){
+      border: 1px solid rgba(59,130,246,0.16);
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(239,246,255,0.96));
+      box-shadow: 0 20px 46px rgba(37,99,235,0.12);
+    }
+    #ytdCards .kpi-card:nth-child(-n+4)::after{
+      background: radial-gradient(circle at center, rgba(96,165,250,.4), rgba(96,165,250,.12) 55%, transparent 70%);
+    }
+    #ytdCards .kpi-card:nth-child(n+5){
+      border: 1px solid rgba(148,163,184,0.26);
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.94));
+      box-shadow: 0 16px 38px rgba(15,23,42,0.08);
+    }
+    #ytdCards .kpi-card:nth-child(n+5)::after{
+      background: radial-gradient(circle at center, rgba(148,163,184,.32), rgba(203,213,225,.08) 55%, transparent 70%);
+    }
+    #ytdCards .kpi-card:nth-child(-n+4) .kpi-value{
+      font-size: 2.18rem;
+      line-height: 1;
+      letter-spacing:-0.05em;
+      color:#08101f;
+    }
+    #ytdCards .kpi-card:nth-child(n+5) .kpi-value{
+      font-size: 1.95rem;
+      line-height: 1;
+      color:#0f172a;
+    }
+    #ytdCards .kpi-card:nth-child(-n+4) .kpi-sub:first-of-type{ color:#2563eb; }
+    #ytdCards .kpi-card:nth-child(n+5) .kpi-sub:first-of-type{ color:#64748b; }
+    @media (max-width: 768px){
+      #ytdWrap{ padding: 20px; border-radius: 28px; }
+      .ytd-stage{ padding: 18px; border-radius: 24px; }
+      .ytd-panel-head h2{ font-size: 1.42rem; }
+      #allCards .kpi-value, #ytdCards .kpi-card:nth-child(-n+4) .kpi-value{ font-size: 1.92rem; }
+      #ytdCards .kpi-card:nth-child(n+5) .kpi-value{ font-size: 1.72rem; }
+    }
+
+    .kpi-pop-in{
+      opacity:0;
+      transform: translateY(22px) scale(.96);
+      animation: kpiPop .9s cubic-bezier(.22,1,.36,1) forwards;
+      animation-delay: var(--delay, 0ms);
+    }
+    .kpi-ty-burst{
+      animation: kpiTyBurst 1.05s cubic-bezier(.16,1,.3,1) both;
+      animation-delay: var(--delay, 0ms);
+    }
+    .kpi-ly-glide{
+      animation: kpiLyGlide .95s cubic-bezier(.22,1,.36,1) both;
+      animation-delay: var(--delay, 0ms);
+    }
+    .kpi-value.kpi-glow{
+      animation: kpiGlow 2.8s ease-in-out infinite;
+    }
+    .kpi-value.kpi-shine{
+      background: linear-gradient(90deg, rgba(255,255,255,.96), rgba(191,219,254,.98), rgba(255,255,255,.96));
+      background-size: 220% auto;
+      -webkit-background-clip:text;
+      background-clip:text;
+      color: transparent !important;
+      animation: textShine 4.4s linear infinite;
+    }
+    .kpi-card[data-trend="up"]{ box-shadow: 0 22px 48px rgba(34,197,94,0.14), 0 0 0 1px rgba(34,197,94,0.08); }
+    .kpi-card[data-trend="down"]{ box-shadow: 0 22px 48px rgba(239,68,68,0.12), 0 0 0 1px rgba(239,68,68,0.07); }
+    .kpi-card[data-trend="up"] .kpi-sub:first-of-type{ color:#16a34a !important; }
+    .kpi-card[data-trend="down"] .kpi-sub:first-of-type{ color:#dc2626 !important; }
+
+    @keyframes kpiPop{
+      0%{ opacity:0; transform: translateY(24px) scale(.94); }
+      60%{ opacity:1; transform: translateY(-6px) scale(1.012); }
+      100%{ opacity:1; transform: translateY(0) scale(1); }
+    }
+    @keyframes kpiTyBurst{
+      0%{ opacity:0; transform: translateY(28px) scale(.92); }
+      55%{ opacity:1; transform: translateY(-10px) scale(1.025); }
+      100%{ opacity:1; transform: translateY(0) scale(1); }
+    }
+    @keyframes kpiLyGlide{
+      0%{ opacity:0; transform: translateX(-18px) translateY(16px); }
+      100%{ opacity:1; transform: translateX(0) translateY(0); }
+    }
+    @keyframes kpiGlow{
+      0%,100%{ text-shadow: 0 0 0 rgba(255,255,255,0); }
+      50%{ text-shadow: 0 0 22px rgba(191,219,254,.26); }
+    }
+    @keyframes textShine{
+      to{ background-position: 220% center; }
+    }
 
     .mini-card{
       border: 1px solid rgba(148,163,184,0.22);
@@ -274,11 +693,17 @@
       gap:8px;
     }
     .toggle:hover{ transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,45,114,0.08); }
+    /* ===== SAFE FULL WIDTH PATCH ===== */
+    .report-fullwidth{ width:100%; max-width:none; }
+    @media (min-width:1280px){
+      .glass{ padding: 28px; }
+    }
+
   </style>
 </head>
 
-<body class="p-6 md:p-10">
-  <div class="max-w-7xl mx-auto">
+<body class="p-3 md:p-4 xl:p-5">
+  <div class="w-full max-w-none mx-auto">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
       <div>
         <div class="text-4xl font-black tracking-tight">OWNED Campaign Explorer</div>
@@ -303,7 +728,7 @@
       </div>
     </div>
 
-    <div class="glass p-6">
+    <div class="glass p-6 report-fullwidth">
       <!-- Controls -->
       <div class="flex flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
@@ -369,21 +794,21 @@
             <div class="mini-value"><span id="totEdmSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totEdmRevenue">-</span></div>
             <div class="mini-sub">Send count: <span id="totEdmSendCount">-</span></div>
-            <div class="mini-sub">Avg leverage: <span id="totEdmLeverage">-</span></div>
+            <div class="mini-sub">CVR: <span id="totEdmLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">LMS</div>
             <div class="mini-value"><span id="totLmsSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totLmsRevenue">-</span></div>
             <div class="mini-sub">Send count: <span id="totLmsSendCount">-</span></div>
-            <div class="mini-sub">Avg leverage: <span id="totLmsLeverage">-</span></div>
+            <div class="mini-sub">CVR: <span id="totLmsLeverage">-</span></div>
           </div>
           <div class="mini-card">
             <div class="mini-title">KAKAO</div>
             <div class="mini-value"><span id="totKakaoSessions">-</span></div>
             <div class="mini-sub">Revenue: <span id="totKakaoRevenue">-</span></div>
             <div class="mini-sub">Send count: <span id="totKakaoSendCount">-</span></div>
-            <div class="mini-sub">Avg leverage: <span id="totKakaoLeverage">-</span></div>
+            <div class="mini-sub">CVR: <span id="totKakaoLeverage">-</span></div>
           </div>
         </div>
       </div>
@@ -393,16 +818,28 @@
         <div id="ytdLoadingOverlay" class="ytd-loading-overlay">
           <div class="ytd-loading-card">
             <div class="loading-spinner"></div>
-            <div class="loading-title">Loading</div>
-            <div id="ytdLoadingText" class="loading-text">YTD loading...</div>
+            <div class="loading-title">데이터 로딩중이에용</div>
+            <div id="ytdLoadingText" class="loading-text">데이터 로딩중이에용...</div>
           </div>
         </div>
-        <div class="flex items-center gap-3 mb-4">
-          <div id="ytdSummaryTitle" class="text-xl font-black tracking-tight">OWNED YTD YoY &#45572;&#51201; (ALL)</div>
-          <div class="toggle !py-1 !px-3">YTD</div>
-        </div>
-        <div id="ytdSummaryLabel" class="small-label mb-3">YTD YoY Summary &#45572;&#51201;</div>
-        <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="ytd-shell">
+          <div class="ytd-hero">
+            <div>
+              <div id="ytdSummaryLabel" class="section-kicker">ALL PERFORMANCE</div>
+              <div id="ytdSummaryTitle" class="text-[clamp(2.4rem,5vw,4.3rem)] font-black tracking-tight text-white mt-4">OWNED YTD 누적 허브</div>
+              <div class="ytd-hero-copy">전체 누적 흐름과 선택 채널 누적 KPI를 한 화면 안에서 또렷하게 나눠서 볼 수 있게 정리했어요. 위쪽은 전체 흐름, 아래쪽은 채널별 누적 비교에 집중합니다.</div>
+            </div>
+            <div class="toggle !py-1 !px-3">YTD</div>
+          </div>
+          <section id="allSummarySection" class="ytd-stage ytd-stage-summary">
+            <div class="ytd-panel-head">
+              <div>
+                <div class="section-kicker">TOTAL ACCUMULATION</div>
+                <h2 class="mt-4">전체 누적 KPI</h2>
+              </div>
+              <div class="ytd-panel-copy">ALL 기준 누적 send count, sessions, revenue, CVR을 한 번에 비교하고 YoY 흐름까지 빠르게 읽을 수 있는 영역입니다.</div>
+            </div>
+            <div id="allCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 skeleton-zone">
           <div class="kpi-card">
             <div class="kpi-title">ALL 누적 Send count</div>
             <div id="allSendCount" class="kpi-value">-</div>
@@ -427,11 +864,17 @@
             <div id="allLeverageSub" class="kpi-sub">YoY -</div>
             <div id="allLeverageLy" class="kpi-sub">LY -</div>
           </div>
-        </div>
-        <div class="flex items-center gap-3 mt-5 mb-4">
-          <div id="ytdActualsTitle" class="text-xl font-black tracking-tight">YTD Actuals &#45572;&#51201; (EDM)</div>
-        </div>
-        <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+            </div>
+          </section>
+          <section id="channelActualsSection" class="ytd-stage ytd-stage-channel">
+            <div class="ytd-panel-head">
+              <div>
+                <div class="section-kicker">CHANNEL DEEP DIVE</div>
+                <h2 id="ytdActualsTitle" class="mt-4">채널 누적 KPI (EDM)</h2>
+              </div>
+              <div class="ytd-panel-copy">선택 채널의 TY와 LY 누적 성과를 카드 톤으로 나눠서 읽기 쉽게 구성했습니다. 위 4장은 현재 연도, 아래 4장은 전년 동일 기간입니다.</div>
+            </div>
+            <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 skeleton-zone">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
           <div id="ytdTySessions" class="kpi-value">-</div>
@@ -448,7 +891,7 @@
           <div id="ytdTySendCountSub" class="kpi-sub">-</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-title">YTD · TY Avg leverage</div>
+          <div class="kpi-title">YTD · TY CVR</div>
           <div id="ytdTyLeverage" class="kpi-value">-</div>
           <div id="ytdTyLeverageSub" class="kpi-sub">-</div>
         </div>
@@ -468,11 +911,13 @@
           <div id="ytdLySendCountSub" class="kpi-sub">-</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-title">YTD · LY Avg leverage</div>
+          <div class="kpi-title">YTD · LY CVR</div>
           <div id="ytdLyLeverage" class="kpi-value">-</div>
           <div id="ytdLyLeverageSub" class="kpi-sub">-</div>
         </div>
-      </div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <!-- KPI (selection) -->
@@ -508,7 +953,7 @@
           <div class="kpi-sub" id="kSendCountSub">-</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-title">Avg leverage</div>
+          <div class="kpi-title">CVR</div>
           <div id="kLeverage" class="kpi-value">-</div>
           <div class="kpi-sub" id="kLeverageSub">-</div>
         </div>
@@ -589,7 +1034,7 @@
                 <th style="min-width:140px">Revenue</th>
                 <th style="min-width:120px">Items</th>
                 <th style="min-width:120px">Send count</th>
-                <th style="min-width:140px">Avg leverage</th>
+                <th style="min-width:140px">CVR</th>
               </tr>
             </thead>
             <tbody id="termTb">
@@ -667,12 +1112,25 @@
   const loadingText = document.getElementById('loadingText');
   const ytdLoadingOverlay = document.getElementById('ytdLoadingOverlay');
   const ytdLoadingText = document.getElementById('ytdLoadingText');
+  const allCards = document.getElementById('allCards');
+  const ytdCards = document.getElementById('ytdCards');
+  let ytdSkeletonArmed = false;
   function showNotice(msg){ noticeText.textContent = msg; notice.style.display='flex'; }
   function hideNotice(){ notice.style.display='none'; noticeText.textContent='-'; }
+  function setSkeletonState(container, active){
+    if(!container) return;
+    Array.from(container.querySelectorAll('.kpi-card')).forEach(card=>{
+      card.classList.toggle('skeleton-card', !!active);
+      if(active){
+        card.classList.remove('kpi-visible');
+        card.classList.add('kpi-reveal');
+      }
+    });
+  }
   function showLoading(msg){
     if(String(msg || '').indexOf('YTD') === 0 || String(msg || '').indexOf('TY YTD') === 0 || String(msg || '').indexOf('LY YTD') === 0){
       if(loadingOverlay) loadingOverlay.style.display = 'none';
-      showYtdLoading(msg);
+      showYtdLoading();
       return;
     }
     if(loadingText) loadingText.textContent = msg || '데이터 불러오는 중…';
@@ -683,16 +1141,47 @@
     if(loadingText) loadingText.textContent = '데이터 불러오는 중…';
   }
   function showYtdLoading(msg){
-    if(ytdLoadingText) ytdLoadingText.textContent = msg || 'YTD loading...';
+    ytdSkeletonArmed = true;
+    setSkeletonState(allCards, true);
+    setSkeletonState(ytdCards, true);
     if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'flex';
+    if(ytdLoadingText) ytdLoadingText.textContent = msg || 'YTD 로딩중... 최신(전일) 데이터 불러오는 중';
+  }
+  function animateKpiGroup(container, baseDelay=0){
+    if(!container) return;
+    Array.from(container.querySelectorAll('.kpi-card')).forEach((card, idx)=>{
+      card.classList.remove('kpi-visible');
+      card.classList.add('kpi-reveal');
+      card.style.animationDelay = `${baseDelay + idx*55}ms`;
+      requestAnimationFrame(()=> card.classList.add('kpi-visible'));
+    });
   }
   function hideYtdLoading(){
+    setSkeletonState(allCards, false);
+    setSkeletonState(ytdCards, false);
     if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
-    if(ytdLoadingText) ytdLoadingText.textContent = 'YTD loading...';
+    if(ytdLoadingText) ytdLoadingText.textContent = 'YTD 로딩중...';
+    if(ytdSkeletonArmed){
+      animateKpiGroup(allCards, 0);
+      animateKpiGroup(ytdCards, 120);
+      ytdSkeletonArmed = false;
+    }
+  }
+  function primeYtdLoading(msg){
+    showYtdLoading(msg || 'YTD 로딩중... 최신(전일) 데이터 불러오는 중');
+    if(allCards) allCards.style.visibility = 'visible';
+    if(ytdCards) ytdCards.style.visibility = 'visible';
+  }
+  function finalizeAnimatedViewChange(){
+    refreshKpiMadness();
+    attachKpiTilt();
+    requestAnimationFrame(()=> runKpiEntranceOnce());
   }
   noticeClose.addEventListener('click', hideNotice);
 
   const btnReload = document.getElementById('btnReload');
+
+  showYtdLoading();
 
   const chipDaily = document.getElementById('chipDaily');
   const chipWeek  = document.getElementById('chipWeek');
@@ -730,8 +1219,6 @@
   const btnYTD = document.getElementById('btnYTD');
 
   const periodText = document.getElementById('periodText');
-  const ytdCards = document.getElementById('ytdCards');
-  const allCards = document.getElementById('allCards');
   const ytdSummaryTitle = document.getElementById('ytdSummaryTitle');
   const ytdSummaryLabel = document.getElementById('ytdSummaryLabel');
   const ytdActualsTitle = document.getElementById('ytdActualsTitle');
@@ -910,16 +1397,160 @@
     return getRowGroup(r).mmdd;
   }
 
+  function isKakaoMenuRow(r){
+    const campaign = String((r && (r.campaign || '')) || '').toUpperCase();
+    const term = String((r && (r.term || '')) || '').toUpperCase();
+    return campaign.includes('KAKAO_CH_MENU') || term.includes('KAKAO_CH_MENU');
+  }
+
+  function isKakaoMessageSendValue(v){
+    const value = String(v || '').trim().toUpperCase();
+    if(!value || value.includes('KAKAO_CH_MENU')) return false;
+    return value.includes('KAKAO_CH_MESSAGE_');
+  }
+
+  function isKakaoCountableSendRow(r){
+    const campaign = String((r && (r.campaign || '')) || '').trim().toUpperCase();
+    const term = String((r && (r.term || '')) || '').trim().toUpperCase();
+    if(isKakaoMenuRow(r)) return false;
+    return isKakaoMessageSendValue(campaign) || isKakaoMessageSendValue(term);
+  }
+
+  function isCountableSendRow(r){
+    const channel = String((r && (r.channel || '')) || '').trim().toUpperCase();
+    const group = getRowGroup(r);
+    if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return false;
+    if(channel === 'KAKAO') return isKakaoCountableSendRow(r);
+    return true;
+  }
+
   function getSendKey(r, expectedYear='', cutoffDate=''){
     const group = getRowGroup(r);
     const channel = String((r && (r.channel || '')) || '').trim();
-    if(!/^\d{4}$/.test(group.year || '') || !/^\d{4}$/.test(group.mmdd || '')) return '';
+    if(!isCountableSendRow(r)) return '';
     if(expectedYear && String(group.year) !== String(expectedYear)) return '';
     if(cutoffDate){
       const groupDate = dateStrFromYearMmdd(group.year, group.mmdd);
       if(groupDate > cutoffDate) return '';
     }
     return `${channel}||${group.year}||${group.mmdd}`;
+  }
+
+
+
+  function parseDisplayNumber(rawText){
+    const s = String(rawText || '').trim();
+    if(!s || s === '-') return null;
+    const cleaned = s.replace(/,/g,'').replace(/원/g,'').replace(/%/g,'').replace(/[^0-9.\-]/g,'');
+    if(!cleaned || cleaned === '-' || cleaned === '.' || cleaned === '-.') return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  function formatAnimatedValue(value, sourceText){
+    const source = String(sourceText || '');
+    const hasPercent = source.includes('%');
+    const hasWon = source.includes('₩') || source.includes('원');
+    const hasComma = source.includes(',');
+    const decimals = (() => {
+      const m = source.match(/\.(\d+)/);
+      return m ? m[1].length : 0;
+    })();
+    let out = decimals > 0 ? value.toFixed(Math.min(decimals, 2)) : Math.round(value).toString();
+    if(hasComma || !hasPercent){
+      const parts = out.split('.');
+      parts[0] = Number(parts[0]).toLocaleString('en-US');
+      out = parts.join('.');
+    }
+    if(hasPercent) out += '%';
+    if(hasWon) out = `₩${out}`;
+    return out;
+  }
+
+  function animateValueText(el, toText, duration=1100){
+    if(!el) return;
+    const target = parseDisplayNumber(toText);
+    if(target === null){ el.textContent = toText; return; }
+    const prevTarget = Number(el.dataset.animTarget || 'NaN');
+    const from = Number.isFinite(prevTarget) ? prevTarget : 0;
+    el.dataset.animTarget = String(target);
+    const start = performance.now();
+    const ease = (t)=> 1 - Math.pow(1 - t, 4);
+    function frame(now){
+      const p = Math.min(1, (now - start) / duration);
+      const cur = from + (target - from) * ease(p);
+      el.textContent = formatAnimatedValue(cur, toText);
+      if(p < 1) requestAnimationFrame(frame);
+      else el.textContent = toText;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function applyKpiTrend(card){
+    if(!card) return;
+    const sub = card.querySelector('.kpi-sub');
+    if(!sub) return;
+    const t = sub.textContent || '';
+    card.removeAttribute('data-trend');
+    if(/YoY\s*\+|vs\s*LY\s*:\s*\+|vs\s*LY\s*\+|\+\d/.test(t)) card.dataset.trend = 'up';
+    else if(/YoY\s*-|vs\s*LY\s*:\s*-|vs\s*LY\s*-|-\d/.test(t)) card.dataset.trend = 'down';
+  }
+
+  function refreshKpiMadness(){
+    const all = Array.from(document.querySelectorAll('#allCards .kpi-card'));
+    const ytd = Array.from(document.querySelectorAll('#ytdCards .kpi-card'));
+    const sel = Array.from(document.querySelectorAll('.grid.grid-cols-1.md\:grid-cols-2.xl\:grid-cols-7.gap-4.mt-5.mb-6 .kpi-card'));
+
+    all.forEach((card, i)=>{
+      card.classList.remove('kpi-pop-in','kpi-ty-burst','kpi-ly-glide');
+      void card.offsetWidth;
+      card.style.setProperty('--delay', `${i * 80}ms`);
+      card.classList.add('kpi-pop-in');
+      applyKpiTrend(card);
+      const value = card.querySelector('.kpi-value');
+      if(value){
+        value.classList.add('kpi-shine','kpi-glow');
+        animateValueText(value, value.textContent, 1450);
+      }
+    });
+
+    ytd.forEach((card, i)=>{
+      card.classList.remove('kpi-pop-in','kpi-ty-burst','kpi-ly-glide');
+      void card.offsetWidth;
+      card.style.setProperty('--delay', `${i * 70}ms`);
+      card.classList.add(i < 4 ? 'kpi-ty-burst' : 'kpi-ly-glide');
+      applyKpiTrend(card);
+      const value = card.querySelector('.kpi-value');
+      if(value){
+        value.classList.remove('kpi-shine');
+        value.classList.toggle('kpi-glow', i < 4);
+        animateValueText(value, value.textContent, i < 4 ? 1150 : 950);
+      }
+    });
+
+    sel.forEach((card, i)=>{
+      card.style.setProperty('--delay', `${i * 35}ms`);
+      applyKpiTrend(card);
+      const value = card.querySelector('.kpi-value');
+      if(value) animateValueText(value, value.textContent, 800);
+    });
+  }
+
+  function attachKpiTilt(){
+    const cards = document.querySelectorAll('#allCards .kpi-card, #ytdCards .kpi-card');
+    cards.forEach(card => {
+      if(card.dataset.tiltBound === '1') return;
+      card.dataset.tiltBound = '1';
+      card.addEventListener('mousemove', (e)=>{
+        const r = card.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width;
+        const py = (e.clientY - r.top) / r.height;
+        const ry = (px - 0.5) * 11;
+        const rx = (0.5 - py) * 9;
+        card.style.transform = `translateY(-10px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+      });
+      card.addEventListener('mouseleave', ()=>{ card.style.transform = ''; });
+    });
   }
 
   function countDistinctSends(rows, expectedYear='', cutoffDate=''){
@@ -1120,7 +1751,8 @@
     const agg = aggregateRow(metricRows);
     const sendCount = scheduledRows.length ? scheduledRows.length : countDistinctSends(rows || [], expectedYear, endDate);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
-    return { ...agg, send_count: sendCount, avg_leverage: avgLeverage };
+    const cvr = agg.sessions ? ((agg.purchases || 0) / agg.sessions * 100) : 0;
+    return { ...agg, send_count: sendCount, avg_leverage: avgLeverage, cvr };
   }
 
   function getCumulativeSendCount(channel, endDate){
@@ -1215,11 +1847,75 @@
       'TY \uB204\uC801 Sessions',
       'TY \uB204\uC801 Revenue',
       'TY \uB204\uC801 Send count',
-      'TY \uB204\uC801 Avg leverage',
+      'TY \uB204\uC801 CVR',
       'LY \uB204\uC801 Sessions',
       'LY \uB204\uC801 Revenue',
       'LY \uB204\uC801 Send count',
-      'LY \uB204\uC801 Avg leverage',
+      'LY \uB204\uC801 CVR',
+    ];
+
+    allTitles.forEach((el, idx) => {
+      if(el && allTitleText[idx]) el.textContent = allTitleText[idx];
+    });
+    actualTitles.forEach((el, idx) => {
+      if(el && actualTitleText[idx]) el.textContent = actualTitleText[idx];
+    });
+  }
+
+  function getFriendlyYtdLoadingMessage(){
+    return '데이터 로딩중이에용...';
+  }
+
+  function showYtdLoading(msg){
+    ytdSkeletonArmed = true;
+    setSkeletonState(allCards, true);
+    setSkeletonState(ytdCards, true);
+    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'flex';
+    if(ytdLoadingText) ytdLoadingText.textContent = getFriendlyYtdLoadingMessage();
+  }
+
+  function hideYtdLoading(){
+    setSkeletonState(allCards, false);
+    setSkeletonState(ytdCards, false);
+    if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
+    if(ytdLoadingText) ytdLoadingText.textContent = getFriendlyYtdLoadingMessage();
+    if(ytdSkeletonArmed){
+      animateKpiGroup(allCards, 0);
+      animateKpiGroup(ytdCards, 120);
+      ytdSkeletonArmed = false;
+    }
+  }
+
+  function primeYtdLoading(msg){
+    showYtdLoading(msg || getFriendlyYtdLoadingMessage());
+    if(allCards) allCards.style.visibility = 'visible';
+    if(ytdCards) ytdCards.style.visibility = 'visible';
+  }
+
+  function updateYtdLabels(){
+    const actualsChannel = getYtdChannelLabel(CHANNEL);
+    if(ytdSummaryTitle) ytdSummaryTitle.textContent = 'OWNED YTD 누적 허브';
+    if(ytdSummaryLabel) ytdSummaryLabel.textContent = 'ALL PERFORMANCE';
+    if(ytdActualsTitle) ytdActualsTitle.textContent = `${actualsChannel} 채널 누적 KPI`;
+
+    const allTitles = allCards ? Array.from(allCards.querySelectorAll('.kpi-title')) : [];
+    const actualTitles = ytdCards ? Array.from(ytdCards.querySelectorAll('.kpi-title')) : [];
+
+    const allTitleText = [
+      'ALL 누적 Send count',
+      'ALL 누적 Sessions',
+      'ALL 누적 Revenue',
+      'ALL 누적 CVR',
+    ];
+    const actualTitleText = [
+      'TY 누적 Sessions',
+      'TY 누적 Revenue',
+      'TY 누적 Send count',
+      'TY 누적 CVR',
+      'LY 누적 Sessions',
+      'LY 누적 Revenue',
+      'LY 누적 Send count',
+      'LY 누적 CVR',
     ];
 
     allTitles.forEach((el, idx) => {
@@ -1354,7 +2050,7 @@
   }
 
   // ✅ 기본값
-  let VIEW = 'DAILY';     // DAILY | WEEK | RANGE
+  let VIEW = 'WEEK';     // DAILY | WEEK | RANGE
   let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
 
   let RAW = null;         // {kpi:[], prod:[], analysis:[]}
@@ -1500,25 +2196,28 @@
 
     edm.send_count = getCumulativeSendCount('EDM', endDate);
     edm.avg_leverage = edm.send_count ? (edm.sessions / edm.send_count) : 0;
+    edm.cvr = edm.sessions ? (edm.purchases / edm.sessions * 100) : 0;
     lms.send_count = getCumulativeSendCount('LMS', endDate);
     lms.avg_leverage = lms.send_count ? (lms.sessions / lms.send_count) : 0;
+    lms.cvr = lms.sessions ? (lms.purchases / lms.sessions * 100) : 0;
     kakao.send_count = getCumulativeSendCount('KAKAO', endDate);
     kakao.avg_leverage = kakao.send_count ? (kakao.sessions / kakao.send_count) : 0;
+    kakao.cvr = kakao.sessions ? (kakao.purchases / kakao.sessions * 100) : 0;
 
     totEdmSessions.textContent = fmt(edm.sessions);
     totEdmRevenue.textContent = fmtMoney(edm.revenue);
     totEdmSendCount.textContent = fmt(edm.send_count);
-    totEdmLeverage.textContent = fmtRatio(edm.avg_leverage);
+    totEdmLeverage.textContent = `${edm.cvr.toFixed(2)}%`;
 
     totLmsSessions.textContent = fmt(lms.sessions);
     totLmsRevenue.textContent = fmtMoney(lms.revenue);
     totLmsSendCount.textContent = fmt(lms.send_count);
-    totLmsLeverage.textContent = fmtRatio(lms.avg_leverage);
+    totLmsLeverage.textContent = `${lms.cvr.toFixed(2)}%`;
 
     totKakaoSessions.textContent = fmt(kakao.sessions);
     totKakaoRevenue.textContent = fmtMoney(kakao.revenue);
     totKakaoSendCount.textContent = fmt(kakao.send_count);
-    totKakaoLeverage.textContent = fmtRatio(kakao.avg_leverage);
+    totKakaoLeverage.textContent = `${kakao.cvr.toFixed(2)}%`;
   }
 
   function renderCampaignButtons(){
@@ -1551,20 +2250,33 @@
     const messageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length) ? GROUP_SOURCE_MESSAGE_LOG : (((RAW && RAW.message_log) || []));
 
     for(const r of chipSourceRows){
-      if(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO'){
-        const mmdd = mmddOfRow(r);
-        const year = getRowYear(r);
-        if(mmdd && /^\d{4}$/.test(year)){
-          if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog)) continue;
-          const gk = `${getRowYear(r)}-${getRowMmdd(r)}`;
-          const m = by[r.channel];
-          if(!m.has(gk)) m.set(gk, []);
-          m.get(gk).push(r);
-        }else{
-          otherByChannel[r.channel].push(r);
-        }
-      }else{
+      if(!(r.channel==='EDM' || r.channel==='LMS' || r.channel==='KAKAO')){
         otherChannels.push(r);
+        continue;
+      }
+
+      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog)) continue;
+
+      const mmdd = mmddOfRow(r);
+      const year = getRowYear(r);
+      const hasDateGroup = mmdd && /^\d{4}$/.test(year) && /^\d{4}$/.test(getRowMmdd(r) || mmdd);
+
+      if(r.channel === 'KAKAO' && isKakaoMenuRow(r)){
+        otherByChannel.KAKAO.push(r);
+        continue;
+      }
+
+      if(hasDateGroup){
+        if(r.channel === 'KAKAO' && !isKakaoCountableSendRow(r)){
+          otherByChannel.KAKAO.push(r);
+          continue;
+        }
+        const gk = `${getRowYear(r)}-${getRowMmdd(r)}`;
+        const m = by[r.channel];
+        if(!m.has(gk)) m.set(gk, []);
+        m.get(gk).push(r);
+      }else{
+        otherByChannel[r.channel].push(r);
       }
     }
 
@@ -1614,7 +2326,15 @@
     renderByDate('KAKAO', wrapKakaoDate);
 
     if(!SELECTED){
-      const firstBtn = [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
+      const currentWrap = (CHANNEL==='EDM') ? wrapEDMDate : (CHANNEL==='LMS' ? wrapLMSDate : wrapKakaoDate);
+      const preferredMmdd = getPortalMetaDefaultMmdd(CHANNEL);
+      let firstBtn = null;
+      if(preferredMmdd){
+        firstBtn = Array.from(currentWrap.querySelectorAll('button.chip')).find(btn => String(btn.getAttribute('data-mmdd') || '') === preferredMmdd) || null;
+      }
+      if(!firstBtn){
+        firstBtn = currentWrap.querySelector('button.chip') || [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
+      }
       if(firstBtn){
         SELECTED = {
           type:'group',
@@ -1625,7 +2345,7 @@
       }
     }
 
-    function renderOtherCampaigns(channel, wrapEl){
+    function renderOtherCampaignsInline(channel, wrapEl){
       const rows = otherByChannel[channel].slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
       if(!rows.length){
         wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
@@ -1654,9 +2374,9 @@
       });
     }
 
-    renderOtherCampaigns('EDM', wrapEDMOther);
-    renderOtherCampaigns('LMS', wrapLMSOther);
-    renderOtherCampaigns('KAKAO', wrapKakaoOther);
+    renderOtherCampaignsInline('EDM', wrapEDMOther);
+    renderOtherCampaignsInline('LMS', wrapLMSOther);
+    renderOtherCampaignsInline('KAKAO', wrapKakaoOther);
 
     const oc = otherChannels.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
     if(!oc.length){
@@ -1685,6 +2405,7 @@
       });
     }
   }
+
 
   function renderOtherCampaigns(channel, wrapEl){
     const sourceRows = otherByChannel[channel].slice();
@@ -1898,6 +2619,7 @@
     const a = aggregateRow(rows);
     const sendCount = getSelectedSendCount(SELECTED, rows);
     const leverage = sendCount ? (a.sessions / sendCount) : 0;
+    const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
     const selectionMessages = getSelectionMessageRows(SELECTED, rows);
     const meta = (selectionMessages && selectionMessages.length)
       ? {
@@ -1912,9 +2634,8 @@
     kRevenue.textContent = fmtMoney(a.revenue);
     kItems.textContent = fmt(a.items_purchased);
     kSendCount.textContent = fmt(sendCount);
-    kLeverage.textContent = fmtRatio(leverage);
+    kLeverage.textContent = `${cvr.toFixed(2)}%`;
 
-    const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
     const aov = a.purchases ? (a.revenue/a.purchases) : 0;
     const ips = a.purchases ? (a.items_purchased/a.purchases) : 0;
 
@@ -1924,7 +2645,7 @@
     kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
     kSendCountSub.textContent = `Distinct sends in selected scope`;
-    kLeverageSub.textContent = `Sessions / send count`;
+    kLeverageSub.textContent = `Purchases / sessions`;
     msgTitle.textContent = meta.title || '-';
     msgBody.textContent = meta.body || '-';
     renderFunnelAnalysis();
@@ -2180,7 +2901,7 @@
 
     termTb.innerHTML = rows.map(r=>{
       const sendCount = r.send_keys ? r.send_keys.size : 0;
-      const leverage = sendCount ? (Number(r.sessions||0) / sendCount) : 0;
+      const cvr = Number(r.sessions||0) ? ((Number(r.purchases||0) / Number(r.sessions||0)) * 100) : 0;
       return `
       <tr class="cursor-pointer" data-channel="${r.channel}" data-campaign="${encodeURIComponent(r.campaign||'')}" data-term="${encodeURIComponent(r.term||'')}">
         <td class="mono">${(r.campaign||'-')}</td>
@@ -2191,7 +2912,7 @@
         <td>${fmtMoney(r.revenue||0)}</td>
         <td>${fmt(r.items_purchased||0)}</td>
         <td>${fmt(sendCount)}</td>
-        <td>${fmtRatio(leverage)}</td>
+        <td>${cvr.toFixed(2)}%</td>
       </tr>`;
     }).join('');
 
@@ -2266,6 +2987,80 @@
         <td>${fmtMoney(r.prod_revenue||0)}</td>
       </tr>
     `).join('');
+  }
+
+
+
+  function runKpiEntranceOnce(){
+    const sections = [
+      document.querySelector('#allSummarySection'),
+      document.querySelector('#channelActualsSection'),
+      document.querySelector('#kpiPanel'),
+      document.querySelector('#messageMeta'),
+      document.querySelector('#campaignArea'),
+      document.querySelector('#productsSection'),
+      document.querySelector('#analysisSection')
+    ].filter(Boolean);
+
+    sections.forEach((el, i)=>{
+      el.classList.remove('intro-in');
+      el.classList.add('intro-block');
+      el.style.setProperty('--intro-delay', `${120 + i*110}ms`);
+      requestAnimationFrame(()=> el.classList.add('intro-in'));
+    });
+
+    const headlines = [
+      ...document.querySelectorAll('#allSummarySection h2, #allSummarySection .section-kicker, #channelActualsSection h2, #channelActualsSection .section-kicker')
+    ];
+    headlines.forEach((el, i)=>{
+      el.classList.remove('headline-enter');
+      el.classList.add('headline-preenter');
+      el.style.setProperty('--headline-delay', `${140 + i*90}ms`);
+      requestAnimationFrame(()=> el.classList.add('headline-enter'));
+    });
+
+    const cards = [
+      ...document.querySelectorAll('#allCards .kpi-card, #ytdCards .kpi-card, #kpiGrid .kpi-card')
+    ];
+    cards.forEach((card, i)=>{
+      card.classList.remove('kpi-enter');
+      card.classList.add('kpi-preenter');
+      card.style.setProperty('--card-delay', `${220 + i*55}ms`);
+      requestAnimationFrame(()=> card.classList.add('kpi-enter'));
+    });
+  }
+
+  function pulseActiveTabControl(el){
+    if(!el) return;
+    el.classList.remove('tab-switch-pulse');
+    void el.offsetWidth;
+    el.classList.add('tab-switch-pulse');
+  }
+
+  function animateTabSurfaceSwap(){
+    [
+      document.querySelector('#ytdWrap'),
+      document.querySelector('#kpiPanel'),
+      document.querySelector('#campaignArea'),
+      document.querySelector('#productsSection'),
+      document.querySelector('#analysisSection')
+    ].filter(Boolean).forEach((el, idx)=>{
+      el.classList.remove('tab-surface-swap');
+      el.style.animationDelay = `${idx * 55}ms`;
+      void el.offsetWidth;
+      el.classList.add('tab-surface-swap');
+    });
+  }
+
+  function finalizeAnimatedViewChange(){
+    refreshKpiMadness();
+    attachKpiTilt();
+    animateTabSurfaceSwap();
+    requestAnimationFrame(()=> runKpiEntranceOnce());
+    requestAnimationFrame(()=>{
+      pulseActiveTabControl(VIEW === 'DAILY' ? chipDaily : (VIEW === 'RANGE' ? chipRange : chipWeek));
+      pulseActiveTabControl(CHANNEL === 'EDM' ? chipEDM : (CHANNEL === 'LMS' ? chipLMS : chipKAKAO));
+    });
   }
 
   function renderProducts(){
@@ -2494,17 +3289,86 @@
     renderProducts();
   }
 
-  const OWNED_DATA_BASE_CANDIDATES = [
-    '../data/owned',
-    'data/owned',
-    './data/owned',
-    '../../data/owned',
-    '/data/owned',
-    'reports/owned_portal/data/owned',
-    './reports/owned_portal/data/owned',
-    '../reports/owned_portal/data/owned',
-  ];
+  function getOwnedDataBaseCandidates(){
+    const parts = String(location.pathname || '').split('/').filter(Boolean);
+    const repoBase = parts.length ? `/${parts[0]}` : '';
+    return [
+      '../data/owned',
+      'data/owned',
+      './data/owned',
+      '../../data/owned',
+      '../site/data/owned',
+      './site/data/owned',
+      '../../site/data/owned',
+      'site/data/owned',
+      'reports/owned_portal/data/owned',
+      './reports/owned_portal/data/owned',
+      '../reports/owned_portal/data/owned',
+      `${repoBase}/site/data/owned`,
+      `${repoBase}/data/owned`,
+      `${repoBase}/reports/owned_portal/data/owned`,
+      '/site/data/owned',
+      '/data/owned',
+      '/reports/owned_portal/data/owned',
+    ];
+  }
   let OWNED_DATA_BASE = null;
+  let PORTAL_META = null;
+
+  async function fetchOwnedJsonOptional(fileName){
+    try{ return await fetchOwnedJson(fileName); }catch(_e){ return null; }
+  }
+
+  async function loadPortalMeta(){
+    try{
+      let meta = null;
+      try{
+        meta = await fetchOwnedJson('portal_meta.json');
+      }catch(_e){
+        meta = await fetchOwnedJson('meta.json');
+      }
+      PORTAL_META = (meta && typeof meta === 'object') ? meta : null;
+      return PORTAL_META;
+    }catch(_e){
+      PORTAL_META = null;
+      return null;
+    }
+  }
+
+  function getPortalMetaDefaultDate(){
+    const d = String((PORTAL_META && (PORTAL_META.default_date || PORTAL_META.latest_available_date)) || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
+  }
+
+  function getPortalMetaDefaultView(){
+    const v = String((PORTAL_META && PORTAL_META.default_view) || '').trim().toUpperCase();
+    return (v === 'DAILY' || v === 'WEEK' || v === 'RANGE') ? v : 'WEEK';
+  }
+
+  function getPortalMetaDefaultChannel(){
+    const ch = String((PORTAL_META && PORTAL_META.default_channel) || '').trim().toUpperCase();
+    return (ch === 'EDM' || ch === 'LMS' || ch === 'KAKAO') ? ch : 'EDM';
+  }
+
+  function getPortalMetaDefaultMmdd(channel){
+    const key = String(channel || '').trim().toUpperCase();
+    const map = (PORTAL_META && PORTAL_META.default_mmdd_by_channel && typeof PORTAL_META.default_mmdd_by_channel === 'object') ? PORTAL_META.default_mmdd_by_channel : {};
+    const v = String(map[key] || '').trim();
+    return /^\d{4}$/.test(v) ? v : '';
+  }
+
+  function getPortalMetaDefaultGroupDate(channel){
+    const key = String(channel || '').trim().toUpperCase();
+    const map = (PORTAL_META && PORTAL_META.latest_group_date_by_channel && typeof PORTAL_META.latest_group_date_by_channel === 'object') ? PORTAL_META.latest_group_date_by_channel : {};
+    const v = String(map[key] || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+  }
+
+  function appendCacheBust(url){
+    const sep = url.includes('?') ? '&' : '?';
+    const v = String((PORTAL_META && (PORTAL_META.cache_bust || PORTAL_META.build_ts)) || Date.now());
+    return `${url}${sep}t=${encodeURIComponent(v)}`;
+  }
 
   function isLooseJsonBoundary(ch){
     return !ch || /[\s,\]\}:]/.test(ch);
@@ -2559,8 +3423,7 @@
     return out;
   }
 
-
-  async function fetchJson(url){
+  async function fetchJsonDirect(url){
     const res = await fetch(url, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
@@ -2578,20 +3441,35 @@
   async function resolveOwnedDataBase(){
     if(OWNED_DATA_BASE) return OWNED_DATA_BASE;
 
-    for(const base of OWNED_DATA_BASE_CANDIDATES){
+    const seen = new Set();
+    const candidates = [];
+    for(const base of getOwnedDataBaseCandidates()){
+      const normalized = String(base || '').replace(/\/$/, '');
+      if(!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      candidates.push(normalized);
+    }
+
+    for(const base of candidates){
       try{
-        await fetchJson(`${base}/available_dates.json?t=${Date.now()}`);
+        await fetchJsonDirect(appendCacheBust(`${base}/available_dates.json`));
         OWNED_DATA_BASE = base;
         return OWNED_DATA_BASE;
       }catch(_e){}
     }
-
     throw new Error('OWNED data base path not found');
+  }
+
+  async function fetchJson(url){
+    if(/^https?:\/\//i.test(url) || url.startsWith('/')){
+      return await fetchJsonDirect(appendCacheBust(url));
+    }
+    return await fetchJsonDirect(url);
   }
 
   async function fetchOwnedJson(fileName){
     const base = await resolveOwnedDataBase();
-    return await fetchJson(`${base}/${fileName}?t=${Date.now()}`);
+    return await fetchJsonDirect(appendCacheBust(`${base}/${fileName}`));
   }
 
   function normalizeBundle(j){
@@ -2624,6 +3502,7 @@
       items_purchased: Number(r.items_purchased || 0),
       send_count: Number(r.send_count || 0),
       avg_leverage: Number(r.avg_leverage || 0),
+      cvr: Number(r.cvr || 0),
       message_title: r.message_title || r.title || '',
       message_body: r.message_body || r.content || '',
     }));
@@ -2717,6 +3596,7 @@
   async function loadDaily(dStr){
     hideNotice();
     SELECTED = null;
+
     try{
       RAW = normalizeBundle(await fetchOwnedJson(`owned_${dStr}.json`));
     }catch(e){
@@ -2811,12 +3691,20 @@
   }
 
   async function loadAvailableDates(){
+    showYtdLoading('YTD 로딩중... 메타/날짜 데이터 확인 중');
+    await loadPortalMeta();
+    const metaDates = Array.isArray(PORTAL_META && PORTAL_META.available_dates) ? PORTAL_META.available_dates.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))) : [];
+    if(metaDates.length){
+      AVAILABLE = metaDates.slice().sort();
+      return;
+    }
     try{
-      const j = await fetchOwnedJson('available_dates.json');
+      const j = await fetchOwnedJson(`available_dates.json`);
       const arr = Array.isArray(j) ? j : (j.available_dates || []);
-      AVAILABLE = arr.slice().sort();
+      AVAILABLE = arr.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))).slice().sort();
     }catch(e){
       AVAILABLE = null;
+      showNotice('available_dates.json 또는 portal_meta.json을 읽지 못했어. 데이터 경로를 확인해줘.');
     }
   }
 
@@ -2859,11 +3747,11 @@
   }
 
   async function computeYTD(){
-    if(!AVAILABLE || !AVAILABLE.length) return;
+    if(!AVAILABLE || !AVAILABLE.length){ showYtdLoading('YTD 로딩중... available_dates 확인 중'); return; }
     updateYtdLabels();
     const end = currentPeriodEndDate();
     const year = String(end).slice(0,4);
-    if(!/^\d{4}$/.test(year)) return;
+    if(!/^\d{4}$/.test(year)){ showYtdLoading('YTD 로딩중... 기준 날짜 확인 중'); return; }
 
     const thisStart = `${year}-01-01`;
     const thisEnd = clampToAvailable(end);
@@ -2884,16 +3772,16 @@
       ytdTySessions.textContent = fmt(TY.sessions);
       ytdTyRevenue.textContent  = fmtMoney(TY.revenue);
       ytdTySendCount.textContent = fmt(TY.send_count);
-      ytdTyLeverage.textContent = fmtRatio(TY.avg_leverage);
+      ytdTyLeverage.textContent = `${Number(TY.cvr || 0).toFixed(2)}%`;
       ytdLySessions.textContent = fmt(LY.sessions);
       ytdLyRevenue.textContent  = fmtMoney(LY.revenue);
       ytdLySendCount.textContent = fmt(LY.send_count);
-      ytdLyLeverage.textContent = fmtRatio(LY.avg_leverage);
+      ytdLyLeverage.textContent = `${Number(LY.cvr || 0).toFixed(2)}%`;
 
       const dSess = LY.sessions ? ((TY.sessions - LY.sessions)/LY.sessions*100) : (TY.sessions ? 100 : 0);
       const dRev  = LY.revenue  ? ((TY.revenue  - LY.revenue )/LY.revenue *100) : (TY.revenue  ? 100 : 0);
       const dSend = LY.send_count ? ((TY.send_count - LY.send_count)/LY.send_count*100) : (TY.send_count ? 100 : 0);
-      const dLev  = LY.avg_leverage ? ((TY.avg_leverage - LY.avg_leverage)/LY.avg_leverage*100) : (TY.avg_leverage ? 100 : 0);
+      const dLev  = LY.cvr ? ((TY.cvr - LY.cvr)/LY.cvr*100) : (TY.cvr ? 100 : 0);
       ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
       ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
       ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
@@ -2916,7 +3804,7 @@
       const chunkSize = 10;
       for(let i=0;i<dates.length;i+=chunkSize){
         const chunk = dates.slice(i, i+chunkSize);
-        showLoading(`YTD 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+        showYtdLoading();
         const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
         res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
       }
@@ -2951,16 +3839,16 @@
     ytdTySessions.textContent = fmt(thisSum.sessions);
     ytdTyRevenue.textContent  = fmtMoney(thisSum.revenue);
     ytdTySendCount.textContent = fmt(thisSum.send_count);
-    ytdTyLeverage.textContent = fmtRatio(thisSum.avg_leverage);
+    ytdTyLeverage.textContent = `${Number(thisSum.cvr || 0).toFixed(2)}%`;
     ytdLySessions.textContent = fmt(prevSum.sessions);
     ytdLyRevenue.textContent  = fmtMoney(prevSum.revenue);
     ytdLySendCount.textContent = fmt(prevSum.send_count);
-    ytdLyLeverage.textContent = fmtRatio(prevSum.avg_leverage);
+    ytdLyLeverage.textContent = `${Number(prevSum.cvr || 0).toFixed(2)}%`;
 
     const dSess = prevSum.sessions ? ((thisSum.sessions - prevSum.sessions)/prevSum.sessions*100) : (thisSum.sessions ? 100 : 0);
     const dRev  = prevSum.revenue  ? ((thisSum.revenue  - prevSum.revenue )/prevSum.revenue *100) : (thisSum.revenue  ? 100 : 0);
     const dSend = prevSum.send_count ? ((thisSum.send_count - prevSum.send_count)/prevSum.send_count*100) : (thisSum.send_count ? 100 : 0);
-    const dLev  = prevSum.avg_leverage ? ((thisSum.avg_leverage - prevSum.avg_leverage)/prevSum.avg_leverage*100) : (thisSum.avg_leverage ? 100 : 0);
+    const dLev  = prevSum.cvr ? ((thisSum.cvr - prevSum.cvr)/prevSum.cvr*100) : (thisSum.cvr ? 100 : 0);
     ytdTySessionsSub.textContent = `vs LY: ${dSess>=0?'+':''}${dSess.toFixed(1)}%`;
     ytdTyRevenueSub.textContent  = `vs LY: ${dRev>=0?'+':''}${dRev.toFixed(1)}%`;
     ytdTySendCountSub.textContent = `vs LY: ${dSend>=0?'+':''}${dSend.toFixed(1)}%`;
@@ -3015,8 +3903,10 @@
     startPicker.value = s;
     endPicker.value = e;
 
+    primeYtdLoading();
     await loadRange(s, e);
     await computeYTD();
+    finalizeAnimatedViewChange();
   }
 
   async function selectGroup(channel, year, mmdd){
@@ -3047,15 +3937,17 @@
 
   // View toggles
   chipDaily.addEventListener('click', ()=>{
+    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
     setViewActive();
     const d = clampToAvailable(datePicker.value || (AVAILABLE && AVAILABLE.length ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(),-1))));
     datePicker.value = d;
-    loadDaily(d).then(()=>computeYTD());
+    loadDaily(d).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange());
   });
 
   chipWeek.addEventListener('click', async ()=>{
+    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
     setViewActive();
@@ -3063,18 +3955,21 @@
     datePicker.value = d;
     await loadWeekByDate(d);
     await computeYTD();
+    finalizeAnimatedViewChange();
   });
 
   chipRange.addEventListener('click', ()=>{
+    primeYtdLoading();
     WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
     setViewActive();
     setToLastNDays(7);
-    loadRange(startPicker.value, endPicker.value).then(()=>computeYTD());
+    loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange());
   });
 
   // ✅ 채널 클릭 시 디폴트 VIEW = WEEK
   async function onChannelChange(ch){
+    primeYtdLoading();
     CHANNEL = ch;
     updateYtdLabels();
     setChipActive();
@@ -3093,6 +3988,7 @@
     renderTerms();
     renderProducts();
     await computeYTD();
+    finalizeAnimatedViewChange();
   }
 
   chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
@@ -3114,19 +4010,21 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  btnApplyRange.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btn7d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btn30d.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btnMTD.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
-  btnWEEK.addEventListener('click', ()=>{ WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()); });
+  btnApplyRange.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btn7d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btn30d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnMTD.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnWEEK.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
 
   btnPrev.addEventListener('click', async ()=>{
+    primeYtdLoading();
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,-1));
       datePicker.value = clampToAvailable(d);
       await loadDaily(datePicker.value);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
@@ -3135,6 +4033,7 @@
       datePicker.value = clampToAvailable(d);
       await loadWeekByDate(datePicker.value);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     const s = parseYMD(startPicker.value);
@@ -3143,15 +4042,18 @@
     endPicker.value = clampToAvailable(ymd(addDays(e,-7)));
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
+    finalizeAnimatedViewChange();
   });
 
   btnNext.addEventListener('click', async ()=>{
+    primeYtdLoading();
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,+1));
       datePicker.value = clampToAvailable(d);
       await loadDaily(datePicker.value);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
@@ -3160,6 +4062,7 @@
       datePicker.value = clampToAvailable(d);
       await loadWeekByDate(datePicker.value);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     const s = parseYMD(startPicker.value);
@@ -3168,25 +4071,30 @@
     endPicker.value = clampToAvailable(ymd(addDays(e,+7)));
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
+    finalizeAnimatedViewChange();
   });
 
   btnToday.addEventListener('click', async ()=>{
+    primeYtdLoading();
     const d = clampToAvailable(ymd(new Date()));
     if(VIEW==='DAILY'){
       datePicker.value = d;
       await loadDaily(d);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     if(VIEW==='WEEK'){
       datePicker.value = d;
       await loadWeekByDate(d);
       await computeYTD();
+      finalizeAnimatedViewChange();
       return;
     }
     setToLastNDays(7);
     await loadRange(startPicker.value, endPicker.value);
     await computeYTD();
+    finalizeAnimatedViewChange();
   });
 
   btnReload.addEventListener('click', ()=> location.reload());
@@ -3208,15 +4116,29 @@
   });
 
   (async function init(){
-    // defaults
     toggleGroupJump.checked = true;
+    const fallbackYesterday = ymd(addDays(new Date(), -1));
+    if(datePicker && !datePicker.value) datePicker.value = fallbackYesterday;
+    if(startPicker && !startPicker.value) startPicker.value = fallbackYesterday;
+    if(endPicker && !endPicker.value) endPicker.value = fallbackYesterday;
     GROUP_JUMP_MODE = true;
     updateYtdLabels();
+    VIEW = 'WEEK';
+    CHANNEL = 'EDM';
+    setChipActive();
+    setViewActive();
+    primeYtdLoading('YTD 로딩중... 최신(전일) 데이터와 WEEK 기본 화면 준비 중');
+
+    await loadAvailableDates();
+
+    CHANNEL = getPortalMetaDefaultChannel();
+    VIEW = getPortalMetaDefaultView();
 
     setChipActive();
     setDetailViewActive();
+    setViewActive();
     toggleSections();
-    await loadAvailableDates();
+    primeYtdLoading();
 
     if(AVAILABLE && AVAILABLE.length){
       const minD = AVAILABLE[0];
@@ -3226,16 +4148,33 @@
       endPicker.min = minD; endPicker.max = maxD;
     }
 
-    const d = (AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1));
+    let d = getPortalMetaDefaultDate() || ((AVAILABLE && AVAILABLE.length) ? AVAILABLE[AVAILABLE.length-1] : ymd(addDays(new Date(), -1)));
+    d = clampToAvailable(d);
+
+    const preferredGroupDate = getPortalMetaDefaultGroupDate(CHANNEL);
+    if(VIEW === 'WEEK' && preferredGroupDate){
+      d = clampToAvailable(preferredGroupDate);
+    }
+
     datePicker.value = d;
 
-    VIEW='DAILY';
-    setViewActive();
-    await loadDaily(d);
+    if(VIEW === 'DAILY'){
+      await loadDaily(d);
+    }else if(VIEW === 'RANGE'){
+      const s = clampToAvailable(d);
+      const e = clampToAvailable(ymd(addDays(parseYMD(s), 6)));
+      startPicker.value = s;
+      endPicker.value = e;
+      await loadRange(s, e);
+    }else{
+      VIEW = 'WEEK';
+      setViewActive();
+      await loadWeekByDate(d);
+    }
 
-    // ✅ 첫 화면에서 올해누적(YTD) 바로 계산/표시
     if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
+    finalizeAnimatedViewChange();
   })();
 
 })();
