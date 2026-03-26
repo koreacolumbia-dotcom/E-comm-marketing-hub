@@ -874,6 +874,42 @@
 (function(){
   const OWNED_DATA_BASE = './data/owned';
 
+  function ensurePageVisible(){
+    try{
+      document.body.classList.add('page-ready');
+    }catch(_){}
+  }
+
+  function failOpen(msg){
+    try{ ensurePageVisible(); }catch(_){}
+    try{ hideLoading(); }catch(_){}
+    try{ hideYtdLoading(); }catch(_){}
+    try{
+      if(msg) showNotice(msg);
+    }catch(_){}
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ensurePageVisible, { once:true });
+  }else{
+    ensurePageVisible();
+  }
+
+  window.addEventListener('error', (event)=>{
+    const msg = event && event.error && event.error.message
+      ? `초기 렌더링 중 오류가 발생했어: ${event.error.message}`
+      : '초기 렌더링 중 오류가 발생했어. 화면은 먼저 표시하고 있어.';
+    failOpen(msg);
+  });
+
+  window.addEventListener('unhandledrejection', (event)=>{
+    const reason = event && event.reason;
+    const msg = reason && reason.message
+      ? `데이터 로딩 중 오류가 발생했어: ${reason.message}`
+      : '데이터 로딩 중 오류가 발생했어. 일부 영역만 비어 있을 수 있어.';
+    failOpen(msg);
+  });
+
   function ownedDataUrl(fileName){
     return `${OWNED_DATA_BASE}/${fileName}`;
   }
@@ -912,7 +948,7 @@
     if(ytdLoadingOverlay) ytdLoadingOverlay.style.display = 'none';
     if(ytdLoadingText) ytdLoadingText.textContent = 'YTD loading...';
   }
-  noticeClose.addEventListener('click', hideNotice);
+  if(noticeClose) noticeClose.addEventListener('click', hideNotice);
 
   const btnReload = document.getElementById('btnReload');
 
@@ -3493,9 +3529,10 @@
   });
 
   function runInitialEntrance(){
+    ensurePageVisible();
     requestAnimationFrame(()=>{
       requestAnimationFrame(()=>{
-        document.body.classList.add('page-ready');
+        ensurePageVisible();
       });
     });
     setTimeout(()=>{
@@ -3505,6 +3542,8 @@
   }
 
   (async function init(){
+    ensurePageVisible();
+    try{
     // defaults
     toggleGroupJump.checked = true;
     GROUP_JUMP_MODE = true;
@@ -3536,6 +3575,14 @@
     refreshKpiMadness();
     attachKpiTilt();
     runInitialEntrance();
+    }catch(err){
+      console.error('[OWNED] init failed:', err);
+      failOpen(err && err.message ? `초기화 실패: ${err.message}` : '초기화에 실패했어.');
+    }finally{
+      ensurePageVisible();
+      try{ hideLoading(); }catch(_){}
+      try{ hideYtdLoading(); }catch(_){}
+    }
   })();
 
 })();
