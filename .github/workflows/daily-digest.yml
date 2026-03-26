@@ -3,36 +3,20 @@ name: Daily Digest
 on:
   workflow_dispatch:
     inputs:
-      reason:
-        description: "Manual run reason (optional)"
-        required: false
-        default: "manual"
-      daily_hub_only:
-        description: "Build Daily Digest HUB only? (update HUB only)"
+      mode:
+        description: "Run mode"
         required: true
-        default: "false"
+        default: "hub_and_email"
         type: choice
-        options: ["false", "true"]
+        options:
+          - hub_only
+          - hub_and_email
       debug:
         description: "Enable debug logs?"
         required: true
         default: "false"
         type: choice
         options: ["false", "true"]
-      backfill:
-        description: "Run one-time backfill for Daily/Weekly JSON only?"
-        required: true
-        default: "false"
-        type: choice
-        options: ["false", "true"]
-      backfill_start:
-        description: "Backfill start date (YYYY-MM-DD)"
-        required: false
-        default: "2025-01-01"
-      backfill_end:
-        description: "Backfill end date (YYYY-MM-DD)"
-        required: false
-        default: "2026-03-24"
 
   schedule:
     # 06:00 KST daily
@@ -71,34 +55,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          DAILY_HUB_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.daily_hub_only == 'true' }}"
-          RUN_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.backfill == 'true' }}"
-
-          if [ "$RUN_BACKFILL" = "true" ]; then
-            echo "run_daily=false" >> "$GITHUB_OUTPUT"
-            echo "run_backfill=true" >> "$GITHUB_OUTPUT"
-            echo "skip_hub_write=true" >> "$GITHUB_OUTPUT"
-            echo "mode_label=backfill_json_only" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ inputs.mode }}"
+            DEBUG="${{ inputs.debug }}"
           else
-            echo "run_daily=true" >> "$GITHUB_OUTPUT"
-            echo "run_backfill=false" >> "$GITHUB_OUTPUT"
-            if [ "$DAILY_HUB_ONLY" = "true" ]; then
-              echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
-              echo "mode_label=hub_only" >> "$GITHUB_OUTPUT"
-            else
-              echo "skip_hub_write=false" >> "$GITHUB_OUTPUT"
-              echo "mode_label=normal" >> "$GITHUB_OUTPUT"
-            fi
+            MODE="hub_and_email"
+            DEBUG="false"
           fi
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "debug=${{ inputs.debug }}" >> "$GITHUB_OUTPUT"
-            echo "backfill_start=${{ inputs.backfill_start }}" >> "$GITHUB_OUTPUT"
-            echo "backfill_end=${{ inputs.backfill_end }}" >> "$GITHUB_OUTPUT"
+          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+          echo "debug=${DEBUG}" >> "$GITHUB_OUTPUT"
+
+          if [ "$MODE" = "hub_only" ]; then
+            echo "send_email=false" >> "$GITHUB_OUTPUT"
+            echo "mode_label=hub_only" >> "$GITHUB_OUTPUT"
           else
-            echo "debug=false" >> "$GITHUB_OUTPUT"
-            echo "backfill_start=" >> "$GITHUB_OUTPUT"
-            echo "backfill_end=" >> "$GITHUB_OUTPUT"
+            echo "send_email=true" >> "$GITHUB_OUTPUT"
+            echo "mode_label=hub_and_email" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Python
@@ -149,106 +122,7 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-      - name: Backfill Daily / Weekly JSON only
-        if: ${{ steps.modes.outputs.run_backfill == 'true' }}
-        continue-on-error: true
-        shell: bash
-        env:
-          GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
-          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
-          BACKFILL_START: ${{ steps.modes.outputs.backfill_start }}
-          BACKFILL_END: ${{ steps.modes.outputs.backfill_end }}
-          DAILY_DIGEST_SKIP_IF_EXISTS: "false"
-          DAILY_DIGEST_USE_DATA_CACHE: "false"
-          DAILY_DIGEST_WRITE_DATA_CACHE: "true"
-          DAILY_DIGEST_SKIP_HUB_WRITE: "true"
-          DAILY_DIGEST_JSON_ONLY: "true"
-          DAILY_DIGEST_NO_YOY_PREBUILD: "true"
-          DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
-          DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
-          META_APP_ID: ${{ secrets.META_APP_ID }}
-          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
-          META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
-          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
-          GOOGLE_ADS_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_CUSTOMER_ID }}
-          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
-          GOOGLE_ADS_ACCESS_TOKEN: ${{ secrets.GOOGLE_ADS_ACCESS_TOKEN }}
-          GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
-          GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
-          GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
-          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
-          NAVER_AD_CUSTOMER_ID: ${{ secrets.NAVER_AD_CUSTOMER_ID }}
-          NAVER_AD_ACCESS_LICENSE: ${{ secrets.NAVER_AD_ACCESS_LICENSE }}
-          NAVER_AD_SECRET_KEY: ${{ secrets.NAVER_AD_SECRET_KEY }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${GA4_PROPERTY_ID:-}" ]; then
-            echo "[WARN] GA4_PROPERTY_ID is empty. skip backfill."
-            exit 0
-          fi
-          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
-            echo "[WARN] GOOGLE_SA_JSON_B64 is empty. skip backfill."
-            exit 0
-          fi
-          if [ -z "${BACKFILL_START:-}" ] || [ -z "${BACKFILL_END:-}" ]; then
-            echo "[ERROR] BACKFILL_START/BACKFILL_END missing."
-            exit 1
-          fi
-          if ! date -d "${BACKFILL_START}" "+%Y-%m-%d" >/dev/null 2>&1; then
-            echo "[ERROR] Invalid BACKFILL_START: ${BACKFILL_START}"
-            exit 1
-          fi
-          if ! date -d "${BACKFILL_END}" "+%Y-%m-%d" >/dev/null 2>&1; then
-            echo "[ERROR] Invalid BACKFILL_END: ${BACKFILL_END}"
-            exit 1
-          fi
-
-          START_EPOCH="$(date -d "${BACKFILL_START}" +%s)"
-          END_EPOCH="$(date -d "${BACKFILL_END}" +%s)"
-          if [ "$START_EPOCH" -gt "$END_EPOCH" ]; then
-            echo "[ERROR] backfill_start > backfill_end"
-            exit 1
-          fi
-
-          echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
-          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
-
-          mkdir -p reports/daily_digest/data/daily reports/daily_digest/data/weekly
-
-          echo "[INFO] Backfill DAILY/WEEKLY JSON only: ${BACKFILL_START} ~ ${BACKFILL_END}"
-
-          CUR="${BACKFILL_START}"
-          while [ "$(date -d "$CUR" +%s)" -le "$END_EPOCH" ]; do
-            DAILY_JSON="reports/daily_digest/data/daily/${CUR}.json"
-            WEEKLY_JSON="reports/daily_digest/data/weekly/END_${CUR}.json"
-
-            if [ -f "$DAILY_JSON" ] && [ -f "$WEEKLY_JSON" ]; then
-              echo "[SKIP] Exists (Daily+Weekly JSON): ${CUR}"
-            else
-              echo "[INFO] Build JSON for ${CUR}"
-              rm -f "$DAILY_JSON" "$WEEKLY_JSON" || true
-
-              export YMD="${CUR}"
-              export GA4_START_DATE="${CUR}"
-              export GA4_END_DATE="${CUR}"
-
-              python -u daily_digest_live_final.py \
-                --out-dir reports/daily_digest \
-                --json-only \
-                --skip-hub-write \
-                --no-yoy-prebuild \
-                --days 1
-
-              echo "[INFO] Wrote JSON for ${CUR}:"
-              ls -la "$DAILY_JSON" "$WEEKLY_JSON" 2>/dev/null || true
-            fi
-
-            CUR="$(date -I -d "${CUR} + 1 day")"
-          done
-
-      - name: Build Daily Digest (yesterday only)
-        if: ${{ steps.modes.outputs.run_daily == 'true' }}
+      - name: Build Daily Digest (Hub upload)
         continue-on-error: true
         shell: bash
         env:
@@ -258,7 +132,7 @@ jobs:
           DAILY_DIGEST_SKIP_IF_EXISTS: "false"
           DAILY_DIGEST_USE_DATA_CACHE: "false"
           DAILY_DIGEST_WRITE_DATA_CACHE: "true"
-          DAILY_DIGEST_SKIP_HUB_WRITE: ${{ steps.modes.outputs.skip_hub_write }}
+          DAILY_DIGEST_SKIP_HUB_WRITE: "false"
           DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
           META_APP_ID: ${{ secrets.META_APP_ID }}
@@ -312,7 +186,7 @@ jobs:
           ls -la reports/daily_digest/data/weekly | tail -n 40 || true
 
       - name: Send Daily Digest Email
-        if: ${{ steps.modes.outputs.run_daily == 'true' && (github.event_name != 'workflow_dispatch' || inputs.daily_hub_only != 'true') }}
+        if: ${{ steps.modes.outputs.send_email == 'true' }}
         continue-on-error: true
         shell: bash
         env:
@@ -342,7 +216,7 @@ jobs:
           python -u scripts/send_daily_email.py
 
       - name: Commit & push Daily Digest results
-        if: ${{ always() && (steps.modes.outputs.run_backfill == 'true' || steps.modes.outputs.run_daily == 'true') }}
+        if: ${{ always() }}
         continue-on-error: true
         shell: bash
         run: |
