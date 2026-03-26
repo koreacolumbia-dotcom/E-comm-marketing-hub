@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -689,7 +690,33 @@ def ensure_dir(p: Path) -> None:
 
 def write_json(p: Path, obj: Any) -> None:
     ensure_dir(p.parent)
-    p.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(p)
+
+
+def load_json_safe(p: Path) -> Optional[Any]:
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def validate_bundle_shape(obj: Any) -> bool:
+    if not isinstance(obj, dict):
+        return False
+    required = {"date", "campaigns", "products", "product_users", "message_log"}
+    if not required.issubset(set(obj.keys())):
+        return False
+    if not isinstance(obj.get("campaigns"), list):
+        return False
+    if not isinstance(obj.get("products"), list):
+        return False
+    if not isinstance(obj.get("product_users"), list):
+        return False
+    if not isinstance(obj.get("message_log"), list):
+        return False
+    return True
 
 
 def list_owned_dates(owned_dir: Path) -> List[str]:
@@ -697,7 +724,10 @@ def list_owned_dates(owned_dir: Path) -> List[str]:
     dates = []
     for f in owned_dir.glob("owned_*.json"):
         m = re.match(r"owned_(\d{4}-\d{2}-\d{2})\.json$", f.name)
-        if m:
+        if not m:
+            continue
+        obj = load_json_safe(f)
+        if validate_bundle_shape(obj):
             dates.append(m.group(1))
     return sorted(set(dates))
 
@@ -1049,6 +1079,18 @@ def build_day_bundle(
     }
 
 
+def validate_bundle_or_raise(bundle: Dict[str, Any], day: str) -> None:
+    if not validate_bundle_shape(bundle):
+        raise ValueError(f"Invalid OWNED bundle shape for {day}")
+    if str(bundle.get("date", "")) != str(day):
+        raise ValueError(f"OWNED bundle date mismatch for {day}: {bundle.get('date')}")
+
+
+def write_bundle_json(out: Path, bundle: Dict[str, Any], day: str) -> None:
+    validate_bundle_or_raise(bundle, day)
+    write_json(out, bundle)
+
+
 def build_range(
     bq: BQConfig,
     start_d: date,
@@ -1088,7 +1130,7 @@ def build_range(
             bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
         out = owned_dir / f"owned_{day}.json"
         if overwrite or (not out.exists()):
-            write_json(out, bundle)
+            write_bundle_json(out, bundle, day)
 
     dates = list_owned_dates(owned_dir)
     write_json(owned_dir / "available_dates.json", dates)
@@ -1100,6 +1142,10 @@ def build_range(
         "default_view": "WEEK",
         "default_channel": "EDM",
         "available_dates_count": len(dates),
+        "build_start_date": ymd(start_d),
+        "build_end_date": ymd(end_d),
+        "message_workbook": str(message_workbook),
+        "owned_message_source": str(owned_message_source) if owned_message_source else "",
     }
     write_json(owned_dir / "meta.json", meta)
 
@@ -1247,7 +1293,10 @@ def main() -> None:
     print(f"[OK] message workbook: {message_workbook}")
     if owned_message_source and owned_message_source.exists():
         print(f"[OK] owned message source: {owned_message_source}")
-    print(f"[OK] available_dates count: {len(list_owned_dates(owned_dir))}")
+    valid_dates = list_owned_dates(owned_dir)
+    print(f"[OK] available_dates count: {len(valid_dates)}")
+    if not valid_dates:
+        raise SystemExit("[ERROR] No valid OWNED daily bundles were generated. Check BigQuery result / JSON outputs.")
 
 
 if __name__ == "__main__":
