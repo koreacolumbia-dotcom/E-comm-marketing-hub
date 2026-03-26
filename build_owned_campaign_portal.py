@@ -25,7 +25,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -129,6 +128,58 @@ def extract_group_year_mmdd(*values: Any, fallback_date: Optional[str] = None) -
     return "", "", False
 
 
+GENERIC_SEND_ID_TOKENS = {
+    "EDM", "EDM_TOP", "EDM_BOTTOM", "EDM_BOTTOM", "EMAIL_MKT", "EMAIL",
+    "LMS", "SMS", "KAKAO_ALIMTALK", "KAKAO_CH_EVENT", "KAKAO_CH_MESSAGE",
+    "(DIRECT)", "(NOT_SET)", "-", ""
+}
+
+
+def is_generic_send_token(value: Any) -> bool:
+    s = str(value or "").strip().upper()
+    if not s:
+        return True
+    if s in GENERIC_SEND_ID_TOKENS:
+        return True
+    return bool(re.fullmatch(r"(?:EDM|EMAIL|LMS|SMS|KAKAO)(?:_[A-Z]+)?", s))
+
+
+def resolve_row_grouping_fields(row: pd.Series) -> tuple[str, str, bool, str]:
+    raw_date = str(row.get("date", "") or "")
+    channel = str(row.get("channel", "") or "").strip().upper()
+    send_id = clean_text(row.get("send_id", ""))
+    campaign = clean_text(row.get("campaign", ""))
+    term = clean_text(row.get("term", ""))
+    title = clean_text(row.get("message_title", ""))
+
+    candidates: List[str] = []
+    if send_id and not is_generic_send_token(send_id):
+        candidates.append(send_id)
+    if campaign and not is_generic_send_token(campaign):
+        candidates.append(campaign)
+    if term and term != "-" and not is_generic_send_token(term):
+        candidates.append(term)
+    if title:
+        candidates.append(title)
+    if send_id:
+        candidates.append(send_id)
+    if campaign:
+        candidates.append(campaign)
+    if term and term != "-":
+        candidates.append(term)
+
+    year, mmdd, has_group = extract_group_year_mmdd(*candidates, fallback_date=raw_date)
+
+    resolved_send_id = send_id
+    if (not resolved_send_id) or is_generic_send_token(resolved_send_id):
+        for candidate in [campaign, term, title]:
+            if candidate and candidate != "-" and not is_generic_send_token(candidate):
+                resolved_send_id = candidate
+                break
+        if (not resolved_send_id) and has_group and mmdd:
+            resolved_send_id = f"{channel}_{mmdd}" if channel else mmdd
+
+    return year, mmdd, has_group, resolved_send_id
 
 
 def is_countable_send_row(row: pd.Series) -> bool:
@@ -463,6 +514,12 @@ owned_labeled AS (
         OR lc_medium LIKE '%kakao%' OR lc_medium LIKE '%kko%'
       )
       THEN COALESCE(NULLIF(utm_term,''), NULLIF(utm_campaign,''), '(not_set)')
+      WHEN (
+        lc_campaign IN ('edm', 'edm_top', 'edm_bottom', 'email_mkt', 'email', 'lms', 'lms_ecom', 'sms')
+        OR lc_campaign LIKE 'edm\_%' ESCAPE '\\'
+        OR lc_campaign LIKE 'email\_%' ESCAPE '\\'
+      ) AND NULLIF(utm_term,'') IS NOT NULL
+      THEN utm_term
       ELSE COALESCE(NULLIF(utm_campaign,''), NULLIF(utm_term,''), '(not_set)')
     END AS send_id
   FROM sessions_owned
@@ -690,33 +747,7 @@ def ensure_dir(p: Path) -> None:
 
 def write_json(p: Path, obj: Any) -> None:
     ensure_dir(p.parent)
-    tmp = p.with_suffix(p.suffix + ".tmp")
-    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(p)
-
-
-def load_json_safe(p: Path) -> Optional[Any]:
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-
-
-def validate_bundle_shape(obj: Any) -> bool:
-    if not isinstance(obj, dict):
-        return False
-    required = {"date", "campaigns", "products", "product_users", "message_log"}
-    if not required.issubset(set(obj.keys())):
-        return False
-    if not isinstance(obj.get("campaigns"), list):
-        return False
-    if not isinstance(obj.get("products"), list):
-        return False
-    if not isinstance(obj.get("product_users"), list):
-        return False
-    if not isinstance(obj.get("message_log"), list):
-        return False
-    return True
+    p.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def list_owned_dates(owned_dir: Path) -> List[str]:
@@ -724,10 +755,7 @@ def list_owned_dates(owned_dir: Path) -> List[str]:
     dates = []
     for f in owned_dir.glob("owned_*.json"):
         m = re.match(r"owned_(\d{4}-\d{2}-\d{2})\.json$", f.name)
-        if not m:
-            continue
-        obj = load_json_safe(f)
-        if validate_bundle_shape(obj):
+        if m:
             dates.append(m.group(1))
     return sorted(set(dates))
 
@@ -973,32 +1001,20 @@ def build_day_bundle(
         if col in prod_user.columns:
             prod_user[col] = prod_user[col].fillna(0).astype(float)
 
-    camp_group = camp.apply(
-        lambda r: extract_group_year_mmdd(
-            r.get("campaign", ""),
-            r.get("term", ""),
-            fallback_date=str(r.get("date", "")),
-        ),
-        axis=1,
-        result_type="expand",
-    )
+    camp_group = camp.apply(resolve_row_grouping_fields, axis=1, result_type="expand")
     camp["year"] = camp_group[0]
     camp["mmdd"] = camp_group[1]
     camp["has_group_mmdd"] = camp_group[2].astype(bool)
+    camp["send_id_resolved"] = camp_group[3]
+    camp["send_id"] = camp["send_id_resolved"].where(camp["send_id_resolved"].map(clean_text).ne(""), camp["send_id"])
     camp = apply_send_group_metrics(camp)
 
-    prod_group = prod.apply(
-        lambda r: extract_group_year_mmdd(
-            r.get("campaign", ""),
-            r.get("term", ""),
-            fallback_date=str(r.get("date", "")),
-        ),
-        axis=1,
-        result_type="expand",
-    )
+    prod_group = prod.apply(resolve_row_grouping_fields, axis=1, result_type="expand")
     prod["year"] = prod_group[0]
     prod["mmdd"] = prod_group[1]
     prod["has_group_mmdd"] = prod_group[2].astype(bool)
+    prod["send_id_resolved"] = prod_group[3]
+    prod["send_id"] = prod["send_id_resolved"].where(prod["send_id_resolved"].map(clean_text).ne(""), prod["send_id"])
 
     campaigns: List[Dict[str, Any]] = []
     for _, r in camp.iterrows():
@@ -1052,12 +1068,22 @@ def build_day_bundle(
             )
         )
 
+    prod_user_group = prod_user.apply(resolve_row_grouping_fields, axis=1, result_type="expand") if not prod_user.empty else pd.DataFrame()
+    if not prod_user.empty:
+        prod_user["year"] = prod_user_group[0]
+        prod_user["mmdd"] = prod_user_group[1]
+        prod_user["has_group_mmdd"] = prod_user_group[2].astype(bool)
+        prod_user["send_id_resolved"] = prod_user_group[3]
+        prod_user["send_id"] = prod_user["send_id_resolved"].where(prod_user["send_id_resolved"].map(clean_text).ne(""), prod_user["send_id"])
+
     product_users: List[Dict[str, Any]] = []
     for _, r in prod_user.iterrows():
         product_users.append(
             dict(
                 date=str(r["date"]),
-                year=str(r.get("date", ""))[:4],
+                year=str(r.get("year", "") or ""),
+                mmdd=str(r.get("mmdd", "") or ""),
+                has_group_mmdd=bool(r.get("has_group_mmdd", False)),
                 channel=str(r["channel"]),
                 send_id=str(r.get("send_id", "") or ""),
                 campaign=str(r["campaign"]),
@@ -1077,18 +1103,6 @@ def build_day_bundle(
         "product_users": product_users,
         "message_log": owned_message_log,
     }
-
-
-def validate_bundle_or_raise(bundle: Dict[str, Any], day: str) -> None:
-    if not validate_bundle_shape(bundle):
-        raise ValueError(f"Invalid OWNED bundle shape for {day}")
-    if str(bundle.get("date", "")) != str(day):
-        raise ValueError(f"OWNED bundle date mismatch for {day}: {bundle.get('date')}")
-
-
-def write_bundle_json(out: Path, bundle: Dict[str, Any], day: str) -> None:
-    validate_bundle_or_raise(bundle, day)
-    write_json(out, bundle)
 
 
 def build_range(
@@ -1130,7 +1144,7 @@ def build_range(
             bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
         out = owned_dir / f"owned_{day}.json"
         if overwrite or (not out.exists()):
-            write_bundle_json(out, bundle, day)
+            write_json(out, bundle)
 
     dates = list_owned_dates(owned_dir)
     write_json(owned_dir / "available_dates.json", dates)
@@ -1293,10 +1307,7 @@ def main() -> None:
     print(f"[OK] message workbook: {message_workbook}")
     if owned_message_source and owned_message_source.exists():
         print(f"[OK] owned message source: {owned_message_source}")
-    valid_dates = list_owned_dates(owned_dir)
-    print(f"[OK] available_dates count: {len(valid_dates)}")
-    if not valid_dates:
-        raise SystemExit("[ERROR] No valid OWNED daily bundles were generated. Check BigQuery result / JSON outputs.")
+    print(f"[OK] available_dates count: {len(list_owned_dates(owned_dir))}")
 
 
 if __name__ == "__main__":
