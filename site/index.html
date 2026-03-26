@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>=Owned.com Reviews</title>
+  <title>VOC Dashboard | Official + Naver Brand + Musinsa Reviews</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -461,6 +461,9 @@
             <div class="mt-4 flex justify-center">
               <button id="feedMoreBtn" class="chip hidden" onclick="loadMoreFeed()">리뷰 더 보기</button>
             </div>
+            <div class="mt-4 flex justify-center">
+              <button id="feedMoreBtn" class="chip hidden" onclick="loadMoreFeed()">리뷰 더 보기</button>
+            </div>
 
             <div class="hidden review-card text-center motion-card reveal-soft" id="noResults">
               <div class="text-lg font-black text-slate-800">검색 결과가 없습니다.</div>
@@ -613,13 +616,7 @@
       const scope = root || document;
       staggerReveal(scope);
       const obs = ensureMotionObserver();
-      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
       scope.querySelectorAll(".reveal, .reveal-soft").forEach(el => {
-        const rect = el.getBoundingClientRect();
-        if (rect.top < vh * 0.98 && rect.bottom > 0){
-          el.classList.add("in");
-          return;
-        }
         obs.observe(el);
       });
     }
@@ -691,7 +688,6 @@
           return await res.json();
         }catch(err){
           lastError = err;
-          console.warn("[VOC] JSON load failed:", url, err);
         }
       }
       throw lastError || new Error(`Failed to load JSON from candidates: ${candidates.join(", ")}`);
@@ -1313,21 +1309,15 @@
         const [meta, reviews] = await Promise.all([
           fetchJsonOrThrow([
             "./data/meta.json",
-            "data/meta.json",
-            "../data/meta.json",
-            "./site/data/meta.json",
-            "site/data/meta.json",
+            "./data/meta.json",
             "./reports/voc_crema/data/meta.json",
-            "reports/voc_crema/data/meta.json",
+            "../data/meta.json",
           ]),
           fetchJsonOrThrow([
             "./data/reviews.json",
-            "data/reviews.json",
-            "../data/reviews.json",
-            "./site/data/reviews.json",
-            "site/data/reviews.json",
+            "./data/reviews.json",
             "./reports/voc_crema/data/reviews.json",
-            "reports/voc_crema/data/reviews.json",
+            "../data/reviews.json",
           ]),
         ]);
 
@@ -1359,7 +1349,6 @@
 
         resetFeedLimit();
         renderAll();
-        refreshMotion(document);
         }catch(e){
           console.error(e);
           showError(`VOC 데이터를 불러오지 못했습니다. ${e?.message || ""}`.trim());
