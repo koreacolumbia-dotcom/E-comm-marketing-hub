@@ -593,20 +593,22 @@ jobs:
               --site-dir reports/owned_portal \
               --overwrite
           elif [ "${OWNED_SEEDED}" != "true" ]; then
-            echo "[INFO] OWNED first YoY seed missing -> one-time fill: 2025-01-01 ~ ${YMD}"
+            echo "[INFO] OWNED first YoY seed missing -> one-time fill: 2025-01-01 ~ ${YMD} (overwrite)"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
               --start "2025-01-01" \
               --end "${YMD}" \
-              --site-dir reports/owned_portal
+              --site-dir reports/owned_portal \
+              --overwrite
           else
-            echo "[INFO] OWNED incremental only: recent ${OWNED_RECENT_DAYS} days (ending ${YMD})"
+            echo "[INFO] OWNED incremental only: recent ${OWNED_RECENT_DAYS} days (ending ${YMD}) (overwrite)"
             python -u build_owned_campaign_portal.py \
               --project "${BQ_PROJECT}" \
               --dataset "${BQ_DATASET}" \
               --recent-days "${OWNED_RECENT_DAYS}" \
-              --site-dir reports/owned_portal
+              --site-dir reports/owned_portal \
+              --overwrite
           fi
 
           test -d reports/owned_portal/data/owned || { echo "[ERROR] reports/owned_portal/data/owned missing after build"; exit 1; }
