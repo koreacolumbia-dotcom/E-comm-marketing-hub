@@ -1149,6 +1149,7 @@ def build_range(
     dates = list_owned_dates(owned_dir)
     write_json(owned_dir / "available_dates.json", dates)
     latest_date = dates[-1] if dates else None
+    build_ts = str(int(datetime.utcnow().timestamp()))
     meta = {
         "built_kst": (datetime.utcnow() + KST).strftime("%Y.%m.%d (%a) %H:%M KST"),
         "latest_available_date": latest_date,
@@ -1160,7 +1161,10 @@ def build_range(
         "build_end_date": ymd(end_d),
         "message_workbook": str(message_workbook),
         "owned_message_source": str(owned_message_source) if owned_message_source else "",
+        "cache_bust": build_ts,
+        "build_ts": build_ts,
     }
+    write_json(owned_dir / "portal_meta.json", meta)
     write_json(owned_dir / "meta.json", meta)
 
 
