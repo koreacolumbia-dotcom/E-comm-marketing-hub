@@ -44,6 +44,8 @@ jobs:
         env:
           TARGET_DAYS: "7"
           DEBUG: "false"
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: |
           set -e
 
@@ -55,6 +57,11 @@ jobs:
           fi
 
           echo "[INFO] Running: $FILE"
+          if [ -z "$NAVER_CLIENT_ID" ] || [ -z "$NAVER_CLIENT_SECRET" ]; then
+            echo "[WARN] NAVER secrets are empty in workflow env"
+          else
+            echo "[INFO] NAVER secrets injected"
+          fi
           python -u "$FILE"
 
           echo "[INFO] Output check"
