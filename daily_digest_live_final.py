@@ -126,7 +126,6 @@ PAID_DETAIL_SOURCES = [
     "instagram",
 ]
 
-TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
 MEDIA_SPEND_XLS_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_XLS_PATH", os.path.join(DATA_DIR, "paid_media_spend.xlsx")).strip()
 MEDIA_SPEND_HISTORY_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_HISTORY_PATH", os.path.join(DATA_DIR, "paid_media_spend_history.csv")).strip()
 MEDIA_SPEND_VENDOR_DIR = os.getenv("DAILY_DIGEST_MEDIA_SPEND_VENDOR_DIR", DATA_DIR).strip()
@@ -1864,28 +1863,6 @@ def refresh_glink_spend_history(source_dir: str, out_path: str) -> pd.DataFrame:
         print(f"[WARN] Could not write spend history: {out_path} | {type(e).__name__}: {e}")
     return out
 
-def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
-    df = safe_read_table(xlsx_path)
-    if df.empty:
-        return {}
-    cols = {str(c).strip().lower(): c for c in df.columns}
-    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
-    tr_col = cols.get('target_roas') or cols.get('target roas') or cols.get('target') or cols.get('목표 roas') or cols.get('목표roas')
-    if not ch_col or not tr_col:
-        return {}
-    out = {}
-    for _, r in df.iterrows():
-        ch = str(r.get(ch_col, '') or '').strip().lower()
-        if not ch:
-            continue
-        try:
-            val = float(r.get(tr_col, 0) or 0)
-        except Exception:
-            continue
-        if val > 10:  # permit 300 for 300%
-            val = val / 100.0
-        out[ch] = val
-    return out
 
 def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date, group_key: str = "channel") -> Dict[str, float]:
     df = refresh_glink_spend_history(MEDIA_SPEND_VENDOR_DIR, MEDIA_SPEND_HISTORY_PATH)
@@ -1970,7 +1947,7 @@ def get_other_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> p
     out = out.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).head(12)
     return out
 
-def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
+def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
@@ -2062,13 +2039,9 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
 
         cur_roas = (revenue_val / cur_spend) if cur_spend else 0.0
         cur_cvr = (orders_val / sessions_val) if sessions_val else 0.0
-        media = map_sub_to_media(key)
 
         rows.append({
             'channel': key,
-            'target_roas': float(
-                target_roas_map.get(key, target_roas_map.get(media, target_roas_map.get(media.title().lower(), 0.0))) or 0
-            ),
             'budget': cur_spend,
             'roas': cur_roas,
             'cvr': cur_cvr,
@@ -2478,30 +2451,8 @@ def render_page_html(
 
         roas_total = (revenue_total / budget_total) if budget_total else 0.0
 
-        target_roas_total = 0.0
-        if budget_total > 0:
-            _rows = []
-            for _media_key, _budget_val in spend_total_map.items():
-                _rows.append({
-                    "media": str(_media_key or "").strip().lower(),
-                    "budget": float(_budget_val or 0),
-                })
-            _tmp_target = pd.DataFrame(_rows)
-            if not _tmp_target.empty:
-                _tmp_target["target_roas"] = _tmp_target["media"].map(
-                    lambda x: float(target_roas_map.get(x, target_roas_map.get(str(x).title().lower(), 0.0)) or 0.0)
-                )
-                if float(pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()) > 0:
-                    target_roas_total = float(
-                        (
-                            pd.to_numeric(_tmp_target["target_roas"], errors="coerce").fillna(0) *
-                            pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0)
-                        ).sum() / pd.to_numeric(_tmp_target["budget"], errors="coerce").fillna(0).sum()
-                    )
-
         paid_media_compare_html += table_row([
             "<span class='font-extrabold'>TOTAL</span>",
-            f"<div class='text-right font-extrabold'>{fmt_pct(float(target_roas_total or 0),1)}</div>",
             f"<div class='text-right font-extrabold'>{fmt_currency_krw(budget_total)}</div>",
             f"<div class='text-right font-extrabold'>{fmt_pct(float(roas_total or 0),1)}</div>",
             f"<div class='text-right font-extrabold'>{fmt_pct(float(cvr_total or 0),2)}</div>",
@@ -2510,7 +2461,6 @@ def render_page_html(
         for r in paid_media_compare.itertuples(index=False):
             paid_media_compare_html += table_row([
                 esc(getattr(r, 'channel', '')),
-                f"<div class='text-right'>{fmt_pct(float(getattr(r, 'target_roas', 0) or 0),1)}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'budget', 0))}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'roas', 0) or 0),1)}</div>",
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
@@ -2667,17 +2617,16 @@ def render_page_html(
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
       <div class="mt-3 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[760px]">
+        <table class="w-full table-auto text-sm min-w-[640px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Target ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Budget</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">ROAS</th>
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">CVR</th>
             </tr>
           </thead>
-          <tbody>{paid_media_compare_html or "<tr><td colspan='5' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
+          <tbody>{paid_media_compare_html or "<tr><td colspan='4' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"}</tbody>
         </table>
       </div>
     </div>
@@ -2818,8 +2767,7 @@ def build_one(
     paid_detail = get_paid_detail_3way(client, w, paid_ad_totals=paid_ad_totals)
     paid_top3 = get_paid_top3(client, w)
     other_detail = pd.DataFrame()
-    target_roas_map = load_target_roas_map(TARGET_ROAS_XLS_PATH)
-    paid_media_compare = get_paid_media_comparison_table(client, w, target_roas_map)
+    paid_media_compare = get_paid_media_comparison_table(client, w)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
 
     trend_series = get_trend_view_series(client, w)
