@@ -1305,6 +1305,23 @@ def process_data(posts: List[Post]):
                     summary[b]["total_mentions"] += 1
                     post_has_brand[b] = True
 
+            if title_has_brand[b]:
+                for s in comment_sents:
+                    if sentence_has_brand(s, b, patterns) and len(s) > 5:
+                        brand_map[b].append(
+                            {
+                                "text": s,
+                                "url": p.url,
+                                "title": title,
+                                "source": "comment(boosted_by_title)",
+                                "platform": p.platform,
+                                "query": p.query,
+                                "cafe_key": p.cafe_key,
+                                "cafe_name": p.cafe_name,
+                                "date": p.created_at.strftime("%Y-%m-%d"),
+                            }
+                        )
+
         for b in BRAND_LIST:
             if post_has_brand[b]:
                 summary[b]["posts_count"] += 1
@@ -1314,10 +1331,10 @@ def process_data(posts: List[Post]):
         uniq = []
         for item in brand_map[b]:
             key = (
-                item.get("platform", ""),
                 item.get("url", ""),
-                normalize_text(item.get("title", "")),
-                normalize_text(item.get("text", "")),
+                item.get("text", ""),
+                item.get("source", ""),
+                item.get("platform", ""),
             )
             if key in seen:
                 continue
@@ -1342,9 +1359,13 @@ def process_data(posts: List[Post]):
 
     summary_df = summary_df[~((summary_df["posts_count"] == 0) & (summary_df["title_hits"] == 0))].copy()
     if not summary_df.empty:
-        summary_df = summary_df.sort_values(
-            ["total_mentions", "posts_count", "title_hits", "brand"],
-            ascending=[False, False, False, True],
+        summary_df["__pin_columbia"] = summary_df["brand"].apply(lambda x: 0 if x == "컬럼비아" else 1)
+        summary_df = (
+            summary_df.sort_values(
+                ["__pin_columbia", "total_mentions", "posts_count"],
+                ascending=[True, False, False],
+            )
+            .drop(columns=["__pin_columbia"])
         )
     return brand_map, summary_df
 
@@ -1684,6 +1705,7 @@ def export_portal(
     dc_meta = summarize_source(dc_posts, dc_brand_map, dc_summary_df, "DCInside")
     naver_meta = summarize_source(naver_posts, naver_brand_map, naver_summary_df, "NAVER Cafe")
     eomisae_meta = summarize_source(eomisae_posts, eomisae_brand_map, eomisae_summary_df, "Eomisae")
+    ppomppu_meta = summarize_source(ppomppu_posts, ppomppu_brand_map, ppomppu_summary_df, "Ppomppu")
 
     try:
         payload = {
@@ -1714,6 +1736,15 @@ def export_portal(
                 "week_mentions": int(eomisae_meta["week_mentions"]),
                 "top5": eomisae_summary_df.head(5).to_dict(orient="records") if not eomisae_summary_df.empty else [],
                 "warning": eomisae_warning or "",
+            },
+            "ppomppu": {
+                "posts_collected": int(len(ppomppu_posts)),
+                "brands_active": int(len(ppomppu_meta["active_brands"])),
+                "total_mentions": int(ppomppu_meta["total_mentions"]),
+                "week_posts": int(ppomppu_meta["week_posts"]),
+                "week_mentions": int(ppomppu_meta["week_mentions"]),
+                "top5": ppomppu_summary_df.head(5).to_dict(orient="records") if not ppomppu_summary_df.empty else [],
+                "warning": ppomppu_warning or "",
             },
         }
         _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
@@ -1903,20 +1934,13 @@ def _ui_excerpt(text: str, limit: int = 220) -> str:
     return compact[: max(0, limit - 1)].rstrip() + "…"
 
 
-def _platform_brand_counts(
-    brand_map: Dict[str, List[dict]],
-    platform: str,
-    prioritize_columbia: bool = False,
-) -> List[tuple[str, int]]:
+def _platform_brand_counts(brand_map: Dict[str, List[dict]], platform: str) -> List[tuple[str, int]]:
     counts: List[tuple[str, int]] = []
     for brand in BRAND_LIST:
         count = sum(1 for item in brand_map.get(brand, []) if item.get("platform") == platform)
         if count:
             counts.append((brand, count))
-    if prioritize_columbia:
-        counts.sort(key=lambda item: (0 if item[0] == "컬럼비아" else 1, -item[1], item[0]))
-    else:
-        counts.sort(key=lambda item: (-item[1], item[0]))
+    counts.sort(key=lambda item: (-item[1], item[0]))
     return counts
 
 
@@ -1993,9 +2017,35 @@ def _summary_table_html(summary_df: pd.DataFrame, platform: str) -> str:
     if summary_df is None or summary_df.empty:
         return '<div class="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm font-bold text-slate-500">요약 데이터가 아직 없습니다.</div>'
 
-    total_mentions = int(summary_df["total_mentions"].sum()) if "total_mentions" in summary_df else 0
-    top_df = summary_df.head(5)
-    rest_df = summary_df.iloc[5:]
+    ranked_df = summary_df.reset_index(drop=True).copy()
+    total_mentions = int(ranked_df["total_mentions"].sum()) if "total_mentions" in ranked_df else 0
+    top_df = ranked_df.head(5)
+    rest_df = ranked_df.iloc[5:]
+    columbia_block = ""
+
+    columbia_rows = ranked_df[ranked_df["brand"] == "컬럼비아"]
+    if not columbia_rows.empty:
+        columbia_index = int(columbia_rows.index[0]) + 1
+        columbia_row = columbia_rows.iloc[0]
+        columbia_share = (int(columbia_row["total_mentions"]) / total_mentions * 100) if total_mentions else 0
+        columbia_block = f'''
+        <div class="mt-4 rounded-3xl border border-red-200 bg-gradient-to-r from-red-50 via-white to-red-50 p-4 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="text-[11px] font-black tracking-[0.18em] text-red-500">COLUMBIA WATCH</div>
+              <div class="mt-2 flex items-center gap-3">
+                <span class="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-red-500 px-3 text-sm font-black text-white">#{columbia_index}</span>
+                <span class="text-lg font-black text-slate-900">컬럼비아 현재 순위</span>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2 text-xs font-black">
+              <span class="rounded-full bg-white px-3 py-2 text-slate-600">Posts {int(columbia_row["posts_count"]):,}</span>
+              <span class="rounded-full bg-white px-3 py-2 text-slate-600">Mentions {int(columbia_row["total_mentions"]):,}</span>
+              <span class="rounded-full bg-red-500 px-3 py-2 text-white">Share {columbia_share:.1f}%</span>
+            </div>
+          </div>
+        </div>
+        '''
 
     def row_html(rank: int, row) -> str:
         brand = str(row["brand"])
@@ -2041,6 +2091,7 @@ def _summary_table_html(summary_df: pd.DataFrame, platform: str) -> str:
       </div>
       <div class="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">최근 {int(TARGET_DAYS)}일</div>
     </div>
+    {columbia_block}
     <div class="mt-4 overflow-x-auto">
       <table class="w-full min-w-[720px] text-sm">
         <thead>
@@ -2167,7 +2218,7 @@ def _filter_toolbar_html(
     brand_map: Dict[str, List[dict]],
     platform: str,
     search_placeholder: str,
-    extra_sections: List[tuple[str, str, str]] | None = None,
+    extra_html: str = "",
 ) -> str:
     brand_counts = _platform_brand_counts(brand_map, platform)
     brand_buttons = [
@@ -2178,42 +2229,7 @@ def _filter_toolbar_html(
             f'<button type="button" class="filter-chip brand-filter-btn" data-platform="{html.escape(platform)}" data-brand="{html.escape(brand)}">{html.escape(brand)} <span>{count}</span></button>'
         )
 
-    focus_panel = (
-        '<div class="filter-tab-panel" '
-        f'data-platform="{html.escape(platform)}" data-filter-tab="brand-focus">'
-        '<div class="text-[11px] font-black tracking-[0.18em] text-slate-500">BRAND FOCUS</div>'
-        '<div class="mt-2 text-sm font-black text-slate-700">브랜드 버튼으로 상세 카드 범위를 빠르게 좁힙니다.</div>'
-        f'<div class="mt-3 flex flex-wrap gap-2">{"".join(brand_buttons)}</div>'
-        '</div>'
-    )
-
-    controls_block = (
-        '<div class="rounded-3xl border border-slate-200 bg-white/80 p-4">'
-        + focus_panel
-        + "</div>"
-    )
-    if extra_sections:
-        tab_buttons = [
-            f'<button type="button" class="filter-chip filter-mode-btn active" data-platform="{html.escape(platform)}" data-filter-tab="brand-focus">Brand Focus</button>'
-        ]
-        tab_panels = [focus_panel]
-        for tab_key, tab_label, tab_html in extra_sections:
-            if not (tab_html or "").strip():
-                continue
-            tab_buttons.append(
-                f'<button type="button" class="filter-chip filter-mode-btn" data-platform="{html.escape(platform)}" data-filter-tab="{html.escape(tab_key)}">{html.escape(tab_label)}</button>'
-            )
-            tab_panels.append(
-                '<div class="filter-tab-panel hidden" '
-                f'data-platform="{html.escape(platform)}" data-filter-tab="{html.escape(tab_key)}">{tab_html}</div>'
-            )
-        controls_block = f'''
-        <div class="rounded-3xl border border-slate-200 bg-white/80 p-4">
-          <div class="flex flex-wrap gap-2">{''.join(tab_buttons)}</div>
-          <div class="mt-4">{''.join(tab_panels)}</div>
-        </div>
-        '''
-
+    extra_block = f'<div class="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-3">{extra_html}</div>' if extra_html else ""
     return f'''
     <div class="mt-6 rounded-[30px] border border-white/70 bg-white/70 p-4 shadow-sm backdrop-blur-xl">
       <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4">
@@ -2226,29 +2242,21 @@ def _filter_toolbar_html(
           </div>
           <div class="mt-3 text-xs font-black text-slate-500" data-role="result-count" data-platform="{html.escape(platform)}">전체 결과를 표시 중입니다.</div>
         </div>
-        {controls_block}
+        <div class="rounded-3xl border border-slate-200 bg-white/80 p-4">
+          <div class="text-[11px] font-black tracking-[0.18em] text-slate-500">BRAND FOCUS</div>
+          <div class="mt-2 text-sm font-black text-slate-700">브랜드 버튼으로 상세 카드 범위를 빠르게 좁힙니다.</div>
+          <div class="mt-3 flex flex-wrap gap-2">{''.join(brand_buttons)}</div>
+        </div>
       </div>
+      {extra_block}
     </div>
     '''
 
 
 def _brand_sections_html(brand_map: Dict[str, List[dict]], platform: str) -> str:
     sections = []
-    for section_idx, (brand, _) in enumerate(_platform_brand_counts(brand_map, platform, prioritize_columbia=True)):
-        raw_items = [x for x in brand_map.get(brand, []) if x.get("platform") == platform]
-        seen_cards = set()
-        items = []
-        for item in raw_items:
-            card_key = (
-                item.get("platform", ""),
-                item.get("url", ""),
-                _ui_compact_text(item.get("title", "")),
-                _ui_compact_text(item.get("text", "")),
-            )
-            if card_key in seen_cards:
-                continue
-            seen_cards.add(card_key)
-            items.append(item)
+    for section_idx, (brand, _) in enumerate(_platform_brand_counts(brand_map, platform)):
+        items = [x for x in brand_map.get(brand, []) if x.get("platform") == platform]
         if not items:
             continue
         cards = []
@@ -2402,6 +2410,7 @@ def export_portal(
     dc_meta = summarize_source(dc_posts, dc_brand_map, dc_summary_df, "DCInside")
     naver_meta = summarize_source(naver_posts, naver_brand_map, naver_summary_df, "NAVER Cafe")
     eomisae_meta = summarize_source(eomisae_posts, eomisae_brand_map, eomisae_summary_df, "Eomisae")
+    ppomppu_meta = summarize_source(ppomppu_posts, ppomppu_brand_map, ppomppu_summary_df, "Ppomppu")
 
     try:
         payload = {
@@ -2432,6 +2441,15 @@ def export_portal(
                 "week_mentions": int(eomisae_meta["week_mentions"]),
                 "top5": eomisae_summary_df.head(5).to_dict(orient="records") if not eomisae_summary_df.empty else [],
                 "warning": eomisae_warning or "",
+            },
+            "ppomppu": {
+                "posts_collected": int(len(ppomppu_posts)),
+                "brands_active": int(len(ppomppu_meta["active_brands"])),
+                "total_mentions": int(ppomppu_meta["total_mentions"]),
+                "week_posts": int(ppomppu_meta["week_posts"]),
+                "week_mentions": int(ppomppu_meta["week_mentions"]),
+                "top5": ppomppu_summary_df.head(5).to_dict(orient="records") if not ppomppu_summary_df.empty else [],
+                "warning": ppomppu_warning or "",
             },
         }
         _write_summary_json(os.path.dirname(out_path), "external_signal", payload)
@@ -2487,10 +2505,7 @@ def export_portal(
             naver_brand_map,
             "naver_cafe",
             "NAVER Cafe 안에서 브랜드·카페·문맥 키워드를 검색해보세요",
-            [
-                ("scope", "Scope", _naver_scope_html()),
-                ("segment", "Segment", _naver_cafe_filter_html(naver_brand_map)),
-            ],
+            _naver_scope_html() + _naver_cafe_filter_html(naver_brand_map),
         ),
     )
     eomisae_panel = _source_panel_html(
@@ -2506,16 +2521,31 @@ def export_portal(
         warning=eomisae_warning or "",
         toolbar_html=_filter_toolbar_html(eomisae_brand_map, "eomisae", "어미새 안에서 브랜드·상황 키워드를 검색해보세요"),
     )
+    ppomppu_panel = _source_panel_html(
+        panel_id="panel-ppomppu",
+        platform="ppomppu",
+        title="Ppomppu · 등산포럼",
+        subtitle=f"Updated: {updated} · Posts {len(ppomppu_posts):,} · Active brands {len(ppomppu_meta['active_brands']):,}",
+        insight=_panel_insight_line(ppomppu_summary_df, ppomppu_meta),
+        kpi_html=_panel_kpi_html(len(ppomppu_posts), ppomppu_meta, ppomppu_summary_df),
+        summary_html=_summary_table_html(ppomppu_summary_df, "ppomppu"),
+        weekly_html=_weekly_html(ppomppu_meta, "Ppomppu climb"),
+        sections_html=_brand_sections_html(ppomppu_brand_map, "ppomppu"),
+        warning=ppomppu_warning or "",
+        toolbar_html=_filter_toolbar_html(ppomppu_brand_map, "ppomppu", "뽐뿌 안에서 브랜드·가성비 키워드를 검색해보세요"),
+    )
+
     source_cards = [
         ("panel-dcinside", "DCInside", len(dc_posts), int(dc_meta["total_mentions"]), len(dc_meta["active_brands"]), "dcinside"),
         ("panel-naver", "NAVER Cafe", len(naver_posts), int(naver_meta["total_mentions"]), len(naver_meta["active_brands"]), "naver_cafe"),
         ("panel-eomisae", "Eomisae", len(eomisae_posts), int(eomisae_meta["total_mentions"]), len(eomisae_meta["active_brands"]), "eomisae"),
+        ("panel-ppomppu", "Ppomppu", len(ppomppu_posts), int(ppomppu_meta["total_mentions"]), len(ppomppu_meta["active_brands"]), "ppomppu"),
     ]
     all_active_brands = set()
-    for meta in (dc_meta, naver_meta, eomisae_meta):
+    for meta in (dc_meta, naver_meta, eomisae_meta, ppomppu_meta):
         all_active_brands.update(meta.get("active_brands", []))
-    total_posts = len(dc_posts) + len(naver_posts) + len(eomisae_posts)
-    total_mentions = int(dc_meta["total_mentions"]) + int(naver_meta["total_mentions"]) + int(eomisae_meta["total_mentions"])
+    total_posts = len(dc_posts) + len(naver_posts) + len(eomisae_posts) + len(ppomppu_posts)
+    total_mentions = int(dc_meta["total_mentions"]) + int(naver_meta["total_mentions"]) + int(eomisae_meta["total_mentions"]) + int(ppomppu_meta["total_mentions"])
     lead_cards = []
     for target, label, posts_count, mentions_count, active_brands_count, theme_key in source_cards:
         lead_cards.append(
@@ -2564,11 +2594,12 @@ def export_portal(
     .tab-btn[data-theme="ppomppu"], .source-switch[data-theme="ppomppu"] {{ --theme:225,29,72; }}
     .source-switch.active .text-slate-900, .source-switch.active .text-slate-500, .source-switch.active .text-slate-600 {{ color:#fff !important; }}
     .source-switch.active .bg-slate-100 {{ background:rgba(255,255,255,.16) !important; }}
-    .filter-chip {{ border:1px solid rgba(148,163,184,.35); background:rgba(255,255,255,.95); padding:.7rem 1rem; border-radius:999px; font-size:.75rem; font-weight:900; color:#334155; line-height:1; transition:all .18s ease; }}
-    .filter-chip:hover {{ transform:translateY(-1px); box-shadow:0 10px 18px rgba(15,23,42,.08); }}
-    .filter-chip span {{ margin-left:.35rem; color:#64748b; }}
-    .filter-chip.active span {{ color:rgba(255,255,255,.82); }}
-    .filter-chip.active {{ color:#fff; background:linear-gradient(135deg, rgba(var(--accent),1), rgba(var(--accent),.84)); box-shadow:0 16px 28px rgba(var(--accent),.22); }}
+    .filter-chip.active, .filter-mode-btn.active, .brand-filter-btn.active, .cafe-filter-btn.active {{
+      color:#fff !important;
+      border-color:#17305f !important;
+      background:linear-gradient(135deg, #1e3a6d, #0f172a) !important;
+      box-shadow:0 16px 28px rgba(15,23,42,.20) !important;
+    }}
     .panel-search-input:focus {{ border-color:rgba(var(--accent),.45); box-shadow:0 0 0 4px rgba(var(--accent),.10); }}
     .trend-fill {{ transform-origin:left center; transform:scaleX(0); }}
     .tab-panel.is-active .trend-fill {{ animation:growBar .9s cubic-bezier(.2,.7,.2,1) forwards; animation-delay:calc(var(--index,0) * 55ms); }}
@@ -2596,12 +2627,12 @@ def export_portal(
           상단에서 전체 흐름을 보고, 각 탭에서는 검색·브랜드 포커스·카페 세그먼트까지 바로 탐색할 수 있습니다.
         </p>
         <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div class="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur"><div class="text-xs font-black text-white/60">총 수집 게시글</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] tabular-nums">{total_posts:,}</div><div class="mt-1 text-xs font-bold text-white/60">3개 커뮤니티 합산</div></div>
+          <div class="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur"><div class="text-xs font-black text-white/60">총 수집 게시글</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] tabular-nums">{total_posts:,}</div><div class="mt-1 text-xs font-bold text-white/60">4개 커뮤니티 합산</div></div>
           <div class="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur"><div class="text-xs font-black text-white/60">총 mentions</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] tabular-nums">{total_mentions:,}</div><div class="mt-1 text-xs font-bold text-white/60">제목·본문·댓글 포함</div></div>
           <div class="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur"><div class="text-xs font-black text-white/60">활성 브랜드</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] tabular-nums">{len(all_active_brands):,}</div><div class="mt-1 text-xs font-bold text-white/60">실제 언급 발생 브랜드</div></div>
           <div class="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur"><div class="text-xs font-black text-white/60">Updated</div><div class="mt-2 text-xl font-black">{html.escape(updated)}</div><div class="mt-1 text-xs font-bold text-white/60">최근 {int(TARGET_DAYS)}일 기준</div></div>
         </div>
-        <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{''.join(lead_cards)}</div>
+        <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">{''.join(lead_cards)}</div>
       </div>
     </section>
 
@@ -2609,11 +2640,13 @@ def export_portal(
       <button type="button" class="tab-btn active rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:-translate-y-0.5" data-target="panel-dcinside" data-theme="dcinside">DCInside</button>
       <button type="button" class="tab-btn rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:-translate-y-0.5" data-target="panel-naver" data-theme="naver_cafe">NAVER Cafe</button>
       <button type="button" class="tab-btn rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:-translate-y-0.5" data-target="panel-eomisae" data-theme="eomisae">Eomisae</button>
+      <button type="button" class="tab-btn rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:-translate-y-0.5" data-target="panel-ppomppu" data-theme="ppomppu">Ppomppu</button>
     </div>
 
     {dc_panel}
     {naver_panel}
     {eomisae_panel}
+    {ppomppu_panel}
   </div>
 
   <script>
@@ -2637,7 +2670,6 @@ def export_portal(
       const panels = Array.from(document.querySelectorAll('.tab-panel'));
       const brandButtons = Array.from(document.querySelectorAll('.brand-filter-btn'));
       const cafeButtons = Array.from(document.querySelectorAll('.cafe-filter-btn'));
-      const filterModeButtons = Array.from(document.querySelectorAll('.filter-mode-btn'));
       const searchInputs = Array.from(document.querySelectorAll('.panel-search-input'));
       const clearButtons = Array.from(document.querySelectorAll('.search-clear-btn'));
       const panelState = Object.fromEntries(panels.map((panel) => [panel.dataset.platform, {{ brand: 'all', cafe: 'all', query: '' }}]));
@@ -2682,14 +2714,6 @@ def export_portal(
         const node = panel.querySelector(`[data-role="result-count"][data-platform="${{panel.dataset.platform}}"]`);
         if (!node) return;
         node.textContent = count > 0 ? `현재 조건에서 ${{formatCount(count)}}건을 표시 중입니다.` : '현재 조건에 맞는 결과가 없습니다.';
-      }}
-
-      function activateFilterTab(platform, tabKey) {{
-        const scopedButtons = filterModeButtons.filter((button) => button.dataset.platform === platform);
-        if (!scopedButtons.length) return;
-        setActiveButtons(scopedButtons, (button) => button.dataset.filterTab === tabKey);
-        const panes = Array.from(document.querySelectorAll(`.filter-tab-panel[data-platform="${{platform}}"]`));
-        panes.forEach((pane) => pane.classList.toggle('hidden', pane.dataset.filterTab !== tabKey));
       }}
 
       function applyFilters(platform) {{
@@ -2748,7 +2772,6 @@ def export_portal(
       sourceSwitches.forEach((button) => button.addEventListener('click', () => activate(button.dataset.target)));
       brandButtons.forEach((button) => button.addEventListener('click', () => {{ panelState[button.dataset.platform].brand = button.dataset.brand; applyFilters(button.dataset.platform); }}));
       cafeButtons.forEach((button) => button.addEventListener('click', () => {{ panelState[button.dataset.platform].cafe = button.dataset.cafe; applyFilters(button.dataset.platform); }}));
-      filterModeButtons.forEach((button) => button.addEventListener('click', () => activateFilterTab(button.dataset.platform, button.dataset.filterTab)));
       searchInputs.forEach((input) => input.addEventListener('input', () => {{ panelState[input.dataset.platform].query = input.value || ''; applyFilters(input.dataset.platform); }}));
       clearButtons.forEach((button) => button.addEventListener('click', () => {{
         const platform = button.dataset.platform;
@@ -2768,12 +2791,6 @@ def export_portal(
         const target = panel.querySelector(`.brand-section[data-brand="${{escapeSelector(brand)}}"]`);
         if (target) target.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
       }}));
-      Array.from(new Set(filterModeButtons.map((button) => button.dataset.platform))).forEach((platform) => {{
-        const activeButton =
-          filterModeButtons.find((button) => button.dataset.platform === platform && button.classList.contains('active'))
-          || filterModeButtons.find((button) => button.dataset.platform === platform);
-        if (activeButton) activateFilterTab(platform, activeButton.dataset.filterTab);
-      }});
 
       activate('panel-dcinside');
       try {{
@@ -2807,8 +2824,8 @@ if __name__ == "__main__":
     eomisae_posts, eomisae_warning = crawl_eomisae_engine(days=TARGET_DAYS)
     eomisae_brand_map, eomisae_summary_df = process_data(eomisae_posts) if eomisae_posts else ({b: [] for b in BRAND_LIST}, pd.DataFrame())
 
-    ppomppu_posts, ppomppu_warning = [], None
-    ppomppu_brand_map, ppomppu_summary_df = {b: [] for b in BRAND_LIST}, pd.DataFrame()
+    ppomppu_posts, ppomppu_warning = crawl_ppomppu_engine(days=TARGET_DAYS)
+    ppomppu_brand_map, ppomppu_summary_df = process_data(ppomppu_posts) if ppomppu_posts else ({b: [] for b in BRAND_LIST}, pd.DataFrame())
 
     export_portal(
         dc_posts=dc_posts,
@@ -2835,6 +2852,8 @@ if __name__ == "__main__":
 
     if not eomisae_posts:
         print("[WARN] Eomisae 수집 데이터 0건")
+    if not ppomppu_posts:
+        print("[WARN] Ppomppu 수집 데이터 0건")
 
 # ================= PATCH: full-width + weakly-supervised ML sentiment + brand filters =================
 from collections import Counter
@@ -2917,6 +2936,9 @@ def process_data(posts: List[Post]):
         title_has_brand = {b: False for b in BRAND_LIST}
 
         def add_item(brand, sentence, source):
+            sentence = normalize_text(sentence)
+            if not sentence:
+                return
             sentiment, score = predict_sentiment_label(sentence, vec, clf)
             brand_map[brand].append({
                 "text": sentence,
@@ -2951,10 +2973,6 @@ def process_data(posts: List[Post]):
                     summary[b]["comment_mentions"] += 1
                     summary[b]["total_mentions"] += 1
                     post_has_brand[b] = True
-            if title_has_brand[b]:
-                for s in comment_sents:
-                    if sentence_has_brand(s, b, patterns) and len(s) > 5:
-                        add_item(b, s, "comment(boosted_by_title)")
         for b in BRAND_LIST:
             if post_has_brand[b]:
                 summary[b]["posts_count"] += 1
@@ -2962,7 +2980,11 @@ def process_data(posts: List[Post]):
     for b in BRAND_LIST:
         seen = set(); uniq = []
         for item in brand_map[b]:
-            key = (item.get("url", ""), item.get("text", ""), item.get("source", ""), item.get("platform", ""))
+            key = (
+                item.get("platform", ""),
+                item.get("url", ""),
+                normalize_text(item.get("text", "")).lower(),
+            )
             if key in seen:
                 continue
             seen.add(key); uniq.append(item)
@@ -2976,8 +2998,10 @@ def process_data(posts: List[Post]):
     ])
     summary_df = summary_df[~((summary_df["posts_count"] == 0) & (summary_df["title_hits"] == 0))].copy()
     if not summary_df.empty:
-        summary_df["__pin_columbia"] = summary_df["brand"].apply(lambda x: 0 if x == "컬럼비아" else 1)
-        summary_df = summary_df.sort_values(["__pin_columbia", "total_mentions", "posts_count"], ascending=[True, False, False]).drop(columns=["__pin_columbia"])
+        summary_df = summary_df.sort_values(
+            ["total_mentions", "posts_count", "title_hits", "brand"],
+            ascending=[False, False, False, True],
+        )
     return brand_map, summary_df
 
 
