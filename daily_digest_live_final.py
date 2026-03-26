@@ -2282,14 +2282,87 @@ def render_page_html(
     chan_html = ""
     if channel_snapshot is not None and (not channel_snapshot.empty):
         for r in channel_snapshot.itertuples(index=False):
+            bucket = str(getattr(r, "bucket", "") or "")
+            bucket_html = esc(bucket)
+            row_class = ""
+            if bucket == "Other":
+                bucket_html = "<div class='flex items-center gap-2'><span>Other</span><span class='rounded-full bg-slate-900/5 px-2 py-0.5 text-[10px] font-extrabold tracking-wide text-slate-500'>DETAIL</span></div>"
+                row_class = "other-summary-row cursor-pointer hover:bg-slate-50"
             chan_html += table_row([
-                esc(getattr(r, "bucket", "")),
+                bucket_html,
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
                 f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_dod', 0) or 0))}'>{('+' if float(getattr(r,'rev_dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_dod',0) or 0),1)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
-            ], bold=(str(getattr(r, "bucket", "")) == "Total"))
+            ], bold=(bucket == "Total"), row_class=row_class)
+
+    def build_other_detail_rows(df: pd.DataFrame) -> str:
+        rows = ""
+        if df is None or df.empty:
+            return "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"
+        for r in df.itertuples(index=False):
+            rows += table_row([
+                esc(getattr(r, "sub_channel", "")),
+                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
+                f"<div class='text-right'>{fmt_int(getattr(r, 'orders', 0))}</div>",
+                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
+                f"<div class='text-right {delta_cls(float(getattr(r, 'yoy', 0) or 0))}'>{('+' if float(getattr(r,'yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'yoy',0) or 0),1)}</div>",
+            ])
+        return rows
+
+    other_detail_sessions_html = build_other_detail_rows(other_detail)
+    other_detail_revenue_html = build_other_detail_rows(
+        other_detail.sort_values(["purchaseRevenue", "sessions"], ascending=[False, False]).reset_index(drop=True)
+        if other_detail is not None and (not other_detail.empty)
+        else pd.DataFrame()
+    )
+    other_detail_panel_html = f"""
+    <div id="otherDetailSection" class="other-detail-panel rounded-2xl border border-slate-200 bg-white/85 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Other Detail</div>
+          <div class="mt-1 text-sm text-slate-500">Channel Snapshot의 Other를 source / medium 기준으로 펼쳐서 봅니다.</div>
+        </div>
+        <button id="otherDetailClose" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50">닫기</button>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <button type="button" data-other-tab="sessions" class="other-tab-btn active rounded-full border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">By Sessions</button>
+        <button type="button" data-other-tab="revenue" class="other-tab-btn rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-500">By Revenue</button>
+      </div>
+      <div data-other-panel="sessions" class="mt-4 overflow-x-auto">
+        <table class="w-full table-auto text-sm min-w-[880px]">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+            </tr>
+          </thead>
+          <tbody>{other_detail_sessions_html}</tbody>
+        </table>
+      </div>
+      <div data-other-panel="revenue" class="mt-4 hidden overflow-x-auto">
+        <table class="w-full table-auto text-sm min-w-[880px]">
+          <thead class="text-xs text-slate-500">
+            <tr>
+              <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+            </tr>
+          </thead>
+          <tbody>{other_detail_revenue_html}</tbody>
+        </table>
+      </div>
+    </div>
+    """
 
     # Paid detail rows
     paid_html = ""
@@ -2478,6 +2551,43 @@ def render_page_html(
   if(trendBtns.length){
     setTrend(trendBtns[0].getAttribute('data-trend-tab'));
   }
+
+  const otherRow = document.querySelector('.other-summary-row');
+  const otherSection = document.getElementById('otherDetailSection');
+  const otherClose = document.getElementById('otherDetailClose');
+  const otherTabBtns = Array.from(document.querySelectorAll('[data-other-tab]'));
+  const otherPanels = Array.from(document.querySelectorAll('[data-other-panel]'));
+  function setOtherTab(target){
+    otherTabBtns.forEach(el=>{
+      const active = el.getAttribute('data-other-tab') === target;
+      el.classList.toggle('active', active);
+      el.classList.toggle('border-slate-900', active);
+      el.classList.toggle('bg-slate-900', active);
+      el.classList.toggle('text-white', active);
+      el.classList.toggle('border-slate-200', !active);
+      el.classList.toggle('bg-white', !active);
+      el.classList.toggle('text-slate-500', !active);
+    });
+    otherPanels.forEach(el=>{
+      const active = el.getAttribute('data-other-panel') === target;
+      el.classList.toggle('hidden', !active);
+    });
+  }
+  function openOtherDetail(){
+    if(!otherSection) return;
+    otherSection.classList.add('open');
+    setOtherTab('sessions');
+    setTimeout(()=> otherSection.scrollIntoView({ behavior:'smooth', block:'nearest' }), 120);
+  }
+  function closeOtherDetail(){
+    if(!otherSection) return;
+    otherSection.classList.remove('open');
+  }
+  if(otherRow) otherRow.addEventListener('click', openOtherDetail);
+  if(otherClose) otherClose.addEventListener('click', closeOtherDetail);
+  otherTabBtns.forEach(el=>{
+    el.addEventListener('click', ()=> setOtherTab(el.getAttribute('data-other-tab')));
+  });
 })();
 </script>"""
 
@@ -2526,6 +2636,8 @@ def render_page_html(
         <tbody>{chan_html}</tbody>
       </table>
     </div>
+
+    {other_detail_panel_html}
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
@@ -2614,7 +2726,10 @@ def render_page_html(
 
 def inject_report_toolbar(html: str, w: WindowSpec) -> str:
     toolbar_css = """
-    .toolbar-card{background:rgba(255,255,255,0.88);border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05);transition:transform .28s ease,box-shadow .28s ease}
+    body::before,body::after{content:"";position:fixed;inset:auto;pointer-events:none;z-index:0;filter:blur(18px);opacity:.45;animation:ambient-float 12s ease-in-out infinite}
+    body::before{top:80px;left:-40px;width:240px;height:240px;background:radial-gradient(circle at center, rgba(0,45,114,.22), rgba(0,45,114,0));animation-delay:-2s}
+    body::after{right:-20px;top:200px;width:280px;height:280px;background:radial-gradient(circle at center, rgba(59,130,246,.18), rgba(59,130,246,0));animation-duration:16s}
+    .toolbar-card{position:relative;z-index:1;background:linear-gradient(135deg, rgba(255,255,255,0.92), rgba(248,250,252,0.88));border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 18px 45px rgba(15,23,42,0.08);transition:transform .28s ease,box-shadow .28s ease}
     .toolbar-card:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(15,23,42,0.08)}
     .toolbar-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .toolbar-label{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
@@ -2629,13 +2744,23 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
     .compare-frame.ready{opacity:1;transform:translateY(0) scale(1)}
     .compare-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
     @media (min-width:1280px){.compare-grid.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
-    .anim-target{opacity:0;transform:translateY(22px) scale(.985)}
-    .page-ready .anim-target{animation:card-rise .72s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:var(--stagger,0ms)}
+    .other-detail-panel{overflow:hidden;max-height:0;opacity:0;transform:translateY(22px) scale(.985);margin-top:0;padding-top:0;padding-bottom:0;transition:max-height .65s cubic-bezier(.2,.8,.2,1),opacity .45s ease,transform .45s ease,margin-top .45s ease,padding .45s ease}
+    .other-detail-panel.open{max-height:1400px;opacity:1;transform:translateY(0) scale(1);margin-top:24px;padding-top:16px;padding-bottom:16px}
+    .other-tab-btn{transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
+    .other-tab-btn:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(15,23,42,0.08)}
+    .report-card{position:relative;overflow:hidden;transition:transform .3s ease,box-shadow .3s ease}
+    .report-card::after{content:"";position:absolute;inset:-1px;background:linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.45) 35%, rgba(255,255,255,0) 70%);transform:translateX(-130%);opacity:0;pointer-events:none}
+    .report-card:hover{transform:translateY(-4px);box-shadow:0 20px 36px rgba(15,23,42,0.08)}
+    .report-card:hover::after{opacity:1;animation:card-sheen 1s ease}
+    .anim-target{opacity:0;transform:translateY(34px) scale(.965)}
+    .page-ready .anim-target{animation:card-rise .96s cubic-bezier(.16,1,.3,1) forwards;animation-delay:var(--stagger,0ms)}
     .page-ready .toolbar-card.anim-target{animation-name:toolbar-rise}
     .page-transition-out .anim-target,.page-transition-out #primaryReport,.page-transition-out #compareReportWrap{animation:page-out .24s ease forwards !important}
-    @keyframes card-rise{0%{opacity:0;transform:translateY(22px) scale(.985)}60%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
-    @keyframes toolbar-rise{0%{opacity:0;transform:translateY(16px) scale(.99)}100%{opacity:1;transform:translateY(0) scale(1)}}
-    @keyframes page-out{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(14px) scale(.992)}}
+    @keyframes card-rise{0%{opacity:0;transform:translateY(34px) scale(.965)}55%{opacity:1}70%{transform:translateY(-6px) scale(1.01)}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes toolbar-rise{0%{opacity:0;transform:translateY(18px) scale(.985)}60%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes page-out{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(18px) scale(.986)}}
+    @keyframes ambient-float{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(18px,-22px,0) scale(1.08)}}
+    @keyframes card-sheen{0%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
     """
     toolbar_html = f"""
     <div id="reportToolbar" class="toolbar-card">
@@ -2749,7 +2874,14 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
       if (toolbar) targets.push(toolbar);
       if (primaryReport) {{
         Array.from(primaryReport.children).forEach((el) => {{
-          if (el && el.nodeType === 1) targets.push(el);
+          if (!(el && el.nodeType === 1)) return;
+          if (el.id === "kpiGrid") {{
+            Array.from(el.children).forEach((card) => {{
+              if (card && card.nodeType === 1) targets.push(card);
+            }});
+            return;
+          }}
+          targets.push(el);
         }});
       }}
       targets.forEach((el, idx) => {{
@@ -2838,6 +2970,8 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
 
     html = html.replace("</style>", toolbar_css + "\n  </style>", 1)
     html = html.replace('<div class="mx-auto max-w-7xl p-6">', '<div class="mx-auto max-w-7xl p-6">' + toolbar_html, 1)
+    html = html.replace('<div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">', '<div id="kpiGrid" class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">', 1)
+    html = html.replace('class="rounded-2xl border border-slate-200 bg-white/70 p-4"', 'class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4"')
     html = re.sub(
         r'\s*<div class="flex items-center gap-2">\s*<a href="[^"]*" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>\s*</div>',
         '',
