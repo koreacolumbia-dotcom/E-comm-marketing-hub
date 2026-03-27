@@ -1929,7 +1929,7 @@ def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
     manual = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, start, end)
     return {k: float(v or 0) for k, v in manual.items()}
 
-def get_other_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
+def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, pd.DataFrame]:
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
@@ -1943,25 +1943,41 @@ def get_other_detail_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> p
         for c in mets:
             df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
         df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
-        df = df[df['bucket'] == 'Other'].copy()
-        df['sub'] = df['sessionSourceMedium'].astype(str).str.strip().replace('', 'other')
         return df
     cur = fetch(w.cur_start, w.cur_end)
     prev = fetch(w.prev_start, w.prev_end)
     yoy = fetch(w.yoy_start, w.yoy_end)
+    def make_detail_key(df: pd.DataFrame, bucket: str) -> pd.DataFrame:
+        if df.empty:
+            return pd.DataFrame(columns=dims + mets + ["bucket", "sub"])
+        out = df[df["bucket"] == bucket].copy()
+        if out.empty:
+            return out
+        if bucket == "Paid AD":
+            out["sub"] = out.apply(lambda r: classify_paid_detail(str(r.get("sessionSourceMedium", "")), str(r.get("sessionCampaignName", ""))), axis=1)
+        else:
+            out["sub"] = out["sessionSourceMedium"].astype(str).str.strip().replace("", "(not set)")
+        return out
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame(columns=['sub', f'sessions{suffix}', f'transactions{suffix}', f'revenue{suffix}'])
         g = df.groupby('sub', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
         return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'transactions{suffix}','purchaseRevenue':f'revenue{suffix}'})
-    m = agg(cur,'_cur').merge(agg(prev,'_prev'), on='sub', how='outer').merge(agg(yoy,'_yoy'), on='sub', how='outer').fillna(0.0)
-    if m.empty:
-        return pd.DataFrame(columns=['sub_channel','sessions','orders','purchaseRevenue','dod','yoy'])
-    m['dod'] = m.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_prev'])), axis=1)
-    m['yoy'] = m.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_yoy'])), axis=1)
-    out = m.rename(columns={'sub':'sub_channel','sessions_cur':'sessions','transactions_cur':'orders','revenue_cur':'purchaseRevenue'})[['sub_channel','sessions','orders','purchaseRevenue','dod','yoy']]
-    out = out.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).head(12)
-    return out
+    out_map: Dict[str, pd.DataFrame] = {}
+    for bucket in ["Organic", "Paid AD", "Owned", "Awareness", "SNS", "Other"]:
+        merged = agg(make_detail_key(cur, bucket),'_cur').merge(
+            agg(make_detail_key(prev, bucket),'_prev'), on='sub', how='outer'
+        ).merge(
+            agg(make_detail_key(yoy, bucket),'_yoy'), on='sub', how='outer'
+        ).fillna(0.0)
+        if merged.empty:
+            out_map[bucket] = pd.DataFrame(columns=['sub_channel','sessions','orders','purchaseRevenue','dod','yoy'])
+            continue
+        merged['dod'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_prev'])), axis=1)
+        merged['yoy'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_yoy'])), axis=1)
+        detail = merged.rename(columns={'sub':'sub_channel','sessions_cur':'sessions','transactions_cur':'orders','revenue_cur':'purchaseRevenue'})[['sub_channel','sessions','orders','purchaseRevenue','dod','yoy']]
+        out_map[bucket] = detail.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).head(12).reset_index(drop=True)
+    return out_map
 
 def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
     dims = ["sessionSourceMedium", "sessionCampaignName"]
@@ -2061,7 +2077,7 @@ def build_bundle(
     pdp_series: dict,
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
-    other_detail: pd.DataFrame,
+    channel_detail_map: Dict[str, pd.DataFrame],
     paid_media_compare: pd.DataFrame,
 ) -> dict:
     cur = overall.get("current", {}) or {}
@@ -2128,7 +2144,8 @@ def build_bundle(
         "pdp_series": pdp_series,
         "search_new": to_records(search_new),
         "search_rising": to_records(search_rising),
-        "other_detail": to_records(other_detail),
+        "channel_detail_map": {k: to_records(v) for k, v in (channel_detail_map or {}).items()},
+        "other_detail": to_records((channel_detail_map or {}).get("Other", pd.DataFrame())),
         "paid_media_compare": to_records(paid_media_compare),
     }
 
@@ -2182,7 +2199,13 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
 
     search_new = pd.DataFrame(bundle.get("search_new", []))
     search_rising = pd.DataFrame(bundle.get("search_rising", []))
-    other_detail = pd.DataFrame(bundle.get("other_detail", []))
+    raw_channel_detail_map = bundle.get("channel_detail_map", {})
+    channel_detail_map = {
+        str(bucket): pd.DataFrame(rows or [])
+        for bucket, rows in raw_channel_detail_map.items()
+    } if isinstance(raw_channel_detail_map, dict) else {}
+    if (not channel_detail_map) and bundle.get("other_detail") is not None:
+        channel_detail_map = {"Other": pd.DataFrame(bundle.get("other_detail", []))}
     paid_media_compare = pd.DataFrame(bundle.get("paid_media_compare", []))
 
     return {
@@ -2199,7 +2222,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
         "category_pdp_trend": category_pdp_trend,
         "search_new": search_new,
         "search_rising": search_rising,
-        "other_detail": other_detail,
+        "channel_detail_map": channel_detail_map,
         "paid_media_compare": paid_media_compare,
     }
 
@@ -2222,12 +2245,13 @@ def render_page_html(
     category_pdp_trend: pd.DataFrame,
     search_new: pd.DataFrame,
     search_rising: pd.DataFrame,
-    other_detail: pd.DataFrame,
+    channel_detail_map: Dict[str, pd.DataFrame],
     paid_media_compare: pd.DataFrame,
     nav_links: Dict[str, str],
     bundle_rel_path: str,
 ) -> str:
     import html as _html
+    import json as _json
 
     cur = overall["current"]; prev = overall["prev"]; yoy = overall["yoy"]
 
@@ -2269,25 +2293,32 @@ def render_page_html(
         return "<div class='w-8 h-8 rounded-xl bg-slate-100 border border-slate-200'></div>"
 
     # Slightly tighter padding to protect the last columns from clipping.
-    def table_row(cols: List[str], bold=False, row_class: str = "") -> str:
+    def table_row(cols: List[str], bold=False, row_class: str = "", row_attrs: str = "") -> str:
         fw = "font-extrabold" if bold else "font-medium"
         bg = "bg-slate-50" if bold else ""
         tds = ""
         for i, c in enumerate(cols):
             extra = " pr-4" if i == (len(cols) - 1) else ""
             tds += f"<td class='px-2 py-2 border-b border-slate-100 whitespace-nowrap {fw}{extra}'>{c}</td>"
-        return f"<tr class='{bg} {row_class}'>{tds}</tr>"
+        return f"<tr class='{bg} {row_class}' {row_attrs}>{tds}</tr>"
 
     # Channel Snapshot rows
     chan_html = ""
+    detail_buckets = {
+        str(bucket)
+        for bucket, df in (channel_detail_map or {}).items()
+        if isinstance(df, pd.DataFrame)
+    }
     if channel_snapshot is not None and (not channel_snapshot.empty):
         for r in channel_snapshot.itertuples(index=False):
             bucket = str(getattr(r, "bucket", "") or "")
             bucket_html = esc(bucket)
             row_class = ""
-            if bucket == "Other":
-                bucket_html = "<div class='flex items-center gap-2'><span>Other</span><span class='rounded-full bg-slate-900/5 px-2 py-0.5 text-[10px] font-extrabold tracking-wide text-slate-500'>DETAIL</span></div>"
-                row_class = "other-summary-row cursor-pointer hover:bg-slate-50"
+            row_attrs = ""
+            if bucket != "Total" and bucket in detail_buckets:
+                bucket_html = f"<div class='flex items-center gap-2'><span>{esc(bucket)}</span><span class='rounded-full bg-slate-900/5 px-2 py-0.5 text-[10px] font-extrabold tracking-wide text-slate-500'>DETAIL</span></div>"
+                row_class = "bucket-summary-row cursor-pointer hover:bg-slate-50"
+                row_attrs = f"data-bucket='{esc(bucket)}'"
             chan_html += table_row([
                 bucket_html,
                 f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
@@ -2295,9 +2326,9 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_dod', 0) or 0))}'>{('+' if float(getattr(r,'rev_dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_dod',0) or 0),1)}</div>",
                 f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
-            ], bold=(bucket == "Total"), row_class=row_class)
+            ], bold=(bucket == "Total"), row_class=row_class, row_attrs=row_attrs)
 
-    def build_other_detail_rows(df: pd.DataFrame) -> str:
+    def build_bucket_detail_rows(df: pd.DataFrame) -> str:
         rows = ""
         if df is None or df.empty:
             return "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"
@@ -2312,55 +2343,88 @@ def render_page_html(
             ])
         return rows
 
-    other_detail_sessions_html = build_other_detail_rows(other_detail)
-    other_detail_revenue_html = build_other_detail_rows(
-        other_detail.sort_values(["purchaseRevenue", "sessions"], ascending=[False, False]).reset_index(drop=True)
-        if other_detail is not None and (not other_detail.empty)
-        else pd.DataFrame()
-    )
-    other_detail_panel_html = f"""
-    <div id="otherDetailSection" class="other-detail-panel rounded-2xl border border-slate-200 bg-white/85 p-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Other Detail</div>
-          <div class="mt-1 text-sm text-slate-500">Channel Snapshot의 Other를 source / medium 기준으로 펼쳐서 봅니다.</div>
+    channel_detail_payload: Dict[str, Dict[str, str]] = {}
+    summary_lookup = {}
+    if channel_snapshot is not None and (not channel_snapshot.empty):
+        for row in channel_snapshot.itertuples(index=False):
+            summary_lookup[str(getattr(row, "bucket", "") or "")] = row
+    for bucket in sorted(detail_buckets):
+        df = channel_detail_map.get(bucket, pd.DataFrame())
+        actual_sessions = float(df["sessions"].sum()) if df is not None and (not df.empty) and ("sessions" in df.columns) else 0.0
+        actual_revenue = float(df["purchaseRevenue"].sum()) if df is not None and (not df.empty) and ("purchaseRevenue" in df.columns) else 0.0
+        diag_bits = [
+            f"<span class='rounded-full bg-slate-900/5 px-2 py-1 font-extrabold text-slate-600'>Visible Detail {fmt_int(actual_sessions)} sessions / {fmt_currency_krw(actual_revenue)}</span>"
+        ]
+        summary_row = summary_lookup.get(bucket)
+        if summary_row is not None:
+            summary_sessions = float(getattr(summary_row, "sessions", 0) or 0)
+            summary_revenue = float(getattr(summary_row, "purchaseRevenue", 0) or 0)
+            diag_bits.append(
+                f"<span class='rounded-full bg-slate-100 px-2 py-1 font-extrabold text-slate-600'>Snapshot Total {fmt_int(summary_sessions)} sessions / {fmt_currency_krw(summary_revenue)}</span>"
+            )
+            if bucket == "Other":
+                diag_bits.append(
+                    f"<span class='rounded-full bg-orange-50 px-2 py-1 font-extrabold text-orange-700'>Residual {fmt_int(max(summary_sessions - actual_sessions, 0.0))} sessions / {fmt_currency_krw(max(summary_revenue - actual_revenue, 0.0))}</span>"
+                )
+        channel_detail_payload[bucket] = {
+            "title": f"{bucket} Detail",
+            "description": f"Breakdown by source / medium for {bucket}.",
+            "diag_html": f"<div class='mt-2 flex flex-wrap items-center gap-2 text-xs'>{''.join(diag_bits)}</div>",
+            "sessions_rows": build_bucket_detail_rows(df),
+            "revenue_rows": build_bucket_detail_rows(
+                df.sort_values(["purchaseRevenue", "sessions"], ascending=[False, False]).reset_index(drop=True)
+                if df is not None and (not df.empty)
+                else pd.DataFrame()
+            ),
+        }
+    channel_detail_payload_json = _json.dumps(channel_detail_payload, ensure_ascii=False).replace("</", "<\\/")
+    bucket_detail_panel_html = f"""
+    <div id="bucketDetailHost" class="mt-6 hidden">
+      <div id="bucketDetailSection" class="bucket-detail-panel rounded-2xl border border-slate-200 bg-white/85 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div id="bucketDetailTitle" class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Detail</div>
+            <div id="bucketDetailDesc" class="mt-1 text-sm text-slate-500">Breakdown by source / medium.</div>
+            <div id="bucketDetailDiag"></div>
+          </div>
+          <button id="bucketDetailClose" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Close</button>
         </div>
-        <button id="otherDetailClose" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50">닫기</button>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <button type="button" data-bucket-tab="sessions" class="bucket-tab-btn active rounded-full border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">By Sessions</button>
+          <button type="button" data-bucket-tab="revenue" class="bucket-tab-btn rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-500">By Revenue</button>
+        </div>
+        <div data-bucket-panel="sessions" class="mt-4 overflow-x-auto">
+          <table class="w-full table-auto text-sm min-w-[880px]">
+            <thead class="text-xs text-slate-500">
+              <tr>
+                <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+              </tr>
+            </thead>
+            <tbody id="bucketDetailSessionsBody"></tbody>
+          </table>
+        </div>
+        <div data-bucket-panel="revenue" class="mt-4 hidden overflow-x-auto">
+          <table class="w-full table-auto text-sm min-w-[880px]">
+            <thead class="text-xs text-slate-500">
+              <tr>
+                <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
+              </tr>
+            </thead>
+            <tbody id="bucketDetailRevenueBody"></tbody>
+          </table>
+        </div>
       </div>
-      <div class="mt-4 flex flex-wrap items-center gap-2">
-        <button type="button" data-other-tab="sessions" class="other-tab-btn active rounded-full border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">By Sessions</button>
-        <button type="button" data-other-tab="revenue" class="other-tab-btn rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-500">By Revenue</button>
-      </div>
-      <div data-other-panel="sessions" class="mt-4 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[880px]">
-          <thead class="text-xs text-slate-500">
-            <tr>
-              <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
-            </tr>
-          </thead>
-          <tbody>{other_detail_sessions_html}</tbody>
-        </table>
-      </div>
-      <div data-other-panel="revenue" class="mt-4 hidden overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[880px]">
-          <thead class="text-xs text-slate-500">
-            <tr>
-              <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
-            </tr>
-          </thead>
-          <tbody>{other_detail_revenue_html}</tbody>
-        </table>
-      </div>
+      <script id="bucketDetailPayload" type="application/json">{channel_detail_payload_json}</script>
     </div>
     """
 
@@ -2552,14 +2616,23 @@ def render_page_html(
     setTrend(trendBtns[0].getAttribute('data-trend-tab'));
   }
 
-  const otherRow = document.querySelector('.other-summary-row');
-  const otherSection = document.getElementById('otherDetailSection');
-  const otherClose = document.getElementById('otherDetailClose');
-  const otherTabBtns = Array.from(document.querySelectorAll('[data-other-tab]'));
-  const otherPanels = Array.from(document.querySelectorAll('[data-other-panel]'));
-  function setOtherTab(target){
-    otherTabBtns.forEach(el=>{
-      const active = el.getAttribute('data-other-tab') === target;
+  const detailRows = Array.from(document.querySelectorAll('.bucket-summary-row'));
+  const bucketDetailHost = document.getElementById('bucketDetailHost');
+  const bucketDetailSection = document.getElementById('bucketDetailSection');
+  const bucketDetailClose = document.getElementById('bucketDetailClose');
+  const bucketDetailTitle = document.getElementById('bucketDetailTitle');
+  const bucketDetailDesc = document.getElementById('bucketDetailDesc');
+  const bucketDetailDiag = document.getElementById('bucketDetailDiag');
+  const bucketDetailSessionsBody = document.getElementById('bucketDetailSessionsBody');
+  const bucketDetailRevenueBody = document.getElementById('bucketDetailRevenueBody');
+  const bucketDetailPayloadEl = document.getElementById('bucketDetailPayload');
+  const bucketDetailPayload = bucketDetailPayloadEl ? JSON.parse(bucketDetailPayloadEl.textContent || '{}') : {};
+  const bucketTabBtns = Array.from(document.querySelectorAll('[data-bucket-tab]'));
+  const bucketPanels = Array.from(document.querySelectorAll('[data-bucket-panel]'));
+  let activeBucket = '';
+  function setBucketTab(target){
+    bucketTabBtns.forEach(el=>{
+      const active = el.getAttribute('data-bucket-tab') === target;
       el.classList.toggle('active', active);
       el.classList.toggle('border-slate-900', active);
       el.classList.toggle('bg-slate-900', active);
@@ -2568,25 +2641,60 @@ def render_page_html(
       el.classList.toggle('bg-white', !active);
       el.classList.toggle('text-slate-500', !active);
     });
-    otherPanels.forEach(el=>{
-      const active = el.getAttribute('data-other-panel') === target;
+    bucketPanels.forEach(el=>{
+      const active = el.getAttribute('data-bucket-panel') === target;
       el.classList.toggle('hidden', !active);
     });
   }
-  function openOtherDetail(){
-    if(!otherSection) return;
-    otherSection.classList.add('open');
-    setOtherTab('sessions');
-    setTimeout(()=> otherSection.scrollIntoView({ behavior:'smooth', block:'nearest' }), 120);
+  function renderBucketDetail(bucket){
+    const payload = bucketDetailPayload[bucket];
+    if(!payload) return false;
+    if(bucketDetailTitle) bucketDetailTitle.textContent = payload.title || 'Channel Detail';
+    if(bucketDetailDesc) bucketDetailDesc.textContent = payload.description || '';
+    if(bucketDetailDiag) bucketDetailDiag.innerHTML = payload.diag_html || '';
+    if(bucketDetailSessionsBody) bucketDetailSessionsBody.innerHTML = payload.sessions_rows || '';
+    if(bucketDetailRevenueBody) bucketDetailRevenueBody.innerHTML = payload.revenue_rows || '';
+    return true;
   }
-  function closeOtherDetail(){
-    if(!otherSection) return;
-    otherSection.classList.remove('open');
+  function markActiveRow(bucket){
+    detailRows.forEach(el=>{
+      const active = el.getAttribute('data-bucket') === bucket;
+      el.classList.toggle('active', active);
+    });
   }
-  if(otherRow) otherRow.addEventListener('click', openOtherDetail);
-  if(otherClose) otherClose.addEventListener('click', closeOtherDetail);
-  otherTabBtns.forEach(el=>{
-    el.addEventListener('click', ()=> setOtherTab(el.getAttribute('data-other-tab')));
+  function openBucketDetail(bucket){
+    if(!bucketDetailHost || !bucketDetailSection) return;
+    if(!renderBucketDetail(bucket)) return;
+    activeBucket = bucket;
+    markActiveRow(bucket);
+    bucketDetailHost.classList.remove('hidden');
+    setBucketTab('sessions');
+    requestAnimationFrame(()=>{
+      bucketDetailSection.classList.add('open');
+      setTimeout(()=> bucketDetailSection.scrollIntoView({ behavior:'smooth', block:'nearest' }), 120);
+    });
+  }
+  function closeBucketDetail(){
+    if(!bucketDetailHost || !bucketDetailSection) return;
+    activeBucket = '';
+    markActiveRow('');
+    bucketDetailSection.classList.remove('open');
+    setTimeout(()=> bucketDetailHost.classList.add('hidden'), 260);
+  }
+  detailRows.forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const bucket = el.getAttribute('data-bucket') || '';
+      if(!bucket) return;
+      if(activeBucket === bucket && bucketDetailHost && !bucketDetailHost.classList.contains('hidden')){
+        closeBucketDetail();
+      } else {
+        openBucketDetail(bucket);
+      }
+    });
+  });
+  if(bucketDetailClose) bucketDetailClose.addEventListener('click', closeBucketDetail);
+  bucketTabBtns.forEach(el=>{
+    el.addEventListener('click', ()=> setBucketTab(el.getAttribute('data-bucket-tab')));
   });
 })();
 </script>"""
@@ -2636,8 +2744,7 @@ def render_page_html(
         <tbody>{chan_html}</tbody>
       </table>
     </div>
-
-    {other_detail_panel_html}
+    {bucket_detail_panel_html}
 
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
@@ -2726,41 +2833,24 @@ def render_page_html(
 
 def inject_report_toolbar(html: str, w: WindowSpec) -> str:
     toolbar_css = """
-    body::before,body::after{content:"";position:fixed;inset:auto;pointer-events:none;z-index:0;filter:blur(18px);opacity:.45;animation:ambient-float 12s ease-in-out infinite}
-    body::before{top:80px;left:-40px;width:240px;height:240px;background:radial-gradient(circle at center, rgba(0,45,114,.22), rgba(0,45,114,0));animation-delay:-2s}
-    body::after{right:-20px;top:200px;width:280px;height:280px;background:radial-gradient(circle at center, rgba(59,130,246,.18), rgba(59,130,246,0));animation-duration:16s}
-    .toolbar-card{position:relative;z-index:1;background:linear-gradient(135deg, rgba(255,255,255,0.92), rgba(248,250,252,0.88));border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 18px 45px rgba(15,23,42,0.08);transition:transform .28s ease,box-shadow .28s ease}
-    .toolbar-card:hover{transform:translateY(-2px);box-shadow:0 16px 38px rgba(15,23,42,0.08)}
+    .toolbar-card{background:rgba(255,255,255,0.88);border:1px solid rgba(226,232,240,0.95);border-radius:20px;padding:16px;box-shadow:0 10px 30px rgba(15,23,42,0.05)}
     .toolbar-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .toolbar-label{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8}
-    .toolbar-chip{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;color:#0f172a;transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
+    .toolbar-chip{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;color:#0f172a}
     .toolbar-chip.active{background:#0f172a;color:#fff;border-color:#0f172a}
-    .toolbar-chip:hover,.toolbar-btn:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(15,23,42,0.08)}
-    .toolbar-btn{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
+    .toolbar-btn{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a}
     .toolbar-btn.primary{background:#002d72;color:#fff;border-color:#002d72}
-    .toolbar-input{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;min-width:160px;transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease}
-    .toolbar-input:focus{outline:none;border-color:rgba(0,45,114,0.42);box-shadow:0 0 0 4px rgba(0,45,114,0.08);transform:translateY(-1px)}
-    .compare-frame{width:100%;border:0;border-radius:18px;min-height:2600px;background:transparent;opacity:0;transform:translateY(18px) scale(.985);transition:opacity .4s ease,transform .4s ease}
-    .compare-frame.ready{opacity:1;transform:translateY(0) scale(1)}
+    .toolbar-input{border:1px solid rgba(148,163,184,0.28);background:#fff;border-radius:14px;padding:10px 12px;font-size:12px;font-weight:900;color:#0f172a;min-width:160px}
+    .compare-frame{width:100%;border:0;border-radius:18px;min-height:2600px;background:transparent}
     .compare-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
     @media (min-width:1280px){.compare-grid.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
-    .other-detail-panel{overflow:hidden;max-height:0;opacity:0;transform:translateY(22px) scale(.985);margin-top:0;padding-top:0;padding-bottom:0;transition:max-height .65s cubic-bezier(.2,.8,.2,1),opacity .45s ease,transform .45s ease,margin-top .45s ease,padding .45s ease}
-    .other-detail-panel.open{max-height:1400px;opacity:1;transform:translateY(0) scale(1);margin-top:24px;padding-top:16px;padding-bottom:16px}
-    .other-tab-btn{transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
-    .other-tab-btn:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(15,23,42,0.08)}
-    .report-card{position:relative;overflow:hidden;transition:transform .3s ease,box-shadow .3s ease}
-    .report-card::after{content:"";position:absolute;inset:-1px;background:linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.45) 35%, rgba(255,255,255,0) 70%);transform:translateX(-130%);opacity:0;pointer-events:none}
-    .report-card:hover{transform:translateY(-4px);box-shadow:0 20px 36px rgba(15,23,42,0.08)}
-    .report-card:hover::after{opacity:1;animation:card-sheen 1s ease}
-    .anim-target{opacity:0;transform:translateY(34px) scale(.965)}
-    .page-ready .anim-target{animation:card-rise .96s cubic-bezier(.16,1,.3,1) forwards;animation-delay:var(--stagger,0ms)}
-    .page-ready .toolbar-card.anim-target{animation-name:toolbar-rise}
-    .page-transition-out .anim-target,.page-transition-out #primaryReport,.page-transition-out #compareReportWrap{animation:page-out .24s ease forwards !important}
-    @keyframes card-rise{0%{opacity:0;transform:translateY(34px) scale(.965)}55%{opacity:1}70%{transform:translateY(-6px) scale(1.01)}100%{opacity:1;transform:translateY(0) scale(1)}}
-    @keyframes toolbar-rise{0%{opacity:0;transform:translateY(18px) scale(.985)}60%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
-    @keyframes page-out{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(18px) scale(.986)}}
-    @keyframes ambient-float{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(18px,-22px,0) scale(1.08)}}
-    @keyframes card-sheen{0%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
+    .bucket-summary-row{transition:transform .22s ease, background-color .22s ease, box-shadow .22s ease}
+    .bucket-summary-row:hover{transform:translateX(4px)}
+    .bucket-summary-row.active{background:rgba(15,23,42,.04)}
+    .bucket-detail-panel{overflow:hidden;max-height:0;opacity:0;transform:translateY(22px) scale(.985);padding-top:0;padding-bottom:0;transition:max-height .65s cubic-bezier(.2,.8,.2,1),opacity .45s ease,transform .45s ease,padding .45s ease}
+    .bucket-detail-panel.open{max-height:1400px;opacity:1;transform:translateY(0) scale(1);padding-top:16px;padding-bottom:16px}
+    .bucket-tab-btn{transition:transform .22s ease,box-shadow .22s ease,background .22s ease,color .22s ease,border-color .22s ease}
+    .bucket-tab-btn:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(15,23,42,0.08)}
     """
     toolbar_html = f"""
     <div id="reportToolbar" class="toolbar-card">
@@ -2805,7 +2895,6 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
     const compareGrid = document.getElementById("compareGrid");
     const compareWrap = document.getElementById("compareReportWrap");
     const compareFrame = document.getElementById("compareFrame");
-    const primaryReport = document.getElementById("primaryReport");
     const modeDaily = document.getElementById("modeDaily");
     const modeWeekly = document.getElementById("modeWeekly");
     const aDate = document.getElementById("aDate");
@@ -2869,35 +2958,6 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
         if (h > 0) compareFrame.style.height = `${{h + 12}}px`;
       }} catch (e) {{}}
     }}
-    function applyEntryAnimation() {{
-      const targets = [];
-      if (toolbar) targets.push(toolbar);
-      if (primaryReport) {{
-        Array.from(primaryReport.children).forEach((el) => {{
-          if (!(el && el.nodeType === 1)) return;
-          if (el.id === "kpiGrid") {{
-            Array.from(el.children).forEach((card) => {{
-              if (card && card.nodeType === 1) targets.push(card);
-            }});
-            return;
-          }}
-          targets.push(el);
-        }});
-      }}
-      targets.forEach((el, idx) => {{
-        el.classList.add("anim-target");
-        el.style.setProperty("--stagger", `${{idx * 70}}ms`);
-      }});
-      requestAnimationFrame(() => document.body.classList.add("page-ready"));
-    }}
-    function startTransitionAndGo(url) {{
-      if (!url) return;
-      if (document.body.classList.contains("page-transition-out")) return;
-      document.body.classList.add("page-transition-out");
-      window.setTimeout(() => {{
-        window.location.href = url;
-      }}, 210);
-    }}
     function setMode(nextMode) {{
       mode = nextMode;
       modeDaily.classList.toggle("active", mode === "daily");
@@ -2911,13 +2971,12 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
       compareGrid.classList.toggle("dual", compareOn);
     }}
     function goCurrent(dateStr) {{
-      startTransitionAndGo(buildReportUrl(mode, dateStr, false));
+      window.location.href = buildReportUrl(mode, dateStr, false);
     }}
     function openCompare() {{
       const dateStr = String(bDate.value || "").trim();
       if (!dateStr) return;
       setCompare(true);
-      compareFrame.classList.remove("ready");
       compareFrame.src = buildReportUrl(mode, dateStr, true);
     }}
 
@@ -2930,14 +2989,12 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
       resizeCompareFrame();
       setTimeout(resizeCompareFrame, 300);
       setTimeout(resizeCompareFrame, 900);
-      compareFrame.classList.add("ready");
     }});
 
     setMode(CURRENT_MODE);
     aDate.value = CURRENT_DATE;
     bDate.value = {json.dumps(ymd(w.prev_end))};
     setCompare(false);
-    applyEntryAnimation();
 
     modeDaily && modeDaily.addEventListener("click", () => {{
       setMode("daily");
@@ -2970,8 +3027,6 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
 
     html = html.replace("</style>", toolbar_css + "\n  </style>", 1)
     html = html.replace('<div class="mx-auto max-w-7xl p-6">', '<div class="mx-auto max-w-7xl p-6">' + toolbar_html, 1)
-    html = html.replace('<div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">', '<div id="kpiGrid" class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">', 1)
-    html = html.replace('class="rounded-2xl border border-slate-200 bg-white/70 p-4"', 'class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4"')
     html = re.sub(
         r'\s*<div class="flex items-center gap-2">\s*<a href="[^"]*" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>\s*</div>',
         '',
@@ -3674,7 +3729,7 @@ def build_one(
                 category_pdp_trend=rt["category_pdp_trend"],
                 search_new=rt["search_new"],
                 search_rising=rt["search_rising"],
-                other_detail=rt["other_detail"],
+                channel_detail_map=rt["channel_detail_map"],
                 paid_media_compare=rt["paid_media_compare"],
                 nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
                 bundle_rel_path=bundle_rel,
@@ -3704,7 +3759,7 @@ def build_one(
 
     paid_detail = get_paid_detail_3way(client, w, paid_ad_totals=paid_ad_totals)
     paid_top3 = get_paid_top3(client, w)
-    other_detail = pd.DataFrame()
+    channel_detail_map = get_channel_detail_map_3way(client, w)
     target_roas_map = load_target_roas_map(TARGET_ROAS_XLS_PATH)
     paid_media_compare = get_paid_media_comparison_table(client, w, target_roas_map)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
@@ -3749,7 +3804,7 @@ def build_one(
         pdp_series=pdp_series,
         search_new=search["new"],
         search_rising=search["rising"],
-        other_detail=other_detail,
+        channel_detail_map=channel_detail_map,
         paid_media_compare=paid_media_compare,
     )
 
@@ -3772,7 +3827,7 @@ def build_one(
         category_pdp_trend=category_pdp_trend,
         search_new=search["new"],
         search_rising=search["rising"],
-        other_detail=other_detail,
+        channel_detail_map=channel_detail_map,
         paid_media_compare=paid_media_compare,
         nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
         bundle_rel_path=bundle_rel,
