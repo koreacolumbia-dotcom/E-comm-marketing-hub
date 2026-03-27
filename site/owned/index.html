@@ -628,12 +628,88 @@
     }
     #ytdCards .kpi-card:nth-child(-n+4) .kpi-sub:first-of-type{ color:#2563eb; }
     #ytdCards .kpi-card:nth-child(n+5) .kpi-sub:first-of-type{ color:#64748b; }
+    #kpiGrid{
+      position: relative;
+      z-index: 1;
+      perspective: 1200px;
+    }
+    #kpiGrid .kpi-card{
+      position: relative;
+      overflow: hidden;
+      min-height: 128px;
+      border: 1px solid rgba(203,213,225,0.92);
+      background: linear-gradient(180deg, rgba(255,255,255,0.99), rgba(248,250,252,0.98));
+      box-shadow: 0 8px 18px rgba(15,23,42,0.045);
+      backdrop-filter: none;
+    }
+    #kpiGrid .kpi-card::before{
+      content:'';
+      position:absolute;
+      inset:-1px;
+      border-radius: inherit;
+      padding:1px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(226,232,240,0.65), rgba(255,255,255,0.98));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+      opacity:.96;
+      pointer-events:none;
+    }
+    #kpiGrid .kpi-card::after{
+      content:'';
+      position:absolute;
+      inset:auto auto -42px -26px;
+      width:130px;
+      height:130px;
+      border-radius:999px;
+      background: radial-gradient(circle at center, rgba(148,163,184,0.14), transparent 72%);
+      opacity:.9;
+      pointer-events:none;
+      transition: opacity .25s ease, transform .25s ease;
+    }
+    #kpiGrid .kpi-card:hover{
+      transform: translateY(-4px);
+      box-shadow: 0 14px 28px rgba(15,23,42,0.075);
+      border-color: rgba(148,163,184,0.9);
+    }
+    #kpiGrid .kpi-card:hover::after{
+      transform: scale(1.04);
+      opacity: 1;
+    }
+    #kpiGrid .kpi-title{
+      color:#8aa0bc;
+      letter-spacing: .16em;
+    }
+    #kpiGrid .kpi-value{
+      color:#0f172a;
+      font-size: 2rem;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      text-shadow: none;
+    }
+    #kpiGrid .kpi-sub{
+      color:#64748b;
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 8px;
+      max-width: 18ch;
+    }
+    #kpiGrid .kpi-card[data-trend="up"]{
+      box-shadow: 0 14px 30px rgba(34,197,94,0.08), 0 0 0 1px rgba(34,197,94,0.08);
+    }
+    #kpiGrid .kpi-card[data-trend="down"]{
+      box-shadow: 0 14px 30px rgba(239,68,68,0.07), 0 0 0 1px rgba(239,68,68,0.07);
+    }
+    #kpiGrid .kpi-card[data-trend="up"] .kpi-sub:first-of-type{ color:#15803d !important; }
+    #kpiGrid .kpi-card[data-trend="down"] .kpi-sub:first-of-type{ color:#b91c1c !important; }
     @media (max-width: 768px){
       #ytdWrap{ padding: 20px; border-radius: 28px; }
       .ytd-stage{ padding: 18px; border-radius: 24px; }
       .ytd-panel-head h2{ font-size: 1.42rem; }
       #allCards .kpi-value, #ytdCards .kpi-card:nth-child(-n+4) .kpi-value{ font-size: 1.92rem; }
       #ytdCards .kpi-card:nth-child(n+5) .kpi-value{ font-size: 1.72rem; }
+      #kpiGrid .kpi-value{ font-size: 1.7rem; }
+      #kpiGrid .kpi-sub{ max-width: none; }
     }
 
     .kpi-pop-in{
@@ -1059,7 +1135,7 @@
       </div>
 
       <!-- KPI (selection) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
+      <div id="kpiGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
         <div class="kpi-card">
           <div class="kpi-title">Sessions</div>
           <div id="kSessions" class="kpi-value">-</div>
@@ -4054,19 +4130,21 @@
   }
 
   async function selectGroup(channel, year, mmdd){
-    if(GROUP_JUMP_MODE){
-      const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
-      if(resolvedDate){
-        await load7dFromDate(resolvedDate);
-        SELECTED = {type:'group', channel, year, mmdd};
-        filterKPI();
-        updateChannelTotals();
-        renderCampaignButtons();
-        aggregateKPIForSelected();
-        renderTerms();
-        renderProducts();
-        return;
+    const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
+    if(resolvedDate){
+      if(toggleGroupJump){
+        toggleGroupJump.checked = true;
       }
+      GROUP_JUMP_MODE = true;
+      await load7dFromDate(resolvedDate);
+      SELECTED = {type:'group', channel, year, mmdd};
+      filterKPI();
+      updateChannelTotals();
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderTerms();
+      renderProducts();
+      return;
     }
 
     WEEK_ANCHORED_MODE = false;
