@@ -274,6 +274,85 @@
       display:grid;
       gap:22px;
     }
+    .ytd-control-shell{
+      position: relative;
+      overflow: hidden;
+      border-radius: 28px;
+      padding: 18px 18px 16px;
+      border: 1px solid rgba(148,163,184,0.18);
+      background:
+        radial-gradient(440px 180px at 0% 0%, rgba(59,130,246,0.18), transparent 60%),
+        linear-gradient(180deg, rgba(15,23,42,0.68), rgba(15,23,42,0.54));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 40px rgba(2,6,23,0.2);
+    }
+    .ytd-control-shell::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 34%, rgba(255,255,255,0.04));
+    }
+    .ytd-control-head{
+      position: relative;
+      z-index: 1;
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+      margin-bottom: 16px;
+    }
+    .ytd-control-copy{
+      max-width: 760px;
+      margin-top: 10px;
+      color: rgba(226,232,240,0.76);
+      font-size: 13px;
+      line-height: 1.6;
+      font-weight: 700;
+    }
+    .ytd-control-shell .small-label{
+      color: rgba(191,219,254,0.7);
+    }
+    .ytd-control-shell .chip{
+      background: rgba(15,23,42,0.62);
+      border-color: rgba(148,163,184,0.24);
+      color: rgba(226,232,240,0.92);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .ytd-control-shell .chip:hover{
+      box-shadow: 0 12px 28px rgba(2,6,23,0.22);
+    }
+    .ytd-control-shell .chip.active{
+      background: linear-gradient(135deg, rgba(96,165,250,0.32), rgba(59,130,246,0.18));
+      border-color: rgba(96,165,250,0.55);
+      color: #ffffff;
+    }
+    .ytd-control-shell .btn{
+      background: rgba(15,23,42,0.72);
+      border-color: rgba(148,163,184,0.24);
+      color: rgba(226,232,240,0.94);
+    }
+    .ytd-control-shell .btn-primary{
+      background: rgba(255,255,255,0.92);
+      border-color: rgba(255,255,255,0.92);
+      color: #0f172a;
+    }
+    .ytd-control-shell input[type="date"],
+    .ytd-control-shell input[type="text"],
+    .ytd-control-shell select{
+      background: rgba(248,250,252,0.96);
+      border-color: rgba(148,163,184,0.22);
+      color: #0f172a;
+    }
+    .ytd-control-shell label{
+      color: rgba(226,232,240,0.9) !important;
+    }
+    .ytd-control-shell .toggle{
+      border-color: rgba(191,219,254,0.22);
+      background: rgba(255,255,255,0.94);
+      color: #0f172a;
+      box-shadow: 0 12px 30px rgba(15,23,42,0.16);
+    }
     .ytd-hero{
       display:flex;
       align-items:flex-start;
@@ -549,12 +628,88 @@
     }
     #ytdCards .kpi-card:nth-child(-n+4) .kpi-sub:first-of-type{ color:#2563eb; }
     #ytdCards .kpi-card:nth-child(n+5) .kpi-sub:first-of-type{ color:#64748b; }
+    #kpiGrid{
+      position: relative;
+      z-index: 1;
+      perspective: 1200px;
+    }
+    #kpiGrid .kpi-card{
+      position: relative;
+      overflow: hidden;
+      min-height: 128px;
+      border: 1px solid rgba(203,213,225,0.92);
+      background: linear-gradient(180deg, rgba(255,255,255,0.99), rgba(248,250,252,0.98));
+      box-shadow: 0 8px 18px rgba(15,23,42,0.045);
+      backdrop-filter: none;
+    }
+    #kpiGrid .kpi-card::before{
+      content:'';
+      position:absolute;
+      inset:-1px;
+      border-radius: inherit;
+      padding:1px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(226,232,240,0.65), rgba(255,255,255,0.98));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+      opacity:.96;
+      pointer-events:none;
+    }
+    #kpiGrid .kpi-card::after{
+      content:'';
+      position:absolute;
+      inset:auto auto -42px -26px;
+      width:130px;
+      height:130px;
+      border-radius:999px;
+      background: radial-gradient(circle at center, rgba(148,163,184,0.14), transparent 72%);
+      opacity:.9;
+      pointer-events:none;
+      transition: opacity .25s ease, transform .25s ease;
+    }
+    #kpiGrid .kpi-card:hover{
+      transform: translateY(-4px);
+      box-shadow: 0 14px 28px rgba(15,23,42,0.075);
+      border-color: rgba(148,163,184,0.9);
+    }
+    #kpiGrid .kpi-card:hover::after{
+      transform: scale(1.04);
+      opacity: 1;
+    }
+    #kpiGrid .kpi-title{
+      color:#8aa0bc;
+      letter-spacing: .16em;
+    }
+    #kpiGrid .kpi-value{
+      color:#0f172a;
+      font-size: 2rem;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      text-shadow: none;
+    }
+    #kpiGrid .kpi-sub{
+      color:#64748b;
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 8px;
+      max-width: 18ch;
+    }
+    #kpiGrid .kpi-card[data-trend="up"]{
+      box-shadow: 0 14px 30px rgba(34,197,94,0.08), 0 0 0 1px rgba(34,197,94,0.08);
+    }
+    #kpiGrid .kpi-card[data-trend="down"]{
+      box-shadow: 0 14px 30px rgba(239,68,68,0.07), 0 0 0 1px rgba(239,68,68,0.07);
+    }
+    #kpiGrid .kpi-card[data-trend="up"] .kpi-sub:first-of-type{ color:#15803d !important; }
+    #kpiGrid .kpi-card[data-trend="down"] .kpi-sub:first-of-type{ color:#b91c1c !important; }
     @media (max-width: 768px){
       #ytdWrap{ padding: 20px; border-radius: 28px; }
       .ytd-stage{ padding: 18px; border-radius: 24px; }
       .ytd-panel-head h2{ font-size: 1.42rem; }
       #allCards .kpi-value, #ytdCards .kpi-card:nth-child(-n+4) .kpi-value{ font-size: 1.92rem; }
       #ytdCards .kpi-card:nth-child(n+5) .kpi-value{ font-size: 1.72rem; }
+      #kpiGrid .kpi-value{ font-size: 1.7rem; }
+      #kpiGrid .kpi-sub{ max-width: none; }
     }
 
     .kpi-pop-in{
@@ -729,8 +884,8 @@
     </div>
 
     <div class="glass p-6 report-fullwidth">
-      <!-- Controls -->
-      <div class="flex flex-wrap items-center gap-3 mb-5">
+      <!-- Controls
+      <div class="hidden legacy-controls flex-wrap items-center gap-3 mb-5">
         <div class="small-label">View</div>
         <button id="chipDaily" class="chip active" type="button">DAILY</button>
         <button id="chipWeek" class="chip" type="button">WEEK</button>
@@ -782,6 +937,7 @@
         </div>
       </div>
 
+      -->
       <!-- Channel Totals -->
       <div class="hidden mb-6">
         <div class="flex items-center gap-2 mb-3">
@@ -823,6 +979,65 @@
           </div>
         </div>
         <div class="ytd-shell">
+          <div class="ytd-control-shell">
+            <div class="ytd-control-head">
+              <div>
+                <div class="section-kicker">YTD CONTROL HUB</div>
+                <div class="ytd-control-copy">모드 전환, 채널 전환, 날짜 이동, MMDD 점프, 검색을 누적 허브 안에서 바로 보이도록 정리했습니다. 상단 탭이 묻히지 않게 먼저 보이고, 탭을 바꿀 때마다 누적 카드 애니메이션과 자연스럽게 연결됩니다.</div>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="small-label">View</div>
+              <button id="chipDaily" class="chip active" type="button">DAILY</button>
+              <button id="chipWeek" class="chip" type="button">WEEK</button>
+              <button id="chipRange" class="chip" type="button">RANGE</button>
+
+              <label class="ml-2 flex items-center gap-2 text-xs font-extrabold select-none">
+                <input id="toggleGroupJump" type="checkbox" class="accent-slate-900" />
+                MMDD 클릭 시 날짜로 이동
+              </label>
+
+              <div class="ml-2 small-label">Date</div>
+              <div id="dailyBox" class="w-[160px]"><input id="datePicker" type="date" /></div>
+              <div id="weekHint" class="hidden text-xs font-extrabold text-slate-300">(Mon ~ Sun)</div>
+
+              <div id="rangeBox" class="hidden items-center gap-2">
+                <div class="small-label">From</div>
+                <div class="w-[160px]"><input id="startPicker" type="date" /></div>
+                <div class="small-label">To</div>
+                <div class="w-[160px]"><input id="endPicker" type="date" /></div>
+
+                <button id="btnApplyRange" class="btn btn-primary" type="button">적용</button>
+                <button id="btn7d" class="btn" type="button">7D</button>
+                <button id="btn30d" class="btn" type="button">30D</button>
+                <button id="btnMTD" class="btn" type="button">MTD</button>
+                <button id="btnWEEK" class="btn" type="button">WEEK</button>
+              </div>
+
+              <button id="btnPrev" class="btn" type="button">◀</button>
+              <button id="btnNext" class="btn" type="button">▶</button>
+              <button id="btnToday" class="btn" type="button">오늘</button>
+
+              <div class="ml-2 small-label">Channel</div>
+              <button id="chipEDM" class="chip active" type="button">EDM</button>
+              <button id="chipLMS" class="chip" type="button">LMS</button>
+              <button id="chipKAKAO" class="chip" type="button">KAKAO</button>
+
+              <div class="ml-2 small-label">Search</div>
+              <div class="w-[260px]"><input id="q" type="text" placeholder="campaign/term/0226 검색" /></div>
+
+              <div class="ml-auto flex items-center gap-2">
+                <div class="small-label">Top</div>
+                <select id="topN" class="w-[120px]">
+                  <option value="30" selected>30</option>
+                  <option value="60">60</option>
+                  <option value="120">120</option>
+                  <option value="300">300</option>
+                </select>
+                <button id="btnYTD" class="toggle" type="button">YTD · This year vs Previous year</button>
+              </div>
+            </div>
+          </div>
           <div class="ytd-hero">
             <div>
               <div id="ytdSummaryLabel" class="section-kicker">ALL PERFORMANCE</div>
@@ -921,7 +1136,7 @@
       </div>
 
       <!-- KPI (selection) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
+      <div id="kpiGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
         <div class="kpi-card">
           <div class="kpi-title">Sessions</div>
           <div id="kSessions" class="kpi-value">-</div>
@@ -1105,6 +1320,25 @@
 
 <script>
 (function(){
+  const legacyControls = document.querySelector('.legacy-controls');
+  if(legacyControls) legacyControls.remove();
+
+  const controlIdsToDedup = [
+    'chipDaily','chipWeek','chipRange',
+    'toggleGroupJump',
+    'dailyBox','weekHint','rangeBox',
+    'datePicker','startPicker','endPicker',
+    'btnApplyRange','btn7d','btn30d','btnMTD','btnWEEK',
+    'btnPrev','btnNext','btnToday',
+    'chipEDM','chipLMS','chipKAKAO',
+    'q','topN','btnYTD'
+  ];
+  controlIdsToDedup.forEach((id) => {
+    const nodes = Array.from(document.querySelectorAll(`[id="${id}"]`));
+    if(nodes.length <= 1) return;
+    nodes.slice(0, -1).forEach((node) => node.removeAttribute('id'));
+  });
+
   const notice = document.getElementById('notice');
   const noticeText = document.getElementById('noticeText');
   const noticeClose = document.getElementById('noticeClose');
@@ -1280,6 +1514,17 @@
   const detailTabFunnel = document.getElementById('detailTabFunnel');
   const detailPanelExplorer = document.getElementById('detailPanelExplorer');
   const detailPanelFunnel = document.getElementById('detailPanelFunnel');
+
+  function bindDelegatedChipClick(wrapEl, handler){
+    if(!wrapEl || wrapEl.dataset.chipBound === '1') return;
+    wrapEl.dataset.chipBound = '1';
+    wrapEl.addEventListener('click', (event) => {
+      const btn = event.target.closest('button.chip');
+      if(!btn || !wrapEl.contains(btn)) return;
+      event.preventDefault();
+      handler(btn);
+    });
+  }
   const funnelPanel = document.getElementById('funnelPanel');
 
   const termSection = document.getElementById('termSection');
@@ -1670,6 +1915,20 @@
     return (rows || []).filter(r => scheduledDates.has(getRowGroupDate(r)));
   }
 
+  function prefersScheduledSendCount(channel){
+    return String(channel || '').trim().toUpperCase() !== 'KAKAO';
+  }
+
+  function getPreferredSendCount(rows, channel, endDate, messageLog){
+    const expectedYear = String(endDate || '').slice(0,4);
+    const normalizedChannel = String(channel || '').trim().toUpperCase();
+    const scheduledRows = getScheduledMessageRowsUpTo(messageLog || [], normalizedChannel, endDate);
+    if(prefersScheduledSendCount(normalizedChannel) && scheduledRows.length){
+      return scheduledRows.length;
+    }
+    return countDistinctSends(rows || [], expectedYear, endDate);
+  }
+
   function getCampaignChipSourceRows(){
     const qq = (q.value||'').trim().toLowerCase();
     const cutoffDate = getCampaignChipCutoffDate();
@@ -1745,25 +2004,20 @@
   }
 
   function getChannelSummary(rows, channel, endDate, messageLog){
-    const expectedYear = String(endDate || '').slice(0,4);
-    const scheduledRows = getScheduledMessageRowsUpTo(messageLog, channel, endDate);
-    const metricRows = scheduledRows.length ? filterRowsToScheduledDates(rows || [], channel, endDate, messageLog) : (rows || []);
-    const agg = aggregateRow(metricRows);
-    const sendCount = scheduledRows.length ? scheduledRows.length : countDistinctSends(rows || [], expectedYear, endDate);
+    const agg = aggregateRow(rows || []);
+    const sendCount = getPreferredSendCount(rows || [], channel, endDate, messageLog);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     const cvr = agg.sessions ? ((agg.purchases || 0) / agg.sessions * 100) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage, cvr };
   }
 
   function getCumulativeSendCount(channel, endDate){
-    const expectedYear = String(endDate || '').slice(0,4);
     const sourceRows = ((GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []))
       .filter(r => r.channel === channel);
     const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
       ? GROUP_SOURCE_MESSAGE_LOG
       : (((RAW && RAW.message_log) || []));
-    const scheduledRows = getScheduledMessageRowsUpTo(sourceMessageLog, channel, endDate);
-    return scheduledRows.length ? scheduledRows.length : countDistinctSends(sourceRows, expectedYear, endDate);
+    return getPreferredSendCount(sourceRows, channel, endDate, sourceMessageLog);
   }
 
   function getAllChannelsSummary(rows, endDate, messageLog){
@@ -1772,10 +2026,7 @@
     const channels = ['EDM', 'LMS', 'KAKAO'];
     const sendCount = channels.reduce((sum, channel) => {
       const channelRows = sourceRows.filter(r => r.channel === channel);
-      const scheduledRows = getScheduledMessageRowsUpTo(messageLog || [], channel, endDate);
-      const channelSendCount = scheduledRows.length
-        ? scheduledRows.length
-        : countDistinctSends(channelRows, String(endDate || '').slice(0,4), endDate);
+      const channelSendCount = getPreferredSendCount(channelRows, channel, endDate, messageLog || []);
       return sum + channelSendCount;
     }, 0);
     return {
@@ -2165,7 +2416,7 @@
   function makeChip(label, title, active, dataAttrs){
     const cls = active ? 'chip active' : 'chip';
     const attrs = Object.entries(dataAttrs||{}).map(([k,v])=>`data-${k}="${String(v).replace(/"/g,'&quot;')}"`).join(' ');
-    return `<button class="${cls}" ${attrs} title="${title||''}">${label}</button>`;
+    return `<button type="button" class="${cls}" ${attrs} title="${title||''}">${label}</button>`;
   }
 
   function aggregateRow(rows){
@@ -2297,10 +2548,7 @@
         if(!byYear.has(g.year)) byYear.set(g.year, []);
         byYear.get(g.year).push(g);
       }
-      const currentYear = String(getCampaignChipCutoffDate() || '').slice(0,4);
-      const years = Array.from(byYear.keys())
-        .filter(yr => !currentYear || String(yr) === currentYear)
-        .sort((a,b)=> b.localeCompare(a));
+      const years = Array.from(byYear.keys()).sort((a,b)=> b.localeCompare(a));
 
       let html = '';
       for(const yr of years){
@@ -2405,6 +2653,52 @@
       });
     }
   }
+
+  bindDelegatedChipClick(wrapEDMDate, (btn) => {
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+  });
+  bindDelegatedChipClick(wrapLMSDate, (btn) => {
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+  });
+  bindDelegatedChipClick(wrapKakaoDate, (btn) => {
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+  });
+  bindDelegatedChipClick(wrapEDMOther, (btn) => {
+    selectSingle(
+      btn.getAttribute('data-channel'),
+      decodeURIComponent(btn.getAttribute('data-campaign')||''),
+      decodeURIComponent(btn.getAttribute('data-term')||'')
+    );
+  });
+  bindDelegatedChipClick(wrapLMSOther, (btn) => {
+    selectSingle(
+      btn.getAttribute('data-channel'),
+      decodeURIComponent(btn.getAttribute('data-campaign')||''),
+      decodeURIComponent(btn.getAttribute('data-term')||'')
+    );
+  });
+  bindDelegatedChipClick(wrapKakaoOther, (btn) => {
+    selectSingle(
+      btn.getAttribute('data-channel'),
+      decodeURIComponent(btn.getAttribute('data-campaign')||''),
+      decodeURIComponent(btn.getAttribute('data-term')||'')
+    );
+  });
+  bindDelegatedChipClick(wrapOtherChannels, (btn) => {
+    if(btn.getAttribute('data-type') === 'other-group'){
+      selectOtherGroup(
+        btn.getAttribute('data-channel'),
+        btn.getAttribute('data-year'),
+        btn.getAttribute('data-mmdd')
+      );
+      return;
+    }
+    selectSingle(
+      btn.getAttribute('data-channel'),
+      decodeURIComponent(btn.getAttribute('data-campaign')||''),
+      decodeURIComponent(btn.getAttribute('data-term')||'')
+    );
+  });
 
 
   function renderOtherCampaigns(channel, wrapEl){
@@ -2584,9 +2878,7 @@
   }
 
   function getSelectedSendCount(sel, rows){
-    const messageRows = getSelectionMessageRows(sel, rows);
-    if(messageRows !== null) return messageRows.length;
-    return countDistinctSends(rows);
+    return countDistinctSends(rows || []);
   }
 
   function aggregateKPIForSelected(){
@@ -3274,6 +3566,9 @@
   }
 
   function selectSingle(channel, campaign, term){
+    CHANNEL = channel;
+    setChipActive();
+    toggleSections();
     SELECTED = {type:'single', channel, campaign, term};
     renderCampaignButtons();
     aggregateKPIForSelected();
@@ -3282,6 +3577,9 @@
   }
 
   function selectOtherGroup(channel, year, mmdd){
+    CHANNEL = channel;
+    setChipActive();
+    toggleSections();
     SELECTED = {type:'other-group', channel, year, mmdd};
     renderCampaignButtons();
     aggregateKPIForSelected();
@@ -3595,7 +3893,6 @@
 
   async function loadDaily(dStr){
     hideNotice();
-    SELECTED = null;
 
     try{
       RAW = normalizeBundle(await fetchOwnedJson(`owned_${dStr}.json`));
@@ -3910,19 +4207,24 @@
   }
 
   async function selectGroup(channel, year, mmdd){
-    if(GROUP_JUMP_MODE){
-      const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
-      if(resolvedDate){
-        await load7dFromDate(resolvedDate);
-        SELECTED = {type:'group', channel, year, mmdd};
-        filterKPI();
-        updateChannelTotals();
-        renderCampaignButtons();
-        aggregateKPIForSelected();
-        renderTerms();
-        renderProducts();
-        return;
+    CHANNEL = channel;
+    setChipActive();
+    toggleSections();
+    SELECTED = {type:'group', channel, year, mmdd};
+    const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
+    if(resolvedDate){
+      if(toggleGroupJump){
+        toggleGroupJump.checked = true;
       }
+      GROUP_JUMP_MODE = true;
+      await load7dFromDate(resolvedDate);
+      filterKPI();
+      updateChannelTotals();
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderTerms();
+      renderProducts();
+      return;
     }
 
     WEEK_ANCHORED_MODE = false;
@@ -3938,6 +4240,7 @@
   // View toggles
   chipDaily.addEventListener('click', ()=>{
     primeYtdLoading();
+    SELECTED = null;
     WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
     setViewActive();
@@ -3948,6 +4251,7 @@
 
   chipWeek.addEventListener('click', async ()=>{
     primeYtdLoading();
+    SELECTED = null;
     WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
     setViewActive();
@@ -3960,6 +4264,7 @@
 
   chipRange.addEventListener('click', ()=>{
     primeYtdLoading();
+    SELECTED = null;
     WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
     setViewActive();
@@ -3970,6 +4275,7 @@
   // ✅ 채널 클릭 시 디폴트 VIEW = WEEK
   async function onChannelChange(ch){
     primeYtdLoading();
+    SELECTED = null;
     CHANNEL = ch;
     updateYtdLabels();
     setChipActive();
@@ -4010,14 +4316,15 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  btnApplyRange.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btn7d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btn30d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btnMTD.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btnWEEK.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnApplyRange.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btn7d.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btn30d.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnMTD.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnWEEK.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
 
   btnPrev.addEventListener('click', async ()=>{
     primeYtdLoading();
+    SELECTED = null;
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,-1));
@@ -4047,6 +4354,7 @@
 
   btnNext.addEventListener('click', async ()=>{
     primeYtdLoading();
+    SELECTED = null;
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,+1));
@@ -4076,6 +4384,7 @@
 
   btnToday.addEventListener('click', async ()=>{
     primeYtdLoading();
+    SELECTED = null;
     const d = clampToAvailable(ymd(new Date()));
     if(VIEW==='DAILY'){
       datePicker.value = d;
