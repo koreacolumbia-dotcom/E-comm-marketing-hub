@@ -642,6 +642,10 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     # Order matters here to match the Looker CASE evaluation order.
     if _rx(r".*(instagram).*").search(sm) and _rx(r".*(story).*").search(sm):
         return "SNS"
+    if _rx(r".*(benz).*").search(sm) and _rx(r".*(cpc|paid|ppc).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(benz).*").search(sm) and _rx(r".*(referral|organic|\(none\)|direct).*").search(sm):
+        return "Organic"
     if _rx(r".*(benz).*").search(sm):
         return "Organic"
 
