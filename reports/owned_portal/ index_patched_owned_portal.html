@@ -2877,13 +2877,7 @@
   }
 
   function getSelectedSendCount(sel, rows){
-    const channel = String((sel && sel.channel) || '').trim().toUpperCase();
-    if(channel === 'KAKAO'){
-      return countDistinctSends(rows || []);
-    }
-    const messageRows = getSelectionMessageRows(sel, rows);
-    if(messageRows !== null) return messageRows.length;
-    return countDistinctSends(rows);
+    return countDistinctSends(rows || []);
   }
 
   function aggregateKPIForSelected(){
@@ -3898,7 +3892,6 @@
 
   async function loadDaily(dStr){
     hideNotice();
-    SELECTED = null;
 
     try{
       RAW = normalizeBundle(await fetchOwnedJson(`owned_${dStr}.json`));
@@ -4216,6 +4209,7 @@
     CHANNEL = channel;
     setChipActive();
     toggleSections();
+    SELECTED = {type:'group', channel, year, mmdd};
     const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
     if(resolvedDate){
       if(toggleGroupJump){
@@ -4223,7 +4217,6 @@
       }
       GROUP_JUMP_MODE = true;
       await load7dFromDate(resolvedDate);
-      SELECTED = {type:'group', channel, year, mmdd};
       filterKPI();
       updateChannelTotals();
       renderCampaignButtons();
@@ -4246,6 +4239,7 @@
   // View toggles
   chipDaily.addEventListener('click', ()=>{
     primeYtdLoading();
+    SELECTED = null;
     WEEK_ANCHORED_MODE = false;
     VIEW='DAILY';
     setViewActive();
@@ -4256,6 +4250,7 @@
 
   chipWeek.addEventListener('click', async ()=>{
     primeYtdLoading();
+    SELECTED = null;
     WEEK_ANCHORED_MODE = false;
     VIEW='WEEK';
     setViewActive();
@@ -4268,6 +4263,7 @@
 
   chipRange.addEventListener('click', ()=>{
     primeYtdLoading();
+    SELECTED = null;
     WEEK_ANCHORED_MODE = false;
     VIEW='RANGE';
     setViewActive();
@@ -4278,6 +4274,7 @@
   // ✅ 채널 클릭 시 디폴트 VIEW = WEEK
   async function onChannelChange(ch){
     primeYtdLoading();
+    SELECTED = null;
     CHANNEL = ch;
     updateYtdLabels();
     setChipActive();
@@ -4318,14 +4315,15 @@
   q.addEventListener('input', ()=>{ filterKPI(); renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
   topN.addEventListener('change', ()=>{ renderCampaignButtons(); aggregateKPIForSelected(); renderTerms(); renderProducts(); });
 
-  btnApplyRange.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btn7d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btn30d.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btnMTD.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
-  btnWEEK.addEventListener('click', ()=>{ primeYtdLoading(); WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnApplyRange.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btn7d.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; setToLastNDays(7); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btn30d.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; setToLastNDays(30); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnMTD.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; setToMTD(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
+  btnWEEK.addEventListener('click', ()=>{ primeYtdLoading(); SELECTED = null; WEEK_ANCHORED_MODE = false; setToWeek(); loadRange(startPicker.value, endPicker.value).then(()=>computeYTD()).then(()=>finalizeAnimatedViewChange()); });
 
   btnPrev.addEventListener('click', async ()=>{
     primeYtdLoading();
+    SELECTED = null;
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,-1));
@@ -4355,6 +4353,7 @@
 
   btnNext.addEventListener('click', async ()=>{
     primeYtdLoading();
+    SELECTED = null;
     if(VIEW==='DAILY'){
       const cur = parseYMD(datePicker.value);
       const d = ymd(addDays(cur,+1));
@@ -4384,6 +4383,7 @@
 
   btnToday.addEventListener('click', async ()=>{
     primeYtdLoading();
+    SELECTED = null;
     const d = clampToAvailable(ymd(new Date()));
     if(VIEW==='DAILY'){
       datePicker.value = d;
