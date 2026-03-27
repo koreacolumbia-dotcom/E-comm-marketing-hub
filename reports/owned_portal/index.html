@@ -1322,6 +1322,22 @@
   const legacyControls = document.querySelector('.legacy-controls');
   if(legacyControls) legacyControls.remove();
 
+  const controlIdsToDedup = [
+    'chipDaily','chipWeek','chipRange',
+    'toggleGroupJump',
+    'dailyBox','weekHint','rangeBox',
+    'datePicker','startPicker','endPicker',
+    'btnApplyRange','btn7d','btn30d','btnMTD','btnWEEK',
+    'btnPrev','btnNext','btnToday',
+    'chipEDM','chipLMS','chipKAKAO',
+    'q','topN','btnYTD'
+  ];
+  controlIdsToDedup.forEach((id) => {
+    const nodes = Array.from(document.querySelectorAll(`[id="${id}"]`));
+    if(nodes.length <= 1) return;
+    nodes.slice(0, -1).forEach((node) => node.removeAttribute('id'));
+  });
+
   const notice = document.getElementById('notice');
   const noticeText = document.getElementById('noticeText');
   const noticeClose = document.getElementById('noticeClose');
@@ -1497,6 +1513,17 @@
   const detailTabFunnel = document.getElementById('detailTabFunnel');
   const detailPanelExplorer = document.getElementById('detailPanelExplorer');
   const detailPanelFunnel = document.getElementById('detailPanelFunnel');
+
+  function bindDelegatedChipClick(wrapEl, handler){
+    if(!wrapEl || wrapEl.dataset.chipBound === '1') return;
+    wrapEl.dataset.chipBound = '1';
+    wrapEl.addEventListener('click', (event) => {
+      const btn = event.target.closest('button.chip');
+      if(!btn || !wrapEl.contains(btn)) return;
+      event.preventDefault();
+      handler(btn);
+    });
+  }
   const funnelPanel = document.getElementById('funnelPanel');
 
   const termSection = document.getElementById('termSection');
@@ -2388,7 +2415,7 @@
   function makeChip(label, title, active, dataAttrs){
     const cls = active ? 'chip active' : 'chip';
     const attrs = Object.entries(dataAttrs||{}).map(([k,v])=>`data-${k}="${String(v).replace(/"/g,'&quot;')}"`).join(' ');
-    return `<button class="${cls}" ${attrs} title="${title||''}">${label}</button>`;
+    return `<button type="button" class="${cls}" ${attrs} title="${title||''}">${label}</button>`;
   }
 
   function aggregateRow(rows){
@@ -2626,6 +2653,52 @@
     }
   }
 
+  bindDelegatedChipClick(wrapEDMDate, (btn) => {
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+  });
+  bindDelegatedChipClick(wrapLMSDate, (btn) => {
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+  });
+  bindDelegatedChipClick(wrapKakaoDate, (btn) => {
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+  });
+  bindDelegatedChipClick(wrapEDMOther, (btn) => {
+    selectSingle(
+      btn.getAttribute('data-channel'),
+      decodeURIComponent(btn.getAttribute('data-campaign')||''),
+      decodeURIComponent(btn.getAttribute('data-term')||'')
+    );
+  });
+  bindDelegatedChipClick(wrapLMSOther, (btn) => {
+    selectSingle(
+      btn.getAttribute('data-channel'),
+      decodeURIComponent(btn.getAttribute('data-campaign')||''),
+      decodeURIComponent(btn.getAttribute('data-term')||'')
+    );
+  });
+  bindDelegatedChipClick(wrapKakaoOther, (btn) => {
+    selectSingle(
+      btn.getAttribute('data-channel'),
+      decodeURIComponent(btn.getAttribute('data-campaign')||''),
+      decodeURIComponent(btn.getAttribute('data-term')||'')
+    );
+  });
+  bindDelegatedChipClick(wrapOtherChannels, (btn) => {
+    if(btn.getAttribute('data-type') === 'other-group'){
+      selectOtherGroup(
+        btn.getAttribute('data-channel'),
+        btn.getAttribute('data-year'),
+        btn.getAttribute('data-mmdd')
+      );
+      return;
+    }
+    selectSingle(
+      btn.getAttribute('data-channel'),
+      decodeURIComponent(btn.getAttribute('data-campaign')||''),
+      decodeURIComponent(btn.getAttribute('data-term')||'')
+    );
+  });
+
 
   function renderOtherCampaigns(channel, wrapEl){
     const sourceRows = otherByChannel[channel].slice();
@@ -2804,6 +2877,10 @@
   }
 
   function getSelectedSendCount(sel, rows){
+    const channel = String((sel && sel.channel) || '').trim().toUpperCase();
+    if(channel === 'KAKAO'){
+      return countDistinctSends(rows || []);
+    }
     const messageRows = getSelectionMessageRows(sel, rows);
     if(messageRows !== null) return messageRows.length;
     return countDistinctSends(rows);
@@ -3494,6 +3571,9 @@
   }
 
   function selectSingle(channel, campaign, term){
+    CHANNEL = channel;
+    setChipActive();
+    toggleSections();
     SELECTED = {type:'single', channel, campaign, term};
     renderCampaignButtons();
     aggregateKPIForSelected();
@@ -3502,6 +3582,9 @@
   }
 
   function selectOtherGroup(channel, year, mmdd){
+    CHANNEL = channel;
+    setChipActive();
+    toggleSections();
     SELECTED = {type:'other-group', channel, year, mmdd};
     renderCampaignButtons();
     aggregateKPIForSelected();
@@ -4130,6 +4213,9 @@
   }
 
   async function selectGroup(channel, year, mmdd){
+    CHANNEL = channel;
+    setChipActive();
+    toggleSections();
     const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
     if(resolvedDate){
       if(toggleGroupJump){
