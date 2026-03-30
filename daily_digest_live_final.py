@@ -48,6 +48,8 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
+from urllib.parse import urlencode
+from urllib.request import urlopen
 
 import pandas as pd
 
@@ -125,6 +127,13 @@ TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_ro
 MEDIA_SPEND_XLS_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_XLS_PATH", os.path.join(DATA_DIR, "paid_media_spend.xlsx")).strip()
 MEDIA_SPEND_HISTORY_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_HISTORY_PATH", os.path.join(DATA_DIR, "paid_media_spend_history.csv")).strip()
 MEDIA_SPEND_VENDOR_DIR = os.getenv("DAILY_DIGEST_MEDIA_SPEND_VENDOR_DIR", DATA_DIR).strip()
+
+KMA_SERVICE_KEY = os.getenv("DAILY_DIGEST_KMA_SERVICE_KEY", "").strip()
+KMA_LOCATION = os.getenv("DAILY_DIGEST_KMA_LOCATION", "Seoul").strip()
+KMA_NX = int(os.getenv("DAILY_DIGEST_KMA_NX", "60"))
+KMA_NY = int(os.getenv("DAILY_DIGEST_KMA_NY", "127"))
+KMA_MID_LAND_REG_ID = os.getenv("DAILY_DIGEST_KMA_MID_LAND_REG_ID", "11B00000").strip()
+KMA_MID_TA_REG_ID = os.getenv("DAILY_DIGEST_KMA_MID_TA_REG_ID", "11B10101").strip()
 
 
 # =========================
@@ -237,6 +246,263 @@ def write_json(path: str, obj: dict) -> None:
     ensure_dir(os.path.dirname(path))
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
+
+
+# =========================
+# KMA weather forecast helpers
+# =========================
+def _kma_json_request(url: str, params: Dict[str, Any], timeout: int = 12) -> dict:
+    qs = urlencode({k: v for k, v in params.items() if v is not None})
+    full_url = f"{url}?{qs}"
+    with urlopen(full_url, timeout=timeout) as resp:
+        raw = resp.read().decode("utf-8")
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        raise ValueError("KMA response is not JSON object")
+    return data
+
+
+def _kma_pick_items(payload: dict) -> List[dict]:
+    body = ((payload or {}).get("response") or {}).get("body") or {}
+    items = body.get("items") or {}
+    if isinstance(items, dict):
+        items = items.get("item") or []
+    if isinstance(items, list):
+        return items
+    return []
+
+
+def _latest_short_forecast_base(now_kst: Optional[dt.datetime] = None) -> Tuple[str, str]:
+    now_kst = now_kst or dt.datetime.now(ZoneInfo("Asia/Seoul"))
+    candidates = ["2300", "2000", "1700", "1400", "1100", "0800", "0500", "0200"]
+    current_hm = now_kst.strftime("%H%M")
+    base_date = now_kst.date()
+    chosen = None
+    for c in candidates:
+        if current_hm >= c:
+            chosen = c
+            break
+    if chosen is None:
+        base_date = base_date - dt.timedelta(days=1)
+        chosen = "2300"
+    return base_date.strftime("%Y%m%d"), chosen
+
+
+def _latest_mid_forecast_tmfc(now_kst: Optional[dt.datetime] = None) -> str:
+    now_kst = now_kst or dt.datetime.now(ZoneInfo("Asia/Seoul"))
+    base_date = now_kst.date()
+    hhmm = now_kst.strftime("%H%M")
+    tmfc = "1800" if hhmm >= "1800" else "0600"
+    if hhmm < "0600":
+        base_date = base_date - dt.timedelta(days=1)
+        tmfc = "1800"
+    return base_date.strftime("%Y%m%d") + tmfc
+
+
+def _safe_int(value: Any) -> Optional[int]:
+    try:
+        return int(round(float(str(value).replace("mm", "").replace("cm", "").strip())))
+    except Exception:
+        return None
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    try:
+        return float(str(value).replace("mm", "").replace("cm", "").strip())
+    except Exception:
+        return None
+
+
+def _sky_text(sky: Any, pty: Any) -> str:
+    p = str(pty or "").strip()
+    if p in ("1", "2", "4"):
+        return {"1": "Rain", "2": "Rain/Snow", "4": "Shower"}.get(p, "Rain")
+    if p == "3":
+        return "Snow"
+    s = str(sky or "").strip()
+    return {"1": "Sunny", "3": "Cloudy", "4": "Overcast"}.get(s, "-")
+
+
+def _weather_emoji(label: str) -> str:
+    t = (label or "").lower()
+    if "snow" in t:
+        return "❄️"
+    if "rain" in t or "shower" in t:
+        return "🌧️"
+    if "overcast" in t:
+        return "☁️"
+    if "cloud" in t:
+        return "⛅"
+    if "sun" in t or "clear" in t:
+        return "☀️"
+    return "🌤️"
+
+
+def get_weekly_weather_forecast(end_date: Optional[dt.date] = None) -> dict:
+    today = end_date or dt.datetime.now(ZoneInfo("Asia/Seoul")).date()
+    fallback_days = [today + dt.timedelta(days=i) for i in range(1, 8)]
+    empty = {
+        "location": KMA_LOCATION,
+        "status": "disabled" if not KMA_SERVICE_KEY else "error",
+        "source": "KMA API Hub",
+        "days": [
+            {
+                "date": ymd(d),
+                "label": d.strftime("%a"),
+                "min_temp": None,
+                "max_temp": None,
+                "pop": None,
+                "weather": "-",
+                "weather_emoji": "🌤️",
+            }
+            for d in fallback_days
+        ],
+        "generated_at": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
+        "error": "KMA service key is empty" if not KMA_SERVICE_KEY else "",
+    }
+    if not KMA_SERVICE_KEY:
+        return empty
+
+    out: Dict[str, Dict[str, Any]] = {
+        ymd(d): {
+            "date": ymd(d),
+            "label": d.strftime("%a"),
+            "min_temp": None,
+            "max_temp": None,
+            "pop": None,
+            "weather": "-",
+            "weather_emoji": "🌤️",
+        }
+        for d in fallback_days
+    }
+
+    try:
+        base_date, base_time = _latest_short_forecast_base()
+        short_payload = _kma_json_request(
+            "https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getVilageFcst",
+            {
+                "pageNo": 1,
+                "numOfRows": 1000,
+                "dataType": "JSON",
+                "base_date": base_date,
+                "base_time": base_time,
+                "nx": KMA_NX,
+                "ny": KMA_NY,
+                "authKey": KMA_SERVICE_KEY,
+            },
+        )
+        by_day: Dict[str, Dict[str, Any]] = {}
+        for item in _kma_pick_items(short_payload):
+            d = str(item.get("fcstDate") or "")
+            if len(d) != 8:
+                continue
+            dkey = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+            if dkey not in out:
+                continue
+            rec = by_day.setdefault(dkey, {"temps": [], "pops": [], "sky": {}, "pty": {}})
+            cat = str(item.get("category") or "")
+            val = item.get("fcstValue")
+            ftime = str(item.get("fcstTime") or "")
+            if cat == "TMP":
+                fv = _safe_float(val)
+                if fv is not None:
+                    rec["temps"].append(fv)
+            elif cat == "TMN":
+                fv = _safe_float(val)
+                if fv is not None:
+                    out[dkey]["min_temp"] = fv
+            elif cat == "TMX":
+                fv = _safe_float(val)
+                if fv is not None:
+                    out[dkey]["max_temp"] = fv
+            elif cat == "POP":
+                iv = _safe_int(val)
+                if iv is not None:
+                    rec["pops"].append(iv)
+            elif cat == "SKY":
+                rec["sky"][ftime] = str(val)
+            elif cat == "PTY":
+                rec["pty"][ftime] = str(val)
+        for dkey, rec in by_day.items():
+            if out[dkey]["min_temp"] is None and rec["temps"]:
+                out[dkey]["min_temp"] = min(rec["temps"])
+            if out[dkey]["max_temp"] is None and rec["temps"]:
+                out[dkey]["max_temp"] = max(rec["temps"])
+            if rec["pops"]:
+                out[dkey]["pop"] = max(rec["pops"])
+            target_time = "1200"
+            sky = rec["sky"].get(target_time) or next(iter(rec["sky"].values()), "")
+            pty = rec["pty"].get(target_time) or next(iter(rec["pty"].values()), "")
+            out[dkey]["weather"] = _sky_text(sky, pty)
+            out[dkey]["weather_emoji"] = _weather_emoji(out[dkey]["weather"])
+    except Exception as e:
+        empty["error"] = f"short_forecast_failed: {type(e).__name__}: {e}"
+
+    try:
+        tmfc = _latest_mid_forecast_tmfc()
+        land_payload = _kma_json_request(
+            "https://apihub.kma.go.kr/api/typ02/openApi/MidFcstInfoService/getMidLandFcst",
+            {
+                "pageNo": 1,
+                "numOfRows": 10,
+                "dataType": "JSON",
+                "regId": KMA_MID_LAND_REG_ID,
+                "tmFc": tmfc,
+                "authKey": KMA_SERVICE_KEY,
+            },
+        )
+        ta_payload = _kma_json_request(
+            "https://apihub.kma.go.kr/api/typ02/openApi/MidFcstInfoService/getMidTa",
+            {
+                "pageNo": 1,
+                "numOfRows": 10,
+                "dataType": "JSON",
+                "regId": KMA_MID_TA_REG_ID,
+                "tmFc": tmfc,
+                "authKey": KMA_SERVICE_KEY,
+            },
+        )
+        land_items = _kma_pick_items(land_payload)
+        ta_items = _kma_pick_items(ta_payload)
+        land = land_items[0] if land_items else {}
+        ta = ta_items[0] if ta_items else {}
+        for idx in range(3, 11):
+            d = today + dt.timedelta(days=idx)
+            dkey = ymd(d)
+            if dkey not in out:
+                continue
+            am = str(land.get(f"wf{idx}Am") or "").strip()
+            pm = str(land.get(f"wf{idx}Pm") or "").strip()
+            wf = pm or am
+            if wf:
+                out[dkey]["weather"] = wf
+                out[dkey]["weather_emoji"] = _weather_emoji(wf)
+            pop_am = _safe_int(land.get(f"rnSt{idx}Am"))
+            pop_pm = _safe_int(land.get(f"rnSt{idx}Pm"))
+            if pop_am is not None or pop_pm is not None:
+                out[dkey]["pop"] = max([v for v in [pop_am, pop_pm] if v is not None])
+            mn = _safe_float(ta.get(f"taMin{idx}"))
+            mx = _safe_float(ta.get(f"taMax{idx}"))
+            if mn is not None:
+                out[dkey]["min_temp"] = mn
+            if mx is not None:
+                out[dkey]["max_temp"] = mx
+    except Exception as e:
+        if empty.get("error"):
+            empty["error"] += f" | mid_forecast_failed: {type(e).__name__}: {e}"
+        else:
+            empty["error"] = f"mid_forecast_failed: {type(e).__name__}: {e}"
+
+    days = [out[k] for k in sorted(out.keys())][:7]
+    status = "ok" if any((d.get("min_temp") is not None or d.get("max_temp") is not None or d.get("weather") not in ("", "-")) for d in days) else "error"
+    return {
+        "location": KMA_LOCATION,
+        "status": status,
+        "source": "KMA API Hub",
+        "days": days,
+        "generated_at": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
+        "error": "" if status == "ok" else empty.get("error", "weather forecast unavailable"),
+    }
 
 
 # =========================
@@ -2083,6 +2349,7 @@ def build_bundle(
     search_rising: pd.DataFrame,
     channel_detail_map: Dict[str, pd.DataFrame],
     paid_media_compare: pd.DataFrame,
+    weather_forecast: Optional[dict] = None,
 ) -> dict:
     cur = overall.get("current", {}) or {}
     sessions = float(cur.get("sessions", 0) or 0)
@@ -2151,6 +2418,7 @@ def build_bundle(
         "channel_detail_map": {k: to_records(v) for k, v in (channel_detail_map or {}).items()},
         "other_detail": to_records((channel_detail_map or {}).get("Other", pd.DataFrame())),
         "paid_media_compare": to_records(paid_media_compare),
+        "weather_forecast": weather_forecast or {},
     }
 
 def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str]) -> dict:
@@ -2211,6 +2479,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     if (not channel_detail_map) and bundle.get("other_detail") is not None:
         channel_detail_map = {"Other": pd.DataFrame(bundle.get("other_detail", []))}
     paid_media_compare = pd.DataFrame(bundle.get("paid_media_compare", []))
+    weather_forecast = bundle.get("weather_forecast", {}) or {}
 
     return {
         "w": w,
@@ -2228,6 +2497,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
         "search_rising": search_rising,
         "channel_detail_map": channel_detail_map,
         "paid_media_compare": paid_media_compare,
+        "weather_forecast": weather_forecast,
     }
 
 
@@ -2251,6 +2521,7 @@ def render_page_html(
     search_rising: pd.DataFrame,
     channel_detail_map: Dict[str, pd.DataFrame],
     paid_media_compare: pd.DataFrame,
+    weather_forecast: Optional[dict],
     nav_links: Dict[str, str],
     bundle_rel_path: str,
 ) -> str:
@@ -2541,28 +2812,75 @@ def render_page_html(
                 f"<div class='text-right'>{fmt_pct(float(getattr(r, 'cvr', 0) or 0),2)}</div>",
             ])
 
-    kpis_cards = "".join([
-        top_kpi_card("Sessions", fmt_int(cur["sessions"]),
-                     f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
-                     f"{'+' if s_yoy>=0 else ''}{fmt_pct(s_yoy,1)}",
-                     delta_cls(s_delta), delta_cls(s_yoy)),
-        top_kpi_card("Revenue", fmt_currency_krw(cur["purchaseRevenue"]),
-                     f"{'+' if r_delta>=0 else ''}{fmt_pct(r_delta,1)}",
-                     f"{'+' if r_yoy>=0 else ''}{fmt_pct(r_yoy,1)}",
-                     delta_cls(r_delta), delta_cls(r_yoy)),
-        top_kpi_card("Orders", fmt_int(cur["transactions"]),
-                     f"{'+' if o_delta>=0 else ''}{fmt_pct(o_delta,1)}",
-                     f"{'+' if o_yoy>=0 else ''}{fmt_pct(o_yoy,1)}",
-                     delta_cls(o_delta), delta_cls(o_yoy)),
-        top_kpi_card("CVR", f"{cur['cvr']*100:.2f}%",
-                     f"{'+' if c_pp>=0 else ''}{fmt_pp(c_pp,2)}",
-                     f"{'+' if c_yoy_pp>=0 else ''}{fmt_pp(c_yoy_pp,2)}",
-                     delta_cls(c_pp), delta_cls(c_yoy_pp)),
-        top_kpi_card("Sign-up Users", fmt_int(su_cur),
-                     f"{'+' if su_delta>=0 else ''}{fmt_pct(su_delta,1)}",
-                     f"{'+' if su_yoy_delta>=0 else ''}{fmt_pct(su_yoy_delta,1)}",
-                     delta_cls(su_delta), delta_cls(su_yoy_delta)),
-    ])
+
+    weather = weather_forecast or {}
+    weather_days = weather.get("days") or []
+    weather_cards = ""
+    for day in weather_days[:7]:
+        min_t = day.get("min_temp")
+        max_t = day.get("max_temp")
+        pop = day.get("pop")
+        t_label = "-"
+        if min_t is not None and max_t is not None:
+            t_label = f"{int(round(float(min_t)))}° / {int(round(float(max_t)))}°"
+        elif max_t is not None:
+            t_label = f"~ {int(round(float(max_t)))}°"
+        elif min_t is not None:
+            t_label = f"{int(round(float(min_t)))}° ~"
+        pop_label = f"POP {int(round(float(pop)))}%" if pop is not None else "POP -"
+        weather_cards += f"""
+        <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
+          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(day.get('label',''))}</div>
+          <div class="mt-2 text-2xl leading-none">{esc(day.get('weather_emoji','🌤️'))}</div>
+          <div class="mt-2 text-sm font-black text-slate-900">{esc(day.get('weather','-'))}</div>
+          <div class="mt-1 text-xs font-bold text-slate-600">{esc(t_label)}</div>
+          <div class="mt-1 text-[11px] text-slate-400">{esc(pop_label)}</div>
+        </div>
+        """
+    weather_meta = ""
+    if weather.get("status") == "ok":
+        weather_meta = f"<div class='text-xs text-slate-400'>Source: {esc(weather.get('source','KMA API Hub'))} · Updated {esc(weather.get('generated_at',''))}</div>"
+    elif weather.get("error"):
+        weather_meta = f"<div class='text-xs text-amber-600'>Weather API unavailable · {esc(weather.get('error',''))}</div>"
+    weather_section_html = ""
+    if weather_days:
+        weather_section_html = f"""
+        <div class="mt-6 rounded-[28px] border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-indigo-50 p-5 shadow-sm">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div class="text-xs font-extrabold tracking-[0.22em] text-sky-700 uppercase">Next Week Forecast</div>
+              <div class="mt-1 text-xl font-black text-slate-900">{esc(weather.get('location','Seoul'))} · Upcoming 7 Days</div>
+              <div class="mt-1 text-sm text-slate-500">Top summary card for weekly weather planning</div>
+            </div>
+            {weather_meta}
+          </div>
+          <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+            {weather_cards}
+          </div>
+        </div>
+        """
+        kpis_cards = "".join([
+            top_kpi_card("Sessions", fmt_int(cur["sessions"]),
+                         f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
+                         f"{'+' if s_yoy>=0 else ''}{fmt_pct(s_yoy,1)}",
+                         delta_cls(s_delta), delta_cls(s_yoy)),
+            top_kpi_card("Revenue", fmt_currency_krw(cur["purchaseRevenue"]),
+                         f"{'+' if r_delta>=0 else ''}{fmt_pct(r_delta,1)}",
+                         f"{'+' if r_yoy>=0 else ''}{fmt_pct(r_yoy,1)}",
+                         delta_cls(r_delta), delta_cls(r_yoy)),
+            top_kpi_card("Orders", fmt_int(cur["transactions"]),
+                         f"{'+' if o_delta>=0 else ''}{fmt_pct(o_delta,1)}",
+                         f"{'+' if o_yoy>=0 else ''}{fmt_pct(o_yoy,1)}",
+                         delta_cls(o_delta), delta_cls(o_yoy)),
+            top_kpi_card("CVR", f"{cur['cvr']*100:.2f}%",
+                         f"{'+' if c_pp>=0 else ''}{fmt_pp(c_pp,2)}",
+                         f"{'+' if c_yoy_pp>=0 else ''}{fmt_pp(c_yoy_pp,2)}",
+                         delta_cls(c_pp), delta_cls(c_yoy_pp)),
+            top_kpi_card("Sign-up Users", fmt_int(su_cur),
+                         f"{'+' if su_delta>=0 else ''}{fmt_pct(su_delta,1)}",
+                         f"{'+' if su_yoy_delta>=0 else ''}{fmt_pct(su_yoy_delta,1)}",
+                         delta_cls(su_delta), delta_cls(su_yoy_delta)),
+        ])
 
     trend_tabs = [
         ("7d", "7D", trend_svgs.get("7d", "")),
@@ -2727,6 +3045,8 @@ def render_page_html(
         <a href="{esc(nav_links.get('hub','#'))}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>
       </div>
     </div>
+
+    {weather_section_html}
 
     <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
       {kpis_cards}
@@ -3735,6 +4055,7 @@ def build_one(
                 search_rising=rt["search_rising"],
                 channel_detail_map=rt["channel_detail_map"],
                 paid_media_compare=rt["paid_media_compare"],
+                weather_forecast=rt.get("weather_forecast", {}),
                 nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
                 bundle_rel_path=bundle_rel,
             )
@@ -3792,6 +4113,7 @@ def build_one(
 
     category_pdp_trend, pdp_series = get_category_pdp_view_trend_bq(end_date=end_date)
     search = get_search_trends(client, end_date=end_date)
+    weather_forecast = get_weekly_weather_forecast(end_date=end_date)
 
     bundle = build_bundle(
         w=w,
@@ -3810,6 +4132,7 @@ def build_one(
         search_rising=search["rising"],
         channel_detail_map=channel_detail_map,
         paid_media_compare=paid_media_compare,
+        weather_forecast=weather_forecast,
     )
 
     if WRITE_DATA_CACHE:
@@ -3833,6 +4156,7 @@ def build_one(
         search_rising=search["rising"],
         channel_detail_map=channel_detail_map,
         paid_media_compare=paid_media_compare,
+        weather_forecast=weather_forecast,
         nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
         bundle_rel_path=bundle_rel,
     )
