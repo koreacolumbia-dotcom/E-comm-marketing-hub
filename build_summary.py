@@ -160,69 +160,378 @@ def _safe_int(v: Any) -> Optional[int]:
     return int(round(f)) if f is not None else None
 
 
-def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Optional[float]]:
-    def g(*path, default=None):
-        cur = bundle
-        for key in path:
-            if not isinstance(cur, dict):
-                return default
-            cur = cur.get(key)
-            if cur is None:
-                return default
-        return cur
+RTF_BUCKETS = (
+    "1. Awareness",
+    "2. Paid Ad",
+    "3. Organic Traffic",
+    "4. Official SNS",
+    "5. Owned Channel",
+    "6. etc",
+)
 
-    sessions = (
-        g("kpis", "sessions")
-        or g("overview", "sessions")
-        or g("summary", "sessions")
-        or g("traffic", "sessions")
-        or g("overall", "current", "sessions")
-    )
-    orders = (
-        g("kpis", "orders")
-        or g("overview", "orders")
-        or g("summary", "orders")
-        or g("commerce", "orders")
-        or g("overall", "current", "transactions")
-    )
-    revenue = (
-        g("kpis", "revenue")
-        or g("overview", "revenue")
-        or g("summary", "revenue")
-        or g("commerce", "revenue")
-        or g("overall", "current", "purchaseRevenue")
-    )
-    signups = (
-        g("kpis", "signups")
-        or g("overview", "signups")
-        or g("summary", "signups")
-        or g("signup_users", "current")
-    )
-    cvr = (
-        g("kpis", "cvr")
-        or g("overview", "cvr")
-        or g("summary", "cvr")
-        or g("overall", "current", "cvr")
-    )
 
-    out = {
-        "sessions": _safe_int(sessions),
-        "orders": _safe_int(orders),
-        "revenue": _safe_float(revenue),
-        "signups": _safe_int(signups),
-        "cvr": _safe_float(cvr),
+RTF_BUCKET_NORMALIZE = {
+    "awareness": "1. Awareness",
+    "1 awareness": "1. Awareness",
+    "paid ad": "2. Paid Ad",
+    "2 paid ad": "2. Paid Ad",
+    "organic traffic": "3. Organic Traffic",
+    "3 organic traffic": "3. Organic Traffic",
+    "official sns": "4. Official SNS",
+    "4 official sns": "4. Official SNS",
+    "owned channel": "5. Owned Channel",
+    "5 owned channel": "5. Owned Channel",
+    "etc": "6. etc",
+    "6 etc": "6. etc",
+}
+
+
+METRIC_FIELD_CANDIDATES = {
+    "sessions": ["sessions", "session", "total_sessions"],
+    "orders": ["orders", "transactions", "purchases", "purchase_count", "total_orders"],
+    "revenue": ["revenue", "purchase_revenue", "purchaserevenue", "sales", "gmv", "total_revenue"],
+    "signups": ["signups", "signup_users", "signup_user", "sign_up_users", "sign_up_user", "signup", "users_signed_up"],
+    "cvr": ["cvr", "conversion_rate", "purchase_cvr", "order_rate"],
+}
+
+
+DIMENSION_FIELD_CANDIDATES = [
+    "channel", "bucket", "group", "category", "segment", "label", "name", "title",
+    "source_medium", "session_source_medium", "session source / medium", "session_source / medium",
+    "source / medium", "source/medium", "source medium",
+]
+
+
+CAMPAIGN_FIELD_CANDIDATES = [
+    "campaign", "session_campaign", "campaign_name", "utm_campaign", "session campaign",
+]
+
+
+CHANNEL_LIST_PATHS = [
+    ("channel_snapshot", "rows"),
+    ("channelSnapshot", "rows"),
+    ("overview", "channel_snapshot", "rows"),
+    ("overview", "channelSnapshot", "rows"),
+    ("acquisition", "channel_snapshot", "rows"),
+    ("acquisition", "channelSnapshot", "rows"),
+    ("summary", "channel_snapshot", "rows"),
+    ("summary", "channelSnapshot", "rows"),
+    ("channels", "rows"),
+    ("channel_rows",),
+    ("channelSnapshotRows",),
+    ("channel_snapshot_rows",),
+]
+
+
+def _norm_key(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(s or "").strip().lower()).strip("_")
+
+
+def _bundle_get(bundle: Dict[str, Any], *path: str, default=None):
+    cur: Any = bundle
+    for key in path:
+        if not isinstance(cur, dict):
+            return default
+        cur = cur.get(key)
+        if cur is None:
+            return default
+    return cur
+
+
+def _row_get_any(row: Dict[str, Any], names: List[str]) -> Any:
+    if not isinstance(row, dict):
+        return None
+    direct = {str(k): v for k, v in row.items()}
+    normalized = {_norm_key(str(k)): v for k, v in row.items()}
+    for name in names:
+        if name in direct:
+            return direct[name]
+        nk = _norm_key(name)
+        if nk in normalized:
+            return normalized[nk]
+    return None
+
+
+def _row_metric(row: Dict[str, Any], metric: str) -> Optional[float]:
+    names = METRIC_FIELD_CANDIDATES.get(metric, [metric])
+    value = _row_get_any(row, names)
+    out = _safe_float(value)
+    if metric == "cvr" and out is not None and out > 1.0:
+        out = out / 100.0
+    return out
+
+
+def _normalize_rtf_bucket(label: Any) -> Optional[str]:
+    s = str(label or "").strip()
+    if not s:
+        return None
+    if s in RTF_BUCKETS:
+        return s
+    norm = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9]+", " ", s)).strip().lower()
+    return RTF_BUCKET_NORMALIZE.get(norm)
+
+
+def _rtf_bucket_from_source_campaign(source_medium: str, campaign: str) -> str:
+    sm = str(source_medium or "").strip().lower()
+    cp = str(campaign or "").strip().lower()
+
+    def has(text: str, pattern: str) -> bool:
+        return bool(re.search(pattern, text, re.I))
+
+    if has(sm, r"instagram") and has(sm, r"story"):
+        return "4. Official SNS"
+    if has(sm, r"benz"):
+        return "3. Organic Traffic"
+    if has(sm, r"nap") and has(sm, r"da"):
+        return "2. Paid Ad"
+    if has(sm, r"toss|blind|kakaobs"):
+        return "2. Paid Ad"
+    if has(sm, r"inhouse"):
+        return "3. Organic Traffic"
+    if has(sm, r"lms") or has(cp, r"lms"):
+        return "5. Owned Channel"
+    if has(sm, r"email|edm"):
+        return "5. Owned Channel"
+    if has(sm, r"kakao_fridnstalk"):
+        return "5. Owned Channel"
+    if has(sm, r"mkt|_bd") or has(cp, r"mkt|\[bd"):
+        return "1. Awareness"
+    if has(sm, r"igshopping"):
+        return "4. Official SNS"
+    if has(sm, r"facebook") and has(sm, r"referral"):
+        return "3. Organic Traffic"
+    if has(sm, r"instagram") and has(sm, r"referral"):
+        return "4. Official SNS"
+    if has(sm, r"meta|facebook|instagram|(^|[^a-z])ig([^a-z]|$)|(^|[^a-z])fb([^a-z]|$)"):
+        return "2. Paid Ad"
+    if has(sm, r"google\s*/\s*cpc") and has(cp, r"디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen"):
+        return "1. Awareness"
+    if has(sm, r"google\s*/\s*cpc") and has(cp, r"pmax"):
+        return "2. Paid Ad"
+    if has(sm, r"google\s*/\s*cpc") and has(cp, r"유튜브|yt|youtube|instream|vac|vvc"):
+        return "1. Awareness"
+    if has(sm, r"google\s*/\s*cpc") and has(cp, r"discovery"):
+        return "1. Awareness"
+    if has(sm, r"google\s*/\s*cpc") and has(cp, r"sa|ss|검색"):
+        return "2. Paid Ad"
+    if has(sm, r"google\s*/\s*cpc"):
+        return "2. Paid Ad"
+    if has(sm, r"google\s*/\s*organic"):
+        return "3. Organic Traffic"
+    if has(sm, r"google"):
+        return "3. Organic Traffic"
+    if has(sm, r"youtube"):
+        return "3. Organic Traffic"
+    if has(sm, r"naver") and has(sm, r"da"):
+        return "2. Paid Ad"
+    if has(sm, r"gfa|naverbs"):
+        return "2. Paid Ad"
+    if has(sm, r"naver") and has(sm, r"cpc"):
+        return "2. Paid Ad"
+    if has(sm, r"shopping_ad"):
+        return "2. Paid Ad"
+    if has(sm, r"naver") and has(sm, r"shopping"):
+        return "3. Organic Traffic"
+    if has(sm, r"naver") and has(sm, r"organic"):
+        return "3. Organic Traffic"
+    if has(sm, r"naver"):
+        return "3. Organic Traffic"
+    if has(sm, r"daum\s*/\s*organic"):
+        return "3. Organic Traffic"
+    if has(sm, r"daum") and has(sm, r"referral"):
+        return "3. Organic Traffic"
+    if has(sm, r"kakao_ch") or has(cp, r"kakao_ch"):
+        return "5. Owned Channel"
+    if has(sm, r"kakao_alimtalk|kakao_coupon|kakao_chatbot"):
+        return "5. Owned Channel"
+    if has(sm, r"kakao"):
+        return "2. Paid Ad"
+    if has(sm, r"\(direct\)\s*/\s*\(none\)"):
+        return "3. Organic Traffic"
+    if has(sm, r"signalplay|signal play|signal_play|sg_|signal|manplus|buzzvill|criteo|mobon|snow|smr|tg|t_cafe|blind"):
+        return "2. Paid Ad"
+    if has(sm, r"cpc"):
+        return "2. Paid Ad"
+    if has(sm, r"organic"):
+        return "3. Organic Traffic"
+    if has(sm, r"banner|da"):
+        return "2. Paid Ad"
+    if has(sm, r"referral"):
+        return "3. Organic Traffic"
+    if has(sm, r"shopping"):
+        return "3. Organic Traffic"
+    if has(sm, r"social"):
+        return "3. Organic Traffic"
+    return "6. etc"
+
+
+def _rtf_bucket_for_row(row: Dict[str, Any]) -> Optional[str]:
+    for field in DIMENSION_FIELD_CANDIDATES:
+        label = _row_get_any(row, [field])
+        bucket = _normalize_rtf_bucket(label)
+        if bucket:
+            return bucket
+    source_medium = _row_get_any(row, DIMENSION_FIELD_CANDIDATES) or ""
+    campaign = _row_get_any(row, CAMPAIGN_FIELD_CANDIDATES) or ""
+    if source_medium or campaign:
+        return _rtf_bucket_from_source_campaign(str(source_medium), str(campaign))
+    return None
+
+
+def _is_total_like_label(label: Any) -> bool:
+    s = str(label or "").strip().lower()
+    return s in {"total", "all", "overall", "grand total", "합계", "전체"}
+
+
+def _score_channel_rows(rows: Any) -> int:
+    if not isinstance(rows, list) or not rows:
+        return -1
+    score = 0
+    bucket_hits = 0
+    metric_hits = 0
+    for row in rows[:50]:
+        if not isinstance(row, dict):
+            continue
+        if _rtf_bucket_for_row(row):
+            bucket_hits += 1
+        if any(_row_metric(row, metric) is not None for metric in ("sessions", "orders", "revenue", "signups")):
+            metric_hits += 1
+    score += bucket_hits * 4
+    score += metric_hits * 2
+    if 2 <= len(rows) <= 12:
+        score += 12
+    elif len(rows) <= 40:
+        score += 6
+    return score
+
+
+def _find_best_channel_rows(bundle: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    candidates: List[List[Dict[str, Any]]] = []
+    for path in CHANNEL_LIST_PATHS:
+        obj = _bundle_get(bundle, *path)
+        if isinstance(obj, list):
+            candidates.append(obj)
+        elif isinstance(obj, dict):
+            rows = obj.get("rows")
+            if isinstance(rows, list):
+                candidates.append(rows)
+
+    def walk(node: Any, parent_key: str = "") -> None:
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, str(k))
+        elif isinstance(node, list):
+            if not node:
+                return
+            key_norm = _norm_key(parent_key)
+            if any(token in key_norm for token in ("channel", "snapshot", "acquisition")):
+                candidates.append(node)
+
+    walk(bundle)
+    if not candidates:
+        return None
+    best = max(candidates, key=_score_channel_rows)
+    return best if _score_channel_rows(best) > 0 else None
+
+
+def _aggregate_rtf_totals_from_rows(rows: List[Dict[str, Any]]) -> Optional[Dict[str, Optional[float]]]:
+    if not rows:
+        return None
+    agg: Dict[str, Dict[str, float]] = {bucket: {"sessions": 0.0, "orders": 0.0, "revenue": 0.0, "signups": 0.0} for bucket in RTF_BUCKETS}
+    used = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        raw_label = _row_get_any(row, DIMENSION_FIELD_CANDIDATES)
+        if _is_total_like_label(raw_label):
+            continue
+        bucket = _rtf_bucket_for_row(row)
+        if not bucket:
+            continue
+        sessions = _row_metric(row, "sessions")
+        orders = _row_metric(row, "orders")
+        revenue = _row_metric(row, "revenue")
+        signups = _row_metric(row, "signups")
+        if all(x is None for x in (sessions, orders, revenue, signups)):
+            continue
+        used += 1
+        agg[bucket]["sessions"] += float(sessions or 0.0)
+        agg[bucket]["orders"] += float(orders or 0.0)
+        agg[bucket]["revenue"] += float(revenue or 0.0)
+        agg[bucket]["signups"] += float(signups or 0.0)
+    if used == 0:
+        return None
+    total_sessions = sum(v["sessions"] for v in agg.values())
+    total_orders = sum(v["orders"] for v in agg.values())
+    total_revenue = sum(v["revenue"] for v in agg.values())
+    total_signups = sum(v["signups"] for v in agg.values())
+    return {
+        "sessions": int(round(total_sessions)),
+        "orders": int(round(total_orders)),
+        "revenue": total_revenue,
+        "signups": int(round(total_signups)),
+        "cvr": (total_orders / total_sessions) if total_sessions > 0 else None,
     }
 
-    if out["sessions"] is None:
-        out["sessions"] = _safe_int(g("overall", "current", "sessions"))
-    if out["orders"] is None:
-        out["orders"] = _safe_int(g("overall", "current", "transactions"))
-    if out["revenue"] is None:
-        out["revenue"] = _safe_float(g("overall", "current", "purchaseRevenue"))
-    if out["cvr"] is None:
-        out["cvr"] = _safe_float(g("overall", "current", "cvr"))
+
+def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Optional[float]]:
+    direct = {
+        "sessions": _safe_int(
+            _bundle_get(bundle, "kpis", "sessions")
+            or _bundle_get(bundle, "overview", "sessions")
+            or _bundle_get(bundle, "summary", "sessions")
+            or _bundle_get(bundle, "traffic", "sessions")
+            or _bundle_get(bundle, "overall", "current", "sessions")
+        ),
+        "orders": _safe_int(
+            _bundle_get(bundle, "kpis", "orders")
+            or _bundle_get(bundle, "overview", "orders")
+            or _bundle_get(bundle, "summary", "orders")
+            or _bundle_get(bundle, "commerce", "orders")
+            or _bundle_get(bundle, "overall", "current", "transactions")
+        ),
+        "revenue": _safe_float(
+            _bundle_get(bundle, "kpis", "revenue")
+            or _bundle_get(bundle, "overview", "revenue")
+            or _bundle_get(bundle, "summary", "revenue")
+            or _bundle_get(bundle, "commerce", "revenue")
+            or _bundle_get(bundle, "overall", "current", "purchaseRevenue")
+        ),
+        "signups": _safe_int(
+            _bundle_get(bundle, "kpis", "signups")
+            or _bundle_get(bundle, "overview", "signups")
+            or _bundle_get(bundle, "summary", "signups")
+            or _bundle_get(bundle, "signup_users", "current")
+        ),
+        "cvr": _safe_float(
+            _bundle_get(bundle, "kpis", "cvr")
+            or _bundle_get(bundle, "overview", "cvr")
+            or _bundle_get(bundle, "summary", "cvr")
+            or _bundle_get(bundle, "overall", "current", "cvr")
+        ),
+    }
+
+    channel_rows = _find_best_channel_rows(bundle)
+    rtf_totals = _aggregate_rtf_totals_from_rows(channel_rows) if channel_rows else None
+
+    out = dict(direct)
+    if rtf_totals:
+        for metric in ("sessions", "orders", "revenue"):
+            if rtf_totals.get(metric) is not None:
+                out[metric] = rtf_totals[metric]
+        if rtf_totals.get("signups") not in (None, 0):
+            out["signups"] = rtf_totals["signups"]
+        if rtf_totals.get("cvr") is not None:
+            out["cvr"] = rtf_totals["cvr"]
+
     if out["signups"] is None:
-        out["signups"] = _safe_int(g("signup_users", "current"))
+        out["signups"] = _safe_int(_bundle_get(bundle, "signup_users", "current"))
+
+    if out["cvr"] is None and out.get("sessions") and out.get("orders") is not None:
+        try:
+            out["cvr"] = float(out["orders"]) / float(out["sessions"]) if float(out["sessions"]) > 0 else None
+        except Exception:
+            out["cvr"] = None
 
     if out["cvr"] is not None and out["cvr"] > 1.0:
         out["cvr"] = out["cvr"] / 100.0
