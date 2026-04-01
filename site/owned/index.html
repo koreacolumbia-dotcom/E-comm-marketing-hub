@@ -3917,9 +3917,12 @@
     renderProducts();
   }
 
-  async function loadRange(startStr, endStr){
+  async function loadRange(startStr, endStr, options = {}){
     hideNotice();
-    SELECTED = null;
+    const preserveSelected = !!(options && options.preserveSelected);
+    if(!preserveSelected){
+      SELECTED = null;
+    }
 
     if(!AVAILABLE || !AVAILABLE.length){
       showNotice('available_dates.json을 읽지 못해서 기간 누적을 할 수 없어.');
@@ -4188,10 +4191,11 @@
   }
 
   // ✅ MMDD 클릭 시: 그 날짜부터 7일 누적(RANGE)로 디폴트 로드
-  async function load7dFromDate(dateStr){
+  async function load7dFromDate(dateStr, options = {}){
     const s = clampToAvailable(dateStr);
     const eRaw = ymd(addDays(parseYMD(s), 6));
     const e = clampToAvailable(eRaw);
+    const preserveSelected = !!(options && options.preserveSelected);
 
     WEEK_ANCHORED_MODE = true;
     VIEW = 'WEEK';
@@ -4201,7 +4205,7 @@
     endPicker.value = e;
 
     primeYtdLoading();
-    await loadRange(s, e);
+    await loadRange(s, e, { preserveSelected });
     await computeYTD();
     finalizeAnimatedViewChange();
   }
@@ -4217,7 +4221,7 @@
         toggleGroupJump.checked = true;
       }
       GROUP_JUMP_MODE = true;
-      await load7dFromDate(resolvedDate);
+      await load7dFromDate(resolvedDate, { preserveSelected: true });
       filterKPI();
       updateChannelTotals();
       renderCampaignButtons();
