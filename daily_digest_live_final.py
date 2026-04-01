@@ -123,6 +123,18 @@ PAID_DETAIL_SOURCES = [
     "instagram",
 ]
 
+CHANNEL_BUCKET_ORDER = [
+    "Paid AD",
+    "Owned",
+    "Direct",
+    "Organic Search",
+    "Organic Social",
+    "Referral",
+    "Awareness",
+    "Not Set",
+    "Unclassified",
+]
+
 TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
 MEDIA_SPEND_XLS_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_XLS_PATH", os.path.join(DATA_DIR, "paid_media_spend.xlsx")).strip()
 MEDIA_SPEND_HISTORY_PATH = os.getenv("DAILY_DIGEST_MEDIA_SPEND_HISTORY_PATH", os.path.join(DATA_DIR, "paid_media_spend_history.csv")).strip()
@@ -358,7 +370,7 @@ def get_weekly_weather_forecast(end_date: Optional[dt.date] = None) -> dict:
             for d in fallback_days
         ],
         "generated_at": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
-        "error": "KMA service key is empty" if not KMA_SERVICE_KEY else "",
+        "error": "Weather disabled: set DAILY_DIGEST_KMA_SERVICE_KEY to enable KMA forecast." if not KMA_SERVICE_KEY else "",
     }
     if not KMA_SERVICE_KEY:
         return empty
@@ -904,140 +916,82 @@ def _rx(p: str):
 def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     sm = (source_medium or "").strip()
     cp = (campaign or "").strip()
+    sm_l = sm.lower()
+    cp_l = cp.lower()
 
-    # Order matters here to match the Looker CASE evaluation order.
-    if _rx(r".*(instagram).*").search(sm) and _rx(r".*(story).*").search(sm):
-        return "SNS"
-    if _rx(r".*(benz).*").search(sm) and _rx(r".*(cpc|paid|ppc).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(benz).*").search(sm) and _rx(r".*(referral|organic|\(none\)|direct).*").search(sm):
-        return "Organic"
-    if _rx(r".*(benz).*").search(sm):
-        return "Organic"
+    # Split attribution failures from real traffic buckets.
+    if is_not_set(sm) or sm_l in {"(not set)", "not set", "", "none / none", "unknown / unknown"}:
+        return "Not Set"
 
-    if _rx(r".*(nap).*").search(sm) and _rx(r".*(da).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(toss).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(blind).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(kakaobs).*").search(sm):
-        return "Paid AD"
+    # Direct should not be blended into Organic.
+    if _rx(r".*\(direct\)\s*/\s*\(none\).*").search(sm) or _rx(r"(^|[^a-z])direct([^a-z]|$)").search(sm_l):
+        return "Direct"
 
-    if _rx(r".*(inhouse).*").search(sm):
-        return "Organic"
+    # Owned first.
     if _rx(r".*(lms).*").search(sm) or _rx(r".*(lms).*").search(cp):
         return "Owned"
-    if _rx(r".*(email|edm).*").search(sm):
+    if _rx(r".*(email|edm).*").search(sm) or _rx(r".*(email|edm).*").search(cp):
         return "Owned"
-    if _rx(r".*(kakao_fridnstalk).*").search(sm):
+    if _rx(r".*(kakao_ch|kakao_alimtalk|kakao_coupon|kakao_chatbot|kakao_fridnstalk).*").search(sm) or _rx(r".*(kakao_ch).*").search(cp):
         return "Owned"
 
-    # Awareness campaign patterns from sample.rtf.
+    # Awareness / upper funnel paid.
     if _rx(r".*(mkt|_bd|\[bd).*").search(sm) or _rx(r".*(mkt|_bd|\[bd).*").search(cp):
         return "Awareness"
+    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(dg|demand[\s_-]*gen|yt|youtube|instream|vac|vvc|discovery).*").search(cp):
+        return "Awareness"
 
-    if _rx(r".*(igshopping).*").search(sm):
-        return "SNS"
-    if _rx(r".*(facebook).*").search(sm) and _rx(r".*(referral).*").search(sm):
-        return "Organic"
-    if _rx(r".*(instagram).*").search(sm) and _rx(r".*(referral).*").search(sm):
-        return "SNS"
-    if _rx(r".*(meta|facebook|instagram|ig|fb).*").search(sm):
+    # Paid media.
+    if _rx(r".*(benz).*").search(sm) and _rx(r".*(cpc|paid|ppc).*").search(sm):
         return "Paid AD"
-
-    # google / cpc split by campaign keyword
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(dg|demandgen).*").search(cp):
-        return "Awareness"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(pmax).*").search(cp):
+    if _rx(r".*(nap).*").search(sm) and _rx(r".*(da).*").search(sm):
         return "Paid AD"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(yt|youtube|instream|vac|vvc).*").search(cp):
-        return "Awareness"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(discovery).*").search(cp):
-        return "Awareness"
-    if _rx(r".*google\s*/\s*cpc.*").search(sm) and _rx(r".*(sa|ss|search).*").search(cp):
+    if _rx(r".*(toss|blind|kakaobs|gfa|naverbs|shopping_ad|signalplay|signal play|signal_play|sg_|signal|manplus|buzzvill|criteo|mobon|snow|smr|tg|t_cafe).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(meta|facebook|instagram|(^|[^a-z])ig([^a-z]|$)|(^|[^a-z])fb([^a-z]|$)).*").search(sm) and not _rx(r".*(referral|organic|social).*").search(sm):
         return "Paid AD"
     if _rx(r".*google\s*/\s*cpc.*").search(sm):
         return "Paid AD"
+    if _rx(r".*(naver).*").search(sm) and _rx(r".*(cpc|da).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(kakao).*").search(sm) and not _rx(r".*(referral|organic).*").search(sm):
+        return "Paid AD"
+    if _rx(r".*(cpc|paid|ppc|banner|display|programmatic|retargeting|remarketing).*").search(sm):
+        return "Paid AD"
 
+    # Organic social.
+    if _rx(r".*(instagram).*").search(sm) and _rx(r".*(story|referral|social).*").search(sm):
+        return "Organic Social"
+    if _rx(r".*(facebook).*").search(sm) and _rx(r".*(referral|social).*").search(sm):
+        return "Organic Social"
+    if _rx(r".*(igshopping).*").search(sm):
+        return "Organic Social"
+    if _rx(r".*(social|sns).*").search(sm):
+        return "Organic Social"
+
+    # Organic search.
     if _rx(r".*google\s*/\s*organic.*").search(sm):
-        return "Organic"
-    if _rx(r".*(google).*").search(sm):
-        return "Organic"
-
-    if _rx(r".*(youtube).*").search(sm):
-        return "Organic"
-
-    if _rx(r".*(naver).*").search(sm) and _rx(r".*(da).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(gfa).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(naverbs).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(naver).*").search(sm) and _rx(r".*(cpc).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(shopping_ad).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(naver).*").search(sm) and _rx(r".*(shopping).*").search(sm):
-        return "Organic"
-    if _rx(r".*(naver).*").search(sm) and _rx(r".*(organic).*").search(sm):
-        return "Organic"
-    if _rx(r".*(naver).*").search(sm):
-        return "Organic"
-
+        return "Organic Search"
     if _rx(r".*daum\s*/\s*organic.*").search(sm):
-        return "Organic"
-    if _rx(r".*(daum).*").search(sm) and _rx(r".*(referral).*").search(sm):
-        return "Organic"
+        return "Organic Search"
+    if _rx(r".*(naver).*").search(sm) and _rx(r".*(organic|shopping).*").search(sm):
+        return "Organic Search"
+    if _rx(r".*(google|naver|daum).*").search(sm) and not _rx(r".*(cpc|paid|da).*").search(sm):
+        return "Organic Search"
+    if _rx(r".*(youtube).*").search(sm):
+        return "Organic Search"
+    if _rx(r".*(inhouse).*").search(sm):
+        return "Organic Search"
 
-    if _rx(r".*(kakao_ch).*").search(sm) or _rx(r".*(kakao_ch).*").search(cp):
-        return "Owned"
-    if _rx(r".*(kakao_alimtalk).*").search(sm):
-        return "Owned"
-    if _rx(r".*(kakao_coupon).*").search(sm):
-        return "Owned"
-    if _rx(r".*(kakao_chatbot).*").search(sm):
-        return "Owned"
-    if _rx(r".*(kakao).*").search(sm):
-        return "Paid AD"
-
-    if _rx(r".*\(direct\)\s*/\s*\(none\).*").search(sm):
-        return "Organic"
-
-    if _rx(r".*(signalplay|signal play|signal_play|sg_|signal|manplus).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(buzzvill).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(criteo).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(mobon).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(snow).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(smr).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(tg).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(t_cafe).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(blind).*").search(sm):
-        return "Paid AD"
-
-    # fallbacks
-    if _rx(r".*(cpc).*").search(sm):
-        return "Paid AD"
-    if _rx(r".*(organic).*").search(sm):
-        return "Organic"
-    if _rx(r".*(banner|da).*").search(sm):
-        return "Paid AD"
+    # Referral traffic separate from search/social.
+    if _rx(r".*(benz).*").search(sm) and _rx(r".*(referral|organic|\(none\)|direct).*").search(sm):
+        return "Referral"
+    if _rx(r".*(benz).*").search(sm):
+        return "Referral"
     if _rx(r".*(referral).*").search(sm):
-        return "Organic"
-    if _rx(r".*(shopping).*").search(sm):
-        return "Organic"
-    if _rx(r".*(social).*").search(sm):
-        return "Organic"
+        return "Referral"
 
-    return "Other"
+    return "Unclassified"
 
 
 def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
@@ -1151,7 +1105,7 @@ def get_channel_snapshot_3way(
     total_revenue_prev = float(op.get("purchaseRevenue", 0) or 0)
     total_revenue_yoy = float(oy.get("purchaseRevenue", 0) or 0)
 
-    canonical_buckets = ["Organic", "Paid AD", "Owned", "Awareness", "SNS", "Other"]
+    canonical_buckets = list(CHANNEL_BUCKET_ORDER)
     numeric_cols = [
         "sessions_cur", "transactions_cur", "revenue_cur",
         "sessions_prev", "transactions_prev", "revenue_prev",
@@ -1168,16 +1122,6 @@ def get_channel_snapshot_3way(
     m[numeric_cols] = m[numeric_cols].fillna(0.0)
     m = m.groupby("bucket", as_index=False)[numeric_cols].sum().set_index("bucket")
 
-    non_other = [b for b in canonical_buckets if b != "Other"]
-    m.loc["Other", "sessions_cur"] = max(total_sessions_cur - float(m.loc[non_other, "sessions_cur"].sum()), 0.0)
-    m.loc["Other", "sessions_prev"] = max(total_sessions_prev - float(m.loc[non_other, "sessions_prev"].sum()), 0.0)
-    m.loc["Other", "sessions_yoy"] = max(total_sessions_yoy - float(m.loc[non_other, "sessions_yoy"].sum()), 0.0)
-    m.loc["Other", "transactions_cur"] = max(total_orders_cur - float(m.loc[non_other, "transactions_cur"].sum()), 0.0)
-    m.loc["Other", "transactions_prev"] = max(total_orders_prev - float(m.loc[non_other, "transactions_prev"].sum()), 0.0)
-    m.loc["Other", "transactions_yoy"] = max(total_orders_yoy - float(m.loc[non_other, "transactions_yoy"].sum()), 0.0)
-    m.loc["Other", "revenue_cur"] = max(total_revenue_cur - float(m.loc[non_other, "revenue_cur"].sum()), 0.0)
-    m.loc["Other", "revenue_prev"] = max(total_revenue_prev - float(m.loc[non_other, "revenue_prev"].sum()), 0.0)
-    m.loc["Other", "revenue_yoy"] = max(total_revenue_yoy - float(m.loc[non_other, "revenue_yoy"].sum()), 0.0)
     m = m.reset_index()
 
     m["dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
@@ -1192,7 +1136,7 @@ def get_channel_snapshot_3way(
         "rev_yoy": m["yoy"],
     })
 
-    order = {"Organic": 0, "Paid AD": 1, "Owned": 2, "Awareness": 3, "SNS": 4, "Other": 5}
+    order = {b: i for i, b in enumerate(CHANNEL_BUCKET_ORDER)}
     out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
     out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
 
@@ -2234,7 +2178,7 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
         g = df.groupby('sub', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
         return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'transactions{suffix}','purchaseRevenue':f'revenue{suffix}'})
     out_map: Dict[str, pd.DataFrame] = {}
-    for bucket in ["Organic", "Paid AD", "Owned", "Awareness", "SNS", "Other"]:
+    for bucket in CHANNEL_BUCKET_ORDER:
         merged = agg(make_detail_key(cur, bucket),'_cur').merge(
             agg(make_detail_key(prev, bucket),'_prev'), on='sub', how='outer'
         ).merge(
@@ -2841,7 +2785,7 @@ def render_page_html(
     if weather.get("status") == "ok":
         weather_meta = f"<div class='text-xs text-slate-400'>Source: {esc(weather.get('source','KMA API Hub'))} · Updated {esc(weather.get('generated_at',''))}</div>"
     elif weather.get("error"):
-        weather_meta = f"<div class='text-xs text-amber-600'>Weather API unavailable · {esc(weather.get('error',''))}</div>"
+        weather_meta = f"<div class='text-xs text-amber-600'>{esc(weather.get('error','Weather API unavailable'))}</div>"
     weather_section_html = ""
     if weather_days:
         weather_section_html = f"""
