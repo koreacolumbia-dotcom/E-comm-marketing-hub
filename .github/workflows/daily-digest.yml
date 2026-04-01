@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      DAILY_DIGEST_KMA_SERVICE_KEY: ${{ secrets.DAILY_DIGEST_KMA_SERVICE_KEY }}
 
     steps:
       - name: Checkout repo
@@ -140,6 +141,17 @@ jobs:
           echo "kst_date=$(TZ=Asia/Seoul date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
           echo "yesterday_ymd=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
+      - name: Debug KMA secret presence
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          v = os.getenv("DAILY_DIGEST_KMA_SERVICE_KEY", "")
+          print("KMA key exists:", bool(v))
+          print("KMA key length:", len(v))
+          PY
 
       - name: Build Daily Digest (yesterday only)
         if: ${{ steps.modes.outputs.run_daily == 'true' }}
@@ -157,6 +169,7 @@ jobs:
 
           DAILY_DIGEST_TARGET_ROAS_XLS_PATH: target_roas.xlsx
           DAILY_DIGEST_MEDIA_SPEND_XLS_PATH: paid_media_spend.xlsx
+          DAILY_DIGEST_KMA_SERVICE_KEY: ${{ secrets.DAILY_DIGEST_KMA_SERVICE_KEY }}
 
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
@@ -188,6 +201,10 @@ jobs:
             exit 0
           fi
 
+          if [ -z "${DAILY_DIGEST_KMA_SERVICE_KEY:-}" ]; then
+            echo "[WARN] DAILY_DIGEST_KMA_SERVICE_KEY is empty. weather forecast will be disabled."
+          fi
+
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/ga_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/ga_sa.json
 
@@ -201,8 +218,8 @@ jobs:
           export GA4_START_DATE="${YMD}"
           export GA4_END_DATE="${YMD}"
 
-          # 배치 버전 실행
-          python -u daily_digest_live_final.py --out-dir reports/daily_digest
+          # 패치 버전 실행
+          python -u daily_digest_live_final_patched.py --out-dir reports/daily_digest
 
           echo "[INFO] Outputs:"
           ls -la reports/daily_digest/daily | tail -n 40 || true
@@ -228,7 +245,6 @@ jobs:
 
           python -u scripts/render_daily_png.py "$HTML" "$PNG" || true
           ls -la "$PNG" || true
-
 
       - name: Commit & push Daily Digest results
         if: ${{ always() }}
