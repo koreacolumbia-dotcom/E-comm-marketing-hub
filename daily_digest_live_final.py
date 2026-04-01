@@ -125,12 +125,12 @@ PAID_DETAIL_SOURCES = [
 ]
 
 CHANNEL_BUCKET_ORDER = [
-    "1. Awareness",
-    "2. Paid Ad",
-    "3. Organic Traffic",
-    "4. Official SNS",
-    "5. Owned Channel",
-    "6. etc",
+    "Awareness",
+    "Paid Ad",
+    "Organic Traffic",
+    "Official SNS",
+    "Owned Channel",
+    "etc",
 ]
 
 TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
