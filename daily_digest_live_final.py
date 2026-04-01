@@ -125,12 +125,12 @@ PAID_DETAIL_SOURCES = [
 ]
 
 CHANNEL_BUCKET_ORDER = [
-    "1. Awareness",
-    "2. Paid Ad",
-    "3. Organic Traffic",
-    "4. Official SNS",
-    "5. Owned Channel",
-    "6. etc",
+    "Awareness",
+    "Paid Ad",
+    "Organic Traffic",
+    "Official SNS",
+    "Owned Channel",
+    "etc",
 ]
 
 TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
@@ -947,131 +947,131 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     cp = (campaign or "").strip()
 
     if _rx(r"(?i).*(instagram).*").search(sm) and _rx(r"(?i).*(story).*").search(sm):
-        return "4. Official SNS"
+        return "Official SNS"
     if _rx(r"(?i).*(benz).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
 
     if _rx(r"(?i).*(nap).*").search(sm) and _rx(r"(?i).*(da).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(toss).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(blind).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(kakaobs).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
 
     if _rx(r"(?i).*(inhouse).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(lms).*").search(sm) or _rx(r"(?i).*(lms).*").search(cp):
-        return "5. Owned Channel"
+        return "Owned Channel"
     if _rx(r"(?i).*(email|edm).*").search(sm):
-        return "5. Owned Channel"
+        return "Owned Channel"
     if _rx(r"(?i).*(kakao_fridnstalk).*").search(sm):
-        return "5. Owned Channel"
+        return "Owned Channel"
 
     if _rx(r"(?i).*(mkt|_bd).*").search(sm) or _rx(r"(?i).*(mkt|\[bd).*").search(cp):
-        return "1. Awareness"
+        return "Awareness"
 
     if _rx(r"(?i).*(igshopping).*").search(sm):
-        return "4. Official SNS"
+        return "Official SNS"
     if _rx(r"(?i).*(facebook).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(instagram).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
-        return "4. Official SNS"
+        return "Official SNS"
     if _rx(r"(?i).*(meta|facebook|instagram|ig|fb).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
 
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen).*").search(cp):
-        return "1. Awareness"
+        return "Awareness"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(pmax).*").search(cp):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(유튜브|yt|youtube|instream|vac|vvc).*").search(cp):
-        return "1. Awareness"
+        return "Awareness"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(discovery).*").search(cp):
-        return "1. Awareness"
+        return "Awareness"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(sa|ss|검색).*").search(cp):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
 
     if _rx(r"(?i).*(google \/ organic).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(google).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
 
     if _rx(r"(?i).*(youtube).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
 
     if _rx(r"(?i).*(naver).*").search(sm) and _rx(r"(?i).*(da).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(gfa).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
 
     if _rx(r"(?i).*(naverbs).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
 
     if _rx(r"(?i).*(naver).*").search(sm) and _rx(r"(?i).*(cpc).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(shopping_ad).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(naver).*").search(sm) and _rx(r"(?i).*(shopping).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(naver).*").search(sm) and _rx(r"(?i).*(organic).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(naver).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
 
     if _rx(r"(?i).*(daum \/ organic).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(daum).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(kakao_ch).*").search(sm) or _rx(r"(?i).*(kakao_ch).*").search(cp):
-        return "5. Owned Channel"
+        return "Owned Channel"
     if _rx(r"(?i).*(kakao_alimtalk).*").search(sm):
-        return "5. Owned Channel"
+        return "Owned Channel"
     if _rx(r"(?i).*(kakao_coupon).*").search(sm):
-        return "5. Owned Channel"
+        return "Owned Channel"
     if _rx(r"(?i).*(kakao_chatbot).*").search(sm):
-        return "5. Owned Channel"
+        return "Owned Channel"
     if _rx(r"(?i).*(kakao).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
 
     if _rx(r"(?i).*(\(direct\) / \(none\)).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
 
     if _rx(r"(?i).*(signalplay|signal play|signal_play|sg_|signal|manplus).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(buzzvill).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(criteo).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(mobon).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(snow).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(smr).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(tg).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(t_cafe).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(blind).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
 
     if _rx(r"(?i).*(cpc).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(organic).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(banner|da).*").search(sm):
-        return "2. Paid Ad"
+        return "Paid Ad"
     if _rx(r"(?i).*(referral).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(shopping).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
     if _rx(r"(?i).*(social).*").search(sm):
-        return "3. Organic Traffic"
+        return "Organic Traffic"
 
-    return "6. etc"
+    return "etc"
 
 
 def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
@@ -1260,7 +1260,7 @@ def get_paid_detail_3way(
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
             df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
-            df = df[df["bucket"] == "2. Paid Ad"].copy()
+            df = df[df["bucket"] == "Paid Ad"].copy()
             df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
             return df
         except Exception:
@@ -1274,7 +1274,7 @@ def get_paid_detail_3way(
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
             df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
-            df = df[df["bucket"] == "2. Paid Ad"].copy()
+            df = df[df["bucket"] == "Paid Ad"].copy()
             df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], ""), axis=1)
             return df
 
@@ -2247,7 +2247,7 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
         out = df[df["bucket"] == bucket].copy()
         if out.empty:
             return out
-        if bucket == "2. Paid Ad":
+        if bucket == "Paid Ad":
             out["sub"] = out.apply(lambda r: classify_paid_detail(str(r.get("sessionSourceMedium", "")), str(r.get("sessionCampaignName", ""))), axis=1)
         else:
             out["sub"] = out["sessionSourceMedium"].astype(str).str.strip().replace("", "(not set)")
@@ -2287,7 +2287,7 @@ def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWi
         for c in mets:
             df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
         df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
-        df = df[df['bucket'] == '2. Paid Ad'].copy()
+        df = df[df['bucket'] == 'Paid Ad'].copy()
         df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
         return df
     cur = fetch(w.cur_start, w.cur_end)
@@ -3042,7 +3042,7 @@ def render_page_html(
   bucketTabBtns.forEach(el=>{
     el.addEventListener('click', ()=> setBucketTab(el.getAttribute('data-bucket-tab')));
   });
-  const defaultBucket = bucketDetailPayload['2. Paid Ad'] ? '2. Paid Ad' : (Object.keys(bucketDetailPayload)[0] || '');
+  const defaultBucket = bucketDetailPayload['Paid Ad'] ? 'Paid Ad' : (Object.keys(bucketDetailPayload)[0] || '');
   if(defaultBucket){
     if(bucketDetailHost) bucketDetailHost.classList.remove('hidden');
     openBucketDetail(defaultBucket);
@@ -4104,7 +4104,7 @@ def build_one(
     }
     try:
         # Only current-period absolute values are needed to force Paid Detail Total.
-        row = channel_snapshot[channel_snapshot["bucket"] == "Paid AD"]
+        row = channel_snapshot[channel_snapshot["bucket"] == "Paid Ad"]
         if not row.empty:
             paid_ad_totals["current"]["sessions"] = float(row.iloc[0]["sessions"])
             paid_ad_totals["current"]["revenue"] = float(row.iloc[0]["purchaseRevenue"])
