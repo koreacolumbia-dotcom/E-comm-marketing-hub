@@ -1929,6 +1929,15 @@
     return countDistinctSends(rows || [], expectedYear, endDate);
   }
 
+  function hasActualDateScopedSourceRow(baseRows, channel, year, mmdd){
+    return (baseRows || []).some(r =>
+      r.channel === channel &&
+      getRowYear(r) === year &&
+      getRowMmdd(r) === mmdd &&
+      isDateScopedRowForChannel(r, channel)
+    );
+  }
+
   function getCampaignChipSourceRows(){
     const qq = (q.value||'').trim().toLowerCase();
     const cutoffDate = getCampaignChipCutoffDate();
@@ -1963,6 +1972,7 @@
       if(m.channel !== CHANNEL) continue;
       const year = String(m.date || '').slice(0,4);
       const mmdd = String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10);
+      if(!hasActualDateScopedSourceRow(baseRows, m.channel, year, mmdd)) continue;
       const pseudo = {
         date: m.date,
         year,
@@ -2787,13 +2797,19 @@
     });
   }
 
+  function isDateScopedRowForChannel(row, channel){
+    const normalized = String(channel || (row && row.channel) || '').trim().toUpperCase();
+    if(normalized === 'KAKAO') return isKakaoCountableSendRow(row);
+    return true;
+  }
+
   function getSelectedKpiRows(sel){
     if(!sel || !RAW) return [];
     if(sel.type === 'single'){
       return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
     }
     if(sel.type === 'group'){
-      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd);
+      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd && isDateScopedRowForChannel(x, sel.channel));
     }
     if(sel.type === 'other-group'){
       return (RAW.kpi||[]).filter(x=> {
@@ -2838,7 +2854,8 @@
       return (RAW.prod||[]).filter(p =>
         p.channel===sel.channel &&
         getRowYear(p)===sel.year &&
-        getRowMmdd(p)===sel.mmdd
+        getRowMmdd(p)===sel.mmdd &&
+        isDateScopedRowForChannel(p, sel.channel)
       );
     }
     if(sel.type === 'other-group'){
@@ -2864,7 +2881,8 @@
       return (RAW.analysis||[]).filter(r =>
         r.channel===sel.channel &&
         getRowYear(r)===sel.year &&
-        getRowMmdd(r)===sel.mmdd
+        getRowMmdd(r)===sel.mmdd &&
+        isDateScopedRowForChannel(r, sel.channel)
       );
     }
     if(sel.type === 'other-group'){
@@ -3987,7 +4005,7 @@
     const e = WEEK_ANCHORED_MODE ? clampToAvailable(ymd(addDays(cur, 6))) : ymd(endOfWeekSun(cur));
     startPicker.value = s;
     endPicker.value = e;
-    await loadRange(s, e);
+    await loadRange(s, e, { preserveSelected: true });
   }
 
   async function loadAvailableDates(){
