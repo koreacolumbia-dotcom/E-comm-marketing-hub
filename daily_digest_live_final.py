@@ -50,6 +50,7 @@ from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
 from urllib.parse import urlencode
 from urllib.request import urlopen
+from urllib.error import HTTPError, URLError
 
 import pandas as pd
 
@@ -350,6 +351,21 @@ def _weather_emoji(label: str) -> str:
     return "🌤️"
 
 
+
+def _kma_error_message(api_name: str, exc: Exception) -> str:
+    if isinstance(exc, HTTPError):
+        if exc.code == 403:
+            return (
+                f"{api_name}: HTTP 403 Forbidden. "
+                "Check DAILY_DIGEST_KMA_SERVICE_KEY and make sure KMA API usage is approved "
+                "for getVilageFcst, getMidLandFcst, and getMidTa."
+            )
+        return f"{api_name}: HTTP {exc.code} {exc.reason}"
+    if isinstance(exc, URLError):
+        return f"{api_name}: URL error: {exc.reason}"
+    return f"{api_name}: {type(exc).__name__}: {exc}"
+
+
 def get_weekly_weather_forecast(end_date: Optional[dt.date] = None) -> dict:
     today = end_date or dt.datetime.now(ZoneInfo("Asia/Seoul")).date()
     fallback_days = [today + dt.timedelta(days=i) for i in range(1, 8)]
@@ -370,7 +386,11 @@ def get_weekly_weather_forecast(end_date: Optional[dt.date] = None) -> dict:
             for d in fallback_days
         ],
         "generated_at": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
-        "error": "Weather disabled: set DAILY_DIGEST_KMA_SERVICE_KEY to enable KMA forecast." if not KMA_SERVICE_KEY else "",
+        "error": (
+            "Weather disabled: set DAILY_DIGEST_KMA_SERVICE_KEY to enable KMA forecast."
+            if not KMA_SERVICE_KEY
+            else ""
+        ),
     }
     if not KMA_SERVICE_KEY:
         return empty
@@ -387,6 +407,8 @@ def get_weekly_weather_forecast(end_date: Optional[dt.date] = None) -> dict:
         }
         for d in fallback_days
     }
+
+    errors: List[str] = []
 
     try:
         base_date, base_time = _latest_short_forecast_base()
@@ -448,7 +470,7 @@ def get_weekly_weather_forecast(end_date: Optional[dt.date] = None) -> dict:
             out[dkey]["weather"] = _sky_text(sky, pty)
             out[dkey]["weather_emoji"] = _weather_emoji(out[dkey]["weather"])
     except Exception as e:
-        empty["error"] = f"short_forecast_failed: {type(e).__name__}: {e}"
+        errors.append(_kma_error_message("short_forecast_failed", e))
 
     try:
         tmfc = _latest_mid_forecast_tmfc()
@@ -500,21 +522,27 @@ def get_weekly_weather_forecast(end_date: Optional[dt.date] = None) -> dict:
             if mx is not None:
                 out[dkey]["max_temp"] = mx
     except Exception as e:
-        if empty.get("error"):
-            empty["error"] += f" | mid_forecast_failed: {type(e).__name__}: {e}"
-        else:
-            empty["error"] = f"mid_forecast_failed: {type(e).__name__}: {e}"
+        errors.append(_kma_error_message("mid_forecast_failed", e))
 
     days = [out[k] for k in sorted(out.keys())][:7]
-    status = "ok" if any((d.get("min_temp") is not None or d.get("max_temp") is not None or d.get("weather") not in ("", "-")) for d in days) else "error"
+    status = "ok" if any(
+        (d.get("min_temp") is not None or d.get("max_temp") is not None or d.get("weather") not in ("", "-"))
+        for d in days
+    ) else "error"
+
+    error_msg = ""
+    if status != "ok":
+        error_msg = " | ".join(errors) if errors else "weather forecast unavailable"
+
     return {
         "location": KMA_LOCATION,
         "status": status,
         "source": "KMA API Hub",
         "days": days,
         "generated_at": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
-        "error": "" if status == "ok" else empty.get("error", "weather forecast unavailable"),
+        "error": error_msg,
     }
+
 
 
 # =========================
