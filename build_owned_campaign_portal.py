@@ -1034,6 +1034,8 @@ def build_day_bundle(
     message_lookup: Optional[Dict[tuple[str, str, str, str, str], Dict[str, str]]] = None,
     owned_message_title_lookup: Optional[Dict[tuple[str, str], str]] = None,
     owned_message_log: Optional[List[Dict[str, str]]] = None,
+    available_dates: Optional[List[str]] = None,
+    latest_available_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     message_lookup = message_lookup or {}
     owned_message_title_lookup = owned_message_title_lookup or {}
@@ -1147,8 +1149,14 @@ def build_day_bundle(
             )
         )
 
+    campaign_dates = sorted({str(x.get("date", "")) for x in campaigns if str(x.get("date", ""))})
     return {
         "date": day,
+        "selected_date": day,
+        "loaded_date": day,
+        "latest_available_date": latest_available_date or (available_dates[-1] if available_dates else day),
+        "available_dates": list(available_dates or []),
+        "campaign_dates": campaign_dates,
         "campaigns": campaigns,
         "products": products,
         "product_users": product_users,
@@ -1180,6 +1188,8 @@ def build_range(
     messages_df = sync_message_workbook(message_workbook, message_template_df)
     message_lookup = build_message_lookup(messages_df)
 
+    query_dates = sorted({str(d) for d in df["date"].dropna().astype(str).tolist()}) if not df.empty and "date" in df.columns else []
+
     df_day_groups = df.groupby("date", dropna=True)
     for day, g in df_day_groups:
         if not isinstance(day, str):
@@ -1190,9 +1200,13 @@ def build_range(
             message_lookup=message_lookup,
             owned_message_title_lookup=owned_message_title_lookup,
             owned_message_log=owned_message_log,
+            available_dates=query_dates,
+            latest_available_date=(query_dates[-1] if query_dates else day),
         )
         if merge_prev_year:
             bundle = merge_previous_year_bundle_rows(owned_dir, bundle, day)
+            bundle["available_dates"] = list(query_dates)
+            bundle["latest_available_date"] = query_dates[-1] if query_dates else day
         out = owned_dir / f"owned_{day}.json"
         if overwrite or (not out.exists()):
             write_json(out, bundle)
