@@ -2675,6 +2675,13 @@ def render_page_html(
             f"<span class='{prefix} metric-slot' data-metric='revenue'>{fmt_currency_krw(revenue_v)}</span>"
         )
 
+    def fixed_metric_value_cols(sessions_v: Any, orders_v: Any, revenue_v: Any) -> List[str]:
+        return [
+            f"<div class='text-right'>{fmt_int(sessions_v)}</div>",
+            f"<div class='text-right'>{fmt_int(orders_v)}</div>",
+            f"<div class='text-right'>{fmt_currency_krw(revenue_v)}</div>",
+        ]
+
     def metric_delta_slots(prefix: str, session_v: float, order_v: float, revenue_v: float) -> str:
         def one(metric: str, v: float) -> str:
             return f"<span class='{prefix} metric-slot {'active' if metric == 'sessions' else ''} {delta_cls(v)}' data-metric='{metric}'>{'+' if float(v or 0) >= 0 else ''}{fmt_pct(float(v or 0),1)}</span>"
@@ -2724,7 +2731,7 @@ def render_page_html(
                 row_attrs = f"data-bucket='{esc(bucket)}'"
             chan_html += table_row([
                 bucket_html,
-                f"<div class='text-right metric-inline'>{metric_value_slots('cs-value', getattr(r, 'sessions', 0), getattr(r, 'transactions', 0), getattr(r, 'purchaseRevenue', 0))}</div>",
+                *fixed_metric_value_cols(getattr(r, 'sessions', 0), getattr(r, 'transactions', 0), getattr(r, 'purchaseRevenue', 0)),
                 f"<div class='text-right metric-inline'>{metric_delta_slots('cs-wow', float(getattr(r, 'session_dod', getattr(r, 'rev_dod', 0)) or 0), float(getattr(r, 'orders_dod', 0) or 0), float(getattr(r, 'revenue_dod', 0) or 0))}</div>",
                 f"<div class='text-right metric-inline'>{metric_delta_slots('cs-yoy', float(getattr(r, 'session_yoy', getattr(r, 'rev_yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0))}</div>",
             ], bold=(bucket == "Total"), row_class=row_class, row_attrs=row_attrs)
@@ -2732,11 +2739,11 @@ def render_page_html(
     def build_bucket_detail_rows(df: pd.DataFrame) -> str:
         rows = ""
         if df is None or df.empty:
-            return "<tr><td colspan='4' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"
+            return "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"
         for r in df.itertuples(index=False):
             rows += table_row([
                 esc(getattr(r, "sub_channel", "")),
-                f"<div class='text-right metric-inline'>{metric_value_slots('bd-value', getattr(r, 'sessions', 0), getattr(r, 'orders', 0), getattr(r, 'purchaseRevenue', 0))}</div>",
+                *fixed_metric_value_cols(getattr(r, 'sessions', 0), getattr(r, 'orders', 0), getattr(r, 'purchaseRevenue', 0)),
                 f"<div class='text-right metric-inline'>{metric_delta_slots('bd-wow', float(getattr(r, 'session_dod', getattr(r, 'dod', 0)) or 0), float(getattr(r, 'orders_dod', 0) or 0), float(getattr(r, 'revenue_dod', 0) or 0))}</div>",
                 f"<div class='text-right metric-inline'>{metric_delta_slots('bd-yoy', float(getattr(r, 'session_yoy', getattr(r, 'yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0))}</div>",
             ])
@@ -2796,11 +2803,13 @@ def render_page_html(
           {metric_tabs_html('bucket-detail')}
         </div>
         <div data-bucket-panel="sessions" class="mt-4 overflow-x-auto">
-          <table class="w-full table-auto text-sm min-w-[880px]">
+          <table class="w-full table-auto text-sm min-w-[1120px]">
             <thead class="text-xs text-slate-500">
               <tr>
                 <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap"><span class="metric-label active" data-metric-label="sessions">Sessions</span><span class="metric-label" data-metric-label="orders">Orders</span><span class="metric-label" data-metric-label="revenue">Revenue</span></th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
               </tr>
@@ -2809,11 +2818,13 @@ def render_page_html(
           </table>
         </div>
         <div data-bucket-panel="revenue" class="mt-4 hidden overflow-x-auto">
-          <table class="w-full table-auto text-sm min-w-[880px]">
+          <table class="w-full table-auto text-sm min-w-[1120px]">
             <thead class="text-xs text-slate-500">
               <tr>
                 <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap"><span class="metric-label active" data-metric-label="sessions">Sessions</span><span class="metric-label" data-metric-label="orders">Orders</span><span class="metric-label" data-metric-label="revenue">Revenue</span></th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
               </tr>
@@ -2855,7 +2866,7 @@ def render_page_html(
 
             row_html = table_row([
                 esc(sub),
-                f"<div class='text-right metric-inline'>{metric_value_slots('pd-value', getattr(r, 'sessions', 0), getattr(r, 'orders', 0), getattr(r, 'purchaseRevenue', 0))}</div>",
+                *fixed_metric_value_cols(getattr(r, 'sessions', 0), getattr(r, 'orders', 0), getattr(r, 'purchaseRevenue', 0)),
                 f"<div class='text-right metric-inline'>{metric_delta_slots('pd-wow', float(getattr(r, 'session_dod', getattr(r, 'dod', 0)) or 0), float(getattr(r, 'orders_dod', 0) or 0), float(getattr(r, 'revenue_dod', 0) or 0))}</div>",
                 f"<div class='text-right metric-inline'>{metric_delta_slots('pd-yoy', float(getattr(r, 'session_yoy', getattr(r, 'yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0)) if (is_total or has_yoy) else FALLBACK_METRIC_HTML}</div>",
             ], bold=is_bold, row_class=row_cls)
@@ -3021,7 +3032,7 @@ def render_page_html(
 
     metric_switch_js = """<script>
 (function(){
-  function initMetricSection(section, valueClass, wowClass, yoyClass){
+  function initMetricSection(section, wowClass, yoyClass){
     const root = document.querySelector(`[data-metric-switch="${section}"]`);
     if(!root) return;
     let active = 'sessions';
@@ -3030,12 +3041,8 @@ def render_page_html(
       root.querySelectorAll('[data-metric-tab]').forEach(btn=>{
         btn.classList.toggle('active', btn.getAttribute('data-metric-tab') === active);
       });
-      document.querySelectorAll(`.${valueClass}, .${wowClass}, .${yoyClass}`).forEach(el=>{
+      document.querySelectorAll(`.${wowClass}, .${yoyClass}`).forEach(el=>{
         el.classList.toggle('active', el.getAttribute('data-metric') === active);
-      });
-      const host = root.closest('.report-card, .bucket-detail-panel, .rounded-2xl') || document;
-      host.querySelectorAll('[data-metric-label]').forEach(el=>{
-        el.classList.toggle('active', el.getAttribute('data-metric-label') === active);
       });
     }
     root.querySelectorAll('[data-metric-tab]').forEach(btn=>{
@@ -3043,9 +3050,9 @@ def render_page_html(
     });
     sync(active);
   }
-  initMetricSection('channel-snapshot','cs-value','cs-wow','cs-yoy');
-  initMetricSection('bucket-detail','bd-value','bd-wow','bd-yoy');
-  initMetricSection('paid-detail','pd-value','pd-wow','pd-yoy');
+  initMetricSection('channel-snapshot','cs-wow','cs-yoy');
+  initMetricSection('bucket-detail','bd-wow','bd-yoy');
+  initMetricSection('paid-detail','pd-wow','pd-yoy');
 })();
 </script>"""
     paid_toggle_js = """<script>
@@ -3220,7 +3227,9 @@ def render_page_html(
         <thead class="text-xs text-slate-500">
           <tr>
             <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap"><span class="metric-label active" data-metric-label="sessions">Sessions</span><span class="metric-label" data-metric-label="orders">Orders</span><span class="metric-label" data-metric-label="revenue">Revenue</span></th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
             <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
           </tr>
@@ -3237,11 +3246,13 @@ def render_page_html(
         {metric_tabs_html('paid-detail')}
       </div>
       <div class="paid-table-wrap mt-3 overflow-x-auto">
-        <table class="w-full table-auto text-sm min-w-[920px]">
+        <table class="w-full table-auto text-sm min-w-[1120px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap"><span class="metric-label active" data-metric-label="sessions">Sessions</span><span class="metric-label" data-metric-label="orders">Orders</span><span class="metric-label" data-metric-label="revenue">Revenue</span></th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
