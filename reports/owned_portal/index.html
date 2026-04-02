@@ -1781,8 +1781,18 @@
   }
 
   function getRowGroup(r){
+    const channel = String((r && (r.channel || '')) || '').trim().toUpperCase();
     const rowYear = String((r && (r.year || '')) || '').trim();
     const rowMmdd = String((r && (r.mmdd || '')) || '').trim();
+
+    // LMS_ECOM_familycoupon is a business exception:
+    // treat every matching row as 0319 for grouping and aggregation,
+    // not only for chip rendering. This keeps sessions/revenue/products aligned.
+    if(channel === 'LMS' && isLmsFamilyCouponRow(r)){
+      const forcedYear = getFallbackYear(r);
+      return { year: forcedYear, mmdd: '0319', explicit: true };
+    }
+
     if(hasExplicitGroupMmdd(r) && /^\d{4}$/.test(rowYear) && /^\d{4}$/.test(rowMmdd)){
       return { year: rowYear, mmdd: rowMmdd, explicit: true };
     }
@@ -1983,10 +1993,6 @@
     const ch = String(channel || (r && r.channel) || '').trim().toUpperCase();
     const st = normalizeSubtype(ch, subtype);
     const fallbackYear = getFallbackYear(r);
-
-    if(ch === 'LMS' && isLmsFamilyCouponRow(r)){
-      return { year: fallbackYear, mmdd: '0319', explicit: true };
-    }
 
     if(ch === 'KAKAO'){
       if(st === 'MESSAGE'){
