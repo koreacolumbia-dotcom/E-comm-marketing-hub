@@ -2822,7 +2822,7 @@ def render_page_html(
                 esc(sub),
                 f"<div class='text-right metric-inline'>{metric_value_slots('pd-value', getattr(r, 'sessions', 0), getattr(r, 'orders', 0), getattr(r, 'purchaseRevenue', 0))}</div>",
                 f"<div class='text-right metric-inline'>{metric_delta_slots('pd-wow', float(getattr(r, 'session_dod', getattr(r, 'dod', 0)) or 0), float(getattr(r, 'orders_dod', 0) or 0), float(getattr(r, 'revenue_dod', 0) or 0))}</div>",
-                f"<div class='text-right metric-inline'>{metric_delta_slots('pd-yoy', float(getattr(r, 'session_yoy', getattr(r, 'yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0)) if (is_total or has_yoy) else "<span class='metric-slot active text-slate-400' data-metric='sessions'>-</span><span class='metric-slot text-slate-400' data-metric='orders'>-</span><span class='metric-slot text-slate-400' data-metric='revenue'>-</span>"}</div>",
+                f"<div class='text-right metric-inline'>{metric_delta_slots('pd-yoy', float(getattr(r, 'session_yoy', getattr(r, 'yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0)) if (is_total or has_yoy) else '<span class=\'metric-slot active text-slate-400\' data-metric=\'sessions\'>-</span><span class=\'metric-slot text-slate-400\' data-metric=\'orders\'>-</span><span class=\'metric-slot text-slate-400\' data-metric=\'revenue\'>-</span>'}</div>",
             ], bold=is_bold, row_class=row_cls)
 
             if is_total:
