@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 FALLBACK_METRIC_HTML = (
     "<span class='metric-slot active text-slate-400' data-metric='sessions'>-</span>"
@@ -45,7 +46,6 @@ Outputs
 - reports/daily_digest/data/weekly/END_YYYY-MM-DD.json
 """
 
-from __future__ import annotations
 
 import os
 import json
