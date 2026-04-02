@@ -1009,15 +1009,19 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
 
     if _rx(r"(?i).*(igshopping).*").search(sm):
         return "Official SNS"
+    if _rx(r"(?i).*(instagram).*").search(sm) and _rx(r"(?i).*(feed).*").search(sm):
+        return "Official SNS"
     if _rx(r"(?i).*(facebook).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
         return "Organic Traffic"
     if _rx(r"(?i).*(instagram).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
         return "Official SNS"
+    if _rx(r"(?i).*(ig).*").search(sm) and _rx(r"(?i).*(paid).*").search(sm):
+        return "Paid Ad"
     if _rx(r"(?i).*(meta|facebook|instagram|ig|fb).*").search(sm):
         return "Paid Ad"
 
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen).*").search(cp):
-        return "Awareness"
+        return "Paid Ad"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(pmax).*").search(cp):
         return "Paid Ad"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(유튜브|yt|youtube|instream|vac|vvc).*").search(cp):
@@ -1071,6 +1075,10 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     if _rx(r"(?i).*(kakao).*").search(sm):
         return "Paid Ad"
 
+    if _rx(r"(?i).*(\(not set\)).*").search(sm):
+        return "Organic Traffic"
+    if _rx(r"(?i).*(m\.search\.naver\.com).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
+        return "Organic Traffic"
     if _rx(r"(?i).*(\(direct\) / \(none\)).*").search(sm):
         return "Organic Traffic"
 
