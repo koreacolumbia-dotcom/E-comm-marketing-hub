@@ -854,7 +854,107 @@
       .glass{ padding: 28px; }
     }
 
-  </style>
+  
+    .subtype-bar{
+      display:flex;
+      flex-wrap:wrap;
+      column-gap:14px;
+      row-gap:14px;
+      align-items:center;
+      margin-top:18px;
+      margin-bottom:10px;
+    }
+    .subtype-group-label{
+      display:inline-flex;
+      align-items:center;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      color:#8aa0bc;
+      margin-right:12px;
+      padding-right:6px;
+      min-height:42px;
+      flex:0 0 auto;
+    }
+    .subtype-chip{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:42px;
+      min-width:74px;
+      border:1px solid rgba(148,163,184,0.28);
+      background:rgba(255,255,255,0.9);
+      border-radius:999px;
+      padding:10px 18px;
+      font-weight:900;
+      font-size:12px;
+      line-height:1;
+      color:#0f172a;
+      transition:all .15s ease;
+      flex:0 0 auto;
+      white-space:nowrap;
+    }
+    .subtype-chip:hover{ transform:translateY(-1px); box-shadow:0 10px 24px rgba(0,45,114,0.08); }
+    .subtype-chip.active{
+      background:rgba(0,45,114,0.08);
+      border-color:rgba(0,45,114,0.28);
+      color:var(--brand);
+    }
+    .ytd-stage-channel .subtype-chip{
+      background:rgba(255,255,255,0.95);
+    }
+    .message-editor-wrap{
+      margin-top:14px;
+      border:1px solid rgba(148,163,184,0.22);
+      background:rgba(255,255,255,0.88);
+      border-radius:18px;
+      padding:14px;
+    }
+    .message-editor-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:14px;
+    }
+    .message-editor-box{
+      border:1px solid rgba(148,163,184,0.2);
+      border-radius:16px;
+      padding:12px;
+      background:rgba(248,250,252,0.96);
+    }
+    .message-editor-box textarea{
+      width:100%;
+      min-height:110px;
+      resize:vertical;
+      border:1px solid rgba(148,163,184,0.28);
+      background:#fff;
+      border-radius:14px;
+      padding:10px 12px;
+      font-weight:700;
+      font-size:13px;
+      color:#0f172a;
+      outline:none;
+    }
+    .message-editor-preview img{
+      max-width:100%;
+      border-radius:14px;
+      border:1px solid rgba(148,163,184,0.22);
+      margin-top:10px;
+    }
+    .message-media{
+      margin-top:10px;
+    }
+    .message-media img{
+      max-width:100%;
+      border-radius:14px;
+      border:1px solid rgba(148,163,184,0.22);
+    }
+    .hidden-force{ display:none !important; }
+    @media (max-width: 900px){
+      .message-editor-grid{ grid-template-columns:1fr; }
+    }
+
+</style>
 </head>
 
 <body class="p-3 md:p-4 xl:p-5">
@@ -1089,6 +1189,7 @@
               </div>
               <div class="ytd-panel-copy">선택 채널의 TY와 LY 누적 성과를 카드 톤으로 나눠서 읽기 쉽게 구성했습니다. 위 4장은 현재 연도, 아래 4장은 전년 동일 기간입니다.</div>
             </div>
+            <div id="ytdSubtypeBar" class="subtype-bar"></div>
             <div id="ytdCards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 skeleton-zone">
         <div class="kpi-card">
           <div class="kpi-title">YTD · TY Sessions</div>
@@ -1136,6 +1237,7 @@
       </div>
 
       <!-- KPI (selection) -->
+      <div id="subtypeBar" class="subtype-bar mb-4"></div>
       <div id="kpiGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4 mt-5 mb-6">
         <div class="kpi-card">
           <div class="kpi-title">Sessions</div>
@@ -1174,16 +1276,55 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
         <div class="kpi-card">
-          <div class="kpi-title">Message title</div>
+          <div class="flex items-center gap-2">
+            <div class="kpi-title">Message title</div>
+            <button id="btnOpenMessageEditor" class="btn ml-auto !py-2 !px-3" type="button">데이터 추가</button>
+          </div>
           <div id="msgTitle" class="kpi-value text-base leading-snug">-</div>
+          <div id="msgTitleMedia" class="message-media"></div>
           <div class="kpi-sub"></div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-title">Message content</div>
+          <div class="flex items-center gap-2">
+            <div class="kpi-title">Message content</div>
+            <button id="btnOpenMessageEditor2" class="btn ml-auto !py-2 !px-3" type="button">데이터 추가</button>
+          </div>
           <div id="msgBody" class="kpi-value text-base leading-snug">-</div>
+          <div id="msgBodyMedia" class="message-media"></div>
           <div class="kpi-sub"></div>
+        </div>
+      </div>
+      <div id="messageEditorWrap" class="message-editor-wrap hidden">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="small-label">Message data editor</div>
+          <div id="messageEditorScope" class="muted font-semibold text-sm">현재 선택 범위 기준으로 저장돼요</div>
+          <button id="btnCloseMessageEditor" class="btn ml-auto !py-2 !px-3" type="button">닫기</button>
+        </div>
+        <div class="message-editor-grid">
+          <div class="message-editor-box">
+            <div class="kpi-title mb-2">Message title</div>
+            <textarea id="editorTitleText" placeholder="제목 텍스트를 직접 입력"></textarea>
+            <div class="mt-3 flex items-center gap-2">
+              <input id="editorTitleImage" type="file" accept="image/jpeg,image/jpg,image/png" />
+              <button id="btnClearTitleImage" class="btn !py-2 !px-3" type="button">이미지 제거</button>
+            </div>
+            <div id="editorTitlePreview" class="message-editor-preview"></div>
+          </div>
+          <div class="message-editor-box">
+            <div class="kpi-title mb-2">Message content</div>
+            <textarea id="editorBodyText" placeholder="본문 텍스트를 직접 입력"></textarea>
+            <div class="mt-3 flex items-center gap-2">
+              <input id="editorBodyImage" type="file" accept="image/jpeg,image/jpg,image/png" />
+              <button id="btnClearBodyImage" class="btn !py-2 !px-3" type="button">이미지 제거</button>
+            </div>
+            <div id="editorBodyPreview" class="message-editor-preview"></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-4">
+          <button id="btnSaveMessageEditor" class="btn btn-primary" type="button">저장</button>
+          <button id="btnResetMessageEditor" class="btn" type="button">현재 선택 데이터 삭제</button>
         </div>
       </div>
 
@@ -1551,6 +1692,25 @@
   const kLeverageSub = document.getElementById('kLeverageSub');
   const msgTitle = document.getElementById('msgTitle');
   const msgBody = document.getElementById('msgBody');
+  const msgTitleMedia = document.getElementById('msgTitleMedia');
+  const msgBodyMedia = document.getElementById('msgBodyMedia');
+  const subtypeBar = document.getElementById('subtypeBar');
+  const ytdSubtypeBar = document.getElementById('ytdSubtypeBar');
+  const btnOpenMessageEditor = document.getElementById('btnOpenMessageEditor');
+  const btnOpenMessageEditor2 = document.getElementById('btnOpenMessageEditor2');
+  const btnCloseMessageEditor = document.getElementById('btnCloseMessageEditor');
+  const messageEditorWrap = document.getElementById('messageEditorWrap');
+  const messageEditorScope = document.getElementById('messageEditorScope');
+  const editorTitleText = document.getElementById('editorTitleText');
+  const editorBodyText = document.getElementById('editorBodyText');
+  const editorTitleImage = document.getElementById('editorTitleImage');
+  const editorBodyImage = document.getElementById('editorBodyImage');
+  const editorTitlePreview = document.getElementById('editorTitlePreview');
+  const editorBodyPreview = document.getElementById('editorBodyPreview');
+  const btnSaveMessageEditor = document.getElementById('btnSaveMessageEditor');
+  const btnResetMessageEditor = document.getElementById('btnResetMessageEditor');
+  const btnClearTitleImage = document.getElementById('btnClearTitleImage');
+  const btnClearBodyImage = document.getElementById('btnClearBodyImage');
 
   const selChannel = document.getElementById('selChannel');
   const selCampaign  = document.getElementById('selCampaign');
@@ -1621,8 +1781,18 @@
   }
 
   function getRowGroup(r){
+    const channel = String((r && (r.channel || '')) || '').trim().toUpperCase();
     const rowYear = String((r && (r.year || '')) || '').trim();
     const rowMmdd = String((r && (r.mmdd || '')) || '').trim();
+
+    // LMS_ECOM_familycoupon is a business exception:
+    // treat every matching row as 0319 for grouping and aggregation,
+    // not only for chip rendering. This keeps sessions/revenue/products aligned.
+    if(channel === 'LMS' && isLmsFamilyCouponRow(r)){
+      const forcedYear = getFallbackYear(r);
+      return { year: forcedYear, mmdd: '0319', explicit: true };
+    }
+
     if(hasExplicitGroupMmdd(r) && /^\d{4}$/.test(rowYear) && /^\d{4}$/.test(rowMmdd)){
       return { year: rowYear, mmdd: rowMmdd, explicit: true };
     }
@@ -1679,6 +1849,359 @@
       if(groupDate > cutoffDate) return '';
     }
     return `${channel}||${group.year}||${group.mmdd}`;
+  }
+
+
+  function normalizeLooseText(v){
+    return String(v || '').trim().toUpperCase();
+  }
+
+  function getRowField(r, keys){
+    for(const key of (keys || [])){
+      if(r && r[key] !== undefined && r[key] !== null && String(r[key]).trim() !== '') return String(r[key]).trim();
+    }
+    return '';
+  }
+
+  function getRowSourceValue(r){
+    const source = getRowField(r, ['source','session_source','sessionSource','utm_source']);
+    if(source) return source;
+    const sourceMedium = getRowField(r, ['source_medium','sourceMedium','session_source_medium','sessionSourceMedium','세션 소스/매체']);
+    if(sourceMedium.includes('/')) return sourceMedium.split('/')[0].trim();
+    return sourceMedium;
+  }
+
+  function getRowMediumValue(r){
+    const medium = getRowField(r, ['medium','session_medium','sessionMedium','utm_medium']);
+    if(medium) return medium;
+    const sourceMedium = getRowField(r, ['source_medium','sourceMedium','session_source_medium','sessionSourceMedium','세션 소스/매체']);
+    if(sourceMedium.includes('/')) return sourceMedium.split('/').slice(1).join('/').trim();
+    return '';
+  }
+
+  function getRowSourceMediumValue(r){
+    const sourceMedium = getRowField(r, ['source_medium','sourceMedium','session_source_medium','sessionSourceMedium','세션 소스/매체']);
+    if(sourceMedium) return sourceMedium;
+    const source = getRowSourceValue(r);
+    const medium = getRowMediumValue(r);
+    return [source, medium].filter(Boolean).join(' / ');
+  }
+
+  function getSubtypeOptions(channel){
+    const ch = String(channel || '').trim().toUpperCase();
+    if(ch === 'KAKAO'){
+      return [
+        { value:'ALL', label:'All' },
+        { value:'MESSAGE', label:'메시지' },
+        { value:'MENU', label:'메뉴' },
+        { value:'ALIMTALK', label:'알림톡' },
+        { value:'FRIENDSTALK', label:'친구톡' }
+      ];
+    }
+    if(ch === 'EDM'){
+      return [
+        { value:'ALL', label:'All' },
+        { value:'MESSAGE', label:'Message' },
+        { value:'AUTO', label:'AUTO' }
+      ];
+    }
+    if(ch === 'LMS'){
+      return [
+        { value:'ALL', label:'All' },
+        { value:'MESSAGE', label:'Message' }
+      ];
+    }
+    return [{ value:'ALL', label:'All' }];
+  }
+
+  function normalizeSubtype(channel, subtype){
+    const allowed = getSubtypeOptions(channel).map(x => x.value);
+    const v = String(subtype || 'ALL').trim().toUpperCase();
+    return allowed.includes(v) ? v : 'ALL';
+  }
+
+  function getSubtypeLabel(channel, subtype){
+    const hit = getSubtypeOptions(channel).find(x => x.value === normalizeSubtype(channel, subtype));
+    return hit ? hit.label : 'All';
+  }
+
+  function isLmsFamilyCouponRow(r){
+    const raw = `${normalizeLooseText(r && r.campaign)} ${normalizeLooseText(r && r.term)}`;
+    return raw.includes('FAMILYCOUPON');
+  }
+
+  function isEdmAutoRow(r){
+    const campaign = normalizeLooseText(r && r.campaign);
+    const term = normalizeLooseText(r && r.term);
+    const source = normalizeLooseText(getRowSourceValue(r));
+    const medium = normalizeLooseText(getRowMediumValue(r));
+    const sourceMedium = normalizeLooseText(getRowSourceMediumValue(r));
+    const raw = `${source} ${medium} ${sourceMedium} ${campaign} ${term}`;
+    if(raw.includes('CART_REMINDE') || raw.includes('CART_REMINDER')) return true;
+    if(campaign === 'EMAIL_MKT' || term === 'EMAIL_MKT') return true;
+    if(source === 'EMAIL_MKT' || medium === 'EMAIL_MKT') return true;
+    if(raw.includes('EMAIL MKT') || raw.includes('EMAIL_MKT')) return true;
+    return false;
+  }
+
+  function isEdmMessageRow(r){
+    if(isEdmAutoRow(r)) return false;
+    const campaign = normalizeLooseText(r && r.campaign);
+    const term = normalizeLooseText(r && r.term);
+    const source = normalizeLooseText(getRowSourceValue(r));
+    const medium = normalizeLooseText(getRowMediumValue(r));
+    const sourceMedium = normalizeLooseText(getRowSourceMediumValue(r));
+    const raw = `${source} ${medium} ${sourceMedium} ${campaign} ${term}`;
+
+    if(campaign === 'EDM') return true;
+    if(/^EDM_/.test(campaign) || /^EDM_/.test(term)) return true;
+    if(source === 'EDM' || medium === 'EDM' || raw.includes('EDM / EDM')) return true;
+
+    const parsed = extractGroupFromText((r && (r.campaign || '')) || '', getFallbackYear(r))
+      || extractGroupFromText((r && (r.term || '')) || '', getFallbackYear(r));
+    return !!parsed;
+  }
+
+  function getSubtypeForChannelRow(r, channel){
+    const ch = String(channel || (r && r.channel) || '').trim().toUpperCase();
+    const campaign = normalizeLooseText(r && r.campaign);
+    const term = normalizeLooseText(r && r.term);
+    const source = normalizeLooseText(getRowSourceValue(r));
+    const medium = normalizeLooseText(getRowMediumValue(r));
+    const sourceMedium = normalizeLooseText(getRowSourceMediumValue(r));
+    const raw = `${source} ${medium} ${sourceMedium} ${campaign} ${term}`;
+
+    if(ch === 'KAKAO'){
+      if(raw.includes('KAKAO_CH_MESSAGE')) return 'MESSAGE';
+      if(raw.includes('KAKAO_CH_MENU')) return 'MENU';
+      if(raw.includes('KAKAO_ALIMTALK')) return 'ALIMTALK';
+      if(raw.includes('KAKAO_FRIDNSTALK') || raw.includes('KAKAO_FRIENDSTALK')) return 'FRIENDSTALK';
+      return 'OTHER';
+    }
+    if(ch === 'EDM'){
+      if(isEdmAutoRow(r)) return 'AUTO';
+      if(isEdmMessageRow(r)) return 'MESSAGE';
+      return 'OTHER';
+    }
+    if(ch === 'LMS'){
+      return 'MESSAGE';
+    }
+    return 'OTHER';
+  }
+
+  function getScopedRowGroup(r, channel, subtype){
+    const ch = String(channel || (r && r.channel) || '').trim().toUpperCase();
+    const st = normalizeSubtype(ch, subtype);
+    const fallbackYear = getFallbackYear(r);
+
+    if(ch === 'KAKAO'){
+      if(st === 'MESSAGE'){
+        const parsed = extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
+          || extractGroupFromText((r && (r.term || '')) || '', fallbackYear);
+        return parsed ? { ...parsed, explicit: true } : { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+      }
+      if(st === 'MENU'){
+        const parsed = extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
+          || extractGroupFromText((r && (r.term || '')) || '', fallbackYear);
+        return parsed ? { ...parsed, explicit: true } : { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+      }
+      if(st === 'ALIMTALK'){
+        const parsed = extractGroupFromText((r && (r.term || '')) || '', fallbackYear);
+        return parsed ? { ...parsed, explicit: true } : { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+      }
+      if(st === 'FRIENDSTALK'){
+        const parsed = extractGroupFromText((r && (r.campaign || '')) || '', fallbackYear)
+          || extractGroupFromText((r && (r.term || '')) || '', fallbackYear);
+        return parsed ? { ...parsed, explicit: true } : { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+      }
+      const parsed = getRowGroup(r);
+      return (parsed && parsed.year) ? parsed : { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+    }
+
+    if(ch === 'EDM'){
+      if(st === 'AUTO'){
+        return { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+      }
+      if(st === 'MESSAGE'){
+        const parsed = getRowGroup(r);
+        return (parsed && parsed.year && parsed.mmdd) ? parsed : { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+      }
+      const parsed = getRowGroup(r);
+      return (parsed && parsed.year) ? parsed : { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+    }
+
+    const parsed = getRowGroup(r);
+    return (parsed && parsed.year) ? parsed : { year: fallbackYear, mmdd: 'NO_DATE', explicit: false };
+  }
+
+  function rowMatchesChannelSubtype(r, channel, subtype){
+    const ch = String(channel || '').trim().toUpperCase();
+    const st = normalizeSubtype(ch, subtype);
+    if(String((r && r.channel) || '').trim().toUpperCase() !== ch) return false;
+    if(st === 'ALL') return true;
+    return getSubtypeForChannelRow(r, ch) === st;
+  }
+
+  function getCurrentSubtypeForChannel(channel){
+    const ch = String(channel || '').trim().toUpperCase();
+    return ch === CHANNEL ? normalizeSubtype(ch, CHANNEL_SUBTYPE) : 'ALL';
+  }
+
+  function formatGroupMmdd(mmdd){
+    return mmdd === 'NO_DATE' ? '일자없음' : mmdd;
+  }
+
+  function parseScopedGroupKey(gk){
+    const raw = String(gk || '');
+    const m = raw.match(/^(\d{4})-(\d{4}|NO_DATE)$/);
+    if(!m) return null;
+    return { year:m[1], mmdd:m[2] };
+  }
+
+  function matchesSelectionGroupRow(r, sel){
+    if(!sel || !r) return false;
+    if(String((r.channel || '')).trim().toUpperCase() !== String((sel.channel || '')).trim().toUpperCase()) return false;
+    if(!rowMatchesChannelSubtype(r, sel.channel, sel.subtype || 'ALL')) return false;
+    const parsed = getScopedRowGroup(r, sel.channel, sel.subtype || 'ALL');
+    return String(parsed.year || '') === String(sel.year || '') && String(parsed.mmdd || '') === String(sel.mmdd || '');
+  }
+
+  function countDistinctKakaoMessageMmdd(rows, endDate=''){
+    const year = String(endDate || '').slice(0,4);
+    const keys = new Set();
+    for(const r of (rows || [])){
+      if(getSubtypeForChannelRow(r, 'KAKAO') !== 'MESSAGE') continue;
+      const group = getScopedRowGroup(r, 'KAKAO', 'MESSAGE');
+      if(!/^\d{4}$/.test(String(group.mmdd || ''))) continue;
+      if(year && String(group.year || '') !== year) continue;
+      if(endDate){
+        const groupDate = dateStrFromYearMmdd(group.year, group.mmdd);
+        if(groupDate > endDate) continue;
+      }
+      keys.add(`${group.year}||${group.mmdd}`);
+    }
+    return keys.size;
+  }
+
+  function getSubtypeScopedSendCount(rows, channel, subtype, endDate, messageLog){
+    const ch = String(channel || '').trim().toUpperCase();
+    const st = normalizeSubtype(ch, subtype);
+    const scopedRows = (rows || []).filter(r => rowMatchesChannelSubtype(r, ch, st));
+    if(ch === 'KAKAO'){
+      if(st === 'ALL' || st === 'MESSAGE'){
+        const kakaoRows = st === 'ALL' ? (rows || []).filter(r => rowMatchesChannelSubtype(r, ch, 'MESSAGE')) : scopedRows;
+        return countDistinctKakaoMessageMmdd(kakaoRows, endDate);
+      }
+      return 0;
+    }
+    return getPreferredSendCount(scopedRows, ch, endDate, messageLog || []);
+  }
+
+  function getSelectionScopeKey(sel){
+    if(!sel) return `${CHANNEL}||${CHANNEL_SUBTYPE}||default`;
+    if(sel.type === 'group' || sel.type === 'other-group'){
+      return `${sel.channel}||${sel.subtype || 'ALL'}||${sel.year || ''}||${sel.mmdd || ''}`;
+    }
+    return `${sel.channel}||${sel.subtype || 'ALL'}||${sel.campaign || ''}||${sel.term || ''}`;
+  }
+
+  function getStoredMessageMeta(sel){
+    try{
+      const raw = localStorage.getItem(`owned_message_meta::${getSelectionScopeKey(sel)}`);
+      return raw ? JSON.parse(raw) : null;
+    }catch(_e){
+      return null;
+    }
+  }
+
+  function setStoredMessageMeta(sel, meta){
+    try{
+      localStorage.setItem(`owned_message_meta::${getSelectionScopeKey(sel)}`, JSON.stringify(meta || {}));
+    }catch(_e){}
+  }
+
+  function clearStoredMessageMeta(sel){
+    try{
+      localStorage.removeItem(`owned_message_meta::${getSelectionScopeKey(sel)}`);
+    }catch(_e){}
+  }
+
+  function renderSubtypeBarHtml(channel){
+    const options = getSubtypeOptions(channel);
+    return `<div class="subtype-group-label">${channel} detail</div>` + options.map(opt => {
+      const active = normalizeSubtype(channel, CHANNEL_SUBTYPE) === opt.value;
+      return `<button type="button" class="subtype-chip${active ? ' active' : ''}" data-subtype="${opt.value}">${opt.label}</button>`;
+    }).join('');
+  }
+
+  function renderSubtypeBars(){
+    if(subtypeBar) subtypeBar.innerHTML = renderSubtypeBarHtml(CHANNEL);
+    if(ytdSubtypeBar) ytdSubtypeBar.innerHTML = renderSubtypeBarHtml(CHANNEL);
+    [subtypeBar, ytdSubtypeBar].forEach((wrap) => {
+      if(!wrap) return;
+      Array.from(wrap.querySelectorAll('button[data-subtype]')).forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const nextSubtype = normalizeSubtype(CHANNEL, btn.getAttribute('data-subtype'));
+          if(nextSubtype === CHANNEL_SUBTYPE) return;
+          CHANNEL_SUBTYPE = nextSubtype;
+          SELECTED = null;
+          renderSubtypeBars();
+          renderCampaignButtons();
+          aggregateKPIForSelected();
+          renderTerms();
+          renderProducts();
+          renderDataAnalysis(SELECTED);
+          await computeYTD();
+        });
+      });
+    });
+  }
+
+  function ensureSubtypeState(){
+    CHANNEL_SUBTYPE = normalizeSubtype(CHANNEL, CHANNEL_SUBTYPE);
+  }
+
+  function readFileAsDataUrl(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderEditorPreview(targetEl, dataUrl){
+    if(!targetEl) return;
+    targetEl.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="preview" />` : '';
+  }
+
+  function openMessageEditor(){
+    if(!messageEditorWrap) return;
+    const stored = getStoredMessageMeta(SELECTED) || {};
+    if(editorTitleText) editorTitleText.value = stored.titleText || '';
+    if(editorBodyText) editorBodyText.value = stored.bodyText || '';
+    renderEditorPreview(editorTitlePreview, stored.titleImage || '');
+    renderEditorPreview(editorBodyPreview, stored.bodyImage || '');
+    if(editorTitlePreview) editorTitlePreview.dataset.image = stored.titleImage || '';
+    if(editorBodyPreview) editorBodyPreview.dataset.image = stored.bodyImage || '';
+    if(editorTitleImage) editorTitleImage.value = '';
+    if(editorBodyImage) editorBodyImage.value = '';
+    if(messageEditorScope){
+      const scope = !SELECTED ? `${CHANNEL} / ${getSubtypeLabel(CHANNEL, CHANNEL_SUBTYPE)}` : `${CHANNEL} / ${getSubtypeLabel(CHANNEL, SELECTED.subtype || CHANNEL_SUBTYPE)} / ${getSelectionScopeKey(SELECTED)}`;
+      messageEditorScope.textContent = scope;
+    }
+    messageEditorWrap.classList.remove('hidden');
+  }
+
+  function closeMessageEditor(){
+    if(messageEditorWrap) messageEditorWrap.classList.add('hidden');
+  }
+
+  function applyMessageMeta(meta){
+    if(msgTitle) msgTitle.textContent = (meta && meta.title) ? meta.title : '-';
+    if(msgBody) msgBody.textContent = (meta && meta.body) ? meta.body : '-';
+    if(msgTitleMedia) msgTitleMedia.innerHTML = (meta && meta.title_image) ? `<img src="${meta.title_image}" alt="title image" />` : '';
+    if(msgBodyMedia) msgBodyMedia.innerHTML = (meta && meta.body_image) ? `<img src="${meta.body_image}" alt="body image" />` : '';
   }
 
 
@@ -1945,6 +2468,7 @@
     const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
       ? GROUP_SOURCE_MESSAGE_LOG
       : (((RAW && RAW.message_log) || []));
+    const subtype = normalizeSubtype(CHANNEL, CHANNEL_SUBTYPE);
 
     const out = [];
     const seen = new Set();
@@ -1953,16 +2477,20 @@
       if(!qq) return true;
       const c = String(r.campaign||'').toLowerCase();
       const t = String(r.term||'').toLowerCase();
-      const mmdd = String(r.mmdd || getRowMmdd(r) || '');
-      const yr = String(r.year || getRowYear(r) || '');
-      return c.includes(qq) || t.includes(qq) || mmdd.includes(qq) || yr.includes(qq);
+      const scoped = getScopedRowGroup(r, CHANNEL, subtype);
+      const mmdd = String(scoped.mmdd || '');
+      const yr = String(scoped.year || '');
+      const sub = String(getSubtypeForChannelRow(r, CHANNEL) || '').toLowerCase();
+      return c.includes(qq) || t.includes(qq) || mmdd.toLowerCase().includes(qq) || yr.includes(qq) || sub.includes(qq);
     }
 
     for(const r of (baseRows || [])){
       if(r.channel !== CHANNEL) continue;
-      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, sourceMessageLog)) continue;
+      if(!rowMatchesChannelSubtype(r, CHANNEL, subtype)) continue;
+      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, sourceMessageLog, subtype)) continue;
       if(!matchesSearch(r)) continue;
-      const key = `${r.channel}||${getRowYear(r)}||${getRowMmdd(r)}||${r.campaign||''}||${r.term||''}`;
+      const scoped = getScopedRowGroup(r, CHANNEL, subtype);
+      const key = `${r.channel}||${scoped.year || ''}||${scoped.mmdd || ''}||${r.campaign||''}||${r.term||''}`;
       if(seen.has(key)) continue;
       seen.add(key);
       out.push(r);
@@ -1970,13 +2498,10 @@
 
     for(const m of getEffectiveMessageLog(sourceMessageLog)){
       if(m.channel !== CHANNEL) continue;
-      const year = String(m.date || '').slice(0,4);
-      const mmdd = String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10);
-      if(!hasActualDateScopedSourceRow(baseRows, m.channel, year, mmdd)) continue;
       const pseudo = {
         date: m.date,
-        year,
-        mmdd,
+        year: String(m.date || '').slice(0,4),
+        mmdd: String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10),
         has_group_mmdd: true,
         channel: m.channel,
         campaign: m.message_title || '',
@@ -1987,9 +2512,11 @@
         revenue: 0,
         items_purchased: 0,
       };
-      if(!isRowEligibleForYearCutoff(pseudo, pseudo.channel, cutoffDate, sourceMessageLog)) continue;
+      if(!rowMatchesChannelSubtype(pseudo, CHANNEL, subtype)) continue;
+      if(!isRowEligibleForYearCutoff(pseudo, pseudo.channel, cutoffDate, sourceMessageLog, subtype)) continue;
       if(!matchesSearch(pseudo)) continue;
-      const key = `${pseudo.channel}||${pseudo.year}||${pseudo.mmdd}||${pseudo.campaign}||`;
+      const scoped = getScopedRowGroup(pseudo, CHANNEL, subtype);
+      const key = `${pseudo.channel}||${scoped.year || ''}||${scoped.mmdd || ''}||${pseudo.campaign}||`;
       if(seen.has(key)) continue;
       seen.add(key);
       out.push(pseudo);
@@ -2013,21 +2540,22 @@
     return yearRows.filter(m => String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10) === mmdd);
   }
 
-  function getChannelSummary(rows, channel, endDate, messageLog){
-    const agg = aggregateRow(rows || []);
-    const sendCount = getPreferredSendCount(rows || [], channel, endDate, messageLog);
+  function getChannelSummary(rows, channel, endDate, messageLog, subtype='ALL'){
+    const scopedRows = (rows || []).filter(r => rowMatchesChannelSubtype(r, channel, subtype));
+    const agg = aggregateRow(scopedRows || []);
+    const sendCount = getSubtypeScopedSendCount(scopedRows || [], channel, subtype, endDate, messageLog);
     const avgLeverage = sendCount ? (agg.sessions / sendCount) : 0;
     const cvr = agg.sessions ? ((agg.purchases || 0) / agg.sessions * 100) : 0;
     return { ...agg, send_count: sendCount, avg_leverage: avgLeverage, cvr };
   }
 
-  function getCumulativeSendCount(channel, endDate){
+  function getCumulativeSendCount(channel, endDate, subtype='ALL'){
     const sourceRows = ((GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []))
       .filter(r => r.channel === channel);
     const sourceMessageLog = (GROUP_SOURCE_MESSAGE_LOG && GROUP_SOURCE_MESSAGE_LOG.length)
       ? GROUP_SOURCE_MESSAGE_LOG
       : (((RAW && RAW.message_log) || []));
-    return getPreferredSendCount(sourceRows, channel, endDate, sourceMessageLog);
+    return getSubtypeScopedSendCount(sourceRows, channel, subtype, endDate, sourceMessageLog);
   }
 
   function getAllChannelsSummary(rows, endDate, messageLog){
@@ -2294,15 +2822,25 @@
     return latestAvailable || clampToAvailable(yesterday) || currentPeriodEndDate();
   }
 
-  function isRowEligibleForYearCutoff(r, channel, endDate, messageLog){
-    const rowDate = getRowGroupDate(r);
-    const rowYear = getRowYear(r);
-    if(!rowDate || !rowYear || channel !== String((r && r.channel) || '')) return false;
+  function isRowEligibleForYearCutoff(r, channel, endDate, messageLog, subtype='ALL'){
+    const ch = String(channel || '').trim().toUpperCase();
+    const rowChannel = String((r && r.channel) || '').trim().toUpperCase();
+    if(!ch || ch !== rowChannel) return false;
+
+    const scoped = getScopedRowGroup(r, ch, subtype);
+    const rowYear = String((scoped && scoped.year) || '').trim();
+    const rowMmdd = String((scoped && scoped.mmdd) || '').trim();
+    if(!/^\d{4}$/.test(rowYear)) return false;
 
     const cutoffForYear = getComparableCutoffForYear(endDate, rowYear);
     if(!cutoffForYear) return true;
 
-    const scheduledDates = getScheduledMessageDateSet(messageLog, channel, cutoffForYear);
+    if(!/^\d{4}$/.test(rowMmdd)){
+      return String(cutoffForYear || '').slice(0,4) === rowYear;
+    }
+
+    const rowDate = dateStrFromYearMmdd(rowYear, rowMmdd);
+    const scheduledDates = getScheduledMessageDateSet(messageLog, ch, cutoffForYear);
     if(scheduledDates.size){
       return scheduledDates.has(rowDate);
     }
@@ -2313,6 +2851,7 @@
   // ✅ 기본값
   let VIEW = 'WEEK';     // DAILY | WEEK | RANGE
   let CHANNEL = 'EDM';    // EDM | LMS | KAKAO
+  let CHANNEL_SUBTYPE = 'ALL';
 
   let RAW = null;         // {kpi:[], prod:[], analysis:[]}
   let KPI = [];
@@ -2365,6 +2904,8 @@
     if(CHANNEL==='EDM') chipEDM.classList.add('active');
     if(CHANNEL==='LMS') chipLMS.classList.add('active');
     if(CHANNEL==='KAKAO') chipKAKAO.classList.add('active');
+    ensureSubtypeState();
+    renderSubtypeBars();
   }
 
   function toggleSections(){
@@ -2496,14 +3037,15 @@
       wrapEDMDate.innerHTML = empty;
       wrapLMSDate.innerHTML = empty;
       wrapKakaoDate.innerHTML = empty;
-      wrapEDMOther.innerHTML = empty;
-      wrapLMSOther.innerHTML = empty;
-      wrapKakaoOther.innerHTML = empty;
+      wrapEDMOther.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+      wrapLMSOther.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
+      wrapKakaoOther.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
       wrapOtherChannels.innerHTML = empty;
       return;
     }
 
     const limit = Math.max(1, parseInt(topN.value||'30',10));
+    const channelSubtype = getCurrentSubtypeForChannel(CHANNEL);
     const by = {EDM:new Map(), LMS:new Map(), KAKAO:new Map()};
     const otherByChannel = {EDM:[], LMS:[], KAKAO:[]};
     const otherChannels = [];
@@ -2516,65 +3058,86 @@
         continue;
       }
 
-      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog)) continue;
+      const scopedSubtype = getCurrentSubtypeForChannel(r.channel);
+      if(!rowMatchesChannelSubtype(r, r.channel, scopedSubtype)) continue;
+      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog, scopedSubtype)) continue;
 
-      const mmdd = mmddOfRow(r);
-      const year = getRowYear(r);
-      const hasDateGroup = mmdd && /^\d{4}$/.test(year) && /^\d{4}$/.test(getRowMmdd(r) || mmdd);
+      const parsed = getScopedRowGroup(r, r.channel, scopedSubtype);
+      const year = String(parsed.year || '');
+      const mmdd = String(parsed.mmdd || 'NO_DATE');
 
-      if(r.channel === 'KAKAO' && isKakaoMenuRow(r)){
-        otherByChannel.KAKAO.push(r);
+      if(!year){
+        otherByChannel[r.channel].push(r);
         continue;
       }
 
-      if(hasDateGroup){
-        if(r.channel === 'KAKAO' && !isKakaoCountableSendRow(r)){
-          otherByChannel.KAKAO.push(r);
-          continue;
-        }
-        const gk = `${getRowYear(r)}-${getRowMmdd(r)}`;
-        const m = by[r.channel];
-        if(!m.has(gk)) m.set(gk, []);
-        m.get(gk).push(r);
-      }else{
-        otherByChannel[r.channel].push(r);
-      }
+      const gk = `${year}-${mmdd}`;
+      const m = by[r.channel];
+      if(!m.has(gk)) m.set(gk, []);
+      m.get(gk).push(r);
     }
 
     function renderByDate(channel, wrapEl){
+      const subtype = getCurrentSubtypeForChannel(channel);
       const m = by[channel];
+
+      if((!m || !m.size) && channel === CHANNEL && subtype !== 'ALL'){
+        const fallbackRows = chipSourceRows.filter(r => {
+          if(String((r && r.channel) || '').trim().toUpperCase() !== channel) return false;
+          const inferred = getSubtypeForChannelRow(r, channel);
+          if(inferred === subtype) return true;
+          if(channel === 'EDM' && subtype === 'MESSAGE'){
+            const campaign = normalizeLooseText(r && r.campaign);
+            const term = normalizeLooseText(r && r.term);
+            return campaign === 'EDM' || /^EDM_/.test(campaign) || /^EDM_/.test(term);
+          }
+          return false;
+        });
+        for(const r of fallbackRows){
+          const parsed = getScopedRowGroup(r, channel, subtype);
+          const year = String(parsed.year || '');
+          const mmdd = String(parsed.mmdd || 'NO_DATE');
+          if(!year) continue;
+          const gk = `${year}-${mmdd}`;
+          if(!m.has(gk)) m.set(gk, []);
+          m.get(gk).push(r);
+        }
+      }
+
       const groups = Array.from(m.entries()).map(([gk, rows])=>{
         const a = aggregateRow(rows);
-        const p = parseGroupKey(gk);
+        const p = parseScopedGroupKey(gk);
         return {gk, year:p.year, mmdd:p.mmdd, rows, agg:a};
       }).sort((a,b)=> {
         const byYear = String(b.year).localeCompare(String(a.year));
         if(byYear !== 0) return byYear;
-        return String(b.mmdd).localeCompare(String(a.mmdd));
+        const aRank = a.mmdd === 'NO_DATE' ? '0000' : a.mmdd;
+        const bRank = b.mmdd === 'NO_DATE' ? '0000' : b.mmdd;
+        return String(bRank).localeCompare(String(aRank));
       });
 
-      const byYear = new Map();
+      const byYearMap = new Map();
       for(const g of groups){
-        if(!byYear.has(g.year)) byYear.set(g.year, []);
-        byYear.get(g.year).push(g);
+        if(!byYearMap.has(g.year)) byYearMap.set(g.year, []);
+        byYearMap.get(g.year).push(g);
       }
-      const years = Array.from(byYear.keys()).sort((a,b)=> b.localeCompare(a));
+      const years = Array.from(byYearMap.keys()).sort((a,b)=> b.localeCompare(a));
 
       let html = '';
       for(const yr of years){
-        const arr = byYear.get(yr);
+        const arr = byYearMap.get(yr);
         html += `<div class="year-title"><span>${yr}</span><div class="bar"></div></div>`;
         html += `<div class="flex flex-wrap gap-3">` + arr.map(g=>{
-          const active = (SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd);
-          const title = `${g.year}-${g.mmdd} · sessions:${g.agg.sessions} · terms:${g.rows.length}`;
-          return makeChip(g.mmdd, title, active, {type:'group', channel, year:g.year, mmdd:g.mmdd});
+          const active = (SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.subtype===subtype && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd);
+          const title = `${g.year}-${formatGroupMmdd(g.mmdd)} · sessions:${g.agg.sessions} · terms:${g.rows.length}`;
+          return makeChip(formatGroupMmdd(g.mmdd), title, active, {type:'group', channel, subtype, year:g.year, mmdd:g.mmdd});
         }).join('') + `</div>`;
       }
       wrapEl.innerHTML = html || `<div class="muted font-semibold text-sm">-</div>`;
 
       Array.from(wrapEl.querySelectorAll('button.chip')).forEach(btn=>{
         btn.addEventListener('click', ()=>{
-          selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+          selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'), btn.getAttribute('data-subtype') || subtype);
         });
       });
     }
@@ -2585,18 +3148,12 @@
 
     if(!SELECTED){
       const currentWrap = (CHANNEL==='EDM') ? wrapEDMDate : (CHANNEL==='LMS' ? wrapLMSDate : wrapKakaoDate);
-      const preferredMmdd = getPortalMetaDefaultMmdd(CHANNEL);
-      let firstBtn = null;
-      if(preferredMmdd){
-        firstBtn = Array.from(currentWrap.querySelectorAll('button.chip')).find(btn => String(btn.getAttribute('data-mmdd') || '') === preferredMmdd) || null;
-      }
-      if(!firstBtn){
-        firstBtn = currentWrap.querySelector('button.chip') || [wrapEDMDate, wrapLMSDate, wrapKakaoDate].map(el => el.querySelector('button.chip')).find(Boolean);
-      }
+      let firstBtn = currentWrap.querySelector('button.chip');
       if(firstBtn){
         SELECTED = {
           type:'group',
           channel:firstBtn.getAttribute('data-channel'),
+          subtype:firstBtn.getAttribute('data-subtype') || channelSubtype,
           year:firstBtn.getAttribute('data-year'),
           mmdd:firstBtn.getAttribute('data-mmdd')
         };
@@ -2604,7 +3161,12 @@
     }
 
     function renderOtherCampaignsInline(channel, wrapEl){
-      const rows = otherByChannel[channel].slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
+      const subtype = getCurrentSubtypeForChannel(channel);
+      const rows = otherByChannel[channel]
+        .filter(r => rowMatchesChannelSubtype(r, channel, subtype))
+        .slice()
+        .sort((a,b)=> (b.sessions||0)-(a.sessions||0))
+        .slice(0, limit);
       if(!rows.length){
         wrapEl.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
         return;
@@ -2612,10 +3174,11 @@
       wrapEl.innerHTML = `<div class="flex flex-wrap gap-3">` + rows.map(r=>{
         const label = `${r.campaign||'(no-campaign)'}${r.term?(' · '+r.term):''}`;
         const title = `sessions:${r.sessions} · revenue:${r.revenue||0}`;
-        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
+        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||'') && (SELECTED.subtype||'ALL')===subtype);
         return makeChip(label, title, active, {
           type:'single',
           channel:r.channel,
+          subtype,
           campaign:encodeURIComponent(r.campaign||''),
           term:encodeURIComponent(r.term||'')
         });
@@ -2625,8 +3188,9 @@
         btn.addEventListener('click', ()=>{
           selectSingle(
             btn.getAttribute('data-channel'),
-            decodeURIComponent(btn.getAttribute('data-campaign')||''),
-            decodeURIComponent(btn.getAttribute('data-term')||'')
+            decodeURIComponent(btn.getAttribute('data-campaign') || ''),
+            decodeURIComponent(btn.getAttribute('data-term') || ''),
+            btn.getAttribute('data-subtype') || subtype
           );
         });
       });
@@ -2635,63 +3199,40 @@
     renderOtherCampaignsInline('EDM', wrapEDMOther);
     renderOtherCampaignsInline('LMS', wrapLMSOther);
     renderOtherCampaignsInline('KAKAO', wrapKakaoOther);
-
-    const oc = otherChannels.slice().sort((a,b)=> (b.sessions||0)-(a.sessions||0)).slice(0, limit);
-    if(!oc.length){
-      wrapOtherChannels.innerHTML = `<div class="muted font-semibold text-sm">-</div>`;
-    }else{
-      wrapOtherChannels.innerHTML = `<div class="flex flex-wrap gap-3">` + oc.map(r=>{
-        const label = `${r.channel} · ${(r.campaign||'-')}${r.term?(' · '+r.term):''}`;
-        const title = `sessions:${r.sessions} · revenue:${r.revenue||0}`;
-        const active = (SELECTED && SELECTED.type==='single' && SELECTED.channel===r.channel && (SELECTED.campaign||'')===(r.campaign||'') && (SELECTED.term||'')===(r.term||''));
-        return makeChip(label, title, active, {
-          type:'single',
-          channel:r.channel,
-          campaign:encodeURIComponent(r.campaign||''),
-          term:encodeURIComponent(r.term||'')
-        });
-      }).join('') + `</div>`;
-
-      Array.from(wrapOtherChannels.querySelectorAll('button.chip')).forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          selectSingle(
-            btn.getAttribute('data-channel'),
-            decodeURIComponent(btn.getAttribute('data-campaign')||''),
-            decodeURIComponent(btn.getAttribute('data-term')||'')
-          );
-        });
-      });
-    }
+    wrapOtherChannels.innerHTML = otherChannels.length ? `<div class="muted font-semibold text-sm">${otherChannels.length.toLocaleString('en-US')} rows</div>` : `<div class="muted font-semibold text-sm">-</div>`;
   }
 
   bindDelegatedChipClick(wrapEDMDate, (btn) => {
-    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'), btn.getAttribute('data-subtype') || CHANNEL_SUBTYPE);
   });
   bindDelegatedChipClick(wrapLMSDate, (btn) => {
-    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'), btn.getAttribute('data-subtype') || CHANNEL_SUBTYPE);
   });
   bindDelegatedChipClick(wrapKakaoDate, (btn) => {
-    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'));
+    selectGroup(btn.getAttribute('data-channel'), btn.getAttribute('data-year'), btn.getAttribute('data-mmdd'), btn.getAttribute('data-subtype') || CHANNEL_SUBTYPE);
   });
   bindDelegatedChipClick(wrapEDMOther, (btn) => {
     selectSingle(
       btn.getAttribute('data-channel'),
       decodeURIComponent(btn.getAttribute('data-campaign')||''),
-      decodeURIComponent(btn.getAttribute('data-term')||'')
+      decodeURIComponent(btn.getAttribute('data-term')||''),
+      btn.getAttribute('data-subtype') || CHANNEL_SUBTYPE
     );
   });
   bindDelegatedChipClick(wrapLMSOther, (btn) => {
     selectSingle(
       btn.getAttribute('data-channel'),
       decodeURIComponent(btn.getAttribute('data-campaign')||''),
-      decodeURIComponent(btn.getAttribute('data-term')||'')
+      decodeURIComponent(btn.getAttribute('data-term')||''),
+      btn.getAttribute('data-subtype') || CHANNEL_SUBTYPE
     );
   });
   bindDelegatedChipClick(wrapKakaoOther, (btn) => {
     selectSingle(
       btn.getAttribute('data-channel'),
       decodeURIComponent(btn.getAttribute('data-campaign')||''),
-      decodeURIComponent(btn.getAttribute('data-term')||'')
+      decodeURIComponent(btn.getAttribute('data-term')||''),
+      btn.getAttribute('data-subtype') || CHANNEL_SUBTYPE
     );
   });
   bindDelegatedChipClick(wrapOtherChannels, (btn) => {
@@ -2699,14 +3240,16 @@
       selectOtherGroup(
         btn.getAttribute('data-channel'),
         btn.getAttribute('data-year'),
-        btn.getAttribute('data-mmdd')
+        btn.getAttribute('data-mmdd'),
+        btn.getAttribute('data-subtype') || CHANNEL_SUBTYPE
       );
       return;
     }
     selectSingle(
       btn.getAttribute('data-channel'),
       decodeURIComponent(btn.getAttribute('data-campaign')||''),
-      decodeURIComponent(btn.getAttribute('data-term')||'')
+      decodeURIComponent(btn.getAttribute('data-term')||''),
+      btn.getAttribute('data-subtype') || CHANNEL_SUBTYPE
     );
   });
 
@@ -2806,14 +3349,20 @@
   function getSelectedKpiRows(sel){
     if(!sel || !RAW) return [];
     if(sel.type === 'single'){
-      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
+      return (RAW.kpi||[]).filter(x=>
+        x.channel===sel.channel &&
+        rowMatchesChannelSubtype(x, sel.channel, sel.subtype || 'ALL') &&
+        (x.campaign||'')===(sel.campaign||'') &&
+        (x.term||'')===(sel.term||'')
+      );
     }
     if(sel.type === 'group'){
-      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd && isDateScopedRowForChannel(x, sel.channel));
+      return (RAW.kpi||[]).filter(x => matchesSelectionGroupRow(x, sel));
     }
     if(sel.type === 'other-group'){
-      return (RAW.kpi||[]).filter(x=> {
+      return (RAW.kpi||[]).filter(x => {
         if(x.channel !== sel.channel) return false;
+        if(!rowMatchesChannelSubtype(x, sel.channel, sel.subtype || 'ALL')) return false;
         const parsed = getOtherCampaignDateGroup(x);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
       });
@@ -2826,14 +3375,15 @@
     if(!sel) return null;
 
     if(sel.type === 'group' || sel.type === 'other-group'){
+      if(sel.mmdd === 'NO_DATE') return [];
       return getMessagesForYearMmdd(messageLog, sel.channel, sel.year, sel.mmdd);
     }
 
     if(sel.type === 'single'){
       const first = (rows || [])[0];
-      const year = getRowYear(first);
-      const mmdd = getRowMmdd(first);
-      if(year && mmdd){
+      const year = getScopedRowGroup(first, sel.channel, sel.subtype || 'ALL').year;
+      const mmdd = getScopedRowGroup(first, sel.channel, sel.subtype || 'ALL').mmdd;
+      if(year && mmdd && mmdd !== 'NO_DATE'){
         return getMessagesForYearMmdd(messageLog, sel.channel, year, mmdd);
       }
     }
@@ -2846,21 +3396,18 @@
     if(sel.type === 'single'){
       return (RAW.prod||[]).filter(r =>
         r.channel===sel.channel &&
+        rowMatchesChannelSubtype(r, sel.channel, sel.subtype || 'ALL') &&
         (r.campaign||'')===(sel.campaign||'') &&
         (r.term||'')===(sel.term||'')
       );
     }
     if(sel.type === 'group'){
-      return (RAW.prod||[]).filter(p =>
-        p.channel===sel.channel &&
-        getRowYear(p)===sel.year &&
-        getRowMmdd(p)===sel.mmdd &&
-        isDateScopedRowForChannel(p, sel.channel)
-      );
+      return (RAW.prod||[]).filter(p => matchesSelectionGroupRow(p, sel));
     }
     if(sel.type === 'other-group'){
       return (RAW.prod||[]).filter(p => {
         if(p.channel !== sel.channel) return false;
+        if(!rowMatchesChannelSubtype(p, sel.channel, sel.subtype || 'ALL')) return false;
         const parsed = getOtherCampaignDateGroup(p);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
       });
@@ -2873,21 +3420,18 @@
     if(sel.type === 'single'){
       return (RAW.analysis||[]).filter(r =>
         r.channel===sel.channel &&
+        rowMatchesChannelSubtype(r, sel.channel, sel.subtype || 'ALL') &&
         (r.campaign||'')===(sel.campaign||'') &&
         (r.term||'')===(sel.term||'')
       );
     }
     if(sel.type === 'group'){
-      return (RAW.analysis||[]).filter(r =>
-        r.channel===sel.channel &&
-        getRowYear(r)===sel.year &&
-        getRowMmdd(r)===sel.mmdd &&
-        isDateScopedRowForChannel(r, sel.channel)
-      );
+      return (RAW.analysis||[]).filter(r => matchesSelectionGroupRow(r, sel));
     }
     if(sel.type === 'other-group'){
       return (RAW.analysis||[]).filter(r => {
         if(r.channel !== sel.channel) return false;
+        if(!rowMatchesChannelSubtype(r, sel.channel, sel.subtype || 'ALL')) return false;
         const parsed = getOtherCampaignDateGroup(r);
         return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
       });
@@ -2896,7 +3440,8 @@
   }
 
   function getSelectedSendCount(sel, rows){
-    return countDistinctSends(rows || []);
+    if(!sel) return 0;
+    return getSubtypeScopedSendCount(rows || [], sel.channel, sel.subtype || 'ALL', currentPeriodEndDate(), (RAW && RAW.message_log) || []);
   }
 
   function aggregateKPIForSelected(){
@@ -2905,7 +3450,7 @@
       kSendCount.textContent='-'; kLeverage.textContent='-';
       kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
       kSendCountSub.textContent='-'; kLeverageSub.textContent='-';
-      msgTitle.textContent='-'; msgBody.textContent='-';
+      applyMessageMeta({ title:'-', body:'-' });
       selChannel.textContent='-'; selCampaign.textContent='-'; selTerm.textContent='-';
       renderFunnelAnalysis();
       return;
@@ -2913,16 +3458,16 @@
 
     const rows = getSelectedKpiRows(SELECTED);
     if(SELECTED.type==='single'){
-      selChannel.textContent = SELECTED.channel;
+      selChannel.textContent = `${SELECTED.channel} · ${getSubtypeLabel(SELECTED.channel, SELECTED.subtype || 'ALL')}`;
       selCampaign.textContent = SELECTED.campaign || '-';
       selTerm.textContent = SELECTED.term || '-';
     }else if(SELECTED.type==='group'){
-      selChannel.textContent = SELECTED.channel;
-      selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd} (group)`;
+      selChannel.textContent = `${SELECTED.channel} · ${getSubtypeLabel(SELECTED.channel, SELECTED.subtype || 'ALL')}`;
+      selCampaign.textContent = `${SELECTED.year}-${formatGroupMmdd(SELECTED.mmdd)} (group)`;
       selTerm.textContent = `terms:${rows.length}`;
     }else{
-      selChannel.textContent = SELECTED.channel;
-      selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd} (other campaign)`;
+      selChannel.textContent = `${SELECTED.channel} · ${getSubtypeLabel(SELECTED.channel, SELECTED.subtype || 'ALL')}`;
+      selCampaign.textContent = `${SELECTED.year}-${formatGroupMmdd(SELECTED.mmdd)} (other campaign)`;
       selTerm.textContent = `terms:${rows.length}`;
     }
 
@@ -2931,12 +3476,19 @@
     const leverage = sendCount ? (a.sessions / sendCount) : 0;
     const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
     const selectionMessages = getSelectionMessageRows(SELECTED, rows);
-    const meta = (selectionMessages && selectionMessages.length)
+    const baseMeta = (selectionMessages && selectionMessages.length)
       ? {
           title: selectionMessages.map(m => m.message_title).join(' | ') || '-',
           body: selectionMessages.map(m => m.message_body).filter(Boolean).join(' | ') || '-',
         }
       : getMessageMeta(rows);
+    const storedMeta = getStoredMessageMeta(SELECTED) || {};
+    const meta = {
+      title: storedMeta.titleText || baseMeta.title || '-',
+      body: storedMeta.bodyText || baseMeta.body || '-',
+      title_image: storedMeta.titleImage || '',
+      body_image: storedMeta.bodyImage || '',
+    };
 
     kSessions.textContent = fmt(a.sessions);
     kUsers.textContent = fmt(a.users);
@@ -2956,8 +3508,7 @@
     kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
     kSendCountSub.textContent = `Distinct sends in selected scope`;
     kLeverageSub.textContent = `Purchases / sessions`;
-    msgTitle.textContent = meta.title || '-';
-    msgBody.textContent = meta.body || '-';
+    applyMessageMeta(meta);
     renderFunnelAnalysis();
   }
 
@@ -3583,22 +4134,24 @@
     }
   }
 
-  function selectSingle(channel, campaign, term){
+  function selectSingle(channel, campaign, term, subtype='ALL'){
     CHANNEL = channel;
+    CHANNEL_SUBTYPE = normalizeSubtype(channel, subtype);
     setChipActive();
     toggleSections();
-    SELECTED = {type:'single', channel, campaign, term};
+    SELECTED = {type:'single', channel, subtype: CHANNEL_SUBTYPE, campaign, term};
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderTerms();
     renderProducts();
   }
 
-  function selectOtherGroup(channel, year, mmdd){
+  function selectOtherGroup(channel, year, mmdd, subtype='ALL'){
     CHANNEL = channel;
+    CHANNEL_SUBTYPE = normalizeSubtype(channel, subtype);
     setChipActive();
     toggleSections();
-    SELECTED = {type:'other-group', channel, year, mmdd};
+    SELECTED = {type:'other-group', channel, subtype: CHANNEL_SUBTYPE, year, mmdd};
     renderCampaignButtons();
     aggregateKPIForSelected();
     renderTerms();
@@ -4078,7 +4631,7 @@
     const prevStart = `${prevYear}-01-01`;
     const prevEnd = clampToAvailable(safeShiftYear(thisEnd, -1));
 
-    const key = `${CHANNEL}||${thisStart}||${thisEnd}||${prevStart}||${prevEnd}`;
+    const key = `${CHANNEL}||${normalizeSubtype(CHANNEL, CHANNEL_SUBTYPE)}||${thisStart}||${thisEnd}||${prevStart}||${prevEnd}`;
     if(YTD_CACHE.has(key)){
       const v = YTD_CACHE.get(key);
       const ALL = v.all;
@@ -4139,8 +4692,8 @@
 
     const allSum = getAllChannelsSummary(thisAgg.kpi || [], thisEnd, thisAgg.message_log || []);
     const allPrevSum = getAllChannelsSummary(prevAgg.kpi || [], prevEnd, prevAgg.message_log || []);
-    const thisSum = getChannelSummary(thisRows, CHANNEL, thisEnd, thisAgg.message_log || []);
-    const prevSum = getChannelSummary(prevRows, CHANNEL, prevEnd, prevAgg.message_log || []);
+    const thisSum = getChannelSummary(thisRows, CHANNEL, thisEnd, thisAgg.message_log || [], CHANNEL_SUBTYPE);
+    const prevSum = getChannelSummary(prevRows, CHANNEL, prevEnd, prevAgg.message_log || [], CHANNEL_SUBTYPE);
 
     GROUP_SOURCE_ROWS = [...(thisAgg.kpi || []), ...(prevAgg.kpi || [])];
     GROUP_SOURCE_MESSAGE_LOG = normalizeMessageLogRows([...(thisAgg.message_log || []), ...(prevAgg.message_log || [])]);
@@ -4228,15 +4781,17 @@
     finalizeAnimatedViewChange();
   }
 
-  async function selectGroup(channel, year, mmdd){
+  async function selectGroup(channel, year, mmdd, subtype='ALL'){
     CHANNEL = channel;
+    CHANNEL_SUBTYPE = normalizeSubtype(channel, subtype);
     setChipActive();
     toggleSections();
-    SELECTED = {type:'group', channel, year, mmdd};
-    const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
+    SELECTED = {type:'group', channel, subtype: CHANNEL_SUBTYPE, year, mmdd};
+    const resolvedDate = (mmdd === 'NO_DATE') ? '' : resolveMmddToAvailableDate(year, mmdd);
     if(resolvedDate){
       if(toggleGroupJump){
         toggleGroupJump.checked = true;
+    renderSubtypeBars();
       }
       GROUP_JUMP_MODE = true;
       await load7dFromDate(resolvedDate, { preserveSelected: true });
@@ -4250,7 +4805,7 @@
     }
 
     WEEK_ANCHORED_MODE = false;
-    SELECTED = {type:'group', channel, year, mmdd};
+    SELECTED = {type:'group', channel, subtype: CHANNEL_SUBTYPE, year, mmdd};
     filterKPI();
     updateChannelTotals();
     renderCampaignButtons();
@@ -4299,6 +4854,7 @@
     primeYtdLoading();
     SELECTED = null;
     CHANNEL = ch;
+    CHANNEL_SUBTYPE = 'ALL';
     updateYtdLabels();
     setChipActive();
     toggleSections();
@@ -4317,6 +4873,54 @@
     renderProducts();
     await computeYTD();
     finalizeAnimatedViewChange();
+  }
+
+  if(btnOpenMessageEditor) btnOpenMessageEditor.addEventListener('click', openMessageEditor);
+  if(btnOpenMessageEditor2) btnOpenMessageEditor2.addEventListener('click', openMessageEditor);
+  if(btnCloseMessageEditor) btnCloseMessageEditor.addEventListener('click', closeMessageEditor);
+  if(btnClearTitleImage) btnClearTitleImage.addEventListener('click', ()=>{ renderEditorPreview(editorTitlePreview, ''); if(editorTitleImage) editorTitleImage.value=''; });
+  if(btnClearBodyImage) btnClearBodyImage.addEventListener('click', ()=>{ renderEditorPreview(editorBodyPreview, ''); if(editorBodyImage) editorBodyImage.value=''; });
+  if(editorTitleImage){
+    editorTitleImage.addEventListener('change', async (e)=>{
+      const file = e.target.files && e.target.files[0];
+      if(!file) return;
+      const dataUrl = await readFileAsDataUrl(file);
+      renderEditorPreview(editorTitlePreview, dataUrl);
+      editorTitlePreview.dataset.image = dataUrl;
+    });
+  }
+  if(editorBodyImage){
+    editorBodyImage.addEventListener('change', async (e)=>{
+      const file = e.target.files && e.target.files[0];
+      if(!file) return;
+      const dataUrl = await readFileAsDataUrl(file);
+      renderEditorPreview(editorBodyPreview, dataUrl);
+      editorBodyPreview.dataset.image = dataUrl;
+    });
+  }
+  if(btnSaveMessageEditor){
+    btnSaveMessageEditor.addEventListener('click', ()=>{
+      const existing = getStoredMessageMeta(SELECTED) || {};
+      const meta = {
+        titleText: editorTitleText ? editorTitleText.value.trim() : '',
+        bodyText: editorBodyText ? editorBodyText.value.trim() : '',
+        titleImage: (editorTitlePreview && editorTitlePreview.dataset.image) || existing.titleImage || '',
+        bodyImage: (editorBodyPreview && editorBodyPreview.dataset.image) || existing.bodyImage || '',
+      };
+      setStoredMessageMeta(SELECTED, meta);
+      aggregateKPIForSelected();
+      closeMessageEditor();
+    });
+  }
+  if(btnResetMessageEditor){
+    btnResetMessageEditor.addEventListener('click', ()=>{
+      clearStoredMessageMeta(SELECTED);
+      if(editorTitleText) editorTitleText.value = '';
+      if(editorBodyText) editorBodyText.value = '';
+      if(editorTitlePreview){ editorTitlePreview.innerHTML=''; delete editorTitlePreview.dataset.image; }
+      if(editorBodyPreview){ editorBodyPreview.innerHTML=''; delete editorBodyPreview.dataset.image; }
+      aggregateKPIForSelected();
+    });
   }
 
   chipEDM.addEventListener('click', ()=>onChannelChange('EDM'));
@@ -4448,6 +5052,7 @@
 
   (async function init(){
     toggleGroupJump.checked = true;
+    renderSubtypeBars();
     const fallbackYesterday = ymd(addDays(new Date(), -1));
     if(datePicker && !datePicker.value) datePicker.value = fallbackYesterday;
     if(startPicker && !startPicker.value) startPicker.value = fallbackYesterday;
