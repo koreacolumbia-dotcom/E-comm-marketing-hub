@@ -1137,7 +1137,6 @@ def get_channel_snapshot_3way(
             df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
             return df
         except Exception:
-            # Fallback when sessionCampaignName is unavailable.
             dims2 = ["sessionSourceMedium"]
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
             if df.empty:
@@ -1175,16 +1174,6 @@ def get_channel_snapshot_3way(
     op = overall.get("prev", {}) or {}
     oy = overall.get("yoy", {}) or {}
 
-    total_sessions_cur = float(oc.get("sessions", 0) or 0)
-    total_sessions_prev = float(op.get("sessions", 0) or 0)
-    total_sessions_yoy = float(oy.get("sessions", 0) or 0)
-    total_orders_cur = float(oc.get("transactions", 0) or 0)
-    total_orders_prev = float(op.get("transactions", 0) or 0)
-    total_orders_yoy = float(oy.get("transactions", 0) or 0)
-    total_revenue_cur = float(oc.get("purchaseRevenue", 0) or 0)
-    total_revenue_prev = float(op.get("purchaseRevenue", 0) or 0)
-    total_revenue_yoy = float(oy.get("purchaseRevenue", 0) or 0)
-
     canonical_buckets = list(CHANNEL_BUCKET_ORDER)
     numeric_cols = [
         "sessions_cur", "transactions_cur", "revenue_cur",
@@ -1201,38 +1190,55 @@ def get_channel_snapshot_3way(
         m = pd.concat([m, pd.DataFrame({"bucket": missing})], ignore_index=True, sort=False)
     m[numeric_cols] = m[numeric_cols].fillna(0.0)
     m = m.groupby("bucket", as_index=False)[numeric_cols].sum().set_index("bucket")
-
     m = m.reset_index()
 
-    m["dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
-    m["yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    m["session_dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
+    m["session_yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    m["orders_dod"] = m.apply(lambda r: pct_change(float(r["transactions_cur"]), float(r["transactions_prev"])), axis=1)
+    m["orders_yoy"] = m.apply(lambda r: pct_change(float(r["transactions_cur"]), float(r["transactions_yoy"])), axis=1)
+    m["revenue_dod"] = m.apply(lambda r: pct_change(float(r["revenue_cur"]), float(r["revenue_prev"])), axis=1)
+    m["revenue_yoy"] = m.apply(lambda r: pct_change(float(r["revenue_cur"]), float(r["revenue_yoy"])), axis=1)
 
     out = pd.DataFrame({
         "bucket": m["bucket"],
         "sessions": m["sessions_cur"],
         "transactions": m["transactions_cur"],
         "purchaseRevenue": m["revenue_cur"],
-        "rev_dod": m["dod"],
-        "rev_yoy": m["yoy"],
+        "session_dod": m["session_dod"],
+        "session_yoy": m["session_yoy"],
+        "orders_dod": m["orders_dod"],
+        "orders_yoy": m["orders_yoy"],
+        "revenue_dod": m["revenue_dod"],
+        "revenue_yoy": m["revenue_yoy"],
+        "rev_dod": m["session_dod"],
+        "rev_yoy": m["session_yoy"],
     })
 
     order = {b: i for i, b in enumerate(CHANNEL_BUCKET_ORDER)}
     out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
     out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
 
-    # Total row is forced from overall KPI.
     total = pd.DataFrame([{
         "bucket": "Total",
-        "sessions": total_sessions_cur,
-        "transactions": total_orders_cur,
-        "purchaseRevenue": total_revenue_cur,
-        "rev_dod": pct_change(total_sessions_cur, total_sessions_prev),
-        "rev_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
+        "sessions": float(oc.get("sessions", 0) or 0),
+        "transactions": float(oc.get("transactions", 0) or 0),
+        "purchaseRevenue": float(oc.get("purchaseRevenue", 0) or 0),
+        "session_dod": pct_change(float(oc.get("sessions", 0) or 0), float(op.get("sessions", 0) or 0)),
+        "session_yoy": pct_change(float(oc.get("sessions", 0) or 0), float(oy.get("sessions", 0) or 0)),
+        "orders_dod": pct_change(float(oc.get("transactions", 0) or 0), float(op.get("transactions", 0) or 0)),
+        "orders_yoy": pct_change(float(oc.get("transactions", 0) or 0), float(oy.get("transactions", 0) or 0)),
+        "revenue_dod": pct_change(float(oc.get("purchaseRevenue", 0) or 0), float(op.get("purchaseRevenue", 0) or 0)),
+        "revenue_yoy": pct_change(float(oc.get("purchaseRevenue", 0) or 0), float(oy.get("purchaseRevenue", 0) or 0)),
+        "rev_dod": pct_change(float(oc.get("sessions", 0) or 0), float(op.get("sessions", 0) or 0)),
+        "rev_yoy": pct_change(float(oc.get("sessions", 0) or 0), float(oy.get("sessions", 0) or 0)),
     }])
 
     out = pd.concat([out, total], ignore_index=True)
-    return out[["bucket", "sessions", "transactions", "purchaseRevenue", "rev_dod", "rev_yoy"]]
-
+    return out[[
+        "bucket", "sessions", "transactions", "purchaseRevenue",
+        "session_dod", "session_yoy", "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
+        "rev_dod", "rev_yoy"
+    ]]
 
 # =========================
 # Paid Detail split from the same Paid AD base as Channel Snapshot
@@ -1244,10 +1250,10 @@ def get_paid_detail_3way(
 ) -> pd.DataFrame:
     """
     Keep Paid Detail Total aligned with Channel Snapshot Paid AD.
-    DoD / YoY are session based.
+    Provide switchable Session / Orders / Revenue deltas.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
-    mets = ["sessions", "purchaseRevenue"]
+    mets = ["sessions", "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
@@ -1284,31 +1290,38 @@ def get_paid_detail_3way(
 
     def agg(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=["sub", "sessions", "purchaseRevenue"])
-        return df.groupby("sub", as_index=False)[["sessions", "purchaseRevenue"]].sum()
+            return pd.DataFrame(columns=["sub", "sessions", "transactions", "purchaseRevenue"])
+        return df.groupby("sub", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
 
-    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "purchaseRevenue": "rev_cur"})
-    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "purchaseRevenue": "rev_prev"})
-    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "purchaseRevenue": "rev_yoy_base"})
+    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "transactions": "orders_cur", "purchaseRevenue": "rev_cur"})
+    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "transactions": "orders_prev", "purchaseRevenue": "rev_prev"})
+    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "transactions": "orders_yoy", "purchaseRevenue": "rev_yoy_base"})
     yoy_subs = set(yoy_a["sub"].astype(str).tolist()) if not yoy_a.empty else set()
 
     merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
-    merged["dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
-    merged["yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    merged["session_dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
+    merged["session_yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    merged["orders_dod"] = merged.apply(lambda r: pct_change(float(r["orders_cur"]), float(r["orders_prev"])), axis=1)
+    merged["orders_yoy"] = merged.apply(lambda r: pct_change(float(r["orders_cur"]), float(r["orders_yoy"])), axis=1)
+    merged["revenue_dod"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_prev"])), axis=1)
+    merged["revenue_yoy"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_yoy_base"])), axis=1)
+    merged["dod"] = merged["session_dod"]
+    merged["yoy"] = merged["session_yoy"]
     merged["has_yoy"] = merged["sub"].astype(str).isin(yoy_subs)
 
-    # Ensure core labels always exist in the visible table.
     core = list(PAID_DETAIL_SOURCES)
     for c in core:
         if c not in set(merged["sub"].tolist()):
             merged = pd.concat([merged, pd.DataFrame([{
-                "sub": c, "sessions_cur": 0.0, "rev_cur": 0.0,
-                "sessions_prev": 0.0, "rev_prev": 0.0,
-                "sessions_yoy": 0.0, "rev_yoy_base": 0.0,
+                "sub": c, "sessions_cur": 0.0, "orders_cur": 0.0, "rev_cur": 0.0,
+                "sessions_prev": 0.0, "orders_prev": 0.0, "rev_prev": 0.0,
+                "sessions_yoy": 0.0, "orders_yoy": 0.0, "rev_yoy_base": 0.0,
+                "session_dod": 0.0, "session_yoy": 0.0,
+                "orders_dod": 0.0, "orders_yoy": 0.0,
+                "revenue_dod": 0.0, "revenue_yoy": 0.0,
                 "dod": 0.0, "yoy": 0.0, "has_yoy": False
             }])], ignore_index=True)
 
-    # Show core rows plus top "others", but compute Total from the full Paid AD base.
     others = merged[~merged["sub"].isin(core)].copy()
     others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False]).head(6)
 
@@ -1317,48 +1330,49 @@ def get_paid_detail_3way(
         others.assign(_ord=999),
     ], ignore_index=True)
 
-    # Force Total to match Channel Snapshot Paid AD.
-    # Use Channel Snapshot current values first, then fallback to merged sums.
-    # If prev / yoy snapshot values are unavailable, fallback to merged sums.
     merged_cur_s = float(merged["sessions_cur"].sum()) if not merged.empty else 0.0
     merged_prev_s = float(merged["sessions_prev"].sum()) if not merged.empty else 0.0
     merged_yoy_s = float(merged["sessions_yoy"].sum()) if not merged.empty else 0.0
+    merged_cur_o = float(merged["orders_cur"].sum()) if not merged.empty else 0.0
+    merged_prev_o = float(merged["orders_prev"].sum()) if not merged.empty else 0.0
+    merged_yoy_o = float(merged["orders_yoy"].sum()) if not merged.empty else 0.0
     merged_cur_r = float(merged["rev_cur"].sum()) if not merged.empty else 0.0
+    merged_prev_r = float(merged["rev_prev"].sum()) if not merged.empty else 0.0
+    merged_yoy_r = float(merged["rev_yoy_base"].sum()) if not merged.empty else 0.0
 
     if paid_ad_totals:
-        cur_sessions_val = paid_ad_totals.get("current", {}).get("sessions", merged_cur_s)
-        cur_revenue_val = paid_ad_totals.get("current", {}).get("revenue", merged_cur_r)
-        prev_sessions_val = paid_ad_totals.get("prev", {}).get("sessions", None)
-        yoy_sessions_val = paid_ad_totals.get("yoy", {}).get("sessions", None)
-
-        t_cur_s = merged_cur_s if cur_sessions_val is None else float(cur_sessions_val or 0.0)
-        t_cur_r = merged_cur_r if cur_revenue_val is None else float(cur_revenue_val or 0.0)
-        t_prev_s = merged_prev_s if prev_sessions_val in (None, 0, 0.0) else float(prev_sessions_val)
-        t_yoy_s = merged_yoy_s if yoy_sessions_val in (None, 0, 0.0) else float(yoy_sessions_val)
+        t_cur_s = float(paid_ad_totals.get("current", {}).get("sessions", merged_cur_s) or 0.0)
+        t_cur_r = float(paid_ad_totals.get("current", {}).get("revenue", merged_cur_r) or 0.0)
+        t_prev_s = float(paid_ad_totals.get("prev", {}).get("sessions", merged_prev_s) or merged_prev_s)
+        t_yoy_s = float(paid_ad_totals.get("yoy", {}).get("sessions", merged_yoy_s) or merged_yoy_s)
     else:
-        t_cur_s = merged_cur_s
-        t_prev_s = merged_prev_s
-        t_yoy_s = merged_yoy_s
-        t_cur_r = merged_cur_r
+        t_cur_s, t_prev_s, t_yoy_s, t_cur_r = merged_cur_s, merged_prev_s, merged_yoy_s, merged_cur_r
 
     total_row = {
         "sub_channel": "Total",
         "sessions": t_cur_s,
+        "orders": merged_cur_o,
         "purchaseRevenue": t_cur_r,
+        "session_dod": pct_change(t_cur_s, t_prev_s),
+        "session_yoy": pct_change(t_cur_s, t_yoy_s),
+        "orders_dod": pct_change(merged_cur_o, merged_prev_o),
+        "orders_yoy": pct_change(merged_cur_o, merged_yoy_o),
+        "revenue_dod": pct_change(t_cur_r, merged_prev_r),
+        "revenue_yoy": pct_change(t_cur_r, merged_yoy_r),
         "dod": pct_change(t_cur_s, t_prev_s),
         "yoy": pct_change(t_cur_s, t_yoy_s),
         "has_yoy": (t_yoy_s not in (None, 0, 0.0)),
     }
 
-    out = ordered[["sub", "sessions_cur", "rev_cur", "dod", "yoy", "has_yoy"]].copy()
+    out = ordered[["sub", "sessions_cur", "orders_cur", "rev_cur", "session_dod", "session_yoy", "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy", "dod", "yoy", "has_yoy"]].copy()
     out = out.rename(columns={
         "sub": "sub_channel",
         "sessions_cur": "sessions",
+        "orders_cur": "orders",
         "rev_cur": "purchaseRevenue",
     })
     out = pd.concat([out, pd.DataFrame([total_row])], ignore_index=True)
     return out
-
 
 # =========================
 # Paid Top3 (kept)
@@ -1394,6 +1408,33 @@ def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFr
 def get_kpi_snapshot_table_3way(client: BetaAnalyticsDataClient, w: DigestWindow, overall: Dict[str, Dict[str, float]]) -> pd.DataFrame:
     signup = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
     cur = overall["current"]; prev = overall["prev"]; yoy = overall["yoy"]
+
+    report_patch_css = """
+  <style>
+    :root{--report-max:none;--motion-ease:cubic-bezier(.2,.8,.2,1);}
+    .report-body{background:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);}
+    .report-shell{width:100%;}
+    .metric-switch{display:inline-flex;gap:6px;flex-wrap:wrap;}
+    .metric-tab{border:1px solid rgba(148,163,184,.25);background:#fff;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;color:#64748b;transition:all .22s var(--motion-ease);box-shadow:0 6px 18px rgba(15,23,42,.04)}
+    .metric-tab:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+    .metric-tab.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 14px 32px rgba(15,23,42,.16)}
+    .metric-label{display:none}.metric-label.active{display:inline}
+    .metric-slot{display:none}.metric-slot.active{display:block;animation:metricSwap .42s var(--motion-ease)}
+    .metric-inline .metric-slot.active{display:inline}
+    .report-card,.bucket-detail-panel,.weather-card{animation:cardRise .7s var(--motion-ease) both;transform-origin:center bottom}
+    .report-card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(15,23,42,.08)}
+    .kpi-card{position:relative;overflow:hidden;transition:transform .24s var(--motion-ease), box-shadow .24s var(--motion-ease), border-color .24s var(--motion-ease)}
+    .kpi-card:before{content:'';position:absolute;inset:-40% auto auto -20%;width:60%;height:180%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);transform:rotate(14deg);animation:shineSweep 4.2s linear infinite;pointer-events:none}
+    .kpi-card:hover{transform:translateY(-6px) scale(1.01);box-shadow:0 22px 44px rgba(15,23,42,.08);border-color:rgba(59,130,246,.22)}
+    .kpi-value{animation:numberPop .8s var(--motion-ease) both}
+    .channel-table-wrap,.paid-table-wrap{overflow-x:auto}
+    .channel-table-wrap table,.paid-table-wrap table{min-width:980px}
+    @keyframes cardRise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
+  </style>
+    """
 
     rows = [
         ("Sessions", cur["sessions"], prev["sessions"], yoy["sessions"], "int"),
@@ -2265,11 +2306,17 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
             agg(make_detail_key(yoy, bucket),'_yoy'), on='sub', how='outer'
         ).fillna(0.0)
         if merged.empty:
-            out_map[bucket] = pd.DataFrame(columns=['sub_channel','sessions','orders','purchaseRevenue','dod','yoy'])
+            out_map[bucket] = pd.DataFrame(columns=['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy'])
             continue
-        merged['dod'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_prev'])), axis=1)
-        merged['yoy'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_yoy'])), axis=1)
-        detail = merged.rename(columns={'sub':'sub_channel','sessions_cur':'sessions','transactions_cur':'orders','revenue_cur':'purchaseRevenue'})[['sub_channel','sessions','orders','purchaseRevenue','dod','yoy']]
+        merged['session_dod'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_prev'])), axis=1)
+        merged['session_yoy'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_yoy'])), axis=1)
+        merged['orders_dod'] = merged.apply(lambda r: pct_change(float(r['transactions_cur']), float(r['transactions_prev'])), axis=1)
+        merged['orders_yoy'] = merged.apply(lambda r: pct_change(float(r['transactions_cur']), float(r['transactions_yoy'])), axis=1)
+        merged['revenue_dod'] = merged.apply(lambda r: pct_change(float(r['revenue_cur']), float(r['revenue_prev'])), axis=1)
+        merged['revenue_yoy'] = merged.apply(lambda r: pct_change(float(r['revenue_cur']), float(r['revenue_yoy'])), axis=1)
+        merged['dod'] = merged['session_dod']
+        merged['yoy'] = merged['session_yoy']
+        detail = merged.rename(columns={'sub':'sub_channel','sessions_cur':'sessions','transactions_cur':'orders','revenue_cur':'purchaseRevenue'})[['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy']]
         out_map[bucket] = detail.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).head(12).reset_index(drop=True)
     return out_map
 
@@ -2578,12 +2625,34 @@ def render_page_html(
 
     def top_kpi_card(title: str, value: str, delta_main: str, delta_yoy_s: str, cls_main: str, cls_yoy: str) -> str:
         return f"""
-        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+        <div class="report-card kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
-          <div class="mt-1 text-xl font-black text-slate-900">{esc(value)}</div>
+          <div class="mt-1 text-xl font-black text-slate-900 kpi-value">{esc(value)}</div>
           <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> · YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
         </div>
         """
+
+
+    def metric_value_slots(prefix: str, sessions_v: Any, orders_v: Any, revenue_v: Any) -> str:
+        return (
+            f"<span class='{prefix} metric-slot active' data-metric='sessions'>{fmt_int(sessions_v)}</span>"
+            f"<span class='{prefix} metric-slot' data-metric='orders'>{fmt_int(orders_v)}</span>"
+            f"<span class='{prefix} metric-slot' data-metric='revenue'>{fmt_currency_krw(revenue_v)}</span>"
+        )
+
+    def metric_delta_slots(prefix: str, session_v: float, order_v: float, revenue_v: float) -> str:
+        def one(metric: str, v: float) -> str:
+            return f"<span class='{prefix} metric-slot {'active' if metric == 'sessions' else ''} {delta_cls(v)}' data-metric='{metric}'>{'+' if float(v or 0) >= 0 else ''}{fmt_pct(float(v or 0),1)}</span>"
+        return one('sessions', session_v) + one('orders', order_v) + one('revenue', revenue_v)
+
+    def metric_tabs_html(section: str) -> str:
+        return (
+            f"<div class='metric-switch' data-metric-switch='{section}'>"
+            f"<button type='button' class='metric-tab active' data-metric-tab='sessions'>Sessions</button>"
+            f"<button type='button' class='metric-tab' data-metric-tab='orders'>Orders</button>"
+            f"<button type='button' class='metric-tab' data-metric-tab='revenue'>Revenue</button>"
+            f"</div>"
+        )
 
     def product_img(url: str) -> str:
         u = (url or PLACEHOLDER_IMG or "").strip()
@@ -2620,25 +2689,21 @@ def render_page_html(
                 row_attrs = f"data-bucket='{esc(bucket)}'"
             chan_html += table_row([
                 bucket_html,
-                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
-                f"<div class='text-right'>{fmt_int(getattr(r, 'transactions', 0))}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_dod', 0) or 0))}'>{('+' if float(getattr(r,'rev_dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_dod',0) or 0),1)}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'rev_yoy', 0) or 0))}'>{('+' if float(getattr(r,'rev_yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'rev_yoy',0) or 0),1)}</div>",
+                f"<div class='text-right metric-inline'>{metric_value_slots('cs-value', getattr(r, 'sessions', 0), getattr(r, 'transactions', 0), getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right metric-inline'>{metric_delta_slots('cs-wow', float(getattr(r, 'session_dod', getattr(r, 'rev_dod', 0)) or 0), float(getattr(r, 'orders_dod', 0) or 0), float(getattr(r, 'revenue_dod', 0) or 0))}</div>",
+                f"<div class='text-right metric-inline'>{metric_delta_slots('cs-yoy', float(getattr(r, 'session_yoy', getattr(r, 'rev_yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0))}</div>",
             ], bold=(bucket == "Total"), row_class=row_class, row_attrs=row_attrs)
 
     def build_bucket_detail_rows(df: pd.DataFrame) -> str:
         rows = ""
         if df is None or df.empty:
-            return "<tr><td colspan='6' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"
+            return "<tr><td colspan='4' class='px-2 py-6 text-center text-slate-400'>No data</td></tr>"
         for r in df.itertuples(index=False):
             rows += table_row([
                 esc(getattr(r, "sub_channel", "")),
-                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
-                f"<div class='text-right'>{fmt_int(getattr(r, 'orders', 0))}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'yoy', 0) or 0))}'>{('+' if float(getattr(r,'yoy',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'yoy',0) or 0),1)}</div>",
+                f"<div class='text-right metric-inline'>{metric_value_slots('bd-value', getattr(r, 'sessions', 0), getattr(r, 'orders', 0), getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right metric-inline'>{metric_delta_slots('bd-wow', float(getattr(r, 'session_dod', getattr(r, 'dod', 0)) or 0), float(getattr(r, 'orders_dod', 0) or 0), float(getattr(r, 'revenue_dod', 0) or 0))}</div>",
+                f"<div class='text-right metric-inline'>{metric_delta_slots('bd-yoy', float(getattr(r, 'session_yoy', getattr(r, 'yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0))}</div>",
             ])
         return rows
 
@@ -2688,18 +2753,19 @@ def render_page_html(
           </div>
           <button id="bucketDetailClose" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Close</button>
         </div>
-        <div class="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" data-bucket-tab="sessions" class="bucket-tab-btn active rounded-full border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">By Sessions</button>
-          <button type="button" data-bucket-tab="revenue" class="bucket-tab-btn rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-500">By Revenue</button>
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" data-bucket-tab="sessions" class="bucket-tab-btn active rounded-full border border-slate-900 bg-slate-900 px-3 py-1 text-xs font-extrabold text-white">Sort by Sessions</button>
+            <button type="button" data-bucket-tab="revenue" class="bucket-tab-btn rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-500">Sort by Revenue</button>
+          </div>
+          {metric_tabs_html('bucket-detail')}
         </div>
         <div data-bucket-panel="sessions" class="mt-4 overflow-x-auto">
           <table class="w-full table-auto text-sm min-w-[880px]">
             <thead class="text-xs text-slate-500">
               <tr>
                 <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap"><span class="metric-label active" data-metric-label="sessions">Sessions</span><span class="metric-label" data-metric-label="orders">Orders</span><span class="metric-label" data-metric-label="revenue">Revenue</span></th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
               </tr>
@@ -2712,9 +2778,7 @@ def render_page_html(
             <thead class="text-xs text-slate-500">
               <tr>
                 <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap"><span class="metric-label active" data-metric-label="sessions">Sessions</span><span class="metric-label" data-metric-label="orders">Orders</span><span class="metric-label" data-metric-label="revenue">Revenue</span></th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
               </tr>
@@ -2756,10 +2820,9 @@ def render_page_html(
 
             row_html = table_row([
                 esc(sub),
-                f"<div class='text-right'>{fmt_int(getattr(r, 'sessions', 0))}</div>",
-                f"<div class='text-right'>{fmt_currency_krw(getattr(r, 'purchaseRevenue', 0))}</div>",
-                f"<div class='text-right {delta_cls(float(getattr(r, 'dod', 0) or 0))}'>{('+' if float(getattr(r,'dod',0) or 0)>=0 else '')}{fmt_pct(float(getattr(r,'dod',0) or 0),1)}</div>",
-                yoy_html,
+                f"<div class='text-right metric-inline'>{metric_value_slots('pd-value', getattr(r, 'sessions', 0), getattr(r, 'orders', 0), getattr(r, 'purchaseRevenue', 0))}</div>",
+                f"<div class='text-right metric-inline'>{metric_delta_slots('pd-wow', float(getattr(r, 'session_dod', getattr(r, 'dod', 0)) or 0), float(getattr(r, 'orders_dod', 0) or 0), float(getattr(r, 'revenue_dod', 0) or 0))}</div>",
+                f"<div class='text-right metric-inline'>{metric_delta_slots('pd-yoy', float(getattr(r, 'session_yoy', getattr(r, 'yoy', 0)) or 0), float(getattr(r, 'orders_yoy', 0) or 0), float(getattr(r, 'revenue_yoy', 0) or 0)) if (is_total or has_yoy) else "<span class='metric-slot active text-slate-400' data-metric='sessions'>-</span><span class='metric-slot text-slate-400' data-metric='orders'>-</span><span class='metric-slot text-slate-400' data-metric='revenue'>-</span>"}</div>",
             ], bold=is_bold, row_class=row_cls)
 
             if is_total:
@@ -2920,6 +2983,36 @@ def render_page_html(
         for i, (key, _, svg) in enumerate(trend_tabs)
     ])
 
+
+    metric_switch_js = """<script>
+(function(){
+  function initMetricSection(section, valueClass, wowClass, yoyClass){
+    const root = document.querySelector(`[data-metric-switch="${section}"]`);
+    if(!root) return;
+    let active = 'sessions';
+    function sync(metric){
+      active = metric || 'sessions';
+      root.querySelectorAll('[data-metric-tab]').forEach(btn=>{
+        btn.classList.toggle('active', btn.getAttribute('data-metric-tab') === active);
+      });
+      document.querySelectorAll(`.${valueClass}, .${wowClass}, .${yoyClass}`).forEach(el=>{
+        el.classList.toggle('active', el.getAttribute('data-metric') === active);
+      });
+      const host = root.closest('.report-card, .bucket-detail-panel, .rounded-2xl') || document;
+      host.querySelectorAll('[data-metric-label]').forEach(el=>{
+        el.classList.toggle('active', el.getAttribute('data-metric-label') === active);
+      });
+    }
+    root.querySelectorAll('[data-metric-tab]').forEach(btn=>{
+      btn.addEventListener('click', ()=> sync(btn.getAttribute('data-metric-tab') || 'sessions'));
+    });
+    sync(active);
+  }
+  initMetricSection('channel-snapshot','cs-value','cs-wow','cs-yoy');
+  initMetricSection('bucket-detail','bd-value','bd-wow','bd-yoy');
+  initMetricSection('paid-detail','pd-value','pd-wow','pd-yoy');
+})();
+</script>"""
     paid_toggle_js = """<script>
 (function(){
   const btn = document.getElementById('paidToggle');
@@ -3061,9 +3154,10 @@ def render_page_html(
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
   </style>
+  {report_patch_css}
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <div class="mx-auto max-w-7xl p-6">
+<body class="bg-slate-50 text-slate-900 report-body">
+  <div class="w-full max-w-none px-5 py-6 xl:px-8 2xl:px-10 report-shell">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <div class="text-2xl font-black">Daily Digest</div>
@@ -3081,33 +3175,38 @@ def render_page_html(
       {kpis_cards}
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
-      <table class="mt-3 w-full table-auto text-sm">
+    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Channel Snapshot</div>
+        {metric_tabs_html('channel-snapshot')}
+      </div>
+      <div class="channel-table-wrap mt-3">
+      <table class="w-full table-auto text-sm">
         <thead class="text-xs text-slate-500">
           <tr>
             <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap"><span class="metric-label active" data-metric-label="sessions">Sessions</span><span class="metric-label" data-metric-label="orders">Orders</span><span class="metric-label" data-metric-label="revenue">Revenue</span></th>
             <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
             <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
           </tr>
         </thead>
         <tbody>{chan_html}</tbody>
       </table>
+      </div>
     </div>
     {bucket_detail_panel_html}
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
-      <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
-      <div class="mt-3 overflow-x-auto">
+    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Detail</div>
+        {metric_tabs_html('paid-detail')}
+      </div>
+      <div class="paid-table-wrap mt-3 overflow-x-auto">
         <table class="w-full table-auto text-sm min-w-[920px]">
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap"><span class="metric-label active" data-metric-label="sessions">Sessions</span><span class="metric-label" data-metric-label="orders">Orders</span><span class="metric-label" data-metric-label="revenue">Revenue</span></th>
               <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
               <th class="px-2 py-2 text-right whitespace-nowrap pr-4">YoY</th>
             </tr>
@@ -3120,7 +3219,7 @@ def render_page_html(
       </div>
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
       <div class="mt-3 overflow-x-auto">
         <table class="w-full table-auto text-sm min-w-[760px]">
@@ -3138,7 +3237,7 @@ def render_page_html(
       </div>
     </div>
 
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+    <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Trend (Index)</div>
         <div class="flex flex-wrap items-center gap-2">{trend_tabs_html}</div>
@@ -3147,12 +3246,12 @@ def render_page_html(
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Best Sellers (Top 5)</div>
         <div class="mt-3 space-y-2">{bs_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
 
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products (Top 5)</div>
         <div class="mt-3 space-y-2">{rising_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
@@ -3164,17 +3263,19 @@ def render_page_html(
     </div>
 
     <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · New</div>
         <div class="mt-3 space-y-2">{new_terms_html or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Search · Rising</div>
         <div class="mt-3 space-y-2">{rising_terms_html or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
     </div>
 
   </div>
+
+  {metric_switch_js}
 
   {paid_toggle_js}
 
@@ -3379,7 +3480,7 @@ def inject_report_toolbar(html: str, w: WindowSpec) -> str:
     """
 
     html = html.replace("</style>", toolbar_css + "\n  </style>", 1)
-    html = html.replace('<div class="mx-auto max-w-7xl p-6">', '<div class="mx-auto max-w-7xl p-6">' + toolbar_html, 1)
+    html = html.replace('<div class="w-full max-w-none px-5 py-6 xl:px-8 2xl:px-10 report-shell">', '<div class="w-full max-w-none px-5 py-6 xl:px-8 2xl:px-10 report-shell">' + toolbar_html, 1)
     html = re.sub(
         r'\s*<div class="flex items-center gap-2">\s*<a href="[^"]*" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold hover:bg-slate-50">Hub</a>\s*</div>',
         '',
@@ -3427,7 +3528,7 @@ def render_hub_index(dates: List[dt.date]) -> str:
     </div>
 
     <div class="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-      <div class="rounded-2xl border border-slate-200 bg-white/70 p-4">
+      <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
         <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Open report</div>
         <div class="mt-3 flex items-center gap-2">
           <select id="openDate" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
