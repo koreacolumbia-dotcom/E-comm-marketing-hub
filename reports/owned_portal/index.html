@@ -858,11 +858,11 @@
     .subtype-bar{
       display:flex;
       flex-wrap:wrap;
-      column-gap:12px;
-      row-gap:12px;
+      column-gap:14px;
+      row-gap:14px;
       align-items:center;
-      margin-top:16px;
-      margin-bottom:6px;
+      margin-top:18px;
+      margin-bottom:10px;
     }
     .subtype-group-label{
       display:inline-flex;
@@ -872,24 +872,28 @@
       letter-spacing:.16em;
       text-transform:uppercase;
       color:#8aa0bc;
-      margin-right:8px;
-      padding-right:2px;
-      min-height:38px;
+      margin-right:12px;
+      padding-right:6px;
+      min-height:42px;
+      flex:0 0 auto;
     }
     .subtype-chip{
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      min-height:38px;
+      min-height:42px;
+      min-width:74px;
       border:1px solid rgba(148,163,184,0.28);
       background:rgba(255,255,255,0.9);
       border-radius:999px;
-      padding:9px 16px;
+      padding:10px 18px;
       font-weight:900;
       font-size:12px;
       line-height:1;
       color:#0f172a;
       transition:all .15s ease;
+      flex:0 0 auto;
+      white-space:nowrap;
     }
     .subtype-chip:hover{ transform:translateY(-1px); box-shadow:0 10px 24px rgba(0,45,114,0.08); }
     .subtype-chip.active{
@@ -1916,6 +1920,38 @@
     return raw.includes('FAMILYCOUPON');
   }
 
+  function isEdmAutoRow(r){
+    const campaign = normalizeLooseText(r && r.campaign);
+    const term = normalizeLooseText(r && r.term);
+    const source = normalizeLooseText(getRowSourceValue(r));
+    const medium = normalizeLooseText(getRowMediumValue(r));
+    const sourceMedium = normalizeLooseText(getRowSourceMediumValue(r));
+    const raw = `${source} ${medium} ${sourceMedium} ${campaign} ${term}`;
+    if(raw.includes('CART_REMINDE') || raw.includes('CART_REMINDER')) return true;
+    if(campaign === 'EMAIL_MKT' || term === 'EMAIL_MKT') return true;
+    if(source === 'EMAIL_MKT' || medium === 'EMAIL_MKT') return true;
+    if(raw.includes('EMAIL MKT') || raw.includes('EMAIL_MKT')) return true;
+    return false;
+  }
+
+  function isEdmMessageRow(r){
+    if(isEdmAutoRow(r)) return false;
+    const campaign = normalizeLooseText(r && r.campaign);
+    const term = normalizeLooseText(r && r.term);
+    const source = normalizeLooseText(getRowSourceValue(r));
+    const medium = normalizeLooseText(getRowMediumValue(r));
+    const sourceMedium = normalizeLooseText(getRowSourceMediumValue(r));
+    const raw = `${source} ${medium} ${sourceMedium} ${campaign} ${term}`;
+
+    if(campaign === 'EDM') return true;
+    if(/^EDM_/.test(campaign) || /^EDM_/.test(term)) return true;
+    if(source === 'EDM' || medium === 'EDM' || raw.includes('EDM / EDM')) return true;
+
+    const parsed = extractGroupFromText((r && (r.campaign || '')) || '', getFallbackYear(r))
+      || extractGroupFromText((r && (r.term || '')) || '', getFallbackYear(r));
+    return !!parsed;
+  }
+
   function getSubtypeForChannelRow(r, channel){
     const ch = String(channel || (r && r.channel) || '').trim().toUpperCase();
     const campaign = normalizeLooseText(r && r.campaign);
@@ -1933,13 +1969,8 @@
       return 'OTHER';
     }
     if(ch === 'EDM'){
-      if((source === 'EDM' && medium === 'EDM') || sourceMedium === 'EDM / EDM'){
-        if(campaign === 'EDM_ECOM_CART_REMINDE' || campaign === 'EDM_ECOM_CART_REMINDER') return 'AUTO';
-        if(campaign === 'EDM' || /^EDM_/.test(campaign) || /^EDM_/.test(term)) return 'MESSAGE';
-      }
-      if((source === 'EMAIL_MKT' && (medium === 'EMAIL MKT' || medium === 'EMAIL_MKT')) || sourceMedium.includes('EMAIL_MKT / EMAIL MKT')){
-        if(campaign === 'EMAIL_MKT') return 'AUTO';
-      }
+      if(isEdmAutoRow(r)) return 'AUTO';
+      if(isEdmMessageRow(r)) return 'MESSAGE';
       return 'OTHER';
     }
     if(ch === 'LMS'){
@@ -3043,6 +3074,30 @@
     function renderByDate(channel, wrapEl){
       const subtype = getCurrentSubtypeForChannel(channel);
       const m = by[channel];
+
+      if((!m || !m.size) && channel === CHANNEL && subtype !== 'ALL'){
+        const fallbackRows = chipSourceRows.filter(r => {
+          if(String((r && r.channel) || '').trim().toUpperCase() !== channel) return false;
+          const inferred = getSubtypeForChannelRow(r, channel);
+          if(inferred === subtype) return true;
+          if(channel === 'EDM' && subtype === 'MESSAGE'){
+            const campaign = normalizeLooseText(r && r.campaign);
+            const term = normalizeLooseText(r && r.term);
+            return campaign === 'EDM' || /^EDM_/.test(campaign) || /^EDM_/.test(term);
+          }
+          return false;
+        });
+        for(const r of fallbackRows){
+          const parsed = getScopedRowGroup(r, channel, subtype);
+          const year = String(parsed.year || '');
+          const mmdd = String(parsed.mmdd || 'NO_DATE');
+          if(!year) continue;
+          const gk = `${year}-${mmdd}`;
+          if(!m.has(gk)) m.set(gk, []);
+          m.get(gk).push(r);
+        }
+      }
+
       const groups = Array.from(m.entries()).map(([gk, rows])=>{
         const a = aggregateRow(rows);
         const p = parseScopedGroupKey(gk);
@@ -4570,7 +4625,7 @@
     const prevStart = `${prevYear}-01-01`;
     const prevEnd = clampToAvailable(safeShiftYear(thisEnd, -1));
 
-    const key = `${CHANNEL}||${thisStart}||${thisEnd}||${prevStart}||${prevEnd}`;
+    const key = `${CHANNEL}||${normalizeSubtype(CHANNEL, CHANNEL_SUBTYPE)}||${thisStart}||${thisEnd}||${prevStart}||${prevEnd}`;
     if(YTD_CACHE.has(key)){
       const v = YTD_CACHE.get(key);
       const ALL = v.all;
