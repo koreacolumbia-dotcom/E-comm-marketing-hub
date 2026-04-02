@@ -858,25 +858,36 @@
     .subtype-bar{
       display:flex;
       flex-wrap:wrap;
-      gap:10px;
+      column-gap:12px;
+      row-gap:12px;
       align-items:center;
-      margin-top:14px;
+      margin-top:16px;
+      margin-bottom:6px;
     }
     .subtype-group-label{
+      display:inline-flex;
+      align-items:center;
       font-size:11px;
       font-weight:900;
       letter-spacing:.16em;
       text-transform:uppercase;
       color:#8aa0bc;
-      margin-right:2px;
+      margin-right:8px;
+      padding-right:2px;
+      min-height:38px;
     }
     .subtype-chip{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:38px;
       border:1px solid rgba(148,163,184,0.28);
       background:rgba(255,255,255,0.9);
       border-radius:999px;
-      padding:8px 12px;
+      padding:9px 16px;
       font-weight:900;
       font-size:12px;
+      line-height:1;
       color:#0f172a;
       transition:all .15s ease;
     }
@@ -2439,7 +2450,7 @@
     for(const r of (baseRows || [])){
       if(r.channel !== CHANNEL) continue;
       if(!rowMatchesChannelSubtype(r, CHANNEL, subtype)) continue;
-      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, sourceMessageLog)) continue;
+      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, sourceMessageLog, subtype)) continue;
       if(!matchesSearch(r)) continue;
       const scoped = getScopedRowGroup(r, CHANNEL, subtype);
       const key = `${r.channel}||${scoped.year || ''}||${scoped.mmdd || ''}||${r.campaign||''}||${r.term||''}`;
@@ -2465,7 +2476,7 @@
         items_purchased: 0,
       };
       if(!rowMatchesChannelSubtype(pseudo, CHANNEL, subtype)) continue;
-      if(!isRowEligibleForYearCutoff(pseudo, pseudo.channel, cutoffDate, sourceMessageLog)) continue;
+      if(!isRowEligibleForYearCutoff(pseudo, pseudo.channel, cutoffDate, sourceMessageLog, subtype)) continue;
       if(!matchesSearch(pseudo)) continue;
       const scoped = getScopedRowGroup(pseudo, CHANNEL, subtype);
       const key = `${pseudo.channel}||${scoped.year || ''}||${scoped.mmdd || ''}||${pseudo.campaign}||`;
@@ -2774,15 +2785,25 @@
     return latestAvailable || clampToAvailable(yesterday) || currentPeriodEndDate();
   }
 
-  function isRowEligibleForYearCutoff(r, channel, endDate, messageLog){
-    const rowDate = getRowGroupDate(r);
-    const rowYear = getRowYear(r);
-    if(!rowDate || !rowYear || channel !== String((r && r.channel) || '')) return false;
+  function isRowEligibleForYearCutoff(r, channel, endDate, messageLog, subtype='ALL'){
+    const ch = String(channel || '').trim().toUpperCase();
+    const rowChannel = String((r && r.channel) || '').trim().toUpperCase();
+    if(!ch || ch !== rowChannel) return false;
+
+    const scoped = getScopedRowGroup(r, ch, subtype);
+    const rowYear = String((scoped && scoped.year) || '').trim();
+    const rowMmdd = String((scoped && scoped.mmdd) || '').trim();
+    if(!/^\d{4}$/.test(rowYear)) return false;
 
     const cutoffForYear = getComparableCutoffForYear(endDate, rowYear);
     if(!cutoffForYear) return true;
 
-    const scheduledDates = getScheduledMessageDateSet(messageLog, channel, cutoffForYear);
+    if(!/^\d{4}$/.test(rowMmdd)){
+      return String(cutoffForYear || '').slice(0,4) === rowYear;
+    }
+
+    const rowDate = dateStrFromYearMmdd(rowYear, rowMmdd);
+    const scheduledDates = getScheduledMessageDateSet(messageLog, ch, cutoffForYear);
     if(scheduledDates.size){
       return scheduledDates.has(rowDate);
     }
@@ -3002,7 +3023,7 @@
 
       const scopedSubtype = getCurrentSubtypeForChannel(r.channel);
       if(!rowMatchesChannelSubtype(r, r.channel, scopedSubtype)) continue;
-      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog)) continue;
+      if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, messageLog, scopedSubtype)) continue;
 
       const parsed = getScopedRowGroup(r, r.channel, scopedSubtype);
       const year = String(parsed.year || '');
