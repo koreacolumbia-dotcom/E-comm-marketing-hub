@@ -1929,15 +1929,6 @@
     return countDistinctSends(rows || [], expectedYear, endDate);
   }
 
-  function hasActualDateScopedSourceRow(baseRows, channel, year, mmdd){
-    return (baseRows || []).some(r =>
-      r.channel === channel &&
-      getRowYear(r) === year &&
-      getRowMmdd(r) === mmdd &&
-      isDateScopedRowForChannel(r, channel)
-    );
-  }
-
   function getCampaignChipSourceRows(){
     const qq = (q.value||'').trim().toLowerCase();
     const cutoffDate = getCampaignChipCutoffDate();
@@ -1972,7 +1963,6 @@
       if(m.channel !== CHANNEL) continue;
       const year = String(m.date || '').slice(0,4);
       const mmdd = String(m.date || '').slice(5,7) + String(m.date || '').slice(8,10);
-      if(!hasActualDateScopedSourceRow(baseRows, m.channel, year, mmdd)) continue;
       const pseudo = {
         date: m.date,
         year,
@@ -2797,19 +2787,13 @@
     });
   }
 
-  function isDateScopedRowForChannel(row, channel){
-    const normalized = String(channel || (row && row.channel) || '').trim().toUpperCase();
-    if(normalized === 'KAKAO') return isKakaoCountableSendRow(row);
-    return true;
-  }
-
   function getSelectedKpiRows(sel){
     if(!sel || !RAW) return [];
     if(sel.type === 'single'){
       return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
     }
     if(sel.type === 'group'){
-      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd && isDateScopedRowForChannel(x, sel.channel));
+      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && getRowYear(x)===sel.year && getRowMmdd(x)===sel.mmdd);
     }
     if(sel.type === 'other-group'){
       return (RAW.kpi||[]).filter(x=> {
@@ -2854,8 +2838,7 @@
       return (RAW.prod||[]).filter(p =>
         p.channel===sel.channel &&
         getRowYear(p)===sel.year &&
-        getRowMmdd(p)===sel.mmdd &&
-        isDateScopedRowForChannel(p, sel.channel)
+        getRowMmdd(p)===sel.mmdd
       );
     }
     if(sel.type === 'other-group'){
@@ -2881,8 +2864,7 @@
       return (RAW.analysis||[]).filter(r =>
         r.channel===sel.channel &&
         getRowYear(r)===sel.year &&
-        getRowMmdd(r)===sel.mmdd &&
-        isDateScopedRowForChannel(r, sel.channel)
+        getRowMmdd(r)===sel.mmdd
       );
     }
     if(sel.type === 'other-group'){
@@ -3935,12 +3917,9 @@
     renderProducts();
   }
 
-  async function loadRange(startStr, endStr, options = {}){
+  async function loadRange(startStr, endStr){
     hideNotice();
-    const preserveSelected = !!(options && options.preserveSelected);
-    if(!preserveSelected){
-      SELECTED = null;
-    }
+    SELECTED = null;
 
     if(!AVAILABLE || !AVAILABLE.length){
       showNotice('available_dates.json을 읽지 못해서 기간 누적을 할 수 없어.');
@@ -4005,7 +3984,7 @@
     const e = WEEK_ANCHORED_MODE ? clampToAvailable(ymd(addDays(cur, 6))) : ymd(endOfWeekSun(cur));
     startPicker.value = s;
     endPicker.value = e;
-    await loadRange(s, e, { preserveSelected: true });
+    await loadRange(s, e);
   }
 
   async function loadAvailableDates(){
@@ -4209,11 +4188,10 @@
   }
 
   // ✅ MMDD 클릭 시: 그 날짜부터 7일 누적(RANGE)로 디폴트 로드
-  async function load7dFromDate(dateStr, options = {}){
+  async function load7dFromDate(dateStr){
     const s = clampToAvailable(dateStr);
     const eRaw = ymd(addDays(parseYMD(s), 6));
     const e = clampToAvailable(eRaw);
-    const preserveSelected = !!(options && options.preserveSelected);
 
     WEEK_ANCHORED_MODE = true;
     VIEW = 'WEEK';
@@ -4223,7 +4201,7 @@
     endPicker.value = e;
 
     primeYtdLoading();
-    await loadRange(s, e, { preserveSelected });
+    await loadRange(s, e);
     await computeYTD();
     finalizeAnimatedViewChange();
   }
@@ -4239,7 +4217,7 @@
         toggleGroupJump.checked = true;
       }
       GROUP_JUMP_MODE = true;
-      await load7dFromDate(resolvedDate, { preserveSelected: true });
+      await load7dFromDate(resolvedDate);
       filterKPI();
       updateChannelTotals();
       renderCampaignButtons();
@@ -4506,6 +4484,854 @@
     if(ytdCards) ytdCards.style.display = '';
     await computeYTD();
     finalizeAnimatedViewChange();
+
+  /* === FINAL PATCH: subtype tabs / custom message editor / MMDD exceptions === */
+  const DETAIL_MODE_BY_CHANNEL = { EDM:'ALL', LMS:'ALL', KAKAO:'ALL' };
+  const DETAIL_OPTIONS = {
+    EDM: [
+      { key:'ALL', label:'ALL' },
+      { key:'MESSAGE', label:'MESSAGE' },
+      { key:'AUTO', label:'AUTO' },
+    ],
+    LMS: [
+      { key:'ALL', label:'ALL' },
+      { key:'MESSAGE', label:'MESSAGE' },
+    ],
+    KAKAO: [
+      { key:'ALL', label:'ALL' },
+      { key:'MESSAGE', label:'메시지' },
+      { key:'MENU', label:'메뉴' },
+      { key:'ALIMTALK', label:'알림톡' },
+      { key:'FRIENDSTALK', label:'친구톡' },
+    ],
+  };
+
+  function patchNorm(v){
+    return String(v || '').trim().toUpperCase();
+  }
+  function patchRowText(r){
+    return `${patchNorm(r && r.campaign)} ${patchNorm(r && r.term)}`.trim();
+  }
+  function getActiveDetailMode(channel){
+    const ch = String(channel || CHANNEL || '').trim().toUpperCase();
+    return DETAIL_MODE_BY_CHANNEL[ch] || 'ALL';
+  }
+  function setActiveDetailMode(channel, mode){
+    const ch = String(channel || '').trim().toUpperCase();
+    DETAIL_MODE_BY_CHANNEL[ch] = String(mode || 'ALL').trim().toUpperCase();
+    renderDetailTabsUI();
+    renderSubtypeSummaryPanel();
+    renderCampaignButtons();
+    if(SELECTED && SELECTED.channel === ch){
+      SELECTED.detailMode = DETAIL_MODE_BY_CHANNEL[ch];
+      aggregateKPIForSelected();
+      renderTerms();
+      renderProducts();
+    }
+  }
+  function getOverrideMmdd(r){
+    const all = patchRowText(r);
+    if(all.includes('LMS_ECOM_FAMILYCOUPON')) return '0319';
+    return '';
+  }
+  const __origGetRowGroup = getRowGroup;
+  getRowGroup = function(r){
+    const overrideMmdd = getOverrideMmdd(r);
+    if(overrideMmdd){
+      const year = String((r && (r.year || '')) || '').trim() || getFallbackYear(r) || String(currentPeriodEndDate() || '').slice(0,4);
+      return { year, mmdd: overrideMmdd, explicit:true };
+    }
+    return __origGetRowGroup(r);
+  };
+
+  function inferSubtype(channel, r){
+    const ch = String(channel || (r && r.channel) || '').trim().toUpperCase();
+    const all = patchRowText(r);
+    if(ch === 'KAKAO'){
+      if(all.includes('KAKAO_CH_MENU')) return 'MENU';
+      if(all.includes('KAKAO_CH_MESSAGE')) return 'MESSAGE';
+      if(all.includes('KAKAO_ALIMTALK')) return 'ALIMTALK';
+      if(all.includes('KAKAO_FRIDNSTALK') || all.includes('KAKAO_FRIENDSTALK')) return 'FRIENDSTALK';
+      return 'ALL_OTHER';
+    }
+    if(ch === 'EDM'){
+      if(all.includes('EDM_ECOM_CART_REMINDE') || all.includes('EDM_ECOM_CART_REMIND') || all.includes('EMAIL_MKT')) return 'AUTO';
+      if(all.includes('EDM')) return 'MESSAGE';
+      return 'ALL_OTHER';
+    }
+    if(ch === 'LMS'){
+      if(all.includes('LMS_ECOM')) return 'MESSAGE';
+      return 'ALL_OTHER';
+    }
+    return 'ALL_OTHER';
+  }
+
+  function rowMatchesDetailMode(channel, mode, r){
+    const ch = String(channel || (r && r.channel) || '').trim().toUpperCase();
+    const md = String(mode || 'ALL').trim().toUpperCase();
+    if(ch !== String((r && r.channel) || '').trim().toUpperCase()) return false;
+    if(md === 'ALL') return true;
+    return inferSubtype(ch, r) === md;
+  }
+
+  function getSubtypeGroupInfo(r, channel, mode){
+    const ch = String(channel || (r && r.channel) || '').trim().toUpperCase();
+    const md = String(mode || 'ALL').trim().toUpperCase();
+    const year = String(getRowYear(r) || (r && r.year) || getFallbackYear(r) || '').trim();
+    let mmdd = '';
+    if(getOverrideMmdd(r)) mmdd = getOverrideMmdd(r);
+    if(!mmdd){
+      if(ch === 'KAKAO' && md === 'ALIMTALK'){
+        mmdd = mmddFromText((r && r.term) || '') || '';
+      }else if(ch === 'EDM' && md === 'AUTO'){
+        mmdd = '';
+      }else{
+        mmdd = getRowMmdd(r) || mmddFromText((r && r.campaign) || '') || mmddFromText((r && r.term) || '') || '';
+      }
+    }
+    const needsNoDateBucket = (
+      (ch === 'KAKAO' && ['MENU','ALIMTALK','FRIENDSTALK'].includes(md)) ||
+      (ch === 'EDM' && md === 'AUTO')
+    );
+    if(!mmdd && md === 'MESSAGE' && (ch === 'KAKAO' || ch === 'EDM' || ch === 'LMS')){
+      const txt = patchRowText(r);
+      if(txt.includes('NEWMEMBER') || txt.includes('NEWMEMBER')) mmdd = '';
+    }
+    if(!mmdd && needsNoDateBucket) mmdd = 'NO_DATE';
+    if(!mmdd && md === 'ALL'){
+      mmdd = getRowMmdd(r) || mmddFromText((r && r.campaign) || '') || mmddFromText((r && r.term) || '') || '';
+      if(!mmdd) mmdd = 'NO_DATE';
+    }
+    if(!mmdd && md === 'MESSAGE'){
+      mmdd = 'NO_DATE';
+    }
+    return {
+      year: year || String(currentPeriodEndDate() || '').slice(0,4),
+      mmdd: mmdd || 'NO_DATE',
+      label: (mmdd && mmdd !== 'NO_DATE') ? mmdd : '일자없음',
+      hasDate: !!(mmdd && /^\d{4}$/.test(mmdd)),
+    };
+  }
+
+  function getSelectionGroupInfo(sel, r){
+    const channel = (sel && sel.channel) || (r && r.channel) || CHANNEL;
+    const detailMode = (sel && sel.detailMode) || getActiveDetailMode(channel);
+    return getSubtypeGroupInfo(r, channel, detailMode);
+  }
+
+  function getRowsForDetail(channel, mode, rows){
+    return (rows || []).filter(r => rowMatchesDetailMode(channel, mode, r));
+  }
+
+  function getSelectionStorageKey(sel){
+    if(!sel) return '';
+    const detail = (sel.detailMode || getActiveDetailMode(sel.channel) || 'ALL');
+    if(sel.type === 'single'){
+      return ['single', sel.channel, detail, sel.campaign || '', sel.term || ''].join('||');
+    }
+    return [sel.type || 'group', sel.channel, detail, sel.year || '', sel.mmdd || ''].join('||');
+  }
+  function loadCustomMessageData(sel){
+    const key = getSelectionStorageKey(sel);
+    if(!key) return null;
+    try{
+      const raw = localStorage.getItem(`owned_custom_message__${key}`);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){
+      return null;
+    }
+  }
+  function saveCustomMessageData(sel, payload){
+    const key = getSelectionStorageKey(sel);
+    if(!key) return false;
+    localStorage.setItem(`owned_custom_message__${key}`, JSON.stringify(payload || {}));
+    return true;
+  }
+
+  function ensurePatchStyle(){
+    if(document.getElementById('finalPatchStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'finalPatchStyle';
+    style.textContent = `
+      .detail-tab-wrap{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px;}
+      .detail-tab-btn{border:1px solid rgba(0,45,114,.14);background:#fff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:900;color:#334155;box-shadow:0 6px 18px rgba(15,23,42,.05);}
+      .detail-tab-btn.active{background:#002d72;color:#fff;border-color:#002d72;}
+      .detail-summary-wrap{margin:18px 0 22px;padding:18px;border:1px solid rgba(148,163,184,.20);border-radius:22px;background:rgba(255,255,255,.88);box-shadow:0 18px 36px rgba(15,23,42,.06);}
+      .detail-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px;}
+      .detail-summary-card{padding:14px 16px;border:1px solid rgba(226,232,240,.95);border-radius:18px;background:linear-gradient(180deg,#fff,#f8fafc);}
+      .detail-summary-title{font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#94a3b8;}
+      .detail-summary-value{font-size:28px;font-weight:900;line-height:1;margin-top:8px;color:#0f172a;}
+      .detail-summary-sub{font-size:12px;font-weight:800;color:#64748b;margin-top:8px;}
+      .message-editor-wrap{margin:0 0 24px;padding:16px;border:1px solid rgba(148,163,184,.22);border-radius:20px;background:rgba(255,255,255,.84);}
+      .message-editor-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+      .message-editor-panel.hidden{display:none;}
+      .message-editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+      .message-editor-grid textarea{min-height:110px;border:1px solid rgba(148,163,184,.28);border-radius:14px;padding:12px;font-size:13px;font-weight:700;width:100%;background:rgba(255,255,255,.94);}
+      .message-editor-grid input[type="text"], .message-editor-grid input[type="file"]{width:100%;}
+      .message-editor-actions{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:12px;}
+      .message-preview-image{max-height:180px;border-radius:16px;border:1px solid rgba(226,232,240,.95);margin-top:10px;}
+      .chip-row{display:flex;flex-wrap:wrap;gap:10px;}
+      @media (max-width: 980px){
+        .detail-summary-grid,.message-editor-grid{grid-template-columns:1fr 1fr;}
+      }
+      @media (max-width: 720px){
+        .detail-summary-grid,.message-editor-grid{grid-template-columns:1fr;}
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureDetailTabsUI(){
+    ensurePatchStyle();
+    const map = {
+      EDM: document.getElementById('secEDM'),
+      LMS: document.getElementById('secLMS'),
+      KAKAO: document.getElementById('secKAKAO'),
+    };
+    Object.entries(map).forEach(([channel, sec]) => {
+      if(!sec) return;
+      let box = sec.querySelector('.detail-tab-host');
+      if(!box){
+        box = document.createElement('div');
+        box.className = 'detail-tab-host';
+        sec.insertBefore(box, sec.firstElementChild);
+      }
+      const opts = DETAIL_OPTIONS[channel] || [{key:'ALL', label:'ALL'}];
+      box.innerHTML = `
+        <div class="small-label mb-2">${channel} detail</div>
+        <div class="detail-tab-wrap">
+          ${opts.map(opt => `<button type="button" class="detail-tab-btn ${getActiveDetailMode(channel)===opt.key?'active':''}" data-channel="${channel}" data-detail="${opt.key}">${opt.label}</button>`).join('')}
+        </div>
+      `;
+      box.querySelectorAll('.detail-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => setActiveDetailMode(btn.dataset.channel, btn.dataset.detail));
+      });
+    });
+  }
+
+  function renderDetailTabsUI(){
+    ensureDetailTabsUI();
+    document.querySelectorAll('.detail-tab-btn').forEach(btn => {
+      const channel = String(btn.dataset.channel || '').toUpperCase();
+      const detail = String(btn.dataset.detail || '').toUpperCase();
+      btn.classList.toggle('active', getActiveDetailMode(channel) === detail);
+    });
+  }
+
+  function ensureSubtypeSummaryPanel(){
+    ensurePatchStyle();
+    let host = document.getElementById('detailSummaryWrap');
+    if(host) return host;
+    const kpiPanel = document.getElementById('kpiPanel') || document.getElementById('kpiGrid')?.parentElement;
+    host = document.createElement('div');
+    host.id = 'detailSummaryWrap';
+    host.className = 'detail-summary-wrap';
+    host.innerHTML = `
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div class="small-label">Channel cumulative KPI</div>
+          <div id="detailSummaryTitle" class="text-2xl font-black tracking-tight text-slate-900 mt-1">-</div>
+          <div id="detailSummarySub" class="muted font-semibold text-sm mt-2">현재 채널 기준 누적 요약</div>
+        </div>
+        <div id="detailSummaryTabs" class="detail-tab-wrap"></div>
+      </div>
+      <div id="detailSummaryGrid" class="detail-summary-grid"></div>
+    `;
+    if(kpiPanel && kpiPanel.parentElement){
+      kpiPanel.parentElement.insertBefore(host, kpiPanel);
+    }else{
+      document.body.appendChild(host);
+    }
+    return host;
+  }
+
+  function renderSubtypeSummaryPanel(){
+    const host = ensureSubtypeSummaryPanel();
+    if(!host) return;
+    const channel = CHANNEL;
+    const mode = getActiveDetailMode(channel);
+    const endDate = currentPeriodEndDate();
+    const rows = getRowsForDetail(channel, mode, ((RAW && RAW.kpi) || []).filter(r => r.channel === channel));
+    const agg = aggregateRow(rows);
+    let sendRows = rows;
+    if(channel === 'KAKAO'){
+      sendRows = ((RAW && RAW.kpi) || []).filter(r => r.channel === 'KAKAO' && rowMatchesDetailMode('KAKAO', 'MESSAGE', r));
+    }
+    const sendCount = countDistinctSends(sendRows || [], String(endDate || '').slice(0,4), endDate);
+    const cvr = agg.sessions ? ((agg.purchases || 0) / agg.sessions * 100) : 0;
+    const tabs = DETAIL_OPTIONS[channel] || [{key:'ALL', label:'ALL'}];
+    host.querySelector('#detailSummaryTitle').textContent = `${channel} · ${mode}`;
+    host.querySelector('#detailSummarySub').textContent = `${periodLabel()} 기준 누적 요약`;
+    host.querySelector('#detailSummaryTabs').innerHTML = tabs.map(opt => `<button type="button" class="detail-tab-btn ${mode===opt.key?'active':''}" data-channel="${channel}" data-detail="${opt.key}">${opt.label}</button>`).join('');
+    host.querySelectorAll('#detailSummaryTabs .detail-tab-btn').forEach(btn => btn.addEventListener('click', ()=>setActiveDetailMode(btn.dataset.channel, btn.dataset.detail)));
+    host.querySelector('#detailSummaryGrid').innerHTML = `
+      <div class="detail-summary-card"><div class="detail-summary-title">Sessions</div><div class="detail-summary-value">${fmt(agg.sessions)}</div><div class="detail-summary-sub">Selected scope</div></div>
+      <div class="detail-summary-card"><div class="detail-summary-title">Revenue</div><div class="detail-summary-value">${fmtMoney(agg.revenue)}</div><div class="detail-summary-sub">Selected scope</div></div>
+      <div class="detail-summary-card"><div class="detail-summary-title">Send Count</div><div class="detail-summary-value">${fmt(sendCount)}</div><div class="detail-summary-sub">${channel === 'KAKAO' ? 'Message only distinct MMDD' : 'Distinct send group'}</div></div>
+      <div class="detail-summary-card"><div class="detail-summary-title">CVR</div><div class="detail-summary-value">${cvr.toFixed(2)}%</div><div class="detail-summary-sub">Purchases / Sessions</div></div>
+    `;
+  }
+
+  function ensureMessageEditorUI(){
+    ensurePatchStyle();
+    let host = document.getElementById('messageEditorWrap');
+    if(host) return host;
+    const messageCards = document.getElementById('msgBody')?.closest('.grid');
+    host = document.createElement('div');
+    host.id = 'messageEditorWrap';
+    host.className = 'message-editor-wrap';
+    host.innerHTML = `
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div class="small-label">Message meta editor</div>
+          <div class="text-lg font-black tracking-tight mt-1">데이터 추가</div>
+          <div class="muted font-semibold text-sm mt-1">현재 선택된 채널/일자 그룹에 제목, 본문, JPG 이미지를 브라우저 로컬 저장으로 붙일 수 있어요.</div>
+        </div>
+        <div class="message-editor-tabs">
+          <button type="button" class="detail-tab-btn active" data-mode="VIEW">보기</button>
+          <button type="button" class="detail-tab-btn" data-mode="EDIT">데이터 추가</button>
+        </div>
+      </div>
+      <div id="messageEditorView" class="message-editor-panel">
+        <div id="messageEditorViewText" class="muted font-semibold text-sm">선택된 항목이 없어요.</div>
+        <img id="messagePreviewImage" class="message-preview-image hidden" alt="message preview" />
+      </div>
+      <div id="messageEditorEdit" class="message-editor-panel hidden">
+        <div class="message-editor-grid">
+          <div>
+            <div class="small-label mb-2">Message title</div>
+            <input id="customMsgTitleInput" type="text" placeholder="메시지 제목 직접 입력" />
+          </div>
+          <div>
+            <div class="small-label mb-2">JPG upload</div>
+            <input id="customMsgImageInput" type="file" accept=".jpg,.jpeg,image/jpeg" />
+          </div>
+          <div>
+            <div class="small-label mb-2">Message content</div>
+            <textarea id="customMsgBodyInput" placeholder="메시지 본문 직접 입력"></textarea>
+          </div>
+          <div>
+            <div class="small-label mb-2">Current key</div>
+            <div id="customMsgKeyText" class="muted font-semibold text-sm break-all">-</div>
+            <img id="customMsgImagePreview" class="message-preview-image hidden" alt="image preview" />
+          </div>
+        </div>
+        <div class="message-editor-actions">
+          <button id="customMsgClearBtn" type="button" class="btn">초기화</button>
+          <button id="customMsgSaveBtn" type="button" class="btn btn-primary">저장</button>
+        </div>
+      </div>
+    `;
+    if(messageCards && messageCards.parentElement){
+      messageCards.parentElement.insertBefore(host, messageCards.nextSibling);
+    }else{
+      document.body.appendChild(host);
+    }
+    host.querySelectorAll('.message-editor-tabs .detail-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        host.querySelectorAll('.message-editor-tabs .detail-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const isView = btn.dataset.mode === 'VIEW';
+        host.querySelector('#messageEditorView').classList.toggle('hidden', !isView);
+        host.querySelector('#messageEditorEdit').classList.toggle('hidden', isView);
+      });
+    });
+    const imgInput = host.querySelector('#customMsgImageInput');
+    imgInput.addEventListener('change', () => {
+      const file = imgInput.files && imgInput.files[0];
+      if(!file){
+        host.querySelector('#customMsgImagePreview').classList.add('hidden');
+        host.querySelector('#customMsgImagePreview').src = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = host.querySelector('#customMsgImagePreview');
+        img.src = String(reader.result || '');
+        img.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    });
+    host.querySelector('#customMsgSaveBtn').addEventListener('click', async () => {
+      if(!SELECTED){
+        showNotice('먼저 날짜 또는 캠페인을 선택해 주세요.');
+        return;
+      }
+      const file = imgInput.files && imgInput.files[0];
+      let imageData = host.querySelector('#customMsgImagePreview').src || '';
+      if(file && !imageData){
+        imageData = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.readAsDataURL(file);
+        });
+      }
+      saveCustomMessageData(SELECTED, {
+        title: host.querySelector('#customMsgTitleInput').value || '',
+        body: host.querySelector('#customMsgBodyInput').value || '',
+        image: imageData || '',
+        updated_at: new Date().toISOString()
+      });
+      refreshMessageEditor();
+      aggregateKPIForSelected();
+      showNotice('메시지 메타를 로컬 브라우저에 저장했어요.');
+    });
+    host.querySelector('#customMsgClearBtn').addEventListener('click', () => {
+      if(!SELECTED) return;
+      const key = getSelectionStorageKey(SELECTED);
+      if(key) localStorage.removeItem(`owned_custom_message__${key}`);
+      host.querySelector('#customMsgTitleInput').value = '';
+      host.querySelector('#customMsgBodyInput').value = '';
+      host.querySelector('#customMsgImageInput').value = '';
+      host.querySelector('#customMsgImagePreview').src = '';
+      host.querySelector('#customMsgImagePreview').classList.add('hidden');
+      refreshMessageEditor();
+      aggregateKPIForSelected();
+    });
+    return host;
+  }
+
+  function refreshMessageEditor(metaOverride){
+    const host = ensureMessageEditorUI();
+    if(!host) return;
+    const key = getSelectionStorageKey(SELECTED);
+    const stored = loadCustomMessageData(SELECTED) || {};
+    host.querySelector('#customMsgKeyText').textContent = key || '선택 없음';
+    host.querySelector('#customMsgTitleInput').value = stored.title || '';
+    host.querySelector('#customMsgBodyInput').value = stored.body || '';
+    const editImg = host.querySelector('#customMsgImagePreview');
+    editImg.src = stored.image || '';
+    editImg.classList.toggle('hidden', !stored.image);
+    const viewText = host.querySelector('#messageEditorViewText');
+    const viewImg = host.querySelector('#messagePreviewImage');
+    const meta = metaOverride || stored || {};
+    viewText.textContent = key ? `현재 키: ${key}` : '선택된 항목이 없어요.';
+    viewImg.src = meta.image || stored.image || '';
+    viewImg.classList.toggle('hidden', !(meta.image || stored.image));
+  }
+
+  function getMessageMetaForSelection(sel, rows){
+    const stored = loadCustomMessageData(sel) || {};
+    const selectionMessages = getSelectionMessageRows(sel, rows);
+    const base = (selectionMessages && selectionMessages.length)
+      ? {
+          title: selectionMessages.map(m => m.message_title).filter(Boolean).join(' | ') || '-',
+          body: selectionMessages.map(m => m.message_body).filter(Boolean).join(' | ') || '-',
+          image: ''
+        }
+      : (() => {
+          const fallback = getMessageMeta(rows);
+          return { title: fallback.title || '-', body: fallback.body || '-', image: '' };
+        })();
+    return {
+      title: stored.title || base.title || '-',
+      body: stored.body || base.body || '-',
+      image: stored.image || ''
+    };
+  }
+
+  const __origGetSelectionMessageRows = getSelectionMessageRows;
+  getSelectionMessageRows = function(sel, rows){
+    if(!sel) return null;
+    if(sel.type === 'group' && sel.mmdd === 'NO_DATE') return null;
+    return __origGetSelectionMessageRows(sel, rows);
+  };
+
+  getSelectedKpiRows = function(sel){
+    if(!sel || !RAW) return [];
+    const detail = sel.detailMode || getActiveDetailMode(sel.channel);
+    if(sel.type === 'single'){
+      return (RAW.kpi||[]).filter(x=> x.channel===sel.channel && rowMatchesDetailMode(sel.channel, detail, x) && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
+    }
+    if(sel.type === 'group'){
+      return (RAW.kpi||[]).filter(x=> {
+        if(x.channel !== sel.channel) return false;
+        if(!rowMatchesDetailMode(sel.channel, detail, x)) return false;
+        const gi = getSubtypeGroupInfo(x, sel.channel, detail);
+        return gi.year === sel.year && gi.mmdd === sel.mmdd;
+      });
+    }
+    if(sel.type === 'other-group'){
+      return (RAW.kpi||[]).filter(x=> {
+        if(x.channel !== sel.channel) return false;
+        if(!rowMatchesDetailMode(sel.channel, detail, x)) return false;
+        const parsed = getOtherCampaignDateGroup(x);
+        return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
+      });
+    }
+    return [];
+  };
+
+  getSelectedProdRows = function(sel){
+    if(!sel || !RAW) return [];
+    const detail = sel.detailMode || getActiveDetailMode(sel.channel);
+    if(sel.type === 'single'){
+      return (RAW.prod||[]).filter(x=> x.channel===sel.channel && rowMatchesDetailMode(sel.channel, detail, x) && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
+    }
+    if(sel.type === 'group'){
+      return (RAW.prod||[]).filter(x=> {
+        if(x.channel !== sel.channel) return false;
+        if(!rowMatchesDetailMode(sel.channel, detail, x)) return false;
+        const gi = getSubtypeGroupInfo(x, sel.channel, detail);
+        return gi.year === sel.year && gi.mmdd === sel.mmdd;
+      });
+    }
+    if(sel.type === 'other-group'){
+      return (RAW.prod||[]).filter(x=> {
+        if(x.channel !== sel.channel) return false;
+        if(!rowMatchesDetailMode(sel.channel, detail, x)) return false;
+        const parsed = getOtherCampaignDateGroup(x);
+        return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
+      });
+    }
+    return [];
+  };
+
+  getSelectedAnalysisRows = function(sel){
+    if(!sel || !RAW) return [];
+    const detail = sel.detailMode || getActiveDetailMode(sel.channel);
+    if(sel.type === 'single'){
+      return (RAW.analysis||[]).filter(x=> x.channel===sel.channel && rowMatchesDetailMode(sel.channel, detail, x) && (x.campaign||'')===(sel.campaign||'') && (x.term||'')===(sel.term||''));
+    }
+    if(sel.type === 'group'){
+      return (RAW.analysis||[]).filter(x=> {
+        if(x.channel !== sel.channel) return false;
+        if(!rowMatchesDetailMode(sel.channel, detail, x)) return false;
+        const gi = getSubtypeGroupInfo(x, sel.channel, detail);
+        return gi.year === sel.year && gi.mmdd === sel.mmdd;
+      });
+    }
+    if(sel.type === 'other-group'){
+      return (RAW.analysis||[]).filter(x=> {
+        if(x.channel !== sel.channel) return false;
+        if(!rowMatchesDetailMode(sel.channel, detail, x)) return false;
+        const parsed = getOtherCampaignDateGroup(x);
+        return !!(parsed && parsed.year===sel.year && parsed.mmdd===sel.mmdd);
+      });
+    }
+    return [];
+  };
+
+  getSelectedSendCount = function(sel, rows){
+    if(!sel || !RAW) return countDistinctSends(rows || []);
+    const detail = sel.detailMode || getActiveDetailMode(sel.channel);
+    if(sel.channel === 'KAKAO'){
+      const sendRows = (RAW.kpi || []).filter(r => r.channel === 'KAKAO' && rowMatchesDetailMode('KAKAO','MESSAGE',r));
+      if(sel.type === 'group'){
+        return countDistinctSends(sendRows.filter(r => {
+          const gi = getSubtypeGroupInfo(r, 'KAKAO', 'MESSAGE');
+          return gi.year === sel.year && gi.mmdd === sel.mmdd;
+        }));
+      }
+      return countDistinctSends(sendRows);
+    }
+    return countDistinctSends(rows || []);
+  };
+
+  getCumulativeSendCount = function(channel, endDate){
+    const ch = String(channel || '').trim().toUpperCase();
+    const mode = getActiveDetailMode(ch);
+    let sourceRows = ((GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []))
+      .filter(r => r.channel === ch && rowMatchesDetailMode(ch, mode, r));
+    if(ch === 'KAKAO'){
+      sourceRows = ((GROUP_SOURCE_ROWS && GROUP_SOURCE_ROWS.length) ? GROUP_SOURCE_ROWS : ((RAW && RAW.kpi) || []))
+        .filter(r => r.channel === 'KAKAO' && rowMatchesDetailMode('KAKAO', 'MESSAGE', r));
+    }
+    return countDistinctSends(sourceRows, String(endDate || '').slice(0,4), endDate);
+  };
+
+  updateChannelTotals = function(){
+    periodText.textContent = `· ${periodLabel()}`;
+    if(!RAW || !RAW.kpi){
+      [totEdmSessions, totEdmRevenue, totEdmSendCount, totEdmLeverage,
+       totLmsSessions, totLmsRevenue, totLmsSendCount, totLmsLeverage,
+       totKakaoSessions, totKakaoRevenue, totKakaoSendCount, totKakaoLeverage].forEach(el=>{ if(el) el.textContent='-'; });
+      renderSubtypeSummaryPanel();
+      return;
+    }
+    const endDate = currentPeriodEndDate();
+    const edmRows = getRowsForDetail('EDM', getActiveDetailMode('EDM'), RAW.kpi.filter(r=>r.channel==='EDM'));
+    const lmsRows = getRowsForDetail('LMS', getActiveDetailMode('LMS'), RAW.kpi.filter(r=>r.channel==='LMS'));
+    const kakaoRows = getRowsForDetail('KAKAO', getActiveDetailMode('KAKAO'), RAW.kpi.filter(r=>r.channel==='KAKAO'));
+    const edm = getChannelSummary(edmRows, 'EDM', endDate, (RAW && RAW.message_log) || []);
+    const lms = getChannelSummary(lmsRows, 'LMS', endDate, (RAW && RAW.message_log) || []);
+    const kakao = getChannelSummary(kakaoRows, 'KAKAO', endDate, (RAW && RAW.message_log) || []);
+    edm.send_count = getCumulativeSendCount('EDM', endDate);
+    lms.send_count = getCumulativeSendCount('LMS', endDate);
+    kakao.send_count = getCumulativeSendCount('KAKAO', endDate);
+    edm.cvr = edm.sessions ? (edm.purchases / edm.sessions * 100) : 0;
+    lms.cvr = lms.sessions ? (lms.purchases / lms.sessions * 100) : 0;
+    kakao.cvr = kakao.sessions ? (kakao.purchases / kakao.sessions * 100) : 0;
+
+    totEdmSessions.textContent = fmt(edm.sessions);
+    totEdmRevenue.textContent = fmtMoney(edm.revenue);
+    totEdmSendCount.textContent = fmt(edm.send_count);
+    totEdmLeverage.textContent = `${edm.cvr.toFixed(2)}%`;
+    totLmsSessions.textContent = fmt(lms.sessions);
+    totLmsRevenue.textContent = fmtMoney(lms.revenue);
+    totLmsSendCount.textContent = fmt(lms.send_count);
+    totLmsLeverage.textContent = `${lms.cvr.toFixed(2)}%`;
+    totKakaoSessions.textContent = fmt(kakao.sessions);
+    totKakaoRevenue.textContent = fmtMoney(kakao.revenue);
+    totKakaoSendCount.textContent = fmt(kakao.send_count);
+    totKakaoLeverage.textContent = `${kakao.cvr.toFixed(2)}%`;
+    renderSubtypeSummaryPanel();
+  };
+
+  loadRange = async function(startStr, endStr, options={}){
+    hideNotice();
+    if(!options || !options.preserveSelected) SELECTED = null;
+
+    if(!AVAILABLE || !AVAILABLE.length){
+      showNotice('available_dates.json을 읽지 못해서 기간 누적을 할 수 없어.');
+      RAW = null;
+      KPI = [];
+      updateChannelTotals();
+      toggleSections();
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderTerms();
+      renderProducts();
+      return;
+    }
+    let s = startStr, e = endStr;
+    if(s > e){ const tmp=s; s=e; e=tmp; }
+    s = clampToAvailable(s);
+    e = clampToAvailable(e);
+    startPicker.value = s;
+    endPicker.value = e;
+    const dates = listDatesBetween(s, e);
+    if(!dates.length){
+      RAW = null;
+      KPI = [];
+      updateChannelTotals();
+      showNotice(`선택한 기간에 데이터가 없어. (${s} ~ ${e})`);
+      toggleSections();
+      renderCampaignButtons();
+      aggregateKPIForSelected();
+      renderTerms();
+      renderProducts();
+      return;
+    }
+    const all = [];
+    const chunkSize = 10;
+    for(let i=0;i<dates.length;i+=chunkSize){
+      const chunk = dates.slice(i, i+chunkSize);
+      showLoading(`기간 데이터 로딩중… ${Math.min(i+chunk.length, dates.length)}/${dates.length}`);
+      const res = await Promise.allSettled(chunk.map(d => fetchOwnedJson(`owned_${d}.json`)));
+      res.forEach((r)=>{ if(r.status==='fulfilled') all.push(r.value); });
+    }
+    hideLoading();
+    RAW = buildAggregated(all);
+    toggleSections();
+    filterKPI();
+    updateChannelTotals();
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderTerms();
+    renderProducts();
+  };
+
+  load7dFromDate = async function(dateStr, options={}){
+    const s = clampToAvailable(dateStr);
+    const eRaw = ymd(addDays(parseYMD(s), 6));
+    const e = clampToAvailable(eRaw);
+    WEEK_ANCHORED_MODE = true;
+    VIEW = 'WEEK';
+    setViewActive();
+    datePicker.value = s;
+    startPicker.value = s;
+    endPicker.value = e;
+    primeYtdLoading();
+    await loadRange(s, e, options);
+    await computeYTD();
+    finalizeAnimatedViewChange();
+  };
+
+  selectGroup = async function(channel, year, mmdd){
+    CHANNEL = channel;
+    setChipActive();
+    toggleSections();
+    SELECTED = {type:'group', channel, year, mmdd, detailMode:getActiveDetailMode(channel)};
+    if(mmdd && /^\d{4}$/.test(mmdd)){
+      const resolvedDate = resolveMmddToAvailableDate(year, mmdd);
+      if(resolvedDate){
+        if(toggleGroupJump) toggleGroupJump.checked = true;
+        GROUP_JUMP_MODE = true;
+        await load7dFromDate(resolvedDate, { preserveSelected:true });
+        filterKPI();
+        updateChannelTotals();
+        renderCampaignButtons();
+        aggregateKPIForSelected();
+        renderTerms();
+        renderProducts();
+        return;
+      }
+    }
+    WEEK_ANCHORED_MODE = false;
+    filterKPI();
+    updateChannelTotals();
+    renderCampaignButtons();
+    aggregateKPIForSelected();
+    renderTerms();
+    renderProducts();
+  };
+
+  renderCampaignButtons = function(){
+    renderDetailTabsUI();
+    wrapEDMDate.innerHTML = '';
+    wrapLMSDate.innerHTML = '';
+    wrapKakaoDate.innerHTML = '';
+    wrapEDMOther.innerHTML = '';
+    wrapLMSOther.innerHTML = '';
+    wrapKakaoOther.innerHTML = '';
+    wrapOtherChannels.innerHTML = '';
+    const channel = CHANNEL;
+    const detailMode = getActiveDetailMode(channel);
+    const chipSourceRows = getCampaignChipSourceRows().filter(r => rowMatchesDetailMode(channel, detailMode, r));
+    const targetWrap = channel === 'EDM' ? wrapEDMDate : (channel === 'LMS' ? wrapLMSDate : wrapKakaoDate);
+    const otherWrap = channel === 'EDM' ? wrapEDMOther : (channel === 'LMS' ? wrapLMSOther : wrapKakaoOther);
+
+    if(!chipSourceRows.length){
+      const empty = `<div class="muted font-semibold text-sm">결과가 없어. (필터가 너무 좁거나, 해당 기간에 데이터가 없을 수 있어)</div>`;
+      targetWrap.innerHTML = empty;
+      otherWrap.innerHTML = empty;
+      return;
+    }
+
+    const grouped = new Map();
+    const singles = [];
+    for(const r of chipSourceRows){
+      const gi = getSubtypeGroupInfo(r, channel, detailMode);
+      const key = `${gi.year}-${gi.mmdd}`;
+      if(!grouped.has(key)) grouped.set(key, { year:gi.year, mmdd:gi.mmdd, label:gi.label, rows:[] });
+      grouped.get(key).rows.push(r);
+      if(gi.mmdd === 'NO_DATE'){
+        singles.push(r);
+      }
+    }
+
+    const groups = Array.from(grouped.values()).sort((a,b)=>{
+      const byYear = String(b.year).localeCompare(String(a.year));
+      if(byYear !== 0) return byYear;
+      if(a.mmdd === 'NO_DATE' && b.mmdd !== 'NO_DATE') return 1;
+      if(b.mmdd === 'NO_DATE' && a.mmdd !== 'NO_DATE') return -1;
+      return String(b.mmdd).localeCompare(String(a.mmdd));
+    });
+
+    const sections = new Map();
+    groups.forEach(g => {
+      if(!sections.has(g.year)) sections.set(g.year, []);
+      sections.get(g.year).push(g);
+    });
+
+    targetWrap.innerHTML = Array.from(sections.entries()).map(([year, arr]) => `
+      <div class="mb-3">
+        <div class="small-label mb-2">${year}</div>
+        <div class="chip-row">
+          ${arr.map(g => `
+            <button type="button" class="chip ${(SELECTED && SELECTED.type==='group' && SELECTED.channel===channel && SELECTED.year===g.year && SELECTED.mmdd===g.mmdd) ? 'active' : ''}"
+              data-year="${g.year}" data-mmdd="${g.mmdd}">
+              ${g.label}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    targetWrap.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', ()=>selectGroup(channel, btn.dataset.year, btn.dataset.mmdd));
+    });
+
+    const nodateRows = groups.filter(g => g.mmdd === 'NO_DATE').flatMap(g => g.rows);
+    if(nodateRows.length){
+      otherWrap.innerHTML = nodateRows.slice(0, 80).map(r => {
+        const label = `${r.campaign || '-'}${r.term ? ' / ' + r.term : ''}`;
+        return `<button type="button" class="chip mb-2 mr-2">${label}</button>`;
+      }).join('');
+    }else{
+      otherWrap.innerHTML = `<div class="muted font-semibold text-sm">일자없음 항목 외 별도 기타 캠페인은 없어요.</div>`;
+    }
+  };
+
+  aggregateKPIForSelected = function(){
+    ensureMessageEditorUI();
+    if(!SELECTED || !RAW){
+      kSessions.textContent='-'; kUsers.textContent='-'; kPurchases.textContent='-'; kRevenue.textContent='-'; kItems.textContent='-';
+      kSendCount.textContent='-'; kLeverage.textContent='-';
+      kSessionsSub.textContent='-'; kUsersSub.textContent='-'; kCvrSub.textContent='-'; kAovSub.textContent='-'; kItemsSub.textContent='-';
+      kSendCountSub.textContent='-'; kLeverageSub.textContent='-';
+      msgTitle.textContent='-'; msgBody.textContent='-';
+      selChannel.textContent='-'; selCampaign.textContent='-'; selTerm.textContent='-';
+      renderFunnelAnalysis();
+      refreshMessageEditor();
+      return;
+    }
+    const rows = getSelectedKpiRows(SELECTED);
+    if(SELECTED.type==='single'){
+      selChannel.textContent = SELECTED.channel;
+      selCampaign.textContent = SELECTED.campaign || '-';
+      selTerm.textContent = SELECTED.term || '-';
+    }else if(SELECTED.type==='group'){
+      selChannel.textContent = `${SELECTED.channel} · ${SELECTED.detailMode || getActiveDetailMode(SELECTED.channel)}`;
+      selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd === 'NO_DATE' ? '일자없음' : SELECTED.mmdd}`;
+      selTerm.textContent = `rows:${rows.length}`;
+    }else{
+      selChannel.textContent = SELECTED.channel;
+      selCampaign.textContent = `${SELECTED.year}-${SELECTED.mmdd} (other campaign)`;
+      selTerm.textContent = `terms:${rows.length}`;
+    }
+    const a = aggregateRow(rows);
+    const sendCount = getSelectedSendCount(SELECTED, rows);
+    const cvr = a.sessions ? (a.purchases/a.sessions*100) : 0;
+    const meta = getMessageMetaForSelection(SELECTED, rows);
+    kSessions.textContent = fmt(a.sessions);
+    kUsers.textContent = fmt(a.users);
+    kPurchases.textContent = fmt(a.purchases);
+    kRevenue.textContent = fmtMoney(a.revenue);
+    kItems.textContent = fmt(a.items_purchased);
+    kSendCount.textContent = fmt(sendCount);
+    kLeverage.textContent = `${cvr.toFixed(2)}%`;
+    const aov = a.purchases ? (a.revenue/a.purchases) : 0;
+    const ips = a.purchases ? (a.items_purchased/a.purchases) : 0;
+    kSessionsSub.textContent = '-';
+    kUsersSub.textContent = (VIEW !== 'DAILY') ? 'Users: sum of daily (may overcount)' : '-';
+    kCvrSub.textContent = `CVR: ${cvr.toFixed(2)}%`;
+    kAovSub.textContent = `AOV: ${fmtMoney(aov)}`;
+    kItemsSub.textContent = `Items/Order: ${ips.toFixed(2)}`;
+    kSendCountSub.textContent = SELECTED.channel === 'KAKAO' ? 'Distinct sends in selected scope (message MMDD only)' : 'Distinct sends in selected scope';
+    kLeverageSub.textContent = 'Purchases / sessions';
+    msgTitle.innerHTML = '';
+    msgBody.innerHTML = '';
+    const titleText = document.createElement('div');
+    titleText.textContent = meta.title || '-';
+    msgTitle.appendChild(titleText);
+    const bodyText = document.createElement('div');
+    bodyText.textContent = meta.body || '-';
+    msgBody.appendChild(bodyText);
+    if(meta.image){
+      const img = document.createElement('img');
+      img.src = meta.image;
+      img.className = 'message-preview-image';
+      msgBody.appendChild(img);
+    }
+    refreshMessageEditor(meta);
+    renderFunnelAnalysis();
+  };
+
+  const __origOnChannelChange = onChannelChange;
+  onChannelChange = function(next){
+    DETAIL_MODE_BY_CHANNEL[next] = DETAIL_MODE_BY_CHANNEL[next] || 'ALL';
+    return __origOnChannelChange(next);
+  };
+
+  ensureDetailTabsUI();
+  ensureSubtypeSummaryPanel();
+  ensureMessageEditorUI();
+  renderDetailTabsUI();
+  renderSubtypeSummaryPanel();
+  refreshMessageEditor();
+
   })();
 
 })();
