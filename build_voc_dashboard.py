@@ -896,7 +896,7 @@ DEFAULT_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+    :root { --brand:#002d72; --bg0:#f8fafc; --bg1:#f8fafc; }
 
     html, body { height: 100%; }
     body{
