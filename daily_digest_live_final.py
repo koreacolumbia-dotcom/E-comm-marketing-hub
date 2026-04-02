@@ -3161,7 +3161,7 @@ def render_page_html(
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
     body{{ font-family:'Plus Jakarta Sans','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,-apple-system,'Segoe UI',Roboto,Arial; }}
   </style>
-  {report_patch_css}
+  {REPORT_PATCH_CSS}
 </head>
 <body class="bg-slate-50 text-slate-900 report-body">
   <div class="w-full max-w-none px-5 py-6 xl:px-8 2xl:px-10 report-shell">
