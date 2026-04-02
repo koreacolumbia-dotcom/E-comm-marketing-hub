@@ -6,6 +6,34 @@ FALLBACK_METRIC_HTML = (
     "<span class='metric-slot text-slate-400' data-metric='revenue'>-</span>"
 )
 
+
+REPORT_PATCH_CSS = """
+  <style>
+    :root{--report-max:none;--motion-ease:cubic-bezier(.2,.8,.2,1);}
+    .report-body{background:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);}
+    .report-shell{width:100%;}
+    .metric-switch{display:inline-flex;gap:6px;flex-wrap:wrap;}
+    .metric-tab{border:1px solid rgba(148,163,184,.25);background:#fff;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;color:#64748b;transition:all .22s var(--motion-ease);box-shadow:0 6px 18px rgba(15,23,42,.04)}
+    .metric-tab:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+    .metric-tab.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 14px 32px rgba(15,23,42,.16)}
+    .metric-label{display:none}.metric-label.active{display:inline}
+    .metric-slot{display:none}.metric-slot.active{display:block;animation:metricSwap .42s var(--motion-ease)}
+    .metric-inline .metric-slot.active{display:inline}
+    .report-card,.bucket-detail-panel,.weather-card{animation:cardRise .7s var(--motion-ease) both;transform-origin:center bottom}
+    .report-card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(15,23,42,.08)}
+    .kpi-card{position:relative;overflow:hidden;transition:transform .24s var(--motion-ease), box-shadow .24s var(--motion-ease), border-color .24s var(--motion-ease)}
+    .kpi-card:before{content:'';position:absolute;inset:-40% auto auto -20%;width:60%;height:180%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);transform:rotate(14deg);animation:shineSweep 4.2s linear infinite;pointer-events:none}
+    .kpi-card:hover{transform:translateY(-6px) scale(1.01);box-shadow:0 22px 44px rgba(15,23,42,.08);border-color:rgba(59,130,246,.22)}
+    .kpi-value{animation:numberPop .8s var(--motion-ease) both}
+    .channel-table-wrap,.paid-table-wrap{overflow-x:auto}
+    .channel-table-wrap table,.paid-table-wrap table{min-width:980px}
+    @keyframes cardRise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
+  </style>
+"""
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
