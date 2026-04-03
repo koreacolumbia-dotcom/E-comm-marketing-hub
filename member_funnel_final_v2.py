@@ -821,6 +821,69 @@ def _numeric_series(df: pd.DataFrame, col: str, default: float = 0.0) -> pd.Seri
     return pd.Series([default] * len(df), index=df.index, dtype="float64")
 
 
+def _as_dataframe(obj: Any) -> pd.DataFrame:
+    if obj is None:
+        return pd.DataFrame()
+    if isinstance(obj, pd.DataFrame):
+        return obj.copy()
+    if isinstance(obj, pd.Series):
+        return obj.to_frame()
+    if isinstance(obj, dict):
+        try:
+            return pd.DataFrame([obj])
+        except Exception:
+            return pd.DataFrame()
+    if isinstance(obj, (list, tuple)):
+        try:
+            return pd.DataFrame(list(obj))
+        except Exception:
+            return pd.DataFrame()
+    try:
+        return pd.DataFrame(obj)
+    except Exception:
+        return pd.DataFrame()
+
+
+def _first_record(obj: Any) -> dict:
+    if obj is None:
+        return {}
+    if isinstance(obj, pd.DataFrame):
+        if obj.empty:
+            return {}
+        return obj.iloc[0].to_dict()
+    if isinstance(obj, pd.Series):
+        return obj.to_dict()
+    if isinstance(obj, dict):
+        return dict(obj)
+    if isinstance(obj, (list, tuple)):
+        if not obj:
+            return {}
+        first = obj[0]
+        if isinstance(first, pd.Series):
+            return first.to_dict()
+        if isinstance(first, dict):
+            return dict(first)
+        try:
+            return pd.Series(first).to_dict()
+        except Exception:
+            return {}
+    try:
+        df = pd.DataFrame(obj)
+        if df.empty:
+            return {}
+        return df.iloc[0].to_dict()
+    except Exception:
+        return {}
+
+
+def _coalesce_text_series(primary: pd.Series, fallback: pd.Series, blank_values: Optional[set[str]] = None) -> pd.Series:
+    blank_values = {str(x).lower() for x in (blank_values or {"", "nan", "none", "null"})}
+    p = primary.fillna("").astype(str).str.strip()
+    f = fallback.fillna("").astype(str).str.strip()
+    mask = p.str.lower().isin(blank_values)
+    return p.where(~mask, f)
+
+
 def canonical_bucket(bucket: Any, source: Any = "", medium: Any = "", campaign: Any = "") -> str:
     b = str(bucket or "").strip() or "etc"
     s = str(source or "").strip().lower()
@@ -1071,16 +1134,16 @@ def _compute_channel_trend_summary(trend_df: pd.DataFrame, start_date: str, end_
 
 
 def normalize_bundle(bundle: dict) -> dict:
-    overview = (bundle.get("overview") or [{}])[0] if (bundle.get("overview") or [{}]) else {}
-    channel_rows = pd.DataFrame(bundle.get("channel_snapshot") or [])
-    bucket_detail = pd.DataFrame(bundle.get("bucket_detail") or [])
-    non_buyer = pd.DataFrame(bundle.get("non_buyer") or [])
-    buyer = pd.DataFrame(bundle.get("buyer_revenue") or [])
-    product = pd.DataFrame(bundle.get("product_insight") or [])
-    channel_product = pd.DataFrame(bundle.get("channel_product") or [])
-    target = pd.DataFrame(bundle.get("target_candidates") or [])
-    trend = pd.DataFrame(bundle.get("daily_trend") or [])
-    channel_trend_raw = pd.DataFrame(bundle.get("channel_daily_trend") or [])
+    overview = _first_record(bundle.get("overview"))
+    channel_rows = _as_dataframe(bundle.get("channel_snapshot"))
+    bucket_detail = _as_dataframe(bundle.get("bucket_detail"))
+    non_buyer = _as_dataframe(bundle.get("non_buyer"))
+    buyer = _as_dataframe(bundle.get("buyer_revenue"))
+    product = _as_dataframe(bundle.get("product_insight"))
+    channel_product = _as_dataframe(bundle.get("channel_product"))
+    target = _as_dataframe(bundle.get("target_candidates"))
+    trend = _as_dataframe(bundle.get("daily_trend"))
+    channel_trend_raw = _as_dataframe(bundle.get("channel_daily_trend"))
 
     for df in [bucket_detail, non_buyer, buyer, product, channel_product, target]:
         if not df.empty:
@@ -1116,13 +1179,14 @@ def normalize_bundle(bundle: dict) -> dict:
     if not non_buyer.empty:
         nb = non_buyer.copy()
         nb["person_type"] = "non_buyer"
-        nb_top_product = _safe_series(nb, "last_viewed_product")
-        nb_pref_product = _safe_series(nb, "preferred_product", default="")
-        nb["top_product"] = nb_top_product.where(nb_top_product.ne(""), nb_pref_product)
-
-        nb_top_category = _safe_series(nb, "last_viewed_category")
-        nb_pref_category = _safe_series(nb, "preferred_category", default="")
-        nb["top_category"] = nb_top_category.where(nb_top_category.ne(""), nb_pref_category)
+        nb["top_product"] = _coalesce_text_series(
+            _safe_series(nb, "last_viewed_product"),
+            _safe_series(nb, "preferred_product", default="")
+        )
+        nb["top_category"] = _coalesce_text_series(
+            _safe_series(nb, "last_viewed_category"),
+            _safe_series(nb, "preferred_category", default="")
+        )
         nb["total_revenue"] = _numeric_series(nb, "total_revenue")
         nb["order_count"] = _numeric_series(nb, "order_count")
         nb["bucket"] = nb.apply(lambda r: canonical_bucket(r.get("channel_group"), r.get("first_source"), "", r.get("first_campaign")), axis=1)
@@ -1164,7 +1228,7 @@ def normalize_bundle(bundle: dict) -> dict:
     # Channel persona matrix
     matrix_rows = []
     bucket_member_detail = []
-    channel_product_map = pd.DataFrame(channel_product or [])
+    channel_product_map = _as_dataframe(channel_product)
     if not channel_product_map.empty:
         channel_product_map["channel_group"] = channel_product_map["channel_group"].map(lambda x: canonical_bucket(x))
         channel_product_map["buyers"] = pd.to_numeric(channel_product_map.get("buyers"), errors="coerce").fillna(0)
@@ -1360,7 +1424,9 @@ def normalize_bundle(bundle: dict) -> dict:
 
     quality = _quality_summary(channel_rows, members)
     trend_summary = _compute_trend_summary(trend)
-    dr = bundle.get("date_range", {}) or {}
+    dr = bundle.get("date_range", {})
+    if not isinstance(dr, dict):
+        dr = _first_record(dr)
     channel_trend_summary = _compute_channel_trend_summary(channel_trend_raw, str(dr.get("start_date","")), str(dr.get("end_date","")), trend_summary)
     overview_cards = {
         "signup_rate": safe_div(float(overview.get("signup_users", 0) or 0), float(overview.get("users", 0) or 0)),
@@ -2041,14 +2107,18 @@ def build_period_nav(current_key: str = "1m") -> str:
 
 
 def period_label_from_data(data: dict) -> str:
-    meta = data.get("period_meta", {}) or {}
+    meta = data.get("period_meta", {})
+    if not isinstance(meta, dict):
+        meta = _first_record(meta)
     label = str(meta.get("label") or "").strip()
     desc = str(meta.get("description") or "").strip()
     if label and desc:
         return f"{label} · {desc}"
     if label:
         return label
-    dr = data.get("date_range", {}) or {}
+    dr = data.get("date_range", {})
+    if not isinstance(dr, dict):
+        dr = _first_record(dr)
     return f'{dr.get("start_date","")} ~ {dr.get("end_date","")}'.strip(" ~")
 
 def _svg_polyline(points: list[tuple[float, float]]) -> str:
@@ -2057,8 +2127,12 @@ def _svg_polyline(points: list[tuple[float, float]]) -> str:
 
 
 def render_daily_trend(data: dict) -> str:
-    trend = data.get("daily_trend", {}) or {}
-    channel_trend = data.get("channel_daily_trend", {}) or {}
+    trend = data.get("daily_trend", {})
+    if not isinstance(trend, dict):
+        trend = {}
+    channel_trend = data.get("channel_daily_trend", {})
+    if not isinstance(channel_trend, dict):
+        channel_trend = {}
     points = trend.get("points", []) or []
     if not points:
         return f"""
