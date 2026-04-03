@@ -648,8 +648,10 @@ jobs:
           done
 
           if [ -n "$HTML_SRC" ]; then
-            HTML_SRC_CLEAN="$(printf '%s' "$HTML_SRC" | tr -d '\r')"
-            HTML_DST_CLEAN="$(printf '%s' "$HTML_DST" | tr -d '\r')"
+            HTML_SRC_CLEAN="$(printf '%s' "$HTML_SRC" | tr -d '
+')"
+            HTML_DST_CLEAN="$(printf '%s' "$HTML_DST" | tr -d '
+')"
             HTML_SRC_REAL="$(realpath "$HTML_SRC_CLEAN")"
             HTML_DST_REAL="$(realpath -m "$HTML_DST_CLEAN")"
 
@@ -691,7 +693,8 @@ jobs:
           if [ -f "$P" ]; then
             CNT="$(python -c "import json; p='$P'; print(len(json.load(open(p,'r',encoding='utf-8'))))" 2>/dev/null || echo 0)"
           fi
-          printf '{"built_kst":"%s","yesterday":"%s","available_dates_count":%s}\n' "$KST" "$YMD" "$CNT" > reports/owned_portal/data/meta.json
+          printf '{"built_kst":"%s","yesterday":"%s","available_dates_count":%s}
+' "$KST" "$YMD" "$CNT" > reports/owned_portal/data/meta.json
           cat reports/owned_portal/data/meta.json || true
 
       - name: Publish OWNED portal to site/
@@ -829,35 +832,37 @@ jobs:
             echo "[INFO] Running channel patch SQL before member funnel build"
             export SOURCE_TABLE="${MEMBER_FUNNEL_SOURCE_TABLE:-${MEMBER_FUNNEL_BASE_TABLE}_staging}"
             export TARGET_TABLE="${MEMBER_FUNNEL_BASE_TABLE}"
-            python - <<'PY'
-            import os
-            from google.cloud import bigquery
 
-            sql_path = os.environ["MEMBER_FUNNEL_PATCH_SQL"]
-            source_table = os.environ["SOURCE_TABLE"]
-            target_table = os.environ["TARGET_TABLE"]
-            project_id = os.environ["MEMBER_FUNNEL_PROJECT_ID"]
+            cat > /tmp/member_patch.py <<'PY'
+import os
+from google.cloud import bigquery
 
-            with open(sql_path, "r", encoding="utf-8") as f:
-                sql = f.read()
+sql_path = os.environ["MEMBER_FUNNEL_PATCH_SQL"]
+source_table = os.environ["SOURCE_TABLE"]
+target_table = os.environ["TARGET_TABLE"]
+project_id = os.environ["MEMBER_FUNNEL_PROJECT_ID"]
 
-            sql = sql.replace("your_project.crm_mart.member_funnel_master_staging", source_table)
-            sql = sql.replace("your_project.crm_mart.member_funnel_master", target_table)
+with open(sql_path, "r", encoding="utf-8") as f:
+    sql = f.read()
 
-            client = bigquery.Client(project=project_id)
-            client.query(sql).result()
+sql = sql.replace("your_project.crm_mart.member_funnel_master_staging", source_table)
+sql = sql.replace("your_project.crm_mart.member_funnel_master", target_table)
 
-            rows = list(client.query(f'''
-              SELECT channel_group, COUNT(*) AS users
-              FROM `{target_table}`
-              GROUP BY 1
-              ORDER BY 2 DESC
-            ''').result())
+client = bigquery.Client(project=project_id)
+client.query(sql).result()
 
-            print("[INFO] channel distribution after patch")
-            for row in rows:
-                print(f"  - {row['channel_group']}: {row['users']}")
-          PY
+rows = list(client.query(f'''
+SELECT channel_group, COUNT(*) AS users
+FROM `{target_table}`
+GROUP BY 1
+ORDER BY 2 DESC
+''').result())
+
+print("[INFO] channel distribution after patch")
+for row in rows:
+    print(f"  - {row['channel_group']}: {row['users']}")
+PY
+            python /tmp/member_patch.py
           else
             echo "[WARN] ${MEMBER_FUNNEL_PATCH_SQL} not found -> skip channel patch"
           fi
@@ -957,7 +962,7 @@ jobs:
           if [ ! -f "build_summary.py" ]; then echo "[WARN] build_summary.py not found in repo root. Skipping."; exit 0; fi
           python -u build_summary.py || true
           mkdir -p reports
-          echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
+          echo "{"build":"${UPDATED_KST}"}" > reports/meta.json
 
       - name: Commit & push report results
         if: ${{ always() }}
