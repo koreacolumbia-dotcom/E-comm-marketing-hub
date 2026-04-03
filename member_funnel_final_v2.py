@@ -540,8 +540,8 @@ def fetch_bundle_from_bq(start_date: dt.date, end_date: dt.date) -> dict:
     """
 
     target_sql = f"""
-    {target_cte}
-    WITH tagged AS (
+    {target_cte},
+    tagged AS (
       SELECT 'non_buyer' AS segment, * FROM scoped WHERE SAFE_CAST(is_non_buyer AS INT64) = 1
       UNION ALL
       SELECT 'cart_abandon' AS segment, * FROM scoped WHERE SAFE_CAST(is_cart_abandon AS INT64) = 1
