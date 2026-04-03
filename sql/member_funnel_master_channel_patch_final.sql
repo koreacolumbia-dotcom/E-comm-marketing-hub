@@ -56,7 +56,7 @@ classified AS (
         AND (camp_l = '' OR camp_l = '(not set)' OR camp_l = 'not set')
       THEN 'Unknown'
       WHEN
-        REGEXP_CONTAINS(source_medium_l, r'\(direct\)\s*/\s*\(none\)')
+        REGEXP_CONTAINS(source_medium_l, r'[(]direct[)]\s*/\s*[(]none[)]')
         OR (src_l IN ('direct', '(direct)') AND med_l IN ('(none)', 'none', 'direct', ''))
       THEN 'Direct'
       WHEN REGEXP_CONTAINS(source_medium_l, r'instagram') AND REGEXP_CONTAINS(source_medium_l, r'story') THEN 'Official SNS'
