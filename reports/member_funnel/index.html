@@ -1,0 +1,5656 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Member Funnel</title>
+
+<style>
+  :root{
+    --report-max:none;
+    --motion-ease:cubic-bezier(.2,.8,.2,1);
+    --bg-a:#f8fafc;
+    --bg-b:#eef2f7;
+    --line:#e2e8f0;
+    --ink:#0f172a;
+    --muted:#64748b;
+    --card:#ffffffd9;
+    --chip:#ffffff;
+    --chip-border:rgba(148,163,184,.25);
+    --blue:#2563eb;
+    --green:#059669;
+    --amber:#d97706;
+    --rose:#e11d48;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    color:var(--ink);
+    font-family:Inter, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background:linear-gradient(180deg,var(--bg-a) 0%,var(--bg-b) 100%);
+  }
+  .report-shell{max-width:1600px;margin:0 auto;padding:28px 24px 56px}
+  .hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .hero-title{font-size:34px;font-weight:900;letter-spacing:-.02em}
+  .hero-sub{margin-top:8px;color:var(--muted);font-size:14px;font-weight:700}
+  .hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .hero-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);background:#fff;color:var(--ink);
+    border-radius:16px;padding:12px 16px;font-size:13px;font-weight:900;text-decoration:none
+  }
+  .hero-btn.primary{background:#0f172a;color:#fff;border-color:#0f172a}
+  .filter-bar,.report-card,.bucket-detail-panel{
+    animation:cardRise .7s var(--motion-ease) both;
+    transform-origin:center bottom
+  }
+  .filter-bar,.report-card,.bucket-detail-panel{
+    margin-top:18px;border:1px solid var(--line);background:var(--card);
+    border-radius:28px;backdrop-filter:blur(10px)
+  }
+  .filter-bar{padding:18px}
+  .report-card{padding:18px}
+  .report-card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(15,23,42,.08)}
+  .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .section-kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#64748b;font-weight:900}
+  .section-title{font-size:18px;font-weight:900;letter-spacing:-.02em}
+  .section-sub{font-size:12px;color:#64748b;font-weight:700}
+  .chip-row,.metric-switch,.segment-tabs{display:inline-flex;gap:8px;flex-wrap:wrap}
+  .chip,.metric-tab,.segment-tab{
+    border:1px solid var(--chip-border);background:var(--chip);border-radius:999px;
+    padding:9px 14px;font-size:12px;font-weight:900;color:#64748b;
+    transition:all .22s var(--motion-ease);
+    box-shadow:0 6px 18px rgba(15,23,42,.04);cursor:pointer
+  }
+  .metric-tab:hover,.segment-tab:hover,.chip:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+  .metric-tab.active,.segment-tab.active,.chip.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 14px 32px rgba(15,23,42,.16)}
+  .kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+  .kpi-card{
+    position:relative;overflow:hidden;transition:transform .24s var(--motion-ease), box-shadow .24s var(--motion-ease), border-color .24s var(--motion-ease);
+    border:1px solid var(--line);background:#fff;border-radius:24px;padding:18px;
+  }
+  .kpi-card:before{
+    content:'';position:absolute;inset:-40% auto auto -20%;width:60%;height:180%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);
+    transform:rotate(14deg);animation:shineSweep 4.2s linear infinite;pointer-events:none
+  }
+  .kpi-card:hover{transform:translateY(-6px) scale(1.01);box-shadow:0 22px 44px rgba(15,23,42,.08);border-color:rgba(59,130,246,.22)}
+  .kpi-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#64748b;font-weight:900}
+  .kpi-value{margin-top:10px;font-size:28px;font-weight:900;letter-spacing:-.03em;animation:numberPop .8s var(--motion-ease) both}
+  .kpi-meta{margin-top:6px;color:#64748b;font-size:12px;font-weight:800}
+  .funnel-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+  .funnel-step{
+    border:1px solid var(--line);background:#fff;border-radius:22px;padding:16px;position:relative
+  }
+  .funnel-step:after{
+    content:'→';position:absolute;right:-12px;top:50%;transform:translateY(-50%);
+    font-size:20px;font-weight:900;color:#94a3b8
+  }
+  .funnel-step:last-child:after{display:none}
+  .funnel-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#64748b;font-weight:900}
+  .funnel-value{margin-top:8px;font-size:24px;font-weight:900}
+  .funnel-rate{margin-top:6px;color:#64748b;font-size:12px;font-weight:800}
+  .panel-grid{display:grid;grid-template-columns:1.4fr .9fr;gap:16px}
+  .subcard{
+    border:1px solid var(--line);background:#fff;border-radius:22px;padding:16px
+  }
+  table{border-collapse:collapse;width:100%}
+  .table-wrap{overflow-x:auto}
+  .data-table{min-width:1080px}
+  th{
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;
+    font-weight:900;padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap
+  }
+  td{
+    padding:12px 10px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:700;color:#0f172a;white-space:nowrap
+  }
+  tr:hover td{background:#f8fafc}
+  td.num, th.num{text-align:right}
+  .tag{
+    display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:6px 10px;
+    font-size:11px;font-weight:900
+  }
+  .tag.blue{background:#dbeafe;color:#1d4ed8}
+  .tag.green{background:#dcfce7;color:#15803d}
+  .tag.amber{background:#fef3c7;color:#b45309}
+  .tag.rose{background:#ffe4e6;color:#be123c}
+  .tag.slate{background:#e2e8f0;color:#334155}
+  .bucket-row{cursor:pointer}
+  .muted{color:#64748b}
+  .small{font-size:12px}
+  .metric-slot{display:none}
+  .metric-slot.active{display:inline;animation:metricSwap .42s var(--motion-ease)}
+  .segment-panel{display:none}
+  .segment-panel.active{display:block}
+  .summary-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .summary-item{border:1px solid var(--line);border-radius:18px;background:#fff;padding:14px}
+  .summary-item .label{font-size:11px;color:#64748b;font-weight:900;text-transform:uppercase;letter-spacing:.12em}
+  .summary-item .value{margin-top:8px;font-size:18px;font-weight:900}
+  @media (max-width: 1280px){
+    .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .panel-grid{grid-template-columns:1fr}
+  }
+  @media (max-width: 900px){
+    .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .funnel-grid{grid-template-columns:1fr}
+    .summary-list{grid-template-columns:1fr}
+  }
+  @media (max-width: 640px){
+    .report-shell{padding:18px 14px 42px}
+    .hero-title{font-size:28px}
+    .kpi-grid{grid-template-columns:1fr}
+  }
+  @keyframes cardRise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
+</style>
+
+</head>
+<body>
+  <div class="report-shell">
+    <div class="hero">
+      <div>
+        <div class="hero-title">Member Funnel</div>
+        <div class="hero-sub">유입 → 회원가입 → 구매 → 상품 → 타겟 흐름을 사람 기준으로 보는 CRM Funnel 리포트</div>
+        <div class="hero-sub">2026-03-04 ~ 2026-04-02 · Updated 2026-04-03 12:50:16 KST</div>
+      </div>
+      <div class="hero-actions">
+        <a class="hero-btn" href="../index.html">Hub</a>
+        <a class="hero-btn" href="./data/target_candidates.json">Target JSON</a>
+        <a class="hero-btn primary" href="./data/overview.json">Data Bundle</a>
+      </div>
+    </div>
+
+    
+    <div class="filter-bar">
+      <div class="section-head" style="margin-bottom:0">
+        <div>
+          <div class="section-kicker">Working Filters</div>
+          <div class="section-title">1차 운영 기준</div>
+          <div class="section-sub">이 버전은 기간 기준 정적 리포트입니다. 이후 source / campaign / member status 필터를 client-side로 확장하면 됩니다.</div>
+        </div>
+        <div class="chip-row">
+          <span class="chip active">Period · 2026-03-04 ~ 2026-04-02</span><span class="chip active">Bucket · Awareness / Paid Ad / Organic / SNS / Owned / etc</span><span class="chip active">Main Views · Users / Buyers / Revenue / Target</span><span class="chip active">Core Goal · 유입 → 회원가입 → 미구매 → 구매 → 상품 → 타겟</span>
+        </div>
+      </div>
+    </div>
+    
+
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Overview</div>
+          <div class="section-title">핵심 KPI</div>
+          <div class="section-sub">운영에 바로 필요한 기본 카드</div>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Users</div>
+          <div class="kpi-value">221</div>
+          <div class="kpi-meta">Tracked people in range</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">Sign-up Users</div>
+          <div class="kpi-value">221</div>
+          <div class="kpi-meta">Members who completed sign-up</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">Non Buyer Members</div>
+          <div class="kpi-value">162</div>
+          <div class="kpi-meta">Signed up but not purchased</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">Buyers</div>
+          <div class="kpi-value">59</div>
+          <div class="kpi-meta">Purchased members</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">Revenue</div>
+          <div class="kpi-value">₩8,583,890</div>
+          <div class="kpi-meta">Total member revenue</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">AOV</div>
+          <div class="kpi-value">₩140,720</div>
+          <div class="kpi-meta">Average order value</div>
+        </div>
+        </div>
+    </div>
+
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Overview Funnel</div>
+          <div class="section-title">사람 기준 퍼널</div>
+          <div class="section-sub">Users → Sign-up → Non Buyer → Buyer → Repeat</div>
+        </div>
+      </div>
+      <div class="funnel-grid">
+            <div class="funnel-step">
+              <div class="funnel-label">Users</div>
+              <div class="funnel-value">221</div>
+              <div class="funnel-rate">100.0%</div>
+            </div>
+            
+            <div class="funnel-step">
+              <div class="funnel-label">Sign-up</div>
+              <div class="funnel-value">221</div>
+              <div class="funnel-rate">100.0%</div>
+            </div>
+            
+            <div class="funnel-step">
+              <div class="funnel-label">Non Buyer</div>
+              <div class="funnel-value">162</div>
+              <div class="funnel-rate">73.3%</div>
+            </div>
+            
+            <div class="funnel-step">
+              <div class="funnel-label">Buyer</div>
+              <div class="funnel-value">59</div>
+              <div class="funnel-rate">26.7%</div>
+            </div>
+            
+            <div class="funnel-step">
+              <div class="funnel-label">Repeat</div>
+              <div class="funnel-value">2</div>
+              <div class="funnel-rate">3.4%</div>
+            </div>
+            </div>
+    </div>
+
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Channel Snapshot</div>
+          <div class="section-title">유입 버킷별 회원 퍼널</div>
+          <div class="section-sub">Daily Digest의 채널 버킷 구조를 그대로 가져온 회원 전환 스냅샷</div>
+        </div>
+        <div class="metric-switch"><button type="button" class="metric-tab active" data-target="channel-snapshot" data-metric="users">Users</button><button type="button" class="metric-tab " data-target="channel-snapshot" data-metric="buyers">Buyers</button><button type="button" class="metric-tab " data-target="channel-snapshot" data-metric="revenue">Revenue</button></div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Bucket</th>
+              <th class="num">Metric</th>
+              <th class="num">Sign-ups</th>
+              <th class="num">CVR</th>
+              <th class="num">AOV</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="bucket-row" data-bucket="etc">
+              <td>etc</td>
+              <td class="num" data-metric-group="channel-snapshot">
+                <span class="metric-slot active" data-metric="users">221</span>
+                <span class="metric-slot" data-metric="buyers">59</span>
+                <span class="metric-slot" data-metric="revenue">₩8,583,890</span>
+              </td>
+              <td class="num">221</td>
+              <td class="num">26.7%</td>
+              <td class="num">₩140,720</td>
+            </tr>
+            
+        <tr class="bucket-row" data-bucket="__total__">
+          <td><strong>Total</strong></td>
+          <td class="num" data-metric-group="channel-snapshot">
+            <span class="metric-slot active" data-metric="users"><strong>221</strong></span>
+            <span class="metric-slot" data-metric="buyers"><strong>59</strong></span>
+            <span class="metric-slot" data-metric="revenue"><strong>₩8,583,890</strong></span>
+          </td>
+          <td class="num"><strong>221</strong></td>
+          <td class="num"><strong>26.7%</strong></td>
+          <td class="num"><strong>₩145,490</strong></td>
+        </tr>
+        </tbody>
+        </table>
+      </div>
+    </div>
+    
+            <div class="bucket-detail bucket-detail-panel report-card" data-bucket="etc" style="display:none">
+              <div class="section-head">
+                <div>
+                  <div class="section-kicker">Bucket Detail</div>
+                  <div class="section-title">etc</div>
+                  <div class="section-sub">Source / medium / campaign drill-down</div>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>Medium</th>
+                      <th>Campaign</th>
+                      <th class="num">Users</th>
+                      <th class="num">Sign-ups</th>
+                      <th class="num">Buyers</th>
+                      <th class="num">Revenue</th>
+                      <th>Top Product</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            <tr>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td class="num">221</td>
+              <td class="num">221</td>
+              <td class="num">59</td>
+              <td class="num">₩8,583,890</td>
+              <td>C61YL3511105</td>
+            </tr>
+            </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div class="bucket-detail bucket-detail-panel report-card" data-bucket="__total__" style="display:none">
+              <div class="section-head">
+                <div>
+                  <div class="section-kicker">Bucket Detail</div>
+                  <div class="section-title">__total__</div>
+                  <div class="section-sub">Source / medium / campaign drill-down</div>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>Medium</th>
+                      <th>Campaign</th>
+                      <th class="num">Users</th>
+                      <th class="num">Sign-ups</th>
+                      <th class="num">Buyers</th>
+                      <th class="num">Revenue</th>
+                      <th>Top Product</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            <tr>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td class="num">221</td>
+              <td class="num">221</td>
+              <td class="num">59</td>
+              <td class="num">₩8,583,890</td>
+              <td>C61YL3511105</td>
+            </tr>
+            </tbody>
+                </table>
+              </div>
+            </div>
+            
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Non Buyer</div>
+          <div class="section-title">가입했지만 아직 안 산 사람</div>
+          <div class="section-sub">행동 강도(PV / 상품조회 / 장바구니) 기준으로 바로 리타겟 가능한 목록</div>
+        </div>
+      </div>
+      <div class="panel-grid">
+        <div class="subcard">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>User ID</th>
+                  <th>Member ID</th>
+                  <th>Gender</th>
+                  <th>Age Band</th>
+                  <th>Gender</th>
+                  <th>Age Band</th>
+                  <th>Channel</th>
+                  <th>Source</th>
+                  <th>Campaign</th>
+                  <th>Signup Date</th>
+                  <th class="num">PV</th>
+                  <th class="num">Product Views</th>
+                  <th class="num">Cart</th>
+                  <th>Last Viewed Product</th>
+                  <th>Recommended Message</th>
+                </tr>
+              </thead>
+              <tbody>
+        <tr>
+          <td>kk_4822316197</td>
+          <td>kk_4822316197</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822469379</td>
+          <td>kk_4822469379</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822324511</td>
+          <td>kk_4822324511</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822551568</td>
+          <td>kk_4822551568</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822550668</td>
+          <td>kk_4822550668</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822301136</td>
+          <td>kk_4822301136</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822513250</td>
+          <td>kk_4822513250</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822382298</td>
+          <td>kk_4822382298</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822475920</td>
+          <td>kk_4822475920</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823986040</td>
+          <td>kk_4823986040</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823365232</td>
+          <td>kk_4823365232</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823593578</td>
+          <td>kk_4823593578</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823672917</td>
+          <td>kk_4823672917</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823241098</td>
+          <td>kk_4823241098</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823452953</td>
+          <td>kk_4823452953</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823872951</td>
+          <td>kk_4823872951</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824019023</td>
+          <td>kk_4824019023</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823856841</td>
+          <td>kk_4823856841</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>lcs3017</td>
+          <td>lcs3017</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823486713</td>
+          <td>kk_4823486713</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>jubycnoc</td>
+          <td>jubycnoc</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823204767</td>
+          <td>kk_4823204767</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823669824</td>
+          <td>kk_4823669824</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822910583</td>
+          <td>kk_4822910583</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823866697</td>
+          <td>kk_4823866697</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824175506</td>
+          <td>kk_4824175506</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823863147</td>
+          <td>kk_4823863147</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824182622</td>
+          <td>kk_4824182622</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824201219</td>
+          <td>kk_4824201219</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823636543</td>
+          <td>kk_4823636543</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>dan1st</td>
+          <td>dan1st</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823881261</td>
+          <td>kk_4823881261</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824171183</td>
+          <td>kk_4824171183</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824069339</td>
+          <td>kk_4824069339</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824155616</td>
+          <td>kk_4824155616</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824164838</td>
+          <td>kk_4824164838</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824212133</td>
+          <td>kk_4824212133</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823904003</td>
+          <td>kk_4823904003</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822772428</td>
+          <td>kk_4822772428</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823748422</td>
+          <td>kk_4823748422</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kangjw0706</td>
+          <td>kangjw0706</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822868680</td>
+          <td>kk_4822868680</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823374247</td>
+          <td>kk_4823374247</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823786604</td>
+          <td>kk_4823786604</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824058267</td>
+          <td>kk_4824058267</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823880766</td>
+          <td>kk_4823880766</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823807139</td>
+          <td>kk_4823807139</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822817204</td>
+          <td>kk_4822817204</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824124206</td>
+          <td>kk_4824124206</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>dlrudrb512</td>
+          <td>dlrudrb512</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824031327</td>
+          <td>kk_4824031327</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>aronsk</td>
+          <td>aronsk</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824187344</td>
+          <td>kk_4824187344</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823883534</td>
+          <td>kk_4823883534</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822748855</td>
+          <td>kk_4822748855</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824129348</td>
+          <td>kk_4824129348</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822878718</td>
+          <td>kk_4822878718</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822724916</td>
+          <td>kk_4822724916</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824222574</td>
+          <td>kk_4824222574</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824003539</td>
+          <td>kk_4824003539</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822637396</td>
+          <td>kk_4822637396</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823005957</td>
+          <td>kk_4823005957</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>wjddnjs0855</td>
+          <td>wjddnjs0855</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823887055</td>
+          <td>kk_4823887055</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825708876</td>
+          <td>kk_4825708876</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825719886</td>
+          <td>kk_4825719886</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825555960</td>
+          <td>kk_4825555960</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824370313</td>
+          <td>kk_4824370313</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824525528</td>
+          <td>kk_4824525528</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824570194</td>
+          <td>kk_4824570194</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825794590</td>
+          <td>kk_4825794590</td>
+          <td>MALE</td>
+          <td>60+</td>
+          <td>MALE</td>
+          <td>60+</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824905481</td>
+          <td>kk_4824905481</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>qylee</td>
+          <td>qylee</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824931393</td>
+          <td>kk_4824931393</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>nahyun130</td>
+          <td>nahyun130</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824478059</td>
+          <td>kk_4824478059</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td>FEMALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826001777</td>
+          <td>kk_4826001777</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824582151</td>
+          <td>kk_4824582151</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824363983</td>
+          <td>kk_4824363983</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824319129</td>
+          <td>kk_4824319129</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kn0612</td>
+          <td>kn0612</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824751683</td>
+          <td>kk_4824751683</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>pkh1001</td>
+          <td>pkh1001</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>dudn6539</td>
+          <td>dudn6539</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825996045</td>
+          <td>kk_4825996045</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825003117</td>
+          <td>kk_4825003117</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>ssooomi</td>
+          <td>ssooomi</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824384834</td>
+          <td>kk_4824384834</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824291559</td>
+          <td>kk_4824291559</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825774866</td>
+          <td>kk_4825774866</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td>FEMALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824716918</td>
+          <td>kk_4824716918</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824403838</td>
+          <td>kk_4824403838</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825494848</td>
+          <td>kk_4825494848</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825678442</td>
+          <td>kk_4825678442</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824578846</td>
+          <td>kk_4824578846</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824286967</td>
+          <td>kk_4824286967</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824969475</td>
+          <td>kk_4824969475</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826027374</td>
+          <td>kk_4826027374</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824635823</td>
+          <td>kk_4824635823</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825092179</td>
+          <td>kk_4825092179</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="subcard">
+          <div class="section-kicker">Quick Summary</div>
+          <div class="summary-list"><div class="summary-item"><div class="label">Signup Non Buyer</div><div class="value">162</div></div><div class="summary-item"><div class="label">High PV Non Buyer</div><div class="value">0</div></div><div class="summary-item"><div class="label">Cart Abandon</div><div class="value">0</div></div><div class="summary-item"><div class="label">Avg PV</div><div class="value">0</div></div></div>
+          <div class="section-kicker" style="margin-top:16px">Top Viewed Products</div>
+          <div class="summary-list"><div class="summary-item"><div class="label">(not set)</div><div class="value">100</div></div></div>
+          <div class="section-kicker" style="margin-top:16px">Top Viewed Categories</div>
+          <div class="summary-list"><div class="summary-item"><div class="label">(not set)</div><div class="value">100</div></div></div>
+        </div>
+      </div>
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Buyer / Revenue</div>
+          <div class="section-title">누가 샀고 얼마를 썼는지</div>
+          <div class="section-sub">사람 기준 매출 / 주문 / 대표 상품 확인용</div>
+        </div>
+      </div>
+      <div class="panel-grid">
+        <div class="subcard">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>User ID</th>
+                  <th>Member ID</th>
+                  <th>Gender</th>
+                  <th>Age Band</th>
+                  <th>Channel</th>
+                  <th>Source</th>
+                  <th>Campaign</th>
+                  <th>First Purchase</th>
+                  <th class="num">Orders</th>
+                  <th class="num">Qty</th>
+                  <th class="num">Revenue</th>
+                  <th class="num">AOV</th>
+                  <th>Top Category</th>
+                  <th>Top Product</th>
+                </tr>
+              </thead>
+              <tbody>
+        <tr>
+          <td>feelsgoodjin</td>
+          <td>feelsgoodjin</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">10</td>
+          <td class="num">₩694,500</td>
+          <td class="num">₩694,500</td>
+          <td>(not set)</td>
+          <td>C75BI1209053</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822782006</td>
+          <td>kk_4822782006</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">2</td>
+          <td class="num">6</td>
+          <td class="num">₩645,700</td>
+          <td class="num">₩322,850</td>
+          <td>(not set)</td>
+          <td>C75BL7473063</td>
+        </tr>
+        
+        <tr>
+          <td>waltherp38</td>
+          <td>waltherp38</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">2</td>
+          <td class="num">2</td>
+          <td class="num">₩529,200</td>
+          <td class="num">₩264,600</td>
+          <td>(not set)</td>
+          <td>C71YM3502010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825798557</td>
+          <td>kk_4825798557</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩362,700</td>
+          <td class="num">₩362,700</td>
+          <td>(not set)</td>
+          <td>C75BI8634083</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822764466</td>
+          <td>kk_4822764466</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩337,600</td>
+          <td class="num">₩337,600</td>
+          <td>(not set)</td>
+          <td>C72YM8596010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824291740</td>
+          <td>kk_4824291740</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩280,170</td>
+          <td class="num">₩280,170</td>
+          <td>(not set)</td>
+          <td>C75BL6246101</td>
+        </tr>
+        
+        <tr>
+          <td>rudolph1225</td>
+          <td>rudolph1225</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">4</td>
+          <td class="num">₩258,000</td>
+          <td class="num">₩258,000</td>
+          <td>(not set)</td>
+          <td>C61YL3511105</td>
+        </tr>
+        
+        <tr>
+          <td>kjhwa37</td>
+          <td>kjhwa37</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩228,600</td>
+          <td class="num">₩228,600</td>
+          <td>(not set)</td>
+          <td>C71XR6553525</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823160272</td>
+          <td>kk_4823160272</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩227,280</td>
+          <td class="num">₩227,280</td>
+          <td>(not set)</td>
+          <td>C72YM3621346</td>
+        </tr>
+        
+        <tr>
+          <td>gabysoon</td>
+          <td>gabysoon</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩207,630</td>
+          <td class="num">₩207,630</td>
+          <td>(not set)</td>
+          <td>C55YM8908271</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823209799</td>
+          <td>kk_4823209799</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩193,600</td>
+          <td class="num">₩193,600</td>
+          <td>(not set)</td>
+          <td>C72YL3631484</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824531271</td>
+          <td>kk_4824531271</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩174,600</td>
+          <td class="num">₩174,600</td>
+          <td>(not set)</td>
+          <td>C66BI9168091</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825290256</td>
+          <td>kk_4825290256</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩156,600</td>
+          <td class="num">₩156,600</td>
+          <td>(not set)</td>
+          <td>C75YE6448010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823423690</td>
+          <td>kk_4823423690</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩152,370</td>
+          <td class="num">₩152,370</td>
+          <td>(not set)</td>
+          <td>C63YM3556395</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825367999</td>
+          <td>kk_4825367999</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩150,000</td>
+          <td class="num">₩150,000</td>
+          <td>(not set)</td>
+          <td>C61XE5850022</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822784418</td>
+          <td>kk_4822784418</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩144,990</td>
+          <td class="num">₩144,990</td>
+          <td>(not set)</td>
+          <td>C75YR8156012</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824047142</td>
+          <td>kk_4824047142</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩138,600</td>
+          <td class="num">₩138,600</td>
+          <td>(not set)</td>
+          <td>C62WR4004348</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824909675</td>
+          <td>kk_4824909675</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩138,400</td>
+          <td class="num">₩138,400</td>
+          <td>(not set)</td>
+          <td>C75PU7249010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826090049</td>
+          <td>kk_4826090049</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-02</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩136,080</td>
+          <td class="num">₩136,080</td>
+          <td>(not set)</td>
+          <td>C75BI0652089</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825765407</td>
+          <td>kk_4825765407</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩129,600</td>
+          <td class="num">₩129,600</td>
+          <td>(not set)</td>
+          <td>C75YU0366010</td>
+        </tr>
+        
+        <tr>
+          <td>stump10</td>
+          <td>stump10</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩129,600</td>
+          <td class="num">₩129,600</td>
+          <td>(not set)</td>
+          <td>C75YM8908010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822539076</td>
+          <td>kk_4822539076</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩128,880</td>
+          <td class="num">₩128,880</td>
+          <td>(not set)</td>
+          <td>C75BK0607083</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824073915</td>
+          <td>kk_4824073915</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩120,600</td>
+          <td class="num">₩120,600</td>
+          <td>(not set)</td>
+          <td>C72AE5094214</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822440468</td>
+          <td>kk_4822440468</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩120,600</td>
+          <td class="num">₩120,600</td>
+          <td>(not set)</td>
+          <td>C72AE5094011</td>
+        </tr>
+        
+        <tr>
+          <td>black1309a</td>
+          <td>black1309a</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩119,700</td>
+          <td class="num">₩119,700</td>
+          <td>(not set)</td>
+          <td>C75YU0369010</td>
+        </tr>
+        
+        <tr>
+          <td>hjy00</td>
+          <td>hjy00</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩119,200</td>
+          <td class="num">₩119,200</td>
+          <td>(not set)</td>
+          <td>C75BI1209053</td>
+        </tr>
+        
+        <tr>
+          <td>rotqo72</td>
+          <td>rotqo72</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩114,570</td>
+          <td class="num">₩114,570</td>
+          <td>(not set)</td>
+          <td>C75YE4769271</td>
+        </tr>
+        
+        <tr>
+          <td>saramimda</td>
+          <td>saramimda</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩114,000</td>
+          <td class="num">₩114,000</td>
+          <td>(not set)</td>
+          <td>C65BM7763278</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823181245</td>
+          <td>kk_4823181245</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩109,980</td>
+          <td class="num">₩109,980</td>
+          <td>(not set)</td>
+          <td>C75BK0998097</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823418179</td>
+          <td>kk_4823418179</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩109,980</td>
+          <td class="num">₩109,980</td>
+          <td>(not set)</td>
+          <td>C75BI0652014</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825879577</td>
+          <td>kk_4825879577</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩109,980</td>
+          <td class="num">₩109,980</td>
+          <td>(not set)</td>
+          <td>C75BK0998096</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823890878</td>
+          <td>kk_4823890878</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩104,490</td>
+          <td class="num">₩104,490</td>
+          <td>(not set)</td>
+          <td>C75UU8703478</td>
+        </tr>
+        
+        <tr>
+          <td>insun1319</td>
+          <td>insun1319</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">₩102,780</td>
+          <td>(not set)</td>
+          <td>C66YU0368397</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823506767</td>
+          <td>kk_4823506767</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">₩102,780</td>
+          <td>(not set)</td>
+          <td>C66YU0368010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823643844</td>
+          <td>kk_4823643844</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">₩102,780</td>
+          <td>(not set)</td>
+          <td>C75BK0607088</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4822760097</td>
+          <td>kk_4822760097</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">₩102,780</td>
+          <td>(not set)</td>
+          <td>C75BI1209255</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824590947</td>
+          <td>kk_4824590947</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">₩102,780</td>
+          <td>(not set)</td>
+          <td>C66YU0368010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825970409</td>
+          <td>kk_4825970409</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">₩102,780</td>
+          <td>(not set)</td>
+          <td>C75BI1209053</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824284440</td>
+          <td>kk_4824284440</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,600</td>
+          <td class="num">₩102,600</td>
+          <td>(not set)</td>
+          <td>C75YU2555338</td>
+        </tr>
+        
+        <tr>
+          <td>dbstndi23</td>
+          <td>dbstndi23</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩91,200</td>
+          <td class="num">₩91,200</td>
+          <td>(not set)</td>
+          <td>C71YM6604010</td>
+        </tr>
+        
+        <tr>
+          <td>kyungpia</td>
+          <td>kyungpia</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩90,000</td>
+          <td class="num">₩90,000</td>
+          <td>(not set)</td>
+          <td>C62WE2798125</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823706638</td>
+          <td>kk_4823706638</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩89,680</td>
+          <td class="num">₩89,680</td>
+          <td>(not set)</td>
+          <td>C72XE5716256</td>
+        </tr>
+        
+        <tr>
+          <td>lee1611</td>
+          <td>lee1611</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩84,600</td>
+          <td class="num">₩84,600</td>
+          <td>(not set)</td>
+          <td>C75PU8662010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823722181</td>
+          <td>kk_4823722181</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩73,980</td>
+          <td class="num">₩73,980</td>
+          <td>(not set)</td>
+          <td>C63AR4742010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_2951653803</td>
+          <td>kk_2951653803</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-30</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩73,980</td>
+          <td class="num">₩73,980</td>
+          <td>(not set)</td>
+          <td>C63AR4742271</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825844399</td>
+          <td>kk_4825844399</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩68,200</td>
+          <td class="num">₩68,200</td>
+          <td>(not set)</td>
+          <td>C75CU8623278</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824220688</td>
+          <td>kk_4824220688</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩67,200</td>
+          <td class="num">₩67,200</td>
+          <td>(not set)</td>
+          <td>C75YU0372010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823936009</td>
+          <td>kk_4823936009</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩67,200</td>
+          <td class="num">₩67,200</td>
+          <td>(not set)</td>
+          <td>C75PU8663191</td>
+        </tr>
+        
+        <tr>
+          <td>syjunghwan</td>
+          <td>syjunghwan</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩66,780</td>
+          <td class="num">₩66,780</td>
+          <td>(not set)</td>
+          <td>C66PU8709326</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824707599</td>
+          <td>kk_4824707599</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩57,600</td>
+          <td class="num">₩57,600</td>
+          <td>(not set)</td>
+          <td>C75YU0369060</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824643649</td>
+          <td>kk_4824643649</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩57,600</td>
+          <td class="num">₩57,600</td>
+          <td>(not set)</td>
+          <td>C75YU0369010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4823441193</td>
+          <td>kk_4823441193</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩57,600</td>
+          <td class="num">₩57,600</td>
+          <td>(not set)</td>
+          <td>C75YU0369484</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825502924</td>
+          <td>kk_4825502924</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩55,890</td>
+          <td class="num">₩55,890</td>
+          <td>(not set)</td>
+          <td>C75YU0369010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825843895</td>
+          <td>kk_4825843895</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩54,000</td>
+          <td class="num">₩54,000</td>
+          <td>(not set)</td>
+          <td>C62AM5409335</td>
+        </tr>
+        
+        <tr>
+          <td>darae9475</td>
+          <td>darae9475</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-03-31</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩44,100</td>
+          <td class="num">₩44,100</td>
+          <td>(not set)</td>
+          <td>C75YM0659010</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825179812</td>
+          <td>kk_4825179812</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩35,000</td>
+          <td class="num">₩35,000</td>
+          <td>(not set)</td>
+          <td>C62XE8841371</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4824374680</td>
+          <td>kk_4824374680</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩23,200</td>
+          <td class="num">₩23,200</td>
+          <td>(not set)</td>
+          <td>C75UU1979010</td>
+        </tr>
+        
+        <tr>
+          <td>junmoo741258</td>
+          <td>junmoo741258</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩10,000</td>
+          <td class="num">₩10,000</td>
+          <td>(not set)</td>
+          <td>C75PU2409265</td>
+        </tr>
+        
+        <tr>
+          <td>kk_4825602183</td>
+          <td>kk_4825602183</td>
+          <td><span class="tag slate">etc</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>2026-04-01</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩9,000</td>
+          <td class="num">₩9,000</td>
+          <td>(not set)</td>
+          <td>C75PU2409010</td>
+        </tr>
+        </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="subcard">
+          <div class="section-kicker">Quick Summary</div>
+          <div class="summary-list"><div class="summary-item"><div class="label">Buyers</div><div class="value">59</div></div><div class="summary-item"><div class="label">First Buyers</div><div class="value">57</div></div><div class="summary-item"><div class="label">Repeat Buyers</div><div class="value">2</div></div><div class="summary-item"><div class="label">Revenue</div><div class="value">₩8,583,890</div></div><div class="summary-item"><div class="label">Revenue / Buyer</div><div class="value">₩145,490</div></div><div class="summary-item"><div class="label">AOV</div><div class="value">₩140,720</div></div></div>
+          <div class="section-kicker" style="margin-top:16px">Revenue Mix by Channel</div>
+          <div class="summary-list"><div class="summary-item"><div class="label">etc</div><div class="value">₩8,583,890</div></div></div>
+        </div>
+      </div>
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Product Insight</div>
+          <div class="section-title">어떤 상품이 매출을 만들었는지</div>
+          <div class="section-sub">상품 / 카테고리 / 채널별 구매 연결</div>
+        </div>
+      </div>
+      <div class="panel-grid">
+        <div class="subcard">
+          <div class="section-kicker">Top Products</div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Category</th>
+                  <th class="num">Buyers</th>
+                  <th class="num">Orders</th>
+                  <th class="num">Qty</th>
+                  <th class="num">Revenue</th>
+                  <th class="num">First Purchase</th>
+                  <th class="num">Repeat Share</th>
+                </tr>
+              </thead>
+              <tbody>
+        <tr>
+          <td>C75BI1209053</td>
+          <td>(not set)</td>
+          <td class="num">3</td>
+          <td class="num">3</td>
+          <td class="num">12</td>
+          <td class="num">₩916,480</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BL7473063</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">6</td>
+          <td class="num">₩645,700</td>
+          <td class="num">0.0%</td>
+          <td class="num">100.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C71YM3502010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">2</td>
+          <td class="num">₩529,200</td>
+          <td class="num">0.0%</td>
+          <td class="num">100.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BI8634083</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩362,700</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C72YM8596010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩337,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BL6246101</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩280,170</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C61YL3511105</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">4</td>
+          <td class="num">₩258,000</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YU0369010</td>
+          <td>(not set)</td>
+          <td class="num">3</td>
+          <td class="num">3</td>
+          <td class="num">4</td>
+          <td class="num">₩233,190</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C71XR6553525</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩228,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C72YM3621346</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩227,280</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C55YM8908271</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩207,630</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C66YU0368010</td>
+          <td>(not set)</td>
+          <td class="num">2</td>
+          <td class="num">2</td>
+          <td class="num">2</td>
+          <td class="num">₩205,560</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C72YL3631484</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩193,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C66BI9168091</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩174,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YE6448010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩156,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C63YM3556395</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩152,370</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C61XE5850022</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩150,000</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YR8156012</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩144,990</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C62WR4004348</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩138,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75PU7249010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩138,400</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BI0652089</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩136,080</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YU0366010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩129,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YM8908010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩129,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BK0607083</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩128,880</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C72AE5094011</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩120,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C72AE5094214</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩120,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YE4769271</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩114,570</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C65BM7763278</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩114,000</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BK0998096</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩109,980</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BK0998097</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩109,980</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BI0652014</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩109,980</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75UU8703478</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩104,490</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C66YU0368397</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BK0607088</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75BI1209255</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,780</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YU2555338</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩102,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C71YM6604010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩91,200</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C62WE2798125</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩90,000</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C72XE5716256</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">3</td>
+          <td class="num">₩89,680</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75PU8662010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩84,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C63AR4742010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩73,980</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C63AR4742271</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩73,980</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75CU8623278</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩68,200</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75PU8663191</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩67,200</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YU0372010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩67,200</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C66PU8709326</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩66,780</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YU0369484</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩57,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YU0369060</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩57,600</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C62AM5409335</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩54,000</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        
+        <tr>
+          <td>C75YM0659010</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">₩44,100</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="subcard">
+          <div class="section-kicker">Channel × Product</div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Product</th>
+                  <th class="num">Buyers</th>
+                  <th class="num">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C75BI1209053</td>
+          <td class="num">3</td>
+          <td class="num">₩916,480</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C75BL7473063</td>
+          <td class="num">1</td>
+          <td class="num">₩645,700</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C71YM3502010</td>
+          <td class="num">1</td>
+          <td class="num">₩529,200</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C75BI8634083</td>
+          <td class="num">1</td>
+          <td class="num">₩362,700</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C72YM8596010</td>
+          <td class="num">1</td>
+          <td class="num">₩337,600</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C75BL6246101</td>
+          <td class="num">1</td>
+          <td class="num">₩280,170</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C61YL3511105</td>
+          <td class="num">1</td>
+          <td class="num">₩258,000</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C75YU0369010</td>
+          <td class="num">3</td>
+          <td class="num">₩233,190</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C71XR6553525</td>
+          <td class="num">1</td>
+          <td class="num">₩228,600</td>
+        </tr>
+        
+        <tr>
+          <td><span class="tag slate">etc</span></td>
+          <td>C72YM3621346</td>
+          <td class="num">1</td>
+          <td class="num">₩227,280</td>
+        </tr>
+        </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Target Candidates</div>
+          <div class="section-title">지금 메시지 보내야 할 사람들</div>
+          <div class="section-sub">Segment별로 바로 export 가능한 대상자 목록</div>
+        </div>
+        <div class="segment-tabs"><button type="button" class="segment-tab active" data-target="target-candidates" data-segment="non_buyer">Non Buyer</button><button type="button" class="segment-tab " data-target="target-candidates" data-segment="repeat_buyer">Repeat Buyer</button></div>
+      </div>
+      <div class="panel-grid">
+        <div class="subcard">
+            <div class="segment-panel active" data-target="target-candidates" data-segment="non_buyer">
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Segment</th>
+                      <th>Member ID</th>
+                      <th>User ID</th>
+                      <th>Channel</th>
+                      <th>Source</th>
+                      <th>Campaign</th>
+                      <th>Preferred Category</th>
+                      <th>Preferred Product</th>
+                      <th>Last Order</th>
+                      <th class="num">Revenue</th>
+                      <th>Recommended Message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            <tr>
+              <td>non_buyer</td>
+              <td>aronsk</td>
+              <td>aronsk</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>dan1st</td>
+              <td>dan1st</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>dgfdgf1202</td>
+              <td>dgfdgf1202</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>dlrudrb512</td>
+              <td>dlrudrb512</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>dlwotnr116</td>
+              <td>dlwotnr116</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>dudn6539</td>
+              <td>dudn6539</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>frmission777</td>
+              <td>frmission777</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>good3097</td>
+              <td>good3097</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>jubycnoc</td>
+              <td>jubycnoc</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kangjw0706</td>
+              <td>kangjw0706</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>keserase</td>
+              <td>keserase</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_2706830356</td>
+              <td>kk_2706830356</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822301136</td>
+              <td>kk_4822301136</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822316197</td>
+              <td>kk_4822316197</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822324511</td>
+              <td>kk_4822324511</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822382298</td>
+              <td>kk_4822382298</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822469379</td>
+              <td>kk_4822469379</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822475920</td>
+              <td>kk_4822475920</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822513250</td>
+              <td>kk_4822513250</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822550668</td>
+              <td>kk_4822550668</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822551568</td>
+              <td>kk_4822551568</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822637396</td>
+              <td>kk_4822637396</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822724916</td>
+              <td>kk_4822724916</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822748855</td>
+              <td>kk_4822748855</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822772428</td>
+              <td>kk_4822772428</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822817204</td>
+              <td>kk_4822817204</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822868680</td>
+              <td>kk_4822868680</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822878718</td>
+              <td>kk_4822878718</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4822910583</td>
+              <td>kk_4822910583</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823005957</td>
+              <td>kk_4823005957</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823204767</td>
+              <td>kk_4823204767</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823241098</td>
+              <td>kk_4823241098</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823365232</td>
+              <td>kk_4823365232</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823374247</td>
+              <td>kk_4823374247</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823452953</td>
+              <td>kk_4823452953</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823486713</td>
+              <td>kk_4823486713</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823593578</td>
+              <td>kk_4823593578</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823636543</td>
+              <td>kk_4823636543</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823669824</td>
+              <td>kk_4823669824</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823672917</td>
+              <td>kk_4823672917</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823748422</td>
+              <td>kk_4823748422</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823786604</td>
+              <td>kk_4823786604</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823807139</td>
+              <td>kk_4823807139</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823856841</td>
+              <td>kk_4823856841</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823863147</td>
+              <td>kk_4823863147</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823866697</td>
+              <td>kk_4823866697</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823872951</td>
+              <td>kk_4823872951</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823880766</td>
+              <td>kk_4823880766</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823881261</td>
+              <td>kk_4823881261</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823883534</td>
+              <td>kk_4823883534</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823887055</td>
+              <td>kk_4823887055</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823904003</td>
+              <td>kk_4823904003</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4823986040</td>
+              <td>kk_4823986040</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824003539</td>
+              <td>kk_4824003539</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824019023</td>
+              <td>kk_4824019023</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824031327</td>
+              <td>kk_4824031327</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824058267</td>
+              <td>kk_4824058267</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824069339</td>
+              <td>kk_4824069339</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824124206</td>
+              <td>kk_4824124206</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824129348</td>
+              <td>kk_4824129348</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824155616</td>
+              <td>kk_4824155616</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824164838</td>
+              <td>kk_4824164838</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824171183</td>
+              <td>kk_4824171183</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824175506</td>
+              <td>kk_4824175506</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824182622</td>
+              <td>kk_4824182622</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824187344</td>
+              <td>kk_4824187344</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824201219</td>
+              <td>kk_4824201219</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824212133</td>
+              <td>kk_4824212133</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824222574</td>
+              <td>kk_4824222574</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824282469</td>
+              <td>kk_4824282469</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824286967</td>
+              <td>kk_4824286967</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824287589</td>
+              <td>kk_4824287589</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824291559</td>
+              <td>kk_4824291559</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824302165</td>
+              <td>kk_4824302165</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824315714</td>
+              <td>kk_4824315714</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824319129</td>
+              <td>kk_4824319129</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824336899</td>
+              <td>kk_4824336899</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824340375</td>
+              <td>kk_4824340375</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824350758</td>
+              <td>kk_4824350758</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824363983</td>
+              <td>kk_4824363983</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824370313</td>
+              <td>kk_4824370313</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824384834</td>
+              <td>kk_4824384834</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824386131</td>
+              <td>kk_4824386131</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824403838</td>
+              <td>kk_4824403838</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824453333</td>
+              <td>kk_4824453333</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824476531</td>
+              <td>kk_4824476531</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824478059</td>
+              <td>kk_4824478059</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824513794</td>
+              <td>kk_4824513794</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824525528</td>
+              <td>kk_4824525528</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824569231</td>
+              <td>kk_4824569231</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824570194</td>
+              <td>kk_4824570194</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824578846</td>
+              <td>kk_4824578846</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824582151</td>
+              <td>kk_4824582151</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824605663</td>
+              <td>kk_4824605663</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824635823</td>
+              <td>kk_4824635823</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824716918</td>
+              <td>kk_4824716918</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824746234</td>
+              <td>kk_4824746234</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824751683</td>
+              <td>kk_4824751683</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824765546</td>
+              <td>kk_4824765546</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824768297</td>
+              <td>kk_4824768297</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824822130</td>
+              <td>kk_4824822130</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824825350</td>
+              <td>kk_4824825350</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824874358</td>
+              <td>kk_4824874358</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824905481</td>
+              <td>kk_4824905481</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824931393</td>
+              <td>kk_4824931393</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824950028</td>
+              <td>kk_4824950028</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824965333</td>
+              <td>kk_4824965333</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4824969475</td>
+              <td>kk_4824969475</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825003117</td>
+              <td>kk_4825003117</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825081949</td>
+              <td>kk_4825081949</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825092179</td>
+              <td>kk_4825092179</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825158034</td>
+              <td>kk_4825158034</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825173008</td>
+              <td>kk_4825173008</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825200185</td>
+              <td>kk_4825200185</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825242022</td>
+              <td>kk_4825242022</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825245190</td>
+              <td>kk_4825245190</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825326297</td>
+              <td>kk_4825326297</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825328334</td>
+              <td>kk_4825328334</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825459601</td>
+              <td>kk_4825459601</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>non_buyer</td>
+              <td>kk_4825463631</td>
+              <td>kk_4825463631</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div class="segment-panel " data-target="target-candidates" data-segment="repeat_buyer">
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Segment</th>
+                      <th>Member ID</th>
+                      <th>User ID</th>
+                      <th>Channel</th>
+                      <th>Source</th>
+                      <th>Campaign</th>
+                      <th>Preferred Category</th>
+                      <th>Preferred Product</th>
+                      <th>Last Order</th>
+                      <th class="num">Revenue</th>
+                      <th>Recommended Message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            <tr>
+              <td>repeat_buyer</td>
+              <td>kk_4822782006</td>
+              <td>kk_4822782006</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>C75BL7473063</td>
+              <td>2026-03-31</td>
+              <td class="num">₩645,700</td>
+              <td><span class="tag slate">GENERAL</span></td>
+            </tr>
+            
+            <tr>
+              <td>repeat_buyer</td>
+              <td>waltherp38</td>
+              <td>waltherp38</td>
+              <td><span class="tag slate">etc</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>C71YM3502010</td>
+              <td>2026-04-01</td>
+              <td class="num">₩529,200</td>
+              <td><span class="tag slate">GENERAL</span></td>
+            </tr>
+            </tbody>
+                </table>
+              </div>
+            </div>
+            </div>
+        <div class="subcard">
+          <div class="section-kicker">Segment Counts</div>
+          <div class="summary-list"><div class="summary-item"><div class="label">non_buyer</div><div class="value">162</div></div><div class="summary-item"><div class="label">cart_abandon</div><div class="value">0</div></div><div class="summary-item"><div class="label">high_intent</div><div class="value">0</div></div><div class="summary-item"><div class="label">repeat_buyer</div><div class="value">2</div></div><div class="summary-item"><div class="label">dormant</div><div class="value">0</div></div><div class="summary-item"><div class="label">vip</div><div class="value">0</div></div></div>
+          <div class="section-kicker" style="margin-top:16px">Export Guide</div>
+          <div class="small muted">
+            CSV / LMS / KAKAO / EDM export는 이 테이블을 기준으로 후속 자동화에 연결하면 됩니다.
+          </div>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+  
+<script>
+document.addEventListener('click', function(e){
+  const metricBtn = e.target.closest('.metric-tab');
+  if(metricBtn){
+    const target = metricBtn.dataset.target || '';
+    const metric = metricBtn.dataset.metric || '';
+    document.querySelectorAll('.metric-tab[data-target="' + target + '"]').forEach(btn => {
+      btn.classList.toggle('active', btn === metricBtn);
+    });
+    document.querySelectorAll('[data-metric-group="' + target + '"] .metric-slot').forEach(el => {
+      el.classList.toggle('active', el.dataset.metric === metric);
+    });
+  }
+
+  const segmentBtn = e.target.closest('.segment-tab');
+  if(segmentBtn){
+    const target = segmentBtn.dataset.target || '';
+    const seg = segmentBtn.dataset.segment || '';
+    document.querySelectorAll('.segment-tab[data-target="' + target + '"]').forEach(btn => {
+      btn.classList.toggle('active', btn === segmentBtn);
+    });
+    document.querySelectorAll('.segment-panel[data-target="' + target + '"]').forEach(panel => {
+      panel.classList.toggle('active', panel.dataset.segment === seg);
+    });
+  }
+
+  const bucketRow = e.target.closest('.bucket-row');
+  if(bucketRow){
+    const bucket = bucketRow.dataset.bucket || '';
+    document.querySelectorAll('.bucket-detail').forEach(panel => {
+      panel.style.display = panel.dataset.bucket === bucket ? 'block' : 'none';
+    });
+  }
+});
+</script>
+
+</body>
+</html>
