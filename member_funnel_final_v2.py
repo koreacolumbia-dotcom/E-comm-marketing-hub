@@ -68,8 +68,8 @@ PROJECT_ID = os.getenv("MEMBER_FUNNEL_PROJECT_ID", "").strip()
 BQ_LOCATION = os.getenv("MEMBER_FUNNEL_BQ_LOCATION", "asia-northeast3").strip()
 
 BASE_TABLE = os.getenv("MEMBER_FUNNEL_BASE_TABLE", "crm_mart.member_funnel_master").strip()
-PRODUCT_TABLE = os.getenv("MEMBER_FUNNEL_PRODUCT_TABLE", "crm_mart.campaign_product_sales").strip()
-TARGET_TABLE = os.getenv("MEMBER_FUNNEL_TARGET_TABLE", "").strip()  # optional
+PRODUCT_TABLE = os.getenv("MEMBER_FUNNEL_PRODUCT_TABLE", "").strip()
+TARGET_TABLE = os.getenv("MEMBER_FUNNEL_TARGET_TABLE", "").strip()  # optional; falls back to BASE_TABLE
 
 TARGET_DAYS = int(os.getenv("MEMBER_FUNNEL_TARGET_DAYS", "30"))
 CHANNEL_BUCKET_ORDER = [
