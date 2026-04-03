@@ -691,8 +691,7 @@ jobs:
           if [ -f "$P" ]; then
             CNT="$(python -c "import json; p='$P'; print(len(json.load(open(p,'r',encoding='utf-8'))))" 2>/dev/null || echo 0)"
           fi
-          printf '{"built_kst":"%s","yesterday":"%s","available_dates_count":%s}
-' "$KST" "$YMD" "$CNT" > reports/owned_portal/data/meta.json
+          printf '{"built_kst":"%s","yesterday":"%s","available_dates_count":%s}\n' "$KST" "$YMD" "$CNT" > reports/owned_portal/data/meta.json
           cat reports/owned_portal/data/meta.json || true
 
       - name: Publish OWNED portal to site/
@@ -960,7 +959,7 @@ PY
           if [ ! -f "build_summary.py" ]; then echo "[WARN] build_summary.py not found in repo root. Skipping."; exit 0; fi
           python -u build_summary.py || true
           mkdir -p reports
-          echo "{"build":"${UPDATED_KST}"}" > reports/meta.json
+          echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
 
       - name: Commit & push report results
         if: ${{ always() }}
