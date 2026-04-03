@@ -1116,8 +1116,13 @@ def normalize_bundle(bundle: dict) -> dict:
     if not non_buyer.empty:
         nb = non_buyer.copy()
         nb["person_type"] = "non_buyer"
-        nb["top_product"] = _safe_series(nb, "last_viewed_product").replace("", _safe_series(nb, "preferred_product", default=""))
-        nb["top_category"] = _safe_series(nb, "last_viewed_category").replace("", _safe_series(nb, "preferred_category", default=""))
+        nb_top_product = _safe_series(nb, "last_viewed_product")
+        nb_pref_product = _safe_series(nb, "preferred_product", default="")
+        nb["top_product"] = nb_top_product.where(nb_top_product.ne(""), nb_pref_product)
+
+        nb_top_category = _safe_series(nb, "last_viewed_category")
+        nb_pref_category = _safe_series(nb, "preferred_category", default="")
+        nb["top_category"] = nb_top_category.where(nb_top_category.ne(""), nb_pref_category)
         nb["total_revenue"] = _numeric_series(nb, "total_revenue")
         nb["order_count"] = _numeric_series(nb, "order_count")
         nb["bucket"] = nb.apply(lambda r: canonical_bucket(r.get("channel_group"), r.get("first_source"), "", r.get("first_campaign")), axis=1)
