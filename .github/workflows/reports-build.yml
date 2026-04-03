@@ -426,7 +426,7 @@ jobs:
 
           print(f"[CHECK] owned_path={owned_path} seeded={owned_seeded} count={owned_cnt} note={owned_note}")
           print(f"[CHECK] funnel_path={funnel_path} seeded={funnel_seeded} count={funnel_cnt} note={funnel_note}")
-          PY
+PY
 
       - name: Run Naver Lowest Price crawler
         if: ${{ steps.modes.outputs.run_price == 'true' }}
@@ -635,7 +635,7 @@ jobs:
                   raise SystemExit(f"[ERROR] {sample.name} missing key: {key}")
 
           print(f"[OK] available_dates={len(data)} latest={latest} campaigns={len(daily.get('campaigns', []))}")
-          PY
+PY
 
           HTML_SRC=""
           HTML_DST="reports/owned_portal/index.html"
@@ -857,7 +857,7 @@ jobs:
             print("[INFO] channel distribution after patch")
             for row in rows:
                 print(f"  - {row['channel_group']}: {row['users']}")
-            PY
+PY
           else
             echo "[WARN] ${MEMBER_FUNNEL_PATCH_SQL} not found -> skip channel patch"
           fi
