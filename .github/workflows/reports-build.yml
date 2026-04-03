@@ -53,6 +53,15 @@ on:
           - "false"
           - "true"
 
+      member_only:
+        description: "Run Member Funnel only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
       search_volume_only:
         description: "Run Search Volume dashboard only?"
         required: true
@@ -154,6 +163,7 @@ jobs:
           HERO_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.hero_only == 'true' }}"
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
           FUNNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.funnel_only == 'true' }}"
+          MEMBER_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.member_only == 'true' }}"
           SEARCH_VOLUME_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.search_volume_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
           EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
@@ -166,12 +176,13 @@ jobs:
             [ "$HERO_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$FUNNEL_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$MEMBER_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SEARCH_VOLUME_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of voc_only/blog_only/hero_only/owned_only/funnel_only/search_volume_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of voc_only/blog_only/hero_only/owned_only/funnel_only/member_only/search_volume_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -184,6 +195,7 @@ jobs:
           RUN_SUMMARY=true
           RUN_OWNED=true
           RUN_FUNNEL=false
+          RUN_MEMBER=false
           RUN_SEARCH_VOLUME=true
 
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
@@ -195,6 +207,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=true
             RUN_FUNNEL=false
+            RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
           fi
 
@@ -207,6 +220,20 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=true
+            RUN_MEMBER=false
+            RUN_SEARCH_VOLUME=false
+          fi
+
+          if [ "$MEMBER_ONLY" = "true" ]; then
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+            RUN_FUNNEL=false
+            RUN_MEMBER=true
             RUN_SEARCH_VOLUME=false
           fi
 
@@ -219,6 +246,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
+            RUN_MEMBER=false
             RUN_SEARCH_VOLUME=true
           fi
 
@@ -231,6 +259,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
+            RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
           fi
 
@@ -243,6 +272,7 @@ jobs:
             RUN_SUMMARY=true
             RUN_OWNED=false
             RUN_FUNNEL=false
+            RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
           fi
 
@@ -255,6 +285,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
+            RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
           fi
 
@@ -267,6 +298,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
+            RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
           fi
 
@@ -279,6 +311,7 @@ jobs:
             RUN_SUMMARY=false
             RUN_OWNED=false
             RUN_FUNNEL=false
+            RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
           fi
 
@@ -290,6 +323,7 @@ jobs:
           echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
           echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
           echo "run_funnel=$RUN_FUNNEL" >> "$GITHUB_OUTPUT"
+          echo "run_member=$RUN_MEMBER" >> "$GITHUB_OUTPUT"
           echo "run_search_volume=$RUN_SEARCH_VOLUME" >> "$GITHUB_OUTPUT"
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
 
@@ -815,6 +849,65 @@ jobs:
           ls -lah reports/daily_digest | head -n 60 || true
           echo "[CHECK] reports/daily_digest/data/funnel:"
           ls -lah reports/daily_digest/data/funnel | head -n 60 || true
+
+      - name: Build Member Funnel
+        if: ${{ steps.modes.outputs.run_member == 'true' }}
+        continue-on-error: false
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          MEMBER_FUNNEL_PROJECT_ID: ${{ secrets.MEMBER_FUNNEL_PROJECT_ID }}
+          MEMBER_FUNNEL_BASE_TABLE: ${{ secrets.MEMBER_FUNNEL_BASE_TABLE }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[ERROR] GOOGLE_SA_JSON_B64 missing"
+            exit 1
+          fi
+
+          if [ -z "${MEMBER_FUNNEL_PROJECT_ID:-}" ]; then
+            echo "[ERROR] MEMBER_FUNNEL_PROJECT_ID missing"
+            exit 1
+          fi
+
+          if [ -z "${MEMBER_FUNNEL_BASE_TABLE:-}" ]; then
+            echo "[ERROR] MEMBER_FUNNEL_BASE_TABLE missing"
+            exit 1
+          fi
+
+          echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/member_funnel_sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/member_funnel_sa.json
+
+          mkdir -p reports/member_funnel reports/member_funnel/data
+
+          python -u member_funnel_final_v2.py
+
+          test -f reports/member_funnel/index.html || { echo "[ERROR] reports/member_funnel/index.html missing"; exit 1; }
+
+          echo "[INFO] Member Funnel outputs:"
+          ls -la reports/member_funnel || true
+          ls -la reports/member_funnel/data | head -n 50 || true
+
+      - name: Publish Member Funnel to site/
+        if: ${{ steps.modes.outputs.run_member == 'true' }}
+        continue-on-error: false
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p site/member_funnel site/data/member_funnel
+
+          cp -f reports/member_funnel/index.html site/member_funnel/index.html
+
+          if [ -d "reports/member_funnel/data" ]; then
+            rsync -a reports/member_funnel/data/ site/data/member_funnel/
+          fi
+
+          test -f site/member_funnel/index.html || { echo "[ERROR] site/member_funnel/index.html missing after publish"; exit 1; }
+
+          echo "[INFO] Member Funnel published:"
+          ls -la site/member_funnel || true
+          ls -la site/data/member_funnel | head -n 50 || true
 
       - name: Build Search Volume dashboard
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
