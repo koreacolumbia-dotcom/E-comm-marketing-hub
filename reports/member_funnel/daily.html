@@ -1,0 +1,1455 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Member Funnel</title>
+
+<style>
+  :root{
+    --bg:#eff3f8;
+    --bg-grad-1:#f7fafc;
+    --bg-grad-2:#eef3f8;
+    --ink:#0f172a;
+    --muted:#64748b;
+    --line:#dbe4ee;
+    --card:rgba(255,255,255,.9);
+    --card-solid:#ffffff;
+    --shadow:0 14px 40px rgba(15,23,42,.08);
+    --shadow-strong:0 20px 50px rgba(15,23,42,.12);
+    --navy:#0f172a;
+    --blue:#2563eb;
+    --sky:#0284c7;
+    --green:#059669;
+    --amber:#d97706;
+    --rose:#e11d48;
+    --violet:#7c3aed;
+    --slate:#475569;
+    --radius-xl:28px;
+    --radius-lg:22px;
+    --radius-md:18px;
+    --radius-sm:14px;
+    --ease:cubic-bezier(.2,.8,.2,1);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    color:var(--ink);
+    font-family:Inter,"Noto Sans KR",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:linear-gradient(180deg,var(--bg-grad-1) 0%,var(--bg-grad-2) 100%);
+  }
+  .report-shell{max-width:1720px;margin:0 auto;padding:28px 24px 64px}
+  .hero{
+    position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(360px,.95fr);gap:18px;
+    margin-bottom:18px;
+  }
+  .hero-main,.hero-side,.report-card,.bucket-detail-panel,.filter-bar,.subcard,.persona-card,.mini-card,.highlight-card,.stat-card,.flow-card{
+    border:1px solid rgba(148,163,184,.18);
+    background:var(--card);
+    border-radius:var(--radius-xl);
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(14px);
+  }
+  .hero-main,.hero-side,.report-card,.bucket-detail-panel,.filter-bar{animation:cardRise .72s var(--ease) both}
+  .hero-main{
+    position:relative;padding:30px 28px;
+    background:
+      radial-gradient(circle at top right, rgba(37,99,235,.18), transparent 34%),
+      linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,250,252,.92));
+  }
+  .hero-main:before{
+    content:'';position:absolute;inset:auto -80px -80px auto;width:280px;height:280px;border-radius:50%;
+    background:radial-gradient(circle, rgba(124,58,237,.12), transparent 70%);
+    pointer-events:none;
+  }
+  .hero-side{padding:22px;display:flex;flex-direction:column;gap:14px}
+  .hero-kicker{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:var(--sky)}
+  .hero-title{font-size:38px;font-weight:950;letter-spacing:-.04em;line-height:1.02}
+  .hero-sub{margin-top:10px;font-size:14px;font-weight:700;color:var(--muted);line-height:1.6;max-width:880px}
+  .hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .hero-chip,.chip,.metric-tab,.segment-tab,.bucket-pill,.link-chip{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    border:1px solid rgba(148,163,184,.22);background:#fff;color:var(--slate);
+    border-radius:999px;padding:10px 14px;font-size:12px;font-weight:900;text-decoration:none;
+    transition:transform .22s var(--ease),box-shadow .22s var(--ease),background .22s var(--ease),color .22s var(--ease),border-color .22s var(--ease);
+  }
+  .hero-chip:hover,.chip:hover,.metric-tab:hover,.segment-tab:hover,.link-chip:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(15,23,42,.08)}
+  .metric-tab.active,.segment-tab.active,.chip.active,.bucket-pill.active{background:var(--navy);color:#fff;border-color:var(--navy);box-shadow:0 12px 28px rgba(15,23,42,.16)}
+  .hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+  .hero-btn{
+    display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+    border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;
+    border-radius:16px;padding:0 16px;font-size:13px;font-weight:900;
+    transition:transform .22s var(--ease),box-shadow .22s var(--ease),background .22s var(--ease),color .22s var(--ease);
+  }
+  .hero-btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+  .hero-btn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .hero-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .highlight-card{padding:16px 16px 14px;border-radius:22px;background:linear-gradient(180deg,#fff,rgba(248,250,252,.96))}
+  .highlight-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted)}
+  .highlight-value{margin-top:8px;font-size:24px;font-weight:950;letter-spacing:-.03em}
+  .highlight-meta{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted);line-height:1.55}
+  .insight-list{display:grid;gap:10px}
+  .insight-item{padding:14px 16px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+  .insight-item .label{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:900}
+  .insight-item .value{margin-top:8px;font-size:14px;font-weight:850;line-height:1.55}
+  .filter-bar{padding:18px 20px;margin-bottom:18px}
+  .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .section-kicker{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:900}
+  .section-title{font-size:22px;font-weight:950;letter-spacing:-.03em}
+  .section-sub{font-size:13px;color:var(--muted);font-weight:700;line-height:1.6}
+  .chip-row,.metric-switch,.segment-tabs,.bucket-pills{display:flex;gap:8px;flex-wrap:wrap}
+  .report-card,.bucket-detail-panel{padding:20px;margin-top:18px}
+  .report-card:hover,.bucket-detail-panel:hover,.subcard:hover,.persona-card:hover,.mini-card:hover,.flow-card:hover{box-shadow:var(--shadow-strong);transform:translateY(-2px)}
+  .kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+  .kpi-card{
+    position:relative;overflow:hidden;border:1px solid rgba(219,228,238,.9);background:linear-gradient(180deg,#fff,rgba(248,250,252,.98));
+    border-radius:24px;padding:18px;min-height:142px;
+    transition:transform .25s var(--ease),box-shadow .25s var(--ease),border-color .25s var(--ease);
+  }
+  .kpi-card:before{
+    content:'';position:absolute;inset:-65% auto auto -15%;width:66%;height:200%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.54),transparent);
+    transform:rotate(14deg);animation:shineSweep 4.4s linear infinite;pointer-events:none;
+  }
+  .kpi-card:hover{transform:translateY(-5px) scale(1.01);box-shadow:0 18px 36px rgba(15,23,42,.08);border-color:rgba(37,99,235,.24)}
+  .kpi-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:900}
+  .kpi-value{margin-top:10px;font-size:30px;font-weight:950;letter-spacing:-.04em;line-height:1.05}
+  .kpi-meta{margin-top:8px;font-size:12px;color:var(--muted);font-weight:800;line-height:1.5}
+  .persona-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .persona-card{padding:18px;border-radius:24px;background:linear-gradient(180deg,#fff,rgba(248,250,252,.97))}
+  .persona-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .persona-title{font-size:18px;font-weight:950;letter-spacing:-.02em}
+  .persona-badge{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#fff;background:var(--navy);padding:7px 10px;border-radius:999px}
+  .persona-main{margin-top:14px;font-size:14px;font-weight:800;line-height:1.6;color:var(--slate)}
+  .persona-main strong{color:var(--ink)}
+  .persona-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+  .mini-card{padding:12px 14px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+  .mini-label{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:900}
+  .mini-value{margin-top:6px;font-size:16px;font-weight:900;letter-spacing:-.02em}
+  .mini-meta{margin-top:4px;font-size:11px;color:var(--muted);font-weight:800;line-height:1.45}
+  .funnel-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+  .funnel-step{border:1px solid var(--line);background:#fff;border-radius:22px;padding:16px;position:relative;overflow:hidden}
+  .funnel-step:after{content:'→';position:absolute;right:-12px;top:50%;transform:translateY(-50%);font-size:22px;font-weight:900;color:#94a3b8}
+  .funnel-step:last-child:after{display:none}
+  .funnel-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:900}
+  .funnel-value{margin-top:8px;font-size:26px;font-weight:950;letter-spacing:-.03em}
+  .funnel-rate{margin-top:7px;font-size:12px;font-weight:800;color:var(--muted)}
+  .panel-grid{display:grid;grid-template-columns:1.25fr .95fr;gap:16px}
+  .three-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  .subcard{padding:16px;border-radius:24px;background:rgba(255,255,255,.94)}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .stat-card{padding:14px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+  .stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:900}
+  .stat-value{margin-top:6px;font-size:18px;font-weight:950;letter-spacing:-.02em}
+  .stat-meta{margin-top:4px;font-size:11px;font-weight:800;color:var(--muted);line-height:1.5}
+  .flow-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  .flow-card{padding:16px;border-radius:22px;background:#fff;border:1px solid var(--line)}
+  .flow-title{font-size:16px;font-weight:950;letter-spacing:-.02em}
+  .flow-text{margin-top:10px;font-size:13px;font-weight:800;color:var(--muted);line-height:1.65}
+  .bullet-list{display:grid;gap:8px;margin-top:12px}
+  .bullet{display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:800;line-height:1.6;color:var(--slate)}
+  .bullet:before{content:'•';color:var(--blue);font-weight:900}
+  table{border-collapse:collapse;width:100%}
+  .table-wrap{overflow:auto;max-width:100%}
+  .data-table{min-width:100%;table-layout:auto}
+  .compact-table{min-width:820px}
+  th{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:900;padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  td{padding:12px 10px;border-bottom:1px solid #eff4f8;font-size:13px;font-weight:750;color:var(--ink);vertical-align:top}
+  tr:hover td{background:#f8fafc}
+  td.num,th.num{text-align:right}
+  td.center,th.center{text-align:center}
+  .tag{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:900;white-space:nowrap}
+  .tag.blue{background:#dbeafe;color:#1d4ed8}
+  .tag.green{background:#dcfce7;color:#15803d}
+  .tag.amber{background:#fef3c7;color:#b45309}
+  .tag.rose{background:#ffe4e6;color:#be123c}
+  .tag.slate{background:#e2e8f0;color:#334155}
+  .tag.violet{background:#ede9fe;color:#6d28d9}
+  .metric-slot,.segment-panel,.bucket-detail{display:none}
+  .metric-slot.active,.segment-panel.active,.bucket-detail.active{display:block;animation:metricSwap .38s var(--ease)}
+  .summary-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .summary-item{border:1px solid var(--line);border-radius:18px;background:#fff;padding:14px}
+  .summary-item .label{font-size:11px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.12em}
+  .summary-item .value{margin-top:8px;font-size:18px;font-weight:950;letter-spacing:-.02em}
+  .empty-note{padding:18px;border-radius:18px;background:#fff;border:1px dashed var(--line);font-size:13px;font-weight:800;color:var(--muted)}
+  .small{font-size:12px}
+  .muted{color:var(--muted)}
+
+  .trend-grid{display:grid;grid-template-columns:1.25fr .95fr;gap:16px}
+  .chart-card{padding:18px;border-radius:24px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow)}
+  .chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .chart-svg{width:100%;height:320px;display:block}
+  .chart-grid-line{stroke:#dbe4ee;stroke-width:1}
+  .chart-axis-label{font-size:11px;fill:#64748b;font-weight:700}
+  .chart-line-users,.chart-line-signups,.chart-line-buyers{fill:none;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+  .chart-line-users{stroke:#2563eb}
+  .chart-line-signups{stroke:#7c3aed}
+  .chart-line-buyers{stroke:#059669}
+  .chart-point.users{fill:#2563eb}
+  .chart-point.signups{fill:#7c3aed}
+  .chart-point.buyers{fill:#059669}
+  .chart-legend{display:flex;gap:10px;flex-wrap:wrap}
+  .legend-item{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:900;color:var(--slate)}
+  .legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .bar-chart{display:grid;gap:10px}
+  .bar-row{display:grid;grid-template-columns:56px 1fr 110px;gap:10px;align-items:center}
+  .bar-label,.bar-value{font-size:12px;font-weight:900;color:var(--slate)}
+  .bar-track{height:10px;border-radius:999px;background:#eef3f8;overflow:hidden}
+  .bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#7c3aed)}
+  .trend-note{margin-top:10px;font-size:12px;font-weight:800;color:var(--muted);line-height:1.6}
+  .channel-trend-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .channel-trend-panel{display:none}
+  .channel-trend-panel.active{display:block;animation:metricSwap .38s var(--ease)}
+  @media (max-width:1480px){
+    .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .persona-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .panel-grid,.three-grid{grid-template-columns:1fr}
+    .flow-grid{grid-template-columns:1fr}
+  }
+  @media (max-width:1120px){
+    .hero{grid-template-columns:1fr}
+    .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .funnel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width:760px){
+    .report-shell{padding:18px 14px 42px}
+    .hero-title{font-size:30px}
+    .kpi-grid,.persona-grid,.funnel-grid,.stat-grid,.hero-summary-grid,.summary-list{grid-template-columns:1fr}
+  }
+  @keyframes cardRise{from{opacity:0;transform:translateY(24px) scale(.988)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes shineSweep{0%{transform:translateX(-170%) rotate(14deg)}100%{transform:translateX(340%) rotate(14deg)}}
+</style>
+
+</head>
+<body>
+  <div class="report-shell">
+    <div class="hero">
+      <div class="hero-main">
+        <div class="hero-kicker">CRM Funnel Dashboard</div>
+        <div class="hero-title">Member Funnel</div>
+        <div class="hero-sub">유입자 수만 보는 화면이 아니라, 어떤 사람이 어떤 채널로 들어와 가입했고 어떤 상품을 보고 결국 누가 구매했는지까지 한 번에 읽히도록 레이아웃을 전면 개편했습니다.</div>
+        <div class="hero-meta">
+          <span class="hero-chip">1D · 전일 기준 · 2026-04-02 ~ 2026-04-02 · Updated 2026-04-03 13:49:37 KST</span>
+          <span class="hero-chip">1D · 전일 기준</span>
+          <span class="hero-chip">Sign-up → Buyer → Product → Target</span>
+          <span class="hero-chip">Owned / Paid / Awareness / Direct</span>
+        </div>
+        <div class="hero-actions">
+          <a class="hero-btn" href="../index.html">Hub</a>
+          <a class="hero-btn" href="./data/target_candidates.json">Target JSON</a>
+          <a class="hero-btn primary" href="./data/overview.json">Data Bundle</a>
+        </div>
+      </div>
+      <div class="hero-side">
+        <div class="section-head" style="margin-bottom:0">
+          <div>
+            <div class="section-kicker">Executive Summary</div>
+            <div class="section-title">이번 구간 핵심 요약</div>
+            <div class="section-sub">채널/고객/액션 관점에서 바로 읽히는 카드</div>
+          </div>
+        </div>
+        <div class="hero-summary-grid"><div class="highlight-card"><div class="highlight-label">Tracked Users</div><div class="highlight-value">12</div><div class="highlight-meta">가입률 100.0%</div></div><div class="highlight-card"><div class="highlight-label">Buyers</div><div class="highlight-value">1</div><div class="highlight-meta">Buyer CVR 8.3%</div></div><div class="highlight-card"><div class="highlight-label">Revenue</div><div class="highlight-value">₩136,080</div><div class="highlight-meta">AOV ₩136,080</div></div><div class="highlight-card"><div class="highlight-label">Unknown Share</div><div class="highlight-value">100.0%</div><div class="highlight-meta">Unknown users 12</div></div></div>
+        <div class="insight-list"><div class="insight-item"><div class="label">가입 볼륨 최대 채널: Unknown</div><div class="value">식별 회원 기준 대표 연령대는 30s이고, 주요 소스는 -입니다. 대량 리드 수집 후 후속 온드 메시지 연결이 중요한 구간입니다.</div></div><div class="insight-item"><div class="label">구매자 전환 강한 채널: Unknown</div><div class="value">유입 대비 구매 전환이 상대적으로 강한 채널입니다. 구매자 확장 또는 리마케팅 예산 배분 시 우선 검토할 만합니다.</div></div><div class="insight-item"><div class="label">매출 기여 최대 채널: Unknown</div><div class="value">매출 기여가 가장 큰 채널입니다. 반복구매 가능성이 높은 카테고리와 연결해 CRM nurture를 설계하는 게 좋습니다.</div></div></div>
+      </div>
+    </div>
+
+    
+    <div class="filter-bar">
+      <div class="section-head" style="margin-bottom:0">
+        <div>
+          <div class="section-kicker">Operating View</div>
+          <div class="section-title">실행 중심 레이아웃으로 전면 개편</div>
+          <div class="section-sub">External Signal 스타일의 상단 구조를 가져오고, 회원/구매/채널/타겟을 한 흐름으로 재배치했습니다.</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px">
+          <div class="chip-row"><a class="chip active" href="./daily.html" style="text-decoration:none">1D · 전일 기준</a><a class="chip" href="./7d.html" style="text-decoration:none">7D · 최근 7일</a><a class="chip" href="./index.html" style="text-decoration:none">1M · 최근 30일</a><a class="chip" href="./1year.html" style="text-decoration:none">1Y · 최근 1년</a></div>
+          <div class="chip-row"><span class="chip active">Period · 1D · 전일 기준</span><span class="chip active">Scope · 유입 · 가입 · 구매 · 상품 · 타겟</span><span class="chip active">Channel · Awareness / Paid / Organic / SNS / Owned / Direct / Unknown</span><span class="chip active">Read Order · 요약 → 고객 프로필 → 채널 → 액션</span></div>
+        </div>
+      </div>
+    </div>
+    
+
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Overview</div>
+          <div class="section-title">핵심 KPI</div>
+          <div class="section-sub">운영 회의 첫 화면에서 바로 보는 숫자</div>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Tracked Users</div>
+          <div class="kpi-value">12</div>
+          <div class="kpi-meta">회원 퍼널 기준 전체 추적 유입 · 가입률 100.0%</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">Sign-up Users</div>
+          <div class="kpi-value">12</div>
+          <div class="kpi-meta">식별 가능한 회원가입 완료자 · Buyer CVR 8.3%</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">Non Buyer Members</div>
+          <div class="kpi-value">11</div>
+          <div class="kpi-meta">가입 후 아직 구매하지 않은 회원</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">Buyers</div>
+          <div class="kpi-value">1</div>
+          <div class="kpi-meta">실구매 회원 · Repeat rate 0.0%</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">Revenue</div>
+          <div class="kpi-value">₩136,080</div>
+          <div class="kpi-meta">회원 기준 누적 매출 · Revenue/User ₩11,340</div>
+        </div>
+        
+        <div class="kpi-card">
+          <div class="kpi-label">AOV</div>
+          <div class="kpi-value">₩136,080</div>
+          <div class="kpi-meta">회원 기준 평균 주문 금액</div>
+        </div>
+        </div>
+    </div>
+
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Customer Snapshot</div>
+          <div class="section-title">고객 프로필 카드</div>
+          <div class="section-sub">누가 들어왔고, 누가 샀고, 누가 다시 살 가능성이 높은지</div>
+        </div>
+      </div>
+      <div class="persona-grid">
+            <div class="persona-card">
+              <div class="persona-head">
+                <div>
+                  <div class="section-kicker">Customer Snapshot</div>
+                  <div class="persona-title">Identified Members</div>
+                </div>
+                <span class="persona-badge">12</span>
+              </div>
+              <div class="persona-main">
+                <strong>식별 가능한 회원 기반 프로필</strong><br/>
+                주요 연령대는 <strong>30s</strong>, 성별 믹스는 <strong>남성 67% · 여성 33%</strong>,
+                대표 유입 채널은 <strong>미상</strong> 입니다.
+              </div>
+              <div class="persona-stats">
+                <div class="mini-card">
+                  <div class="mini-label">Top Product</div>
+                  <div class="mini-value">C75BI0652089</div>
+                  <div class="mini-meta">대표 관심 / 구매 상품</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Top Category</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">대표 카테고리</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Main Source</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">가입/유입에 많이 등장한 source</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Behavior</div>
+                  <div class="mini-value">PV 0</div>
+                  <div class="mini-meta">평균 주문 0.1 · 평균 매출 ₩11,340</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="persona-card">
+              <div class="persona-head">
+                <div>
+                  <div class="section-kicker">Customer Snapshot</div>
+                  <div class="persona-title">Buyers</div>
+                </div>
+                <span class="persona-badge">1</span>
+              </div>
+              <div class="persona-main">
+                <strong>실구매자 대표 프로필</strong><br/>
+                주요 연령대는 <strong>30s</strong>, 성별 믹스는 <strong>남성 100%</strong>,
+                대표 유입 채널은 <strong>미상</strong> 입니다.
+              </div>
+              <div class="persona-stats">
+                <div class="mini-card">
+                  <div class="mini-label">Top Product</div>
+                  <div class="mini-value">C75BI0652089</div>
+                  <div class="mini-meta">대표 관심 / 구매 상품</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Top Category</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">대표 카테고리</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Main Source</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">가입/유입에 많이 등장한 source</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Behavior</div>
+                  <div class="mini-value">PV 0</div>
+                  <div class="mini-meta">평균 주문 1.0 · 평균 매출 ₩136,080</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="persona-card">
+              <div class="persona-head">
+                <div>
+                  <div class="section-kicker">Customer Snapshot</div>
+                  <div class="persona-title">Repeat Buyers</div>
+                </div>
+                <span class="persona-badge">0</span>
+              </div>
+              <div class="persona-main">
+                <strong>반복구매자 대표 프로필</strong><br/>
+                주요 연령대는 <strong>미상</strong>, 성별 믹스는 <strong>-</strong>,
+                대표 유입 채널은 <strong>미상</strong> 입니다.
+              </div>
+              <div class="persona-stats">
+                <div class="mini-card">
+                  <div class="mini-label">Top Product</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">대표 관심 / 구매 상품</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Top Category</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">대표 카테고리</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Main Source</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">가입/유입에 많이 등장한 source</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Behavior</div>
+                  <div class="mini-value">PV 0</div>
+                  <div class="mini-meta">평균 주문 0.0 · 평균 매출 ₩0</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="persona-card">
+              <div class="persona-head">
+                <div>
+                  <div class="section-kicker">Customer Snapshot</div>
+                  <div class="persona-title">High Intent</div>
+                </div>
+                <span class="persona-badge">0</span>
+              </div>
+              <div class="persona-main">
+                <strong>장바구니 / 고의도 잠재고객</strong><br/>
+                주요 연령대는 <strong>미상</strong>, 성별 믹스는 <strong>-</strong>,
+                대표 유입 채널은 <strong>미상</strong> 입니다.
+              </div>
+              <div class="persona-stats">
+                <div class="mini-card">
+                  <div class="mini-label">Top Product</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">대표 관심 / 구매 상품</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Top Category</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">대표 카테고리</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Main Source</div>
+                  <div class="mini-value">-</div>
+                  <div class="mini-meta">가입/유입에 많이 등장한 source</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Behavior</div>
+                  <div class="mini-value">PV 0</div>
+                  <div class="mini-meta">평균 주문 0.0 · 평균 매출 ₩0</div>
+                </div>
+              </div>
+            </div>
+            </div>
+    </div>
+
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Overview Funnel</div>
+          <div class="section-title">사람 기준 퍼널</div>
+          <div class="section-sub">Users → Sign-up → Non Buyer → Buyer → Repeat</div>
+        </div>
+      </div>
+      <div class="funnel-grid">
+        <div class="funnel-step">
+          <div class="funnel-label">Users</div>
+          <div class="funnel-value">12</div>
+          <div class="funnel-rate">100.0%</div>
+        </div>
+        
+        <div class="funnel-step">
+          <div class="funnel-label">Sign-up</div>
+          <div class="funnel-value">12</div>
+          <div class="funnel-rate">100.0%</div>
+        </div>
+        
+        <div class="funnel-step">
+          <div class="funnel-label">Non Buyer</div>
+          <div class="funnel-value">11</div>
+          <div class="funnel-rate">91.7%</div>
+        </div>
+        
+        <div class="funnel-step">
+          <div class="funnel-label">Buyer</div>
+          <div class="funnel-value">1</div>
+          <div class="funnel-rate">8.3%</div>
+        </div>
+        
+        <div class="funnel-step">
+          <div class="funnel-label">Repeat</div>
+          <div class="funnel-value">0</div>
+          <div class="funnel-rate">0.0%</div>
+        </div>
+        </div>
+    </div>
+
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Daily Trend</div>
+          <div class="section-title">일자별 유입 · 가입 · 구매 추이</div>
+          <div class="section-sub">기간 내 날짜별 흐름을 같이 보고, 피크 발생일과 최근 14일 상세를 바로 확인합니다.</div>
+        </div>
+      </div>
+      
+        
+            <div class="stat-grid" style="margin-bottom:16px">
+              <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value">0</div><div class="stat-meta">- 누적</div></div>
+              <div class="stat-card"><div class="stat-label">Total Sign-ups</div><div class="stat-value">0</div><div class="stat-meta">가입 볼륨</div></div>
+              <div class="stat-card"><div class="stat-label">Total Buyers</div><div class="stat-value">0</div><div class="stat-meta">구매 전환</div></div>
+              <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value">₩0</div><div class="stat-meta">누적 매출</div></div>
+            </div>
+            
+        <div class="trend-grid">
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="section-kicker">Trend Chart</div>
+                <div class="section-title" style="font-size:18px">All Users / Sign-ups / Buyers</div>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>Users</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span>Sign-ups</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#059669"></span>Buyers</span>
+              </div>
+            </div>
+            <svg class="chart-svg" viewBox="0 0 760 320" preserveAspectRatio="none">
+              <line class="chart-grid-line" x1="24.0" y1="232.0" x2="740.0" y2="232.0"></line><text class="chart-axis-label" x="0" y="236.0">0</text><line class="chart-grid-line" x1="24.0" y1="178.5" x2="740.0" y2="178.5"></line><text class="chart-axis-label" x="0" y="182.5">3</text><line class="chart-grid-line" x1="24.0" y1="125.0" x2="740.0" y2="125.0"></line><text class="chart-axis-label" x="0" y="129.0">6</text><line class="chart-grid-line" x1="24.0" y1="71.5" x2="740.0" y2="71.5"></line><text class="chart-axis-label" x="0" y="75.5">9</text><line class="chart-grid-line" x1="24.0" y1="18.0" x2="740.0" y2="18.0"></line><text class="chart-axis-label" x="0" y="22.0">12</text>
+              <polyline class="chart-line-users" points="24.0,18.0"></polyline>
+              <polyline class="chart-line-signups" points="24.0,18.0"></polyline>
+              <polyline class="chart-line-buyers" points="24.0,214.2"></polyline>
+              <circle class="chart-point users" cx="24.0" cy="18.0" r="4"></circle><circle class="chart-point signups" cx="24.0" cy="18.0" r="4"></circle><circle class="chart-point buyers" cx="24.0" cy="214.2" r="4"></circle>
+              <text class="chart-axis-label" x="24.0" y="254.0" text-anchor="middle">04-02</text>
+            </svg>
+            <div class="trend-note">Revenue는 회원 마트 기준 first_purchase_date에 매핑해 표현했습니다. 주문 레벨 팩트 테이블이 연결되면 구매/매출 추이를 더 정확하게 고도화할 수 있습니다.</div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="section-kicker">Revenue Pulse</div>
+                <div class="section-title" style="font-size:18px">All 최근 10개 일자 Revenue</div>
+              </div>
+            </div>
+            <div class="bar-chart"><div class="bar-row"><div class="bar-label">04-02</div><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><div class="bar-value">₩136,080</div></div></div>
+            <div class="stat-grid" style="margin-top:16px"><div class="stat-card"><div class="stat-label">Peak Users</div><div class="stat-value">12</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Sign-ups</div><div class="stat-value">12</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Buyers</div><div class="stat-value">1</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Revenue</div><div class="stat-value">₩136,080</div><div class="stat-meta">2026-04-02</div></div></div>
+          </div>
+        </div>
+        <div class="subcard" style="margin-top:16px">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Recent Daily Detail</div>
+              <div class="section-title" style="font-size:18px">All 최근 14일 상세</div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table compact-table">
+              <thead>
+                <tr><th>Date</th><th class="num">Users</th><th class="num">Sign-ups</th><th class="num">Buyers</th><th class="num">Revenue</th></tr>
+              </thead>
+              <tbody><tr><td>2026-04-02</td><td class="num">12</td><td class="num">12</td><td class="num">1</td><td class="num">₩136,080</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        
+      
+        <div class="subcard" style="margin-top:18px">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Channel Daily Trend</div>
+              <div class="section-title" style="font-size:20px">채널별 일자 추이 탭</div>
+              <div class="section-sub">전체와 함께 Owned / Paid / Awareness / Direct / Organic 등 채널별 날짜 흐름을 같은 구조로 비교합니다.</div>
+            </div>
+          </div>
+          <div class="channel-trend-tabs"><button type="button" class="bucket-pill active" data-target="channel-trend" data-bucket="all">All</button><button type="button" class="bucket-pill " data-target="channel-trend" data-bucket="unknown">Unknown</button></div>
+          <div class="channel-trend-panel bucket-detail active" data-target="channel-trend" data-bucket="all">
+        
+        <div class="trend-grid">
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="section-kicker">Trend Chart</div>
+                <div class="section-title" style="font-size:18px">All 채널 Users / Sign-ups / Buyers</div>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>Users</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span>Sign-ups</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#059669"></span>Buyers</span>
+              </div>
+            </div>
+            <svg class="chart-svg" viewBox="0 0 760 320" preserveAspectRatio="none">
+              <line class="chart-grid-line" x1="24.0" y1="232.0" x2="740.0" y2="232.0"></line><text class="chart-axis-label" x="0" y="236.0">0</text><line class="chart-grid-line" x1="24.0" y1="178.5" x2="740.0" y2="178.5"></line><text class="chart-axis-label" x="0" y="182.5">3</text><line class="chart-grid-line" x1="24.0" y1="125.0" x2="740.0" y2="125.0"></line><text class="chart-axis-label" x="0" y="129.0">6</text><line class="chart-grid-line" x1="24.0" y1="71.5" x2="740.0" y2="71.5"></line><text class="chart-axis-label" x="0" y="75.5">9</text><line class="chart-grid-line" x1="24.0" y1="18.0" x2="740.0" y2="18.0"></line><text class="chart-axis-label" x="0" y="22.0">12</text>
+              <polyline class="chart-line-users" points="24.0,18.0"></polyline>
+              <polyline class="chart-line-signups" points="24.0,18.0"></polyline>
+              <polyline class="chart-line-buyers" points="24.0,214.2"></polyline>
+              <circle class="chart-point users" cx="24.0" cy="18.0" r="4"></circle><circle class="chart-point signups" cx="24.0" cy="18.0" r="4"></circle><circle class="chart-point buyers" cx="24.0" cy="214.2" r="4"></circle>
+              <text class="chart-axis-label" x="24.0" y="254.0" text-anchor="middle">04-02</text>
+            </svg>
+            <div class="trend-note">Revenue는 회원 마트 기준 first_purchase_date에 매핑해 표현했습니다. 주문 레벨 팩트 테이블이 연결되면 구매/매출 추이를 더 정확하게 고도화할 수 있습니다.</div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="section-kicker">Revenue Pulse</div>
+                <div class="section-title" style="font-size:18px">All 채널 최근 10개 일자 Revenue</div>
+              </div>
+            </div>
+            <div class="bar-chart"><div class="bar-row"><div class="bar-label">04-02</div><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><div class="bar-value">₩136,080</div></div></div>
+            <div class="stat-grid" style="margin-top:16px"><div class="stat-card"><div class="stat-label">Peak Users</div><div class="stat-value">12</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Sign-ups</div><div class="stat-value">12</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Buyers</div><div class="stat-value">1</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Revenue</div><div class="stat-value">₩136,080</div><div class="stat-meta">2026-04-02</div></div></div>
+          </div>
+        </div>
+        <div class="subcard" style="margin-top:16px">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Recent Daily Detail</div>
+              <div class="section-title" style="font-size:18px">All 채널 최근 14일 상세</div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table compact-table">
+              <thead>
+                <tr><th>Date</th><th class="num">Users</th><th class="num">Sign-ups</th><th class="num">Buyers</th><th class="num">Revenue</th></tr>
+              </thead>
+              <tbody><tr><td>2026-04-02</td><td class="num">12</td><td class="num">12</td><td class="num">1</td><td class="num">₩136,080</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        </div><div class="channel-trend-panel bucket-detail " data-target="channel-trend" data-bucket="unknown">
+        
+            <div class="stat-grid" style="margin-bottom:16px">
+              <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value">12</div><div class="stat-meta">Unknown 누적</div></div>
+              <div class="stat-card"><div class="stat-label">Total Sign-ups</div><div class="stat-value">12</div><div class="stat-meta">가입 볼륨</div></div>
+              <div class="stat-card"><div class="stat-label">Total Buyers</div><div class="stat-value">1</div><div class="stat-meta">구매 전환</div></div>
+              <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value">₩136,080</div><div class="stat-meta">누적 매출</div></div>
+            </div>
+            
+        <div class="trend-grid">
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="section-kicker">Trend Chart</div>
+                <div class="section-title" style="font-size:18px">Unknown 채널 Users / Sign-ups / Buyers</div>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>Users</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span>Sign-ups</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#059669"></span>Buyers</span>
+              </div>
+            </div>
+            <svg class="chart-svg" viewBox="0 0 760 320" preserveAspectRatio="none">
+              <line class="chart-grid-line" x1="24.0" y1="232.0" x2="740.0" y2="232.0"></line><text class="chart-axis-label" x="0" y="236.0">0</text><line class="chart-grid-line" x1="24.0" y1="178.5" x2="740.0" y2="178.5"></line><text class="chart-axis-label" x="0" y="182.5">3</text><line class="chart-grid-line" x1="24.0" y1="125.0" x2="740.0" y2="125.0"></line><text class="chart-axis-label" x="0" y="129.0">6</text><line class="chart-grid-line" x1="24.0" y1="71.5" x2="740.0" y2="71.5"></line><text class="chart-axis-label" x="0" y="75.5">9</text><line class="chart-grid-line" x1="24.0" y1="18.0" x2="740.0" y2="18.0"></line><text class="chart-axis-label" x="0" y="22.0">12</text>
+              <polyline class="chart-line-users" points="24.0,18.0"></polyline>
+              <polyline class="chart-line-signups" points="24.0,18.0"></polyline>
+              <polyline class="chart-line-buyers" points="24.0,214.2"></polyline>
+              <circle class="chart-point users" cx="24.0" cy="18.0" r="4"></circle><circle class="chart-point signups" cx="24.0" cy="18.0" r="4"></circle><circle class="chart-point buyers" cx="24.0" cy="214.2" r="4"></circle>
+              <text class="chart-axis-label" x="24.0" y="254.0" text-anchor="middle">04-02</text>
+            </svg>
+            <div class="trend-note">Revenue는 회원 마트 기준 first_purchase_date에 매핑해 표현했습니다. 주문 레벨 팩트 테이블이 연결되면 구매/매출 추이를 더 정확하게 고도화할 수 있습니다.</div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="section-kicker">Revenue Pulse</div>
+                <div class="section-title" style="font-size:18px">Unknown 채널 최근 10개 일자 Revenue</div>
+              </div>
+            </div>
+            <div class="bar-chart"><div class="bar-row"><div class="bar-label">04-02</div><div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div><div class="bar-value">₩136,080</div></div></div>
+            <div class="stat-grid" style="margin-top:16px"><div class="stat-card"><div class="stat-label">Peak Users</div><div class="stat-value">12</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Sign-ups</div><div class="stat-value">12</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Buyers</div><div class="stat-value">1</div><div class="stat-meta">2026-04-02</div></div><div class="stat-card"><div class="stat-label">Peak Revenue</div><div class="stat-value">₩136,080</div><div class="stat-meta">2026-04-02</div></div></div>
+          </div>
+        </div>
+        <div class="subcard" style="margin-top:16px">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Recent Daily Detail</div>
+              <div class="section-title" style="font-size:18px">Unknown 채널 최근 14일 상세</div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table compact-table">
+              <thead>
+                <tr><th>Date</th><th class="num">Users</th><th class="num">Sign-ups</th><th class="num">Buyers</th><th class="num">Revenue</th></tr>
+              </thead>
+              <tbody><tr><td>2026-04-02</td><td class="num">12</td><td class="num">12</td><td class="num">1</td><td class="num">₩136,080</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        </div>
+        </div>
+        
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Channel Matrix</div>
+          <div class="section-title">채널별 유입 · 가입 · 구매 · 사람 특성</div>
+          <div class="section-sub">OWNED / PAID / AWARENESS / DIRECT까지 한 화면에서 비교하고, 클릭하면 source/campaign 디테일까지 확인할 수 있습니다.</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table compact-table">
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th class="num">Users</th>
+              <th class="num">Sign-ups</th>
+              <th class="num">Signup Rate</th>
+              <th class="num">Buyers</th>
+              <th class="num">Buyer CVR</th>
+              <th class="num">Revenue</th>
+              <th class="num">AOV</th>
+              <th>Top Age</th>
+              <th>Gender Mix</th>
+              <th>Top Source</th>
+              <th>Top Product</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="bucket-row" data-bucket-target="channel-detail" data-bucket="Unknown">
+              <td><span class="tag slate">Unknown</span></td>
+              <td class="num">12</td>
+              <td class="num">12</td>
+              <td class="num">100.0%</td>
+              <td class="num">1</td>
+              <td class="num">8.3%</td>
+              <td class="num">₩136,080</td>
+              <td class="num">₩136,080</td>
+              <td>30s</td>
+              <td>남성 67% · 여성 33%</td>
+              <td>-</td>
+              <td>C75BI0652089</td>
+            </tr>
+            </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Channel Drilldown</div>
+          <div class="section-title">채널별 가입 소스 상세</div>
+          <div class="section-sub">채널을 바꿔가며 source / campaign / 구매자 구조를 확인</div>
+        </div>
+        <div class="bucket-pills"><button type="button" class="bucket-pill active" data-target="channel-detail" data-bucket="Unknown">Unknown</button></div>
+      </div>
+      
+            <div class="bucket-detail active" data-target="channel-detail" data-bucket="Unknown">
+              <div class="section-head">
+                <div>
+                  <div class="section-kicker">Channel Deep Dive</div>
+                  <div class="section-title">Unknown 유입자 세부 구조</div>
+                  <div class="section-sub">어떤 source / campaign에서 어떤 사람이 가입하고 구매했는지</div>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table compact-table">
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>Campaign</th>
+                      <th class="num">Members</th>
+                      <th class="num">Buyers</th>
+                      <th class="num">Revenue</th>
+                      <th>Age Band</th>
+                      <th>Gender Mix</th>
+                      <th>Top Product</th>
+                      <th>Top Category</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            <tr>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td class="num">12</td>
+              <td class="num">1</td>
+              <td class="num">₩136,080</td>
+              <td>30s</td>
+              <td>남성 67% · 여성 33%</td>
+              <td>C75BI0652089</td>
+              <td>-</td>
+            </tr>
+            </tbody>
+                </table>
+              </div>
+            </div>
+            
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Signup Attribution</div>
+          <div class="section-title">어느 채널에서 어떤 사람이 가입했는지</div>
+          <div class="section-sub">가입 기준 source / campaign 진입점과 바로 실행 가능한 액션 요약</div>
+        </div>
+      </div>
+      <div class="panel-grid">
+        <div class="subcard">
+          <div class="section-kicker">Top Entry Points</div>
+          <div class="table-wrap">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Source</th>
+                  <th>Campaign</th>
+                  <th class="num">Members</th>
+                  <th class="num">Buyers</th>
+                  <th class="num">Revenue</th>
+                  <th>Top Age</th>
+                  <th>Top Product</th>
+                </tr>
+              </thead>
+              <tbody>
+        <tr>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">12</td>
+          <td class="num">1</td>
+          <td class="num">₩136,080</td>
+          <td>30s</td>
+          <td>C75BI0652089</td>
+        </tr>
+        </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="subcard">
+          <div class="section-kicker">Operator Actions</div>
+          <div class="flow-grid">
+        <div class="flow-card">
+          <div class="flow-title">가입 볼륨 최대 채널: Unknown</div>
+          <div class="flow-text">식별 회원 기준 대표 연령대는 30s이고, 주요 소스는 -입니다. 대량 리드 수집 후 후속 온드 메시지 연결이 중요한 구간입니다.</div>
+          <div class="bullet-list"><div class="bullet">회원가입 12</div><div class="bullet">가입률 100.0%</div><div class="bullet">대표 상품 C75BI0652089</div></div>
+        </div>
+        
+        <div class="flow-card">
+          <div class="flow-title">구매자 전환 강한 채널: Unknown</div>
+          <div class="flow-text">유입 대비 구매 전환이 상대적으로 강한 채널입니다. 구매자 확장 또는 리마케팅 예산 배분 시 우선 검토할 만합니다.</div>
+          <div class="bullet-list"><div class="bullet">구매자 1</div><div class="bullet">Buyer CVR 8.3%</div><div class="bullet">AOV ₩136,080</div></div>
+        </div>
+        
+        <div class="flow-card">
+          <div class="flow-title">매출 기여 최대 채널: Unknown</div>
+          <div class="flow-text">매출 기여가 가장 큰 채널입니다. 반복구매 가능성이 높은 카테고리와 연결해 CRM nurture를 설계하는 게 좋습니다.</div>
+          <div class="bullet-list"><div class="bullet">매출 ₩136,080</div><div class="bullet">대표 연령대 30s</div><div class="bullet">대표 상품 C75BI0652089</div></div>
+        </div>
+        </div>
+        </div>
+      </div>
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Non Buyer</div>
+          <div class="section-title">가입했지만 아직 사지 않은 사람</div>
+          <div class="section-sub">상품 조회, 장바구니, 마지막 관심 상품 기준으로 재접촉 우선순위를 볼 수 있습니다.</div>
+        </div>
+      </div>
+      <div class="stat-grid"><div class="stat-card"><div class="stat-label">Non Buyer Members</div><div class="stat-value">11</div><div class="stat-meta">가입 후 미구매 회원 수</div></div><div class="stat-card"><div class="stat-label">High PV</div><div class="stat-value">0</div><div class="stat-meta">상품 조회 3회 이상</div></div><div class="stat-card"><div class="stat-label">Cart Abandon</div><div class="stat-value">0</div><div class="stat-meta">장바구니 흔적 보유</div></div><div class="stat-card"><div class="stat-label">Avg PV</div><div class="stat-value">0.0</div><div class="stat-meta">평균 페이지뷰</div></div></div>
+      <div class="subcard" style="margin-top:16px">
+        <div class="section-kicker">Priority List</div>
+        <div class="table-wrap">
+          <table class="data-table compact-table">
+            <thead>
+              <tr>
+                <th>Member ID</th>
+                <th>Gender</th>
+                <th>Age Band</th>
+                <th>Channel</th>
+                <th>Source</th>
+                <th>Campaign</th>
+                <th class="num">PV</th>
+                <th class="num">Product Views</th>
+                <th class="num">Add to Cart</th>
+                <th>Last Category</th>
+                <th>Last Product</th>
+                <th>Recommended Message</th>
+              </tr>
+            </thead>
+            <tbody>
+        <tr>
+          <td>kk_4826158960</td>
+          <td>MALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826165723</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826150317</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826103458</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826046930</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>dlwotnr116</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826068641</td>
+          <td>FEMALE</td>
+          <td>20s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826139066</td>
+          <td>FEMALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826051847</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826145500</td>
+          <td>MALE</td>
+          <td>50s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        
+        <tr>
+          <td>kk_4826132850</td>
+          <td>MALE</td>
+          <td>40s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td class="num">0</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td><span class="tag amber">FIRST_PURCHASE_COUPON</span></td>
+        </tr>
+        </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Buyer Revenue</div>
+          <div class="section-title">누가 매출을 만들었는지</div>
+          <div class="section-sub">채널, 상품, 주문 수 기준으로 고가치 구매자를 빠르게 확인합니다.</div>
+        </div>
+      </div>
+      <div class="stat-grid"><div class="stat-card"><div class="stat-label">Buyers</div><div class="stat-value">1</div><div class="stat-meta">실구매 회원 수</div></div><div class="stat-card"><div class="stat-label">1st Buyers</div><div class="stat-value">1</div><div class="stat-meta">1회 구매 회원</div></div><div class="stat-card"><div class="stat-label">Repeat Buyers</div><div class="stat-value">0</div><div class="stat-meta">2회 이상 구매 회원</div></div><div class="stat-card"><div class="stat-label">Revenue / Buyer</div><div class="stat-value">₩136,080</div><div class="stat-meta">구매자당 평균 매출</div></div></div>
+      <div class="subcard" style="margin-top:16px">
+        <div class="section-kicker">Buyer Table</div>
+        <div class="table-wrap">
+          <table class="data-table compact-table">
+            <thead>
+              <tr>
+                <th>Member ID</th>
+                <th>Gender</th>
+                <th>Age Band</th>
+                <th>Channel</th>
+                <th>Source</th>
+                <th>Campaign</th>
+                <th>Top Category</th>
+                <th>Top Product</th>
+                <th class="num">Orders</th>
+                <th class="num">Qty</th>
+                <th class="num">AOV</th>
+                <th class="num">Revenue</th>
+              </tr>
+            </thead>
+            <tbody>
+        <tr>
+          <td>kk_4826090049</td>
+          <td>MALE</td>
+          <td>30s</td>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>(not set)</td>
+          <td>C75BI0652089</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩136,080</td>
+          <td class="num">₩136,080</td>
+        </tr>
+        </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Product Insight</div>
+          <div class="section-title">무슨 상품이 고객을 움직였는지</div>
+          <div class="section-sub">대표 상품, 카테고리, 채널별 매출 연결 구조</div>
+        </div>
+      </div>
+      <div class="panel-grid">
+        <div class="subcard">
+          <div class="section-kicker">Top Products</div>
+          <div class="table-wrap">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Category</th>
+                  <th class="num">Buyers</th>
+                  <th class="num">Orders</th>
+                  <th class="num">Qty</th>
+                  <th class="num">Revenue</th>
+                  <th class="num">First Purchase</th>
+                  <th class="num">Repeat Share</th>
+                </tr>
+              </thead>
+              <tbody>
+        <tr>
+          <td>C75BI0652089</td>
+          <td>(not set)</td>
+          <td class="num">1</td>
+          <td class="num">1</td>
+          <td class="num">2</td>
+          <td class="num">₩136,080</td>
+          <td class="num">100.0%</td>
+          <td class="num">0.0%</td>
+        </tr>
+        </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="subcard">
+          <div class="section-kicker">Channel × Product</div>
+          <div class="table-wrap">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Product</th>
+                  <th class="num">Buyers</th>
+                  <th class="num">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+        <tr>
+          <td><span class="tag slate">Unknown</span></td>
+          <td>C75BI0652089</td>
+          <td class="num">1</td>
+          <td class="num">₩136,080</td>
+        </tr>
+        </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Target Candidates</div>
+          <div class="section-title">지금 바로 액션 가능한 대상자</div>
+          <div class="section-sub">세그먼트별로 채널 / 관심상품 / 추천 메시지를 같이 보여줍니다.</div>
+        </div>
+        <div class="segment-tabs"><button type="button" class="segment-tab active" data-target="target-candidates" data-segment="non_buyer">Non Buyer</button></div>
+      </div>
+      <div class="panel-grid">
+        <div class="subcard">
+            <div class="segment-panel active" data-target="target-candidates" data-segment="non_buyer">
+              <div class="table-wrap">
+                <table class="data-table compact-table">
+                  <thead>
+                    <tr>
+                      <th>Member ID</th>
+                      <th>User ID</th>
+                      <th>Channel</th>
+                      <th>Source</th>
+                      <th>Campaign</th>
+                      <th>Preferred Category</th>
+                      <th>Preferred Product</th>
+                      <th>Last Order</th>
+                      <th class="num">Revenue</th>
+                      <th>Recommended Message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            <tr>
+              <td>dlwotnr116</td>
+              <td>dlwotnr116</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826046930</td>
+              <td>kk_4826046930</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826051847</td>
+              <td>kk_4826051847</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826068641</td>
+              <td>kk_4826068641</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826103458</td>
+              <td>kk_4826103458</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826132850</td>
+              <td>kk_4826132850</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826139066</td>
+              <td>kk_4826139066</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826145500</td>
+              <td>kk_4826145500</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826150317</td>
+              <td>kk_4826150317</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826158960</td>
+              <td>kk_4826158960</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            
+            <tr>
+              <td>kk_4826165723</td>
+              <td>kk_4826165723</td>
+              <td><span class="tag slate">Unknown</span></td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td>(not set)</td>
+              <td></td>
+              <td class="num">₩0</td>
+              <td><span class="tag slate">FIRST_PURCHASE_COUPON</span></td>
+            </tr>
+            </tbody>
+                </table>
+              </div>
+            </div>
+            </div>
+        <div class="subcard">
+          <div class="section-kicker">Segment Counts</div>
+          <div class="summary-list"><div class="summary-item"><div class="label">non_buyer</div><div class="value">11</div></div><div class="summary-item"><div class="label">cart_abandon</div><div class="value">0</div></div><div class="summary-item"><div class="label">high_intent</div><div class="value">0</div></div><div class="summary-item"><div class="label">repeat_buyer</div><div class="value">0</div></div><div class="summary-item"><div class="label">dormant</div><div class="value">0</div></div><div class="summary-item"><div class="label">vip</div><div class="value">0</div></div></div>
+          <div class="section-kicker" style="margin-top:16px">Action Guide</div>
+          <div class="bullet-list">
+            <div class="bullet">non_buyer / cart_abandon: 첫 구매 쿠폰, 장바구니 리마인드, 재방문 유도</div>
+            <div class="bullet">high_intent: 최근 관심 상품 중심 메시지, 24~72시간 후속 리마케팅</div>
+            <div class="bullet">repeat_buyer / vip: 신상품 선공개, 카테고리 기반 업셀</div>
+            <div class="bullet">dormant: 휴면 복귀 혜택, 대표 구매 카테고리 재노출</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Data Quality Monitor</div>
+          <div class="section-title">채널 해석이 불안정해질 수 있는 구간</div>
+          <div class="section-sub">Unknown / Direct 비중과 source / campaign 누락 비중을 같이 봅니다.</div>
+        </div>
+      </div>
+      <div class="stat-grid"><div class="stat-card"><div class="stat-label">Unknown Users</div><div class="stat-value">12</div><div class="stat-meta">전체 users 대비 100.0%</div></div><div class="stat-card"><div class="stat-label">Direct Users</div><div class="stat-value">0</div><div class="stat-meta">전체 users 대비 0.0%</div></div><div class="stat-card"><div class="stat-label">Missing Source</div><div class="stat-value">100.0%</div><div class="stat-meta">식별 회원 기준 first_source 비어 있음</div></div><div class="stat-card"><div class="stat-label">Missing Campaign</div><div class="stat-value">100.0%</div><div class="stat-meta">식별 회원 기준 first_campaign 비어 있음</div></div></div>
+    </div>
+    
+  </div>
+  
+<script>
+document.addEventListener('click', function(e){
+  const metricBtn = e.target.closest('.metric-tab');
+  if(metricBtn){
+    const target = metricBtn.dataset.target || '';
+    const metric = metricBtn.dataset.metric || '';
+    document.querySelectorAll('.metric-tab[data-target="' + target + '"]').forEach(function(btn){
+      btn.classList.toggle('active', btn === metricBtn);
+    });
+    document.querySelectorAll('[data-metric-group="' + target + '"] .metric-slot').forEach(function(node){
+      node.classList.toggle('active', node.dataset.metric === metric);
+    });
+  }
+
+  const segmentBtn = e.target.closest('.segment-tab');
+  if(segmentBtn){
+    const target = segmentBtn.dataset.target || '';
+    const segment = segmentBtn.dataset.segment || '';
+    document.querySelectorAll('.segment-tab[data-target="' + target + '"]').forEach(function(btn){
+      btn.classList.toggle('active', btn === segmentBtn);
+    });
+    document.querySelectorAll('.segment-panel[data-target="' + target + '"]').forEach(function(panel){
+      panel.classList.toggle('active', panel.dataset.segment === segment);
+    });
+  }
+
+  const bucketBtn = e.target.closest('.bucket-pill');
+  if(bucketBtn){
+    const target = bucketBtn.dataset.target || '';
+    const bucket = bucketBtn.dataset.bucket || '';
+    document.querySelectorAll('.bucket-pill[data-target="' + target + '"]').forEach(function(btn){
+      btn.classList.toggle('active', btn === bucketBtn);
+    });
+    document.querySelectorAll('.bucket-detail[data-target="' + target + '"]').forEach(function(panel){
+      panel.classList.toggle('active', panel.dataset.bucket === bucket);
+    });
+  }
+
+  const bucketRow = e.target.closest('.bucket-row');
+  if(bucketRow && bucketRow.dataset.bucketTarget){
+    const target = bucketRow.dataset.bucketTarget;
+    const bucket = bucketRow.dataset.bucket || '';
+    const pill = document.querySelector('.bucket-pill[data-target="' + target + '"][data-bucket="' + bucket + '"]');
+    if(pill){ pill.click(); }
+  }
+});
+</script>
+
+</body>
+</html>
