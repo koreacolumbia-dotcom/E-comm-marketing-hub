@@ -648,10 +648,8 @@ jobs:
           done
 
           if [ -n "$HTML_SRC" ]; then
-            HTML_SRC_CLEAN="$(printf '%s' "$HTML_SRC" | tr -d '
-')"
-            HTML_DST_CLEAN="$(printf '%s' "$HTML_DST" | tr -d '
-')"
+            HTML_SRC_CLEAN="$(printf '%s' "$HTML_SRC" | tr -d '\n')"
+            HTML_DST_CLEAN="$(printf '%s' "$HTML_DST" | tr -d '\n')"
             HTML_SRC_REAL="$(realpath "$HTML_SRC_CLEAN")"
             HTML_DST_REAL="$(realpath -m "$HTML_DST_CLEAN")"
 
