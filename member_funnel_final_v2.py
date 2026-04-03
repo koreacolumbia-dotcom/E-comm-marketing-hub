@@ -277,6 +277,32 @@ REPORT_PATCH_CSS = """
   .empty-note{padding:18px;border-radius:18px;background:#fff;border:1px dashed var(--line);font-size:13px;font-weight:800;color:var(--muted)}
   .small{font-size:12px}
   .muted{color:var(--muted)}
+
+  .trend-grid{display:grid;grid-template-columns:1.25fr .95fr;gap:16px}
+  .chart-card{padding:18px;border-radius:24px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow)}
+  .chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .chart-svg{width:100%;height:320px;display:block}
+  .chart-grid-line{stroke:#dbe4ee;stroke-width:1}
+  .chart-axis-label{font-size:11px;fill:#64748b;font-weight:700}
+  .chart-line-users,.chart-line-signups,.chart-line-buyers{fill:none;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+  .chart-line-users{stroke:#2563eb}
+  .chart-line-signups{stroke:#7c3aed}
+  .chart-line-buyers{stroke:#059669}
+  .chart-point.users{fill:#2563eb}
+  .chart-point.signups{fill:#7c3aed}
+  .chart-point.buyers{fill:#059669}
+  .chart-legend{display:flex;gap:10px;flex-wrap:wrap}
+  .legend-item{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:900;color:var(--slate)}
+  .legend-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .bar-chart{display:grid;gap:10px}
+  .bar-row{display:grid;grid-template-columns:56px 1fr 110px;gap:10px;align-items:center}
+  .bar-label,.bar-value{font-size:12px;font-weight:900;color:var(--slate)}
+  .bar-track{height:10px;border-radius:999px;background:#eef3f8;overflow:hidden}
+  .bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#7c3aed)}
+  .trend-note{margin-top:10px;font-size:12px;font-weight:800;color:var(--muted);line-height:1.6}
+  .channel-trend-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .channel-trend-panel{display:none}
+  .channel-trend-panel.active{display:block;animation:metricSwap .38s var(--ease)}
   @media (max-width:1480px){
     .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
     .persona-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -696,7 +722,72 @@ def fetch_bundle_from_bq(start_date: dt.date, end_date: dt.date) -> dict:
     product = run_query(client, product_sql)
     channel_product = run_query(client, channel_product_sql)
     target = run_query(client, target_sql)
+    channel_trend_sql = f"""
+    {scoped_cte},
+    stacked AS (
+      SELECT
+        CAST(COALESCE(event_date, signup_date) AS STRING) AS dt,
+        COALESCE(channel_group, 'etc') AS bucket,
+        COALESCE(first_source, '') AS first_source,
+        COALESCE(first_medium, '') AS first_medium,
+        COALESCE(first_campaign, '') AS first_campaign,
+        COUNT(DISTINCT COALESCE(NULLIF(CAST(user_id AS STRING), ''), CONCAT('member:', CAST(member_id AS STRING)))) AS users,
+        0 AS signups,
+        0 AS buyers,
+        0.0 AS revenue
+      FROM scoped
+      WHERE COALESCE(event_date, signup_date) IS NOT NULL
+      GROUP BY 1,2,3,4,5
+
+      UNION ALL
+
+      SELECT
+        CAST(signup_date AS STRING) AS dt,
+        COALESCE(channel_group, 'etc') AS bucket,
+        COALESCE(first_source, '') AS first_source,
+        COALESCE(first_medium, '') AS first_medium,
+        COALESCE(first_campaign, '') AS first_campaign,
+        0 AS users,
+        COUNT(DISTINCT CAST(member_id AS STRING)) AS signups,
+        0 AS buyers,
+        0.0 AS revenue
+      FROM scoped
+      WHERE signup_date IS NOT NULL
+      GROUP BY 1,2,3,4,5
+
+      UNION ALL
+
+      SELECT
+        CAST(first_purchase_date AS STRING) AS dt,
+        COALESCE(channel_group, 'etc') AS bucket,
+        COALESCE(first_source, '') AS first_source,
+        COALESCE(first_medium, '') AS first_medium,
+        COALESCE(first_campaign, '') AS first_campaign,
+        0 AS users,
+        0 AS signups,
+        COUNT(DISTINCT CASE WHEN COALESCE(SAFE_CAST(order_count AS INT64), 0) > 0 THEN CAST(member_id AS STRING) END) AS buyers,
+        SUM(CASE WHEN COALESCE(SAFE_CAST(order_count AS INT64), 0) > 0 THEN COALESCE(SAFE_CAST(total_revenue AS FLOAT64), 0) ELSE 0 END) AS revenue
+      FROM scoped
+      WHERE first_purchase_date IS NOT NULL
+      GROUP BY 1,2,3,4,5
+    )
+    SELECT
+      dt,
+      bucket,
+      first_source,
+      first_medium,
+      first_campaign,
+      SUM(users) AS users,
+      SUM(signups) AS signups,
+      SUM(buyers) AS buyers,
+      SUM(revenue) AS revenue
+    FROM stacked
+    GROUP BY 1,2,3,4,5
+    ORDER BY dt, bucket
+    """
+
     trend = run_query(client, trend_sql)
+    channel_trend = run_query(client, channel_trend_sql)
 
     bundle = {
         "generated_at": dt.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST"),
@@ -710,6 +801,7 @@ def fetch_bundle_from_bq(start_date: dt.date, end_date: dt.date) -> dict:
         "channel_product": channel_product.fillna("").to_dict(orient="records"),
         "target_candidates": target.fillna("").to_dict(orient="records"),
         "daily_trend": trend.fillna("").to_dict(orient="records"),
+        "channel_daily_trend": channel_trend.fillna("").to_dict(orient="records"),
     }
     return bundle
 
@@ -903,6 +995,80 @@ def _compute_trend_summary(trend_df: pd.DataFrame) -> dict:
     }
 
 
+def _build_zero_trend_frame(start_date: str, end_date: str) -> pd.DataFrame:
+    try:
+        dates = pd.date_range(start=start_date, end=end_date, freq="D")
+    except Exception:
+        return pd.DataFrame(columns=["dt", "users", "signups", "buyers", "revenue"])
+    return pd.DataFrame({
+        "dt": dates.strftime("%Y-%m-%d"),
+        "users": 0,
+        "signups": 0,
+        "buyers": 0,
+        "revenue": 0.0,
+    })
+
+
+def _compute_channel_trend_summary(trend_df: pd.DataFrame, start_date: str, end_date: str, overall_summary: Optional[dict] = None) -> dict:
+    overall_summary = overall_summary or {}
+    result = {
+        "tabs": [],
+        "panels": {},
+    }
+
+    base_frame = _build_zero_trend_frame(start_date, end_date)
+    overall_points = overall_summary.get("points", []) or []
+    all_df = pd.DataFrame(overall_points) if overall_points else base_frame.copy()
+    result["tabs"].append({"key": "all", "label": "All"})
+    result["panels"]["all"] = {
+        "key": "all",
+        "label": "All",
+        **_compute_trend_summary(all_df),
+    }
+
+    if trend_df.empty:
+        return result
+
+    df = trend_df.copy()
+    for col in ["users", "signups", "buyers", "revenue"]:
+        df[col] = pd.to_numeric(df.get(col), errors="coerce").fillna(0)
+    df["dt"] = _safe_series(df, "dt").astype(str)
+    df["bucket"] = df.apply(
+        lambda r: canonical_bucket(r.get("bucket"), r.get("first_source"), r.get("first_medium"), r.get("first_campaign")), axis=1
+    )
+    grouped = (
+        df.groupby(["bucket", "dt"], as_index=False)[["users", "signups", "buyers", "revenue"]]
+        .sum()
+    )
+    bucket_totals = (
+        grouped.groupby("bucket", as_index=False)[["users", "signups", "buyers", "revenue"]]
+        .sum()
+        .sort_values(by="bucket", key=lambda col: col.map(bucket_sort_key))
+    )
+
+    for _, brow in bucket_totals.iterrows():
+        bucket = str(brow.get("bucket") or "Unknown")
+        bdf = grouped[grouped["bucket"].astype(str) == bucket][["dt", "users", "signups", "buyers", "revenue"]].copy()
+        if base_frame.empty:
+            merged = bdf.sort_values("dt")
+        else:
+            merged = base_frame[["dt"]].merge(bdf, on="dt", how="left")
+            for col in ["users", "signups", "buyers", "revenue"]:
+                merged[col] = pd.to_numeric(merged.get(col), errors="coerce").fillna(0)
+        summary = _compute_trend_summary(merged)
+        summary.update({
+            "key": bucket.lower().replace(" ", "_"),
+            "label": bucket,
+            "total_users": int(round(float(brow.get("users", 0) or 0))),
+            "total_signups": int(round(float(brow.get("signups", 0) or 0))),
+            "total_buyers": int(round(float(brow.get("buyers", 0) or 0))),
+            "total_revenue": float(brow.get("revenue", 0) or 0),
+        })
+        result["tabs"].append({"key": summary["key"], "label": bucket})
+        result["panels"][summary["key"]] = summary
+    return result
+
+
 
 def normalize_bundle(bundle: dict) -> dict:
     overview = (bundle.get("overview") or [{}])[0] if (bundle.get("overview") or [{}]) else {}
@@ -914,6 +1080,7 @@ def normalize_bundle(bundle: dict) -> dict:
     channel_product = pd.DataFrame(bundle.get("channel_product") or [])
     target = pd.DataFrame(bundle.get("target_candidates") or [])
     trend = pd.DataFrame(bundle.get("daily_trend") or [])
+    channel_trend_raw = pd.DataFrame(bundle.get("channel_daily_trend") or [])
 
     for df in [bucket_detail, non_buyer, buyer, product, channel_product, target]:
         if not df.empty:
@@ -1188,6 +1355,8 @@ def normalize_bundle(bundle: dict) -> dict:
 
     quality = _quality_summary(channel_rows, members)
     trend_summary = _compute_trend_summary(trend)
+    dr = bundle.get("date_range", {}) or {}
+    channel_trend_summary = _compute_channel_trend_summary(channel_trend_raw, str(dr.get("start_date","")), str(dr.get("end_date","")), trend_summary)
     overview_cards = {
         "signup_rate": safe_div(float(overview.get("signup_users", 0) or 0), float(overview.get("users", 0) or 0)),
         "buyer_cvr": safe_div(float(overview.get("buyers", 0) or 0), float(overview.get("users", 0) or 0)),
@@ -1226,6 +1395,7 @@ def normalize_bundle(bundle: dict) -> dict:
         "quality": quality,
         "action_cards": action_cards,
         "daily_trend": trend_summary,
+        "channel_daily_trend": channel_trend_summary,
     }
     return transformed
 
@@ -1880,8 +2050,10 @@ def _svg_polyline(points: list[tuple[float, float]]) -> str:
     return " ".join(f"{round(x,1)},{round(y,1)}" for x, y in points)
 
 
+
 def render_daily_trend(data: dict) -> str:
     trend = data.get("daily_trend", {}) or {}
+    channel_trend = data.get("channel_daily_trend", {}) or {}
     points = trend.get("points", []) or []
     if not points:
         return f"""
@@ -1897,65 +2069,161 @@ def render_daily_trend(data: dict) -> str:
         </div>
         """
 
-    plot_w, plot_h = 760.0, 260.0
-    left, right, top, bottom = 24.0, 20.0, 18.0, 28.0
-    inner_w, inner_h = plot_w - left - right, plot_h - top - bottom
-    max_v = max(float(trend.get("max_users", 0) or 0), 1.0)
+    def _render_trend_chart(panel: dict, title_suffix: str = "") -> str:
+        panel_points = panel.get("points", []) or []
+        if not panel_points:
+            return '<div class="empty-note">해당 채널의 일자별 데이터가 없습니다.</div>'
 
-    def y_of(v: float) -> float:
-        return top + inner_h - (float(v) / max_v) * inner_h
+        plot_w, plot_h = 760.0, 260.0
+        left, right, top, bottom = 24.0, 20.0, 18.0, 28.0
+        inner_w, inner_h = plot_w - left - right, plot_h - top - bottom
+        max_v = max(float(panel.get("max_users", 0) or 0), 1.0)
 
-    def x_of(i: int, n: int) -> float:
-        return left + (inner_w * i / max(n - 1, 1))
+        def y_of(v: float) -> float:
+            return top + inner_h - (float(v) / max_v) * inner_h
 
-    users_pts, signups_pts, buyers_pts = [], [], []
-    label_nodes = []
-    for i, row in enumerate(points):
-        x = x_of(i, len(points))
-        users_pts.append((x, y_of(float(row.get("users", 0) or 0))))
-        signups_pts.append((x, y_of(float(row.get("signups", 0) or 0))))
-        buyers_pts.append((x, y_of(float(row.get("buyers", 0) or 0))))
-        if i in {0, len(points)//2, len(points)-1}:
-            label_nodes.append(f'<text class="chart-axis-label" x="{round(x,1)}" y="{plot_h-6}" text-anchor="middle">{esc(str(row.get("dt",""))[5:])}</text>')
+        def x_of(i: int, n: int) -> float:
+            return left + (inner_w * i / max(n - 1, 1))
 
-    grid_nodes = []
-    for step in range(5):
-        val = max_v * step / 4
-        y = y_of(val)
-        grid_nodes.append(f'<line class="chart-grid-line" x1="{left}" y1="{round(y,1)}" x2="{plot_w-right}" y2="{round(y,1)}"></line>')
-        grid_nodes.append(f'<text class="chart-axis-label" x="0" y="{round(y+4,1)}">{fmt_int(val)}</text>')
+        users_pts, signups_pts, buyers_pts = [], [], []
+        label_nodes = []
+        for i, row in enumerate(panel_points):
+            x = x_of(i, len(panel_points))
+            users_pts.append((x, y_of(float(row.get("users", 0) or 0))))
+            signups_pts.append((x, y_of(float(row.get("signups", 0) or 0))))
+            buyers_pts.append((x, y_of(float(row.get("buyers", 0) or 0))))
+            if i in {0, len(panel_points)//2, len(panel_points)-1}:
+                label_nodes.append(f'<text class="chart-axis-label" x="{round(x,1)}" y="{plot_h-6}" text-anchor="middle">{esc(str(row.get("dt",""))[5:])}</text>')
 
-    circles = []
-    for cls, series in [("users", users_pts), ("signups", signups_pts), ("buyers", buyers_pts)]:
-        sample_idx = {0, len(series)//2, len(series)-1}
-        for i, (x,y) in enumerate(series):
-            if i in sample_idx:
-                circles.append(f'<circle class="chart-point {cls}" cx="{round(x,1)}" cy="{round(y,1)}" r="4"></circle>')
+        grid_nodes = []
+        for step in range(5):
+            val = max_v * step / 4
+            y = y_of(val)
+            grid_nodes.append(f'<line class="chart-grid-line" x1="{left}" y1="{round(y,1)}" x2="{plot_w-right}" y2="{round(y,1)}"></line>')
+            grid_nodes.append(f'<text class="chart-axis-label" x="0" y="{round(y+4,1)}">{fmt_int(val)}</text>')
 
-    recent_rows = trend.get("recent_rows", []) or []
-    rev_max = max(float(trend.get("max_revenue", 0) or 0), 1.0)
-    bar_rows = []
-    for row in list(reversed(recent_rows[:10])):
-        rev = float(row.get("revenue", 0) or 0)
-        width = max(2.5, (rev / rev_max) * 100) if rev_max > 0 else 0
-        bar_rows.append(
-            f'''<div class="bar-row"><div class="bar-label">{esc(str(row.get("dt",""))[5:])}</div><div class="bar-track"><div class="bar-fill" style="width:{width:.1f}%"></div></div><div class="bar-value">{fmt_money(rev)}</div></div>'''
+        circles = []
+        for cls, series in [("users", users_pts), ("signups", signups_pts), ("buyers", buyers_pts)]:
+            sample_idx = {0, len(series)//2, len(series)-1}
+            for i, (x,y) in enumerate(series):
+                if i in sample_idx:
+                    circles.append(f'<circle class="chart-point {cls}" cx="{round(x,1)}" cy="{round(y,1)}" r="4"></circle>')
+
+        recent_rows = panel.get("recent_rows", []) or []
+        rev_max = max(float(panel.get("max_revenue", 0) or 0), 1.0)
+        bar_rows = []
+        for row in list(reversed(recent_rows[:10])):
+            rev = float(row.get("revenue", 0) or 0)
+            width = max(2.5, (rev / rev_max) * 100) if rev_max > 0 else 0
+            bar_rows.append(
+                f'<div class="bar-row"><div class="bar-label">{esc(str(row.get("dt",""))[5:])}</div><div class="bar-track"><div class="bar-fill" style="width:{width:.1f}%"></div></div><div class="bar-value">{fmt_money(rev)}</div></div>'
+            )
+
+        peak_cards = [
+            ("Peak Users", fmt_int(panel.get("peak_users", 0)), str(panel.get("peak_users_date", "-"))),
+            ("Peak Sign-ups", fmt_int(panel.get("peak_signups", 0)), str(panel.get("peak_signups_date", "-"))),
+            ("Peak Buyers", fmt_int(panel.get("peak_buyers", 0)), str(panel.get("peak_buyers_date", "-"))),
+            ("Peak Revenue", fmt_money(panel.get("peak_revenue", 0)), str(panel.get("peak_revenue_date", "-"))),
+        ]
+        peak_html = "".join(
+            f'<div class="stat-card"><div class="stat-label">{esc(a)}</div><div class="stat-value">{esc(b)}</div><div class="stat-meta">{esc(c)}</div></div>'
+            for a,b,c in peak_cards
         )
+        table_rows = "".join(
+            f'<tr><td>{esc(r.get("dt",""))}</td><td class="num">{fmt_int(r.get("users",0))}</td><td class="num">{fmt_int(r.get("signups",0))}</td><td class="num">{fmt_int(r.get("buyers",0))}</td><td class="num">{fmt_money(r.get("revenue",0))}</td></tr>'
+            for r in recent_rows
+        )
+        totals_html = ""
+        if panel.get("label") != "All":
+            totals_html = f'''
+            <div class="stat-grid" style="margin-bottom:16px">
+              <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value">{fmt_int(panel.get("total_users",0))}</div><div class="stat-meta">{esc(panel.get("label","-"))} 누적</div></div>
+              <div class="stat-card"><div class="stat-label">Total Sign-ups</div><div class="stat-value">{fmt_int(panel.get("total_signups",0))}</div><div class="stat-meta">가입 볼륨</div></div>
+              <div class="stat-card"><div class="stat-label">Total Buyers</div><div class="stat-value">{fmt_int(panel.get("total_buyers",0))}</div><div class="stat-meta">구매 전환</div></div>
+              <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value">{fmt_money(panel.get("total_revenue",0))}</div><div class="stat-meta">누적 매출</div></div>
+            </div>
+            '''
 
-    peak_cards = [
-        ("Peak Users", fmt_int(trend.get("peak_users", 0)), str(trend.get("peak_users_date", "-"))),
-        ("Peak Sign-ups", fmt_int(trend.get("peak_signups", 0)), str(trend.get("peak_signups_date", "-"))),
-        ("Peak Buyers", fmt_int(trend.get("peak_buyers", 0)), str(trend.get("peak_buyers_date", "-"))),
-        ("Peak Revenue", fmt_money(trend.get("peak_revenue", 0)), str(trend.get("peak_revenue_date", "-"))),
-    ]
-    peak_html = "".join(
-        f'<div class="stat-card"><div class="stat-label">{esc(a)}</div><div class="stat-value">{esc(b)}</div><div class="stat-meta">{esc(c)}</div></div>'
-        for a,b,c in peak_cards
-    )
-    table_rows = "".join(
-        f'''<tr><td>{esc(r.get("dt",""))}</td><td class="num">{fmt_int(r.get("users",0))}</td><td class="num">{fmt_int(r.get("signups",0))}</td><td class="num">{fmt_int(r.get("buyers",0))}</td><td class="num">{fmt_money(r.get("revenue",0))}</td></tr>'''
-        for r in recent_rows
-    )
+        return f"""
+        {totals_html}
+        <div class="trend-grid">
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="section-kicker">Trend Chart</div>
+                <div class="section-title" style="font-size:18px">{esc(panel.get("label","All"))}{title_suffix} Users / Sign-ups / Buyers</div>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>Users</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span>Sign-ups</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#059669"></span>Buyers</span>
+              </div>
+            </div>
+            <svg class="chart-svg" viewBox="0 0 760 320" preserveAspectRatio="none">
+              {''.join(grid_nodes)}
+              <polyline class="chart-line-users" points="{_svg_polyline(users_pts)}"></polyline>
+              <polyline class="chart-line-signups" points="{_svg_polyline(signups_pts)}"></polyline>
+              <polyline class="chart-line-buyers" points="{_svg_polyline(buyers_pts)}"></polyline>
+              {''.join(circles)}
+              {''.join(label_nodes)}
+            </svg>
+            <div class="trend-note">Revenue는 회원 마트 기준 first_purchase_date에 매핑해 표현했습니다. 주문 레벨 팩트 테이블이 연결되면 구매/매출 추이를 더 정확하게 고도화할 수 있습니다.</div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="section-kicker">Revenue Pulse</div>
+                <div class="section-title" style="font-size:18px">{esc(panel.get("label","All"))}{title_suffix} 최근 10개 일자 Revenue</div>
+              </div>
+            </div>
+            <div class="bar-chart">{''.join(bar_rows) or '<div class="muted">최근 revenue 데이터가 없습니다.</div>'}</div>
+            <div class="stat-grid" style="margin-top:16px">{peak_html}</div>
+          </div>
+        </div>
+        <div class="subcard" style="margin-top:16px">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Recent Daily Detail</div>
+              <div class="section-title" style="font-size:18px">{esc(panel.get("label","All"))}{title_suffix} 최근 14일 상세</div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table compact-table">
+              <thead>
+                <tr><th>Date</th><th class="num">Users</th><th class="num">Sign-ups</th><th class="num">Buyers</th><th class="num">Revenue</th></tr>
+              </thead>
+              <tbody>{table_rows}</tbody>
+            </table>
+          </div>
+        </div>
+        """
+
+    all_html = _render_trend_chart(trend, "")
+    tabs = channel_trend.get("tabs", []) or []
+    panels = channel_trend.get("panels", {}) or {}
+    channel_section = ""
+    if tabs:
+        tabs_html = "".join(
+            f'<button type="button" class="bucket-pill {"active" if i == 0 else ""}" data-target="channel-trend" data-bucket="{esc(tab.get("key",""))}">{esc(tab.get("label",""))}</button>'
+            for i, tab in enumerate(tabs)
+        )
+        panels_html = "".join(
+            f'<div class="channel-trend-panel bucket-detail {"active" if i == 0 else ""}" data-target="channel-trend" data-bucket="{esc(tab.get("key",""))}">{_render_trend_chart(panels.get(tab.get("key",""), {}), " 채널")}</div>'
+            for i, tab in enumerate(tabs)
+        )
+        channel_section = f"""
+        <div class="subcard" style="margin-top:18px">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Channel Daily Trend</div>
+              <div class="section-title" style="font-size:20px">채널별 일자 추이 탭</div>
+              <div class="section-sub">전체와 함께 Owned / Paid / Awareness / Direct / Organic 등 채널별 날짜 흐름을 같은 구조로 비교합니다.</div>
+            </div>
+          </div>
+          <div class="channel-trend-tabs">{tabs_html}</div>
+          {panels_html}
+        </div>
+        """
 
     return f"""
     <div class="report-card">
@@ -1966,56 +2234,8 @@ def render_daily_trend(data: dict) -> str:
           <div class="section-sub">기간 내 날짜별 흐름을 같이 보고, 피크 발생일과 최근 14일 상세를 바로 확인합니다.</div>
         </div>
       </div>
-      <div class="trend-grid">
-        <div class="chart-card">
-          <div class="chart-head">
-            <div>
-              <div class="section-kicker">Trend Chart</div>
-              <div class="section-title" style="font-size:18px">Users / Sign-ups / Buyers</div>
-            </div>
-            <div class="chart-legend">
-              <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>Users</span>
-              <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span>Sign-ups</span>
-              <span class="legend-item"><span class="legend-dot" style="background:#059669"></span>Buyers</span>
-            </div>
-          </div>
-          <svg class="chart-svg" viewBox="0 0 760 320" preserveAspectRatio="none">
-            {''.join(grid_nodes)}
-            <polyline class="chart-line-users" points="{_svg_polyline(users_pts)}"></polyline>
-            <polyline class="chart-line-signups" points="{_svg_polyline(signups_pts)}"></polyline>
-            <polyline class="chart-line-buyers" points="{_svg_polyline(buyers_pts)}"></polyline>
-            {''.join(circles)}
-            {''.join(label_nodes)}
-          </svg>
-          <div class="trend-note">Revenue는 회원 마트 기준 first_purchase_date에 매핑해 표현했습니다. 주문 레벨 팩트 테이블이 연결되면 구매/매출 추이를 더 정확하게 고도화할 수 있습니다.</div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-head">
-            <div>
-              <div class="section-kicker">Revenue Pulse</div>
-              <div class="section-title" style="font-size:18px">최근 10개 일자 Revenue</div>
-            </div>
-          </div>
-          <div class="bar-chart">{''.join(bar_rows) or '<div class="muted">최근 revenue 데이터가 없습니다.</div>'}</div>
-          <div class="stat-grid" style="margin-top:16px">{peak_html}</div>
-        </div>
-      </div>
-      <div class="subcard" style="margin-top:16px">
-        <div class="section-head">
-          <div>
-            <div class="section-kicker">Recent Daily Detail</div>
-            <div class="section-title" style="font-size:18px">최근 14일 상세</div>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table class="data-table compact-table">
-            <thead>
-              <tr><th>Date</th><th class="num">Users</th><th class="num">Sign-ups</th><th class="num">Buyers</th><th class="num">Revenue</th></tr>
-            </thead>
-            <tbody>{table_rows}</tbody>
-          </table>
-        </div>
-      </div>
+      {all_html}
+      {channel_section}
     </div>
     """
 
@@ -2202,6 +2422,7 @@ def persist_bundle_files(data: dict, prefix: str = "") -> None:
     write_json(DATA_DIR / f"{stem}product_insight.json", {"rows": data.get("product_insight", []), "channel_rows": data.get("channel_product", [])})
     write_json(DATA_DIR / f"{stem}target_candidates.json", {"rows": data.get("target_candidates", [])})
     write_json(DATA_DIR / f"{stem}daily_trend.json", {"rows": data.get("daily_trend", {}).get("points", [])})
+    write_json(DATA_DIR / f"{stem}channel_daily_trend.json", data.get("channel_daily_trend", {}))
 
     summary_payload = {
         "title": "Member Funnel",
@@ -2277,6 +2498,7 @@ def main() -> None:
         write_json(DATA_DIR / "product_insight.json", {"rows": default_summary_data.get("product_insight", []), "channel_rows": default_summary_data.get("channel_product", [])})
         write_json(DATA_DIR / "target_candidates.json", {"rows": default_summary_data.get("target_candidates", [])})
         write_json(DATA_DIR / "daily_trend.json", {"rows": default_summary_data.get("daily_trend", {}).get("points", [])})
+        write_json(DATA_DIR / "channel_daily_trend.json", default_summary_data.get("channel_daily_trend", {}))
 
 
 if __name__ == "__main__":
