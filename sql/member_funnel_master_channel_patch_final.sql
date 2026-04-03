@@ -1,8 +1,9 @@
 -- member_funnel_master 채널 보강 최종 SQL
--- source_table / target_table 은 workflow에서 문자열 치환됨
+-- 프로젝트명: columbia-ga4
+-- workflow에서 source_table / target_table 문자열 치환
 
-DECLARE source_table STRING DEFAULT 'your_project.crm_mart.member_funnel_master_staging';
-DECLARE target_table STRING DEFAULT 'your_project.crm_mart.member_funnel_master';
+DECLARE source_table STRING DEFAULT 'columbia-ga4.crm_mart.member_funnel_master_staging';
+DECLARE target_table STRING DEFAULT 'columbia-ga4.crm_mart.member_funnel_master';
 
 EXECUTE IMMEDIATE FORMAT('''
 CREATE OR REPLACE TABLE `%s` AS
@@ -17,7 +18,6 @@ WITH base AS (
     NULLIF(TRIM(CAST(latest_campaign AS STRING)), '') AS latest_campaign_raw
   FROM `%s` t
 ),
-
 channel_seed AS (
   SELECT
     *,
@@ -34,7 +34,6 @@ channel_seed AS (
     END AS channel_unknown_flag
   FROM base
 ),
-
 normalized AS (
   SELECT
     *,
@@ -47,7 +46,6 @@ normalized AS (
     LOWER(CONCAT(COALESCE(source_fallback, '(not set)'), ' / ', COALESCE(medium_fallback, '(not set)'))) AS source_medium_l
   FROM channel_seed
 ),
-
 classified AS (
   SELECT
     *,
@@ -57,16 +55,13 @@ classified AS (
         AND (med_l = '' OR med_l = '(not set)' OR med_l = 'not set')
         AND (camp_l = '' OR camp_l = '(not set)' OR camp_l = 'not set')
       THEN 'Unknown'
-
       WHEN
         REGEXP_CONTAINS(source_medium_l, r'\(direct\)\s*/\s*\(none\)')
         OR (src_l IN ('direct', '(direct)') AND med_l IN ('(none)', 'none', 'direct', ''))
       THEN 'Direct'
-
       WHEN REGEXP_CONTAINS(source_medium_l, r'instagram') AND REGEXP_CONTAINS(source_medium_l, r'story') THEN 'Official SNS'
       WHEN REGEXP_CONTAINS(source_medium_l, r'igshopping') THEN 'Official SNS'
       WHEN REGEXP_CONTAINS(source_medium_l, r'instagram') AND REGEXP_CONTAINS(source_medium_l, r'referral') THEN 'Official SNS'
-
       WHEN REGEXP_CONTAINS(source_medium_l, r'lms') OR REGEXP_CONTAINS(camp_l, r'lms') THEN 'Owned Channel'
       WHEN REGEXP_CONTAINS(source_medium_l, r'email|edm') THEN 'Owned Channel'
       WHEN REGEXP_CONTAINS(source_medium_l, r'kakao_fridnstalk') THEN 'Owned Channel'
@@ -74,12 +69,10 @@ classified AS (
       WHEN REGEXP_CONTAINS(source_medium_l, r'kakao_alimtalk') THEN 'Owned Channel'
       WHEN REGEXP_CONTAINS(source_medium_l, r'kakao_coupon') THEN 'Owned Channel'
       WHEN REGEXP_CONTAINS(source_medium_l, r'kakao_chatbot') THEN 'Owned Channel'
-
       WHEN REGEXP_CONTAINS(source_medium_l, r'mkt|_bd') OR REGEXP_CONTAINS(camp_l, r'mkt|\[bd') THEN 'Awareness'
       WHEN REGEXP_CONTAINS(source_medium_l, r'google\s*/\s*cpc') AND REGEXP_CONTAINS(camp_l, r'디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen') THEN 'Awareness'
       WHEN REGEXP_CONTAINS(source_medium_l, r'google\s*/\s*cpc') AND REGEXP_CONTAINS(camp_l, r'유튜브|yt|youtube|instream|vac|vvc') THEN 'Awareness'
       WHEN REGEXP_CONTAINS(source_medium_l, r'google\s*/\s*cpc') AND REGEXP_CONTAINS(camp_l, r'discovery') THEN 'Awareness'
-
       WHEN REGEXP_CONTAINS(source_medium_l, r'nap') AND REGEXP_CONTAINS(source_medium_l, r'da') THEN 'Paid Ad'
       WHEN REGEXP_CONTAINS(source_medium_l, r'toss') THEN 'Paid Ad'
       WHEN REGEXP_CONTAINS(source_medium_l, r'blind') THEN 'Paid Ad'
@@ -98,7 +91,6 @@ classified AS (
       WHEN REGEXP_CONTAINS(source_medium_l, r'buzzvill|criteo|mobon|snow|smr|tg|t_cafe') THEN 'Paid Ad'
       WHEN REGEXP_CONTAINS(source_medium_l, r'cpc') THEN 'Paid Ad'
       WHEN REGEXP_CONTAINS(source_medium_l, r'banner|da') THEN 'Paid Ad'
-
       WHEN REGEXP_CONTAINS(source_medium_l, r'benz') THEN 'Organic Traffic'
       WHEN REGEXP_CONTAINS(source_medium_l, r'inhouse') THEN 'Organic Traffic'
       WHEN REGEXP_CONTAINS(source_medium_l, r'facebook') AND REGEXP_CONTAINS(source_medium_l, r'referral') THEN 'Organic Traffic'
@@ -114,12 +106,10 @@ classified AS (
       WHEN REGEXP_CONTAINS(source_medium_l, r'referral') THEN 'Organic Traffic'
       WHEN REGEXP_CONTAINS(source_medium_l, r'shopping') THEN 'Organic Traffic'
       WHEN REGEXP_CONTAINS(source_medium_l, r'social') THEN 'Organic Traffic'
-
       ELSE 'Unknown'
     END AS channel_group_enhanced
   FROM normalized
 )
-
 SELECT
   * EXCEPT(channel_group),
   channel_group_enhanced AS channel_group,
