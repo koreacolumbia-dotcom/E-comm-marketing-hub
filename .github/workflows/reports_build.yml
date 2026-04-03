@@ -904,12 +904,31 @@ jobs:
 
           if [ -f "${MEMBER_FUNNEL_PATCH_SQL}" ]; then
             echo "[INFO] Running channel patch SQL before member funnel build"
-            export SOURCE_TABLE="${MEMBER_FUNNEL_SOURCE_TABLE:-${MEMBER_FUNNEL_BASE_TABLE}_staging}"
             export TARGET_TABLE="${MEMBER_FUNNEL_BASE_TABLE}"
+            TEMP_SOURCE_CREATED="false"
+
+            if [ -n "${MEMBER_FUNNEL_SOURCE_TABLE:-}" ]; then
+              export SOURCE_TABLE="${MEMBER_FUNNEL_SOURCE_TABLE}"
+              echo "[INFO] Using provided source table: $SOURCE_TABLE"
+            else
+              export SOURCE_TABLE="${MEMBER_FUNNEL_BASE_TABLE}__patch_src"
+              TEMP_SOURCE_CREATED="true"
+              echo "[INFO] No MEMBER_FUNNEL_SOURCE_TABLE provided -> creating temp source copy: $SOURCE_TABLE"
+
+              PY_COPY_B64="aW1wb3J0IG9zCmZyb20gZ29vZ2xlLmNsb3VkIGltcG9ydCBiaWdxdWVyeQoKcHJvamVjdF9pZCA9IG9zLmVudmlyb25bIk1FTUJFUl9GVU5ORUxfUFJPSkVDVF9JRCJdCmJxX2xvY2F0aW9uID0gb3MuZW52aXJvbi5nZXQoIk1FTUJFUl9GVU5ORUxfQlFfTE9DQVRJT04iLCAiYXNpYS1ub3J0aGVhc3QzIikKYmFzZV90YWJsZSA9IG9zLmVudmlyb25bIk1FTUJFUl9GVU5ORUxfQkFTRV9UQUJMRSJdCnNvdXJjZV90YWJsZSA9IG9zLmVudmlyb25bIlNPVVJDRV9UQUJMRSJdCgpjbGllbnQgPSBiaWdxdWVyeS5DbGllbnQocHJvamVjdD1wcm9qZWN0X2lkLCBsb2NhdGlvbj1icV9sb2NhdGlvbikKc3FsID0gZiIiIgpDUkVBVEUgT1IgUkVQTEFDRSBUQUJMRSBge3NvdXJjZV90YWJsZX1gIEFTClNFTEVDVCAqCkZST00gYHtiYXNlX3RhYmxlfWAKIiIiCmNsaWVudC5xdWVyeShzcWwsIGxvY2F0aW9uPWJxX2xvY2F0aW9uKS5yZXN1bHQoKQpwcmludChmIltJTkZPXSB0ZW1wIHNvdXJjZSB0YWJsZSBjcmVhdGVkOiB7c291cmNlX3RhYmxlfSIpCg=="
+              printf '%s' "$PY_COPY_B64" | base64 -d > /tmp/member_patch_copy_source.py
+              python /tmp/member_patch_copy_source.py
+            fi
 
             PY_PATCH_B64="aW1wb3J0IG9zCmZyb20gZ29vZ2xlLmNsb3VkIGltcG9ydCBiaWdxdWVyeQoKc3FsX3BhdGggPSBvcy5lbnZpcm9uWyJNRU1CRVJfRlVOTkVMX1BBVENIX1NRTCJdCnNvdXJjZV90YWJsZSA9IG9zLmVudmlyb25bIlNPVVJDRV9UQUJMRSJdCnRhcmdldF90YWJsZSA9IG9zLmVudmlyb25bIlRBUkdFVF9UQUJMRSJdCnByb2plY3RfaWQgPSBvcy5lbnZpcm9uWyJNRU1CRVJfRlVOTkVMX1BST0pFQ1RfSUQiXQpicV9sb2NhdGlvbiA9IG9zLmVudmlyb24uZ2V0KCJNRU1CRVJfRlVOTkVMX0JRX0xPQ0FUSU9OIiwgImFzaWEtbm9ydGhlYXN0MyIpCgp3aXRoIG9wZW4oc3FsX3BhdGgsICJyIiwgZW5jb2Rpbmc9InV0Zi04IikgYXMgZjoKICAgIHNxbCA9IGYucmVhZCgpCgpzcWwgPSBzcWwucmVwbGFjZSgiY29sdW1iaWEtZ2E0LmNybV9tYXJ0Lm1lbWJlcl9mdW5uZWxfbWFzdGVyX3N0YWdpbmciLCBzb3VyY2VfdGFibGUpCnNxbCA9IHNxbC5yZXBsYWNlKCJjb2x1bWJpYS1nYTQuY3JtX21hcnQubWVtYmVyX2Z1bm5lbF9tYXN0ZXIiLCB0YXJnZXRfdGFibGUpCgpjbGllbnQgPSBiaWdxdWVyeS5DbGllbnQocHJvamVjdD1wcm9qZWN0X2lkLCBsb2NhdGlvbj1icV9sb2NhdGlvbikKY2xpZW50LnF1ZXJ5KHNxbCwgbG9jYXRpb249YnFfbG9jYXRpb24pLnJlc3VsdCgpCgpyb3dzID0gbGlzdCgKICAgIGNsaWVudC5xdWVyeSgKICAgICAgICBmIlNFTEVDVCBjaGFubmVsX2dyb3VwLCBDT1VOVCgqKSBBUyB1c2VycyBGUk9NIGB7dGFyZ2V0X3RhYmxlfWAgR1JPVVAgQlkgMSBPUkRFUiBCWSAyIERFU0MiLAogICAgICAgIGxvY2F0aW9uPWJxX2xvY2F0aW9uLAogICAgKS5yZXN1bHQoKQopCgpwcmludCgiW0lORk9dIGNoYW5uZWwgZGlzdHJpYnV0aW9uIGFmdGVyIHBhdGNoIikKZm9yIHJvdyBpbiByb3dzOgogICAgcHJpbnQoZiIgIC0ge3Jvd1snY2hhbm5lbF9ncm91cCddfToge3Jvd1sndXNlcnMnXX0iKQo="
             printf '%s' "$PY_PATCH_B64" | base64 -d > /tmp/member_patch.py
             python /tmp/member_patch.py
+
+            if [ "$TEMP_SOURCE_CREATED" = "true" ]; then
+              PY_CLEANUP_B64="aW1wb3J0IG9zCmZyb20gZ29vZ2xlLmNsb3VkIGltcG9ydCBiaWdxdWVyeQoKcHJvamVjdF9pZCA9IG9zLmVudmlyb25bIk1FTUJFUl9GVU5ORUxfUFJPSkVDVF9JRCJdCmJxX2xvY2F0aW9uID0gb3MuZW52aXJvbi5nZXQoIk1FTUJFUl9GVU5ORUxfQlFfTE9DQVRJT04iLCAiYXNpYS1ub3J0aGVhc3QzIikKc291cmNlX3RhYmxlID0gb3MuZW52aXJvblsiU09VUkNFX1RBQkxFIl0KCmNsaWVudCA9IGJpZ3F1ZXJ5LkNsaWVudChwcm9qZWN0PXByb2plY3RfaWQsIGxvY2F0aW9uPWJxX2xvY2F0aW9uKQpjbGllbnQucXVlcnkoZiJEUk9QIFRBQkxFIElGIEVYSVNUUyBge3NvdXJjZV90YWJsZX1gIiwgbG9jYXRpb249YnFfbG9jYXRpb24pLnJlc3VsdCgpCnByaW50KGYiW0lORk9dIHRlbXAgc291cmNlIHRhYmxlIGRyb3BwZWQ6IHtzb3VyY2VfdGFibGV9IikK"
+              printf '%s' "$PY_CLEANUP_B64" | base64 -d > /tmp/member_patch_cleanup.py
+              python /tmp/member_patch_cleanup.py
+            fi
           else
             echo "[WARN] ${MEMBER_FUNNEL_PATCH_SQL} not found -> skip channel patch"
           fi
