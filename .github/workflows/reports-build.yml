@@ -906,8 +906,39 @@ jobs:
             export SOURCE_TABLE="${MEMBER_FUNNEL_SOURCE_TABLE:-${MEMBER_FUNNEL_BASE_TABLE}_staging}"
             export TARGET_TABLE="${MEMBER_FUNNEL_BASE_TABLE}"
 
-            printf '%s
-' "import os" "from google.cloud import bigquery" "sql_path = os.environ['MEMBER_FUNNEL_PATCH_SQL']" "source_table = os.environ['SOURCE_TABLE']" "target_table = os.environ['TARGET_TABLE']" "project_id = os.environ['MEMBER_FUNNEL_PROJECT_ID']" "sql = open(sql_path, 'r', encoding='utf-8').read()" "sql = sql.replace('your_project.crm_mart.member_funnel_master_staging', source_table)" "sql = sql.replace('your_project.crm_mart.member_funnel_master', target_table)" "client = bigquery.Client(project=project_id)" "client.query(sql).result()" "rows = list(client.query(f'''SELECT channel_group, COUNT(*) AS users FROM `{target_table}` GROUP BY 1 ORDER BY 2 DESC''').result())" "print('[INFO] channel distribution after patch')" "for row in rows: print(f"  - {row['channel_group']}: {row['users']}")" > /tmp/member_patch.py
+            cat > /tmp/member_patch.py <<'PY'
+            import os
+            from google.cloud import bigquery
+
+            sql_path = os.environ["MEMBER_FUNNEL_PATCH_SQL"]
+            source_table = os.environ["SOURCE_TABLE"]
+            target_table = os.environ["TARGET_TABLE"]
+            project_id = os.environ["MEMBER_FUNNEL_PROJECT_ID"]
+
+            with open(sql_path, "r", encoding="utf-8") as f:
+                sql = f.read()
+
+            sql = sql.replace("your_project.crm_mart.member_funnel_master_staging", source_table)
+            sql = sql.replace("your_project.crm_mart.member_funnel_master", target_table)
+
+            client = bigquery.Client(project=project_id)
+            client.query(sql).result()
+
+            rows = list(
+                client.query(
+                    f"""
+                    SELECT channel_group, COUNT(*) AS users
+                    FROM `{target_table}`
+                    GROUP BY 1
+                    ORDER BY 2 DESC
+                    """
+                ).result()
+            )
+
+            print("[INFO] channel distribution after patch")
+            for row in rows:
+                print(f"  - {row['channel_group']}: {row['users']}")
+            PY
 
             python /tmp/member_patch.py
           else
