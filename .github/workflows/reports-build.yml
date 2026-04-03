@@ -345,6 +345,8 @@ jobs:
 
       - name: Install dependencies
         shell: bash
+        env:
+          NEEDS_PLAYWRIGHT: ${{ steps.modes.outputs.run_hero == 'true' || steps.modes.outputs.run_blog == 'true' || steps.modes.outputs.run_extsig == 'true' }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
@@ -368,7 +370,13 @@ jobs:
           fi
 
           pip install openpyxl matplotlib pytrends
-          python -m playwright install --with-deps chromium
+
+          if [ "${NEEDS_PLAYWRIGHT}" = "true" ]; then
+            echo "[INFO] Browser-based crawler detected -> install Playwright Chromium"
+            python -m playwright install --with-deps chromium
+          else
+            echo "[INFO] No browser-based crawler selected -> skip Playwright Chromium install"
+          fi
 
       - name: Ensure reports dir
         shell: bash
