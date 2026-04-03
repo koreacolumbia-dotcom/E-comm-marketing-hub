@@ -78,6 +78,8 @@ CHANNEL_BUCKET_ORDER = [
     "Organic Traffic",
     "Official SNS",
     "Owned Channel",
+    "Direct",
+    "Unknown",
     "etc",
 ]
 TARGET_SEGMENT_ORDER = [
@@ -99,143 +101,194 @@ WRITE_DATA_CACHE = os.getenv("MEMBER_FUNNEL_WRITE_DATA_CACHE", "true").strip().l
 REPORT_PATCH_CSS = """
 <style>
   :root{
-    --report-max:none;
-    --motion-ease:cubic-bezier(.2,.8,.2,1);
-    --bg-a:#f8fafc;
-    --bg-b:#eef2f7;
-    --line:#e2e8f0;
+    --bg:#eff3f8;
+    --bg-grad-1:#f7fafc;
+    --bg-grad-2:#eef3f8;
     --ink:#0f172a;
     --muted:#64748b;
-    --card:#ffffffd9;
-    --chip:#ffffff;
-    --chip-border:rgba(148,163,184,.25);
+    --line:#dbe4ee;
+    --card:rgba(255,255,255,.9);
+    --card-solid:#ffffff;
+    --shadow:0 14px 40px rgba(15,23,42,.08);
+    --shadow-strong:0 20px 50px rgba(15,23,42,.12);
+    --navy:#0f172a;
     --blue:#2563eb;
+    --sky:#0284c7;
     --green:#059669;
     --amber:#d97706;
     --rose:#e11d48;
+    --violet:#7c3aed;
+    --slate:#475569;
+    --radius-xl:28px;
+    --radius-lg:22px;
+    --radius-md:18px;
+    --radius-sm:14px;
+    --ease:cubic-bezier(.2,.8,.2,1);
   }
   *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
   body{
     margin:0;
     color:var(--ink);
-    font-family:Inter, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background:linear-gradient(180deg,var(--bg-a) 0%,var(--bg-b) 100%);
+    font-family:Inter,"Noto Sans KR",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:linear-gradient(180deg,var(--bg-grad-1) 0%,var(--bg-grad-2) 100%);
   }
-  .report-shell{max-width:1600px;margin:0 auto;padding:28px 24px 56px}
-  .hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-  .hero-title{font-size:34px;font-weight:900;letter-spacing:-.02em}
-  .hero-sub{margin-top:8px;color:var(--muted);font-size:14px;font-weight:700}
-  .hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .report-shell{max-width:1720px;margin:0 auto;padding:28px 24px 64px}
+  .hero{
+    position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(360px,.95fr);gap:18px;
+    margin-bottom:18px;
+  }
+  .hero-main,.hero-side,.report-card,.bucket-detail-panel,.filter-bar,.subcard,.persona-card,.mini-card,.highlight-card,.stat-card,.flow-card{
+    border:1px solid rgba(148,163,184,.18);
+    background:var(--card);
+    border-radius:var(--radius-xl);
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(14px);
+  }
+  .hero-main,.hero-side,.report-card,.bucket-detail-panel,.filter-bar{animation:cardRise .72s var(--ease) both}
+  .hero-main{
+    position:relative;padding:30px 28px;
+    background:
+      radial-gradient(circle at top right, rgba(37,99,235,.18), transparent 34%),
+      linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,250,252,.92));
+  }
+  .hero-main:before{
+    content:'';position:absolute;inset:auto -80px -80px auto;width:280px;height:280px;border-radius:50%;
+    background:radial-gradient(circle, rgba(124,58,237,.12), transparent 70%);
+    pointer-events:none;
+  }
+  .hero-side{padding:22px;display:flex;flex-direction:column;gap:14px}
+  .hero-kicker{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:var(--sky)}
+  .hero-title{font-size:38px;font-weight:950;letter-spacing:-.04em;line-height:1.02}
+  .hero-sub{margin-top:10px;font-size:14px;font-weight:700;color:var(--muted);line-height:1.6;max-width:880px}
+  .hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .hero-chip,.chip,.metric-tab,.segment-tab,.bucket-pill,.link-chip{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    border:1px solid rgba(148,163,184,.22);background:#fff;color:var(--slate);
+    border-radius:999px;padding:10px 14px;font-size:12px;font-weight:900;text-decoration:none;
+    transition:transform .22s var(--ease),box-shadow .22s var(--ease),background .22s var(--ease),color .22s var(--ease),border-color .22s var(--ease);
+  }
+  .hero-chip:hover,.chip:hover,.metric-tab:hover,.segment-tab:hover,.link-chip:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(15,23,42,.08)}
+  .metric-tab.active,.segment-tab.active,.chip.active,.bucket-pill.active{background:var(--navy);color:#fff;border-color:var(--navy);box-shadow:0 12px 28px rgba(15,23,42,.16)}
+  .hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
   .hero-btn{
-    display:inline-flex;align-items:center;justify-content:center;
-    border:1px solid var(--line);background:#fff;color:var(--ink);
-    border-radius:16px;padding:12px 16px;font-size:13px;font-weight:900;text-decoration:none
+    display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+    border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;
+    border-radius:16px;padding:0 16px;font-size:13px;font-weight:900;
+    transition:transform .22s var(--ease),box-shadow .22s var(--ease),background .22s var(--ease),color .22s var(--ease);
   }
-  .hero-btn.primary{background:#0f172a;color:#fff;border-color:#0f172a}
-  .filter-bar,.report-card,.bucket-detail-panel{
-    animation:cardRise .7s var(--motion-ease) both;
-    transform-origin:center bottom
-  }
-  .filter-bar,.report-card,.bucket-detail-panel{
-    margin-top:18px;border:1px solid var(--line);background:var(--card);
-    border-radius:28px;backdrop-filter:blur(10px)
-  }
-  .filter-bar{padding:18px}
-  .report-card{padding:18px}
-  .report-card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(15,23,42,.08)}
-  .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-  .section-kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#64748b;font-weight:900}
-  .section-title{font-size:18px;font-weight:900;letter-spacing:-.02em}
-  .section-sub{font-size:12px;color:#64748b;font-weight:700}
-  .chip-row,.metric-switch,.segment-tabs{display:inline-flex;gap:8px;flex-wrap:wrap}
-  .chip,.metric-tab,.segment-tab{
-    border:1px solid var(--chip-border);background:var(--chip);border-radius:999px;
-    padding:9px 14px;font-size:12px;font-weight:900;color:#64748b;
-    transition:all .22s var(--motion-ease);
-    box-shadow:0 6px 18px rgba(15,23,42,.04);cursor:pointer
-  }
-  .metric-tab:hover,.segment-tab:hover,.chip:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
-  .metric-tab.active,.segment-tab.active,.chip.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 14px 32px rgba(15,23,42,.16)}
+  .hero-btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+  .hero-btn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .hero-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .highlight-card{padding:16px 16px 14px;border-radius:22px;background:linear-gradient(180deg,#fff,rgba(248,250,252,.96))}
+  .highlight-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--muted)}
+  .highlight-value{margin-top:8px;font-size:24px;font-weight:950;letter-spacing:-.03em}
+  .highlight-meta{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted);line-height:1.55}
+  .insight-list{display:grid;gap:10px}
+  .insight-item{padding:14px 16px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+  .insight-item .label{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:900}
+  .insight-item .value{margin-top:8px;font-size:14px;font-weight:850;line-height:1.55}
+  .filter-bar{padding:18px 20px;margin-bottom:18px}
+  .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .section-kicker{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:900}
+  .section-title{font-size:22px;font-weight:950;letter-spacing:-.03em}
+  .section-sub{font-size:13px;color:var(--muted);font-weight:700;line-height:1.6}
+  .chip-row,.metric-switch,.segment-tabs,.bucket-pills{display:flex;gap:8px;flex-wrap:wrap}
+  .report-card,.bucket-detail-panel{padding:20px;margin-top:18px}
+  .report-card:hover,.bucket-detail-panel:hover,.subcard:hover,.persona-card:hover,.mini-card:hover,.flow-card:hover{box-shadow:var(--shadow-strong);transform:translateY(-2px)}
   .kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
   .kpi-card{
-    position:relative;overflow:hidden;transition:transform .24s var(--motion-ease), box-shadow .24s var(--motion-ease), border-color .24s var(--motion-ease);
-    border:1px solid var(--line);background:#fff;border-radius:24px;padding:18px;
+    position:relative;overflow:hidden;border:1px solid rgba(219,228,238,.9);background:linear-gradient(180deg,#fff,rgba(248,250,252,.98));
+    border-radius:24px;padding:18px;min-height:142px;
+    transition:transform .25s var(--ease),box-shadow .25s var(--ease),border-color .25s var(--ease);
   }
   .kpi-card:before{
-    content:'';position:absolute;inset:-40% auto auto -20%;width:60%;height:180%;
-    background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);
-    transform:rotate(14deg);animation:shineSweep 4.2s linear infinite;pointer-events:none
+    content:'';position:absolute;inset:-65% auto auto -15%;width:66%;height:200%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.54),transparent);
+    transform:rotate(14deg);animation:shineSweep 4.4s linear infinite;pointer-events:none;
   }
-  .kpi-card:hover{transform:translateY(-6px) scale(1.01);box-shadow:0 22px 44px rgba(15,23,42,.08);border-color:rgba(59,130,246,.22)}
-  .kpi-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#64748b;font-weight:900}
-  .kpi-value{margin-top:10px;font-size:28px;font-weight:900;letter-spacing:-.03em;animation:numberPop .8s var(--motion-ease) both}
-  .kpi-meta{margin-top:6px;color:#64748b;font-size:12px;font-weight:800}
+  .kpi-card:hover{transform:translateY(-5px) scale(1.01);box-shadow:0 18px 36px rgba(15,23,42,.08);border-color:rgba(37,99,235,.24)}
+  .kpi-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:900}
+  .kpi-value{margin-top:10px;font-size:30px;font-weight:950;letter-spacing:-.04em;line-height:1.05}
+  .kpi-meta{margin-top:8px;font-size:12px;color:var(--muted);font-weight:800;line-height:1.5}
+  .persona-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .persona-card{padding:18px;border-radius:24px;background:linear-gradient(180deg,#fff,rgba(248,250,252,.97))}
+  .persona-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .persona-title{font-size:18px;font-weight:950;letter-spacing:-.02em}
+  .persona-badge{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#fff;background:var(--navy);padding:7px 10px;border-radius:999px}
+  .persona-main{margin-top:14px;font-size:14px;font-weight:800;line-height:1.6;color:var(--slate)}
+  .persona-main strong{color:var(--ink)}
+  .persona-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+  .mini-card{padding:12px 14px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+  .mini-label{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:900}
+  .mini-value{margin-top:6px;font-size:16px;font-weight:900;letter-spacing:-.02em}
+  .mini-meta{margin-top:4px;font-size:11px;color:var(--muted);font-weight:800;line-height:1.45}
   .funnel-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
-  .funnel-step{
-    border:1px solid var(--line);background:#fff;border-radius:22px;padding:16px;position:relative
-  }
-  .funnel-step:after{
-    content:'→';position:absolute;right:-12px;top:50%;transform:translateY(-50%);
-    font-size:20px;font-weight:900;color:#94a3b8
-  }
+  .funnel-step{border:1px solid var(--line);background:#fff;border-radius:22px;padding:16px;position:relative;overflow:hidden}
+  .funnel-step:after{content:'→';position:absolute;right:-12px;top:50%;transform:translateY(-50%);font-size:22px;font-weight:900;color:#94a3b8}
   .funnel-step:last-child:after{display:none}
-  .funnel-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#64748b;font-weight:900}
-  .funnel-value{margin-top:8px;font-size:24px;font-weight:900}
-  .funnel-rate{margin-top:6px;color:#64748b;font-size:12px;font-weight:800}
-  .panel-grid{display:grid;grid-template-columns:1.4fr .9fr;gap:16px}
-  .subcard{
-    border:1px solid var(--line);background:#fff;border-radius:22px;padding:16px
-  }
+  .funnel-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:900}
+  .funnel-value{margin-top:8px;font-size:26px;font-weight:950;letter-spacing:-.03em}
+  .funnel-rate{margin-top:7px;font-size:12px;font-weight:800;color:var(--muted)}
+  .panel-grid{display:grid;grid-template-columns:1.25fr .95fr;gap:16px}
+  .three-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  .subcard{padding:16px;border-radius:24px;background:rgba(255,255,255,.94)}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .stat-card{padding:14px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+  .stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:900}
+  .stat-value{margin-top:6px;font-size:18px;font-weight:950;letter-spacing:-.02em}
+  .stat-meta{margin-top:4px;font-size:11px;font-weight:800;color:var(--muted);line-height:1.5}
+  .flow-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  .flow-card{padding:16px;border-radius:22px;background:#fff;border:1px solid var(--line)}
+  .flow-title{font-size:16px;font-weight:950;letter-spacing:-.02em}
+  .flow-text{margin-top:10px;font-size:13px;font-weight:800;color:var(--muted);line-height:1.65}
+  .bullet-list{display:grid;gap:8px;margin-top:12px}
+  .bullet{display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:800;line-height:1.6;color:var(--slate)}
+  .bullet:before{content:'•';color:var(--blue);font-weight:900}
   table{border-collapse:collapse;width:100%}
-  .table-wrap{overflow-x:auto}
-  .data-table{min-width:1080px}
-  th{
-    font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;
-    font-weight:900;padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap
-  }
-  td{
-    padding:12px 10px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:700;color:#0f172a;white-space:nowrap
-  }
+  .table-wrap{overflow:auto;max-width:100%}
+  .data-table{min-width:100%;table-layout:auto}
+  .compact-table{min-width:820px}
+  th{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:900;padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  td{padding:12px 10px;border-bottom:1px solid #eff4f8;font-size:13px;font-weight:750;color:var(--ink);vertical-align:top}
   tr:hover td{background:#f8fafc}
-  td.num, th.num{text-align:right}
-  .tag{
-    display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:6px 10px;
-    font-size:11px;font-weight:900
-  }
+  td.num,th.num{text-align:right}
+  td.center,th.center{text-align:center}
+  .tag{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:900;white-space:nowrap}
   .tag.blue{background:#dbeafe;color:#1d4ed8}
   .tag.green{background:#dcfce7;color:#15803d}
   .tag.amber{background:#fef3c7;color:#b45309}
   .tag.rose{background:#ffe4e6;color:#be123c}
   .tag.slate{background:#e2e8f0;color:#334155}
-  .bucket-row{cursor:pointer}
-  .muted{color:#64748b}
-  .small{font-size:12px}
-  .metric-slot{display:none}
-  .metric-slot.active{display:inline;animation:metricSwap .42s var(--motion-ease)}
-  .segment-panel{display:none}
-  .segment-panel.active{display:block}
+  .tag.violet{background:#ede9fe;color:#6d28d9}
+  .metric-slot,.segment-panel,.bucket-detail{display:none}
+  .metric-slot.active,.segment-panel.active,.bucket-detail.active{display:block;animation:metricSwap .38s var(--ease)}
   .summary-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .summary-item{border:1px solid var(--line);border-radius:18px;background:#fff;padding:14px}
-  .summary-item .label{font-size:11px;color:#64748b;font-weight:900;text-transform:uppercase;letter-spacing:.12em}
-  .summary-item .value{margin-top:8px;font-size:18px;font-weight:900}
-  @media (max-width: 1280px){
+  .summary-item .label{font-size:11px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.12em}
+  .summary-item .value{margin-top:8px;font-size:18px;font-weight:950;letter-spacing:-.02em}
+  .empty-note{padding:18px;border-radius:18px;background:#fff;border:1px dashed var(--line);font-size:13px;font-weight:800;color:var(--muted)}
+  .small{font-size:12px}
+  .muted{color:var(--muted)}
+  @media (max-width:1480px){
     .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-    .panel-grid{grid-template-columns:1fr}
+    .persona-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .panel-grid,.three-grid{grid-template-columns:1fr}
+    .flow-grid{grid-template-columns:1fr}
   }
-  @media (max-width: 900px){
-    .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .funnel-grid{grid-template-columns:1fr}
-    .summary-list{grid-template-columns:1fr}
+  @media (max-width:1120px){
+    .hero{grid-template-columns:1fr}
+    .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .funnel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
-  @media (max-width: 640px){
+  @media (max-width:760px){
     .report-shell{padding:18px 14px 42px}
-    .hero-title{font-size:28px}
-    .kpi-grid{grid-template-columns:1fr}
+    .hero-title{font-size:30px}
+    .kpi-grid,.persona-grid,.funnel-grid,.stat-grid,.hero-summary-grid,.summary-list{grid-template-columns:1fr}
   }
-  @keyframes cardRise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes cardRise{from{opacity:0;transform:translateY(24px) scale(.988)}to{opacity:1;transform:translateY(0) scale(1)}}
   @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-  @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
-  @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
+  @keyframes shineSweep{0%{transform:translateX(-170%) rotate(14deg)}100%{transform:translateX(340%) rotate(14deg)}}
 </style>
 """
 
@@ -246,32 +299,44 @@ document.addEventListener('click', function(e){
   if(metricBtn){
     const target = metricBtn.dataset.target || '';
     const metric = metricBtn.dataset.metric || '';
-    document.querySelectorAll('.metric-tab[data-target="' + target + '"]').forEach(btn => {
+    document.querySelectorAll('.metric-tab[data-target="' + target + '"]').forEach(function(btn){
       btn.classList.toggle('active', btn === metricBtn);
     });
-    document.querySelectorAll('[data-metric-group="' + target + '"] .metric-slot').forEach(el => {
-      el.classList.toggle('active', el.dataset.metric === metric);
+    document.querySelectorAll('[data-metric-group="' + target + '"] .metric-slot').forEach(function(node){
+      node.classList.toggle('active', node.dataset.metric === metric);
     });
   }
 
   const segmentBtn = e.target.closest('.segment-tab');
   if(segmentBtn){
     const target = segmentBtn.dataset.target || '';
-    const seg = segmentBtn.dataset.segment || '';
-    document.querySelectorAll('.segment-tab[data-target="' + target + '"]').forEach(btn => {
+    const segment = segmentBtn.dataset.segment || '';
+    document.querySelectorAll('.segment-tab[data-target="' + target + '"]').forEach(function(btn){
       btn.classList.toggle('active', btn === segmentBtn);
     });
-    document.querySelectorAll('.segment-panel[data-target="' + target + '"]').forEach(panel => {
-      panel.classList.toggle('active', panel.dataset.segment === seg);
+    document.querySelectorAll('.segment-panel[data-target="' + target + '"]').forEach(function(panel){
+      panel.classList.toggle('active', panel.dataset.segment === segment);
+    });
+  }
+
+  const bucketBtn = e.target.closest('.bucket-pill');
+  if(bucketBtn){
+    const target = bucketBtn.dataset.target || '';
+    const bucket = bucketBtn.dataset.bucket || '';
+    document.querySelectorAll('.bucket-pill[data-target="' + target + '"]').forEach(function(btn){
+      btn.classList.toggle('active', btn === bucketBtn);
+    });
+    document.querySelectorAll('.bucket-detail[data-target="' + target + '"]').forEach(function(panel){
+      panel.classList.toggle('active', panel.dataset.bucket === bucket);
     });
   }
 
   const bucketRow = e.target.closest('.bucket-row');
-  if(bucketRow){
+  if(bucketRow && bucketRow.dataset.bucketTarget){
+    const target = bucketRow.dataset.bucketTarget;
     const bucket = bucketRow.dataset.bucket || '';
-    document.querySelectorAll('.bucket-detail').forEach(panel => {
-      panel.style.display = panel.dataset.bucket === bucket ? 'block' : 'none';
-    });
+    const pill = document.querySelector('.bucket-pill[data-target="' + target + '"][data-bucket="' + bucket + '"]');
+    if(pill){ pill.click(); }
   }
 });
 </script>
@@ -599,6 +664,144 @@ def fetch_bundle_from_bq(start_date: dt.date, end_date: dt.date) -> dict:
 # =========================================================
 # Transform
 # =========================================================
+def _safe_series(df: pd.DataFrame, col: str, default: str = "") -> pd.Series:
+    if col in df.columns:
+        return df[col]
+    return pd.Series([default] * len(df), index=df.index, dtype="object")
+
+
+def _numeric_series(df: pd.DataFrame, col: str, default: float = 0.0) -> pd.Series:
+    if col in df.columns:
+        return pd.to_numeric(df[col], errors="coerce").fillna(default)
+    return pd.Series([default] * len(df), index=df.index, dtype="float64")
+
+
+def canonical_bucket(bucket: Any, source: Any = "", medium: Any = "", campaign: Any = "") -> str:
+    b = str(bucket or "").strip() or "etc"
+    s = str(source or "").strip().lower()
+    m = str(medium or "").strip().lower()
+    c = str(campaign or "").strip().lower()
+    pair = f"{s} / {m}".strip()
+
+    if "(direct)" in pair or (s == "direct" and m in ("(none)", "none", "")):
+        return "Direct"
+    if b in ("Unknown", "unknown"):
+        return "Unknown"
+    if b == "etc":
+        if s in ("", "(not set)", "not set", "unknown") and m in ("", "(not set)", "not set", "unknown"):
+            return "Unknown"
+        if "direct" in s or "(none)" in m:
+            return "Direct"
+    if b == "Organic Traffic" and ("(direct)" in pair or " / (none)" in pair):
+        return "Direct"
+    return b
+
+
+def _mode_label(series: pd.Series, fallback: str = "-", exclude: Optional[set[str]] = None) -> str:
+    exclude = exclude or set()
+    vals = (
+        series.fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    vals = vals[(vals != "") & (~vals.str.lower().isin({x.lower() for x in exclude}))]
+    if vals.empty:
+        return fallback
+    vc = vals.value_counts()
+    return str(vc.index[0]) if not vc.empty else fallback
+
+
+def _topn_labels(series: pd.Series, n: int = 2, exclude: Optional[set[str]] = None) -> str:
+    exclude = exclude or set()
+    vals = (
+        series.fillna("")
+        .astype(str)
+        .str.strip()
+    )
+    vals = vals[(vals != "") & (~vals.str.lower().isin({x.lower() for x in exclude}))]
+    if vals.empty:
+        return "-"
+    vc = vals.value_counts().head(n)
+    return " · ".join(str(i) for i in vc.index.tolist()) if not vc.empty else "-"
+
+
+def _gender_mix(df: pd.DataFrame, col: str = "gender") -> str:
+    if df.empty:
+        return "-"
+    s = _safe_series(df, col).astype(str).str.upper().str.strip()
+    mapping = {
+        "M": "남성", "MALE": "남성", "남": "남성",
+        "F": "여성", "FEMALE": "여성", "여": "여성",
+        "UNKNOWN": "미상", "": "미상", "NAN": "미상"
+    }
+    s = s.map(lambda x: mapping.get(x, x if x else "미상"))
+    vc = s.value_counts(normalize=True)
+    parts = [f"{idx} {round(val*100)}%" for idx, val in vc.head(2).items()]
+    return " · ".join(parts) if parts else "-"
+
+
+def _persona_text(label: str, df: pd.DataFrame, extra: Optional[dict] = None) -> dict:
+    extra = extra or {}
+    cnt = len(df)
+    age = _mode_label(_safe_series(df, "age_band"), fallback="미상", exclude={"UNKNOWN", "미상", "nan"})
+    gender = _gender_mix(df)
+    channel = _mode_label(_safe_series(df, "bucket"), fallback="미상", exclude={"UNKNOWN", "etc"})
+    product = _topn_labels(_safe_series(df, "top_product"), n=2, exclude={"(not set)", "UNKNOWN", "nan"})
+    category = _topn_labels(_safe_series(df, "top_category"), n=2, exclude={"(not set)", "UNKNOWN", "nan"})
+    source = _topn_labels(_safe_series(df, "first_source"), n=2, exclude={"(not set)", "UNKNOWN", "nan"})
+    avg_rev = _numeric_series(df, "total_revenue").mean() if cnt else 0
+    avg_orders = _numeric_series(df, "order_count").mean() if cnt else 0
+    avg_pv = _numeric_series(df, "total_pageviews").mean() if cnt else 0
+    avg_cart = _numeric_series(df, "add_to_cart_count").mean() if cnt else 0
+    return {
+        "label": label,
+        "count": cnt,
+        "age": age,
+        "gender": gender,
+        "channel": channel,
+        "product": product,
+        "category": category,
+        "source": source,
+        "avg_revenue": avg_rev,
+        "avg_orders": avg_orders,
+        "avg_pv": avg_pv,
+        "avg_cart": avg_cart,
+        **extra,
+    }
+
+
+def _best_channel_insight(channel_df: pd.DataFrame, metric: str) -> str:
+    if channel_df.empty or metric not in channel_df.columns:
+        return "-"
+    sdf = channel_df.copy()
+    sdf = sdf.sort_values(metric, ascending=False)
+    if sdf.empty:
+        return "-"
+    row = sdf.iloc[0]
+    return str(row.get("bucket", "-"))
+
+
+def _quality_summary(channel_rows: pd.DataFrame, member_df: pd.DataFrame) -> dict:
+    total_users = float(channel_rows["users"].sum()) if not channel_rows.empty and "users" in channel_rows.columns else 0.0
+    unknown_users = float(channel_rows.loc[channel_rows["bucket"].isin(["Unknown", "etc"]), "users"].sum()) if not channel_rows.empty else 0.0
+    direct_users = float(channel_rows.loc[channel_rows["bucket"] == "Direct", "users"].sum()) if not channel_rows.empty else 0.0
+    member_total = len(member_df)
+    no_source = 0
+    no_campaign = 0
+    if not member_df.empty:
+        no_source = int((_safe_series(member_df, "first_source").astype(str).str.strip().isin(["", "(not set)", "UNKNOWN", "nan"])) .sum())
+        no_campaign = int((_safe_series(member_df, "first_campaign").astype(str).str.strip().isin(["", "(not set)", "UNKNOWN", "nan"])) .sum())
+    return {
+        "unknown_user_share": safe_div(unknown_users, total_users),
+        "direct_user_share": safe_div(direct_users, total_users),
+        "unknown_users": int(round(unknown_users)),
+        "direct_users": int(round(direct_users)),
+        "member_rows": member_total,
+        "source_missing_share": safe_div(no_source, member_total),
+        "campaign_missing_share": safe_div(no_campaign, member_total),
+    }
+
+
 def normalize_bundle(bundle: dict) -> dict:
     overview = (bundle.get("overview") or [{}])[0] if (bundle.get("overview") or [{}]) else {}
     channel_rows = pd.DataFrame(bundle.get("channel_snapshot") or [])
@@ -609,17 +812,247 @@ def normalize_bundle(bundle: dict) -> dict:
     channel_product = pd.DataFrame(bundle.get("channel_product") or [])
     target = pd.DataFrame(bundle.get("target_candidates") or [])
 
+    for df in [bucket_detail, non_buyer, buyer, product, channel_product, target]:
+        if not df.empty:
+            df.fillna("", inplace=True)
+
+    if not bucket_detail.empty:
+        bucket_detail["bucket"] = bucket_detail.apply(
+            lambda r: canonical_bucket(r.get("bucket"), r.get("source"), r.get("medium"), r.get("campaign")), axis=1
+        )
+        for col in ["users", "signups", "buyers", "revenue"]:
+            bucket_detail[col] = pd.to_numeric(bucket_detail.get(col), errors="coerce").fillna(0)
+        channel_rows = (
+            bucket_detail.groupby("bucket", dropna=False, as_index=False)
+            .agg({"users": "sum", "signups": "sum", "buyers": "sum", "revenue": "sum"})
+        )
+    elif not channel_rows.empty:
+        channel_rows["bucket"] = channel_rows.apply(
+            lambda r: canonical_bucket(r.get("bucket"), r.get("source"), r.get("medium"), r.get("campaign")), axis=1
+        )
+
     if not channel_rows.empty:
-        channel_rows["bucket"] = channel_rows["bucket"].fillna("etc")
-        channel_rows["users"] = pd.to_numeric(channel_rows["users"], errors="coerce").fillna(0)
-        channel_rows["signups"] = pd.to_numeric(channel_rows["signups"], errors="coerce").fillna(0)
-        channel_rows["buyers"] = pd.to_numeric(channel_rows["buyers"], errors="coerce").fillna(0)
-        channel_rows["revenue"] = pd.to_numeric(channel_rows["revenue"], errors="coerce").fillna(0)
-        channel_rows["aov"] = pd.to_numeric(channel_rows["aov"], errors="coerce").fillna(0)
-        channel_rows["cvr"] = channel_rows.apply(lambda r: safe_div(r["buyers"], r["users"]), axis=1)
-        channel_rows = channel_rows.sort_values(
-            by=["bucket"], key=lambda col: col.map(bucket_sort_key)
-        ).reset_index(drop=True)
+        channel_rows["users"] = pd.to_numeric(channel_rows.get("users"), errors="coerce").fillna(0)
+        channel_rows["signups"] = pd.to_numeric(channel_rows.get("signups"), errors="coerce").fillna(0)
+        channel_rows["buyers"] = pd.to_numeric(channel_rows.get("buyers"), errors="coerce").fillna(0)
+        channel_rows["revenue"] = pd.to_numeric(channel_rows.get("revenue"), errors="coerce").fillna(0)
+        channel_rows["signup_rate"] = channel_rows.apply(lambda r: safe_div(r["signups"], r["users"]), axis=1)
+        channel_rows["buyer_cvr"] = channel_rows.apply(lambda r: safe_div(r["buyers"], r["users"]), axis=1)
+        channel_rows["aov"] = channel_rows.apply(lambda r: safe_div(r["revenue"], r["buyers"]), axis=1)
+        channel_rows = channel_rows.sort_values(by=["bucket"], key=lambda col: col.map(bucket_sort_key)).reset_index(drop=True)
+
+    # Normalize person-level tables
+    member_frames = []
+    if not non_buyer.empty:
+        nb = non_buyer.copy()
+        nb["person_type"] = "non_buyer"
+        nb["top_product"] = _safe_series(nb, "last_viewed_product").replace("", _safe_series(nb, "preferred_product", default=""))
+        nb["top_category"] = _safe_series(nb, "last_viewed_category").replace("", _safe_series(nb, "preferred_category", default=""))
+        nb["total_revenue"] = _numeric_series(nb, "total_revenue")
+        nb["order_count"] = _numeric_series(nb, "order_count")
+        nb["bucket"] = nb.apply(lambda r: canonical_bucket(r.get("channel_group"), r.get("first_source"), "", r.get("first_campaign")), axis=1)
+        member_frames.append(nb)
+    if not buyer.empty:
+        by = buyer.copy()
+        by["person_type"] = by.apply(lambda r: "repeat_buyer" if float(r.get("order_count") or 0) >= 2 else "buyer", axis=1)
+        by["top_product"] = _safe_series(by, "top_product")
+        by["top_category"] = _safe_series(by, "top_category")
+        by["bucket"] = by.apply(lambda r: canonical_bucket(r.get("channel_group"), r.get("first_source"), "", r.get("first_campaign")), axis=1)
+        member_frames.append(by)
+
+    if member_frames:
+        members = pd.concat(member_frames, ignore_index=True, sort=False)
+        members["member_key"] = _safe_series(members, "member_id").astype(str).str.strip()
+        members.loc[members["member_key"] == "", "member_key"] = _safe_series(members, "user_id").astype(str).str.strip()
+        members["sort_revenue"] = _numeric_series(members, "total_revenue")
+        members = members.sort_values(["member_key", "sort_revenue"], ascending=[True, False])
+        members = members.drop_duplicates(subset=["member_key"], keep="first")
+        members = members[members["member_key"].astype(str).str.strip() != ""]
+    else:
+        members = pd.DataFrame(columns=["member_key"])
+
+    # Attach target segment hints
+    segment_bridge = {}
+    if not target.empty:
+        t = target.copy()
+        t["member_key"] = _safe_series(t, "member_id").astype(str).str.strip()
+        t.loc[t["member_key"] == "", "member_key"] = _safe_series(t, "user_id").astype(str).str.strip()
+        for key, sdf in t.groupby("member_key"):
+            if not key:
+                continue
+            segment_bridge[str(key)] = sorted(sdf["segment"].astype(str).unique().tolist(), key=segment_sort_key)
+    if not members.empty:
+        members["segments"] = members["member_key"].map(lambda x: segment_bridge.get(str(x), []))
+    else:
+        members["segments"] = []
+
+    # Channel persona matrix
+    matrix_rows = []
+    bucket_member_detail = []
+    channel_product_map = pd.DataFrame(channel_product or [])
+    if not channel_product_map.empty:
+        channel_product_map["channel_group"] = channel_product_map["channel_group"].map(lambda x: canonical_bucket(x))
+        channel_product_map["buyers"] = pd.to_numeric(channel_product_map.get("buyers"), errors="coerce").fillna(0)
+        channel_product_map["revenue"] = pd.to_numeric(channel_product_map.get("revenue"), errors="coerce").fillna(0)
+
+    member_cols_present = not members.empty
+    for _, crow in channel_rows.iterrows() if not channel_rows.empty else []:
+        bucket = str(crow.get("bucket") or "etc")
+        sdf = members[members["bucket"].astype(str) == bucket].copy() if member_cols_present else pd.DataFrame()
+        buyers_sdf = sdf[_numeric_series(sdf, "order_count") > 0] if not sdf.empty else pd.DataFrame()
+        non_buyer_sdf = sdf[_numeric_series(sdf, "order_count") <= 0] if not sdf.empty else pd.DataFrame()
+        if not channel_product_map.empty:
+            cp = channel_product_map[channel_product_map["channel_group"].astype(str) == bucket].copy()
+            top_prod = cp.sort_values(["revenue", "buyers"], ascending=False).head(2)["product_name"].astype(str).tolist()
+            top_product = " · ".join(top_prod) if top_prod else _topn_labels(_safe_series(sdf, "top_product"), n=2, exclude={"(not set)", "UNKNOWN", "nan"})
+        else:
+            top_product = _topn_labels(_safe_series(sdf, "top_product"), n=2, exclude={"(not set)", "UNKNOWN", "nan"})
+        matrix_rows.append({
+            "bucket": bucket,
+            "users": int(round(float(crow.get("users", 0) or 0))),
+            "signups": int(round(float(crow.get("signups", 0) or 0))),
+            "signup_rate": float(crow.get("signup_rate", 0) or 0),
+            "buyers": int(round(float(crow.get("buyers", 0) or 0))),
+            "buyer_cvr": float(crow.get("buyer_cvr", 0) or 0),
+            "revenue": float(crow.get("revenue", 0) or 0),
+            "aov": float(crow.get("aov", 0) or 0),
+            "top_age_band": _mode_label(_safe_series(sdf, "age_band"), fallback="-", exclude={"UNKNOWN", "미상", "nan"}),
+            "gender_mix": _gender_mix(sdf),
+            "top_product": top_product,
+            "top_source": _topn_labels(_safe_series(sdf, "first_source"), n=2, exclude={"(not set)", "UNKNOWN", "nan"}),
+            "member_count": int(len(sdf)),
+            "member_share": safe_div(len(sdf), max(len(members), 1)),
+            "buyer_mix": safe_div(len(buyers_sdf), len(sdf)) if len(sdf) else 0.0,
+            "non_buyer_mix": safe_div(len(non_buyer_sdf), len(sdf)) if len(sdf) else 0.0,
+        })
+        if not sdf.empty:
+            source_detail = (
+                sdf.assign(total_revenue_num=_numeric_series(sdf, "total_revenue"))
+                  .groupby([_safe_series(sdf, "first_source").astype(str), _safe_series(sdf, "first_campaign").astype(str)], dropna=False)
+            )
+        if not sdf.empty:
+            tmp = sdf.copy()
+            tmp["first_source"] = _safe_series(tmp, "first_source").astype(str).replace("", "(not set)")
+            tmp["first_campaign"] = _safe_series(tmp, "first_campaign").astype(str).replace("", "(not set)")
+            tmp["age_band"] = _safe_series(tmp, "age_band").astype(str).replace("", "UNKNOWN")
+            tmp["gender"] = _safe_series(tmp, "gender").astype(str).replace("", "UNKNOWN")
+            tmp["top_product"] = _safe_series(tmp, "top_product").astype(str).replace("", "(not set)")
+            tmp["top_category"] = _safe_series(tmp, "top_category").astype(str).replace("", "(not set)")
+            tmp["total_revenue_num"] = _numeric_series(tmp, "total_revenue")
+            detail = (
+                tmp.groupby(["first_source", "first_campaign"], dropna=False)
+                .agg(
+                    members=("member_key", "count"),
+                    buyers=("order_count", lambda x: int((pd.to_numeric(x, errors="coerce").fillna(0) > 0).sum())),
+                    revenue=("total_revenue_num", "sum"),
+                    age_band=("age_band", lambda x: _mode_label(pd.Series(x), fallback="-", exclude={"UNKNOWN", "미상", "nan"})),
+                    gender=("gender", lambda x: _gender_mix(pd.DataFrame({"gender": list(x)}))),
+                    top_product=("top_product", lambda x: _topn_labels(pd.Series(x), n=1, exclude={"(not set)", "UNKNOWN", "nan"})),
+                    top_category=("top_category", lambda x: _topn_labels(pd.Series(x), n=1, exclude={"(not set)", "UNKNOWN", "nan"})),
+                )
+                .reset_index()
+                .sort_values(["members", "revenue"], ascending=False)
+            )
+            for _, dr in detail.head(12).iterrows():
+                bucket_member_detail.append({
+                    "bucket": bucket,
+                    "first_source": dr.get("first_source", "(not set)"),
+                    "first_campaign": dr.get("first_campaign", "(not set)"),
+                    "members": int(dr.get("members", 0) or 0),
+                    "buyers": int(dr.get("buyers", 0) or 0),
+                    "revenue": float(dr.get("revenue", 0) or 0),
+                    "age_band": dr.get("age_band", "-"),
+                    "gender": dr.get("gender", "-"),
+                    "top_product": dr.get("top_product", "-"),
+                    "top_category": dr.get("top_category", "-"),
+                })
+
+    matrix_df = pd.DataFrame(matrix_rows)
+    if not matrix_df.empty:
+        matrix_df = matrix_df.sort_values(by=["bucket"], key=lambda col: col.map(bucket_sort_key)).reset_index(drop=True)
+
+    # Persona cards
+    high_intent_df = pd.DataFrame()
+    if not target.empty:
+        high_intent_df = target[target["segment"].astype(str).isin(["high_intent", "cart_abandon"])].copy()
+        if not high_intent_df.empty:
+            high_intent_df["bucket"] = high_intent_df.apply(lambda r: canonical_bucket(r.get("channel_group"), r.get("first_source"), "", r.get("first_campaign")), axis=1)
+            high_intent_df["top_product"] = _safe_series(high_intent_df, "preferred_product")
+            high_intent_df["top_category"] = _safe_series(high_intent_df, "preferred_category")
+
+    signup_members = members.copy() if not members.empty else pd.DataFrame()
+    buyers_only = members[_numeric_series(members, "order_count") > 0].copy() if not members.empty else pd.DataFrame()
+    repeat_only = members[_numeric_series(members, "order_count") >= 2].copy() if not members.empty else pd.DataFrame()
+    non_buyers_only = members[_numeric_series(members, "order_count") <= 0].copy() if not members.empty else pd.DataFrame()
+
+    personas = [
+        _persona_text("Identified Members", signup_members, {"headline": "식별 가능한 회원 기반 프로필", "focus": "가입 이후 행동이 잡히는 사람들"}),
+        _persona_text("Buyers", buyers_only, {"headline": "실구매자 대표 프로필", "focus": "첫 구매와 반복 구매 연결"}),
+        _persona_text("Repeat Buyers", repeat_only, {"headline": "반복구매자 대표 프로필", "focus": "LTV 확장에 유리한 고객"}),
+        _persona_text("High Intent", high_intent_df, {"headline": "장바구니 / 고의도 잠재고객", "focus": "즉시 메시지 발송 우선군"}),
+    ]
+
+    # Source / campaign entry points
+    entry_points = []
+    if not signup_members.empty:
+        tmp = signup_members.copy()
+        tmp["first_source"] = _safe_series(tmp, "first_source").astype(str).replace("", "(not set)")
+        tmp["first_campaign"] = _safe_series(tmp, "first_campaign").astype(str).replace("", "(not set)")
+        tmp["bucket"] = _safe_series(tmp, "bucket").astype(str).replace("", "Unknown")
+        tmp["revenue_num"] = _numeric_series(tmp, "total_revenue")
+        ep = (
+            tmp.groupby(["bucket", "first_source", "first_campaign"], dropna=False)
+            .agg(
+                members=("member_key", "count"),
+                buyers=("order_count", lambda x: int((pd.to_numeric(x, errors="coerce").fillna(0) > 0).sum())),
+                revenue=("revenue_num", "sum"),
+                age_band=("age_band", lambda x: _mode_label(pd.Series(x), fallback="-", exclude={"UNKNOWN", "미상", "nan"})),
+                product=("top_product", lambda x: _topn_labels(pd.Series(x), n=1, exclude={"(not set)", "UNKNOWN", "nan"})),
+            )
+            .reset_index()
+            .sort_values(["members", "revenue"], ascending=False)
+        )
+        entry_points = ep.head(24).to_dict(orient="records")
+
+    # Flow / action summaries
+    action_cards = []
+    if not matrix_df.empty:
+        top_signup = matrix_df.sort_values("signups", ascending=False).head(1)
+        top_buyer = matrix_df.sort_values("buyers", ascending=False).head(1)
+        top_revenue = matrix_df.sort_values("revenue", ascending=False).head(1)
+        if not top_signup.empty:
+            r = top_signup.iloc[0]
+            action_cards.append({
+                "title": f"가입 볼륨 최대 채널: {r['bucket']}",
+                "text": f"식별 회원 기준 대표 연령대는 {r.get('top_age_band','-')}이고, 주요 소스는 {r.get('top_source','-')}입니다. 대량 리드 수집 후 후속 온드 메시지 연결이 중요한 구간입니다.",
+                "bullets": [
+                    f"회원가입 {fmt_int(r.get('signups',0))}",
+                    f"가입률 {fmt_pct(r.get('signup_rate',0))}",
+                    f"대표 상품 {r.get('top_product','-')}"
+                ]
+            })
+        if not top_buyer.empty:
+            r = top_buyer.iloc[0]
+            action_cards.append({
+                "title": f"구매자 전환 강한 채널: {r['bucket']}",
+                "text": f"유입 대비 구매 전환이 상대적으로 강한 채널입니다. 구매자 확장 또는 리마케팅 예산 배분 시 우선 검토할 만합니다.",
+                "bullets": [
+                    f"구매자 {fmt_int(r.get('buyers',0))}",
+                    f"Buyer CVR {fmt_pct(r.get('buyer_cvr',0))}",
+                    f"AOV {fmt_money(r.get('aov',0))}"
+                ]
+            })
+        if not top_revenue.empty:
+            r = top_revenue.iloc[0]
+            action_cards.append({
+                "title": f"매출 기여 최대 채널: {r['bucket']}",
+                "text": f"매출 기여가 가장 큰 채널입니다. 반복구매 가능성이 높은 카테고리와 연결해 CRM nurture를 설계하는 게 좋습니다.",
+                "bullets": [
+                    f"매출 {fmt_money(r.get('revenue',0))}",
+                    f"대표 연령대 {r.get('top_age_band','-')}",
+                    f"대표 상품 {r.get('top_product','-')}"
+                ]
+            })
 
     funnel = [
         {"key": "users", "label": "Users", "value": int(float(overview.get("users", 0) or 0)), "rate": 1.0},
@@ -630,16 +1063,16 @@ def normalize_bundle(bundle: dict) -> dict:
     ]
 
     non_buyer_summary = {
-        "signup_non_buyer": int(len(non_buyer)),
-        "high_pv_non_buyer": int((pd.to_numeric(non_buyer.get("product_view_count"), errors="coerce").fillna(0) >= 3).sum()) if not non_buyer.empty else 0,
-        "cart_abandon": int((pd.to_numeric(non_buyer.get("add_to_cart_count"), errors="coerce").fillna(0) >= 1).sum()) if not non_buyer.empty else 0,
-        "avg_pv": round(pd.to_numeric(non_buyer.get("total_pageviews"), errors="coerce").fillna(0).mean(), 1) if not non_buyer.empty else 0.0,
+        "signup_non_buyer": int(len(non_buyers_only)),
+        "high_pv_non_buyer": int((_numeric_series(non_buyer, "product_view_count") >= 3).sum()) if not non_buyer.empty else 0,
+        "cart_abandon": int((_numeric_series(non_buyer, "add_to_cart_count") >= 1).sum()) if not non_buyer.empty else 0,
+        "avg_pv": round(_numeric_series(non_buyer, "total_pageviews").mean(), 1) if not non_buyer.empty else 0.0,
     }
 
     buyer_summary = {
         "buyers": int(float(overview.get("buyers", 0) or 0)),
-        "first_buyers": int((pd.to_numeric(buyer.get("order_count"), errors="coerce").fillna(0) == 1).sum()) if not buyer.empty else 0,
-        "repeat_buyers": int((pd.to_numeric(buyer.get("order_count"), errors="coerce").fillna(0) >= 2).sum()) if not buyer.empty else 0,
+        "first_buyers": int((_numeric_series(buyer, "order_count") == 1).sum()) if not buyer.empty else 0,
+        "repeat_buyers": int((_numeric_series(buyer, "order_count") >= 2).sum()) if not buyer.empty else 0,
         "revenue": float(overview.get("revenue", 0) or 0),
         "revenue_per_buyer": safe_div(float(overview.get("revenue", 0) or 0), float(overview.get("buyers", 0) or 0)),
         "aov": float(overview.get("aov", 0) or 0),
@@ -649,6 +1082,14 @@ def normalize_bundle(bundle: dict) -> dict:
     if not target.empty:
         for seg, g in target.groupby("segment"):
             target_counts[str(seg)] = int(len(g))
+
+    quality = _quality_summary(channel_rows, members)
+    overview_cards = {
+        "signup_rate": safe_div(float(overview.get("signup_users", 0) or 0), float(overview.get("users", 0) or 0)),
+        "buyer_cvr": safe_div(float(overview.get("buyers", 0) or 0), float(overview.get("users", 0) or 0)),
+        "repeat_rate": safe_div(float(overview.get("repeat_buyers", 0) or 0), float(overview.get("buyers", 0) or 0)),
+        "revenue_per_user": safe_div(float(overview.get("revenue", 0) or 0), float(overview.get("users", 0) or 0)),
+    }
 
     transformed = {
         "generated_at": bundle.get("generated_at", ""),
@@ -662,9 +1103,12 @@ def normalize_bundle(bundle: dict) -> dict:
             "revenue": float(overview.get("revenue", 0) or 0),
             "aov": float(overview.get("aov", 0) or 0),
         },
+        "overview_cards": overview_cards,
         "funnel": funnel,
-        "channel_snapshot": channel_rows.to_dict(orient="records"),
+        "channel_snapshot": channel_rows.to_dict(orient="records") if not channel_rows.empty else [],
+        "channel_matrix": matrix_df.to_dict(orient="records") if not matrix_df.empty else [],
         "bucket_detail": bucket_detail.fillna("").to_dict(orient="records"),
+        "bucket_member_detail": bucket_member_detail,
         "non_buyer_summary": non_buyer_summary,
         "non_buyer": non_buyer.fillna("").to_dict(orient="records"),
         "buyer_summary": buyer_summary,
@@ -673,6 +1117,10 @@ def normalize_bundle(bundle: dict) -> dict:
         "channel_product": channel_product.fillna("").to_dict(orient="records"),
         "target_candidates": target.fillna("").to_dict(orient="records"),
         "target_counts": target_counts,
+        "personas": personas,
+        "entry_points": entry_points,
+        "quality": quality,
+        "action_cards": action_cards,
     }
     return transformed
 
@@ -689,6 +1137,7 @@ def metric_tabs_html(target: str, items: List[tuple[str, str]], active_metric: s
         )
         + "</div>"
     )
+
 
 def segment_tabs_html(target: str, segments: List[str], active: str) -> str:
     labels = {
@@ -708,15 +1157,28 @@ def segment_tabs_html(target: str, segments: List[str], active: str) -> str:
         + "</div>"
     )
 
+
+def bucket_tabs_html(target: str, buckets: List[str], active: str) -> str:
+    return (
+        f'<div class="bucket-pills">'
+        + "".join(
+            f'<button type="button" class="bucket-pill {"active" if bucket == active else ""}" data-target="{esc(target)}" data-bucket="{esc(bucket)}">{esc(bucket)}</button>'
+            for bucket in buckets
+        )
+        + "</div>"
+    )
+
+
 def render_kpi_cards(data: dict) -> str:
     overview = data["overview"]
+    oc = data.get("overview_cards", {})
     cards = [
-        ("Users", fmt_int(overview["users"]), "Tracked people in range"),
-        ("Sign-up Users", fmt_int(overview["signup_users"]), "Members who completed sign-up"),
-        ("Non Buyer Members", fmt_int(overview["non_buyer_members"]), "Signed up but not purchased"),
-        ("Buyers", fmt_int(overview["buyers"]), "Purchased members"),
-        ("Revenue", fmt_money(overview["revenue"]), "Total member revenue"),
-        ("AOV", fmt_money(overview["aov"]), "Average order value"),
+        ("Tracked Users", fmt_int(overview["users"]), f"회원 퍼널 기준 전체 추적 유입 · 가입률 {fmt_pct(oc.get('signup_rate', 0))}"),
+        ("Sign-up Users", fmt_int(overview["signup_users"]), f"식별 가능한 회원가입 완료자 · Buyer CVR {fmt_pct(oc.get('buyer_cvr', 0))}"),
+        ("Non Buyer Members", fmt_int(overview["non_buyer_members"]), "가입 후 아직 구매하지 않은 회원"),
+        ("Buyers", fmt_int(overview["buyers"]), f"실구매 회원 · Repeat rate {fmt_pct(oc.get('repeat_rate', 0))}"),
+        ("Revenue", fmt_money(overview["revenue"]), f"회원 기준 누적 매출 · Revenue/User {fmt_money(oc.get('revenue_per_user', 0))}"),
+        ("AOV", fmt_money(overview["aov"]), "회원 기준 평균 주문 금액"),
     ]
     return "".join(
         f"""
@@ -729,113 +1191,147 @@ def render_kpi_cards(data: dict) -> str:
         for label, value, meta in cards
     )
 
+
 def render_funnel_steps(data: dict) -> str:
-    steps = []
-    for item in data["funnel"]:
-        steps.append(
+    return "".join(
+        f"""
+        <div class="funnel-step">
+          <div class="funnel-label">{esc(item['label'])}</div>
+          <div class="funnel-value">{fmt_int(item['value'])}</div>
+          <div class="funnel-rate">{fmt_pct(item['rate'])}</div>
+        </div>
+        """ for item in data["funnel"]
+    )
+
+
+def render_persona_cards(data: dict) -> str:
+    cards = []
+    for p in data.get("personas", []):
+        cards.append(
             f"""
-            <div class="funnel-step">
-              <div class="funnel-label">{esc(item["label"])}</div>
-              <div class="funnel-value">{fmt_int(item["value"])}</div>
-              <div class="funnel-rate">{fmt_pct(item["rate"])}</div>
+            <div class="persona-card">
+              <div class="persona-head">
+                <div>
+                  <div class="section-kicker">Customer Snapshot</div>
+                  <div class="persona-title">{esc(p.get('label','-'))}</div>
+                </div>
+                <span class="persona-badge">{fmt_int(p.get('count',0))}</span>
+              </div>
+              <div class="persona-main">
+                <strong>{esc(p.get('headline','대표 프로필'))}</strong><br/>
+                주요 연령대는 <strong>{esc(p.get('age','-'))}</strong>, 성별 믹스는 <strong>{esc(p.get('gender','-'))}</strong>,
+                대표 유입 채널은 <strong>{esc(p.get('channel','-'))}</strong> 입니다.
+              </div>
+              <div class="persona-stats">
+                <div class="mini-card">
+                  <div class="mini-label">Top Product</div>
+                  <div class="mini-value">{esc(p.get('product','-'))}</div>
+                  <div class="mini-meta">대표 관심 / 구매 상품</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Top Category</div>
+                  <div class="mini-value">{esc(p.get('category','-'))}</div>
+                  <div class="mini-meta">대표 카테고리</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Main Source</div>
+                  <div class="mini-value">{esc(p.get('source','-'))}</div>
+                  <div class="mini-meta">가입/유입에 많이 등장한 source</div>
+                </div>
+                <div class="mini-card">
+                  <div class="mini-label">Behavior</div>
+                  <div class="mini-value">PV {fmt_int(round(float(p.get('avg_pv',0) or 0)))}</div>
+                  <div class="mini-meta">평균 주문 {round(float(p.get('avg_orders',0) or 0),1)} · 평균 매출 {fmt_money(p.get('avg_revenue',0))}</div>
+                </div>
+              </div>
             </div>
             """
         )
-    return "".join(steps)
+    return "".join(cards) if cards else '<div class="empty-note">표시할 고객 프로필 데이터가 없습니다.</div>'
+
 
 def render_channel_snapshot(data: dict) -> str:
-    rows = data["channel_snapshot"]
+    rows = data.get("channel_matrix", [])
+    if not rows:
+        return """
+        <div class="report-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Channel Matrix</div>
+              <div class="section-title">채널별 가입 / 구매 구조</div>
+              <div class="section-sub">표시할 채널 데이터가 없습니다.</div>
+            </div>
+          </div>
+          <div class="empty-note">channel_snapshot 또는 bucket_detail 결과가 비어 있습니다.</div>
+        </div>
+        """
     body = []
-    total_users = sum(float(r.get("users", 0) or 0) for r in rows)
-    total_buyers = sum(float(r.get("buyers", 0) or 0) for r in rows)
-    total_revenue = sum(float(r.get("revenue", 0) or 0) for r in rows)
-    total_signups = sum(float(r.get("signups", 0) or 0) for r in rows)
-
     for r in rows:
         body.append(
             f"""
-            <tr class="bucket-row" data-bucket="{esc(r.get('bucket','etc'))}">
-              <td>{esc(r.get('bucket','etc'))}</td>
-              <td class="num" data-metric-group="channel-snapshot">
-                <span class="metric-slot active" data-metric="users">{fmt_int(r.get("users", 0))}</span>
-                <span class="metric-slot" data-metric="buyers">{fmt_int(r.get("buyers", 0))}</span>
-                <span class="metric-slot" data-metric="revenue">{fmt_money(r.get("revenue", 0))}</span>
-              </td>
-              <td class="num">{fmt_int(r.get("signups", 0))}</td>
-              <td class="num">{fmt_pct(safe_div(float(r.get("buyers", 0) or 0), float(r.get("users", 0) or 0)))}</td>
-              <td class="num">{fmt_money(r.get("aov", 0))}</td>
+            <tr class="bucket-row" data-bucket-target="channel-detail" data-bucket="{esc(r.get('bucket','etc'))}">
+              <td><span class="tag slate">{esc(r.get('bucket','etc'))}</span></td>
+              <td class="num">{fmt_int(r.get('users',0))}</td>
+              <td class="num">{fmt_int(r.get('signups',0))}</td>
+              <td class="num">{fmt_pct(r.get('signup_rate',0))}</td>
+              <td class="num">{fmt_int(r.get('buyers',0))}</td>
+              <td class="num">{fmt_pct(r.get('buyer_cvr',0))}</td>
+              <td class="num">{fmt_money(r.get('revenue',0))}</td>
+              <td class="num">{fmt_money(r.get('aov',0))}</td>
+              <td>{esc(r.get('top_age_band','-'))}</td>
+              <td>{esc(r.get('gender_mix','-'))}</td>
+              <td>{esc(r.get('top_source','-'))}</td>
+              <td>{esc(r.get('top_product','-'))}</td>
             </tr>
             """
         )
 
-    body.append(
-        f"""
-        <tr class="bucket-row" data-bucket="__total__">
-          <td><strong>Total</strong></td>
-          <td class="num" data-metric-group="channel-snapshot">
-            <span class="metric-slot active" data-metric="users"><strong>{fmt_int(total_users)}</strong></span>
-            <span class="metric-slot" data-metric="buyers"><strong>{fmt_int(total_buyers)}</strong></span>
-            <span class="metric-slot" data-metric="revenue"><strong>{fmt_money(total_revenue)}</strong></span>
-          </td>
-          <td class="num"><strong>{fmt_int(total_signups)}</strong></td>
-          <td class="num"><strong>{fmt_pct(safe_div(total_buyers, total_users))}</strong></td>
-          <td class="num"><strong>{fmt_money(safe_div(total_revenue, total_buyers))}</strong></td>
-        </tr>
-        """
-    )
-
-    details_map: Dict[str, List[dict]] = {}
-    for row in data["bucket_detail"]:
-        bucket = str(row.get("bucket") or "etc")
-        details_map.setdefault(bucket, []).append(row)
-
-    detail_html = []
-    for bucket in CHANNEL_BUCKET_ORDER + ["__total__"]:
-        if bucket == "__total__":
-            rows_for_bucket = sorted(data["bucket_detail"], key=lambda x: (x.get("bucket", ""), x.get("source", "")))
-        else:
-            rows_for_bucket = sorted(details_map.get(bucket, []), key=lambda x: (x.get("source", ""), x.get("campaign", "")))
-        if not rows_for_bucket:
-            continue
-        tr_html = "".join(
+    buckets = [str(r.get("bucket","etc")) for r in rows]
+    details = data.get("bucket_member_detail", [])
+    detail_panels = []
+    for idx, bucket in enumerate(buckets):
+        sdf = [r for r in details if str(r.get("bucket")) == bucket]
+        table_rows = "".join(
             f"""
             <tr>
-              <td>{esc(r.get("source", "(not set)"))}</td>
-              <td>{esc(r.get("medium", "(not set)"))}</td>
-              <td>{esc(r.get("campaign", "(not set)"))}</td>
-              <td class="num">{fmt_int(r.get("users", 0))}</td>
-              <td class="num">{fmt_int(r.get("signups", 0))}</td>
-              <td class="num">{fmt_int(r.get("buyers", 0))}</td>
-              <td class="num">{fmt_money(r.get("revenue", 0))}</td>
-              <td>{esc(r.get("top_product", "(not set)"))}</td>
+              <td>{esc(r.get('first_source','(not set)'))}</td>
+              <td>{esc(r.get('first_campaign','(not set)'))}</td>
+              <td class="num">{fmt_int(r.get('members',0))}</td>
+              <td class="num">{fmt_int(r.get('buyers',0))}</td>
+              <td class="num">{fmt_money(r.get('revenue',0))}</td>
+              <td>{esc(r.get('age_band','-'))}</td>
+              <td>{esc(r.get('gender','-'))}</td>
+              <td>{esc(r.get('top_product','-'))}</td>
+              <td>{esc(r.get('top_category','-'))}</td>
             </tr>
-            """ for r in rows_for_bucket
-        )
-        detail_html.append(
+            """ for r in sdf
+        ) or '<tr><td colspan="9" class="muted">상세 source/campaign 데이터가 없습니다.</td></tr>'
+        detail_panels.append(
             f"""
-            <div class="bucket-detail bucket-detail-panel report-card" data-bucket="{esc(bucket)}" style="display:{'block' if bucket == CHANNEL_BUCKET_ORDER[0] else 'none'}">
+            <div class="bucket-detail {"active" if idx == 0 else ""}" data-target="channel-detail" data-bucket="{esc(bucket)}">
               <div class="section-head">
                 <div>
-                  <div class="section-kicker">Bucket Detail</div>
-                  <div class="section-title">{esc(bucket)}</div>
-                  <div class="section-sub">Source / medium / campaign drill-down</div>
+                  <div class="section-kicker">Channel Deep Dive</div>
+                  <div class="section-title">{esc(bucket)} 유입자 세부 구조</div>
+                  <div class="section-sub">어떤 source / campaign에서 어떤 사람이 가입하고 구매했는지</div>
                 </div>
               </div>
               <div class="table-wrap">
-                <table class="data-table">
+                <table class="data-table compact-table">
                   <thead>
                     <tr>
                       <th>Source</th>
-                      <th>Medium</th>
                       <th>Campaign</th>
-                      <th class="num">Users</th>
-                      <th class="num">Sign-ups</th>
+                      <th class="num">Members</th>
                       <th class="num">Buyers</th>
                       <th class="num">Revenue</th>
+                      <th>Age Band</th>
+                      <th>Gender Mix</th>
                       <th>Top Product</th>
+                      <th>Top Category</th>
                     </tr>
                   </thead>
-                  <tbody>{tr_html}</tbody>
+                  <tbody>{table_rows}</tbody>
                 </table>
               </div>
             </div>
@@ -846,259 +1342,292 @@ def render_channel_snapshot(data: dict) -> str:
     <div class="report-card">
       <div class="section-head">
         <div>
-          <div class="section-kicker">Channel Snapshot</div>
-          <div class="section-title">유입 버킷별 회원 퍼널</div>
-          <div class="section-sub">Daily Digest의 채널 버킷 구조를 그대로 가져온 회원 전환 스냅샷</div>
+          <div class="section-kicker">Channel Matrix</div>
+          <div class="section-title">채널별 유입 · 가입 · 구매 · 사람 특성</div>
+          <div class="section-sub">OWNED / PAID / AWARENESS / DIRECT까지 한 화면에서 비교하고, 클릭하면 source/campaign 디테일까지 확인할 수 있습니다.</div>
         </div>
-        {metric_tabs_html('channel-snapshot', [('users','Users'), ('buyers','Buyers'), ('revenue','Revenue')], 'users')}
       </div>
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table compact-table">
           <thead>
             <tr>
-              <th>Bucket</th>
-              <th class="num">Metric</th>
+              <th>Channel</th>
+              <th class="num">Users</th>
               <th class="num">Sign-ups</th>
-              <th class="num">CVR</th>
+              <th class="num">Signup Rate</th>
+              <th class="num">Buyers</th>
+              <th class="num">Buyer CVR</th>
+              <th class="num">Revenue</th>
               <th class="num">AOV</th>
+              <th>Top Age</th>
+              <th>Gender Mix</th>
+              <th>Top Source</th>
+              <th>Top Product</th>
             </tr>
           </thead>
           <tbody>{''.join(body)}</tbody>
         </table>
       </div>
     </div>
-    {''.join(detail_html)}
+
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Channel Drilldown</div>
+          <div class="section-title">채널별 가입 소스 상세</div>
+          <div class="section-sub">채널을 바꿔가며 source / campaign / 구매자 구조를 확인</div>
+        </div>
+        {bucket_tabs_html('channel-detail', buckets, buckets[0] if buckets else '')}
+      </div>
+      {''.join(detail_panels)}
+    </div>
     """
 
+
+def render_entry_points(data: dict) -> str:
+    rows = data.get("entry_points", [])
+    tr_html = "".join(
+        f"""
+        <tr>
+          <td><span class="tag slate">{esc(r.get('bucket','-'))}</span></td>
+          <td>{esc(r.get('first_source','(not set)'))}</td>
+          <td>{esc(r.get('first_campaign','(not set)'))}</td>
+          <td class="num">{fmt_int(r.get('members',0))}</td>
+          <td class="num">{fmt_int(r.get('buyers',0))}</td>
+          <td class="num">{fmt_money(r.get('revenue',0))}</td>
+          <td>{esc(r.get('age_band','-'))}</td>
+          <td>{esc(r.get('product','-'))}</td>
+        </tr>
+        """ for r in rows
+    ) or '<tr><td colspan="8" class="muted">표시할 엔트리포인트 데이터가 없습니다.</td></tr>'
+    actions = data.get("action_cards", [])
+    action_html = "".join(
+        f"""
+        <div class="flow-card">
+          <div class="flow-title">{esc(card.get('title','-'))}</div>
+          <div class="flow-text">{esc(card.get('text','-'))}</div>
+          <div class="bullet-list">{''.join(f'<div class="bullet">{esc(b)}</div>' for b in card.get('bullets', []))}</div>
+        </div>
+        """ for card in actions
+    ) or '<div class="empty-note">아직 생성된 액션 인사이트가 없습니다.</div>'
+    return f"""
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Signup Attribution</div>
+          <div class="section-title">어느 채널에서 어떤 사람이 가입했는지</div>
+          <div class="section-sub">가입 기준 source / campaign 진입점과 바로 실행 가능한 액션 요약</div>
+        </div>
+      </div>
+      <div class="panel-grid">
+        <div class="subcard">
+          <div class="section-kicker">Top Entry Points</div>
+          <div class="table-wrap">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Source</th>
+                  <th>Campaign</th>
+                  <th class="num">Members</th>
+                  <th class="num">Buyers</th>
+                  <th class="num">Revenue</th>
+                  <th>Top Age</th>
+                  <th>Top Product</th>
+                </tr>
+              </thead>
+              <tbody>{tr_html}</tbody>
+            </table>
+          </div>
+        </div>
+        <div class="subcard">
+          <div class="section-kicker">Operator Actions</div>
+          <div class="flow-grid">{action_html}</div>
+        </div>
+      </div>
+    </div>
+    """
+
+
 def render_non_buyer(data: dict) -> str:
-    s = data["non_buyer_summary"]
-    rows = data["non_buyer"][:100]
-    top_products = (
-        pd.DataFrame(rows).groupby("last_viewed_product", dropna=False).size().sort_values(ascending=False).head(5).to_dict()
-        if rows else {}
-    )
-    top_categories = (
-        pd.DataFrame(rows).groupby("last_viewed_category", dropna=False).size().sort_values(ascending=False).head(5).to_dict()
-        if rows else {}
-    )
+    rows = data.get("non_buyer", [])
+    summary = data.get("non_buyer_summary", {})
     table_rows = "".join(
         f"""
         <tr>
-          <td>{esc(r.get("user_id",""))}</td>
-          <td>{esc(r.get("member_id",""))}</td>
-          <td>{esc(r.get("gender","UNKNOWN"))}</td>
-          <td>{esc(r.get("age_band","UNKNOWN"))}</td>
-          <td>{esc(r.get("gender","UNKNOWN"))}</td>
-          <td>{esc(r.get("age_band","UNKNOWN"))}</td>
-          <td><span class="tag slate">{esc(r.get("channel_group","etc"))}</span></td>
-          <td>{esc(r.get("first_source","(not set)"))}</td>
-          <td>{esc(r.get("first_campaign","(not set)"))}</td>
-          <td>{esc(r.get("signup_date",""))}</td>
-          <td class="num">{fmt_int(r.get("total_pageviews",0))}</td>
-          <td class="num">{fmt_int(r.get("product_view_count",0))}</td>
-          <td class="num">{fmt_int(r.get("add_to_cart_count",0))}</td>
-          <td>{esc(r.get("last_viewed_product","(not set)"))}</td>
-          <td><span class="tag {pick_tag_class(str(r.get("recommended_message","")))}">{esc(r.get("recommended_message",""))}</span></td>
+          <td>{esc(r.get('member_id',''))}</td>
+          <td>{esc(r.get('gender','UNKNOWN'))}</td>
+          <td>{esc(r.get('age_band','UNKNOWN'))}</td>
+          <td><span class="tag slate">{esc(canonical_bucket(r.get('channel_group'), r.get('first_source'), '', r.get('first_campaign')))}</span></td>
+          <td>{esc(r.get('first_source','(not set)'))}</td>
+          <td>{esc(r.get('first_campaign','(not set)'))}</td>
+          <td class="num">{fmt_int(r.get('total_pageviews',0))}</td>
+          <td class="num">{fmt_int(r.get('product_view_count',0))}</td>
+          <td class="num">{fmt_int(r.get('add_to_cart_count',0))}</td>
+          <td>{esc(r.get('last_viewed_category','(not set)'))}</td>
+          <td>{esc(r.get('last_viewed_product','(not set)'))}</td>
+          <td><span class="tag amber">{esc(r.get('recommended_message','FIRST_PURCHASE_COUPON'))}</span></td>
         </tr>
-        """
-        for r in rows
+        """ for r in rows[:160]
+    ) or '<tr><td colspan="12" class="muted">비구매 회원 데이터가 없습니다.</td></tr>'
+    stats = [
+        ("Non Buyer Members", fmt_int(summary.get("signup_non_buyer", 0)), "가입 후 미구매 회원 수"),
+        ("High PV", fmt_int(summary.get("high_pv_non_buyer", 0)), "상품 조회 3회 이상"),
+        ("Cart Abandon", fmt_int(summary.get("cart_abandon", 0)), "장바구니 흔적 보유"),
+        ("Avg PV", str(summary.get("avg_pv", 0)), "평균 페이지뷰"),
+    ]
+    stat_html = "".join(
+        f'<div class="stat-card"><div class="stat-label">{esc(a)}</div><div class="stat-value">{esc(b)}</div><div class="stat-meta">{esc(c)}</div></div>'
+        for a,b,c in stats
     )
-    side_a = "".join(
-        f'<div class="summary-item"><div class="label">{esc(k)}</div><div class="value">{fmt_int(v)}</div></div>'
-        for k, v in {
-            "Signup Non Buyer": s["signup_non_buyer"],
-            "High PV Non Buyer": s["high_pv_non_buyer"],
-            "Cart Abandon": s["cart_abandon"],
-            "Avg PV": s["avg_pv"],
-        }.items()
-    )
-    side_b = "".join(
-        f'<div class="summary-item"><div class="label">{esc(k)}</div><div class="value">{fmt_int(v)}</div></div>'
-        for k, v in top_products.items()
-    ) or '<div class="summary-item"><div class="label">Top Viewed Product</div><div class="value">-</div></div>'
-    side_c = "".join(
-        f'<div class="summary-item"><div class="label">{esc(k)}</div><div class="value">{fmt_int(v)}</div></div>'
-        for k, v in top_categories.items()
-    ) or '<div class="summary-item"><div class="label">Top Viewed Category</div><div class="value">-</div></div>'
-
     return f"""
     <div class="report-card">
       <div class="section-head">
         <div>
           <div class="section-kicker">Non Buyer</div>
-          <div class="section-title">가입했지만 아직 안 산 사람</div>
-          <div class="section-sub">행동 강도(PV / 상품조회 / 장바구니) 기준으로 바로 리타겟 가능한 목록</div>
+          <div class="section-title">가입했지만 아직 사지 않은 사람</div>
+          <div class="section-sub">상품 조회, 장바구니, 마지막 관심 상품 기준으로 재접촉 우선순위를 볼 수 있습니다.</div>
         </div>
       </div>
-      <div class="panel-grid">
-        <div class="subcard">
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>User ID</th>
-                  <th>Member ID</th>
-                  <th>Gender</th>
-                  <th>Age Band</th>
-                  <th>Gender</th>
-                  <th>Age Band</th>
-                  <th>Channel</th>
-                  <th>Source</th>
-                  <th>Campaign</th>
-                  <th>Signup Date</th>
-                  <th class="num">PV</th>
-                  <th class="num">Product Views</th>
-                  <th class="num">Cart</th>
-                  <th>Last Viewed Product</th>
-                  <th>Recommended Message</th>
-                </tr>
-              </thead>
-              <tbody>{table_rows}</tbody>
-            </table>
-          </div>
-        </div>
-        <div class="subcard">
-          <div class="section-kicker">Quick Summary</div>
-          <div class="summary-list">{side_a}</div>
-          <div class="section-kicker" style="margin-top:16px">Top Viewed Products</div>
-          <div class="summary-list">{side_b}</div>
-          <div class="section-kicker" style="margin-top:16px">Top Viewed Categories</div>
-          <div class="summary-list">{side_c}</div>
+      <div class="stat-grid">{stat_html}</div>
+      <div class="subcard" style="margin-top:16px">
+        <div class="section-kicker">Priority List</div>
+        <div class="table-wrap">
+          <table class="data-table compact-table">
+            <thead>
+              <tr>
+                <th>Member ID</th>
+                <th>Gender</th>
+                <th>Age Band</th>
+                <th>Channel</th>
+                <th>Source</th>
+                <th>Campaign</th>
+                <th class="num">PV</th>
+                <th class="num">Product Views</th>
+                <th class="num">Add to Cart</th>
+                <th>Last Category</th>
+                <th>Last Product</th>
+                <th>Recommended Message</th>
+              </tr>
+            </thead>
+            <tbody>{table_rows}</tbody>
+          </table>
         </div>
       </div>
     </div>
     """
 
+
 def render_buyer_revenue(data: dict) -> str:
-    s = data["buyer_summary"]
-    rows = data["buyer_revenue"][:100]
-    channel_mix = pd.DataFrame(rows).groupby("channel_group", dropna=False)["total_revenue"].sum().sort_values(ascending=False).head(6).to_dict() if rows else {}
-    mix_cards = "".join(
-        f'<div class="summary-item"><div class="label">{esc(k)}</div><div class="value">{fmt_money(v)}</div></div>'
-        for k, v in channel_mix.items()
-    ) or '<div class="summary-item"><div class="label">Revenue Mix</div><div class="value">-</div></div>'
+    rows = data.get("buyer_revenue", [])
+    summary = data.get("buyer_summary", {})
+    stats = [
+        ("Buyers", fmt_int(summary.get("buyers", 0)), "실구매 회원 수"),
+        ("1st Buyers", fmt_int(summary.get("first_buyers", 0)), "1회 구매 회원"),
+        ("Repeat Buyers", fmt_int(summary.get("repeat_buyers", 0)), "2회 이상 구매 회원"),
+        ("Revenue / Buyer", fmt_money(summary.get("revenue_per_buyer", 0)), "구매자당 평균 매출"),
+    ]
+    stat_html = "".join(
+        f'<div class="stat-card"><div class="stat-label">{esc(a)}</div><div class="stat-value">{esc(b)}</div><div class="stat-meta">{esc(c)}</div></div>'
+        for a,b,c in stats
+    )
     table_rows = "".join(
         f"""
         <tr>
-          <td>{esc(r.get("user_id",""))}</td>
-          <td>{esc(r.get("member_id",""))}</td>
-          <td><span class="tag slate">{esc(r.get("channel_group","etc"))}</span></td>
-          <td>{esc(r.get("first_source","(not set)"))}</td>
-          <td>{esc(r.get("first_campaign","(not set)"))}</td>
-          <td>{esc(r.get("first_purchase_date",""))}</td>
-          <td class="num">{fmt_int(r.get("order_count",0))}</td>
-          <td class="num">{fmt_int(r.get("total_quantity",0))}</td>
-          <td class="num">{fmt_money(r.get("total_revenue",0))}</td>
-          <td class="num">{fmt_money(r.get("aov",0))}</td>
-          <td>{esc(r.get("top_category","(not set)"))}</td>
-          <td>{esc(r.get("top_product","(not set)"))}</td>
+          <td>{esc(r.get('member_id',''))}</td>
+          <td>{esc(r.get('gender','UNKNOWN'))}</td>
+          <td>{esc(r.get('age_band','UNKNOWN'))}</td>
+          <td><span class="tag slate">{esc(canonical_bucket(r.get('channel_group'), r.get('first_source'), '', r.get('first_campaign')))}</span></td>
+          <td>{esc(r.get('first_source','(not set)'))}</td>
+          <td>{esc(r.get('first_campaign','(not set)'))}</td>
+          <td>{esc(r.get('top_category','(not set)'))}</td>
+          <td>{esc(r.get('top_product','(not set)'))}</td>
+          <td class="num">{fmt_int(r.get('order_count',0))}</td>
+          <td class="num">{fmt_int(r.get('total_quantity',0))}</td>
+          <td class="num">{fmt_money(r.get('aov',0))}</td>
+          <td class="num">{fmt_money(r.get('total_revenue',0))}</td>
         </tr>
-        """
-        for r in rows
-    )
-    summary_cards = "".join(
-        f'<div class="summary-item"><div class="label">{esc(k)}</div><div class="value">{esc(v)}</div></div>'
-        for k, v in {
-            "Buyers": fmt_int(s["buyers"]),
-            "First Buyers": fmt_int(s["first_buyers"]),
-            "Repeat Buyers": fmt_int(s["repeat_buyers"]),
-            "Revenue": fmt_money(s["revenue"]),
-            "Revenue / Buyer": fmt_money(s["revenue_per_buyer"]),
-            "AOV": fmt_money(s["aov"]),
-        }.items()
-    )
-
+        """ for r in rows[:160]
+    ) or '<tr><td colspan="12" class="muted">구매 회원 데이터가 없습니다.</td></tr>'
     return f"""
     <div class="report-card">
       <div class="section-head">
         <div>
-          <div class="section-kicker">Buyer / Revenue</div>
-          <div class="section-title">누가 샀고 얼마를 썼는지</div>
-          <div class="section-sub">사람 기준 매출 / 주문 / 대표 상품 확인용</div>
+          <div class="section-kicker">Buyer Revenue</div>
+          <div class="section-title">누가 매출을 만들었는지</div>
+          <div class="section-sub">채널, 상품, 주문 수 기준으로 고가치 구매자를 빠르게 확인합니다.</div>
         </div>
       </div>
-      <div class="panel-grid">
-        <div class="subcard">
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>User ID</th>
-                  <th>Member ID</th>
-                  <th>Gender</th>
-                  <th>Age Band</th>
-                  <th>Channel</th>
-                  <th>Source</th>
-                  <th>Campaign</th>
-                  <th>First Purchase</th>
-                  <th class="num">Orders</th>
-                  <th class="num">Qty</th>
-                  <th class="num">Revenue</th>
-                  <th class="num">AOV</th>
-                  <th>Top Category</th>
-                  <th>Top Product</th>
-                </tr>
-              </thead>
-              <tbody>{table_rows}</tbody>
-            </table>
-          </div>
-        </div>
-        <div class="subcard">
-          <div class="section-kicker">Quick Summary</div>
-          <div class="summary-list">{summary_cards}</div>
-          <div class="section-kicker" style="margin-top:16px">Revenue Mix by Channel</div>
-          <div class="summary-list">{mix_cards}</div>
+      <div class="stat-grid">{stat_html}</div>
+      <div class="subcard" style="margin-top:16px">
+        <div class="section-kicker">Buyer Table</div>
+        <div class="table-wrap">
+          <table class="data-table compact-table">
+            <thead>
+              <tr>
+                <th>Member ID</th>
+                <th>Gender</th>
+                <th>Age Band</th>
+                <th>Channel</th>
+                <th>Source</th>
+                <th>Campaign</th>
+                <th>Top Category</th>
+                <th>Top Product</th>
+                <th class="num">Orders</th>
+                <th class="num">Qty</th>
+                <th class="num">AOV</th>
+                <th class="num">Revenue</th>
+              </tr>
+            </thead>
+            <tbody>{table_rows}</tbody>
+          </table>
         </div>
       </div>
     </div>
     """
 
-def render_product_insight(data: dict) -> str:
-    product_rows = data["product_insight"][:50]
-    channel_rows = data["channel_product"][:60]
 
+def render_product_insight(data: dict) -> str:
+    product_rows = data.get("product_insight", [])
+    channel_rows = data.get("channel_product", [])
     product_table = "".join(
         f"""
         <tr>
-          <td>{esc(r.get("product_name","(not set)"))}</td>
-          <td>{esc(r.get("category","(not set)"))}</td>
-          <td class="num">{fmt_int(r.get("buyers",0))}</td>
-          <td class="num">{fmt_int(r.get("orders",0))}</td>
-          <td class="num">{fmt_int(r.get("quantity",0))}</td>
-          <td class="num">{fmt_money(r.get("revenue",0))}</td>
-          <td class="num">{fmt_pct(r.get("first_purchase_share",0))}</td>
-          <td class="num">{fmt_pct(r.get("repeat_share",0))}</td>
+          <td>{esc(r.get('product_name','(not set)'))}</td>
+          <td>{esc(r.get('category','(not set)'))}</td>
+          <td class="num">{fmt_int(r.get('buyers',0))}</td>
+          <td class="num">{fmt_int(r.get('orders',0))}</td>
+          <td class="num">{fmt_int(r.get('quantity',0))}</td>
+          <td class="num">{fmt_money(r.get('revenue',0))}</td>
+          <td class="num">{fmt_pct(r.get('first_purchase_share',0))}</td>
+          <td class="num">{fmt_pct(r.get('repeat_share',0))}</td>
         </tr>
-        """
-        for r in product_rows
-    )
-
+        """ for r in product_rows[:80]
+    ) or '<tr><td colspan="8" class="muted">상품 인사이트 데이터가 없습니다.</td></tr>'
     channel_table = "".join(
         f"""
         <tr>
-          <td><span class="tag slate">{esc(r.get("channel_group","etc"))}</span></td>
-          <td>{esc(r.get("product_name","(not set)"))}</td>
-          <td class="num">{fmt_int(r.get("buyers",0))}</td>
-          <td class="num">{fmt_money(r.get("revenue",0))}</td>
+          <td><span class="tag slate">{esc(canonical_bucket(r.get('channel_group')))}</span></td>
+          <td>{esc(r.get('product_name','(not set)'))}</td>
+          <td class="num">{fmt_int(r.get('buyers',0))}</td>
+          <td class="num">{fmt_money(r.get('revenue',0))}</td>
         </tr>
-        """
-        for r in channel_rows
-    )
-
+        """ for r in channel_rows[:80]
+    ) or '<tr><td colspan="4" class="muted">채널별 상품 데이터가 없습니다.</td></tr>'
     return f"""
     <div class="report-card">
       <div class="section-head">
         <div>
           <div class="section-kicker">Product Insight</div>
-          <div class="section-title">어떤 상품이 매출을 만들었는지</div>
-          <div class="section-sub">상품 / 카테고리 / 채널별 구매 연결</div>
+          <div class="section-title">무슨 상품이 고객을 움직였는지</div>
+          <div class="section-sub">대표 상품, 카테고리, 채널별 매출 연결 구조</div>
         </div>
       </div>
       <div class="panel-grid">
         <div class="subcard">
           <div class="section-kicker">Top Products</div>
           <div class="table-wrap">
-            <table class="data-table">
+            <table class="data-table compact-table">
               <thead>
                 <tr>
                   <th>Product</th>
@@ -1118,7 +1647,7 @@ def render_product_insight(data: dict) -> str:
         <div class="subcard">
           <div class="section-kicker">Channel × Product</div>
           <div class="table-wrap">
-            <table class="data-table">
+            <table class="data-table compact-table">
               <thead>
                 <tr>
                   <th>Channel</th>
@@ -1135,51 +1664,44 @@ def render_product_insight(data: dict) -> str:
     </div>
     """
 
-def render_target_candidates(data: dict) -> str:
-    rows = data["target_candidates"]
-    if rows:
-        df = pd.DataFrame(rows)
-    else:
-        df = pd.DataFrame(columns=["segment","member_id","user_id","channel_group","first_source","first_campaign","preferred_category","preferred_product","last_order_date","total_revenue","recommended_message"])
 
-    segments = sorted(df["segment"].dropna().astype(str).unique().tolist(), key=segment_sort_key)
+def render_target_candidates(data: dict) -> str:
+    rows = data.get("target_candidates", [])
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["segment","member_id","user_id","channel_group","first_source","first_campaign","preferred_category","preferred_product","last_order_date","total_revenue","recommended_message"])
+    segments = sorted(df["segment"].dropna().astype(str).unique().tolist(), key=segment_sort_key) if not df.empty and "segment" in df.columns else TARGET_SEGMENT_ORDER[:]
     if not segments:
         segments = TARGET_SEGMENT_ORDER[:]
-
-    panels = []
     counts = data.get("target_counts", {})
     summary_items = "".join(
         f'<div class="summary-item"><div class="label">{esc(seg)}</div><div class="value">{fmt_int(counts.get(seg,0))}</div></div>'
         for seg in TARGET_SEGMENT_ORDER
     )
-
+    panels = []
     for idx, seg in enumerate(segments):
-        sdf = df[df["segment"].astype(str) == seg].copy()
+        sdf = df[df["segment"].astype(str) == seg].copy() if not df.empty else pd.DataFrame()
         table_rows = "".join(
             f"""
             <tr>
-              <td>{esc(r.get("segment",""))}</td>
-              <td>{esc(r.get("member_id",""))}</td>
-              <td>{esc(r.get("user_id",""))}</td>
-              <td><span class="tag slate">{esc(r.get("channel_group","etc"))}</span></td>
-              <td>{esc(r.get("first_source","(not set)"))}</td>
-              <td>{esc(r.get("first_campaign","(not set)"))}</td>
-              <td>{esc(r.get("preferred_category","(not set)"))}</td>
-              <td>{esc(r.get("preferred_product","(not set)"))}</td>
-              <td>{esc(r.get("last_order_date",""))}</td>
-              <td class="num">{fmt_money(r.get("total_revenue",0))}</td>
-              <td><span class="tag {pick_tag_class(str(r.get("recommended_message","")))}">{esc(r.get("recommended_message",""))}</span></td>
+              <td>{esc(r.get('member_id',''))}</td>
+              <td>{esc(r.get('user_id',''))}</td>
+              <td><span class="tag slate">{esc(canonical_bucket(r.get('channel_group'), r.get('first_source'), '', r.get('first_campaign')))}</span></td>
+              <td>{esc(r.get('first_source','(not set)'))}</td>
+              <td>{esc(r.get('first_campaign','(not set)'))}</td>
+              <td>{esc(r.get('preferred_category','(not set)'))}</td>
+              <td>{esc(r.get('preferred_product','(not set)'))}</td>
+              <td>{esc(r.get('last_order_date',''))}</td>
+              <td class="num">{fmt_money(r.get('total_revenue',0))}</td>
+              <td><span class="tag {pick_tag_class(str(r.get('recommended_message','')))}">{esc(r.get('recommended_message',''))}</span></td>
             </tr>
-            """ for _, r in sdf.head(120).iterrows()
-        )
+            """ for _, r in sdf.head(160).iterrows()
+        ) or '<tr><td colspan="10" class="muted">대상자가 없습니다.</td></tr>'
         panels.append(
             f"""
-            <div class="segment-panel {'active' if idx == 0 else ''}" data-target="target-candidates" data-segment="{esc(seg)}">
+            <div class="segment-panel {"active" if idx == 0 else ""}" data-target="target-candidates" data-segment="{esc(seg)}">
               <div class="table-wrap">
-                <table class="data-table">
+                <table class="data-table compact-table">
                   <thead>
                     <tr>
-                      <th>Segment</th>
                       <th>Member ID</th>
                       <th>User ID</th>
                       <th>Channel</th>
@@ -1198,14 +1720,13 @@ def render_target_candidates(data: dict) -> str:
             </div>
             """
         )
-
     return f"""
     <div class="report-card">
       <div class="section-head">
         <div>
           <div class="section-kicker">Target Candidates</div>
-          <div class="section-title">지금 메시지 보내야 할 사람들</div>
-          <div class="section-sub">Segment별로 바로 export 가능한 대상자 목록</div>
+          <div class="section-title">지금 바로 액션 가능한 대상자</div>
+          <div class="section-sub">세그먼트별로 채널 / 관심상품 / 추천 메시지를 같이 보여줍니다.</div>
         </div>
         {segment_tabs_html('target-candidates', segments, segments[0] if segments else 'non_buyer')}
       </div>
@@ -1214,44 +1735,89 @@ def render_target_candidates(data: dict) -> str:
         <div class="subcard">
           <div class="section-kicker">Segment Counts</div>
           <div class="summary-list">{summary_items}</div>
-          <div class="section-kicker" style="margin-top:16px">Export Guide</div>
-          <div class="small muted">
-            CSV / LMS / KAKAO / EDM export는 이 테이블을 기준으로 후속 자동화에 연결하면 됩니다.
+          <div class="section-kicker" style="margin-top:16px">Action Guide</div>
+          <div class="bullet-list">
+            <div class="bullet">non_buyer / cart_abandon: 첫 구매 쿠폰, 장바구니 리마인드, 재방문 유도</div>
+            <div class="bullet">high_intent: 최근 관심 상품 중심 메시지, 24~72시간 후속 리마케팅</div>
+            <div class="bullet">repeat_buyer / vip: 신상품 선공개, 카테고리 기반 업셀</div>
+            <div class="bullet">dormant: 휴면 복귀 혜택, 대표 구매 카테고리 재노출</div>
           </div>
         </div>
       </div>
     </div>
     """
 
+
+def render_data_quality(data: dict) -> str:
+    q = data.get("quality", {})
+    stats = [
+        ("Unknown Users", fmt_int(q.get("unknown_users", 0)), f"전체 users 대비 {fmt_pct(q.get('unknown_user_share', 0))}"),
+        ("Direct Users", fmt_int(q.get("direct_users", 0)), f"전체 users 대비 {fmt_pct(q.get('direct_user_share', 0))}"),
+        ("Missing Source", fmt_pct(q.get("source_missing_share", 0)), "식별 회원 기준 first_source 비어 있음"),
+        ("Missing Campaign", fmt_pct(q.get("campaign_missing_share", 0)), "식별 회원 기준 first_campaign 비어 있음"),
+    ]
+    stat_html = "".join(
+        f'<div class="stat-card"><div class="stat-label">{esc(a)}</div><div class="stat-value">{esc(b)}</div><div class="stat-meta">{esc(c)}</div></div>'
+        for a,b,c in stats
+    )
+    return f"""
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Data Quality Monitor</div>
+          <div class="section-title">채널 해석이 불안정해질 수 있는 구간</div>
+          <div class="section-sub">Unknown / Direct 비중과 source / campaign 누락 비중을 같이 봅니다.</div>
+        </div>
+      </div>
+      <div class="stat-grid">{stat_html}</div>
+    </div>
+    """
+
+
 def render_filter_bar(data: dict) -> str:
-    dr = data["date_range"]
+    dr = data.get("date_range", {})
     chips = [
-        ("Period", f'{dr.get("start_date","")} ~ {dr.get("end_date","")}'),
-        ("Bucket", "Awareness / Paid Ad / Organic / SNS / Owned / etc"),
-        ("Main Views", "Users / Buyers / Revenue / Target"),
-        ("Core Goal", "유입 → 회원가입 → 미구매 → 구매 → 상품 → 타겟"),
+        ("Period", f"{dr.get('start_date','')} ~ {dr.get('end_date','')}"),
+        ("Scope", "유입 · 가입 · 구매 · 상품 · 타겟"),
+        ("Channel", "Awareness / Paid / Organic / SNS / Owned / Direct / Unknown"),
+        ("Read Order", "요약 → 고객 프로필 → 채널 → 액션"),
     ]
     return f"""
     <div class="filter-bar">
       <div class="section-head" style="margin-bottom:0">
         <div>
-          <div class="section-kicker">Working Filters</div>
-          <div class="section-title">1차 운영 기준</div>
-          <div class="section-sub">이 버전은 기간 기준 정적 리포트입니다. 이후 source / campaign / member status 필터를 client-side로 확장하면 됩니다.</div>
+          <div class="section-kicker">Operating View</div>
+          <div class="section-title">실행 중심 레이아웃으로 전면 개편</div>
+          <div class="section-sub">External Signal 스타일의 상단 구조를 가져오고, 회원/구매/채널/타겟을 한 흐름으로 재배치했습니다.</div>
         </div>
-        <div class="chip-row">
-          {''.join(f'<span class="chip active">{esc(k)} · {esc(v)}</span>' for k, v in chips)}
-        </div>
+        <div class="chip-row">{''.join(f'<span class="chip active">{esc(a)} · {esc(b)}</span>' for a,b in chips)}</div>
       </div>
     </div>
     """
 
+
 def render_html(data: dict) -> str:
     generated_at = data.get("generated_at", "")
     dr = data.get("date_range", {})
+    overview = data.get("overview", {})
+    quality = data.get("quality", {})
     title = "Member Funnel"
-    subtitle = f'{dr.get("start_date","")} ~ {dr.get("end_date","")} · Updated {generated_at}'
-
+    subtitle = f"{dr.get('start_date','')} ~ {dr.get('end_date','')} · Updated {generated_at}"
+    hero_insights = [
+        ("Tracked Users", fmt_int(overview.get("users", 0)), f"가입률 {fmt_pct(data.get('overview_cards',{}).get('signup_rate', 0))}"),
+        ("Buyers", fmt_int(overview.get("buyers", 0)), f"Buyer CVR {fmt_pct(data.get('overview_cards',{}).get('buyer_cvr', 0))}"),
+        ("Revenue", fmt_money(overview.get("revenue", 0)), f"AOV {fmt_money(overview.get('aov', 0))}"),
+        ("Unknown Share", fmt_pct(quality.get("unknown_user_share", 0)), f"Unknown users {fmt_int(quality.get('unknown_users', 0))}"),
+    ]
+    hero_cards = ''.join(
+        f'<div class="highlight-card"><div class="highlight-label">{esc(a)}</div><div class="highlight-value">{esc(b)}</div><div class="highlight-meta">{esc(c)}</div></div>'
+        for a,b,c in hero_insights
+    )
+    action_notes = data.get("action_cards", [])[:3]
+    insight_html = ''.join(
+        f'<div class="insight-item"><div class="label">{esc(card.get("title","-"))}</div><div class="value">{esc(card.get("text","-"))}</div></div>'
+        for card in action_notes
+    ) or '<div class="insight-item"><div class="label">Insight</div><div class="value">채널/세그먼트 데이터가 쌓이면 자동 요약이 여기에 노출됩니다.</div></div>'
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -1263,15 +1829,31 @@ def render_html(data: dict) -> str:
 <body>
   <div class="report-shell">
     <div class="hero">
-      <div>
+      <div class="hero-main">
+        <div class="hero-kicker">CRM Funnel Dashboard</div>
         <div class="hero-title">{esc(title)}</div>
-        <div class="hero-sub">유입 → 회원가입 → 구매 → 상품 → 타겟 흐름을 사람 기준으로 보는 CRM Funnel 리포트</div>
-        <div class="hero-sub">{esc(subtitle)}</div>
+        <div class="hero-sub">유입자 수만 보는 화면이 아니라, 어떤 사람이 어떤 채널로 들어와 가입했고 어떤 상품을 보고 결국 누가 구매했는지까지 한 번에 읽히도록 레이아웃을 전면 개편했습니다.</div>
+        <div class="hero-meta">
+          <span class="hero-chip">{esc(subtitle)}</span>
+          <span class="hero-chip">Sign-up → Buyer → Product → Target</span>
+          <span class="hero-chip">Owned / Paid / Awareness / Direct</span>
+        </div>
+        <div class="hero-actions">
+          <a class="hero-btn" href="../index.html">Hub</a>
+          <a class="hero-btn" href="./data/target_candidates.json">Target JSON</a>
+          <a class="hero-btn primary" href="./data/overview.json">Data Bundle</a>
+        </div>
       </div>
-      <div class="hero-actions">
-        <a class="hero-btn" href="../index.html">Hub</a>
-        <a class="hero-btn" href="./data/target_candidates.json">Target JSON</a>
-        <a class="hero-btn primary" href="./data/overview.json">Data Bundle</a>
+      <div class="hero-side">
+        <div class="section-head" style="margin-bottom:0">
+          <div>
+            <div class="section-kicker">Executive Summary</div>
+            <div class="section-title">이번 구간 핵심 요약</div>
+            <div class="section-sub">채널/고객/액션 관점에서 바로 읽히는 카드</div>
+          </div>
+        </div>
+        <div class="hero-summary-grid">{hero_cards}</div>
+        <div class="insight-list">{insight_html}</div>
       </div>
     </div>
 
@@ -1282,10 +1864,21 @@ def render_html(data: dict) -> str:
         <div>
           <div class="section-kicker">Overview</div>
           <div class="section-title">핵심 KPI</div>
-          <div class="section-sub">운영에 바로 필요한 기본 카드</div>
+          <div class="section-sub">운영 회의 첫 화면에서 바로 보는 숫자</div>
         </div>
       </div>
       <div class="kpi-grid">{render_kpi_cards(data)}</div>
+    </div>
+
+    <div class="report-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Customer Snapshot</div>
+          <div class="section-title">고객 프로필 카드</div>
+          <div class="section-sub">누가 들어왔고, 누가 샀고, 누가 다시 살 가능성이 높은지</div>
+        </div>
+      </div>
+      <div class="persona-grid">{render_persona_cards(data)}</div>
     </div>
 
     <div class="report-card">
@@ -1300,10 +1893,12 @@ def render_html(data: dict) -> str:
     </div>
 
     {render_channel_snapshot(data)}
+    {render_entry_points(data)}
     {render_non_buyer(data)}
     {render_buyer_revenue(data)}
     {render_product_insight(data)}
     {render_target_candidates(data)}
+    {render_data_quality(data)}
   </div>
   {REPORT_PATCH_JS}
 </body>
