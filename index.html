@@ -31,27 +31,64 @@
       border-right: 1px solid rgba(255,255,255,0.85);
     }
     .nav-item{
+      position: relative;
+      overflow: hidden;
       border-radius: 18px;
       padding: 14px 16px;
       display:flex;
       align-items:center;
       gap:12px;
       font-weight: 800;
-      transition: all .15s ease;
+      transition: transform .22s ease, box-shadow .22s ease, background-color .22s ease, color .22s ease;
       cursor:pointer;
       user-select:none;
+      animation: sidebarRise .55s ease both;
+      transform-origin: left center;
+    }
+    .nav-item::before{
+      content:'';
+      position:absolute;
+      inset:0 auto 0 0;
+      width:4px;
+      border-radius:999px;
+      background: linear-gradient(180deg, #1d4ed8, #60a5fa);
+      opacity:0;
+      transform: scaleY(.45);
+      transition: opacity .22s ease, transform .22s ease;
+    }
+    .nav-item::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      background: linear-gradient(90deg, rgba(29,78,216,.10), rgba(96,165,250,0));
+      opacity:0;
+      transition: opacity .22s ease;
+      pointer-events:none;
     }
     .nav-item.active{
       background:#ffffff;
       color: var(--brand);
-      box-shadow: 0 10px 20px rgba(0,45,114,0.06);
+      box-shadow: 0 14px 28px rgba(0,45,114,0.10);
+      transform: translateX(6px);
+    }
+    .nav-item.active::before{
+      opacity:1;
+      transform: scaleY(1);
+    }
+    .nav-item.active::after{
+      opacity:1;
     }
     .nav-item:not(.active){
       color: #94a3b8;
     }
     .nav-item:not(.active):hover{
-      background: rgba(255,255,255,0.55);
+      background: rgba(255,255,255,0.72);
       color:#334155;
+      transform: translateX(4px) translateY(-1px);
+      box-shadow: 0 12px 24px rgba(15,23,42,0.06);
+    }
+    .nav-item:hover i{
+      transform: scale(1.06);
     }
 
     .nav-section{ margin-top: 18px; }
@@ -75,6 +112,7 @@
       text-align: center;
       font-size: 14px;
       opacity: .95;
+      transition: transform .22s ease;
     }
 
     /* ===== Mobile Bottom Tab ===== */
@@ -92,15 +130,22 @@
       padding: 10px 8px;
       border-radius: 16px;
       font-weight: 900;
-      transition: all .15s ease;
+      transition: transform .2s ease, background-color .2s ease, color .2s ease, box-shadow .2s ease;
       color:#94a3b8;
       user-select:none;
       cursor:pointer;
       white-space: nowrap;
     }
+    .mo-tab:hover{
+      transform: translateY(-1px);
+    }
     .mo-tab.active{
       color: var(--brand);
       background: rgba(0,45,114,0.06);
+      box-shadow: inset 0 0 0 1px rgba(0,45,114,0.08);
+    }
+    .mo-tab.active i{
+      animation: activeBounce .45s ease;
     }
     .safe-bottom{
       padding-bottom: env(safe-area-inset-bottom);
@@ -126,6 +171,15 @@
       animation: spin 0.9s linear infinite;
     }
     @keyframes spin{ to { transform: rotate(360deg); } }
+    @keyframes sidebarRise{
+      from{ opacity:0; transform: translateX(-10px) scale(.985); }
+      to{ opacity:1; transform: translateX(0) scale(1); }
+    }
+    @keyframes activeBounce{
+      0%{ transform: translateY(0) scale(1); }
+      35%{ transform: translateY(-2px) scale(1.08); }
+      100%{ transform: translateY(0) scale(1); }
+    }
     .muted { color:#64748b; }
 
     /* iframe 내부 스크롤 방지 */
@@ -342,6 +396,10 @@
 
     const allNav = [...pcItems, ...moTabs];
     if (!frame || allNav.length === 0) return;
+
+    pcItems.forEach((el, idx) => {
+      el.style.animationDelay = `${Math.min(idx * 60, 420)}ms`;
+    });
 
     const META_PATH_BY_KEY = {
       summary: "reports/meta.json",
