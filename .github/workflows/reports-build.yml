@@ -354,7 +354,20 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
-            pip install               db-dtypes               pyarrow               google-cloud-bigquery               google-cloud-bigquery-storage               pandas               python-dateutil               scikit-learn               sentence-transformers               pillow               requests               playwright               openpyxl               matplotlib
+            pip install \
+              db-dtypes \
+              pyarrow \
+              google-cloud-bigquery \
+              google-cloud-bigquery-storage \
+              pandas \
+              python-dateutil \
+              scikit-learn \
+              sentence-transformers \
+              pillow \
+              requests \
+              playwright \
+              openpyxl \
+              matplotlib
           fi
 
           pip install openpyxl matplotlib pytrends google-cloud-bigquery google-cloud-bigquery-storage db-dtypes pyarrow
@@ -370,7 +383,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p             reports             reports/search_volume/data             reports/member_funnel             reports/member_funnel/data             site/data             site/assets             site/assets/products             site/assets/reviews             site/assets/text_images
+          mkdir -p \
+            reports \
+            reports/search_volume/data \
+            reports/member_funnel \
+            reports/member_funnel/data \
+            site/data \
+            site/assets \
+            site/assets/products \
+            site/assets/reviews \
+            site/assets/text_images
 
       - name: Set KST time (for badge/meta + yesterday)
         id: set_time
@@ -437,7 +459,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -u naver_crawl_columbia_c6c7_title_min.py             --limit 999999             --output_html reports/naver_lowest_price.html             --history_dir .             --cache_dir .naver_cache             || true
+          python -u naver_crawl_columbia_c6c7_title_min.py \
+            --limit 999999 \
+            --output_html reports/naver_lowest_price.html \
+            --history_dir . \
+            --cache_dir .naver_cache \
+            || true
           ls -la reports/naver_lowest_price.html || true
 
       - name: Run Hero banner crawler
@@ -497,6 +524,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # unchanged
           if [ -z "${CREMA_SECURE_DEVICE_TOKEN:-}" ]; then
             echo "[ERROR] CREMA_SECURE_DEVICE_TOKEN is empty."
             exit 1
@@ -566,7 +594,13 @@ jobs:
           set -euo pipefail
           rm -rf reports/voc_blog || true
           mkdir -p reports/voc_blog
-          python -u build_blog_voc_report.py             --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 등산"             --days 60             --per-query 100             --headless             --out-dir reports/voc_blog             || true
+          python -u build_blog_voc_report.py \
+            --queries "콜롬비아" "컬럼비아" "Columbia" "콜롬비아 자켓" "콜롬비아 패딩" "콜롬비아 등산" \
+            --days 60 \
+            --per-query 100 \
+            --headless \
+            --out-dir reports/voc_blog \
+            || true
           ls -la reports/voc_blog/index.html || true
 
       - name: Build OWNED campaign portal (seed once, then incremental)
@@ -596,13 +630,30 @@ jobs:
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
             echo "[INFO] OWNED force seed: 2025-01-01 ~ ${YMD} (overwrite)"
-            python -u build_owned_campaign_portal.py               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --start "2025-01-01"               --end "${YMD}"               --site-dir reports/owned_portal               --overwrite
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/owned_portal \
+              --overwrite
           elif [ "${OWNED_SEEDED}" != "true" ]; then
             echo "[INFO] OWNED first YoY seed missing -> one-time fill: 2025-01-01 ~ ${YMD} (overwrite)"
-            python -u build_owned_campaign_portal.py               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --start "2025-01-01"               --end "${YMD}"               --site-dir reports/owned_portal               --overwrite
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/owned_portal \
+              --overwrite
           else
             echo "[INFO] OWNED incremental only: recent ${OWNED_RECENT_DAYS} days (ending ${YMD}) (overwrite)"
-            python -u build_owned_campaign_portal.py               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --recent-days "${OWNED_RECENT_DAYS}"               --site-dir reports/owned_portal               --overwrite
+            python -u build_owned_campaign_portal.py \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --recent-days "${OWNED_RECENT_DAYS}" \
+              --site-dir reports/owned_portal \
+              --overwrite
           fi
 
           test -d reports/owned_portal/data/owned || { echo "[ERROR] reports/owned_portal/data/owned missing after build"; exit 1; }
@@ -648,8 +699,8 @@ jobs:
           done
 
           if [ -n "$HTML_SRC" ]; then
-            HTML_SRC_CLEAN="$(printf '%s' "$HTML_SRC" | tr -d '\n')"
-            HTML_DST_CLEAN="$(printf '%s' "$HTML_DST" | tr -d '\n')"
+            HTML_SRC_CLEAN="$(printf '%s' "$HTML_SRC" | tr -d '\r')"
+            HTML_DST_CLEAN="$(printf '%s' "$HTML_DST" | tr -d '\r')"
             HTML_SRC_REAL="$(realpath "$HTML_SRC_CLEAN")"
             HTML_DST_REAL="$(realpath -m "$HTML_DST_CLEAN")"
 
@@ -716,7 +767,9 @@ jobs:
           fi
 
           HTML_PUBLISH_SRC=""
-          for cand in             "reports/owned_portal/index.html"             "reports/owned_portal/index_patched_owned_portal.html"
+          for cand in \
+            "reports/owned_portal/index.html" \
+            "reports/owned_portal/index_patched_owned_portal.html"
           do
             if [ -f "$cand" ]; then
               HTML_PUBLISH_SRC="$cand"
@@ -771,13 +824,36 @@ jobs:
 
           if [ "${OWNED_BACKFILL}" = "true" ]; then
             echo "[INFO] Funnel force seed: 2025-01-01 ~ ${YMD}"
-            python -u build_owned_funnel_tab.py               --mode all               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --start "2025-01-01"               --end "${YMD}"               --site-dir reports/daily_digest               --out reports/daily_digest/owned_funnel_tab.html               --data-base data/funnel
+            python -u build_owned_funnel_tab.py \
+              --mode all \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/daily_digest \
+              --out reports/daily_digest/owned_funnel_tab.html \
+              --data-base data/funnel
           elif [ "${FUNNEL_SEEDED}" != "true" ]; then
             echo "[INFO] Funnel first YoY seed missing -> one-time fill: 2025-01-01 ~ ${YMD}"
-            python -u build_owned_funnel_tab.py               --mode all               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --start "2025-01-01"               --end "${YMD}"               --site-dir reports/daily_digest               --out reports/daily_digest/owned_funnel_tab.html               --data-base data/funnel
+            python -u build_owned_funnel_tab.py \
+              --mode all \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --start "2025-01-01" \
+              --end "${YMD}" \
+              --site-dir reports/daily_digest \
+              --out reports/daily_digest/owned_funnel_tab.html \
+              --data-base data/funnel
           else
             echo "[INFO] Funnel incremental only: recent ${OWNED_RECENT_DAYS} days"
-            python -u build_owned_funnel_tab.py               --mode all               --project "${BQ_PROJECT}"               --dataset "${BQ_DATASET}"               --recent-days "${OWNED_RECENT_DAYS}"               --site-dir reports/daily_digest               --out reports/daily_digest/owned_funnel_tab.html               --data-base data/funnel
+            python -u build_owned_funnel_tab.py \
+              --mode all \
+              --project "${BQ_PROJECT}" \
+              --dataset "${BQ_DATASET}" \
+              --recent-days "${OWNED_RECENT_DAYS}" \
+              --site-dir reports/daily_digest \
+              --out reports/daily_digest/owned_funnel_tab.html \
+              --data-base data/funnel
           fi
 
           echo "[CHECK] reports/daily_digest:"
@@ -830,41 +906,14 @@ jobs:
             export SOURCE_TABLE="${MEMBER_FUNNEL_SOURCE_TABLE:-${MEMBER_FUNNEL_BASE_TABLE}_staging}"
             export TARGET_TABLE="${MEMBER_FUNNEL_BASE_TABLE}"
 
-            cat > /tmp/member_patch.py <<'PY'
-            import os
-            from google.cloud import bigquery
+            printf '%s
+' "import os" "from google.cloud import bigquery" "sql_path = os.environ['MEMBER_FUNNEL_PATCH_SQL']" "source_table = os.environ['SOURCE_TABLE']" "target_table = os.environ['TARGET_TABLE']" "project_id = os.environ['MEMBER_FUNNEL_PROJECT_ID']" "sql = open(sql_path, 'r', encoding='utf-8').read()" "sql = sql.replace('your_project.crm_mart.member_funnel_master_staging', source_table)" "sql = sql.replace('your_project.crm_mart.member_funnel_master', target_table)" "client = bigquery.Client(project=project_id)" "client.query(sql).result()" "rows = list(client.query(f'''SELECT channel_group, COUNT(*) AS users FROM `{target_table}` GROUP BY 1 ORDER BY 2 DESC''').result())" "print('[INFO] channel distribution after patch')" "for row in rows: print(f"  - {row['channel_group']}: {row['users']}")" > /tmp/member_patch.py
 
-            sql_path = os.environ["MEMBER_FUNNEL_PATCH_SQL"]
-            source_table = os.environ["SOURCE_TABLE"]
-            target_table = os.environ["TARGET_TABLE"]
-            project_id = os.environ["MEMBER_FUNNEL_PROJECT_ID"]
-
-            with open(sql_path, "r", encoding="utf-8") as f:
-                sql = f.read()
-
-            sql = sql.replace("your_project.crm_mart.member_funnel_master_staging", source_table)
-            sql = sql.replace("your_project.crm_mart.member_funnel_master", target_table)
-
-            client = bigquery.Client(project=project_id)
-            client.query(sql).result()
-
-            rows = list(client.query(f'''
-            SELECT channel_group, COUNT(*) AS users
-            FROM `{target_table}`
-            GROUP BY 1
-            ORDER BY 2 DESC
-            ''').result())
-
-            print("[INFO] channel distribution after patch")
-            for row in rows:
-                print(f"  - {row['channel_group']}: {row['users']}")
-            PY
             python /tmp/member_patch.py
           else
             echo "[WARN] ${MEMBER_FUNNEL_PATCH_SQL} not found -> skip channel patch"
           fi
 
-          echo "[INFO] Running member_funnel_final_v2.py"
           python -u member_funnel_final_v2.py
 
           test -f reports/member_funnel/index.html || { echo "[ERROR] reports/member_funnel/index.html missing"; exit 1; }
