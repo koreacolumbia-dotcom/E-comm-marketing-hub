@@ -226,9 +226,15 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out.columns = [str(c).strip() for c in out.columns]
 
-    out["event_date_norm"] = pd.to_datetime(safe_series(out, ["event_date", "date"], None), errors="coerce").dt.date
+    # Use the richest available date field so the dashboard can work even when event_date is absent.
+    event_date_candidates = [
+        "event_date", "date", "last_visit_date", "signup_date", "first_purchase_date", "last_order_date"
+    ]
+    out["event_date_norm"] = pd.to_datetime(safe_series(out, event_date_candidates, None), errors="coerce").dt.date
     if out["event_date_norm"].isna().all():
         out["event_date_norm"] = YESTERDAY_KST
+    else:
+        out["event_date_norm"] = out["event_date_norm"].fillna(YESTERDAY_KST)
 
     out["member_id_norm"] = safe_series(out, ["member_id", "memberid", "member_no", "memberno"], "").astype(str).str.strip()
     out["user_id_norm"] = safe_series(out, ["user_id", "userid"], "").astype(str).str.strip()
@@ -311,19 +317,13 @@ def get_bq_client() -> "bigquery.Client":
 
 def fetch_rows_from_bq(start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
     client = get_bq_client()
+    # Do not hard-code event_date in SQL because member_funnel_master may not have that column.
+    # We fetch the mart rows as-is and apply date normalization / filtering in pandas.
     sql = f"""
     SELECT *
     FROM `{BASE_TABLE}`
-    WHERE DATE(event_date) BETWEEN @start_date AND @end_date
-       OR SAFE_CAST(event_date AS DATE) BETWEEN @start_date AND @end_date
     """
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
-            bigquery.ScalarQueryParameter("end_date", "DATE", end_date.isoformat()),
-        ]
-    )
-    return client.query(sql, job_config=job_config, location=BQ_LOCATION).to_dataframe()
+    return client.query(sql, location=BQ_LOCATION).to_dataframe()
 
 
 def load_bundle_for_period(period_key: str, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
