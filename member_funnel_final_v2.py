@@ -1003,15 +1003,15 @@ th.num,td.num{{text-align:right}}
   </section>
 </div>
 <script>
-(function(){
+(function(){{
   const buttons = Array.from(document.querySelectorAll('.tab-btn'));
   const panels = Array.from(document.querySelectorAll('.panel'));
-  function activate(id){
+  function activate(id){{
     buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.target === id));
     panels.forEach(panel => panel.classList.toggle('active', panel.id === id));
-  }
+  }}
   buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.target)));
-  document.getElementById('apply-date').addEventListener('click', function(){
+  document.getElementById('apply-date').addEventListener('click', function(){{
     const s = document.getElementById('start-date').value;
     const e = document.getElementById('end-date').value;
     if(!s || !e) return;
@@ -1019,8 +1019,8 @@ th.num,td.num{{text-align:right}}
     u.searchParams.set('start', s);
     u.searchParams.set('end', e);
     window.location.href = u.toString();
-  });
-})();
+  }});
+}})();
 </script>
 </body>
 </html>'''
