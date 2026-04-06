@@ -1,12 +1,13 @@
--- member_funnel_master 채널 보강 패치 (enhanced 컬럼 유무 자동 감지)
+-- member_funnel_master 채널 보강 패치 (enhanced 컬럼 유무 자동 감지 / 2-part, 3-part 테이블명 모두 지원)
 -- 목적:
 -- 1) source table에 *_enhanced 컬럼이 아직 없어도 실패하지 않도록 처리
--- 2) 있으면 enhanced 컬럼 우선, 없으면 기존 컬럼 fallback
+-- 2) source_table / target_table 이 dataset.table 또는 project.dataset.table 형태여도 안전하게 처리
 -- 3) 최종적으로 channel_group_enhanced / first_*_enhanced 컬럼을 항상 생성
 
 DECLARE source_table STRING DEFAULT 'columbia-ga4.crm_mart.member_funnel_master_staging';
 DECLARE target_table STRING DEFAULT 'columbia-ga4.crm_mart.member_funnel_master';
 
+DECLARE src_parts ARRAY<STRING>;
 DECLARE src_project STRING;
 DECLARE src_dataset STRING;
 DECLARE src_table STRING;
@@ -22,9 +23,14 @@ DECLARE first_campaign_expr STRING;
 DECLARE channel_group_expr STRING;
 DECLARE sql_stmt STRING;
 
-SET src_project = SPLIT(source_table, '.')[OFFSET(0)];
-SET src_dataset = SPLIT(source_table, '.')[OFFSET(1)];
-SET src_table   = SPLIT(source_table, '.')[OFFSET(2)];
+SET src_parts = SPLIT(REPLACE(REPLACE(TRIM(source_table), '`', ''), ' ', ''), '.');
+
+ASSERT ARRAY_LENGTH(src_parts) IN (2, 3)
+AS 'source_table must be dataset.table or project.dataset.table';
+
+SET src_project = IF(ARRAY_LENGTH(src_parts) = 3, src_parts[SAFE_OFFSET(0)], @@project_id);
+SET src_dataset = IF(ARRAY_LENGTH(src_parts) = 3, src_parts[SAFE_OFFSET(1)], src_parts[SAFE_OFFSET(0)]);
+SET src_table   = IF(ARRAY_LENGTH(src_parts) = 3, src_parts[SAFE_OFFSET(2)], src_parts[SAFE_OFFSET(1)]);
 
 EXECUTE IMMEDIATE FORMAT("""
   SELECT COUNTIF(column_name = 'first_source_enhanced') > 0,
@@ -163,6 +169,10 @@ classified AS (
 SELECT
   * EXCEPT(
     channel_group,
+    channel_group_enhanced,
+    first_source_enhanced,
+    first_medium_enhanced,
+    first_campaign_enhanced,
     __mf_first_source_raw,
     __mf_first_medium_raw,
     __mf_first_campaign_raw,
