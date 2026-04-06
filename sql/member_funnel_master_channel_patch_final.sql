@@ -3,6 +3,7 @@
 -- 1) source table에 *_enhanced 컬럼이 아직 없어도 실패하지 않도록 처리
 -- 2) source_table / target_table 이 dataset.table 또는 project.dataset.table 형태여도 안전하게 처리
 -- 3) 최종적으로 channel_group_enhanced / first_*_enhanced 컬럼을 항상 생성
+-- 4) SELECT * EXCEPT 에 존재하지 않는 컬럼명을 넣어 실패하지 않도록 처리
 
 DECLARE source_table STRING DEFAULT 'columbia-ga4.crm_mart.member_funnel_master_staging';
 DECLARE target_table STRING DEFAULT 'columbia-ga4.crm_mart.member_funnel_master';
@@ -21,6 +22,7 @@ DECLARE first_source_expr STRING;
 DECLARE first_medium_expr STRING;
 DECLARE first_campaign_expr STRING;
 DECLARE channel_group_expr STRING;
+DECLARE except_cols STRING;
 DECLARE sql_stmt STRING;
 
 SET src_parts = SPLIT(REPLACE(REPLACE(TRIM(source_table), '`', ''), ' ', ''), '.');
@@ -66,6 +68,33 @@ SET channel_group_expr = IF(
   "COALESCE(t.channel_group_enhanced, t.channel_group)",
   "t.channel_group"
 );
+
+SET except_cols = 'channel_group';
+SET except_cols = CONCAT(except_cols, IF(has_channel_group_enhanced, ', channel_group_enhanced', ''));
+SET except_cols = CONCAT(except_cols, IF(has_first_source_enhanced, ', first_source_enhanced', ''));
+SET except_cols = CONCAT(except_cols, IF(has_first_medium_enhanced, ', first_medium_enhanced', ''));
+SET except_cols = CONCAT(except_cols, IF(has_first_campaign_enhanced, ', first_campaign_enhanced', ''));
+SET except_cols = CONCAT(except_cols, ', __mf_first_source_raw');
+SET except_cols = CONCAT(except_cols, ', __mf_first_medium_raw');
+SET except_cols = CONCAT(except_cols, ', __mf_first_campaign_raw');
+SET except_cols = CONCAT(except_cols, ', __mf_latest_source_raw');
+SET except_cols = CONCAT(except_cols, ', __mf_latest_medium_raw');
+SET except_cols = CONCAT(except_cols, ', __mf_latest_campaign_raw');
+SET except_cols = CONCAT(except_cols, ', __mf_existing_channel_group_raw');
+SET except_cols = CONCAT(except_cols, ', __mf_source_fallback');
+SET except_cols = CONCAT(except_cols, ', __mf_medium_fallback');
+SET except_cols = CONCAT(except_cols, ', __mf_campaign_fallback');
+SET except_cols = CONCAT(except_cols, ', __mf_used_latest_source_fallback');
+SET except_cols = CONCAT(except_cols, ', __mf_channel_unknown_flag');
+SET except_cols = CONCAT(except_cols, ', __mf_channel_source');
+SET except_cols = CONCAT(except_cols, ', __mf_channel_medium');
+SET except_cols = CONCAT(except_cols, ', __mf_channel_campaign');
+SET except_cols = CONCAT(except_cols, ', __mf_src_l');
+SET except_cols = CONCAT(except_cols, ', __mf_med_l');
+SET except_cols = CONCAT(except_cols, ', __mf_camp_l');
+SET except_cols = CONCAT(except_cols, ', __mf_source_medium_l');
+SET except_cols = CONCAT(except_cols, ', __mf_existing_channel_group_l');
+SET except_cols = CONCAT(except_cols, ', __mf_final_channel_group');
 
 SET sql_stmt = FORMAT("""
 CREATE OR REPLACE TABLE `%s` AS
@@ -167,40 +196,13 @@ classified AS (
   FROM normalized
 )
 SELECT
-  * EXCEPT(
-    channel_group,
-    channel_group_enhanced,
-    first_source_enhanced,
-    first_medium_enhanced,
-    first_campaign_enhanced,
-    __mf_first_source_raw,
-    __mf_first_medium_raw,
-    __mf_first_campaign_raw,
-    __mf_latest_source_raw,
-    __mf_latest_medium_raw,
-    __mf_latest_campaign_raw,
-    __mf_existing_channel_group_raw,
-    __mf_source_fallback,
-    __mf_medium_fallback,
-    __mf_campaign_fallback,
-    __mf_used_latest_source_fallback,
-    __mf_channel_unknown_flag,
-    __mf_channel_source,
-    __mf_channel_medium,
-    __mf_channel_campaign,
-    __mf_src_l,
-    __mf_med_l,
-    __mf_camp_l,
-    __mf_source_medium_l,
-    __mf_existing_channel_group_l,
-    __mf_final_channel_group
-  ),
+  * EXCEPT(%s),
   __mf_final_channel_group AS channel_group,
   __mf_final_channel_group AS channel_group_enhanced,
   __mf_channel_source AS first_source_enhanced,
   __mf_channel_medium AS first_medium_enhanced,
   __mf_channel_campaign AS first_campaign_enhanced
 FROM classified
-""", target_table, first_source_expr, first_medium_expr, first_campaign_expr, channel_group_expr, source_table);
+""", target_table, first_source_expr, first_medium_expr, first_campaign_expr, channel_group_expr, source_table, except_cols);
 
 EXECUTE IMMEDIATE sql_stmt;
