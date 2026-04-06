@@ -1,22 +1,78 @@
--- member_funnel_master 채널 보강 최종 SQL (enhanced 컬럼 우선 사용, 중간 컬럼명 충돌 방지)
--- 프로젝트명: columbia-ga4
--- workflow에서 source_table / target_table 문자열 치환
+-- member_funnel_master 채널 보강 패치 (enhanced 컬럼 유무 자동 감지)
+-- 목적:
+-- 1) source table에 *_enhanced 컬럼이 아직 없어도 실패하지 않도록 처리
+-- 2) 있으면 enhanced 컬럼 우선, 없으면 기존 컬럼 fallback
+-- 3) 최종적으로 channel_group_enhanced / first_*_enhanced 컬럼을 항상 생성
 
 DECLARE source_table STRING DEFAULT 'columbia-ga4.crm_mart.member_funnel_master_staging';
 DECLARE target_table STRING DEFAULT 'columbia-ga4.crm_mart.member_funnel_master';
 
-EXECUTE IMMEDIATE FORMAT('''
+DECLARE src_project STRING;
+DECLARE src_dataset STRING;
+DECLARE src_table STRING;
+
+DECLARE has_first_source_enhanced BOOL DEFAULT FALSE;
+DECLARE has_first_medium_enhanced BOOL DEFAULT FALSE;
+DECLARE has_first_campaign_enhanced BOOL DEFAULT FALSE;
+DECLARE has_channel_group_enhanced BOOL DEFAULT FALSE;
+
+DECLARE first_source_expr STRING;
+DECLARE first_medium_expr STRING;
+DECLARE first_campaign_expr STRING;
+DECLARE channel_group_expr STRING;
+DECLARE sql_stmt STRING;
+
+SET src_project = SPLIT(source_table, '.')[OFFSET(0)];
+SET src_dataset = SPLIT(source_table, '.')[OFFSET(1)];
+SET src_table   = SPLIT(source_table, '.')[OFFSET(2)];
+
+EXECUTE IMMEDIATE FORMAT("""
+  SELECT COUNTIF(column_name = 'first_source_enhanced') > 0,
+         COUNTIF(column_name = 'first_medium_enhanced') > 0,
+         COUNTIF(column_name = 'first_campaign_enhanced') > 0,
+         COUNTIF(column_name = 'channel_group_enhanced') > 0
+  FROM `%s.%s.INFORMATION_SCHEMA.COLUMNS`
+  WHERE table_name = @table_name
+""", src_project, src_dataset)
+INTO has_first_source_enhanced, has_first_medium_enhanced, has_first_campaign_enhanced, has_channel_group_enhanced
+USING src_table AS table_name;
+
+SET first_source_expr = IF(
+  has_first_source_enhanced,
+  "COALESCE(t.first_source_enhanced, t.first_source)",
+  "t.first_source"
+);
+
+SET first_medium_expr = IF(
+  has_first_medium_enhanced,
+  "COALESCE(t.first_medium_enhanced, t.first_medium)",
+  "t.first_medium"
+);
+
+SET first_campaign_expr = IF(
+  has_first_campaign_enhanced,
+  "COALESCE(t.first_campaign_enhanced, t.first_campaign)",
+  "t.first_campaign"
+);
+
+SET channel_group_expr = IF(
+  has_channel_group_enhanced,
+  "COALESCE(t.channel_group_enhanced, t.channel_group)",
+  "t.channel_group"
+);
+
+SET sql_stmt = FORMAT("""
 CREATE OR REPLACE TABLE `%s` AS
 WITH base AS (
   SELECT
     t.*,
-    NULLIF(TRIM(CAST(COALESCE(t.first_source_enhanced, t.first_source) AS STRING)), '') AS __mf_first_source_raw,
-    NULLIF(TRIM(CAST(COALESCE(t.first_medium_enhanced, t.first_medium) AS STRING)), '') AS __mf_first_medium_raw,
-    NULLIF(TRIM(CAST(COALESCE(t.first_campaign_enhanced, t.first_campaign) AS STRING)), '') AS __mf_first_campaign_raw,
+    NULLIF(TRIM(CAST(%s AS STRING)), '') AS __mf_first_source_raw,
+    NULLIF(TRIM(CAST(%s AS STRING)), '') AS __mf_first_medium_raw,
+    NULLIF(TRIM(CAST(%s AS STRING)), '') AS __mf_first_campaign_raw,
     NULLIF(TRIM(CAST(t.latest_source AS STRING)), '') AS __mf_latest_source_raw,
     NULLIF(TRIM(CAST(t.latest_medium AS STRING)), '') AS __mf_latest_medium_raw,
     NULLIF(TRIM(CAST(t.latest_campaign AS STRING)), '') AS __mf_latest_campaign_raw,
-    NULLIF(TRIM(CAST(COALESCE(t.channel_group_enhanced, t.channel_group) AS STRING)), '') AS __mf_existing_channel_group_raw
+    NULLIF(TRIM(CAST(%s AS STRING)), '') AS __mf_existing_channel_group_raw
   FROM `%s` t
 ),
 channel_seed AS (
@@ -52,16 +108,12 @@ classified AS (
   SELECT
     *,
     CASE
-      WHEN __mf_existing_channel_group_l IN (
-        'awareness', 'paid ad', 'organic traffic', 'official sns', 'owned channel', 'direct'
-      ) THEN __mf_existing_channel_group_raw
-      WHEN
-        (__mf_src_l = '' OR __mf_src_l = '(not set)' OR __mf_src_l = 'not set')
-        AND (__mf_med_l = '' OR __mf_med_l = '(not set)' OR __mf_med_l = 'not set')
-        AND (__mf_camp_l = '' OR __mf_camp_l = '(not set)' OR __mf_camp_l = 'not set')
+      WHEN __mf_existing_channel_group_l IN ('awareness', 'paid ad', 'organic traffic', 'official sns', 'owned channel', 'direct') THEN __mf_existing_channel_group_raw
+      WHEN (__mf_src_l = '' OR __mf_src_l = '(not set)' OR __mf_src_l = 'not set')
+       AND (__mf_med_l = '' OR __mf_med_l = '(not set)' OR __mf_med_l = 'not set')
+       AND (__mf_camp_l = '' OR __mf_camp_l = '(not set)' OR __mf_camp_l = 'not set')
       THEN 'Unknown'
-      WHEN
-        REGEXP_CONTAINS(__mf_source_medium_l, r'[(]direct[)] */ *[(]none[)]')
+      WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'[(]direct[)] */ *[(]none[)]')
         OR (__mf_src_l IN ('direct', '(direct)') AND __mf_med_l IN ('(none)', 'none', 'direct', ''))
       THEN 'Direct'
       WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'instagram') AND REGEXP_CONTAINS(__mf_source_medium_l, r'story') THEN 'Official SNS'
@@ -88,13 +140,6 @@ classified AS (
       WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'google */ *cpc') THEN 'Paid Ad'
       WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'naver') AND REGEXP_CONTAINS(__mf_source_medium_l, r'da') THEN 'Paid Ad'
       WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'gfa') THEN 'Paid Ad'
-      WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'naverbs') THEN 'Paid Ad'
-      WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'naver') AND REGEXP_CONTAINS(__mf_source_medium_l, r'cpc') THEN 'Paid Ad'
-      WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'shopping_ad') THEN 'Paid Ad'
-      WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'kakao') THEN 'Paid Ad'
-      WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'signalplay|signal play|signal_play|sg_|signal|manplus') THEN 'Paid Ad'
-      WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'buzzvill|criteo|mobon|snow|smr|tg|t_cafe') THEN 'Paid Ad'
-      WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'cpc') THEN 'Paid Ad'
       WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'banner|da') THEN 'Paid Ad'
       WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'benz') THEN 'Organic Traffic'
       WHEN REGEXP_CONTAINS(__mf_source_medium_l, r'inhouse') THEN 'Organic Traffic'
@@ -118,10 +163,6 @@ classified AS (
 SELECT
   * EXCEPT(
     channel_group,
-    channel_group_enhanced,
-    first_source_enhanced,
-    first_medium_enhanced,
-    first_campaign_enhanced,
     __mf_first_source_raw,
     __mf_first_medium_raw,
     __mf_first_campaign_raw,
@@ -150,4 +191,6 @@ SELECT
   __mf_channel_medium AS first_medium_enhanced,
   __mf_channel_campaign AS first_campaign_enhanced
 FROM classified
-''', target_table, source_table);
+""", target_table, first_source_expr, first_medium_expr, first_campaign_expr, channel_group_expr, source_table);
+
+EXECUTE IMMEDIATE sql_stmt;
