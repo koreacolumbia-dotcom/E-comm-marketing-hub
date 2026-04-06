@@ -1021,7 +1021,7 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
         return "Paid Ad"
 
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen).*").search(cp):
-        return "Paid Ad"
+        return "Awareness"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(pmax).*").search(cp):
         return "Paid Ad"
     if _rx(r"(?i).*(google \/ cpc).*").search(sm) and _rx(r"(?i).*(유튜브|yt|youtube|instream|vac|vvc).*").search(cp):
@@ -1153,6 +1153,135 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 
 
 # =========================
+# Session-level BQ base for channel attribution
+# =========================
+def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame:
+    """
+    Build a session-grain base from GA4 BigQuery export so each session is classified once.
+    This prevents bucket totals from exceeding the overall session total when source/campaign
+    combinations fragment the same session across multiple Data API rows.
+    """
+    if bigquery is None or not BQ_EVENTS_TABLE:
+        return pd.DataFrame()
+
+    try:
+        bq = bigquery.Client()
+        start_suffix = start.strftime('%Y%m%d')
+        end_suffix = end.strftime('%Y%m%d')
+        sql = f"""
+        WITH base AS (
+          SELECT
+            CONCAT(
+              COALESCE(user_pseudo_id, ''),
+              '.',
+              COALESCE(CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING), '')
+            ) AS session_key,
+            event_timestamp,
+            COALESCE(
+              session_traffic_source_last_click.manual_campaign.source,
+              collected_traffic_source.manual_source,
+              traffic_source.source,
+              '(direct)'
+            ) AS session_source,
+            COALESCE(
+              session_traffic_source_last_click.manual_campaign.medium,
+              collected_traffic_source.manual_medium,
+              traffic_source.medium,
+              '(none)'
+            ) AS session_medium,
+            COALESCE(
+              session_traffic_source_last_click.manual_campaign.campaign_name,
+              collected_traffic_source.manual_campaign_name,
+              ''
+            ) AS session_campaign,
+            ecommerce.transaction_id AS transaction_id,
+            ecommerce.purchase_revenue AS purchase_revenue
+          FROM `{BQ_EVENTS_TABLE}`
+          WHERE _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
+        ),
+        session_base AS (
+          SELECT
+            session_key,
+            ARRAY_AGG(STRUCT(session_source, session_medium, session_campaign) ORDER BY event_timestamp ASC LIMIT 1)[OFFSET(0)] AS first_attr,
+            COUNT(DISTINCT NULLIF(transaction_id, '')) AS transactions,
+            SUM(COALESCE(purchase_revenue, 0)) AS purchaseRevenue
+          FROM base
+          WHERE session_key NOT IN ('', '.')
+          GROUP BY 1
+        )
+        SELECT
+          CONCAT(COALESCE(first_attr.session_source, '(direct)'), ' / ', COALESCE(first_attr.session_medium, '(none)')) AS sessionSourceMedium,
+          COALESCE(first_attr.session_campaign, '') AS sessionCampaignName,
+          1.0 AS sessions,
+          CAST(transactions AS FLOAT64) AS transactions,
+          CAST(purchaseRevenue AS FLOAT64) AS purchaseRevenue
+        FROM session_base
+        """
+        df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
+        if df.empty:
+            return df
+        for c in ['sessionSourceMedium', 'sessionCampaignName']:
+            if c not in df.columns:
+                df[c] = ''
+            df[c] = df[c].astype(str).fillna('')
+        for c in ['sessions', 'transactions', 'purchaseRevenue']:
+            if c not in df.columns:
+                df[c] = 0.0
+            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+        return df[['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue']]
+    except Exception as e:
+        print(f"[WARN] Session-level BQ channel base failed: {type(e).__name__}: {e}")
+        return pd.DataFrame()
+
+
+def _fetch_channel_fact_table(
+    client: BetaAnalyticsDataClient,
+    start: dt.date,
+    end: dt.date,
+) -> pd.DataFrame:
+    """Return a consistent fact table for channel attribution. Prefer BQ session base; fallback to Data API."""
+    df = _fetch_session_channel_base_bq(start, end)
+    if df is not None and not df.empty:
+        return df
+
+    dims = ['sessionSourceMedium', 'sessionCampaignName']
+    mets = ['sessions', 'transactions', 'purchaseRevenue']
+    try:
+        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
+        if df.empty:
+            return pd.DataFrame(columns=dims + mets)
+        df = df.copy()
+        df['sessionSourceMedium'] = df['sessionSourceMedium'].astype(str).fillna('')
+        df['sessionCampaignName'] = df['sessionCampaignName'].astype(str).fillna('')
+        for c in mets:
+            df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
+        return df
+    except Exception:
+        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ['sessionSourceMedium'], mets, limit=250000)
+        if df.empty:
+            return pd.DataFrame(columns=dims + mets)
+        df = df.copy()
+        df['sessionSourceMedium'] = df['sessionSourceMedium'].astype(str).fillna('')
+        df['sessionCampaignName'] = ''
+        for c in mets:
+            df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
+        return df[dims + mets]
+
+
+def _assert_channel_reconciliation(snapshot_df: pd.DataFrame, overall: Dict[str, Dict[str, float]], label: str = 'Channel Snapshot') -> None:
+    if snapshot_df is None or snapshot_df.empty:
+        return
+    body = snapshot_df[snapshot_df['bucket'] != 'Total'].copy()
+    if body.empty:
+        return
+    actual_sessions = float(body['sessions'].sum())
+    expected_sessions = float((overall.get('current', {}) or {}).get('sessions', 0) or 0)
+    if abs(actual_sessions - expected_sessions) > 0.5:
+        raise ValueError(
+            f"{label} reconciliation failed: bucket session sum={actual_sessions:,.0f} vs total sessions={expected_sessions:,.0f}"
+        )
+
+# =========================
 # Channel Snapshot based on Looker CASE rules
 # =========================
 def get_channel_snapshot_3way(
@@ -1163,34 +1292,16 @@ def get_channel_snapshot_3way(
     """
     Build Channel Snapshot using the Looker CASE bucket logic.
     The Total row is always forced from the authoritative overall KPI.
+    Prefer a session-grain BQ base to avoid duplicated sessions across multiple source/campaign rows.
     """
-    dims = ["sessionSourceMedium", "sessionCampaignName"]
-    mets = ["sessions", "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-            if df.empty:
-                return pd.DataFrame(columns=dims + mets)
-            df = df.copy()
-            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
-            df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
-            for c in mets:
-                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
-            return df
-        except Exception:
-            dims2 = ["sessionSourceMedium"]
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
-            if df.empty:
-                return pd.DataFrame(columns=dims2 + mets + ["sessionCampaignName", "bucket"])
-            df = df.copy()
-            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
-            df["sessionCampaignName"] = ""
-            for c in mets:
-                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
-            return df
+        df = _fetch_channel_fact_table(client, start, end)
+        if df.empty:
+            return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue', 'bucket'])
+        df = df.copy()
+        df['bucket'] = df.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
+        return df
 
     cur = fetch(w.cur_start, w.cur_end)
     prev = fetch(w.prev_start, w.prev_end)
@@ -1277,11 +1388,13 @@ def get_channel_snapshot_3way(
     }])
 
     out = pd.concat([out, total], ignore_index=True)
-    return out[[
+    out = out[[
         "bucket", "sessions", "transactions", "purchaseRevenue",
         "session_dod", "session_yoy", "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
         "rev_dod", "rev_yoy"
     ]]
+    _assert_channel_reconciliation(out, overall)
+    return out
 
 # =========================
 # Paid Detail split from the same Paid AD base as Channel Snapshot
@@ -1295,37 +1408,16 @@ def get_paid_detail_3way(
     Keep Paid Detail Total aligned with Channel Snapshot Paid AD.
     Provide switchable Session / Orders / Revenue deltas.
     """
-    dims = ["sessionSourceMedium", "sessionCampaignName"]
-    mets = ["sessions", "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-            if df.empty:
-                return pd.DataFrame(columns=dims + mets)
-            df = df.copy()
-            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
-            df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
-            for c in mets:
-                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
-            df = df[df["bucket"] == "Paid Ad"].copy()
-            df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
-            return df
-        except Exception:
-            dims2 = ["sessionSourceMedium"]
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
-            if df.empty:
-                return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName"] + mets + ["bucket", "sub"])
-            df = df.copy()
-            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
-            df["sessionCampaignName"] = ""
-            for c in mets:
-                df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
-            df = df[df["bucket"] == "Paid Ad"].copy()
-            df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], ""), axis=1)
-            return df
+        df = _fetch_channel_fact_table(client, start, end)
+        if df.empty:
+            return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue', 'bucket', 'sub'])
+        df = df.copy()
+        df['bucket'] = df.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
+        df = df[df['bucket'] == 'Paid Ad'].copy()
+        df['sub'] = df.apply(lambda r: classify_paid_detail(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
+        return df
 
     cur = fetch(w.cur_start, w.cur_end)
     prev = fetch(w.prev_start, w.prev_end)
@@ -1388,8 +1480,11 @@ def get_paid_detail_3way(
         t_cur_r = float(paid_ad_totals.get("current", {}).get("revenue", merged_cur_r) or 0.0)
         t_prev_s = float(paid_ad_totals.get("prev", {}).get("sessions", merged_prev_s) or merged_prev_s)
         t_yoy_s = float(paid_ad_totals.get("yoy", {}).get("sessions", merged_yoy_s) or merged_yoy_s)
+        t_prev_r = float(paid_ad_totals.get("prev", {}).get("revenue", merged_prev_r) or merged_prev_r)
+        t_yoy_r = float(paid_ad_totals.get("yoy", {}).get("revenue", merged_yoy_r) or merged_yoy_r)
     else:
         t_cur_s, t_prev_s, t_yoy_s, t_cur_r = merged_cur_s, merged_prev_s, merged_yoy_s, merged_cur_r
+        t_prev_r, t_yoy_r = merged_prev_r, merged_yoy_r
 
     total_row = {
         "sub_channel": "Total",
@@ -1400,8 +1495,8 @@ def get_paid_detail_3way(
         "session_yoy": pct_change(t_cur_s, t_yoy_s),
         "orders_dod": pct_change(merged_cur_o, merged_prev_o),
         "orders_yoy": pct_change(merged_cur_o, merged_yoy_o),
-        "revenue_dod": pct_change(t_cur_r, merged_prev_r),
-        "revenue_yoy": pct_change(t_cur_r, merged_yoy_r),
+        "revenue_dod": pct_change(t_cur_r, t_prev_r),
+        "revenue_yoy": pct_change(t_cur_r, t_yoy_r),
         "dod": pct_change(t_cur_s, t_prev_s),
         "yoy": pct_change(t_cur_s, t_yoy_s),
         "has_yoy": (t_yoy_s not in (None, 0, 0.0)),
@@ -2308,18 +2403,11 @@ def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
     return {k: float(v or 0) for k, v in manual.items()}
 
 def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, pd.DataFrame]:
-    dims = ["sessionSourceMedium", "sessionCampaignName"]
-    mets = ["sessions", "transactions", "purchaseRevenue"]
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-        except Exception:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["sessionSourceMedium"], mets, limit=250000)
-            df['sessionCampaignName'] = ''
+        df = _fetch_channel_fact_table(client, start, end)
         if df.empty:
-            return pd.DataFrame(columns=dims + mets)
-        for c in mets:
-            df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
+            return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue', 'bucket'])
+        df = df.copy()
         df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
         return df
     cur = fetch(w.cur_start, w.cur_end)
@@ -2364,18 +2452,11 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
     return out_map
 
 def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
-    dims = ["sessionSourceMedium", "sessionCampaignName"]
-    mets = ["sessions", "transactions", "purchaseRevenue"]
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
-        try:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-        except Exception:
-            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["sessionSourceMedium"], mets, limit=250000)
-            df['sessionCampaignName'] = ''
+        df = _fetch_channel_fact_table(client, start, end)
         if df.empty:
-            return pd.DataFrame(columns=dims + mets)
-        for c in mets:
-            df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
+            return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue', 'bucket', 'sub'])
+        df = df.copy()
         df['bucket'] = df.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
         df = df[df['bucket'] == 'Paid Ad'].copy()
         df['sub'] = df.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
