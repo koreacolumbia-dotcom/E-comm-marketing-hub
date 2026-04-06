@@ -158,13 +158,23 @@ def fmt_money(v: Any) -> str:
 
 
 def fmt_date(v: Any) -> str:
-    if v is None or v == "":
+    if v is None or v == "" or pd.isna(v):
         return ""
+    if isinstance(v, pd.Timestamp):
+        if pd.isna(v):
+            return ""
+        if v.tzinfo is None:
+            return v.strftime("%Y-%m-%d")
+        return v.tz_convert("Asia/Seoul").strftime("%Y-%m-%d")
     if isinstance(v, dt.datetime):
+        if v.tzinfo is None:
+            return v.strftime("%Y-%m-%d")
         return v.astimezone(KST).strftime("%Y-%m-%d")
     if isinstance(v, dt.date):
         return v.strftime("%Y-%m-%d")
-    s = str(v)
+    s = str(v).strip()
+    if not s or s.lower() == "nat":
+        return ""
     for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y-%m-%d %H:%M:%S"):
         try:
             return dt.datetime.strptime(s[:19], fmt).strftime("%Y-%m-%d")
