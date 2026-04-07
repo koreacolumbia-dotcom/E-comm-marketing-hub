@@ -35,6 +35,15 @@ on:
           - "false"
           - "true"
 
+      competitor_only:
+        description: "Run Competitor Product dashboard only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
       owned_only:
         description: "Run OWNED portal only?"
         required: true
@@ -161,6 +170,7 @@ jobs:
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
           BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
           HERO_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.hero_only == 'true' }}"
+          COMPETITOR_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.competitor_only == 'true' }}"
           OWNED_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.owned_only == 'true' }}"
           FUNNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.funnel_only == 'true' }}"
           MEMBER_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.member_only == 'true' }}"
@@ -174,6 +184,7 @@ jobs:
             [ "$VOC_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$BLOG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$HERO_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$COMPETITOR_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$FUNNEL_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$MEMBER_ONLY" = "true" ] && cnt=$((cnt+1))
@@ -182,7 +193,7 @@ jobs:
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of voc_only/blog_only/hero_only/owned_only/funnel_only/member_only/search_volume_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of voc_only/blog_only/hero_only/competitor_only/owned_only/funnel_only/member_only/search_volume_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -193,6 +204,7 @@ jobs:
           RUN_CREMA=true
           RUN_BLOG=true
           RUN_SUMMARY=true
+          RUN_COMPETITOR=false
           RUN_OWNED=true
           RUN_FUNNEL=false
           RUN_MEMBER=false
@@ -315,12 +327,27 @@ jobs:
             RUN_SEARCH_VOLUME=false
           fi
 
+          if [ "$COMPETITOR_ONLY" = "true" ]; then
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_COMPETITOR=true
+            RUN_OWNED=false
+            RUN_FUNNEL=false
+            RUN_MEMBER=false
+            RUN_SEARCH_VOLUME=false
+          fi
+
           echo "run_price=$RUN_PRICE" >> "$GITHUB_OUTPUT"
           echo "run_hero=$RUN_HERO" >> "$GITHUB_OUTPUT"
           echo "run_extsig=$RUN_EXTSIG" >> "$GITHUB_OUTPUT"
           echo "run_crema=$RUN_CREMA" >> "$GITHUB_OUTPUT"
           echo "run_blog=$RUN_BLOG" >> "$GITHUB_OUTPUT"
           echo "run_summary=$RUN_SUMMARY" >> "$GITHUB_OUTPUT"
+          echo "run_competitor=$RUN_COMPETITOR" >> "$GITHUB_OUTPUT"
           echo "run_owned=$RUN_OWNED" >> "$GITHUB_OUTPUT"
           echo "run_funnel=$RUN_FUNNEL" >> "$GITHUB_OUTPUT"
           echo "run_member=$RUN_MEMBER" >> "$GITHUB_OUTPUT"
@@ -370,7 +397,7 @@ jobs:
               matplotlib
           fi
 
-          pip install openpyxl matplotlib pytrends google-cloud-bigquery google-cloud-bigquery-storage db-dtypes pyarrow
+          pip install openpyxl matplotlib pytrends google-cloud-bigquery google-cloud-bigquery-storage db-dtypes pyarrow selenium webdriver-manager
 
           if [ "${NEEDS_PLAYWRIGHT}" = "true" ]; then
             echo "[INFO] Browser-based crawler detected -> install Playwright Chromium"
@@ -475,6 +502,21 @@ jobs:
           set -euo pipefail
           HTML_USE_ABSOLUTE_FILE_URL=0 OUT_DIR=reports python -u hero_main_top3_final_PRETTY_WHITE_FINAL_FIXED.py
           ls -la reports/hero_main.html || true
+
+      - name: Run Competitor Product dashboard
+        if: ${{ steps.modes.outputs.run_competitor == 'true' }}
+        continue-on-error: false
+        shell: bash
+        env:
+          HEADLESS: "1"
+          MAX_PRODUCTS_PER_SITE: "600"
+        run: |
+          set -euo pipefail
+          test -f competitor_outdoor_dashboard_catalog_auto.py || { echo "[ERROR] competitor_outdoor_dashboard_catalog_auto.py not found"; exit 1; }
+          mkdir -p reports/competitor_intel
+          python -u competitor_outdoor_dashboard_catalog_auto.py
+          test -f reports/competitor_intel/dashboard.html || { echo "[ERROR] reports/competitor_intel/dashboard.html missing"; exit 1; }
+          ls -la reports/competitor_intel || true
 
       - name: Run External Signal (VOC)
         if: ${{ steps.modes.outputs.run_extsig == 'true' }}
