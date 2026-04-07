@@ -39,6 +39,37 @@ from urllib.parse import urljoin, urlparse, urlunparse
 
 import pandas as pd
 
+
+def json_safe(obj):
+    try:
+        import numpy as np
+        numpy_types = (np.integer, np.floating, np.bool_)
+    except Exception:
+        numpy_types = tuple()
+
+    if isinstance(obj, dict):
+        return {str(k): json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [json_safe(v) for v in obj]
+    if isinstance(obj, tuple):
+        return [json_safe(v) for v in obj]
+    if numpy_types and isinstance(obj, numpy_types):
+        return obj.item()
+    if hasattr(obj, "item") and callable(getattr(obj, "item")):
+        try:
+            return obj.item()
+        except Exception:
+            pass
+    try:
+        if pd.isna(obj):
+            return None
+    except Exception:
+        pass
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    return obj
+
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -1197,7 +1228,7 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
 # 7. DASHBOARD HTML
 # ============================================================
 def render_dashboard(payload: dict) -> str:
-    data_json = json.dumps(payload, ensure_ascii=False)
+    data_json = json.dumps(json_safe(payload), ensure_ascii=False)
     generated_at = html.escape(payload.get("generated_at", ""))
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -1476,7 +1507,7 @@ def write_outputs(raw_products: List[ProductRaw], analyzed_products: List[Produc
     keyword_df.to_csv(os.path.join(OUT_DIR, "keyword_discovery.csv"), index=False, encoding="utf-8-sig")
 
     with open(os.path.join(OUT_DIR, "dashboard_data.json"), "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        json.dump(json_safe(payload), f, ensure_ascii=False, indent=2)
     with open(os.path.join(OUT_DIR, "dashboard.html"), "w", encoding="utf-8") as f:
         f.write(dashboard_html)
 
