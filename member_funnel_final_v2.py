@@ -268,7 +268,11 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     out["member_id_norm"] = safe_series(out, ["member_id", "memberid", "member_no", "memberno"], "").astype(str).str.strip()
     out["user_id_norm"] = safe_series(out, ["user_id", "userid"], "").astype(str).str.strip()
-    out["phone_norm"] = safe_series(out, ["mobile_phone", "phone", "cellphone", "member_phone", "mobile"], "").astype(str).str.strip()
+    out["phone_norm"] = safe_series(out, [
+        "mobile_phone", "phone", "cellphone", "member_phone", "mobile", "phone_number", "mobile_number",
+        "mobile_no", "hp", "hp_no", "handphone", "tel_no", "telephone", "member_tel", "member_mobile",
+        "member_hp", "cust_phone", "customer_phone", "receiver_phone", "order_phone"
+    ], "").astype(str).str.strip()
 
     out["channel_group_norm"] = [
         canonical_bucket(cg, fs, None, camp)
@@ -509,17 +513,16 @@ def build_non_buyer_block(user_df: pd.DataFrame) -> dict:
         "gender_dist": build_distribution(nb, "gender_norm"),
         "category_dist": build_distribution(nb, "last_category_norm"),
         "rows": nb[[c for c in [
-            "member_id_norm", "phone_norm", "user_id_norm", "channel_group_norm", "first_source_norm", "campaign_norm",
-            "last_category_norm", "top_product_norm", "sessions_norm", "pageviews_norm", "add_to_cart_norm", "last_order_date_norm"
+            "member_id_norm", "phone_norm", "user_id_norm", "channel_group_norm", "first_source_norm", "campaign_display_norm",
+            "purchase_product_name_norm", "sessions_norm", "pageviews_norm", "add_to_cart_norm", "last_order_date_norm"
         ] if c in nb.columns]].rename(columns={
             "member_id_norm": "member_id",
             "phone_norm": "phone",
             "user_id_norm": "user_id",
             "channel_group_norm": "channel_group",
             "first_source_norm": "first_source",
-            "campaign_norm": "campaign",
-            "last_category_norm": "last_category",
-            "top_product_norm": "top_product",
+            "campaign_display_norm": "campaign",
+            "purchase_product_name_norm": "purchase_product_name",
             "sessions_norm": "sessions",
             "pageviews_norm": "pageviews",
             "add_to_cart_norm": "add_to_cart_count",
@@ -537,22 +540,21 @@ def build_buyer_block(user_df: pd.DataFrame) -> dict:
             "buyers": buyers,
             "revenue": revenue,
             "aov": revenue / float(b["orders_norm"].sum()) if float(b["orders_norm"].sum()) else 0,
-            "top_campaign": _top_label(b, "campaign_norm"),
+            "top_campaign": _top_label(b, "campaign_display_norm"),
             "top_category": _top_label(b, "top_category_norm"),
-            "top_product": _top_label(b, "top_product_norm"),
+            "top_product": _top_label(b, "purchase_product_name_norm"),
         },
         "age_dist": build_distribution(b, "age_band_norm"),
         "gender_dist": build_distribution(b, "gender_norm"),
         "rows": b[[c for c in [
-            "member_id_norm", "user_id_norm", "phone_norm", "channel_group_norm", "campaign_norm", "top_category_norm", "top_product_norm", "orders_norm", "revenue_norm", "last_order_date_norm"
+            "member_id_norm", "user_id_norm", "phone_norm", "channel_group_norm", "campaign_display_norm", "purchase_product_name_norm", "orders_norm", "revenue_norm", "last_order_date_norm"
         ] if c in b.columns]].rename(columns={
             "member_id_norm": "member_id",
             "user_id_norm": "user_id",
             "phone_norm": "phone",
             "channel_group_norm": "channel_group",
-            "campaign_norm": "campaign",
-            "top_category_norm": "top_category",
-            "top_product_norm": "top_product",
+            "campaign_display_norm": "campaign",
+            "purchase_product_name_norm": "purchase_product_name",
             "orders_norm": "orders",
             "revenue_norm": "revenue",
             "last_order_date_norm": "last_order_date",
@@ -606,16 +608,16 @@ def build_target_block(user_df: pd.DataFrame) -> dict:
             continue
         rows.extend(
             sdf.assign(segment=seg)[[
-                "segment", "member_id_norm", "phone_norm", "channel_group_norm", "first_source_norm", "campaign_norm",
-                "top_category_norm", "top_product_norm", "recommended_message_norm", "revenue_norm", "last_order_date_norm"
+                "segment", "member_id_norm", "phone_norm", "channel_group_norm", "first_source_norm", "campaign_display_norm",
+                "top_category_norm", "purchase_product_name_norm", "recommended_message_norm", "revenue_norm", "last_order_date_norm"
             ]].rename(columns={
                 "member_id_norm": "member_id",
                 "phone_norm": "phone",
                 "channel_group_norm": "channel_group",
                 "first_source_norm": "first_source",
-                "campaign_norm": "campaign",
+                "campaign_display_norm": "campaign",
                 "top_category_norm": "preferred_category",
-                "top_product_norm": "preferred_product",
+                "purchase_product_name_norm": "preferred_product",
                 "recommended_message_norm": "recommended_message",
                 "revenue_norm": "total_revenue",
                 "last_order_date_norm": "last_order_date",
@@ -712,7 +714,7 @@ def export_excel_files(bundle: dict, period_key: str) -> dict:
     nb_rows = bundle.get("user_view", {}).get("non_buyer", {}).get("rows", [])
     if nb_rows:
         nb_path = DOWNLOAD_DIR / f"member_funnel_{period_key}_non_buyer.xlsx"
-        pd.DataFrame(nb_rows)[[c for c in ["member_id", "phone", "user_id", "channel_group", "campaign", "last_category", "top_product"] if c in pd.DataFrame(nb_rows).columns]].to_excel(nb_path, index=False)
+        pd.DataFrame(nb_rows)[[c for c in ["member_id", "phone", "user_id", "channel_group", "campaign", "purchase_product_name"] if c in pd.DataFrame(nb_rows).columns]].to_excel(nb_path, index=False)
         links["non_buyer"] = os.path.relpath(nb_path, OUT_DIR).replace("\\", "/")
 
     tgt_rows = bundle.get("user_view", {}).get("target", {}).get("rows", [])
@@ -809,12 +811,12 @@ def render_page(bundle: dict, preset: dict) -> str:
     )
     non_buyer_table = table_html(
         non_buyer["rows"][:120],
-        [("member_id", "Member ID"), ("phone", "Phone"), ("user_id", "USER_ID"), ("channel_group", "Channel"), ("campaign", "Campaign"), ("last_category", "Last Category"), ("top_product", "Top Product")],
+        [("member_id", "Member ID"), ("phone", "Phone"), ("user_id", "USER_ID"), ("channel_group", "Channel"), ("campaign", "Campaign"), ("purchase_product_name", "구매 상품명")],
         set(),
     )
     buyer_table = table_html(
         buyer["rows"][:120],
-        [("member_id", "Member ID"), ("user_id", "USER_ID"), ("channel_group", "Channel"), ("campaign", "Campaign"), ("top_category", "Top Category"), ("top_product", "Top Product"), ("orders", "Orders"), ("revenue", "Revenue")],
+        [("member_id", "Member ID"), ("phone", "Phone"), ("user_id", "USER_ID"), ("channel_group", "Channel"), ("campaign", "Campaign"), ("purchase_product_name", "구매 상품명"), ("orders", "Orders"), ("revenue", "Revenue")],
         {"orders", "revenue"},
     )
     channel_product_table = table_html(
@@ -1009,7 +1011,7 @@ th.num,td.num{{text-align:right}}
     <div class="grid-2">
       <div class="card"><div class="section-title">AGE 비율</div><div class="dist-list">{pills_html(non_buyer['age_dist'])}</div></div>
       <div class="card"><div class="section-title">GENDER 비율</div><div class="dist-list">{pills_html(non_buyer['gender_dist'])}</div></div>
-      <div class="card"><div class="section-title">Last Category 비율</div><div class="dist-list">{pills_html(non_buyer['category_dist'])}</div></div>
+      <div class="card"><div class="section-title">구매/관심 카테고리 비율</div><div class="dist-list">{pills_html(non_buyer['category_dist'])}</div></div>
       <div class="card"><div class="kicker">Top Category</div><div class="kpi">{esc(non_buyer['summary']['top_category'])}</div><div class="kpi-sub">재방문/첫구매 메시지 우선 카테고리</div></div>
     </div>
     <div class="card">{non_buyer_table}</div>
@@ -1163,8 +1165,16 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     out["last_category_norm"] = clean_label_series(safe_series(out, ["last_category", "top_category", "preferred_category"], None), "")
     out["top_category_norm"] = clean_label_series(safe_series(out, ["top_category", "preferred_category", "last_category"], None), "")
-    out["top_product_norm"] = clean_label_series(safe_series(out, ["top_product", "preferred_product", "first_purchase_product"], None), "")
+    out["purchase_product_name_norm"] = clean_label_series(safe_series(out, [
+        "purchase_product_name", "product_name", "last_product_name", "last_purchase_product", "ordered_product_name",
+        "item_name", "top_product", "preferred_product", "first_purchase_product"
+    ], None), "")
+    out["top_product_norm"] = out["purchase_product_name_norm"]
     out["campaign_norm"] = clean_label_series(safe_series(out, ["session_campaign", "first_campaign", "latest_campaign"], None), "")
+    out["campaign_display_norm"] = [
+        clean_label(camp, "") or clean_label(ch, "") or "미분류"
+        for camp, ch in zip(out["campaign_norm"], out["channel_group_norm"])
+    ]
     out["recommended_message_norm"] = clean_label_series(safe_series(out, ["recommended_message"], ""), "GENERAL")
     out["first_source_norm"] = clean_label_series(safe_series(out, ["first_source", "latest_source"], None), "")
     out["last_order_date_norm"] = safe_series(out, ["last_order_date"], "").map(fmt_date)
@@ -1216,34 +1226,36 @@ def _top_label(df: pd.DataFrame, col: str) -> str:
 
 
 def build_product_block(df: pd.DataFrame) -> dict:
-    valid_df = df.copy()
+    valid_df = df[(df["purchase_norm"] > 0) | (df["orders_norm"] > 0) | (df["revenue_norm"] > 0)].copy()
     category_dist = build_distribution(valid_df[valid_df["top_category_norm"] != ""], "top_category_norm", top_n=8)
     g = (
-        valid_df[(valid_df["top_product_norm"] != "") | (valid_df["top_category_norm"] != "")]
-        .groupby(["channel_group_norm", "top_product_norm"], dropna=False)
+        valid_df[(valid_df["purchase_product_name_norm"] != "") | (valid_df["top_category_norm"] != "")]
+        .assign(product_focus=valid_df["purchase_product_name_norm"].where(valid_df["purchase_product_name_norm"] != "", valid_df["top_category_norm"]))
+        .groupby(["channel_group_norm", "product_focus"], dropna=False)
         .agg(buyers=("purchase_norm", "sum"), revenue=("revenue_norm", "sum"))
         .reset_index()
         .sort_values(["revenue", "buyers"], ascending=[False, False])
     )
     channel_product = [
         {
-            "channel": r["channel_group_norm"],
-            "product": display_label(r["top_product_norm"]),
+            "channel": display_label(r["channel_group_norm"]),
+            "product": display_label(r["product_focus"]),
             "buyers": int(round(r["buyers"])),
             "revenue": float(r["revenue"]),
         }
         for _, r in g.head(20).iterrows()
     ]
     top_products = (
-        valid_df[(valid_df["top_product_norm"] != "") | (valid_df["top_category_norm"] != "")]
-        .groupby(["top_product_norm", "top_category_norm"], dropna=False)
+        valid_df[(valid_df["purchase_product_name_norm"] != "") | (valid_df["top_category_norm"] != "")]
+        .assign(product_focus=valid_df["purchase_product_name_norm"].where(valid_df["purchase_product_name_norm"] != "", valid_df["top_category_norm"]))
+        .groupby(["product_focus", "top_category_norm"], dropna=False)
         .agg(buyers=("purchase_norm", "sum"), revenue=("revenue_norm", "sum"))
         .reset_index()
         .sort_values(["revenue", "buyers"], ascending=[False, False])
     )
     products = [
         {
-            "product": display_label(r["top_product_norm"]),
+            "product": display_label(r["product_focus"]),
             "category": display_label(r["top_category_norm"]),
             "buyers": int(round(r["buyers"])),
             "revenue": float(r["revenue"]),
@@ -1268,29 +1280,28 @@ def build_total_existing_member_block(user_df: pd.DataFrame) -> dict:
     ]
 
     recent_rows = members[[c for c in [
-        "member_id_norm", "phone_norm", "age_band_norm", "gender_norm", "last_category_norm", "top_product_norm", "orders_norm", "revenue_norm", "last_order_date_norm"
+        "member_id_norm", "phone_norm", "age_band_norm", "gender_norm", "purchase_product_name_norm", "orders_norm", "revenue_norm", "last_order_date_norm"
     ] if c in members.columns]].rename(columns={
         "member_id_norm": "member_id",
         "phone_norm": "phone",
         "age_band_norm": "age_band",
         "gender_norm": "gender",
-        "last_category_norm": "last_category",
-        "top_product_norm": "top_product",
+        "purchase_product_name_norm": "purchase_product_name",
         "orders_norm": "orders",
         "revenue_norm": "revenue",
         "last_order_date_norm": "last_order_date",
     }).fillna("").sort_values(["revenue", "orders"], ascending=[False, False]).to_dict(orient="records")
 
     product_rows = (
-        members[members["top_product_norm"] != ""]
-        .groupby(["top_product_norm", "top_category_norm"], dropna=False)
+        members[members["purchase_product_name_norm"] != ""]
+        .groupby(["purchase_product_name_norm", "top_category_norm"], dropna=False)
         .agg(members=("member_id_norm", "nunique"), revenue=("revenue_norm", "sum"))
         .reset_index()
         .sort_values(["revenue", "members"], ascending=[False, False])
     )
     product_cards = [
         {
-            "product": display_label(r["top_product_norm"]),
+            "product": display_label(r.get("purchase_product_name_norm", "")),
             "category": display_label(r["top_category_norm"]),
             "members": int(r["members"]),
             "revenue": float(r["revenue"]),
@@ -1307,7 +1318,7 @@ def build_total_existing_member_block(user_df: pd.DataFrame) -> dict:
             "orders": int(round(orders)),
             "aov": revenue / orders if orders else 0.0,
             "top_category": _top_label(members, "top_category_norm"),
-            "top_product": _top_label(members, "top_product_norm"),
+            "top_product": _top_label(members, "purchase_product_name_norm"),
         },
         "status_cards": status_cards,
         "age_dist": build_distribution(members, "age_band_norm", top_n=6),
@@ -1452,7 +1463,7 @@ def render_page(bundle: dict, preset: dict) -> str:
     )
     total_member_table = table_html(
         total_member["rows"][:120],
-        [("member_id", "Member ID"), ("phone", "Phone"), ("age_band", "Age"), ("gender", "Gender"), ("last_category", "Last Category"), ("top_product", "Top Product"), ("orders", "Orders"), ("revenue", "Revenue"), ("last_order_date", "Last Order")],
+        [("member_id", "Member ID"), ("phone", "Phone"), ("age_band", "Age"), ("gender", "Gender"), ("purchase_product_name", "구매 상품명"), ("orders", "Orders"), ("revenue", "Revenue"), ("last_order_date", "Last Order")],
         {"orders", "revenue"},
     )
 
@@ -1550,7 +1561,7 @@ def render_page(bundle: dict, preset: dict) -> str:
       <div class="card"><div class="section-title">AGE 비율</div><div class="chart-grid">{bar_chart_html(non_buyer['age_dist'])}</div></div>
       <div class="card"><div class="section-title">GENDER 비율</div>{donut_chart_html(non_buyer['gender_dist'])}</div>
       <div class="card"><div class="section-title">Last Category 비율</div><div class="chart-grid">{bar_chart_html(non_buyer['category_dist'])}</div></div>
-      <div class="card"><div class="kicker">Top Category</div><div class="kpi">{esc(display_label(non_buyer['summary']['top_category']))}</div><div class="kpi-sub">재방문/첫구매 메시지 우선 카테고리</div></div>
+      <div class="card"><div class="kicker">대표 유입 채널</div><div class="kpi">{esc(display_label(_top_label(pd.DataFrame(non_buyer['rows']) if non_buyer['rows'] else pd.DataFrame(), 'channel_group')))}</div><div class="kpi-sub">미구매 회원 기준 가장 많이 잡힌 채널</div></div>
     </div>
     <div class="card">{non_buyer_table}</div>
 
@@ -1559,7 +1570,7 @@ def render_page(bundle: dict, preset: dict) -> str:
       <div class="card"><div class="kicker">Buyers</div><div class="kpi">{fmt_int(buyer['summary']['buyers'])}</div><div class="kpi-sub">구매자 수</div></div>
       <div class="card"><div class="kicker">Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">구매자 매출</div></div>
       <div class="card"><div class="kicker">AOV</div><div class="kpi">{fmt_money(buyer['summary']['aov'])}</div><div class="kpi-sub">주문당 평균 매출</div></div>
-      <div class="card"><div class="kicker">Top Product</div><div class="kpi">{esc(display_label(buyer['summary']['top_product']))}</div><div class="kpi-sub">구매자 기준 대표 상품</div></div>
+      <div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">{esc(display_label(buyer['summary']['top_product']))}</div><div class="kpi-sub">구매자 기준 가장 많이 확인된 상품명</div></div>
     </div>
     <div class="grid-2">
       <div class="card"><div class="section-title">AGE 비율</div><div class="chart-grid">{bar_chart_html(buyer['age_dist'])}</div></div>
@@ -1570,7 +1581,7 @@ def render_page(bundle: dict, preset: dict) -> str:
     <div class="section-head"><div><div class="section-title">PRODUCT INSIGHT</div><h2>무슨 상품이 고객을 움직였는지</h2></div></div>
     <div class="grid-2">
       <div class="card"><div class="section-title">Category 비율</div><div class="chart-grid">{bar_chart_html(product['category_dist'])}</div></div>
-      <div class="card"><div class="section-title">Top Product Focus</div><div class="grid-2">{product_cards}</div></div>
+      <div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">{product_cards}</div></div>
     </div>
     <div class="card">{channel_product_table}</div>
 
@@ -1584,14 +1595,14 @@ def render_page(bundle: dict, preset: dict) -> str:
       <div class="card"><div class="kicker">기존 회원</div><div class="kpi">{fmt_int(total_member['summary']['members'])}</div><div class="kpi-sub">member_id 기준</div></div>
       <div class="card"><div class="kicker">구매 회원</div><div class="kpi">{fmt_int(total_member['summary']['buyers'])}</div><div class="kpi-sub">선택 구간 내 구매</div></div>
       <div class="card"><div class="kicker">Revenue</div><div class="kpi">{fmt_money(total_member['summary']['revenue'])}</div><div class="kpi-sub">기존 회원 전체 매출</div></div>
-      <div class="card"><div class="kicker">Top Category</div><div class="kpi">{esc(display_label(total_member['summary']['top_category']))}</div><div class="kpi-sub">기존 회원 기준 대표 카테고리</div></div>
+      <div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">{esc(display_label(total_member['summary']['top_product']))}</div><div class="kpi-sub">기존 회원 기준 대표 구매 상품명</div></div>
     </div>
     <div class="grid-4">{status_cards}</div>
     <div class="grid-2">
       <div class="card"><div class="section-title">AGE 비율</div><div class="chart-grid">{bar_chart_html(total_member['age_dist'])}</div></div>
       <div class="card"><div class="section-title">GENDER 비율</div>{donut_chart_html(total_member['gender_dist'])}</div>
       <div class="card"><div class="section-title">Category 비율</div><div class="chart-grid">{bar_chart_html(total_member['category_dist'])}</div></div>
-      <div class="card"><div class="section-title">Top Product Focus</div><div class="grid-2">{total_product_cards}</div></div>
+      <div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">{total_product_cards}</div></div>
     </div>
     <div class="card">{total_member_table}</div>
   </section>
