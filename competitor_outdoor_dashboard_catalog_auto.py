@@ -1379,7 +1379,7 @@ function renderKeywords() {{
     <div class="rounded-[24px] border border-slate-200 bg-white p-4">
       <div class="text-lg font-black text-slate-900">${block.brand}</div>
       <div class="mt-3 flex flex-wrap gap-2">
-        ${(block.items || []).map(it => `<span class="tag bg-slate-900 text-white">${it.keyword} · ${it.count}</span>`).join('')}
+        ${(block.items || []).map(it => `<span class="tag bg-slate-900 text-white">${it.keyword} - ${it.count}</span>`).join('')}
       </div>
     </div>`).join('');
 }}
@@ -1413,7 +1413,7 @@ function renderProducts() {{
           </div>
           <div class="mt-3 text-sm font-bold leading-6 text-slate-500 line-clamp-3">${p.description || '설명 없음'}</div>
           <div class="mt-4 flex items-center justify-between gap-3">
-            <div class="text-xs font-black text-slate-400">${p.gender} · ${p.season} · ${p.price_band}</div>
+            <div class="text-xs font-black text-slate-400">${p.gender} - ${p.season} - ${p.price_band}</div>
             ${p.product_url ? `<a href="${p.product_url}" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>` : ``}
           </div>
         </div>
@@ -1463,7 +1463,7 @@ function renderCharts() {{
           callbacks: {{
             label: (ctx) => {{
               const item = c.positioning[ctx.datasetIndex];
-              return `${item.brand} · Avg ${formatPrice(item.avg_price)} · SKU ${item.size}`;
+              return `${item.brand} - Avg ${formatPrice(item.avg_price)} - SKU ${item.size}`;
             }}
           }}
         }}
