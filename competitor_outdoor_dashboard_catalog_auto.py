@@ -1227,10 +1227,12 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
 # ============================================================
 # 7. DASHBOARD HTML
 # ============================================================
+
 def render_dashboard(payload: dict) -> str:
     data_json = json.dumps(json_safe(payload), ensure_ascii=False)
     generated_at = html.escape(payload.get("generated_at", ""))
-    return f"""<!DOCTYPE html>
+
+    template = """<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -1239,14 +1241,14 @@ def render_dashboard(payload: dict) -> str:
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {{ background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%); }}
-    .glass {{ backdrop-filter: blur(14px); background: rgba(255,255,255,.78); }}
-    .metric-card {{ box-shadow: 0 10px 30px rgba(15,23,42,.06); }}
-    .panel {{ box-shadow: 0 12px 40px rgba(15,23,42,.06); }}
-    .tag {{ display:inline-flex; align-items:center; border-radius:999px; padding:4px 10px; font-size:11px; font-weight:800; }}
-    .product-card:hover {{ transform: translateY(-2px); transition: .2s ease; }}
-    .table-wrap::-webkit-scrollbar {{ height: 8px; width: 8px; }}
-    .table-wrap::-webkit-scrollbar-thumb {{ background:#cbd5e1; border-radius:999px; }}
+    body { background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%); }
+    .glass { backdrop-filter: blur(14px); background: rgba(255,255,255,.78); }
+    .metric-card { box-shadow: 0 10px 30px rgba(15,23,42,.06); }
+    .panel { box-shadow: 0 12px 40px rgba(15,23,42,.06); }
+    .tag { display:inline-flex; align-items:center; border-radius:999px; padding:4px 10px; font-size:11px; font-weight:800; }
+    .product-card:hover { transform: translateY(-2px); transition: .2s ease; }
+    .table-wrap::-webkit-scrollbar { height: 8px; width: 8px; }
+    .table-wrap::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
   </style>
 </head>
 <body class="text-slate-900">
@@ -1260,7 +1262,7 @@ def render_dashboard(payload: dict) -> str:
         </div>
         <div class="rounded-3xl bg-slate-900 px-5 py-4 text-white shadow-xl">
           <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-300">GENERATED</div>
-          <div class="mt-2 text-lg font-black">{generated_at}</div>
+          <div class="mt-2 text-lg font-black">__GENERATED_AT__</div>
         </div>
       </div>
     </div>
@@ -1328,18 +1330,18 @@ def render_dashboard(payload: dict) -> str:
   </div>
 
 <script>
-const DATA = {data_json};
+const DATA = __DATA_JSON__;
 
-function formatNumber(v) {{
+function formatNumber(v) {
   if (v === null || v === undefined || v === "") return "-";
   return new Intl.NumberFormat('ko-KR').format(v);
-}}
-function formatPrice(v) {{
+}
+function formatPrice(v) {
   if (!v && v !== 0) return "-";
   return formatNumber(v) + "원";
-}}
+}
 
-function createKpis() {{
+function createKpis() {
   const k = DATA.kpis;
   const items = [
     ["브랜드 수", k.brands, "실제 크롤링 완료 브랜드"],
@@ -1353,9 +1355,9 @@ function createKpis() {{
       <div class="mt-2 text-3xl font-black tracking-[-0.05em] text-slate-900">${value}</div>
       <div class="mt-1 text-xs font-bold text-slate-500">${desc}</div>
     </div>`).join('');
-}}
+}
 
-function renderBrandSummary() {{
+function renderBrandSummary() {
   const rows = DATA.brand_summary || [];
   document.getElementById('brandSummaryBody').innerHTML = rows.map(r => `
     <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
@@ -1371,20 +1373,20 @@ function renderBrandSummary() {{
       <td class="py-3 text-right">${formatNumber(r.pants)}</td>
       <td class="py-3 text-right">${formatNumber(r.shoes)}</td>
     </tr>`).join('');
-}}
+}
 
-function renderKeywords() {{
+function renderKeywords() {
   const grid = document.getElementById('keywordGrid');
   grid.innerHTML = (DATA.keywords || []).map(block => `
     <div class="rounded-[24px] border border-slate-200 bg-white p-4">
       <div class="text-lg font-black text-slate-900">${block.brand}</div>
       <div class="mt-3 flex flex-wrap gap-2">
-        ${(block.items || []).map(it => `<span class="tag bg-slate-900 text-white">${it.keyword} - ${it.count}</span>`).join('')}
+        ${(block.items || []).map(it => '<span class="tag bg-slate-900 text-white">' + it.keyword + ' - ' + it.count + '</span>').join('')}
       </div>
     </div>`).join('');
-}}
+}
 
-function renderProducts() {{
+function renderProducts() {
   const items = DATA.products || [];
   document.getElementById('productCountText').textContent = `현재 ${formatNumber(items.length)}개`;
   const grid = document.getElementById('productGrid');
@@ -1392,7 +1394,7 @@ function renderProducts() {{
     <article class="product-card rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
       <div class="flex gap-4">
         <div class="h-32 w-32 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">
-          ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" class="h-full w-full object-cover" loading="lazy" />` : `<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>`}
+          ${p.image_url ? '<img src="' + p.image_url + '" alt="' + p.name + '" class="h-full w-full object-cover" loading="lazy" />' : '<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap gap-2">
@@ -1400,81 +1402,81 @@ function renderProducts() {{
             <span class="tag bg-sky-50 text-sky-700">${p.item_category}</span>
             <span class="tag bg-violet-50 text-violet-700">${p.grade}</span>
             <span class="tag bg-emerald-50 text-emerald-700">${p.shell_type}</span>
-            ${p.sold_out ? `<span class="tag bg-rose-50 text-rose-700">품절</span>` : ``}
+            ${p.sold_out ? '<span class="tag bg-rose-50 text-rose-700">품절</span>' : ''}
           </div>
           <div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${p.name}</div>
           <div class="mt-2 flex flex-wrap items-end gap-3">
             <div class="text-2xl font-black">${formatPrice(p.current_price)}</div>
-            ${p.original_price && p.original_price != p.current_price ? `<div class="text-sm font-bold text-slate-400 line-through">${formatPrice(p.original_price)}</div>` : ``}
-            ${p.discount_rate ? `<div class="text-sm font-black text-rose-600">-${p.discount_rate}%</div>` : ``}
+            ${p.original_price && p.original_price != p.current_price ? '<div class="text-sm font-bold text-slate-400 line-through">' + formatPrice(p.original_price) + '</div>' : ''}
+            ${p.discount_rate ? '<div class="text-sm font-black text-rose-600">-' + p.discount_rate + '%</div>' : ''}
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
-            ${(String(p.standard_attributes||'').split(',').map(x => x.trim()).filter(Boolean).slice(0,6)).map(x => `<span class="tag bg-slate-100 text-slate-700">${x}</span>`).join('')}
+            ${String(p.standard_attributes||'').split(',').map(x => x.trim()).filter(Boolean).slice(0,6).map(x => '<span class="tag bg-slate-100 text-slate-700">' + x + '</span>').join('')}
           </div>
           <div class="mt-3 text-sm font-bold leading-6 text-slate-500 line-clamp-3">${p.description || '설명 없음'}</div>
           <div class="mt-4 flex items-center justify-between gap-3">
             <div class="text-xs font-black text-slate-400">${p.gender} - ${p.season} - ${p.price_band}</div>
-            ${p.product_url ? `<a href="${p.product_url}" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>` : ``}
+            ${p.product_url ? '<a href="' + p.product_url + '" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>' : ''}
           </div>
         </div>
       </div>
     </article>`).join('');
-}}
+}
 
-function baseChart(id, type, labels, values, extra={}) {{
+function baseChart(id, type, labels, values, extra={}) {
   const ctx = document.getElementById(id);
-  return new Chart(ctx, {{
+  return new Chart(ctx, {
     type,
-    data: {{ labels, datasets: [{{ data: values, borderWidth: 2, borderRadius: 10, tension: .35 }}] }},
-    options: Object.assign({{
+    data: { labels, datasets: [{ data: values, borderWidth: 2, borderRadius: 10, tension: .35 }] },
+    options: Object.assign({
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {{ legend: {{ display: false }} }},
-      scales: {{ y: {{ beginAtZero: true, ticks: {{ precision: 0 }} }}, x: {{ ticks: {{ autoSkip: false }} }} }}
-    }}, extra)
-  }});
-}}
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { autoSkip: false } } }
+    }, extra)
+  });
+}
 
-function renderCharts() {{
-  const c = DATA.charts || {{}};
+function renderCharts() {
+  const c = DATA.charts || {};
   baseChart('brandCountChart', 'bar', c.brandProductCounts?.labels || [], c.brandProductCounts?.values || []);
   baseChart('avgPriceChart', 'bar', c.brandAvgPrice?.labels || [], c.brandAvgPrice?.values || []);
-  baseChart('priceBandChart', 'doughnut', c.priceBand?.labels || [], c.priceBand?.values || [], {{ scales: {{}} }});
+  baseChart('priceBandChart', 'doughnut', c.priceBand?.labels || [], c.priceBand?.values || [], { scales: {} });
   baseChart('categoryChart', 'bar', c.itemCategory?.labels || [], c.itemCategory?.values || []);
   baseChart('dominantAttrChart', 'bar', c.dominantAttribute?.labels || [], c.dominantAttribute?.values || []);
-  baseChart('gradeChart', 'pie', c.grade?.labels || [], c.grade?.values || [], {{ scales: {{}} }});
-  baseChart('shellChart', 'pie', c.shellType?.labels || [], c.shellType?.values || [], {{ scales: {{}} }});
+  baseChart('gradeChart', 'pie', c.grade?.labels || [], c.grade?.values || [], { scales: {} });
+  baseChart('shellChart', 'pie', c.shellType?.labels || [], c.shellType?.values || [], { scales: {} });
 
   const pctx = document.getElementById('positionChart');
-  new Chart(pctx, {{
+  new Chart(pctx, {
     type: 'bubble',
-    data: {{
-      datasets: (c.positioning || []).map(item => ({{
+    data: {
+      datasets: (c.positioning || []).map(item => ({
         label: item.brand,
-        data: [{{ x: item.x, y: item.y, r: Math.max(8, Math.min(26, item.size / 3)) }}],
-      }}))
-    }},
-    options: {{
+        data: [{ x: item.x, y: item.y, r: Math.max(8, Math.min(26, item.size / 3)) }],
+      }))
+    },
+    options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {{
-        legend: {{ position: 'bottom', labels: {{ boxWidth: 12, usePointStyle: true }} }},
-        tooltip: {{
-          callbacks: {{
-            label: (ctx) => {{
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
               const item = c.positioning[ctx.datasetIndex];
               return `${item.brand} - Avg ${formatPrice(item.avg_price)} - SKU ${item.size}`;
-            }}
-          }}
-        }}
-      }},
-      scales: {{
-        x: {{ min: .5, max: 3.5, ticks: {{ stepSize: 1, callback: (v) => ({{1:'Lifestyle',2:'Performance',3:'Extreme'}}[v] || '') }} }},
-        y: {{ min: .5, max: 3.5, ticks: {{ stepSize: 1, callback: (v) => ({{1:'Mass',2:'Premium',3:'Luxury'}}[v] || '') }} }}
-      }}
-    }}
-  }});
-}}
+            }
+          }
+        }
+      },
+      scales: {
+        x: { min: .5, max: 3.5, ticks: { stepSize: 1, callback: (v) => ({1:'Lifestyle',2:'Performance',3:'Extreme'}[v] || '') } },
+        y: { min: .5, max: 3.5, ticks: { stepSize: 1, callback: (v) => ({1:'Mass',2:'Premium',3:'Luxury'}[v] || '') } }
+      }
+    }
+  });
+}
 
 createKpis();
 renderBrandSummary();
@@ -1485,7 +1487,7 @@ renderCharts();
 </body>
 </html>
 """
-
+    return template.replace("__DATA_JSON__", data_json).replace("__GENERATED_AT__", generated_at)
 
 # ============================================================
 # 8. OUTPUTS
