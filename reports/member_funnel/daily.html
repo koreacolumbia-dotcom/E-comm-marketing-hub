@@ -9,6 +9,7 @@
   --bg:#eef3f8;
   --bg2:#f7fafc;
   --ink:#0f172a;
+  --ink2:#1e293b;
   --muted:#64748b;
   --line:#dbe4ee;
   --card:#ffffff;
@@ -17,72 +18,79 @@
   --blue:#2563eb;
   --blue2:#4f8cff;
   --green:#059669;
+  --amber:#d97706;
   --shadow:0 16px 40px rgba(15,23,42,.08);
   --radius:24px;
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:Inter, system-ui, -apple-system, Segoe UI, Noto Sans KR, sans-serif;color:var(--ink);background:linear-gradient(180deg,var(--bg2),var(--bg));}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:"Inter","Pretendard","Noto Sans KR",system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:linear-gradient(180deg,var(--bg2),var(--bg));font-variant-numeric:tabular-nums;}
 a{color:inherit;text-decoration:none}
-.wrap{max-width:1540px;margin:0 auto;padding:18px 22px 60px}
-.hero{background:linear-gradient(135deg,#020817,#071b45 60%,#0f3fb1);color:#fff;border-radius:28px;padding:18px 18px 20px;box-shadow:0 20px 50px rgba(2,8,23,.22)}
-.hero-grid{display:grid;grid-template-columns:1.35fr .95fr;gap:14px}
+.wrap{max-width:1540px;margin:0 auto;padding:24px 24px 72px}
+.hero{background:linear-gradient(135deg,#020817,#071b45 60%,#0f3fb1);color:#fff;border-radius:28px;padding:20px 20px 22px;box-shadow:0 20px 50px rgba(2,8,23,.22)}
+.hero-grid{display:grid;grid-template-columns:1.35fr .95fr;gap:16px}
 .badge{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.08);font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
-.hero h1{margin:14px 0 8px;font-size:48px;line-height:1.02;letter-spacing:-.04em}
-.hero p{margin:0;color:rgba(255,255,255,.8);font-size:14px;font-weight:700;line-height:1.6;max-width:860px}
+.hero h1{margin:14px 0 8px;font-size:36px;line-height:1.02;letter-spacing:-.04em;font-weight:900}
+.hero p{margin:0;color:rgba(255,255,255,.84);font-size:14px;font-weight:650;line-height:1.65;max-width:860px}
 .period-row,.hero-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
-.period-chip{padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:900}
+.period-chip{padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:800}
 .period-chip.active{background:#fff;color:#071b45}
 .hero-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.hero-stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:16px}
-.kicker{font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.hero-stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:16px;min-height:116px}
+.kicker{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .hero .kicker{color:rgba(255,255,255,.72)}
-.hero-value{font-size:30px;font-weight:950;letter-spacing:-.03em;margin-top:10px}
-.hero-sub{margin-top:6px;color:rgba(255,255,255,.78);font-size:12px;font-weight:800;line-height:1.5}
-.filters{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;padding:16px 18px;background:rgba(255,255,255,.88);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}
+.hero-value{font-size:30px;font-weight:900;letter-spacing:-.03em;margin-top:10px}
+.hero-sub{margin-top:6px;color:rgba(255,255,255,.78);font-size:12px;font-weight:700;line-height:1.55}
+.filters{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;padding:16px 18px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}
 .filters-left{display:flex;gap:8px;flex-wrap:wrap}
-.tab-btn{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;color:#334155;font-size:13px;font-weight:900;cursor:pointer}
+.tab-btn{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;color:#334155;font-size:13px;font-weight:800;cursor:pointer}
 .tab-btn.active{background:#0f172a;color:#fff;border-color:#0f172a}
 .date-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.date-tools input{height:42px;border:1px solid var(--line);border-radius:14px;padding:0 12px;background:#fff;color:#334155;font-weight:800}
-.date-tools button{height:42px;border:0;border-radius:14px;background:#0f172a;color:#fff;padding:0 14px;font-weight:900;cursor:pointer}
+.date-tools input{height:42px;border:1px solid var(--line);border-radius:14px;padding:0 12px;background:#fff;color:#334155;font-weight:700}
+.date-tools button{height:42px;border:0;border-radius:14px;background:#0f172a;color:#fff;padding:0 14px;font-weight:800;cursor:pointer}
 .summary-card{margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:18px 18px;box-shadow:var(--shadow)}
-.summary-card ul{margin:10px 0 0 18px;padding:0;color:#334155;font-weight:800;line-height:1.8}
+.summary-card ul{margin:10px 0 0 18px;padding:0;color:#334155;font-weight:700;line-height:1.8}
 .panel{display:none;margin-top:18px}
 .panel.active{display:block}
 .grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:18px;box-shadow:var(--shadow)}
-.kpi{font-size:34px;font-weight:950;letter-spacing:-.04em;margin-top:8px}
-.kpi-sub{margin-top:8px;color:var(--muted);font-size:12px;font-weight:800;line-height:1.55}
-.section-title{font-size:13px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#64748b;margin-bottom:12px}
-.section-head{display:flex;align-items:end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:28px 0 12px}
-.section-head h2{margin:0;font-size:34px;letter-spacing:-.03em}
-.soft-note{font-size:12px;font-weight:800;color:#64748b}
+.card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow)}
+.kpi{font-size:32px;font-weight:900;letter-spacing:-.04em;margin-top:10px;line-height:1.05}
+.kpi-sub{margin-top:8px;color:var(--muted);font-size:12px;font-weight:700;line-height:1.6}
+.section-title{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#64748b;margin-bottom:12px}
+.section-head{display:flex;align-items:end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:34px 0 14px}
+.section-head h2{margin:0;font-size:24px;letter-spacing:-.03em;font-weight:900}
+.soft-note{font-size:12px;font-weight:700;color:#64748b}
 .dist-list{display:grid;gap:10px}
 .dist-row{display:grid;grid-template-columns:120px 1fr 64px;gap:10px;align-items:center}
-.dist-label{font-size:13px;font-weight:900;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dist-label{font-size:13px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dist-bar{height:10px;border-radius:999px;background:#edf2f7;overflow:hidden}
 .dist-bar span{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);border-radius:999px}
-.dist-value{text-align:right;font-size:12px;font-weight:900;color:#334155}
-.table-wrap{overflow:auto}
-.data-table{width:100%;border-collapse:collapse;min-width:820px}
-th{text-align:left;padding:12px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#64748b;border-bottom:1px solid var(--line)}
-td{padding:12px 10px;border-bottom:1px solid #edf2f7;font-size:13px;font-weight:800;color:#1e293b}
+.dist-value{text-align:right;font-size:12px;font-weight:800;color:#334155}
+.table-meta{margin:2px 0 8px;color:var(--muted);font-size:12px;font-weight:700}
+.table-wrap{overflow:auto;border:1px solid #edf2f7;border-radius:18px;background:#fff}
+.data-table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}
+thead th{position:sticky;top:0;background:#f8fafc;z-index:1}
+th{text-align:left;padding:13px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#64748b;border-bottom:1px solid var(--line);font-weight:800}
+td{padding:13px 12px;border-bottom:1px solid #edf2f7;font-size:12px;font-weight:700;color:#1e293b;vertical-align:top}
+.data-table tbody tr:hover td{background:#fafcff}
 th.num,td.num{text-align:right}
 .action-card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow)}
-.action-value{font-size:28px;font-weight:950;letter-spacing:-.03em;margin-top:8px}
+.action-value{font-size:28px;font-weight:900;letter-spacing:-.03em;margin-top:8px}
 .mini-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.mini-panel{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
-.mini-kicker{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
-.mini-main{font-size:22px;font-weight:950;letter-spacing:-.03em;margin-top:8px;line-height:1.25}
-.mini-copy{margin-top:8px;color:#475569;font-size:12px;font-weight:800;line-height:1.55}
+.mini-panel{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow);min-height:132px}
+.mini-kicker{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
+.mini-main{font-size:22px;font-weight:900;letter-spacing:-.03em;margin-top:8px;line-height:1.25}
+.mini-copy{margin-top:8px;color:#475569;font-size:12px;font-weight:700;line-height:1.6}
 .download-row{display:flex;gap:10px;flex-wrap:wrap}
-.download-btn{display:inline-flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;padding:10px 14px;border-radius:14px;font-size:12px;font-weight:900}
-.empty-note{padding:18px;border-radius:18px;background:#fff;border:1px dashed var(--line);color:#64748b;font-size:13px;font-weight:800}
-.hero-link{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:900}
+.download-btn{display:inline-flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;padding:10px 14px;border-radius:14px;font-size:12px;font-weight:800}
+.empty-note{padding:18px;border-radius:18px;background:#fff;border:1px dashed var(--line);color:#64748b;font-size:13px;font-weight:700}
+.hero-link{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:800}
+.tag{display:inline-flex;align-items:center;justify-content:center;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;line-height:1}
+.tag-unknown{background:#fff7ed;color:var(--amber);border:1px solid #fed7aa}
 @media (max-width:1280px){.hero-grid,.grid-4,.grid-3,.grid-2,.mini-grid{grid-template-columns:1fr 1fr}}
-@media (max-width:860px){.hero-grid,.grid-4,.grid-3,.grid-2,.mini-grid{grid-template-columns:1fr} .hero h1{font-size:36px} .dist-row{grid-template-columns:92px 1fr 54px} .wrap{padding:16px} }
+@media (max-width:860px){.hero-grid,.grid-4,.grid-3,.grid-2,.mini-grid{grid-template-columns:1fr} .hero h1{font-size:32px} .dist-row{grid-template-columns:92px 1fr 54px} .wrap{padding:16px} }
 </style>
 </head>
 <body>
@@ -95,16 +103,16 @@ th.num,td.num{text-align:right}
         <p>External Signal 리포트 톤을 그대로 가져와서, 채널 · 고객 · 상품 · 타겟 액션이 한 화면에서 또렷하게 읽히도록 재정렬했습니다.</p>
         <div class="period-row"><a class="period-chip active" href="daily.html">1DAY<\/a><a class="period-chip " href="7d.html">7D<\/a><a class="period-chip " href="index.html">1MONTH<\/a><a class="period-chip " href="1year.html">1YEAR<\/a></div>
         <div class="hero-links">
-          <span class="hero-link">1DAY · 2026-04-05 ~ 2026-04-05</span>
-          <span class="hero-link">Updated 2026-04-06 19:10:45 KST</span>
+          <span class="hero-link">1DAY · 2026-04-06 ~ 2026-04-06</span>
+          <span class="hero-link">Updated 2026-04-07 10:26:16 KST</span>
           <span class="hero-link">Sign-up → Buyer → Product → Target</span>
         </div>
       </div>
       <div class="hero-stat-grid">
-        <div class="hero-stat"><div class="kicker">Sessions</div><div class="hero-value">163</div><div class="hero-sub">공식몰 전체 세션 기준</div></div>
-        <div class="hero-stat"><div class="kicker">Orders</div><div class="hero-value">20</div><div class="hero-sub">선택 구간 주문 수</div></div>
-        <div class="hero-stat"><div class="kicker">Revenue</div><div class="hero-value">₩3,336,710</div><div class="hero-sub">공식몰 전체 매출</div></div>
-        <div class="hero-stat"><div class="kicker">Matched Members</div><div class="hero-value">109</div><div class="hero-sub">USER_ID/CRM 매칭 기준</div></div>
+        <div class="hero-stat"><div class="kicker">Sessions</div><div class="hero-value">135</div><div class="hero-sub">공식몰 전체 세션 기준</div></div>
+        <div class="hero-stat"><div class="kicker">Orders</div><div class="hero-value">17</div><div class="hero-sub">선택 구간 주문 수</div></div>
+        <div class="hero-stat"><div class="kicker">Revenue</div><div class="hero-value">₩1,683,740</div><div class="hero-sub">공식몰 전체 매출</div></div>
+        <div class="hero-stat"><div class="kicker">Matched Members</div><div class="hero-value">48</div><div class="hero-sub">USER_ID/CRM 매칭 기준</div></div>
       </div>
     </div>
   </section>
@@ -115,176 +123,176 @@ th.num,td.num{text-align:right}
       <button class="tab-btn" data-target="total-view">TOTAL VIEW</button>
     </div>
     <div class="date-tools">
-      <input type="date" id="start-date" value="2026-04-05" min="2026-04-05" max="2026-04-05">
-      <input type="date" id="end-date" value="2026-04-05" min="2026-04-05" max="2026-04-05">
+      <input type="date" id="start-date" value="2026-04-06" min="2026-04-06" max="2026-04-06">
+      <input type="date" id="end-date" value="2026-04-06" min="2026-04-06" max="2026-04-06">
       <button type="button" id="apply-date">Apply</button>
     </div>
   </section>
 
   <section class="summary-card">
     <div class="section-title">이번 구간 핵심 요약</div>
-    <div class="soft-note">선택 가능한 일자 범위 안에서 최신 일자 데이터 기준으로 요약합니다. 현재 최신 반영일은 2026-04-05 입니다.</div>
-    <ul><li>최근 선택 가능 일자 기준 최신 데이터는 2026-04-05입니다.</li><li>해당 일자 세션 163 / 가입 0 / 구매자 0 흐름입니다.</li><li>주요 채널은 Paid Ad, 매출 기여 상위 카테고리는 (not set)입니다.</li></ul>
+    <div class="soft-note">선택 가능한 일자 범위 안에서 최신 일자 데이터 기준으로 요약합니다. 현재 최신 반영일은 2026-04-06 입니다.</div>
+    <ul><li>최근 선택 가능 일자 기준 최신 데이터는 2026-04-06입니다.</li><li>해당 일자 세션 135 / 가입 0 / 구매자 0 흐름입니다.</li><li>주요 채널은 Paid Ad, 매출 기여 상위 카테고리는 Unknown입니다.</li></ul>
   </section>
 
   <section class="panel active" id="user-view">
     <div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰</h2></div><div class="download-row"><a class="download-btn" href="downloads/member_funnel_1d_non_buyer.xlsx">Non Buyer Excel</a><a class="download-btn" href="downloads/member_funnel_1d_target_segments.xlsx">Target Segment Excel</a></div></div>
 
     <div class="grid-4">
-      <div class="card"><div class="kicker">Non Buyer Members</div><div class="kpi">89</div><div class="kpi-sub">가입했지만 아직 구매하지 않은 Member 기준</div></div>
-      <div class="card"><div class="kicker">Non Buyer Sessions</div><div class="kpi">121</div><div class="kpi-sub">대상자의 공식몰 세션 합계</div></div>
-      <div class="card"><div class="kicker">Buyer Revenue</div><div class="kpi">₩3,336,710</div><div class="kpi-sub">구매자 누적 매출</div></div>
-      <div class="card"><div class="kicker">Top Campaign</div><div class="kpi">naver_brandsearch_mobile</div><div class="kpi-sub">구매자 기준 가장 많이 잡힌 캠페인</div></div>
+      <div class="card"><div class="kicker">Non Buyer Members</div><div class="kpi">31</div><div class="kpi-sub">가입했지만 아직 구매하지 않은 Member 기준</div></div>
+      <div class="card"><div class="kicker">Non Buyer Sessions</div><div class="kpi">65</div><div class="kpi-sub">대상자의 공식몰 세션 합계</div></div>
+      <div class="card"><div class="kicker">Buyer Revenue</div><div class="kpi">₩1,683,740</div><div class="kpi-sub">구매자 누적 매출</div></div>
+      <div class="card"><div class="kicker">Top Campaign</div><div class="kpi">EFW_04</div><div class="kpi-sub">구매자 기준 가장 많이 잡힌 캠페인</div></div>
     </div>
 
     <div class="section-head"><div><div class="section-title">Non Buyer</div><h2>가입했지만 아직 사지 않은 사람</h2></div></div>
     <div class="grid-2">
       <div class="card"><div class="section-title">AGE 비율</div><div class="dist-list">
             <div class="dist-row default">
-              <div class="dist-label">30s</div>
-              <div class="dist-bar"><span style="width:100.0%"></span></div>
-              <div class="dist-value">29.2%</div>
-            </div>
-            
-            <div class="dist-row default">
               <div class="dist-label">40s</div>
-              <div class="dist-bar"><span style="width:84.6%"></span></div>
-              <div class="dist-value">24.7%</div>
+              <div class="dist-bar"><span style="width:100.0%"></span></div>
+              <div class="dist-value">29.0%</div>
             </div>
             
             <div class="dist-row default">
               <div class="dist-label">20s</div>
-              <div class="dist-bar"><span style="width:65.4%"></span></div>
-              <div class="dist-value">19.1%</div>
+              <div class="dist-bar"><span style="width:89.0%"></span></div>
+              <div class="dist-value">25.8%</div>
+            </div>
+            
+            <div class="dist-row default">
+              <div class="dist-label">30s</div>
+              <div class="dist-bar"><span style="width:89.0%"></span></div>
+              <div class="dist-value">25.8%</div>
             </div>
             
             <div class="dist-row default">
               <div class="dist-label">50s</div>
-              <div class="dist-bar"><span style="width:53.8%"></span></div>
-              <div class="dist-value">15.7%</div>
+              <div class="dist-bar"><span style="width:33.4%"></span></div>
+              <div class="dist-value">9.7%</div>
             </div>
             
             <div class="dist-row default">
               <div class="dist-label">60+</div>
-              <div class="dist-bar"><span style="width:22.9%"></span></div>
-              <div class="dist-value">6.7%</div>
+              <div class="dist-bar"><span style="width:22.4%"></span></div>
+              <div class="dist-value">6.5%</div>
             </div>
             </div></div>
       <div class="card"><div class="section-title">GENDER 비율</div><div class="dist-list">
             <div class="dist-row default">
               <div class="dist-label">MALE</div>
               <div class="dist-bar"><span style="width:100.0%"></span></div>
-              <div class="dist-value">59.6%</div>
+              <div class="dist-value">64.5%</div>
             </div>
             
             <div class="dist-row default">
               <div class="dist-label">FEMALE</div>
-              <div class="dist-bar"><span style="width:67.8%"></span></div>
-              <div class="dist-value">40.4%</div>
+              <div class="dist-bar"><span style="width:55.0%"></span></div>
+              <div class="dist-value">35.5%</div>
             </div>
             </div></div>
       <div class="card"><div class="section-title">Last Category 비율</div><div class="dist-list">
             <div class="dist-row default">
-              <div class="dist-label">(not set)</div>
+              <div class="dist-label">Unknown</div>
               <div class="dist-bar"><span style="width:100.0%"></span></div>
               <div class="dist-value">100.0%</div>
             </div>
             </div></div>
-      <div class="card"><div class="kicker">Top Category</div><div class="kpi">(not set)</div><div class="kpi-sub">재방문/첫구매 메시지 우선 카테고리</div></div>
+      <div class="card"><div class="kicker">Top Category</div><div class="kpi">Unknown</div><div class="kpi-sub">재방문/첫구매 메시지 우선 카테고리</div></div>
     </div>
-    <div class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Member ID</th><th class="">Phone</th><th class="">USER_ID</th><th class="">Channel</th><th class="">Campaign</th><th class="">Last Category</th><th class="">Top Product</th></tr></thead><tbody><tr><td class="">kk_4829088785</td><td class=""></td><td class="">303454</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">rkddl4</td><td class=""></td><td class="">303596</td><td class="">Owned Channel</td><td class="">KAKAO_alimtalk</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831842028</td><td class=""></td><td class="">303612</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830612400</td><td class=""></td><td class="">303542</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830513865</td><td class=""></td><td class="">303529</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4829077261</td><td class=""></td><td class="">303453</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830476438</td><td class=""></td><td class="">303525</td><td class="">Organic Traffic</td><td class="">EFW_04</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831687251</td><td class=""></td><td class="">303598</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4829440714</td><td class=""></td><td class="">303471</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830793813</td><td class=""></td><td class="">303557</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">charismasm74</td><td class=""></td><td class="">303650</td><td class="">Paid Ad</td><td class="">naver_brandsearch_pc</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831500868</td><td class=""></td><td class="">303582</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830922114</td><td class=""></td><td class="">303563</td><td class="">Paid Ad</td><td class="">[PF]전환_회원가입(유사)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">hoonck1</td><td class=""></td><td class="">303433</td><td class="">Paid Ad</td><td class="">[PF]트래픽_유사+관심사</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832205664</td><td class=""></td><td class="">303654</td><td class="">Owned Channel</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831995357</td><td class=""></td><td class="">303623</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831768959</td><td class=""></td><td class="">303602</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830251299</td><td class=""></td><td class="">303511</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831422357</td><td class=""></td><td class="">303577</td><td class="">Official SNS</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831842112</td><td class=""></td><td class="">303613</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832105165</td><td class=""></td><td class="">303636</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830821550</td><td class=""></td><td class="">303559</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832180009</td><td class=""></td><td class="">303647</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831394790</td><td class=""></td><td class="">303575</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832023314</td><td class=""></td><td class="">303626</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832114535</td><td class=""></td><td class="">303637</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832248726</td><td class=""></td><td class="">303658</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831346086</td><td class=""></td><td class="">303573</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832201164</td><td class=""></td><td class="">303651</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832076715</td><td class=""></td><td class="">303629</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830767555</td><td class=""></td><td class="">303555</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831495694</td><td class=""></td><td class="">303581</td><td class="">Organic Traffic</td><td class="">(organic)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832164589</td><td class=""></td><td class="">303645</td><td class="">Paid Ad</td><td class="">(organic)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832078505</td><td class=""></td><td class="">303630</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831340465</td><td class=""></td><td class="">303572</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">jambo8</td><td class=""></td><td class="">303558</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832029124</td><td class=""></td><td class="">303627</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832100095</td><td class=""></td><td class="">303634</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831649243</td><td class=""></td><td class="">303595</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831830576</td><td class=""></td><td class="">303611</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832202047</td><td class=""></td><td class="">303652</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">saty31</td><td class=""></td><td class="">303561</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832151833</td><td class=""></td><td class="">303641</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">jgj0503</td><td class=""></td><td class="">303605</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830989652</td><td class=""></td><td class="">303569</td><td class="">Paid Ad</td><td class="">6968489536332</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832154317</td><td class=""></td><td class="">303642</td><td class="">Paid Ad</td><td class="">EFW</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831536902</td><td class=""></td><td class="">303588</td><td class="">Official SNS</td><td class="">EFW_04</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830836853</td><td class=""></td><td class="">303560</td><td class="">Official SNS</td><td class="">EFW_04</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832125929</td><td class=""></td><td class="">303638</td><td class="">Official SNS</td><td class="">EFW_04</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831850638</td><td class=""></td><td class="">303615</td><td class="">Official SNS</td><td class="">EFW_04</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831922723</td><td class=""></td><td class="">303617</td><td class="">Official SNS</td><td class="">EFW_04</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830778741</td><td class=""></td><td class="">303556</td><td class="">Official SNS</td><td class="">EFW_04</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830943389</td><td class=""></td><td class="">303565</td><td class="">Owned Channel</td><td class="">KAKAO_alimtalk</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831612250</td><td class=""></td><td class="">303593</td><td class="">Paid Ad</td><td class="">[PF]A SC_상시(1865MF,구매 장바구니)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830988405</td><td class=""></td><td class="">303567</td><td class="">Paid Ad</td><td class="">[PF]전환_상시(2565MF,비구매자)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830923952</td><td class=""></td><td class="">303564</td><td class="">Paid Ad</td><td class="">[PF]전환_회원가입(유사)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4830963661</td><td class=""></td><td class="">303566</td><td class="">Paid Ad</td><td class="">[PF]전환_회원가입(유사)</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832190692</td><td class=""></td><td class="">303649</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831997957</td><td class=""></td><td class="">303624</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831468314</td><td class=""></td><td class="">303578</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832001343</td><td class=""></td><td class="">303625</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831986570</td><td class=""></td><td class="">303622</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831799020</td><td class=""></td><td class="">303609</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832061430</td><td class=""></td><td class="">303628</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832100101</td><td class=""></td><td class="">303635</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831532519</td><td class=""></td><td class="">303587</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831981914</td><td class=""></td><td class="">303620</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831983348</td><td class=""></td><td class="">303621</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831502482</td><td class=""></td><td class="">303583</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831257396</td><td class=""></td><td class="">303571</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831517271</td><td class=""></td><td class="">303584</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831951614</td><td class=""></td><td class="">303618</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832186210</td><td class=""></td><td class="">303648</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831723596</td><td class=""></td><td class="">303600</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831822425</td><td class=""></td><td class="">303610</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831774426</td><td class=""></td><td class="">303604</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831585022</td><td class=""></td><td class="">303591</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831488942</td><td class=""></td><td class="">303580</td><td class="">Paid Ad</td><td class="">naver_brandsearch_pc</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">minpark98</td><td class=""></td><td class="">303657</td><td class="">Paid Ad</td><td class="">naver_brandsearch_pc</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831615271</td><td class=""></td><td class="">303594</td><td class="">Paid Ad</td><td class="">sa</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831600231</td><td class=""></td><td class="">303592</td><td class="">Paid Ad</td><td class="">sa</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">hotsnoopy</td><td class=""></td><td class="">303585</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4829979824</td><td class=""></td><td class="">303497</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4832310183</td><td class=""></td><td class="">303663</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831784738</td><td class=""></td><td class="">303607</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4829348219</td><td class=""></td><td class="">303468</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">thdud9181</td><td class=""></td><td class="">303644</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4831402433</td><td class=""></td><td class="">303576</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td></tr><tr><td class="">kk_4829294214</td><td class=""></td><td class="">303466</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td></tr></tbody></table></div></div>
+    <div class="card"><div class="table-meta">전체 31행 중 20행 표시</div><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Member ID</th><th class="">Phone</th><th class="">USER_ID</th><th class="">Channel</th><th class="">Campaign</th><th class="">Last Category</th><th class="">Top Product</th></tr></thead><tbody><tr><td class="">kk_4831361074</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303574</td><td class="">Organic Traffic</td><td class="">(organic)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4830254905</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303513</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4832204677</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303653</td><td class="">Paid Ad</td><td class="">sa</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4830885654</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303562</td><td class="">Direct</td><td class="">(not set)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4831895164</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303616</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4829516327</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303476</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4829818548</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303491</td><td class="">Paid Ad</td><td class="">[PF]A SC_상시(1865MF,구매 장바구니)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4831740520</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303601</td><td class="">Owned Channel</td><td class="">benz_running_program_2026_coupon</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4830523585</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303530</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4830030364</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303499</td><td class="">Paid Ad</td><td class="">naversa_mo</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4830247238</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303510</td><td class="">Direct</td><td class="">(not set)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4830591832</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303539</td><td class="">Organic Traffic</td><td class="">(organic)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">chicken0890</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303646</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4832269209</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303661</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4832293158</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303662</td><td class="">Awareness</td><td class="">benz_running_program_2026_coupon</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4832162309</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303643</td><td class="">Awareness</td><td class="">benz_running_program_2026​</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4831572710</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303590</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kda01126</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303656</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">masterk</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303524</td><td class="">Paid Ad</td><td class="">sa</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr><tr><td class="">kk_4832411690</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="">303666</td><td class="">Direct</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td></tr></tbody></table></div></div>
 
     <div class="section-head"><div><div class="section-title">Buyer Revenue</div><h2>누가 매출을 만들었는지</h2></div></div>
     <div class="grid-4">
-      <div class="card"><div class="kicker">Buyers</div><div class="kpi">20</div><div class="kpi-sub">구매자 수</div></div>
-      <div class="card"><div class="kicker">Revenue</div><div class="kpi">₩3,336,710</div><div class="kpi-sub">구매자 매출</div></div>
-      <div class="card"><div class="kicker">AOV</div><div class="kpi">₩166,836</div><div class="kpi-sub">주문당 평균 매출</div></div>
-      <div class="card"><div class="kicker">Top Product</div><div class="kpi">(not set)</div><div class="kpi-sub">구매자 기준 최다 제품</div></div>
+      <div class="card"><div class="kicker">Buyers</div><div class="kpi">17</div><div class="kpi-sub">구매자 수</div></div>
+      <div class="card"><div class="kicker">Revenue</div><div class="kpi">₩1,683,740</div><div class="kpi-sub">구매자 매출</div></div>
+      <div class="card"><div class="kicker">AOV</div><div class="kpi">₩99,044</div><div class="kpi-sub">주문당 평균 매출</div></div>
+      <div class="card"><div class="kicker">Top Product</div><div class="kpi">Unknown</div><div class="kpi-sub">구매자 기준 최다 제품</div></div>
     </div>
     <div class="grid-2">
       <div class="card"><div class="section-title">AGE 비율</div><div class="dist-list">
             <div class="dist-row default">
-              <div class="dist-label">30s</div>
+              <div class="dist-label">40s</div>
               <div class="dist-bar"><span style="width:100.0%"></span></div>
-              <div class="dist-value">35.0%</div>
+              <div class="dist-value">29.4%</div>
             </div>
             
             <div class="dist-row default">
               <div class="dist-label">50s</div>
-              <div class="dist-bar"><span style="width:71.4%"></span></div>
-              <div class="dist-value">25.0%</div>
-            </div>
-            
-            <div class="dist-row default">
-              <div class="dist-label">40s</div>
-              <div class="dist-bar"><span style="width:57.1%"></span></div>
-              <div class="dist-value">20.0%</div>
+              <div class="dist-bar"><span style="width:100.0%"></span></div>
+              <div class="dist-value">29.4%</div>
             </div>
             
             <div class="dist-row default">
               <div class="dist-label">20s</div>
-              <div class="dist-bar"><span style="width:28.6%"></span></div>
-              <div class="dist-value">10.0%</div>
+              <div class="dist-bar"><span style="width:79.9%"></span></div>
+              <div class="dist-value">23.5%</div>
             </div>
             
             <div class="dist-row default">
-              <div class="dist-label">10s</div>
-              <div class="dist-bar"><span style="width:14.3%"></span></div>
-              <div class="dist-value">5.0%</div>
+              <div class="dist-label">30s</div>
+              <div class="dist-bar"><span style="width:40.1%"></span></div>
+              <div class="dist-value">11.8%</div>
+            </div>
+            
+            <div class="dist-row default">
+              <div class="dist-label">60+</div>
+              <div class="dist-bar"><span style="width:20.1%"></span></div>
+              <div class="dist-value">5.9%</div>
             </div>
             </div></div>
       <div class="card"><div class="section-title">GENDER 비율</div><div class="dist-list">
             <div class="dist-row default">
               <div class="dist-label">MALE</div>
               <div class="dist-bar"><span style="width:100.0%"></span></div>
-              <div class="dist-value">60.0%</div>
+              <div class="dist-value">76.5%</div>
             </div>
             
             <div class="dist-row default">
               <div class="dist-label">FEMALE</div>
-              <div class="dist-bar"><span style="width:66.7%"></span></div>
-              <div class="dist-value">40.0%</div>
+              <div class="dist-bar"><span style="width:30.7%"></span></div>
+              <div class="dist-value">23.5%</div>
             </div>
             </div></div>
     </div>
-    <div class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Member ID</th><th class="">USER_ID</th><th class="">Channel</th><th class="">Campaign</th><th class="">Top Category</th><th class="">Top Product</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody><tr><td class="">kk_4831524516</td><td class="">303586</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩749,700</td></tr><tr><td class="">jihgih</td><td class="">303597</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩339,390</td></tr><tr><td class="">kk_4831783171</td><td class="">303606</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩257,600</td></tr><tr><td class="">kk_4832093129</td><td class="">303632</td><td class="">Owned Channel</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩231,200</td></tr><tr><td class="">kk_4830989557</td><td class="">303568</td><td class="">Paid Ad</td><td class="">naver_brandsearch_pc</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩192,600</td></tr><tr><td class="">kk_4829209914</td><td class="">303463</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩174,600</td></tr><tr><td class="">kk_4831709363</td><td class="">303599</td><td class="">Paid Ad</td><td class="">(organic)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩165,600</td></tr><tr><td class="">kk_4831770409</td><td class="">303603</td><td class="">Owned Channel</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩155,200</td></tr><tr><td class="">kk_4830712206</td><td class="">303552</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩150,000</td></tr><tr><td class="">kk_4832134226</td><td class="">303640</td><td class="">Direct</td><td class="">(not set)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩150,000</td></tr><tr><td class="">kk_4829535137</td><td class="">303477</td><td class="">Owned Channel</td><td class="">benz_running_program_2026_coupon</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩139,200</td></tr><tr><td class="">kk_4832097969</td><td class="">303633</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩114,570</td></tr><tr><td class="">kk_4832212077</td><td class="">303655</td><td class="">Paid Ad</td><td class="">(organic)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩109,980</td></tr><tr><td class="">kk_4831005318</td><td class="">303570</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩102,780</td></tr><tr><td class="">chose8509</td><td class="">303631</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩93,600</td></tr><tr><td class="">wall7895</td><td class="">303536</td><td class="">Paid Ad</td><td class="">naver_brandsearch_pc</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩72,090</td></tr><tr><td class="">kk_4831474220</td><td class="">303579</td><td class="">Paid Ad</td><td class="">(referral)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩57,600</td></tr><tr><td class="">kk_4832268126</td><td class="">303660</td><td class="">Paid Ad</td><td class="">(organic)</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩35,100</td></tr><tr><td class="">zhfwosla</td><td class="">303639</td><td class="">Paid Ad</td><td class="">naver_brandsearch_pc</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩34,200</td></tr><tr><td class="">kk_4830033031</td><td class="">303500</td><td class="">Direct</td><td class="">None</td><td class="">(not set)</td><td class="">(not set)</td><td class="num">1</td><td class="num">₩11,700</td></tr></tbody></table></div></div>
+    <div class="card"><div class="table-meta">전체 17행 중 17행 표시</div><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Member ID</th><th class="">USER_ID</th><th class="">Channel</th><th class="">Campaign</th><th class="">Top Category</th><th class="">Top Product</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody><tr><td class="">kk_4831980954</td><td class="">303619</td><td class="">Paid Ad</td><td class="">[PF]전환_상시(2565MF,비구매자)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩264,600</td></tr><tr><td class="">kk_4829472054</td><td class="">303473</td><td class="">Paid Ad</td><td class="">sa</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩250,500</td></tr><tr><td class="">mine810</td><td class="">303589</td><td class="">Official SNS</td><td class="">EFW_04</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩188,190</td></tr><tr><td class="">kk_4830656966</td><td class="">303548</td><td class="">Paid Ad</td><td class="">EFW_04</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩120,600</td></tr><tr><td class="">kk_4830615801</td><td class="">303544</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩115,200</td></tr><tr><td class="">allso04</td><td class="">303480</td><td class="">Organic Traffic</td><td class="">(referral)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩114,570</td></tr><tr><td class="">c5425c5452</td><td class="">303608</td><td class="">Direct</td><td class="">(not set)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩109,980</td></tr><tr><td class="">kk_4832263036</td><td class="">303659</td><td class="">Paid Ad</td><td class="">(referral)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩104,490</td></tr><tr><td class="">kk_4828880024</td><td class="">303437</td><td class="">Paid Ad</td><td class="">naver_brandsearch_mobile</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩95,670</td></tr><tr><td class="">kk_4831845523</td><td class="">303614</td><td class="">Paid Ad</td><td class="">naver_brandsearch_pc</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩95,670</td></tr><tr><td class="">kk_4829335595</td><td class="">303467</td><td class="">Paid Ad</td><td class="">(not set)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩48,600</td></tr><tr><td class="">bmvv</td><td class="">303470</td><td class="">Paid Ad</td><td class="">naver_brandsearch_pc</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩43,470</td></tr><tr><td class="">kk_4832365990</td><td class="">303665</td><td class="">Direct</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩35,100</td></tr><tr><td class="">iama99</td><td class="">303517</td><td class="">Organic Traffic</td><td class="">(organic)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩31,200</td></tr><tr><td class="">kk_4829750636</td><td class="">303485</td><td class="">Paid Ad</td><td class="">(organic)</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩31,200</td></tr><tr><td class="">kk_4830074734</td><td class="">303503</td><td class="">Paid Ad</td><td class="">컬럼비아_DPA_240530</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩23,000</td></tr><tr><td class="">kk_4830033031</td><td class="">303500</td><td class="">Direct</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">1</td><td class="num">₩11,700</td></tr></tbody></table></div></div>
 
     <div class="section-head"><div><div class="section-title">Product Insight</div><h2>무슨 상품이 고객을 움직였는지</h2></div></div>
     <div class="grid-2">
       <div class="card"><div class="section-title">Category 비율</div><div class="dist-list"><div class="empty-note">데이터가 없습니다.</div></div></div>
       <div class="card"><div class="section-title">Top Product Focus</div><div class="mini-grid">
         <div class="mini-panel">
-          <div class="mini-kicker">(not set)</div>
-          <div class="mini-main">(not set)</div>
-          <div class="mini-copy">Buyers · 0 / Revenue · ₩3,336,710 </div>
+          <div class="mini-kicker">Unknown</div>
+          <div class="mini-main">Unknown</div>
+          <div class="mini-copy">Buyers · 0 / Revenue · ₩1,683,740 </div>
         </div>
         </div></div>
     </div>
-    <div class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Channel</th><th class="">Product</th><th class="num">Buyers</th><th class="num">Revenue</th></tr></thead><tbody><tr><td class="">Paid Ad</td><td class="">(not set)</td><td class="num">0</td><td class="num">₩1,433,940</td></tr><tr><td class="">Direct</td><td class="">(not set)</td><td class="num">0</td><td class="num">₩1,169,000</td></tr><tr><td class="">Owned Channel</td><td class="">(not set)</td><td class="num">0</td><td class="num">₩525,600</td></tr><tr><td class="">Organic Traffic</td><td class="">(not set)</td><td class="num">0</td><td class="num">₩208,170</td></tr><tr><td class="">Awareness</td><td class="">(not set)</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">Official SNS</td><td class="">(not set)</td><td class="num">0</td><td class="num">₩0</td></tr></tbody></table></div></div>
+    <div class="card"><div class="table-meta">전체 6행 중 6행 표시</div><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Channel</th><th class="">Product</th><th class="num">Buyers</th><th class="num">Revenue</th></tr></thead><tbody><tr><td class="">Paid Ad</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">0</td><td class="num">₩1,193,000</td></tr><tr><td class="">Official SNS</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">0</td><td class="num">₩188,190</td></tr><tr><td class="">Direct</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">0</td><td class="num">₩156,780</td></tr><tr><td class="">Organic Traffic</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">0</td><td class="num">₩145,770</td></tr><tr><td class="">Awareness</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">Owned Channel</td><td class=""><span class="tag tag-unknown">Unknown</span></td><td class="num">0</td><td class="num">₩0</td></tr></tbody></table></div></div>
 
     <div class="section-head"><div><div class="section-title">지금 바로 액션 가능한 대상자</div><h2>세그먼트별 채널 · 관심상품 · 추천 메시지</h2></div></div>
     <div class="mini-grid">
         <div class="mini-panel">
           <div class="mini-kicker">Non Buyer</div>
-          <div class="mini-main">89 명</div>
-          <div class="mini-copy">Top Channel · Paid Ad</div>
-          <div class="mini-copy">Top Category · (not set)</div>
-          <div class="mini-copy">Message · GENERAL</div>
+          <div class="mini-main">31 명</div>
+          <div class="mini-copy">Top Channel · Direct</div>
+          <div class="mini-copy">Top Category · Unknown</div>
+          <div class="mini-copy">Message · CART_REMINDER</div>
         </div>
         
         <div class="mini-panel">
           <div class="mini-kicker">Cart Abandon</div>
-          <div class="mini-main">26 명</div>
+          <div class="mini-main">12 명</div>
           <div class="mini-copy">Top Channel · Paid Ad</div>
-          <div class="mini-copy">Top Category · (not set)</div>
+          <div class="mini-copy">Top Category · Unknown</div>
           <div class="mini-copy">Message · CART_REMINDER</div>
         </div>
         
         <div class="mini-panel">
           <div class="mini-kicker">High Intent</div>
-          <div class="mini-main">46 명</div>
+          <div class="mini-main">19 명</div>
           <div class="mini-copy">Top Channel · Paid Ad</div>
-          <div class="mini-copy">Top Category · (not set)</div>
+          <div class="mini-copy">Top Category · Unknown</div>
           <div class="mini-copy">Message · CART_REMINDER</div>
         </div>
         </div>
@@ -293,23 +301,23 @@ th.num,td.num{text-align:right}
   <section class="panel" id="total-view">
     <div class="section-head"><div><div class="section-title">TOTAL VIEW</div><h2>공식몰 전체 데이터</h2></div></div>
     <div class="grid-4">
-      <div class="card"><div class="kicker">Sessions</div><div class="kpi">163</div><div class="kpi-sub">선택 구간 공식몰 전체 세션</div></div>
+      <div class="card"><div class="kicker">Sessions</div><div class="kpi">135</div><div class="kpi-sub">선택 구간 공식몰 전체 세션</div></div>
       <div class="card"><div class="kicker">Signups</div><div class="kpi">0</div><div class="kpi-sub">공식몰 전체 가입 수</div></div>
-      <div class="card"><div class="kicker">Orders</div><div class="kpi">20</div><div class="kpi-sub">주문 수</div></div>
-      <div class="card"><div class="kicker">Revenue</div><div class="kpi">₩3,336,710</div><div class="kpi-sub">공식몰 전체 매출</div></div>
+      <div class="card"><div class="kicker">Orders</div><div class="kpi">17</div><div class="kpi-sub">주문 수</div></div>
+      <div class="card"><div class="kicker">Revenue</div><div class="kpi">₩1,683,740</div><div class="kpi-sub">공식몰 전체 매출</div></div>
     </div>
 
     <div class="section-head"><div><div class="section-title">Channel Snapshot</div><h2>공식몰 채널 성과</h2></div></div>
-    <div class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Bucket</th><th class="num">Sessions</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody><tr><td class="">Awareness</td><td class="num">33</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">Paid Ad</td><td class="num">77</td><td class="num">11</td><td class="num">₩1,433,940</td></tr><tr><td class="">Organic Traffic</td><td class="num">13</td><td class="num">2</td><td class="num">₩208,170</td></tr><tr><td class="">Official SNS</td><td class="num">8</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">Owned Channel</td><td class="num">19</td><td class="num">3</td><td class="num">₩525,600</td></tr><tr><td class="">Direct</td><td class="num">13</td><td class="num">4</td><td class="num">₩1,169,000</td></tr></tbody></table></div></div>
+    <div class="card"><div class="table-meta">전체 6행 중 6행 표시</div><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Bucket</th><th class="num">Sessions</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody><tr><td class="">Awareness</td><td class="num">9</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">Paid Ad</td><td class="num">79</td><td class="num">11</td><td class="num">₩1,193,000</td></tr><tr><td class="">Organic Traffic</td><td class="num">28</td><td class="num">2</td><td class="num">₩145,770</td></tr><tr><td class="">Official SNS</td><td class="num">3</td><td class="num">1</td><td class="num">₩188,190</td></tr><tr><td class="">Owned Channel</td><td class="num">3</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">Direct</td><td class="num">13</td><td class="num">3</td><td class="num">₩156,780</td></tr></tbody></table></div></div>
 
     <div class="section-head"><div><div class="section-title">Channel Daily Table</div><h2>채널별 일자 테이블</h2></div></div>
-    <div class="card"><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Date</th><th class="">Bucket</th><th class="num">Sessions</th><th class="num">Signups</th><th class="num">Buyers</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody><tr><td class="">2026-04-05</td><td class="">Awareness</td><td class="num">33</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">2026-04-05</td><td class="">Direct</td><td class="num">13</td><td class="num">0</td><td class="num">0</td><td class="num">4</td><td class="num">₩1,169,000</td></tr><tr><td class="">2026-04-05</td><td class="">Official SNS</td><td class="num">8</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">2026-04-05</td><td class="">Organic Traffic</td><td class="num">13</td><td class="num">0</td><td class="num">0</td><td class="num">2</td><td class="num">₩208,170</td></tr><tr><td class="">2026-04-05</td><td class="">Owned Channel</td><td class="num">19</td><td class="num">0</td><td class="num">0</td><td class="num">3</td><td class="num">₩525,600</td></tr><tr><td class="">2026-04-05</td><td class="">Paid Ad</td><td class="num">77</td><td class="num">0</td><td class="num">0</td><td class="num">11</td><td class="num">₩1,433,940</td></tr></tbody></table></div></div>
+    <div class="card"><div class="table-meta">전체 6행 중 6행 표시</div><div class="table-wrap"><table class="data-table"><thead><tr><th class="">Date</th><th class="">Bucket</th><th class="num">Sessions</th><th class="num">Signups</th><th class="num">Buyers</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody><tr><td class="">2026-04-06</td><td class="">Awareness</td><td class="num">9</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">2026-04-06</td><td class="">Direct</td><td class="num">13</td><td class="num">0</td><td class="num">0</td><td class="num">3</td><td class="num">₩156,780</td></tr><tr><td class="">2026-04-06</td><td class="">Official SNS</td><td class="num">3</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">₩188,190</td></tr><tr><td class="">2026-04-06</td><td class="">Organic Traffic</td><td class="num">28</td><td class="num">0</td><td class="num">0</td><td class="num">2</td><td class="num">₩145,770</td></tr><tr><td class="">2026-04-06</td><td class="">Owned Channel</td><td class="num">3</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">₩0</td></tr><tr><td class="">2026-04-06</td><td class="">Paid Ad</td><td class="num">79</td><td class="num">0</td><td class="num">0</td><td class="num">11</td><td class="num">₩1,193,000</td></tr></tbody></table></div></div>
 
     <div class="section-head"><div><div class="section-title">Operator Actions</div><h2>실행 우선순위 카드</h2></div></div>
     <div class="grid-3">
         <div class="action-card">
           <div class="mini-kicker">Paid 비중 관리</div>
-          <div class="action-value">47.2%</div>
+          <div class="action-value">58.5%</div>
           <div class="mini-copy">Paid Ad 세션 비중이 너무 커지면 채널 믹스 리스크가 커집니다. Organic / Owned 보강 필요 여부를 같이 보세요.</div>
         </div>
         
