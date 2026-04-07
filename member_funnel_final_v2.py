@@ -1082,6 +1082,553 @@ th.num,td.num{{text-align:right}}
 
 
 # ------------------------------------------------------------------
+# upgraded overrides
+# ------------------------------------------------------------------
+BAD_LABEL_TOKENS = {"", "(not set)", "not set", "null", "none", "nan", "nat", "undefined", "n/a", "na", "-"}
+
+def _raw_label(v: Any) -> str:
+    if v is None or pd.isna(v):
+        return ""
+    return str(v).strip()
+
+
+def clean_label(v: Any, fallback: str = "") -> str:
+    s = _raw_label(v)
+    if not s or s.lower() in BAD_LABEL_TOKENS:
+        return fallback
+    return s
+
+
+def clean_label_series(s: pd.Series, fallback: str = "") -> pd.Series:
+    return s.map(lambda v: clean_label(v, fallback))
+
+
+def is_unknown_label(v: Any) -> bool:
+    return clean_label(v, "") == ""
+
+
+def display_label(v: Any, fallback: str = "미분류") -> str:
+    s = clean_label(v, "")
+    return s if s else fallback
+
+
+def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out.columns = [str(c).strip() for c in out.columns]
+
+    event_date_candidates = [
+        "event_date", "date", "last_visit_date", "signup_date", "first_purchase_date", "last_order_date"
+    ]
+    out["event_date_norm"] = pd.to_datetime(safe_series(out, event_date_candidates, None), errors="coerce").dt.date
+    if out["event_date_norm"].isna().all():
+        out["event_date_norm"] = YESTERDAY_KST
+    else:
+        out["event_date_norm"] = out["event_date_norm"].fillna(YESTERDAY_KST)
+
+    out["member_id_norm"] = safe_series(out, ["member_id", "memberid", "member_no", "memberno"], "").astype(str).str.strip()
+    out["user_id_norm"] = safe_series(out, ["user_id", "userid"], "").astype(str).str.strip()
+    out["phone_norm"] = safe_series(out, ["mobile_phone", "phone", "cellphone", "member_phone", "mobile"], "").astype(str).str.strip()
+
+    out["channel_group_norm"] = [
+        canonical_bucket(cg, fs, None, camp)
+        for cg, fs, camp in zip(
+            safe_series(out, ["channel_group", "channel_group_enhanced"], ""),
+            safe_series(out, ["first_source", "latest_source"], ""),
+            safe_series(out, ["first_campaign", "latest_campaign", "session_campaign"], ""),
+        )
+    ]
+
+    out["sessions_norm"] = to_numeric_series(safe_series(out, ["total_sessions", "sessions"], 0))
+    out["orders_norm"] = to_numeric_series(safe_series(out, ["order_count", "orders"], 0))
+    out["revenue_norm"] = to_numeric_series(safe_series(out, ["total_revenue", "revenue"], 0))
+    out["signup_norm"] = to_numeric_series(safe_series(out, ["signup_yn"], 0))
+    out["purchase_norm"] = to_numeric_series(safe_series(out, ["purchase_yn"], 0))
+    out["pageviews_norm"] = to_numeric_series(safe_series(out, ["total_pageviews", "pageviews"], 0))
+    out["product_view_norm"] = to_numeric_series(safe_series(out, ["product_view_count"], 0))
+    out["add_to_cart_norm"] = to_numeric_series(safe_series(out, ["add_to_cart_count"], 0))
+
+    out["age_norm"] = to_numeric_series(safe_series(out, ["age"], None))
+    age_band = safe_series(out, ["age_band"], "")
+    derived_age_band = pd.cut(
+        out["age_norm"],
+        bins=[0, 19, 29, 39, 49, 59, 200],
+        labels=["10s", "20s", "30s", "40s", "50s", "60+"],
+        right=True,
+    ).astype(object)
+    out["age_band_norm"] = age_band.where(age_band.astype(str).str.strip() != "", derived_age_band.fillna("미확인")).astype(str)
+
+    gender = safe_series(out, ["gender", "member_gender_raw", "member_gender"], "").astype(str).str.upper().str.strip()
+    gender = gender.replace({"1": "MALE", "2": "FEMALE", "0": "", "M": "MALE", "F": "FEMALE", "UNKNOWN": ""})
+    out["gender_norm"] = gender.where(gender != "", "미확인")
+
+    out["last_category_norm"] = clean_label_series(safe_series(out, ["last_category", "top_category", "preferred_category"], None), "")
+    out["top_category_norm"] = clean_label_series(safe_series(out, ["top_category", "preferred_category", "last_category"], None), "")
+    out["top_product_norm"] = clean_label_series(safe_series(out, ["top_product", "preferred_product", "first_purchase_product"], None), "")
+    out["campaign_norm"] = clean_label_series(safe_series(out, ["session_campaign", "first_campaign", "latest_campaign"], None), "")
+    out["recommended_message_norm"] = clean_label_series(safe_series(out, ["recommended_message"], ""), "GENERAL")
+    out["first_source_norm"] = clean_label_series(safe_series(out, ["first_source", "latest_source"], None), "")
+    out["last_order_date_norm"] = safe_series(out, ["last_order_date"], "").map(fmt_date)
+
+    flag_map = {
+        "is_non_buyer_norm": ["is_non_buyer"],
+        "is_cart_abandon_norm": ["is_cart_abandon"],
+        "is_high_intent_norm": ["is_high_intent"],
+        "is_repeat_buyer_norm": ["is_repeat_buyer"],
+        "is_dormant_norm": ["is_dormant"],
+        "is_vip_norm": ["is_vip"],
+    }
+    for target, candidates in flag_map.items():
+        out[target] = to_numeric_series(safe_series(out, candidates, 0)).astype(int)
+
+    return out
+
+
+def build_distribution(rows: pd.DataFrame, key: str, top_n: int = 5) -> List[dict]:
+    if rows.empty or key not in rows.columns:
+        return []
+    raw = rows[key].map(lambda v: clean_label(v, ""))
+    total = int(len(raw))
+    valid = raw[raw != ""]
+    vc = (valid if not valid.empty else raw).value_counts(dropna=False)
+    result = []
+    for label, count in vc.head(top_n).items():
+        shown = label if str(label).strip() else "미분류"
+        result.append({"label": shown, "count": int(count), "share_pct": round((count / total * 100) if total else 0, 1)})
+    missing_count = int((raw == "").sum())
+    if missing_count and all(r["label"] != "미분류" for r in result) and len(result) < top_n:
+        result.append({"label": "미분류", "count": missing_count, "share_pct": round((missing_count / total * 100) if total else 0, 1)})
+    return result
+
+
+def _top_label(df: pd.DataFrame, col: str) -> str:
+    if df.empty or col not in df.columns:
+        return "미분류"
+    s = df[col].map(lambda v: clean_label(v, ""))
+    valid = s[s != ""]
+    if not valid.empty:
+        vc = valid.value_counts()
+        return str(vc.index[0]) if len(vc) else "미분류"
+    vc = s.value_counts()
+    if len(vc):
+        first = str(vc.index[0])
+        return first if first else "미분류"
+    return "미분류"
+
+
+def build_product_block(df: pd.DataFrame) -> dict:
+    valid_df = df.copy()
+    category_dist = build_distribution(valid_df[valid_df["top_category_norm"] != ""], "top_category_norm", top_n=8)
+    g = (
+        valid_df[(valid_df["top_product_norm"] != "") | (valid_df["top_category_norm"] != "")]
+        .groupby(["channel_group_norm", "top_product_norm"], dropna=False)
+        .agg(buyers=("purchase_norm", "sum"), revenue=("revenue_norm", "sum"))
+        .reset_index()
+        .sort_values(["revenue", "buyers"], ascending=[False, False])
+    )
+    channel_product = [
+        {
+            "channel": r["channel_group_norm"],
+            "product": display_label(r["top_product_norm"]),
+            "buyers": int(round(r["buyers"])),
+            "revenue": float(r["revenue"]),
+        }
+        for _, r in g.head(20).iterrows()
+    ]
+    top_products = (
+        valid_df[(valid_df["top_product_norm"] != "") | (valid_df["top_category_norm"] != "")]
+        .groupby(["top_product_norm", "top_category_norm"], dropna=False)
+        .agg(buyers=("purchase_norm", "sum"), revenue=("revenue_norm", "sum"))
+        .reset_index()
+        .sort_values(["revenue", "buyers"], ascending=[False, False])
+    )
+    products = [
+        {
+            "product": display_label(r["top_product_norm"]),
+            "category": display_label(r["top_category_norm"]),
+            "buyers": int(round(r["buyers"])),
+            "revenue": float(r["revenue"]),
+        }
+        for _, r in top_products.head(12).iterrows()
+    ]
+    return {"category_dist": category_dist, "channel_product": channel_product, "products": products}
+
+
+def build_total_existing_member_block(user_df: pd.DataFrame) -> dict:
+    members = user_df[user_df["member_id_norm"] != ""].copy()
+    buyers = members[(members["orders_norm"] > 0) | (members["revenue_norm"] > 0) | (members["purchase_norm"] > 0)].copy()
+    non_buyers = members[(members["orders_norm"] <= 0) & (members["revenue_norm"] <= 0)].copy()
+    revenue = float(buyers["revenue_norm"].sum())
+    orders = float(buyers["orders_norm"].sum())
+
+    status_cards = [
+        {"label": "기존 회원", "value": int(members["member_id_norm"].nunique()), "sub": "전체 member_id 기준"},
+        {"label": "구매 회원", "value": int(buyers["member_id_norm"].nunique()), "sub": "선택 구간 내 구매"},
+        {"label": "미구매 회원", "value": int(non_buyers["member_id_norm"].nunique()), "sub": "구매 이력 없음"},
+        {"label": "VIP 플래그", "value": int(members["is_vip_norm"].sum()), "sub": "VIP flag rows"},
+    ]
+
+    recent_rows = members[[c for c in [
+        "member_id_norm", "phone_norm", "age_band_norm", "gender_norm", "last_category_norm", "top_product_norm", "orders_norm", "revenue_norm", "last_order_date_norm"
+    ] if c in members.columns]].rename(columns={
+        "member_id_norm": "member_id",
+        "phone_norm": "phone",
+        "age_band_norm": "age_band",
+        "gender_norm": "gender",
+        "last_category_norm": "last_category",
+        "top_product_norm": "top_product",
+        "orders_norm": "orders",
+        "revenue_norm": "revenue",
+        "last_order_date_norm": "last_order_date",
+    }).fillna("").sort_values(["revenue", "orders"], ascending=[False, False]).to_dict(orient="records")
+
+    product_rows = (
+        members[members["top_product_norm"] != ""]
+        .groupby(["top_product_norm", "top_category_norm"], dropna=False)
+        .agg(members=("member_id_norm", "nunique"), revenue=("revenue_norm", "sum"))
+        .reset_index()
+        .sort_values(["revenue", "members"], ascending=[False, False])
+    )
+    product_cards = [
+        {
+            "product": display_label(r["top_product_norm"]),
+            "category": display_label(r["top_category_norm"]),
+            "members": int(r["members"]),
+            "revenue": float(r["revenue"]),
+        }
+        for _, r in product_rows.head(8).iterrows()
+    ]
+
+    return {
+        "summary": {
+            "members": int(members["member_id_norm"].nunique()),
+            "buyers": int(buyers["member_id_norm"].nunique()),
+            "non_buyers": int(non_buyers["member_id_norm"].nunique()),
+            "revenue": revenue,
+            "orders": int(round(orders)),
+            "aov": revenue / orders if orders else 0.0,
+            "top_category": _top_label(members, "top_category_norm"),
+            "top_product": _top_label(members, "top_product_norm"),
+        },
+        "status_cards": status_cards,
+        "age_dist": build_distribution(members, "age_band_norm", top_n=6),
+        "gender_dist": build_distribution(members, "gender_norm", top_n=3),
+        "category_dist": build_distribution(members, "top_category_norm", top_n=6),
+        "product_cards": product_cards,
+        "rows": recent_rows,
+    }
+
+
+def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, period_key: str, period_label: str) -> dict:
+    df = normalize_dataframe(df)
+    df = df[(df["event_date_norm"] >= start_date) & (df["event_date_norm"] <= end_date)].copy()
+    user_df = build_user_rows(df)
+
+    total_sessions = int(df["sessions_norm"].sum())
+    total_orders = int(df["orders_norm"].sum())
+    total_revenue = float(df["revenue_norm"].sum())
+    total_signups = int(df["signup_norm"].sum())
+    buyers = int(user_df[(user_df["purchase_norm"] > 0) | (user_df["orders_norm"] > 0) | (user_df["revenue_norm"] > 0)]["member_id_norm"].replace("", pd.NA).nunique())
+
+    non_buyer = build_non_buyer_block(user_df)
+    buyer = build_buyer_block(user_df)
+    product = build_product_block(user_df)
+    target = build_target_block(user_df)
+    total_member = build_total_existing_member_block(user_df)
+
+    return {
+        "generated_at": dt.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST"),
+        "period_key": period_key,
+        "period_label": period_label,
+        "date_range": {"start": start_date.isoformat(), "end": end_date.isoformat()},
+        "latest_summary": build_latest_day_summary(df),
+        "overview": {
+            "sessions": total_sessions,
+            "orders": total_orders,
+            "revenue": total_revenue,
+            "signups": total_signups,
+            "buyers": buyers,
+            "members": int(user_df["member_id_norm"].replace("", pd.NA).nunique()),
+        },
+        "total_view": {
+            "member_overview": total_member,
+        },
+        "user_view": {
+            "non_buyer": non_buyer,
+            "buyer": buyer,
+            "product": product,
+            "target": target,
+        },
+    }
+
+
+def bar_chart_html(items: List[dict], empty_text: str = "데이터가 없습니다.") -> str:
+    if not items:
+        return f'<div class="empty-chart">{esc(empty_text)}</div>'
+    max_count = max([int(x.get("count", 0)) for x in items] or [1])
+    rows = []
+    for item in items:
+        count = int(item.get("count", 0))
+        share = float(item.get("share_pct", 0))
+        width = (count / max_count * 100) if max_count else 0
+        cls = "warn" if item.get("label") in {"미분류", "Unknown"} else ""
+        rows.append(
+            f'<div class="chart-row {cls}"><div class="chart-label">{esc(item.get("label"))}</div><div class="chart-track"><span class="chart-fill" style="width:{width:.1f}%"></span></div><div class="chart-metric">{fmt_pct(share)}</div></div>'
+        )
+    return ''.join(rows)
+
+
+def donut_chart_html(items: List[dict]) -> str:
+    if not items:
+        return '<div class="empty-chart">데이터가 없습니다.</div>'
+    top = items[:2]
+    first = float(top[0].get("share_pct", 0)) if len(top) > 0 else 0
+    second = float(top[1].get("share_pct", 0)) if len(top) > 1 else max(0, 100 - first)
+    bg = f"conic-gradient(#2563eb 0 {first}%, #93c5fd {first}% {first+second}%, #e2e8f0 {first+second}% 100%)"
+    legend = ''.join(f'<div class="legend-item"><span class="legend-dot {"alt" if idx else ""}"></span><span>{esc(item.get("label"))}</span><strong>{fmt_pct(item.get("share_pct",0))}</strong></div>' for idx, item in enumerate(top))
+    return f'<div class="donut-wrap"><div class="donut" style="background:{bg}"></div><div class="donut-legend">{legend}</div></div>'
+
+
+def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Optional[set] = None, limit: int = 20) -> str:
+    numeric = numeric or set()
+    head = "".join(f'<th class="{"num" if key in numeric else ""}">{esc(label)}</th>' for key, label in columns)
+    body = []
+    visible_rows = rows[:limit] if rows else []
+    if not rows:
+        colspan = len(columns)
+        body.append(f'<tr><td colspan="{colspan}" class="muted">데이터가 없습니다.</td></tr>')
+    else:
+        for r in visible_rows:
+            tds = []
+            for key, _ in columns:
+                raw_val = r.get(key, "")
+                if key in numeric:
+                    if "revenue" in key or key == "aov":
+                        val = fmt_money(raw_val)
+                    else:
+                        val = fmt_int(raw_val)
+                    tds.append(f'<td class="num">{esc(val)}</td>')
+                    continue
+                val = display_label(raw_val, "미분류")
+                if val == "미분류":
+                    tds.append('<td><span class="tag tag-missing">미분류</span></td>')
+                else:
+                    tds.append(f'<td>{esc(val)}</td>')
+            body.append(f"<tr>{''.join(tds)}</tr>")
+    meta = f'<div class="table-meta">전체 {fmt_int(len(rows))}행 중 {fmt_int(len(visible_rows))}행 표시</div>' if rows else ''
+    return f'{meta}<div class="table-wrap"><table class="data-table"><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
+
+
+def render_page(bundle: dict, preset: dict) -> str:
+    overview = bundle["overview"]
+    total_view = bundle["total_view"]
+    user_view = bundle["user_view"]
+    downloads = bundle.get("downloads", {})
+    total_member = total_view["member_overview"]
+
+    period_nav = "".join(
+        f'<a class="period-chip {"active" if p["key"] == preset["key"] else ""}" href="{esc(p["filename"])}">{esc(p["label"])}<\/a>'
+        for p in PERIOD_PRESETS
+    )
+    latest_summary = "".join(f'<li>{esc(x)}</li>' for x in bundle.get("latest_summary", []))
+    non_buyer = user_view["non_buyer"]
+    buyer = user_view["buyer"]
+    product = user_view["product"]
+    target = user_view["target"]
+
+    non_buyer_table = table_html(
+        non_buyer["rows"][:120],
+        [("member_id", "Member ID"), ("phone", "Phone"), ("user_id", "USER_ID"), ("channel_group", "Channel"), ("campaign", "Campaign"), ("last_category", "Last Category"), ("top_product", "Top Product")],
+        set(),
+    )
+    buyer_table = table_html(
+        buyer["rows"][:120],
+        [("member_id", "Member ID"), ("user_id", "USER_ID"), ("channel_group", "Channel"), ("campaign", "Campaign"), ("top_category", "Top Category"), ("top_product", "Top Product"), ("orders", "Orders"), ("revenue", "Revenue")],
+        {"orders", "revenue"},
+    )
+    channel_product_table = table_html(
+        product["channel_product"],
+        [("channel", "Channel"), ("product", "Product"), ("buyers", "Buyers"), ("revenue", "Revenue")],
+        {"buyers", "revenue"},
+    )
+    total_member_table = table_html(
+        total_member["rows"][:120],
+        [("member_id", "Member ID"), ("phone", "Phone"), ("age_band", "Age"), ("gender", "Gender"), ("last_category", "Last Category"), ("top_product", "Top Product"), ("orders", "Orders"), ("revenue", "Revenue"), ("last_order_date", "Last Order")],
+        {"orders", "revenue"},
+    )
+
+    target_cards = "".join(
+        f'''<div class="mini-card segment-card"><div class="kicker">{esc(item["label"])}</div><div class="kpi">{fmt_int(item["count"])}명</div><div class="stack-meta">Top Channel - {esc(display_label(item["top_channel"]))}</div><div class="stack-meta">Top Category - {esc(display_label(item["top_category"]))}</div><div class="stack-meta">Message - {esc(display_label(item["top_message"],"GENERAL"))}</div></div>'''
+        for item in target["cards"]
+    )
+    product_cards = "".join(
+        f'''<div class="mini-card"><div class="kicker">{esc(item["category"])}</div><div class="mini-title">{esc(item["product"])}</div><div class="stack-meta">Buyers {fmt_int(item["buyers"])} / Revenue {fmt_money(item["revenue"])} </div></div>'''
+        for item in product["products"][:4]
+    )
+    total_product_cards = "".join(
+        f'''<div class="mini-card"><div class="kicker">{esc(item["category"])}</div><div class="mini-title">{esc(item["product"])}</div><div class="stack-meta">Members {fmt_int(item["members"])} / Revenue {fmt_money(item["revenue"])} </div></div>'''
+        for item in total_member["product_cards"][:4]
+    )
+    status_cards = "".join(
+        f'''<div class="mini-card"><div class="kicker">{esc(item["label"])}</div><div class="mini-title">{fmt_int(item["value"])}명</div><div class="stack-meta">{esc(item["sub"])}</div></div>'''
+        for item in total_member["status_cards"]
+    )
+
+    return f'''<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Member Funnel</title>
+<style>
+:root{{--bg:#edf2f7;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#dbe4ee;--blue:#2563eb;--blue2:#1d4ed8;--navy:#08152f;--amber:#f59e0b;--shadow:0 16px 40px rgba(15,23,42,.08);--radius:24px}}
+*{{box-sizing:border-box}} body{{margin:0;background:linear-gradient(180deg,#f4f7fb,#edf2f7);color:var(--ink);font-family:"Inter","Pretendard","Noto Sans KR",system-ui,sans-serif;font-variant-numeric:tabular-nums}}
+.page{{max-width:1320px;margin:0 auto;padding:18px 18px 56px}}
+.hero{{position:relative;overflow:hidden;background:linear-gradient(135deg,#04122c,#143dbe);border-radius:26px;padding:24px 24px 22px;box-shadow:0 24px 50px rgba(10,20,50,.18);color:#fff}}
+.hero-grid{{display:grid;grid-template-columns:1.2fr .88fr;gap:20px;align-items:stretch}} .eyebrow{{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}}
+.hero h1{{margin:14px 0 8px;font-size:40px;line-height:1.02;letter-spacing:-.04em}} .hero p{{margin:0;color:rgba(255,255,255,.82);font-size:13px;line-height:1.6;max-width:720px}}
+.hero-meta{{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}} .period-chip{{display:inline-flex;align-items:center;padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;text-decoration:none;font-size:12px;font-weight:800}} .period-chip.active{{background:#fff;color:#0f172a}}
+.hero-kpis{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}} .hero-stat{{background:rgba(255,255,255,.94);border-radius:32px;padding:18px 20px;color:#0f172a;min-height:126px}} .hero-stat .label{{font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.12em}} .hero-stat .value{{margin-top:8px;font-size:30px;font-weight:900;letter-spacing:-.03em}}
+.toolbar{{margin-top:14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}} .tabs{{display:flex;gap:8px;flex-wrap:wrap}} .tab-btn{{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;color:#334155;font-size:13px;font-weight:800;cursor:pointer}} .tab-btn.active{{background:#0f172a;color:#fff;border-color:#0f172a}}
+.date-tools{{display:flex;gap:10px;align-items:center;flex-wrap:wrap}} .date-tools input{{height:42px;border:1px solid var(--line);border-radius:14px;padding:0 12px;background:#fff;color:#334155;font-weight:700}} .date-tools button{{height:42px;border:0;border-radius:14px;background:#0f172a;color:#fff;padding:0 14px;font-weight:800;cursor:pointer}}
+.summary-card{{margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px 18px;box-shadow:var(--shadow)}} .summary-card ul{{margin:8px 0 0 18px;padding:0;color:#334155;font-weight:700;line-height:1.75}}
+.panel{{display:none;margin-top:18px}} .panel.active{{display:block}}
+.section-head{{display:flex;align-items:end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:34px 0 14px}} .section-title{{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#64748b;margin-bottom:10px}} .section-head h2{{margin:0;font-size:24px;letter-spacing:-.03em;font-weight:900}}
+.grid-4{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}} .grid-3{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}} .grid-2{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}} .card{{background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow)}} .mini-card{{background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:var(--shadow)}}
+.kicker{{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#64748b}} .kpi{{font-size:34px;font-weight:900;letter-spacing:-.04em;margin-top:10px;line-height:1.04}} .kpi-sub{{margin-top:8px;color:#64748b;font-size:12px;font-weight:700;line-height:1.6}} .mini-title{{margin-top:6px;font-size:18px;font-weight:850;letter-spacing:-.02em}} .stack-meta{{margin-top:6px;font-size:12px;font-weight:700;color:#64748b;line-height:1.5}}
+.chart-grid{{display:grid;gap:10px}} .chart-row{{display:grid;grid-template-columns:84px 1fr 56px;gap:10px;align-items:center}} .chart-label{{font-size:12px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}} .chart-track{{height:12px;border-radius:999px;background:#e8eef7;overflow:hidden}} .chart-fill{{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#3b82f6,#2563eb)}} .chart-row.warn .chart-fill{{background:linear-gradient(90deg,#f59e0b,#f97316)}} .chart-metric{{font-size:12px;font-weight:800;color:#475569;text-align:right}} .empty-chart{{padding:16px;border:1px dashed var(--line);border-radius:16px;color:#64748b;font-size:13px;font-weight:700}}
+.donut-wrap{{display:grid;grid-template-columns:110px 1fr;gap:16px;align-items:center}} .donut{{width:110px;height:110px;border-radius:50%;position:relative}} .donut:after{{content:"";position:absolute;inset:16px;background:#fff;border-radius:50%;box-shadow:inset 0 0 0 1px var(--line)}} .donut-legend{{display:grid;gap:10px}} .legend-item{{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#334155}} .legend-item strong{{margin-left:auto}} .legend-dot{{width:10px;height:10px;border-radius:50%;background:#2563eb;display:inline-block}} .legend-dot.alt{{background:#93c5fd}}
+.table-meta{{margin-bottom:10px;color:#64748b;font-size:12px;font-weight:700}} .table-wrap{{overflow:auto;border:1px solid var(--line);border-radius:20px}} table{{width:100%;border-collapse:collapse;background:#fff}} th{{position:sticky;top:0;background:#f8fbff;z-index:2;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;font-weight:800;padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}} td{{padding:12px 10px;border-bottom:1px solid #eef3f8;font-size:12px;font-weight:700;color:#0f172a;vertical-align:top}} tr:hover td{{background:#fafcff}} td.num,th.num{{text-align:right}}
+.tag{{display:inline-flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:800}} .tag-missing{{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}}
+.download-row{{display:flex;gap:8px;flex-wrap:wrap}} .download-btn{{display:inline-flex;align-items:center;height:38px;padding:0 12px;border-radius:999px;background:#0f172a;color:#fff;text-decoration:none;font-size:12px;font-weight:800}}
+@media (max-width:1180px){{.hero-grid,.grid-4,.grid-3,.grid-2{{grid-template-columns:1fr}} .donut-wrap{{grid-template-columns:1fr}}}}
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">External Signal Style · CRM Funnel</div>
+        <h1>Member Funnel</h1>
+        <p>채널별 행동 데이터와 CRM 액션 대상을 한 화면에서 빠르게 읽고, 바로 추출할 수 있게 재정렬했습니다. USER VIEW는 유입 기반 액션 분석, TOTAL VIEW는 기존 회원 전체 분석입니다.</p>
+        <div class="hero-meta">{period_nav}</div>
+      </div>
+      <div class="hero-kpis">
+        <div class="hero-stat"><div class="label">Sessions</div><div class="value">{fmt_int(overview['sessions'])}</div></div>
+        <div class="hero-stat"><div class="label">Buyers</div><div class="value">{fmt_int(overview['buyers'])}</div></div>
+        <div class="hero-stat"><div class="label">Revenue</div><div class="value">{fmt_money(overview['revenue'])}</div></div>
+        <div class="hero-stat"><div class="label">Members</div><div class="value">{fmt_int(overview['members'])}</div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="toolbar">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab-target="user-view" aria-selected="true">USER VIEW</button>
+      <button class="tab-btn" data-tab-target="total-view" aria-selected="false">TOTAL VIEW</button>
+    </div>
+    <div class="date-tools">
+      <input type="date" id="start-date" value="{esc(bundle['date_range']['start'])}" />
+      <input type="date" id="end-date" value="{esc(bundle['date_range']['end'])}" />
+      <button id="apply-date">Apply</button>
+    </div>
+  </div>
+
+  <div class="summary-card"><div class="section-title">이번 구간 핵심 요약</div><ul>{latest_summary}</ul></div>
+
+  <section class="panel active" id="user-view" data-tab-panel>
+    <div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰</h2></div><div class="download-row">{'<a class="download-btn" href="'+esc(downloads.get('non_buyer',''))+'">Non Buyer Excel</a>' if downloads.get('non_buyer') else ''}{'<a class="download-btn" href="'+esc(downloads.get('target',''))+'">Target Segment Excel</a>' if downloads.get('target') else ''}</div></div>
+    <div class="grid-4">
+      <div class="card"><div class="kicker">Non Buyer Members</div><div class="kpi">{fmt_int(non_buyer['summary']['members'])}</div><div class="kpi-sub">가입했지만 아직 구매하지 않은 Member 기준</div></div>
+      <div class="card"><div class="kicker">Non Buyer Sessions</div><div class="kpi">{fmt_int(non_buyer['summary']['sessions'])}</div><div class="kpi-sub">대상자의 공식몰 세션 합계</div></div>
+      <div class="card"><div class="kicker">Buyer Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">구매자 누적 매출</div></div>
+      <div class="card"><div class="kicker">Top Campaign</div><div class="kpi">{esc(display_label(buyer['summary']['top_campaign']))}</div><div class="kpi-sub">구매자 기준 대표 캠페인</div></div>
+    </div>
+
+    <div class="section-head"><div><div class="section-title">NON BUYER</div><h2>가입했지만 아직 사지 않은 사람</h2></div></div>
+    <div class="grid-2">
+      <div class="card"><div class="section-title">AGE 비율</div><div class="chart-grid">{bar_chart_html(non_buyer['age_dist'])}</div></div>
+      <div class="card"><div class="section-title">GENDER 비율</div>{donut_chart_html(non_buyer['gender_dist'])}</div>
+      <div class="card"><div class="section-title">Last Category 비율</div><div class="chart-grid">{bar_chart_html(non_buyer['category_dist'])}</div></div>
+      <div class="card"><div class="kicker">Top Category</div><div class="kpi">{esc(display_label(non_buyer['summary']['top_category']))}</div><div class="kpi-sub">재방문/첫구매 메시지 우선 카테고리</div></div>
+    </div>
+    <div class="card">{non_buyer_table}</div>
+
+    <div class="section-head"><div><div class="section-title">BUYER REVENUE</div><h2>누가 매출을 만들었는지</h2></div></div>
+    <div class="grid-4">
+      <div class="card"><div class="kicker">Buyers</div><div class="kpi">{fmt_int(buyer['summary']['buyers'])}</div><div class="kpi-sub">구매자 수</div></div>
+      <div class="card"><div class="kicker">Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">구매자 매출</div></div>
+      <div class="card"><div class="kicker">AOV</div><div class="kpi">{fmt_money(buyer['summary']['aov'])}</div><div class="kpi-sub">주문당 평균 매출</div></div>
+      <div class="card"><div class="kicker">Top Product</div><div class="kpi">{esc(display_label(buyer['summary']['top_product']))}</div><div class="kpi-sub">구매자 기준 대표 상품</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="section-title">AGE 비율</div><div class="chart-grid">{bar_chart_html(buyer['age_dist'])}</div></div>
+      <div class="card"><div class="section-title">GENDER 비율</div>{donut_chart_html(buyer['gender_dist'])}</div>
+    </div>
+    <div class="card">{buyer_table}</div>
+
+    <div class="section-head"><div><div class="section-title">PRODUCT INSIGHT</div><h2>무슨 상품이 고객을 움직였는지</h2></div></div>
+    <div class="grid-2">
+      <div class="card"><div class="section-title">Category 비율</div><div class="chart-grid">{bar_chart_html(product['category_dist'])}</div></div>
+      <div class="card"><div class="section-title">Top Product Focus</div><div class="grid-2">{product_cards}</div></div>
+    </div>
+    <div class="card">{channel_product_table}</div>
+
+    <div class="section-head"><div><div class="section-title">지금 바로 액션 가능한 대상자</div><h2>세그먼트별 채널 · 관심상품 · 추천 메시지</h2></div></div>
+    <div class="grid-2">{target_cards}</div>
+  </section>
+
+  <section class="panel" id="total-view" data-tab-panel hidden>
+    <div class="section-head"><div><div class="section-title">TOTAL VIEW</div><h2>기존 회원 전체 분석</h2></div></div>
+    <div class="grid-4">
+      <div class="card"><div class="kicker">기존 회원</div><div class="kpi">{fmt_int(total_member['summary']['members'])}</div><div class="kpi-sub">member_id 기준</div></div>
+      <div class="card"><div class="kicker">구매 회원</div><div class="kpi">{fmt_int(total_member['summary']['buyers'])}</div><div class="kpi-sub">선택 구간 내 구매</div></div>
+      <div class="card"><div class="kicker">Revenue</div><div class="kpi">{fmt_money(total_member['summary']['revenue'])}</div><div class="kpi-sub">기존 회원 전체 매출</div></div>
+      <div class="card"><div class="kicker">Top Category</div><div class="kpi">{esc(display_label(total_member['summary']['top_category']))}</div><div class="kpi-sub">기존 회원 기준 대표 카테고리</div></div>
+    </div>
+    <div class="grid-4">{status_cards}</div>
+    <div class="grid-2">
+      <div class="card"><div class="section-title">AGE 비율</div><div class="chart-grid">{bar_chart_html(total_member['age_dist'])}</div></div>
+      <div class="card"><div class="section-title">GENDER 비율</div>{donut_chart_html(total_member['gender_dist'])}</div>
+      <div class="card"><div class="section-title">Category 비율</div><div class="chart-grid">{bar_chart_html(total_member['category_dist'])}</div></div>
+      <div class="card"><div class="section-title">Top Product Focus</div><div class="grid-2">{total_product_cards}</div></div>
+    </div>
+    <div class="card">{total_member_table}</div>
+  </section>
+</div>
+<script>
+(function(){{
+  const buttons = Array.from(document.querySelectorAll('[data-tab-target]'));
+  const panels = Array.from(document.querySelectorAll('[data-tab-panel]'));
+  function activate(id){{
+    buttons.forEach(btn => {{
+      const active = btn.dataset.tabTarget === id;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    }});
+    panels.forEach(panel => {{
+      const active = panel.id === id;
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
+    }});
+  }}
+  buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.tabTarget)));
+  document.getElementById('apply-date').addEventListener('click', function(){{
+    const s = document.getElementById('start-date').value;
+    const e = document.getElementById('end-date').value;
+    if(!s || !e) return;
+    const u = new URL(window.location.href);
+    u.searchParams.set('start', s);
+    u.searchParams.set('end', e);
+    window.location.href = u.toString();
+  }});
+  activate('user-view');
+}})();
+</script>
+</body>
+</html>'''
+
+# ------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------
 def main() -> None:
