@@ -1168,7 +1168,6 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
               '.',
               COALESCE(CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING), '')
             ) AS session_key,
-            event_timestamp,
             COALESCE(
               session_traffic_source_last_click.manual_campaign.source,
               collected_traffic_source.manual_source,
@@ -1194,7 +1193,9 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
         session_base AS (
           SELECT
             session_key,
-            ARRAY_AGG(STRUCT(session_source, session_medium, session_campaign) ORDER BY event_timestamp ASC LIMIT 1)[OFFSET(0)] AS first_attr,
+            COALESCE(ARRAY_AGG(NULLIF(session_source, '') IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)], '(direct)') AS session_source,
+            COALESCE(ARRAY_AGG(NULLIF(session_medium, '') IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)], '(none)') AS session_medium,
+            COALESCE(ARRAY_AGG(session_campaign IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)], '') AS session_campaign,
             COUNT(DISTINCT NULLIF(transaction_id, '')) AS transactions,
             SUM(COALESCE(purchase_revenue, 0)) AS purchaseRevenue
           FROM base
@@ -1202,8 +1203,8 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
           GROUP BY 1
         )
         SELECT
-          CONCAT(COALESCE(first_attr.session_source, '(direct)'), ' / ', COALESCE(first_attr.session_medium, '(none)')) AS sessionSourceMedium,
-          COALESCE(first_attr.session_campaign, '') AS sessionCampaignName,
+          CONCAT(COALESCE(session_source, '(direct)'), ' / ', COALESCE(session_medium, '(none)')) AS sessionSourceMedium,
+          COALESCE(session_campaign, '') AS sessionCampaignName,
           1.0 AS sessions,
           CAST(transactions AS FLOAT64) AS transactions,
           CAST(purchaseRevenue AS FLOAT64) AS purchaseRevenue
@@ -1231,9 +1232,17 @@ def _fetch_channel_fact_table(
     start: dt.date,
     end: dt.date,
 ) -> pd.DataFrame:
-    """Return the GA4 Data API fact table directly so channel classification matches the Looker sample logic."""
+    """
+    Prefer a strict BigQuery session-grain base so each session is counted exactly once.
+    Fall back to GA4 Data API only if BQ is unavailable.
+    """
     dims = ['sessionSourceMedium', 'sessionCampaignName']
     mets = ['sessions', 'transactions', 'purchaseRevenue']
+
+    df = _fetch_session_channel_base_bq(start, end)
+    if df is not None and not df.empty:
+        return df[dims + mets]
+
     try:
         df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
         if df.empty:
