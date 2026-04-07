@@ -183,6 +183,26 @@ def fmt_date(v: Any) -> str:
     return s[:10]
 
 
+def clean_label(v: Any, fallback: str = "Unknown") -> str:
+    if v is None or pd.isna(v):
+        return fallback
+    s = str(v).strip()
+    if not s:
+        return fallback
+    s_norm = s.lower()
+    if s_norm in {"Unknown", "not set", "null", "none", "nan", "nat", "unknown", "undefined", "n/a", "na", "-"}:
+        return fallback
+    return s
+
+
+def clean_label_series(s: pd.Series, fallback: str = "Unknown") -> pd.Series:
+    return s.map(lambda v: clean_label(v, fallback))
+
+
+def is_unknown_label(v: Any) -> bool:
+    return clean_label(v, "Unknown") == "Unknown"
+
+
 def canonical_bucket(channel_group: Any, first_source: Any = None, medium: Any = None, campaign: Any = None) -> str:
     raw = str(channel_group or "").strip()
     if raw:
@@ -282,12 +302,12 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     gender = gender.replace({"1": "MALE", "2": "FEMALE", "0": "UNKNOWN", "M": "MALE", "F": "FEMALE"})
     out["gender_norm"] = gender
 
-    out["last_category_norm"] = safe_series(out, ["last_category", "top_category", "preferred_category"], "(not set)").astype(str)
-    out["top_category_norm"] = safe_series(out, ["top_category", "preferred_category", "last_category"], "(not set)").astype(str)
-    out["top_product_norm"] = safe_series(out, ["top_product", "preferred_product", "first_purchase_product"], "(not set)").astype(str)
-    out["campaign_norm"] = safe_series(out, ["session_campaign", "first_campaign", "latest_campaign"], "(not set)").astype(str)
-    out["recommended_message_norm"] = safe_series(out, ["recommended_message"], "GENERAL").astype(str)
-    out["first_source_norm"] = safe_series(out, ["first_source", "latest_source"], "(not set)").astype(str)
+    out["last_category_norm"] = clean_label_series(safe_series(out, ["last_category", "top_category", "preferred_category"], None), "Unknown")
+    out["top_category_norm"] = clean_label_series(safe_series(out, ["top_category", "preferred_category", "last_category"], None), "Unknown")
+    out["top_product_norm"] = clean_label_series(safe_series(out, ["top_product", "preferred_product", "first_purchase_product"], None), "Unknown")
+    out["campaign_norm"] = clean_label_series(safe_series(out, ["session_campaign", "first_campaign", "latest_campaign"], None), "Unknown")
+    out["recommended_message_norm"] = clean_label_series(safe_series(out, ["recommended_message"], "GENERAL"), "GENERAL")
+    out["first_source_norm"] = clean_label_series(safe_series(out, ["first_source", "latest_source"], None), "Unknown")
     out["last_order_date_norm"] = safe_series(out, ["last_order_date"], "").map(fmt_date)
 
     flag_map = {
@@ -362,12 +382,16 @@ def period_date_range(days: int) -> Tuple[dt.date, dt.date]:
 def build_distribution(rows: pd.DataFrame, key: str, top_n: int = 5) -> List[dict]:
     if rows.empty or key not in rows.columns:
         return []
-    s = rows[key].fillna("UNKNOWN").astype(str)
-    vc = s.value_counts(dropna=False)
-    total = int(vc.sum())
+    s = clean_label_series(rows[key], "Unknown")
+    total = int(len(s))
+    valid = s[s != "Unknown"]
+    vc = (valid if not valid.empty else s).value_counts(dropna=False)
     result = []
     for label, count in vc.head(top_n).items():
-        result.append({"label": str(label), "count": int(count), "share_pct": round((count / total * 100) if total else 0, 1)})
+        result.append({"label": clean_label(label, "Unknown"), "count": int(count), "share_pct": round((count / total * 100) if total else 0, 1)})
+    unknown_count = int((s == "Unknown").sum())
+    if unknown_count and all(r["label"] != "Unknown" for r in result) and len(result) < top_n:
+        result.append({"label": "Unknown", "count": unknown_count, "share_pct": round((unknown_count / total * 100) if total else 0, 1)})
     return result
 
 
@@ -462,9 +486,14 @@ def build_user_rows(df: pd.DataFrame) -> pd.DataFrame:
 
 def _top_label(df: pd.DataFrame, col: str) -> str:
     if df.empty or col not in df.columns:
-        return "(not set)"
-    vc = df[col].fillna("(not set)").astype(str).value_counts()
-    return str(vc.index[0]) if len(vc) else "(not set)"
+        return "Unknown"
+    s = clean_label_series(df[col], "Unknown")
+    valid = s[s != "Unknown"]
+    if not valid.empty:
+        vc = valid.value_counts()
+        return str(vc.index[0]) if len(vc) else "Unknown"
+    vc = s.value_counts()
+    return str(vc.index[0]) if len(vc) else "Unknown"
 
 
 def build_non_buyer_block(user_df: pd.DataFrame) -> dict:
@@ -532,7 +561,7 @@ def build_buyer_block(user_df: pd.DataFrame) -> dict:
 
 
 def build_product_block(df: pd.DataFrame) -> dict:
-    category_dist = build_distribution(df[df["top_category_norm"] != "(not set)"], "top_category_norm", top_n=8)
+    category_dist = build_distribution(df[df["top_category_norm"] != "Unknown"], "top_category_norm", top_n=8)
     g = (
         df.groupby(["channel_group_norm", "top_product_norm"], dropna=False)
         .agg(buyers=("purchase_norm", "sum"), revenue=("revenue_norm", "sum"))
@@ -719,15 +748,16 @@ def pills_html(items: List[dict], style: str = "default") -> str:
     return "".join(rows)
 
 
-def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Optional[set] = None) -> str:
+def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Optional[set] = None, limit: int = 20) -> str:
     numeric = numeric or set()
     head = "".join(f'<th class="{"num" if key in numeric else ""}">{esc(label)}</th>' for key, label in columns)
     body = []
+    visible_rows = rows[:limit] if rows else []
     if not rows:
         colspan = len(columns)
         body.append(f'<tr><td colspan="{colspan}" class="muted">데이터가 없습니다.</td></tr>')
     else:
-        for r in rows:
+        for r in visible_rows:
             tds = []
             for key, _ in columns:
                 val = r.get(key, "")
@@ -736,9 +766,16 @@ def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Option
                         val = fmt_money(val)
                     else:
                         val = fmt_int(val)
-                tds.append(f'<td class="{"num" if key in numeric else ""}">{esc(val)}</td>')
+                elif isinstance(val, str):
+                    val = clean_label(val, "Unknown")
+                td_cls = "num" if key in numeric else ""
+                if isinstance(val, str) and val == "Unknown":
+                    tds.append(f'<td class="{td_cls}"><span class="tag tag-unknown">Unknown</span></td>')
+                else:
+                    tds.append(f'<td class="{td_cls}">{esc(val)}</td>')
             body.append(f"<tr>{''.join(tds)}</tr>")
-    return f'<div class="table-wrap"><table class="data-table"><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
+    meta = f'<div class="table-meta">전체 {fmt_int(len(rows))}행 중 {fmt_int(len(visible_rows))}행 표시</div>' if rows else ''
+    return f'{meta}<div class="table-wrap"><table class="data-table"><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
 
 
 def render_page(bundle: dict, preset: dict) -> str:
@@ -832,6 +869,7 @@ def render_page(bundle: dict, preset: dict) -> str:
   --bg:#eef3f8;
   --bg2:#f7fafc;
   --ink:#0f172a;
+  --ink2:#1e293b;
   --muted:#64748b;
   --line:#dbe4ee;
   --card:#ffffff;
@@ -840,72 +878,79 @@ def render_page(bundle: dict, preset: dict) -> str:
   --blue:#2563eb;
   --blue2:#4f8cff;
   --green:#059669;
+  --amber:#d97706;
   --shadow:0 16px 40px rgba(15,23,42,.08);
   --radius:24px;
 }}
 *{{box-sizing:border-box}}
-body{{margin:0;font-family:Inter, system-ui, -apple-system, Segoe UI, Noto Sans KR, sans-serif;color:var(--ink);background:linear-gradient(180deg,var(--bg2),var(--bg));}}
+html{{scroll-behavior:smooth}}
+body{{margin:0;font-family:"Inter","Pretendard","Noto Sans KR",system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:linear-gradient(180deg,var(--bg2),var(--bg));font-variant-numeric:tabular-nums;}}
 a{{color:inherit;text-decoration:none}}
-.wrap{{max-width:1540px;margin:0 auto;padding:18px 22px 60px}}
-.hero{{background:linear-gradient(135deg,#020817,#071b45 60%,#0f3fb1);color:#fff;border-radius:28px;padding:18px 18px 20px;box-shadow:0 20px 50px rgba(2,8,23,.22)}}
-.hero-grid{{display:grid;grid-template-columns:1.35fr .95fr;gap:14px}}
+.wrap{{max-width:1540px;margin:0 auto;padding:24px 24px 72px}}
+.hero{{background:linear-gradient(135deg,#020817,#071b45 60%,#0f3fb1);color:#fff;border-radius:28px;padding:20px 20px 22px;box-shadow:0 20px 50px rgba(2,8,23,.22)}}
+.hero-grid{{display:grid;grid-template-columns:1.35fr .95fr;gap:16px}}
 .badge{{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.08);font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}}
-.hero h1{{margin:14px 0 8px;font-size:48px;line-height:1.02;letter-spacing:-.04em}}
-.hero p{{margin:0;color:rgba(255,255,255,.8);font-size:14px;font-weight:700;line-height:1.6;max-width:860px}}
+.hero h1{{margin:14px 0 8px;font-size:36px;line-height:1.02;letter-spacing:-.04em;font-weight:900}}
+.hero p{{margin:0;color:rgba(255,255,255,.84);font-size:14px;font-weight:650;line-height:1.65;max-width:860px}}
 .period-row,.hero-links{{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}}
-.period-chip{{padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:900}}
+.period-chip{{padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:800}}
 .period-chip.active{{background:#fff;color:#071b45}}
 .hero-stat-grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}
-.hero-stat{{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:16px}}
-.kicker{{font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}}
+.hero-stat{{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:16px;min-height:116px}}
+.kicker{{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}}
 .hero .kicker{{color:rgba(255,255,255,.72)}}
-.hero-value{{font-size:30px;font-weight:950;letter-spacing:-.03em;margin-top:10px}}
-.hero-sub{{margin-top:6px;color:rgba(255,255,255,.78);font-size:12px;font-weight:800;line-height:1.5}}
-.filters{{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;padding:16px 18px;background:rgba(255,255,255,.88);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}}
+.hero-value{{font-size:30px;font-weight:900;letter-spacing:-.03em;margin-top:10px}}
+.hero-sub{{margin-top:6px;color:rgba(255,255,255,.78);font-size:12px;font-weight:700;line-height:1.55}}
+.filters{{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;padding:16px 18px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}}
 .filters-left{{display:flex;gap:8px;flex-wrap:wrap}}
-.tab-btn{{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;color:#334155;font-size:13px;font-weight:900;cursor:pointer}}
+.tab-btn{{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:#fff;color:#334155;font-size:13px;font-weight:800;cursor:pointer}}
 .tab-btn.active{{background:#0f172a;color:#fff;border-color:#0f172a}}
 .date-tools{{display:flex;gap:10px;align-items:center;flex-wrap:wrap}}
-.date-tools input{{height:42px;border:1px solid var(--line);border-radius:14px;padding:0 12px;background:#fff;color:#334155;font-weight:800}}
-.date-tools button{{height:42px;border:0;border-radius:14px;background:#0f172a;color:#fff;padding:0 14px;font-weight:900;cursor:pointer}}
+.date-tools input{{height:42px;border:1px solid var(--line);border-radius:14px;padding:0 12px;background:#fff;color:#334155;font-weight:700}}
+.date-tools button{{height:42px;border:0;border-radius:14px;background:#0f172a;color:#fff;padding:0 14px;font-weight:800;cursor:pointer}}
 .summary-card{{margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:18px 18px;box-shadow:var(--shadow)}}
-.summary-card ul{{margin:10px 0 0 18px;padding:0;color:#334155;font-weight:800;line-height:1.8}}
+.summary-card ul{{margin:10px 0 0 18px;padding:0;color:#334155;font-weight:700;line-height:1.8}}
 .panel{{display:none;margin-top:18px}}
 .panel.active{{display:block}}
 .grid-4{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}
 .grid-3{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}}
 .grid-2{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}
-.card{{background:#fff;border:1px solid var(--line);border-radius:24px;padding:18px;box-shadow:var(--shadow)}}
-.kpi{{font-size:34px;font-weight:950;letter-spacing:-.04em;margin-top:8px}}
-.kpi-sub{{margin-top:8px;color:var(--muted);font-size:12px;font-weight:800;line-height:1.55}}
-.section-title{{font-size:13px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#64748b;margin-bottom:12px}}
-.section-head{{display:flex;align-items:end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:28px 0 12px}}
-.section-head h2{{margin:0;font-size:34px;letter-spacing:-.03em}}
-.soft-note{{font-size:12px;font-weight:800;color:#64748b}}
+.card{{background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow)}}
+.kpi{{font-size:32px;font-weight:900;letter-spacing:-.04em;margin-top:10px;line-height:1.05}}
+.kpi-sub{{margin-top:8px;color:var(--muted);font-size:12px;font-weight:700;line-height:1.6}}
+.section-title{{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#64748b;margin-bottom:12px}}
+.section-head{{display:flex;align-items:end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:34px 0 14px}}
+.section-head h2{{margin:0;font-size:24px;letter-spacing:-.03em;font-weight:900}}
+.soft-note{{font-size:12px;font-weight:700;color:#64748b}}
 .dist-list{{display:grid;gap:10px}}
 .dist-row{{display:grid;grid-template-columns:120px 1fr 64px;gap:10px;align-items:center}}
-.dist-label{{font-size:13px;font-weight:900;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+.dist-label{{font-size:13px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 .dist-bar{{height:10px;border-radius:999px;background:#edf2f7;overflow:hidden}}
 .dist-bar span{{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);border-radius:999px}}
-.dist-value{{text-align:right;font-size:12px;font-weight:900;color:#334155}}
-.table-wrap{{overflow:auto}}
-.data-table{{width:100%;border-collapse:collapse;min-width:820px}}
-th{{text-align:left;padding:12px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#64748b;border-bottom:1px solid var(--line)}}
-td{{padding:12px 10px;border-bottom:1px solid #edf2f7;font-size:13px;font-weight:800;color:#1e293b}}
+.dist-value{{text-align:right;font-size:12px;font-weight:800;color:#334155}}
+.table-meta{{margin:2px 0 8px;color:var(--muted);font-size:12px;font-weight:700}}
+.table-wrap{{overflow:auto;border:1px solid #edf2f7;border-radius:18px;background:#fff}}
+.data-table{{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}}
+thead th{{position:sticky;top:0;background:#f8fafc;z-index:1}}
+th{{text-align:left;padding:13px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#64748b;border-bottom:1px solid var(--line);font-weight:800}}
+td{{padding:13px 12px;border-bottom:1px solid #edf2f7;font-size:12px;font-weight:700;color:#1e293b;vertical-align:top}}
+.data-table tbody tr:hover td{{background:#fafcff}}
 th.num,td.num{{text-align:right}}
 .action-card{{background:#fff;border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow)}}
-.action-value{{font-size:28px;font-weight:950;letter-spacing:-.03em;margin-top:8px}}
+.action-value{{font-size:28px;font-weight:900;letter-spacing:-.03em;margin-top:8px}}
 .mini-grid{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}}
-.mini-panel{{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}}
-.mini-kicker{{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#64748b}}
-.mini-main{{font-size:22px;font-weight:950;letter-spacing:-.03em;margin-top:8px;line-height:1.25}}
-.mini-copy{{margin-top:8px;color:#475569;font-size:12px;font-weight:800;line-height:1.55}}
+.mini-panel{{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow);min-height:132px}}
+.mini-kicker{{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#64748b}}
+.mini-main{{font-size:22px;font-weight:900;letter-spacing:-.03em;margin-top:8px;line-height:1.25}}
+.mini-copy{{margin-top:8px;color:#475569;font-size:12px;font-weight:700;line-height:1.6}}
 .download-row{{display:flex;gap:10px;flex-wrap:wrap}}
-.download-btn{{display:inline-flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;padding:10px 14px;border-radius:14px;font-size:12px;font-weight:900}}
-.empty-note{{padding:18px;border-radius:18px;background:#fff;border:1px dashed var(--line);color:#64748b;font-size:13px;font-weight:800}}
-.hero-link{{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:900}}
+.download-btn{{display:inline-flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;padding:10px 14px;border-radius:14px;font-size:12px;font-weight:800}}
+.empty-note{{padding:18px;border-radius:18px;background:#fff;border:1px dashed var(--line);color:#64748b;font-size:13px;font-weight:700}}
+.hero-link{{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);font-size:12px;font-weight:800}}
+.tag{{display:inline-flex;align-items:center;justify-content:center;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;line-height:1}}
+.tag-unknown{{background:#fff7ed;color:var(--amber);border:1px solid #fed7aa}}
 @media (max-width:1280px){{.hero-grid,.grid-4,.grid-3,.grid-2,.mini-grid{{grid-template-columns:1fr 1fr}}}}
-@media (max-width:860px){{.hero-grid,.grid-4,.grid-3,.grid-2,.mini-grid{{grid-template-columns:1fr}} .hero h1{{font-size:36px}} .dist-row{{grid-template-columns:92px 1fr 54px}} .wrap{{padding:16px}} }}
+@media (max-width:860px){{.hero-grid,.grid-4,.grid-3,.grid-2,.mini-grid{{grid-template-columns:1fr}} .hero h1{{font-size:32px}} .dist-row{{grid-template-columns:92px 1fr 54px}} .wrap{{padding:16px}} }}
 </style>
 </head>
 <body>
