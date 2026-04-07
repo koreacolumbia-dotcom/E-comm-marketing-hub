@@ -975,8 +975,8 @@ def _rx(p: str):
 
 def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     """
-    Match the uploaded RTF CASE logic as closely as possible.
-    Output buckets must stay identical to the RTF labels used in Channel Snapshot.
+    Strictly match the uploaded Looker Studio sample CASE logic.
+    Do not add any extra rules beyond the sample.
     """
     sm = (source_medium or "").strip()
     cp = (campaign or "").strip()
@@ -1009,14 +1009,10 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
 
     if _rx(r"(?i).*(igshopping).*").search(sm):
         return "Official SNS"
-    if _rx(r"(?i).*(instagram).*").search(sm) and _rx(r"(?i).*(feed).*").search(sm):
-        return "Official SNS"
     if _rx(r"(?i).*(facebook).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
         return "Organic Traffic"
     if _rx(r"(?i).*(instagram).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
         return "Official SNS"
-    if _rx(r"(?i).*(ig).*").search(sm) and _rx(r"(?i).*(paid).*").search(sm):
-        return "Paid Ad"
     if _rx(r"(?i).*(meta|facebook|instagram|ig|fb).*").search(sm):
         return "Paid Ad"
 
@@ -1075,10 +1071,6 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     if _rx(r"(?i).*(kakao).*").search(sm):
         return "Paid Ad"
 
-    if _rx(r"(?i).*(\(not set\)).*").search(sm):
-        return "Organic Traffic"
-    if _rx(r"(?i).*(m\.search\.naver\.com).*").search(sm) and _rx(r"(?i).*(referral).*").search(sm):
-        return "Organic Traffic"
     if _rx(r"(?i).*(\(direct\) / \(none\)).*").search(sm):
         return "Organic Traffic"
 
@@ -1239,11 +1231,7 @@ def _fetch_channel_fact_table(
     start: dt.date,
     end: dt.date,
 ) -> pd.DataFrame:
-    """Return a consistent fact table for channel attribution. Prefer BQ session base; fallback to Data API."""
-    df = _fetch_session_channel_base_bq(start, end)
-    if df is not None and not df.empty:
-        return df
-
+    """Return the GA4 Data API fact table directly so channel classification matches the Looker sample logic."""
     dims = ['sessionSourceMedium', 'sessionCampaignName']
     mets = ['sessions', 'transactions', 'purchaseRevenue']
     try:
@@ -1255,7 +1243,7 @@ def _fetch_channel_fact_table(
         df['sessionCampaignName'] = df['sessionCampaignName'].astype(str).fillna('')
         for c in mets:
             df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
-        return df
+        return df[dims + mets]
     except Exception:
         df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ['sessionSourceMedium'], mets, limit=250000)
         if df.empty:
@@ -1291,20 +1279,8 @@ def get_channel_snapshot_3way(
 ) -> pd.DataFrame:
     """
     Build Channel Snapshot using the Looker CASE bucket logic.
-    The Total row is always forced from the authoritative overall KPI.
-    Prefer a session-grain BQ base to avoid duplicated sessions across multiple source/campaign rows.
-    When the BQ session base is slightly short versus GA4 overall sessions, add the residual to `etc`
-    so the rendered snapshot still reconciles to the top KPI card.
+    Use GA4 Data API dimensions directly and do not inject reconciliation residuals.
     """
-
-    def _overall_sessions_for_range(start: dt.date, end: dt.date) -> float:
-        try:
-            df_total = run_report(client, PROPERTY_ID, ymd(start), ymd(end), [], ['sessions'])
-            if df_total.empty:
-                return 0.0
-            return float(df_total.iloc[0].get('sessions', 0) or 0)
-        except Exception:
-            return 0.0
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         df = _fetch_channel_fact_table(client, start, end)
@@ -1312,38 +1288,6 @@ def get_channel_snapshot_3way(
             return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue', 'bucket'])
         df = df.copy()
         df['bucket'] = df.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
-        expected_sessions = _overall_sessions_for_range(start, end)
-        actual_sessions = float(pd.to_numeric(df.get('sessions', 0), errors='coerce').fillna(0).sum())
-        delta = expected_sessions - actual_sessions
-        if delta > 0.5:
-            print(f"[WARN] Channel base missing {delta:,.0f} sessions for {ymd(start)}~{ymd(end)}; assigning residual to etc.")
-            df = pd.concat([
-                df,
-                pd.DataFrame([{
-                    'sessionSourceMedium': '(reconciled) / (unknown)',
-                    'sessionCampaignName': '',
-                    'sessions': float(delta),
-                    'transactions': 0.0,
-                    'purchaseRevenue': 0.0,
-                    'bucket': 'etc',
-                }])
-            ], ignore_index=True)
-        elif delta < -0.5:
-            print(f"[WARN] Channel base exceeds overall sessions by {-delta:,.0f} for {ymd(start)}~{ymd(end)}; falling back to Data API grain.")
-            dims = ['sessionSourceMedium', 'sessionCampaignName']
-            mets = ['sessions', 'transactions', 'purchaseRevenue']
-            try:
-                df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-                if df.empty:
-                    return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue', 'bucket'])
-                df = df.copy()
-                df['sessionSourceMedium'] = df['sessionSourceMedium'].astype(str).fillna('')
-                df['sessionCampaignName'] = df['sessionCampaignName'].astype(str).fillna('')
-                for c in mets:
-                    df[c] = pd.to_numeric(df.get(c, 0), errors='coerce').fillna(0.0)
-                df['bucket'] = df.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
-            except Exception:
-                pass
         return df
 
     cur = fetch(w.cur_start, w.cur_end)
@@ -1366,10 +1310,6 @@ def get_channel_snapshot_3way(
     yoy_b = agg(yoy, "_yoy")
 
     m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
-
-    oc = overall.get("current", {}) or {}
-    op = overall.get("prev", {}) or {}
-    oy = overall.get("yoy", {}) or {}
 
     canonical_buckets = list(CHANNEL_BUCKET_ORDER)
     numeric_cols = [
@@ -1415,19 +1355,29 @@ def get_channel_snapshot_3way(
     out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
     out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
 
+    total_sessions_cur = float(m["sessions_cur"].sum()) if not m.empty else 0.0
+    total_sessions_prev = float(m["sessions_prev"].sum()) if not m.empty else 0.0
+    total_sessions_yoy = float(m["sessions_yoy"].sum()) if not m.empty else 0.0
+    total_transactions_cur = float(m["transactions_cur"].sum()) if not m.empty else 0.0
+    total_transactions_prev = float(m["transactions_prev"].sum()) if not m.empty else 0.0
+    total_transactions_yoy = float(m["transactions_yoy"].sum()) if not m.empty else 0.0
+    total_revenue_cur = float(m["revenue_cur"].sum()) if not m.empty else 0.0
+    total_revenue_prev = float(m["revenue_prev"].sum()) if not m.empty else 0.0
+    total_revenue_yoy = float(m["revenue_yoy"].sum()) if not m.empty else 0.0
+
     total = pd.DataFrame([{
         "bucket": "Total",
-        "sessions": float(oc.get("sessions", 0) or 0),
-        "transactions": float(oc.get("transactions", 0) or 0),
-        "purchaseRevenue": float(oc.get("purchaseRevenue", 0) or 0),
-        "session_dod": pct_change(float(oc.get("sessions", 0) or 0), float(op.get("sessions", 0) or 0)),
-        "session_yoy": pct_change(float(oc.get("sessions", 0) or 0), float(oy.get("sessions", 0) or 0)),
-        "orders_dod": pct_change(float(oc.get("transactions", 0) or 0), float(op.get("transactions", 0) or 0)),
-        "orders_yoy": pct_change(float(oc.get("transactions", 0) or 0), float(oy.get("transactions", 0) or 0)),
-        "revenue_dod": pct_change(float(oc.get("purchaseRevenue", 0) or 0), float(op.get("purchaseRevenue", 0) or 0)),
-        "revenue_yoy": pct_change(float(oc.get("purchaseRevenue", 0) or 0), float(oy.get("purchaseRevenue", 0) or 0)),
-        "rev_dod": pct_change(float(oc.get("sessions", 0) or 0), float(op.get("sessions", 0) or 0)),
-        "rev_yoy": pct_change(float(oc.get("sessions", 0) or 0), float(oy.get("sessions", 0) or 0)),
+        "sessions": total_sessions_cur,
+        "transactions": total_transactions_cur,
+        "purchaseRevenue": total_revenue_cur,
+        "session_dod": pct_change(total_sessions_cur, total_sessions_prev),
+        "session_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
+        "orders_dod": pct_change(total_transactions_cur, total_transactions_prev),
+        "orders_yoy": pct_change(total_transactions_cur, total_transactions_yoy),
+        "revenue_dod": pct_change(total_revenue_cur, total_revenue_prev),
+        "revenue_yoy": pct_change(total_revenue_cur, total_revenue_yoy),
+        "rev_dod": pct_change(total_sessions_cur, total_sessions_prev),
+        "rev_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
     }])
 
     out = pd.concat([out, total], ignore_index=True)
