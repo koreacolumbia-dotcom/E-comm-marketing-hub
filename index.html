@@ -261,6 +261,9 @@
         <div class="nav-item" data-key="hero" data-target="reports/hero_main.html" data-label="메인 히어로 배너">
           <i class="fa-solid fa-image"></i><span>경쟁사 기획전 배너</span>
         </div>
+        <div class="nav-item" data-key="competitor" data-target="reports/competitor_intel/dashboard.html" data-label="경쟁사 상품 분석">
+          <i class="fa-solid fa-chart-column"></i><span>경쟁사 상품 분석</span>
+        </div>
       </div>
     </div>
 
@@ -329,7 +332,7 @@
 
 <!-- ================= Mobile Bottom Tabbar (MO) ================= -->
 <nav class="lg:hidden fixed bottom-0 left-0 right-0 mo-tabbar safe-bottom px-3 py-3">
-  <div class="max-w-2xl mx-auto grid grid-cols-5 sm:grid-cols-10 gap-2">
+  <div class="max-w-2xl mx-auto grid grid-cols-5 sm:grid-cols-11 gap-2">
     <div class="mo-tab active" data-key="summary" data-target="reports/index.html" data-label="Summary">
       <i class="fa-solid fa-chart-simple text-base"></i>
       <div class="text-[10px]">요약</div>
@@ -370,6 +373,11 @@
       <div class="text-[10px]">배너</div>
     </div>
 
+    <div class="mo-tab" data-key="competitor" data-target="reports/competitor_intel/dashboard.html" data-label="경쟁사 상품 분석">
+      <i class="fa-solid fa-chart-column text-base"></i>
+      <div class="text-[10px]">경쟁사</div>
+    </div>
+
     <div class="mo-tab" data-key="voc" data-target="reports/external_signal.html" data-label="외부 VOC">
       <i class="fa-solid fa-tower-broadcast text-base"></i>
       <div class="text-[10px]">외부</div>
@@ -408,6 +416,7 @@
       searchtrends: "reports/search_trends/data/meta.json",
       price:   "reports/meta.json",
       hero:    "reports/meta.json",
+      competitor: "reports/meta.json",
       voc:     "reports/meta.json",
       crema:   "reports/voc_crema/data/meta.json",
       blogvoc: "reports/voc_blog/data/meta.json",
