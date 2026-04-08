@@ -137,7 +137,7 @@ BRAND_CONFIGS: List[BrandConfig] = [
         detail_mode="hybrid",
     ),
     BrandConfig(
-        brand="DISCOVERY_EXPEDITION",
+        brand="DISCOVERY",
         seed_urls=["https://www.discovery-expedition.com/"],
         domain="www.discovery-expedition.com",
         brand_terms=["discovery", "디스커버리"],
@@ -299,19 +299,20 @@ CONFLICT_RULES: List[Tuple[str, str, str]] = [
     ("다운", "인슐레이션", "다운"),
 ]
 
+
 CATEGORY_RULES: Dict[str, List[str]] = {
     "자켓": ["jacket", "jk", "자켓", "재킷", "아노락", "바람막이", "windbreaker", "shell", "parka", "파카"],
     "팬츠": ["pants", "pant", "trouser", "팬츠", "바지", "조거", "슬랙스", "쇼츠", "반바지", "cargo", "카고", "legging", "레깅스"],
     "플리스": ["fleece", "플리스", "boa", "보아"],
     "다운": ["down", "덕다운", "구스다운", "패딩", "puffer"],
     "베스트": ["vest", "베스트"],
-    "집티": ["zip tee", "zip-tee", "zip tee", "zip-up", "zip up", "집업", "하프집업", "half zip", "half-zip"],
     "후디": ["hoodie", "hood", "후디", "후드", "후드티", "sweatshirt", "맨투맨"],
-    "티셔츠": ["tee", "t-shirt", "t shirt", "티셔츠", "반팔", "긴팔", "sleeve"],
+    "티셔츠": ["tee", "t-shirt", "t shirt", "티셔츠", "반팔", "긴팔", "sleeve", "half zip", "half-zip", "집업티", "zip tee", "zip-tee"],
     "셔츠": ["shirt", "셔츠"],
-    "슈즈": ["shoe", "shoes", "boot", "boots", "sneaker", "trail", "등산화", "신발", "부츠", "sandals", "sandal", "샌들", "슬라이드", "slide", "슬리퍼"],
-    "백팩": ["backpack", "bag", "pack", "배낭", "백팩", "가방"],
-    "캡": ["cap", "hat", "모자", "캡", "비니"],
+    "슈즈": ["shoe", "shoes", "boot", "boots", "sneaker", "trail", "등산화", "신발", "부츠", "sandals", "sandal", "샌들", "슬라이드", "slide", "슬리퍼", "atr", "outdry"],
+    "장갑": ["glove", "gloves", "장갑", "mitt"],
+    "백": ["bag", "bags", "backpack", "pack", "배낭", "백팩", "가방", "body bag", "bodybag", "바디백", "sling", "슬링백", "슬링", "shoulder case", "숄더케이스", "케이스"],
+    "ACC": ["acc", "accessory", "accessories", "모자", "cap", "hat", "부니", "bunny hat", "버킷햇"],
 }
 
 # ============================================================
@@ -561,11 +562,50 @@ def is_bad_discovery_desc(text: str) -> bool:
     return hits >= 2 or (len(t) < 220 and hits >= 1)
 
 
+
+
+def clean_product_text(text: str) -> str:
+    t = compact_text(text)
+    if not t:
+        return ""
+    t = re.sub(r'#광고\b', '', t, flags=re.I)
+    t = re.sub(r'\b(sold\s*out|coming\s*soon)\b', '', t, flags=re.I)
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
+
+def choose_price_text(values: List[str]) -> str:
+    cleaned = [compact_text(v) for v in values if compact_text(v)]
+    if not cleaned:
+        return ""
+    preferred = []
+    for v in cleaned:
+        if '%' in v and ('원' not in v and ',' not in v):
+            continue
+        if re.search(r'\d{1,3}(?:,\d{3})+', v) or '원' in v:
+            preferred.append(v)
+    if preferred:
+        return sorted(preferred, key=lambda x: (0 if '판매가' in x or 'price' in x.lower() else 1, len(x)))[0]
+    return cleaned[0]
+
+def extract_discount_rate_from_text(text: str) -> Optional[float]:
+    if not text:
+        return None
+    m = re.search(r'(\d{1,2})\s*%', str(text))
+    if not m:
+        return None
+    try:
+        v = int(m.group(1))
+        if 1 <= v <= 95:
+            return float(v)
+    except Exception:
+        return None
+    return None
+
 def choose_first_good_text(values: List[str], brand: str = "") -> str:
     cleaned = [compact_text(v) for v in values if compact_text(v)]
     if not cleaned:
         return ""
-    if brand == "DISCOVERY_EXPEDITION":
+    if brand == "DISCOVERY":
         good = [v for v in cleaned if not is_bad_discovery_desc(v)]
         if good:
             return sorted(good, key=len, reverse=True)[0]
@@ -647,15 +687,16 @@ def bs_first_attr(soup: BeautifulSoup, selectors: List[str], attr: str) -> str:
 # 3. ANALYZER
 # ============================================================
 
+
 def infer_gender(name: str, description: str, raw_gender: str) -> str:
     blob = f"{name} {description} {raw_gender}".lower()
-    if any(x in blob for x in ["unisex", "공용", "유니섹스"]):
-        return "공용"
-    if any(x in blob for x in ["women", "womens", "여성", "우먼", "woman"]):
+    if any(x in blob for x in ["여성", "우먼", "women", "womens", "woman", " w ", "(w)", "w)"]):
         return "여성"
-    if any(x in blob for x in ["men", "mens", "남성", "맨즈", "man"]):
+    if any(x in blob for x in ["남성", "맨즈", "men", "mens", "man", " m ", "(m)", "m)"]):
         return "남성"
-    return "미분류"
+    if any(x in blob for x in ["공용", "유니섹스", "unisex"]):
+        return "공용"
+    return "공용"
 
 
 def infer_season(name: str, description: str, raw_season: str) -> str:
@@ -672,32 +713,38 @@ def infer_season(name: str, description: str, raw_season: str) -> str:
 
 
 
+
 def infer_item_category(name: str, description: str) -> str:
     blob = f"{name} {description}".lower()
 
-    # stronger direct rules to reduce 기타
-    if any(x in blob for x in ["zip tee", "zip-up", "zip up", "집업", "하프집업", "half zip", "half-zip"]):
-        return "집티"
-    if any(x in blob for x in ["hoodie", "후디", "후드", "후드티", "맨투맨", "sweatshirt"]):
+    if any(x in blob for x in ["장갑", "glove", "gloves", "mitt"]):
+        return "장갑"
+    if any(x in blob for x in ["바디백", "슬링백", "슬링", "숄더케이스", "케이스", "body bag", "bodybag", "sling", "shoulder case"]):
+        return "백"
+    if any(x in blob for x in ["부니", "모자", "cap", "hat", "accessory", "accessories"]):
+        return "ACC"
+    if any(x in blob for x in ["샌들", "슬라이드", "슬리퍼", "shoe", "shoes", "boot", "boots", "atr", "outdry", "등산화", "신발", "부츠"]):
+        return "슈즈"
+    if any(x in blob for x in ["자켓", "재킷", "바람막이", "windbreaker", "jacket", "shell", "parka", "퍼텍스"]):
+        return "자켓"
+    if any(x in blob for x in ["티셔츠", "tee", "t-shirt", "반팔", "긴팔", "half zip", "half-zip", "집업티"]):
+        return "티셔츠"
+    if any(x in blob for x in ["후디", "후드", "hoodie", "hood", "sweatshirt", "맨투맨"]):
         return "후디"
-    if any(x in blob for x in ["fleece", "플리스", "boa", "보아"]):
+    if any(x in blob for x in ["플리스", "fleece", "boa", "보아"]):
         return "플리스"
     if any(x in blob for x in ["down", "패딩", "덕다운", "구스다운", "puffer"]):
         return "다운"
+    if any(x in blob for x in ["vest", "베스트"]):
+        return "베스트"
+    if any(x in blob for x in ["pants", "pant", "바지", "팬츠", "cargo", "조거", "슬랙스"]):
+        return "팬츠"
+    if any(x in blob for x in ["shirt", "셔츠"]):
+        return "셔츠"
 
     for category, keywords in CATEGORY_RULES.items():
         if any(k.lower() in blob for k in keywords):
             return category
-
-    # fallback by common apparel words to minimize 기타
-    if any(x in blob for x in ["jacket", "shell", "parka", "자켓", "재킷"]):
-        return "자켓"
-    if any(x in blob for x in ["pants", "pant", "바지", "팬츠"]):
-        return "팬츠"
-    if any(x in blob for x in ["shoe", "shoes", "boot", "boots", "신발", "등산화", "부츠", "샌들", "sandals", "sandal", "슬라이드", "slide", "슬리퍼"]):
-        return "슈즈"
-    if any(x in blob for x in ["tee", "티셔츠", "반팔", "긴팔"]):
-        return "티셔츠"
     return "기타"
 
 
@@ -817,11 +864,12 @@ def classify_positioning_x(attrs: List[str], dominant_attribute: str, shell_type
     return "Lifestyle"
 
 
+
 def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
+    raw.name = clean_product_text(raw.name)
+    raw.description = clean_product_text(raw.description)
     current_price = parse_price_to_int(raw.price_text)
     original_price = parse_price_to_int(raw.original_price_text)
-    if current_price is not None and original_price is not None and original_price < current_price:
-        original_price = current_price
     if current_price is None and original_price is not None:
         current_price = original_price
     if original_price is None and current_price is not None:
@@ -838,7 +886,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     pos_x = classify_positioning_x(resolved_attrs, dominant, shell_type)
 
     return ProductAnalyzed(
-        brand=raw.brand,
+        brand=("DISCOVERY" if raw.brand == "DISCOVERY" else raw.brand),
         source_url=raw.source_url,
         product_url=raw.product_url,
         name=raw.name,
@@ -846,7 +894,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         image_url=raw.image_url,
         current_price=current_price,
         original_price=original_price,
-        discount_rate=calc_discount_rate(current_price, original_price),
+        discount_rate=(calc_discount_rate(current_price, original_price) if calc_discount_rate(current_price, original_price) is not None else extract_discount_rate_from_text(f"{raw.price_text} {raw.original_price_text} {raw.name} {raw.description}")),
         sold_out=bool(safe_text(raw.sold_out_text)),
         gender=infer_gender(raw.name, raw.description, raw.gender_text),
         season=infer_season(raw.name, raw.description, raw.season_text),
@@ -1147,7 +1195,7 @@ class AutoCompetitorCrawler:
             desc_selectors = cfg.detail_desc_selectors or GENERIC_DESC_SELECTORS
             image_selectors = cfg.detail_image_selectors or GENERIC_IMAGE_SELECTORS
 
-            title = try_find_text(self.driver, name_selectors)
+            title = clean_product_text(try_find_text(self.driver, name_selectors))
             if not title:
                 try:
                     title = self.driver.title
@@ -1157,14 +1205,14 @@ class AutoCompetitorCrawler:
             price_candidates = try_find_all_texts(self.driver, price_selectors)
             original_price_candidates = try_find_all_texts(self.driver, original_price_selectors)
             desc_candidates = try_find_all_texts(self.driver, desc_selectors, limit=40)
-            desc = choose_first_good_text(desc_candidates, cfg.brand)
+            desc = clean_product_text(choose_first_good_text(desc_candidates, cfg.brand))
             image_url = try_find_attr(self.driver, image_selectors, "src") or try_find_attr(self.driver, image_selectors, "content")
             sold_out_text = try_find_text(self.driver, GENERIC_SOLDOUT_SELECTORS)
             gender_text = try_find_text(self.driver, GENERIC_GENDER_SELECTORS)
             season_text = try_find_text(self.driver, GENERIC_SEASON_SELECTORS)
 
-            price_text = choose_first_good_text(price_candidates, cfg.brand)
-            original_price_text = choose_first_good_text(original_price_candidates, cfg.brand)
+            price_text = choose_price_text(price_candidates)
+            original_price_text = choose_price_text(original_price_candidates)
 
             if not title and not price_text and not desc:
                 return None
@@ -1477,8 +1525,7 @@ def build_other_debug(df: pd.DataFrame) -> List[dict]:
             "item": item,
             "dominant_attribute": dom,
             "reason": ", ".join(reason_parts),
-            "tokens": ", ".join(cleaned),
-        })
+                    })
 
     return rows
 
@@ -1589,16 +1636,16 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "values": [int(x) if pd.notna(x) else 0 for x in brand_summary["avg_price"]],
         },
         "priceBand": {
-            "labels": list(df["price_band"].fillna("기타").value_counts().index),
-            "values": list(df["price_band"].fillna("기타").value_counts().values),
+            "labels": list(df.loc[df["price_band"].fillna("기타") != "기타", "price_band"].value_counts().index),
+            "values": list(df.loc[df["price_band"].fillna("기타") != "기타", "price_band"].value_counts().values),
         },
         "itemCategory": {
-            "labels": list(df["item_category"].fillna("기타").value_counts().head(12).index),
-            "values": list(df["item_category"].fillna("기타").value_counts().head(12).values),
+            "labels": list(df.loc[df["item_category"].fillna("기타") != "기타", "item_category"].value_counts().head(12).index),
+            "values": list(df.loc[df["item_category"].fillna("기타") != "기타", "item_category"].value_counts().head(12).values),
         },
         "dominantAttribute": {
-            "labels": list(df["dominant_attribute"].fillna("기타").value_counts().head(10).index),
-            "values": list(df["dominant_attribute"].fillna("기타").value_counts().head(10).values),
+            "labels": list(df.loc[df["dominant_attribute"].fillna("기타") != "기타", "dominant_attribute"].value_counts().head(10).index),
+            "values": list(df.loc[df["dominant_attribute"].fillna("기타") != "기타", "dominant_attribute"].value_counts().head(10).values),
         },
         "grade": {
             "labels": list(df["grade"].fillna("Entry").value_counts().index),
@@ -1609,8 +1656,8 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "values": list(df["shell_type"].fillna("Unknown").value_counts().values),
         },
         "genderSplit": {
-            "labels": list(df["gender"].fillna("미분류").value_counts().index),
-            "values": list(df["gender"].fillna("미분류").value_counts().values),
+            "labels": [("남" if x=="남성" else "녀" if x=="여성" else "공용") for x in list(df["gender"].fillna("공용").value_counts().index)],
+            "values": list(df["gender"].fillna("공용").value_counts().values),
         },
         "positioning": [
             {
@@ -1738,8 +1785,8 @@ def render_dashboard(payload: dict) -> str:
       <div class="glass-card p-5">
         <div class="section-eyebrow">COMPARE</div>
         <div class="mt-2 text-xl font-black">브랜드 비교표</div>
-        <div class="table-wrap mt-4 overflow-x-auto">
-          <table class="min-w-[1100px] w-full text-sm">
+        <div class="table-wrap mt-4 overflow-x-auto w-full">
+          <table class="min-w-[980px] w-full text-sm">
             <thead><tr class="border-b border-slate-200 text-slate-500">
               <th class="py-3 text-left">Brand</th><th class="py-3 text-right">Total</th><th class="py-3 text-right">Active</th>
               <th class="py-3 text-right">Avg Price</th><th class="py-3 text-right">Sale %</th><th class="py-3 text-right">방수</th>
@@ -1754,7 +1801,7 @@ def render_dashboard(payload: dict) -> str:
         <div class="section-eyebrow">POSITIONING</div>
         <div class="mt-2 text-xl font-black">브랜드 포지셔닝</div>
         <div class="chart-box tall mt-4"><canvas id="positionChart"></canvas></div>
-        <div class="mt-3 text-xs font-bold text-slate-500">X: Lifestyle → Performance → Extreme / Y: Mass → Premium → Luxury</div>
+        <div class="mt-3 text-xs font-bold text-slate-500">→ X축: 라이프스타일에서 퍼포먼스/익스트림으로 갈수록 기능성 강화 / ↑ Y축: 매스에서 프리미엄/럭셔리로 갈수록 가격대 상승</div>
       </div>
     </section>
 
@@ -1837,7 +1884,7 @@ def render_dashboard(payload: dict) -> str:
         <table class="min-w-[1400px] w-full text-sm">
           <thead><tr class="border-b border-slate-200 text-slate-500">
             <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-left">Name</th>
-            <th class="py-3 text-left">Item</th><th class="py-3 text-left">Item = Dominant Attr</th><th class="py-3 text-left">Reason</th><th class="py-3 text-left">Tokens</th>
+            <th class="py-3 text-left">Item</th><th class="py-3 text-left">Item = Dominant Attr</th><th class="py-3 text-left">Reason</th>
           </tr></thead>
           <tbody id="otherDebugBody"></tbody>
         </table>
@@ -2045,11 +2092,14 @@ function renderProducts(){
                       <div class="mt-3 flex flex-wrap gap-2">
                         ${String(p.standard_attributes||'').split(',').map(x => x.trim()).filter(Boolean).slice(0,6).map(x => '<span class="tag bg-slate-100 text-slate-700">' + x + '</span>').join('')}
                       </div>
-                      <div class="mt-3 text-sm font-bold leading-6 text-slate-500 line-clamp-3">${p.description || '설명 없음'}</div>
                       <div class="mt-4 flex items-center justify-between gap-3">
-                        <div class="text-xs font-black text-slate-400">${p.season} - ${p.price_band}</div>
-                        ${p.product_url ? '<a href="' + p.product_url + '" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>' : ''}
+                        <div class="text-xs font-black text-slate-400">${p.price_band}</div>
+                        <div class="flex gap-2">
+                          <button class="rounded-2xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-700" onclick="this.closest('article').querySelector('.extra-box').classList.toggle('hidden')">접기</button>
+                          ${p.product_url ? '<a href="' + p.product_url + '" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>' : ''}
+                        </div>
                       </div>
+                      <div class="extra-box hidden mt-3 text-xs font-bold text-slate-500">${p.name}</div>
                     </div>
                   </div>
                 </article>`).join('')}
@@ -2060,7 +2110,7 @@ function renderProducts(){
 }
 
 function renderOtherDebug(){
-  const rows = (DATA.other_debug || []).map(r => ({...r, gender: (r.name||"").includes("공용") ? "공용" : (r.gender || "미분류")}));
+  const rows = (DATA.other_debug || []).map(r => ({...r, gender: (r.name||"").includes("공용") ? "공용" : (r.gender || "공용")}));
   document.getElementById("otherDebugBody").innerHTML = rows.map(r => `
     <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
       <td class="py-3 font-black">${r.brand}</td>
@@ -2069,7 +2119,6 @@ function renderOtherDebug(){
       <td class="py-3">${r.item}</td>
       <td class="py-3">${r.dominant_attribute}</td>
       <td class="py-3">${r.reason}</td>
-      <td class="py-3 text-slate-500">${r.tokens}</td>
     </tr>`).join('');
 }
 
