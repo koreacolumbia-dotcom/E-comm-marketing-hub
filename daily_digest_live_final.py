@@ -3432,5 +3432,1012 @@ def main():
         print(f"[OK] Wrote HUB: {hub_path}")
 
 
+
+# ===== Restored function definitions from original to fix missing runtime symbols =====
+
+def _get_item_revenue_best_effort(
+    client: BetaAnalyticsDataClient,
+    start: dt.date,
+    end: dt.date,
+    limit: int = 10000,
+) -> pd.DataFrame:
+    for metric_name in ("itemRevenue",):
+        try:
+            df = run_report(
+                client, PROPERTY_ID, ymd(start), ymd(end),
+                ["itemId", "itemName"], [metric_name],
+                limit=limit
+            )
+            if df.empty:
+                continue
+            df["itemId"] = df["itemId"].astype(str).str.strip()
+            df["itemName"] = df["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+            df[metric_name] = pd.to_numeric(df[metric_name], errors="coerce").fillna(0.0)
+            df = df.rename(columns={metric_name: "revenue"})
+            return df[["itemId", "itemName", "revenue"]]
+        except Exception:
+            continue
+    return pd.DataFrame(columns=["itemId", "itemName", "revenue"])
+
+def _get_item_views_best_effort(
+    client: BetaAnalyticsDataClient,
+    start: dt.date,
+    end: dt.date,
+    skus: List[str],
+) -> pd.DataFrame:
+    if not skus:
+        return pd.DataFrame(columns=["itemId", "views"])
+
+    tries: List[Tuple[str, bool]] = [
+        ("itemViewEvents", False),
+        ("itemsViewed", False),
+        ("eventCount", True),  # with eventName=view_item
+    ]
+    for metric_name, use_event_filter in tries:
+        try:
+            v = run_report(
+                client, PROPERTY_ID,
+                ymd(start), ymd(end),
+                ["itemId"], [metric_name],
+                dimension_filter=(
+                    ga_filter_and([ga_filter_in("itemId", skus), ga_filter_eq("eventName", "view_item")])
+                    if use_event_filter else ga_filter_in("itemId", skus)
+                ),
+                limit=10000,
+            )
+            if v.empty:
+                continue
+            v["itemId"] = v["itemId"].astype(str).str.strip()
+            v[metric_name] = pd.to_numeric(v[metric_name], errors="coerce").fillna(0.0)
+            return v[["itemId", metric_name]].rename(columns={metric_name: "views"})
+        except Exception:
+            continue
+
+    return pd.DataFrame(columns=["itemId", "views"])
+
+def build_trend_svg_map(series: dict) -> Dict[str, str]:
+    return {
+        "7d": trend_svg_from_series(series, days=7),
+        "14d": trend_svg_from_series(series, days=14),
+        "1m": trend_svg_from_series(series, days=30),
+    }
+
+
+# =========================
+# Best Sellers + trends per SKU (kept)
+# =========================
+
+def classify_glink_spend_sub(media: Any, campaign_type: Any = "", device: Any = "", segment: Any = "") -> str:
+    m = str(media or "").strip().lower()
+    ct = str(campaign_type or "").strip().lower()
+    dv = str(device or "").strip().lower()
+    sg = str(segment or "").strip().lower()
+    joined = " ".join([m, ct, dv, sg])
+
+    def has(p: str) -> bool:
+        return re.search(p, joined, re.IGNORECASE) is not None
+
+    if has(r"criteo"):
+        return "criteo"
+    if has(r"(instagram|인스타)"):
+        return "instagram"
+    if has(r"(meta|메타|facebook|페이스북)"):
+        return "meta"
+
+    if has(r"(google|구글)"):
+        if has(r"(demand|dg|demand[\s_-]*gen)"):
+            return "google demand gen"
+        if has(r"pmax"):
+            return "google pmax"
+        if has(r"(^|[^a-z])(sa|ss|search)([^a-z]|$)|검색"):
+            return "google search"
+        return "google"
+
+    if has(r"(naver|네이버)"):
+        if has(r"(brandsearch|brand search|브랜드검색|naverbs)"):
+            return "naver brand search"
+        if has(r"(naversa|search|검색|쇼핑검색|쇼검)"):
+            return "naver search"
+        return "naver search"
+
+    return normalize_media_channel(m)
+
+def combined_index_svg_monthly(
+    axis_dates: List[dt.date],
+    xlabels: List[str],
+    series: List[List[float]],
+    colors: List[str],
+    labels: List[str],
+    footer_label: str = "Index",
+    width=980, height=280,
+    pad_l=46, pad_r=16, pad_t=18, pad_b=62,
+) -> str:
+    n = len(xlabels)
+    if n == 0:
+        return combined_index_svg(["--"], [[100],[100],[100]], colors, labels)
+    allv = [v for s in series for v in s] or [0,1]
+    y_min, y_max = min(allv), max(allv)
+    if y_max == y_min:
+        y_max += 1
+    span = y_max - y_min
+    y_min2 = y_min - span * 0.08
+    y_max2 = y_max + span * 0.10
+    inner_w = width - pad_l - pad_r
+    inner_h = height - pad_t - pad_b
+
+    def xy(i, v):
+        x = pad_l + inner_w * (i / (n - 1 if n > 1 else 1))
+        y_norm = (v - y_min2) / (y_max2 - y_min2)
+        y = pad_t + inner_h * (1 - y_norm)
+        return x, y
+
+    grid, ylabels_svg = [], []
+    for t in range(6):
+        frac = t / 5
+        y = pad_t + inner_h * (1 - frac)
+        val = y_min2 + (y_max2 - y_min2) * frac
+        grid.append(f"<line x1='{pad_l}' y1='{y:.1f}' x2='{width-pad_r}' y2='{y:.1f}' stroke='#eef2ff' stroke-width='1'/>")
+        ylabels_svg.append(f"<text x='{pad_l-8}' y='{y+3:.1f}' text-anchor='end' font-size='10' fill='#6b7280'>{val:.0f}</text>")
+
+    weekend_marks = []
+    xlabels_svg = []
+    for i, (d, lab) in enumerate(zip(axis_dates, xlabels)):
+        x = pad_l + inner_w * (i / (n - 1 if n > 1 else 1))
+        wk = d.weekday()
+        color = '#6b7280'
+        if wk == 5:
+            color = '#2563eb'
+        elif wk == 6:
+            color = '#dc2626'
+        if i < n - 1:
+            nx = pad_l + inner_w * ((i+1) / (n - 1 if n > 1 else 1))
+            if wk >= 5:
+                weekend_marks.append(f"<rect x='{x:.1f}' y='{pad_t}' width='{max(1.0, nx-x):.1f}' height='{inner_h:.1f}' fill='{ '#eff6ff' if wk==5 else '#fef2f2' }' opacity='0.35'/>")
+        text = d.strftime('%m/%d')
+        dow = ['M','T','W','T','F','S','S'][wk]
+        xlabels_svg.append(f"<text x='{x:.1f}' y='{height-pad_b+18}' text-anchor='middle' font-size='9' fill='{color}'>{text}</text>")
+        xlabels_svg.append(f"<text x='{x:.1f}' y='{height-pad_b+31}' text-anchor='middle' font-size='9' fill='{color}'>{dow}</text>")
+
+    axes = f"<line x1='{pad_l}' y1='{pad_t}' x2='{pad_l}' y2='{height-pad_b}' stroke='#c7d2fe' stroke-width='1'/><line x1='{pad_l}' y1='{height-pad_b}' x2='{width-pad_r}' y2='{height-pad_b}' stroke='#c7d2fe' stroke-width='1'/>"
+    polys, dots = [], []
+    for sidx, s in enumerate(series):
+        pts = [xy(i, v) for i, v in enumerate(s)]
+        poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+        color = colors[sidx]
+        polys.append(f"<polyline fill='none' stroke='{color}' stroke-width='2.3' points='{poly}'/>")
+        dots.append("".join([f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.3' fill='{color}'/>" for x, y in pts]))
+    legend_items = []
+    for i, lab in enumerate(labels):
+        legend_items.append(f"<g transform='translate({pad_l + i*165},8)'><line x1='0' y1='8' x2='18' y2='8' stroke='{colors[i]}' stroke-width='3'/><text x='26' y='11' font-size='11' fill='#334155' style='font-weight:600'>{lab}</text></g>")
+    return f"<svg width='100%' viewBox='0 0 {width} {height}' preserveAspectRatio='none' style='display:block;'>{''.join(weekend_marks)}{''.join(grid)}{axes}{''.join(polys)}{''.join(dots)}{''.join(ylabels_svg)}{''.join(xlabels_svg)}<text x='{pad_l}' y='{height-8}' font-size='10' fill='#94a3b8'>{footer_label}</text>{''.join(legend_items)}</svg>"
+
+def extract_glink_spend_history_rows(xlsx_path: str) -> pd.DataFrame:
+    try:
+        raw = pd.read_excel(xlsx_path, sheet_name="매체RAW", header=None)
+    except Exception as e:
+        print(f"[WARN] Glink spend parse failed: {xlsx_path} | {type(e).__name__}: {e}")
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"])
+
+    header_idx = find_header_row(raw, ["매체", "날짜최종", "총비용(vat제외)"])
+    if header_idx is None:
+        print(f"[WARN] Could not find spend header row in: {xlsx_path}")
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"])
+
+    header_vals = []
+    for i, v in enumerate(raw.iloc[header_idx].tolist()):
+        label = str(v).replace("\n", "").replace("\r", "").strip()
+        header_vals.append(label or f"col_{i}")
+
+    df = raw.iloc[header_idx + 1 :].copy()
+    df.columns = header_vals
+    cols = {str(c).strip(): c for c in df.columns}
+    date_col = cols.get("날짜최종") or cols.get("기간")
+    media_col = cols.get("매체") or cols.get("채널")
+    campaign_type_col = cols.get("캠페인유형") or cols.get("campaign_type")
+    device_col = cols.get("기기") or cols.get("device")
+    segment_col = cols.get("구분") or cols.get("segment")
+    spend_col = cols.get("총비용(vat제외)") or cols.get("광고비(vat제외)") or cols.get("광고비(vat-)") or cols.get("광고비")
+    if not date_col or not media_col or not spend_col:
+        print(f"[WARN] Missing spend columns in: {xlsx_path}")
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"])
+
+    keep_cols = [date_col, media_col, spend_col]
+    if campaign_type_col:
+        keep_cols.append(campaign_type_col)
+    if device_col:
+        keep_cols.append(device_col)
+    if segment_col:
+        keep_cols.append(segment_col)
+
+    tmp = df[keep_cols].copy()
+    rename_map = {
+        date_col: "date",
+        media_col: "media",
+        spend_col: "spend",
+    }
+    if campaign_type_col:
+        rename_map[campaign_type_col] = "campaign_type"
+    if device_col:
+        rename_map[device_col] = "device"
+    if segment_col:
+        rename_map[segment_col] = "segment"
+    tmp = tmp.rename(columns=rename_map)
+    tmp["date"] = pd.to_datetime(tmp["date"], errors="coerce").dt.date
+    tmp["spend"] = pd.to_numeric(tmp["spend"].astype(str).str.replace(",", "", regex=False).str.strip(), errors="coerce").fillna(0.0)
+    tmp["channel"] = tmp["media"].map(normalize_media_channel)
+    tmp["sub_channel"] = tmp.apply(
+        lambda r: classify_glink_spend_sub(
+            r.get("media", ""),
+            r.get("campaign_type", ""),
+            r.get("device", ""),
+            r.get("segment", ""),
+        ),
+        axis=1,
+    )
+    tmp = tmp[tmp["date"].notna()].copy()
+    tmp = tmp[tmp["channel"].isin(["google", "naver", "meta"])].copy()
+    if tmp.empty:
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"])
+
+    out = tmp.groupby(["date", "channel", "sub_channel"], as_index=False)["spend"].sum()
+    out["source_file"] = os.path.basename(xlsx_path)
+    out["source_mtime"] = os.path.getmtime(xlsx_path)
+    return out[["date", "channel", "sub_channel", "spend", "source_file", "source_mtime"]]
+
+def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
+    manual = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, start, end)
+    return {k: float(v or 0) for k, v in manual.items()}
+
+def find_header_row(df: pd.DataFrame, required_labels: List[str], scan_rows: int = 20) -> Optional[int]:
+    max_rows = min(scan_rows, len(df.index))
+    required = [str(x).strip() for x in required_labels]
+    for idx in range(max_rows):
+        vals = [str(v).replace("\n", "").replace("\r", "").strip() for v in df.iloc[idx].tolist()]
+        if all(label in vals for label in required):
+            return idx
+    return None
+
+def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindow, image_map: Dict[str, str]) -> Tuple[pd.DataFrame, dict]:
+    start = w.cur_end if w.mode == "daily" else w.cur_start
+    end = w.cur_end
+
+    order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="itemsPurchased"), desc=True)]
+    cand = run_report(
+        client, PROPERTY_ID,
+        ymd(start), ymd(end),
+        ["itemId", "itemName"], ["itemsPurchased"],
+        order_bys=order, limit=50
+    )
+    if cand.empty:
+        return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
+
+    cand["itemsPurchased"] = pd.to_numeric(cand["itemsPurchased"], errors="coerce").fillna(0.0)
+    cand["itemId"] = cand["itemId"].map(normalize_sku_key)
+    cand["itemName"] = cand["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+    cand = cand[~cand["itemName"].map(is_not_set)]
+    if cand.empty:
+        return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
+
+    cand["image_url"] = cand["itemId"].map(lambda s: image_map.get(normalize_sku_key(s), ""))
+    with_img = cand[cand["image_url"].astype(str).str.strip() != ""].copy().sort_values("itemsPurchased", ascending=False)
+    no_img = cand[cand["image_url"].astype(str).str.strip() == ""].copy().sort_values("itemsPurchased", ascending=False)
+    top = pd.concat([with_img.head(5), no_img.head(max(0, 5 - len(with_img.head(5))))], ignore_index=True).head(5).copy()
+    top["qty"] = top["itemsPurchased"]
+    skus = [str(s).strip() for s in top["itemId"].tolist() if str(s).strip()]
+
+    # Fetch views for the Best Sellers cards.
+    views_df = _get_item_views_best_effort(client, start, end, skus)
+    if views_df.empty:
+        top["views"] = 0.0
+    else:
+        views_df["itemId"] = views_df["itemId"].map(normalize_sku_key)
+        views_df["views"] = pd.to_numeric(views_df["views"], errors="coerce").fillna(0.0)
+        top = top.merge(views_df[["itemId", "views"]], on="itemId", how="left")
+        top["views"] = pd.to_numeric(top["views"], errors="coerce").fillna(0.0)
+
+    axis_dates = [w.cur_end - dt.timedelta(days=6 - i) for i in range(7)]
+    xlabels = [d.strftime("%m/%d") for d in axis_dates]
+
+    ts = pd.DataFrame()
+    if skus:
+        ts = run_report(
+            client, PROPERTY_ID,
+            ymd(w.cur_end - dt.timedelta(days=6)), ymd(w.cur_end),
+            ["date","itemId"], ["itemsPurchased"],
+            dimension_filter=ga_filter_in("itemId", skus),
+            limit=10000
+        )
+
+    series_cache = {"x": xlabels, "items": []}
+
+    if ts.empty:
+        top["trend_svg"] = ""
+        if PLACEHOLDER_IMG:
+            top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
+        for sku in skus:
+            series_cache["items"].append({"itemId": sku, "ys": [0.0]*7})
+        return top[["itemId","itemName","qty","views","trend_svg","image_url"]], series_cache
+
+    ts["date"] = ts["date"].apply(parse_yyyymmdd)
+    ts["itemsPurchased"] = pd.to_numeric(ts["itemsPurchased"], errors="coerce").fillna(0.0)
+    ts["itemId"] = ts["itemId"].map(normalize_sku_key)
+    ts = ts.sort_values(["itemId","date"])
+
+    svgs = []
+    for sku in skus:
+        sub = ts[ts["itemId"] == sku].set_index("date")["itemsPurchased"]
+        ys = [float(sub.get(d, 0.0)) for d in axis_dates]
+        svgs.append(spark_svg(xlabels, ys, width=240, height=70, stroke="#0055a5"))
+        series_cache["items"].append({"itemId": sku, "ys": ys})
+
+    top["trend_svg"] = svgs
+
+    if PLACEHOLDER_IMG:
+        top.loc[top["image_url"].astype(str).str.strip() == "", "image_url"] = PLACEHOLDER_IMG
+
+    return top[["itemId","itemName","qty","views","trend_svg","image_url"]], series_cache
+
+
+# =========================
+# Rising Products
+# =========================
+
+def get_category_pdp_view_trend_bq(end_date: dt.date) -> Tuple[pd.DataFrame, dict]:
+    axis_dates = [end_date - dt.timedelta(days=i) for i in range(6, -1, -1)]
+    xlabels = [d.strftime('%m/%d') for d in axis_dates]
+
+    if bigquery is None or not BQ_EVENTS_TABLE:
+        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
+
+    try:
+        bq = bigquery.Client()
+
+        start_suffix = (end_date - dt.timedelta(days=6)).strftime('%Y%m%d')
+        end_suffix = end_date.strftime('%Y%m%d')
+        lookup_start = (end_date - dt.timedelta(days=30)).strftime('%Y%m%d')
+        lookup_end = end_date.strftime('%Y%m%d')
+
+        sql = f"""
+        WITH item_lookup AS (
+          SELECT
+            items.item_id AS item_id,
+            ANY_VALUE(CASE WHEN items.item_category = 'SALE' THEN items.item_category2 ELSE items.item_category END) AS c1_norm,
+            ANY_VALUE(CASE WHEN items.item_category = 'SALE' THEN items.item_category3 ELSE items.item_category2 END) AS c2_norm
+          FROM `{BQ_EVENTS_TABLE}`
+          CROSS JOIN UNNEST(items) AS items
+          WHERE _TABLE_SUFFIX BETWEEN '{lookup_start}' AND '{lookup_end}'
+            AND items.item_id IS NOT NULL
+            AND (items.item_category IS NOT NULL OR items.item_category2 IS NOT NULL OR items.item_category3 IS NOT NULL)
+          GROUP BY 1
+        ),
+        pdp AS (
+          SELECT
+            PARSE_DATE('%Y%m%d', event_date) AS d,
+            l.c1_norm AS c1,
+            l.c2_norm AS c2,
+            COUNT(*) AS views
+          FROM `{BQ_EVENTS_TABLE}`
+          CROSS JOIN UNNEST(items) AS items
+          JOIN item_lookup l ON l.item_id = items.item_id
+          WHERE _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
+            AND event_name = 'view_item'
+            AND items.item_id IS NOT NULL
+          GROUP BY 1,2,3
+        )
+        SELECT d, UPPER(IFNULL(c1,'')) AS c1, IFNULL(c2,'') AS c2, views
+        FROM pdp
+        """
+
+        df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
+        if df.empty:
+            return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
+
+        df['d'] = pd.to_datetime(df['d'], errors='coerce').dt.date
+        df = df.dropna(subset=['d'])
+        df['c1'] = df['c1'].astype(str).str.strip().str.upper()
+        df['c2'] = df['c2'].astype(str).str.strip()
+        df['views'] = pd.to_numeric(df['views'], errors='coerce').fillna(0.0)
+
+        rows = []
+        for c1, subs in PDP_CATEGORY_MAP.items():
+            for sub_label, c2_list in subs.items():
+                ys = []
+                for d in axis_dates:
+                    m = (df['d'] == d) & (df['c1'] == c1)
+                    if c2_list:
+                        m = m & (df['c2'].isin(c2_list))
+                    else:
+                        m = m & (df['c2'] == sub_label)
+                    ys.append(float(df.loc[m, 'views'].sum()))
+
+                d1 = ys[-1] if ys else 0.0
+                avg7 = (sum(ys) / len(ys)) if ys else 0.0
+                rows.append({
+                    'itemCategory': f"{c1} · {sub_label}",
+                    'views_d1': float(d1),
+                    'views_avg7d': float(avg7),
+                    'ys': list(ys),
+                    'trend_svg': spark_svg(xlabels, ys, width=260, height=70, stroke="#0f766e"),
+                })
+
+        pdp_series = {
+            "x": xlabels,
+            "rows": [
+                {
+                    "itemCategory": r["itemCategory"],
+                    "views_d1": r["views_d1"],
+                    "views_avg7d": r["views_avg7d"],
+                    "ys": r["ys"]
+                } for r in rows
+            ]
+        }
+
+        return pd.DataFrame(rows)[["itemCategory", "views_d1", "views_avg7d", "trend_svg"]], pdp_series
+
+    except Exception as e:
+        print(f"[WARN] PDP Category Trend BigQuery failed: {type(e).__name__}: {e}")
+        return pd.DataFrame(columns=["itemCategory", "views_d1", "views_avg7d", "trend_svg"]), {}
+
+def get_kpi_snapshot_table_3way(client: BetaAnalyticsDataClient, w: DigestWindow, overall: Dict[str, Dict[str, float]]) -> pd.DataFrame:
+    signup = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
+    cur = overall["current"]; prev = overall["prev"]; yoy = overall["yoy"]
+
+    report_patch_css = """
+  <style>
+    :root{--report-max:none;--motion-ease:cubic-bezier(.2,.8,.2,1);}
+    .report-body{background:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);}
+    .report-shell{width:100%;}
+    .metric-switch{display:inline-flex;gap:6px;flex-wrap:wrap;}
+    .metric-tab{border:1px solid rgba(148,163,184,.25);background:#fff;border-radius:999px;padding:8px 12px;font-size:11px;font-weight:900;color:#64748b;transition:all .22s var(--motion-ease);box-shadow:0 6px 18px rgba(15,23,42,.04)}
+    .metric-tab:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+    .metric-tab.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 14px 32px rgba(15,23,42,.16)}
+    .metric-label{display:none}.metric-label.active{display:inline}
+    .metric-slot{display:none}.metric-slot.active{display:block;animation:metricSwap .42s var(--motion-ease)}
+    .metric-inline .metric-slot.active{display:inline}
+    .report-card,.bucket-detail-panel,.weather-card{animation:cardRise .7s var(--motion-ease) both;transform-origin:center bottom}
+    .report-card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(15,23,42,.08)}
+    .kpi-card{position:relative;overflow:hidden;transition:transform .24s var(--motion-ease), box-shadow .24s var(--motion-ease), border-color .24s var(--motion-ease)}
+    .kpi-card:before{content:'';position:absolute;inset:-40% auto auto -20%;width:60%;height:180%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);transform:rotate(14deg);animation:shineSweep 4.2s linear infinite;pointer-events:none}
+    .kpi-card:hover{transform:translateY(-6px) scale(1.01);box-shadow:0 22px 44px rgba(15,23,42,.08);border-color:rgba(59,130,246,.22)}
+    .kpi-value{animation:numberPop .8s var(--motion-ease) both}
+    .channel-table-wrap,.paid-table-wrap{overflow-x:auto}
+    .channel-table-wrap table,.paid-table-wrap table{min-width:980px}
+    @keyframes cardRise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
+  </style>
+    """
+
+    rows = [
+        ("Sessions", cur["sessions"], prev["sessions"], yoy["sessions"], "int"),
+        ("CVR", cur["cvr"], prev["cvr"], yoy["cvr"], "pct"),
+        ("Revenue", cur["purchaseRevenue"], prev["purchaseRevenue"], yoy["purchaseRevenue"], "krw"),
+        ("Orders", cur["transactions"], prev["transactions"], yoy["transactions"], "int"),
+        ("Sign-up Users", signup["current"], signup["prev"], signup["yoy"], "int"),
+    ]
+
+    out = []
+    for metric, c, p, y, kind in rows:
+        if kind == "pct":
+            delta_prev = (c - p)
+            delta_yoy = (c - y)
+            value_fmt = f"{c*100:.2f}%"
+            prev_fmt = fmt_pp(delta_prev, 2)
+            yoy_fmt = fmt_pp(delta_yoy, 2)
+        else:
+            delta_prev = pct_change(c, p)
+            delta_yoy = pct_change(c, y)
+            value_fmt = fmt_int(c) if kind == "int" else fmt_currency_krw(c)
+            prev_fmt = f"{'+' if delta_prev>=0 else ''}{fmt_pct(delta_prev,1)}"
+            yoy_fmt = f"{'+' if delta_yoy>=0 else ''}{fmt_pct(delta_yoy,1)}"
+
+        out.append({
+            "metric": metric,
+            "value_fmt": value_fmt,
+            "delta_prev": float(delta_prev),
+            "delta_prev_fmt": prev_fmt,
+            "delta_yoy": float(delta_yoy),
+            "delta_yoy_fmt": yoy_fmt,
+        })
+    return pd.DataFrame(out)
+
+
+# =========================
+# Trend series (kept)
+# =========================
+
+def get_paid_detail_3way(
+    client: BetaAnalyticsDataClient,
+    w: DigestWindow,
+    paid_ad_totals: Optional[Dict[str, Dict[str, float]]] = None,
+) -> pd.DataFrame:
+    """
+    Keep Paid Detail Total aligned with Channel Snapshot Paid AD.
+    Provide switchable Session / Orders / Revenue deltas.
+    """
+
+    def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
+        df = _fetch_channel_fact_table(client, start, end)
+        if df.empty:
+            return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue', 'bucket', 'sub'])
+        df = df.copy()
+        df['bucket'] = df.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
+        df = df[df['bucket'] == 'Paid Ad'].copy()
+        df['sub'] = df.apply(lambda r: classify_paid_detail(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
+        return df
+
+    cur = fetch(w.cur_start, w.cur_end)
+    prev = fetch(w.prev_start, w.prev_end)
+    yoy = fetch(w.yoy_start, w.yoy_end)
+
+    def agg(df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return pd.DataFrame(columns=["sub", "sessions", "transactions", "purchaseRevenue"])
+        return df.groupby("sub", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
+
+    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "transactions": "orders_cur", "purchaseRevenue": "rev_cur"})
+    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "transactions": "orders_prev", "purchaseRevenue": "rev_prev"})
+    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "transactions": "orders_yoy", "purchaseRevenue": "rev_yoy_base"})
+    yoy_subs = set(yoy_a["sub"].astype(str).tolist()) if not yoy_a.empty else set()
+
+    merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
+    merged["session_dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
+    merged["session_yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    merged["orders_dod"] = merged.apply(lambda r: pct_change(float(r["orders_cur"]), float(r["orders_prev"])), axis=1)
+    merged["orders_yoy"] = merged.apply(lambda r: pct_change(float(r["orders_cur"]), float(r["orders_yoy"])), axis=1)
+    merged["revenue_dod"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_prev"])), axis=1)
+    merged["revenue_yoy"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_yoy_base"])), axis=1)
+    merged["dod"] = merged["session_dod"]
+    merged["yoy"] = merged["session_yoy"]
+    merged["has_yoy"] = merged["sub"].astype(str).isin(yoy_subs)
+
+    core = list(PAID_DETAIL_SOURCES)
+    for c in core:
+        if c not in set(merged["sub"].tolist()):
+            merged = pd.concat([merged, pd.DataFrame([{
+                "sub": c, "sessions_cur": 0.0, "orders_cur": 0.0, "rev_cur": 0.0,
+                "sessions_prev": 0.0, "orders_prev": 0.0, "rev_prev": 0.0,
+                "sessions_yoy": 0.0, "orders_yoy": 0.0, "rev_yoy_base": 0.0,
+                "session_dod": 0.0, "session_yoy": 0.0,
+                "orders_dod": 0.0, "orders_yoy": 0.0,
+                "revenue_dod": 0.0, "revenue_yoy": 0.0,
+                "dod": 0.0, "yoy": 0.0, "has_yoy": False
+            }])], ignore_index=True)
+
+    others = merged[~merged["sub"].isin(core)].copy()
+    others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False]).head(6)
+
+    ordered = pd.concat([
+        merged[merged["sub"].isin(core)].assign(_ord=lambda d: d["sub"].apply(lambda x: core.index(x))).sort_values("_ord"),
+        others.assign(_ord=999),
+    ], ignore_index=True)
+
+    merged_cur_s = float(merged["sessions_cur"].sum()) if not merged.empty else 0.0
+    merged_prev_s = float(merged["sessions_prev"].sum()) if not merged.empty else 0.0
+    merged_yoy_s = float(merged["sessions_yoy"].sum()) if not merged.empty else 0.0
+    merged_cur_o = float(merged["orders_cur"].sum()) if not merged.empty else 0.0
+    merged_prev_o = float(merged["orders_prev"].sum()) if not merged.empty else 0.0
+    merged_yoy_o = float(merged["orders_yoy"].sum()) if not merged.empty else 0.0
+    merged_cur_r = float(merged["rev_cur"].sum()) if not merged.empty else 0.0
+    merged_prev_r = float(merged["rev_prev"].sum()) if not merged.empty else 0.0
+    merged_yoy_r = float(merged["rev_yoy_base"].sum()) if not merged.empty else 0.0
+
+    if paid_ad_totals:
+        t_cur_s = float(paid_ad_totals.get("current", {}).get("sessions", merged_cur_s) or 0.0)
+        t_cur_r = float(paid_ad_totals.get("current", {}).get("revenue", merged_cur_r) or 0.0)
+        t_prev_s = float(paid_ad_totals.get("prev", {}).get("sessions", merged_prev_s) or merged_prev_s)
+        t_yoy_s = float(paid_ad_totals.get("yoy", {}).get("sessions", merged_yoy_s) or merged_yoy_s)
+        t_prev_r = float(paid_ad_totals.get("prev", {}).get("revenue", merged_prev_r) or merged_prev_r)
+        t_yoy_r = float(paid_ad_totals.get("yoy", {}).get("revenue", merged_yoy_r) or merged_yoy_r)
+    else:
+        t_cur_s, t_prev_s, t_yoy_s, t_cur_r = merged_cur_s, merged_prev_s, merged_yoy_s, merged_cur_r
+        t_prev_r, t_yoy_r = merged_prev_r, merged_yoy_r
+
+    total_row = {
+        "sub_channel": "Total",
+        "sessions": t_cur_s,
+        "orders": merged_cur_o,
+        "purchaseRevenue": t_cur_r,
+        "session_dod": pct_change(t_cur_s, t_prev_s),
+        "session_yoy": pct_change(t_cur_s, t_yoy_s),
+        "orders_dod": pct_change(merged_cur_o, merged_prev_o),
+        "orders_yoy": pct_change(merged_cur_o, merged_yoy_o),
+        "revenue_dod": pct_change(t_cur_r, t_prev_r),
+        "revenue_yoy": pct_change(t_cur_r, t_yoy_r),
+        "dod": pct_change(t_cur_s, t_prev_s),
+        "yoy": pct_change(t_cur_s, t_yoy_s),
+        "has_yoy": (t_yoy_s not in (None, 0, 0.0)),
+    }
+
+    out = ordered[["sub", "sessions_cur", "orders_cur", "rev_cur", "session_dod", "session_yoy", "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy", "dod", "yoy", "has_yoy"]].copy()
+    out = out.rename(columns={
+        "sub": "sub_channel",
+        "sessions_cur": "sessions",
+        "orders_cur": "orders",
+        "rev_cur": "purchaseRevenue",
+    })
+    out = pd.concat([out, pd.DataFrame([total_row])], ignore_index=True)
+    return out
+
+# =========================
+# Paid Top3 (kept)
+# =========================
+
+def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
+    if w.mode != "daily":
+        return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
+
+    dims = ["sessionSourceMedium"]
+    mets = ["sessions", "purchaseRevenue"]
+    # Keep the legacy fallback that maps Paid AD from sessionDefaultChannelGroup.
+    filt = ga_filter_in("sessionDefaultChannelGroup", ["Paid Search", "Paid Social", "Display"])
+    order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="purchaseRevenue"), desc=True)]
+
+    df = run_report(client, PROPERTY_ID, ymd(w.cur_end), ymd(w.cur_end), dims, mets, dimension_filter=filt, order_bys=order, limit=3)
+    if df.empty:
+        return pd.DataFrame(columns=["sessionSourceMedium", "sessions", "purchaseRevenue"])
+
+    df["sessions"] = pd.to_numeric(df["sessions"], errors="coerce").fillna(0.0)
+    df["purchaseRevenue"] = pd.to_numeric(df["purchaseRevenue"], errors="coerce").fillna(0.0)
+
+    total = pd.DataFrame([{
+        "sessionSourceMedium": "Total",
+        "sessions": float(df["sessions"].sum()),
+        "purchaseRevenue": float(df["purchaseRevenue"].sum()),
+    }])
+    return pd.concat([df, total], ignore_index=True)
+
+
+# =========================
+# KPI snapshot table (kept)
+# =========================
+
+def get_rising_products(
+    client: BetaAnalyticsDataClient,
+    w: DigestWindow,
+    top_n: int = 5,
+    exclude_skus: Optional[List[str]] = None,
+) -> pd.DataFrame:
+    """
+    Rising products are items with positive quantity growth vs the previous period.
+    Items with prev == 0 are excluded, and Best Sellers SKUs are also excluded.
+    """
+    exclude = set([str(x).strip() for x in (exclude_skus or []) if str(x).strip()])
+    cur_start, cur_end = (w.cur_end, w.cur_end) if w.mode == "daily" else (w.cur_start, w.cur_end)
+    prev_start, prev_end = (w.prev_end, w.prev_end) if w.mode == "daily" else (w.prev_start, w.prev_end)
+
+    d1_qty = run_report(client, PROPERTY_ID, ymd(cur_start), ymd(cur_end), ["itemId", "itemName"], ["itemsPurchased"], limit=10000)
+    d0_qty = run_report(client, PROPERTY_ID, ymd(prev_start), ymd(prev_end), ["itemId"], ["itemsPurchased"], limit=10000)
+
+    if d1_qty.empty:
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
+
+    d1_qty["itemsPurchased"] = pd.to_numeric(d1_qty["itemsPurchased"], errors="coerce").fillna(0.0)
+    d1_qty["itemId"] = d1_qty["itemId"].astype(str).str.strip()
+    d1_qty["itemName"] = d1_qty["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+    d1_qty = d1_qty[~d1_qty["itemName"].map(is_not_set)]
+    if d1_qty.empty:
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
+
+    if not d0_qty.empty:
+        d0_qty["itemsPurchased"] = pd.to_numeric(d0_qty["itemsPurchased"], errors="coerce").fillna(0.0)
+        d0_qty["itemId"] = d0_qty["itemId"].astype(str).str.strip()
+    else:
+        d0_qty = pd.DataFrame(columns=["itemId", "itemsPurchased"])
+
+    qty_m = d1_qty.merge(d0_qty, on="itemId", how="left", suffixes=("_cur", "_prev")).fillna(0.0)
+    qty_m["qty"] = qty_m["itemsPurchased_cur"]
+    qty_m["qty_prev"] = qty_m["itemsPurchased_prev"]
+    qty_m["qty_delta"] = qty_m["qty"] - qty_m["qty_prev"]
+
+    # Exclude best sellers and keep only prev > 0 with positive delta.
+    qty_m = qty_m[~qty_m["itemId"].isin(exclude)].copy()
+    qty_m = qty_m[(qty_m["qty_prev"] > 0) & (qty_m["qty_delta"] > 0)].copy()
+    if qty_m.empty:
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
+
+    skus = [str(x).strip() for x in qty_m["itemId"].tolist() if str(x).strip()]
+
+    v_cur = _get_item_views_best_effort(client, cur_start, cur_end, skus).rename(columns={"views": "views_cur"}) if skus else pd.DataFrame(columns=["itemId","views_cur"])
+    v_prev = _get_item_views_best_effort(client, prev_start, prev_end, skus).rename(columns={"views": "views_prev"}) if skus else pd.DataFrame(columns=["itemId","views_prev"])
+    if v_cur.empty:
+        v_cur = pd.DataFrame({"itemId": skus, "views_cur": [0.0]*len(skus)})
+    if v_prev.empty:
+        v_prev = pd.DataFrame({"itemId": skus, "views_prev": [0.0]*len(skus)})
+
+    r_cur = _get_item_revenue_best_effort(client, cur_start, cur_end)
+    r_prev = _get_item_revenue_best_effort(client, prev_start, prev_end)
+    r_cur = r_cur[["itemId", "revenue"]].rename(columns={"revenue": "revenue_cur"}) if not r_cur.empty else pd.DataFrame({"itemId": skus, "revenue_cur": [0.0]*len(skus)})
+    r_prev = r_prev[["itemId", "revenue"]].rename(columns={"revenue": "revenue_prev"}) if not r_prev.empty else pd.DataFrame({"itemId": skus, "revenue_prev": [0.0]*len(skus)})
+
+    m = qty_m.merge(v_cur, on="itemId", how="left").merge(v_prev, on="itemId", how="left").merge(r_cur, on="itemId", how="left").merge(r_prev, on="itemId", how="left")
+    for c in ("views_cur", "views_prev", "revenue_cur", "revenue_prev"):
+        m[c] = pd.to_numeric(m.get(c), errors="coerce").fillna(0.0)
+
+    m["views"] = m["views_cur"]
+    m["revenue"] = m["revenue_cur"]
+    m["views_delta"] = m["views_cur"] - m["views_prev"]
+    m["revenue_delta"] = m["revenue_cur"] - m["revenue_prev"]
+
+    if RISING_BASIS == "views":
+        m["delta"] = m["views_delta"]
+        m["delta_label"] = "Views ?"
+    elif RISING_BASIS == "revenue":
+        m["delta"] = m["revenue_delta"]
+        m["delta_label"] = "Revenue ?"
+    else:
+        m["delta"] = m["qty_delta"]
+        m["delta_label"] = "Qty ?"
+
+    m = m.sort_values("delta", ascending=False).head(top_n).copy()
+    m["image_url"] = ""  # Filled later by attach_image_urls().
+    return m[["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"]]
+
+
+# =========================
+# PDP Trend (BigQuery) + file cache (kept)
+# =========================
+PDP_CATEGORY_MAP = {
+    "OUTER": {
+        "Padding/Slim Down": ["Padding/Slim Down"],
+        "Mid/Heavy Down": ["Mid/Heavy Down"],
+        "Interchange": ["Interchange (3 in 1)"],
+        "Rain": ["Rain"],
+    },
+    "FLEECE": {
+        "Fleece Pullover": ["Fleece pullover"],
+        "Jacket": ["Jacket"],
+    },
+    "TOPS": {
+        "Fleece Top": ["Fleece top"],
+        "Round T-shirt": ["Round T-shirt"],
+        "Polo/Zip Up": ["Polo/Zip up"],
+    },
+    "PANTS": {"Pants": ["Pants"]},
+    "FOOTWEAR": {
+        "Boots": ["Boots"],
+        "Omni-Max": ["Omni-Max"],
+        "Hiking": ["Hiking"],
+        "Sneakers": ["Sneakers"],
+    },
+}
+
+def get_search_trends(client: BetaAnalyticsDataClient, end_date: dt.date) -> Dict[str, pd.DataFrame]:
+    lookback_start = end_date - dt.timedelta(days=13)
+    df = run_report(
+        client, PROPERTY_ID,
+        ymd(lookback_start), ymd(end_date),
+        ["date","searchTerm"], ["eventCount"],
+        dimension_filter=ga_filter_eq("eventName", SEARCH_EVENT),
+        limit=10000
+    )
+    if df.empty:
+        return {
+            "new": pd.DataFrame(columns=["searchTerm","count"]),
+            "rising": pd.DataFrame(columns=["searchTerm","pct","count"])
+        }
+
+    df["date"] = df["date"].apply(parse_yyyymmdd)
+    df["eventCount"] = pd.to_numeric(df["eventCount"], errors="coerce").fillna(0.0)
+
+    y_df = df[df["date"] == end_date].groupby("searchTerm", as_index=False)["eventCount"].sum()
+    y_df = y_df.rename(columns={"eventCount":"count"}).sort_values("count", ascending=False)
+
+    prior_start = end_date - dt.timedelta(days=7)
+    prior_df = df[(df["date"] >= prior_start) & (df["date"] <= (end_date - dt.timedelta(days=1)))]
+    prior_agg = prior_df.groupby("searchTerm", as_index=False)["eventCount"].mean().rename(columns={"eventCount":"prior_avg"})
+
+    merged = y_df.merge(prior_agg, on="searchTerm", how="left").fillna(0.0)
+
+    new_terms = merged[merged["prior_avg"] == 0].head(10)[["searchTerm","count"]].copy()
+
+    rising = merged[merged["prior_avg"] > 0].copy()
+    rising["pct"] = (rising["count"] - rising["prior_avg"]) / rising["prior_avg"] * 100.0
+    rising = rising.replace([float("inf"), -float("inf")], 0.0)
+    rising = rising.sort_values("pct", ascending=False).head(10)[["searchTerm","pct","count"]]
+    return {"new": new_terms, "rising": rising}
+
+def get_trend_view_series(client: BetaAnalyticsDataClient, w: DigestWindow) -> dict:
+    end = w.cur_end
+    start = end - dt.timedelta(days=29)
+    df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ["date"], ["sessions","transactions","purchaseRevenue"])
+    axis_dates = [start + dt.timedelta(days=i) for i in range(30)]
+    x = [f"{d.strftime('%m/%d')} ({['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d.weekday()]})" for d in axis_dates]
+
+    if df.empty:
+        return {"x": x, "dates": [ymd(d) for d in axis_dates], "sessions": [0.0]*30, "revenue": [0.0]*30, "cvr": [0.0]*30}
+
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", errors="coerce")
+    df = df.dropna(subset=["date"]).sort_values("date")
+    for c in ["sessions","transactions","purchaseRevenue"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+    df["cvr"] = df.apply(lambda r: (r["transactions"]/r["sessions"]) if r["sessions"] else 0.0, axis=1)
+
+    tmp = df.set_index(df["date"].dt.date)
+    s = [float(tmp.loc[d, "sessions"]) if d in tmp.index else 0.0 for d in axis_dates]
+    r = [float(tmp.loc[d, "purchaseRevenue"]) if d in tmp.index else 0.0 for d in axis_dates]
+    c = [float(tmp.loc[d, "cvr"]) if d in tmp.index else 0.0 for d in axis_dates]
+    return {"x": x, "dates": [ymd(d) for d in axis_dates], "sessions": s, "revenue": r, "cvr": c}
+
+def list_glink_vendor_files(source_dir: str) -> List[str]:
+    if not source_dir or not os.path.isdir(source_dir):
+        return []
+    pattern = re.compile(r"^\(glink\)\s*columbia_.*report_\d{6,8}\.(xlsx|xlsm|xls)$", re.IGNORECASE)
+    out: List[str] = []
+    for name in os.listdir(source_dir):
+        low = name.lower()
+        if not os.path.isfile(os.path.join(source_dir, name)):
+            continue
+        if not low.endswith((".xlsx", ".xlsm", ".xls")):
+            continue
+        if low.startswith("~$"):
+            continue
+        if pattern.match(low):
+            out.append(os.path.join(source_dir, name))
+    return sorted(out)
+
+def load_manual_spend_map(xlsx_path: str, start: dt.date, end: dt.date, group_key: str = "channel") -> Dict[str, float]:
+    df = refresh_glink_spend_history(MEDIA_SPEND_VENDOR_DIR, MEDIA_SPEND_HISTORY_PATH)
+    if df.empty:
+        history_df = safe_read_table(MEDIA_SPEND_HISTORY_PATH)
+        if not history_df.empty:
+            df = history_df
+    if df.empty:
+        df = safe_read_table(xlsx_path)
+    if df.empty:
+        return {}
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    if group_key == "sub_channel":
+        ch_col = cols.get('sub_channel') or cols.get('sub') or cols.get('sub channel')
+    else:
+        ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
+    spend_col = cols.get('spend') or cols.get('budget') or cols.get('cost')
+    date_col = cols.get('date') or cols.get('일자')
+    year_col = cols.get('year') or cols.get('연도')
+    out = {}
+    if not ch_col or not spend_col:
+        return out
+    tmp = df.copy()
+    if date_col and date_col in tmp.columns:
+        tmp[date_col] = pd.to_datetime(tmp[date_col], errors='coerce').dt.date
+        tmp = tmp[(tmp[date_col] >= start) & (tmp[date_col] <= end)]
+    elif year_col and year_col in tmp.columns:
+        tmp = tmp[pd.to_numeric(tmp[year_col], errors='coerce').fillna(0).astype(int) == start.year]
+    for _, r in tmp.iterrows():
+        raw_key = str(r.get(ch_col, '') or '').strip().lower()
+        ch = raw_key if group_key == "sub_channel" else normalize_media_channel(raw_key)
+        if not ch:
+            continue
+        out[ch] = out.get(ch, 0.0) + float(r.get(spend_col, 0) or 0)
+    return out
+
+def load_target_roas_map(xlsx_path: str) -> Dict[str, float]:
+    df = safe_read_table(xlsx_path)
+    if df.empty:
+        return {}
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    ch_col = cols.get('channel') or cols.get('media') or cols.get('매체') or cols.get('채널')
+    tr_col = cols.get('target_roas') or cols.get('target roas') or cols.get('target') or cols.get('목표 roas') or cols.get('목표roas')
+    if not ch_col or not tr_col:
+        return {}
+    out = {}
+    for _, r in df.iterrows():
+        ch = str(r.get(ch_col, '') or '').strip().lower()
+        if not ch:
+            continue
+        try:
+            val = float(r.get(tr_col, 0) or 0)
+        except Exception:
+            continue
+        if val > 10:  # permit 300 for 300%
+            val = val / 100.0
+        out[ch] = val
+    return out
+
+def map_sub_to_media(sub: str) -> str:
+    sub = (sub or '').strip().lower()
+    if sub in ('google', 'google demand gen', 'google pmax', 'google search'):
+        return 'google'
+    if sub in ('meta', 'instagram'):
+        return 'meta'
+    if sub in ('naver brand search', 'naver search'):
+        return 'naver'
+    return sub
+
+def normalize_media_channel(value: str) -> str:
+    s = str(value or "").strip().lower()
+    if not s:
+        return ""
+    if "google" in s or "구글" in s:
+        return "google"
+    if "meta" in s or "메타" in s or "instagram" in s or "인스타" in s:
+        return "meta"
+    if "naver" in s or "네이버" in s or "브랜드검색" in s or "쇼검" in s or "쇼핑검색" in s:
+        return "naver"
+    return s
+
+def pdp_cache_path(end_date: dt.date) -> str:
+    return os.path.join(OUT_DIR, "cache", "pdp", f"{ymd(end_date)}.json")
+
+def refresh_glink_spend_history(source_dir: str, out_path: str) -> pd.DataFrame:
+    files = list_glink_vendor_files(source_dir)
+    if not files:
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend"])
+
+    frames: List[pd.DataFrame] = []
+    for path in files:
+        rows = extract_glink_spend_history_rows(path)
+        if not rows.empty:
+            frames.append(rows)
+    if not frames:
+        return pd.DataFrame(columns=["date", "channel", "sub_channel", "spend"])
+
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.sort_values(["date", "channel", "sub_channel", "source_mtime", "source_file"])
+    merged = merged.drop_duplicates(subset=["date", "channel", "sub_channel"], keep="last")
+    merged = merged.sort_values(["date", "channel", "sub_channel"]).reset_index(drop=True)
+
+    out = merged[["date", "channel", "sub_channel", "spend"]].copy()
+    try:
+        ensure_dir(os.path.dirname(out_path))
+        out.to_csv(out_path, index=False, encoding="utf-8-sig")
+    except Exception as e:
+        print(f"[WARN] Could not write spend history: {out_path} | {type(e).__name__}: {e}")
+    return out
+
+def safe_read_excel(path: str) -> pd.DataFrame:
+    try:
+        if path and os.path.exists(path):
+            return pd.read_excel(path)
+    except Exception as e:
+        print(f"[WARN] Excel read failed: {path} | {type(e).__name__}: {e}")
+    return pd.DataFrame()
+
+def safe_read_table(path: str) -> pd.DataFrame:
+    try:
+        if not path or not os.path.exists(path):
+            return pd.DataFrame()
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".csv":
+            return pd.read_csv(path)
+        return pd.read_excel(path)
+    except Exception as e:
+        print(f"[WARN] Table read failed: {path} | {type(e).__name__}: {e}")
+        return pd.DataFrame()
+
+def trend_svg_from_series(series: dict, days: int = 30) -> str:
+    raw_dates = [parse_yyyy_mm_dd(d) for d in series.get("dates", [])]
+    raw_sessions = [float(v) for v in series.get("sessions", [])]
+    raw_revenue = [float(v) for v in series.get("revenue", [])]
+    raw_cvr = [float(v) for v in series.get("cvr", [])]
+    available = min(len(raw_dates), len(raw_sessions), len(raw_revenue), len(raw_cvr))
+    days = max(1, int(days or 30))
+    if available <= 0 or any(d is None for d in raw_dates[:available]):
+        fallback_dates = [dt.date.today() - dt.timedelta(days=days - 1 - i) for i in range(days)]
+        base = [[100] * days, [100] * days, [100] * days]
+        return combined_index_svg_monthly(
+            fallback_dates,
+            [d.strftime('%m/%d') for d in fallback_dates],
+            base,
+            ["#0055a5", "#16a34a", "#c2410c"],
+            ["Sessions", "Revenue", "CVR"],
+            footer_label=f"Index (D-{days} start = 100)",
+        )
+
+    use_days = min(days, available)
+    axis_dates = [d for d in raw_dates[available - use_days:available] if d is not None]
+    sessions = raw_sessions[available - use_days:available]
+    revenue = raw_revenue[available - use_days:available]
+    cvr = raw_cvr[available - use_days:available]
+    return combined_index_svg_monthly(
+        axis_dates,
+        [d.strftime('%m/%d') for d in axis_dates],
+        [index_series(sessions), index_series(revenue), index_series(cvr)],
+        ["#0055a5", "#16a34a", "#c2410c"],
+        ["Sessions", "Revenue", "CVR"],
+        footer_label=f"Index (D-{use_days} start = 100)",
+    )
+
 if __name__ == "__main__":
     main()
