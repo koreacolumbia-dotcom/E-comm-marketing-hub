@@ -1424,6 +1424,64 @@ def _position_y_to_num(avg_price: Optional[float]) -> float:
 
 
 
+
+def build_other_debug(df: pd.DataFrame) -> List[dict]:
+    if df.empty:
+        return []
+    rows = []
+    stop_tokens = {
+        "공식몰","공식","컬럼비아","디스커버리","columbia","discovery","expedition",
+        "coming","sold","out","soon","better","make","mkae","now","perfect","perpect",
+        "black","gary","gray","white","blue","beige","000원"
+    }
+    for _, r in df.iterrows():
+        item = str(r.get("item_category", "") or "")
+        dom = str(r.get("dominant_attribute", "") or "")
+        reason_parts = []
+        if item == "기타":
+            reason_parts.append("item rule miss")
+        if dom == "기타":
+            reason_parts.append("attribute rule miss")
+        if not reason_parts:
+            continue
+
+        name = str(r.get("name", "") or "")
+        desc = str(r.get("description", "") or "")
+        gender = str(r.get("gender", "") or "")
+        if "공용" in name and gender == "미분류":
+            gender = "공용"
+
+        blob = f"{name} {desc}".lower()
+        toks = re.findall(r"[a-zA-Z0-9가-힣\-\.]+", blob)
+        cleaned = []
+        seen = set()
+        for t in toks:
+            t = t.strip(".,-_/ ")
+            if len(t) < 2:
+                continue
+            if t in seen:
+                continue
+            seen.add(t)
+            if t in stop_tokens:
+                continue
+            if re.fullmatch(r"\d+[원%]?", t):
+                continue
+            cleaned.append(t)
+            if len(cleaned) >= 12:
+                break
+
+        rows.append({
+            "brand": r.get("brand", ""),
+            "gender": gender,
+            "name": name,
+            "item": item,
+            "dominant_attribute": dom,
+            "reason": ", ".join(reason_parts),
+            "tokens": ", ".join(cleaned),
+        })
+
+    return rows
+
 def build_price_band_gender_table(df: pd.DataFrame) -> List[dict]:
     if df.empty:
         return []
