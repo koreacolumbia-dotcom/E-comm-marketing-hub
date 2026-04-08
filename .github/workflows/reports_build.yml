@@ -1108,7 +1108,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A reports site .naver_cache scripts sql .gitignore || true
+          git add -A reports site .naver_cache scripts sql || true
+          [ -f .gitignore ] && git add .gitignore || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
@@ -1118,7 +1119,8 @@ jobs:
           git fetch origin main
           git pull --rebase --autostash origin main
 
-          git add -A reports site .naver_cache scripts sql .gitignore || true
+          git add -A reports site .naver_cache scripts sql || true
+          [ -f .gitignore ] && git add .gitignore || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit after rebase"
