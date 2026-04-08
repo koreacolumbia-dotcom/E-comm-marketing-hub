@@ -1071,7 +1071,7 @@ jobs:
           mkdir -p reports
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
 
-      - name: Commit & push report results (SAFE - exclude large bundles)
+      - name: Commit & push report results (SAFE - exclude large member funnel bundles)
         if: ${{ always() }}
         continue-on-error: true
         shell: bash
@@ -1080,16 +1080,35 @@ jobs:
 
           echo "[INFO] Removing oversized member funnel bundles before commit"
 
+          # Remove large member funnel bundle caches from both reports/ and site/
           rm -f reports/member_funnel/data/1d_bundle.json || true
           rm -f reports/member_funnel/data/7d_bundle.json || true
           rm -f reports/member_funnel/data/1m_bundle.json || true
           rm -f reports/member_funnel/data/1y_bundle.json || true
+
+          rm -f site/data/member_funnel/1d_bundle.json || true
+          rm -f site/data/member_funnel/7d_bundle.json || true
+          rm -f site/data/member_funnel/1m_bundle.json || true
+          rm -f site/data/member_funnel/1y_bundle.json || true
+
+          # Defensive cleanup for any future oversized bundle files
           find reports/member_funnel/data -maxdepth 1 -name "*_bundle.json" -size +95M -delete || true
+          find site/data/member_funnel -maxdepth 1 -name "*_bundle.json" -size +95M -delete || true
+
+          # Ensure removed files are also removed from git index if already tracked
+          git rm --cached -f reports/member_funnel/data/1d_bundle.json 2>/dev/null || true
+          git rm --cached -f reports/member_funnel/data/7d_bundle.json 2>/dev/null || true
+          git rm --cached -f reports/member_funnel/data/1m_bundle.json 2>/dev/null || true
+          git rm --cached -f reports/member_funnel/data/1y_bundle.json 2>/dev/null || true
+          git rm --cached -f site/data/member_funnel/1d_bundle.json 2>/dev/null || true
+          git rm --cached -f site/data/member_funnel/7d_bundle.json 2>/dev/null || true
+          git rm --cached -f site/data/member_funnel/1m_bundle.json 2>/dev/null || true
+          git rm --cached -f site/data/member_funnel/1y_bundle.json 2>/dev/null || true
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A reports site .naver_cache scripts sql || true
+          git add -A reports site .naver_cache scripts sql .gitignore || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
@@ -1099,7 +1118,7 @@ jobs:
           git fetch origin main
           git pull --rebase --autostash origin main
 
-          git add -A reports site .naver_cache scripts sql || true
+          git add -A reports site .naver_cache scripts sql .gitignore || true
 
           if git diff --cached --quiet; then
             echo "No changes to commit after rebase"
