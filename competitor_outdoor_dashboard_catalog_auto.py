@@ -117,6 +117,7 @@ class BrandConfig:
     max_products: int = MAX_PRODUCTS_PER_BRAND
 
 
+
 BRAND_CONFIGS: List[BrandConfig] = [
     BrandConfig(
         brand="COLUMBIA",
@@ -129,15 +130,6 @@ BRAND_CONFIGS: List[BrandConfig] = [
         category_hints=["자켓", "팬츠", "슈즈", "신발", "티셔츠", "플리스", "패딩"],
     ),
     BrandConfig(
-        brand="THE_NORTH_FACE",
-        seed_urls=["https://www.thenorthfacekorea.co.kr/"],
-        domain="www.thenorthfacekorea.co.kr",
-        brand_terms=["the north face", "north face", "tnf", "노스페이스"],
-        product_url_keywords=["/p/", "product", "goods", "detail"],
-        listing_url_keywords=["/category", "/c/", "/plp", "/listing", "/shop"],
-        deny_url_keywords=["login", "join", "event", "notice", "story", "inside", "about"],
-    ),
-    BrandConfig(
         brand="DISCOVERY_EXPEDITION",
         seed_urls=["https://www.discovery-expedition.com/"],
         domain="www.discovery-expedition.com",
@@ -147,89 +139,17 @@ BRAND_CONFIGS: List[BrandConfig] = [
         deny_url_keywords=["login", "join", "benefit", "guide", "notice", "store-locator", "about", "magazine"],
         force_allow_url_keywords=["product-detail"],
     ),
-    BrandConfig(
-        brand="K2",
-        seed_urls=["https://www.k-village.co.kr/main"],
-        domain="www.k-village.co.kr",
-        brand_terms=["k2"],
-        product_url_keywords=["/goods/", "/product/", "goodsNo=", "productNo="],
-        listing_url_keywords=["/display/", "/category/", "/goods/list"],
-        deny_url_keywords=["login", "join", "event", "notice", "benefit", "brand-story"],
-        force_allow_url_keywords=["k2"],
-    ),
-    BrandConfig(
-        brand="KOLON_SPORT",
-        seed_urls=["https://www.kolonsport.com/"],
-        domain="www.kolonsport.com",
-        brand_terms=["kolon sport", "코오롱스포츠"],
-        product_url_keywords=["/Product/", "/product/", "/goods/", "productNo=", "sku"],
-        listing_url_keywords=["/Category/", "/display/", "/category/"],
-        deny_url_keywords=["login", "join", "about", "notice", "event", "magazine"],
-    ),
-    BrandConfig(
-        brand="EIDER",
-        seed_urls=["https://www.k-village.co.kr/main"],
-        domain="www.k-village.co.kr",
-        brand_terms=["eider", "아이더"],
-        product_url_keywords=["/goods/", "/product/", "goodsNo=", "productNo="],
-        listing_url_keywords=["/display/", "/category/", "/goods/list"],
-        deny_url_keywords=["login", "join", "event", "notice", "benefit", "brand-story"],
-        force_allow_url_keywords=["eider", "아이더"],
-    ),
-    BrandConfig(
-        brand="NEPA",
-        seed_urls=["https://www.nplus.co.kr/"],
-        domain="www.nplus.co.kr",
-        brand_terms=["nepa", "네파"],
-        product_url_keywords=["/goods/", "/product/", "goodsNo=", "productNo="],
-        listing_url_keywords=["/display/", "/category/", "/goods/list"],
-        deny_url_keywords=["login", "join", "event", "notice", "benefit", "magazine"],
-    ),
-    BrandConfig(
-        brand="BLACKYAK",
-        seed_urls=["https://global.blackyak.com/en"],
-        domain="global.blackyak.com",
-        brand_terms=["blackyak", "블랙야크"],
-        product_url_keywords=["/products/", "/product/", "/goods/"],
-        listing_url_keywords=["/collections/", "/collection/", "/category/"],
-        deny_url_keywords=["about", "support", "policy", "account", "login"],
-    ),
-    BrandConfig(
-        brand="MILLET",
-        seed_urls=["https://www.millet.co.kr/"],
-        domain="www.millet.co.kr",
-        brand_terms=["millet", "밀레"],
-        product_url_keywords=["/goods/", "/product/", "goodsNo=", "productNo="],
-        listing_url_keywords=["/display/", "/category/", "/goods/list"],
-        deny_url_keywords=["login", "join", "event", "notice", "benefit", "magazine"],
-    ),
-    BrandConfig(
-        brand="SNOWPEAK_APPAREL",
-        seed_urls=["https://www.snowpeak.co.kr/"],
-        domain="www.snowpeak.co.kr",
-        brand_terms=["snow peak", "스노우피크"],
-        product_url_keywords=["/goods/", "/product/", "goodsNo=", "productNo="],
-        listing_url_keywords=["/display/", "/category/", "/goods/list"],
-        deny_url_keywords=["login", "join", "event", "notice", "benefit"],
-    ),
-    BrandConfig(
-        brand="PATAGONIA",
-        seed_urls=["https://www.patagonia.co.kr/"],
-        domain="www.patagonia.co.kr",
-        brand_terms=["patagonia", "파타고니아"],
-        product_url_keywords=["/product/", "/goods/", "productNo=", "goodsNo=", "/p/"],
-        listing_url_keywords=["/category/", "/display/", "/shop/"],
-        deny_url_keywords=["about", "login", "join", "event", "notice", "campaign"],
-    ),
-    BrandConfig(
-        brand="SALOMON",
-        seed_urls=["https://www.salomon.co.kr/"],
-        domain="www.salomon.co.kr",
-        brand_terms=["salomon", "살로몬"],
-        product_url_keywords=["/product/", "/goods/", "/p/", "sku", "style"],
-        listing_url_keywords=["/category/", "/display/", "/collection/"],
-        deny_url_keywords=["login", "join", "about", "notice", "event", "stories"],
-    ),
+    # Disabled for now
+    # BrandConfig(... THE_NORTH_FACE ...),
+    # BrandConfig(... K2 ...),
+    # BrandConfig(... KOLON_SPORT ...),
+    # BrandConfig(... EIDER ...),
+    # BrandConfig(... NEPA ...),
+    # BrandConfig(... BLACKYAK ...),
+    # BrandConfig(... MILLET ...),
+    # BrandConfig(... SNOWPEAK_APPAREL ...),
+    # BrandConfig(... PATAGONIA ...),
+    # BrandConfig(... SALOMON ...),
 ]
 
 GENERIC_PRODUCT_URL_KEYWORDS = [
@@ -365,19 +285,21 @@ CONFLICT_RULES: List[Tuple[str, str, str]] = [
     ("방수", "방풍", "방수"),
     ("다운", "인슐레이션", "다운"),
 ]
+
 CATEGORY_RULES: Dict[str, List[str]] = {
-    "자켓": ["jacket", "jk", "자켓", "재킷", "아노락", "바람막이", "windbreaker", "shell"],
-    "팬츠": ["pants", "pant", "trouser", "팬츠", "바지", "조거", "슬랙스", "쇼츠", "반바지"],
-    "플리스": ["fleece", "플리스"],
+    "자켓": ["jacket", "jk", "자켓", "재킷", "아노락", "바람막이", "windbreaker", "shell", "parka", "파카"],
+    "팬츠": ["pants", "pant", "trouser", "팬츠", "바지", "조거", "슬랙스", "쇼츠", "반바지", "cargo", "카고", "legging", "레깅스"],
+    "플리스": ["fleece", "플리스", "boa", "보아"],
     "다운": ["down", "덕다운", "구스다운", "패딩", "puffer"],
     "베스트": ["vest", "베스트"],
+    "집티": ["zip tee", "zip-tee", "zip tee", "zip-up", "zip up", "집업", "하프집업", "half zip", "half-zip"],
+    "후디": ["hoodie", "hood", "후디", "후드", "후드티", "sweatshirt", "맨투맨"],
     "티셔츠": ["tee", "t-shirt", "t shirt", "티셔츠", "반팔", "긴팔", "sleeve"],
     "셔츠": ["shirt", "셔츠"],
-    "슈즈": ["shoe", "shoes", "boot", "boots", "sneaker", "trail", "등산화", "신발", "부츠"],
+    "슈즈": ["shoe", "shoes", "boot", "boots", "sneaker", "trail", "등산화", "신발", "부츠", "sandals", "샌들"],
     "백팩": ["backpack", "bag", "pack", "배낭", "백팩", "가방"],
     "캡": ["cap", "hat", "모자", "캡", "비니"],
 }
-
 
 # ============================================================
 # 1. MODELS
@@ -690,11 +612,33 @@ def infer_season(name: str, description: str, raw_season: str) -> str:
     return safe_text(raw_season) or "미분류"
 
 
+
 def infer_item_category(name: str, description: str) -> str:
     blob = f"{name} {description}".lower()
+
+    # stronger direct rules to reduce 기타
+    if any(x in blob for x in ["zip tee", "zip-up", "zip up", "집업", "하프집업", "half zip", "half-zip"]):
+        return "집티"
+    if any(x in blob for x in ["hoodie", "후디", "후드", "후드티", "맨투맨", "sweatshirt"]):
+        return "후디"
+    if any(x in blob for x in ["fleece", "플리스", "boa", "보아"]):
+        return "플리스"
+    if any(x in blob for x in ["down", "패딩", "덕다운", "구스다운", "puffer"]):
+        return "다운"
+
     for category, keywords in CATEGORY_RULES.items():
         if any(k.lower() in blob for k in keywords):
             return category
+
+    # fallback by common apparel words to minimize 기타
+    if any(x in blob for x in ["jacket", "shell", "parka", "자켓", "재킷"]):
+        return "자켓"
+    if any(x in blob for x in ["pants", "pant", "바지", "팬츠"]):
+        return "팬츠"
+    if any(x in blob for x in ["shoe", "boot", "신발", "등산화", "부츠"]):
+        return "슈즈"
+    if any(x in blob for x in ["tee", "티셔츠", "반팔", "긴팔"]):
+        return "티셔츠"
     return "기타"
 
 
@@ -1328,15 +1272,84 @@ def _position_y_to_num(avg_price: Optional[float]) -> float:
     return 3
 
 
+
+
+def build_price_band_gender_table(df: pd.DataFrame) -> List[dict]:
+    if df.empty:
+        return []
+    bands = ["0-9.9만", "10-19.9만", "20-29.9만", "30-49.9만", "50만+"]
+    rows = []
+    grouped = (
+        df.groupby(["brand", "gender", "price_band"])
+        .size()
+        .reset_index(name="style_count")
+    )
+    for (brand, gender), g in grouped.groupby(["brand", "gender"]):
+        row = {"brand": brand, "gender": gender}
+        total = 0
+        for band in bands:
+            cnt = int(g.loc[g["price_band"] == band, "style_count"].sum())
+            row[band] = cnt
+            total += cnt
+        row["total_styles"] = total
+        rows.append(row)
+    return rows
+
+
+def build_attribute_gender_table(df: pd.DataFrame) -> List[dict]:
+    if df.empty:
+        return []
+    rows = []
+    for (brand, gender), g in df.groupby(["brand", "gender"]):
+        attr_series = g["standard_attributes"].fillna("")
+        item_series = g["item_category"].fillna("")
+        rows.append({
+            "brand": brand,
+            "gender": gender,
+            "2L": int(attr_series.str.contains("2L", regex=False).sum()),
+            "2.5L": int(attr_series.str.contains("2.5L", regex=False).sum()),
+            "3L": int(attr_series.str.contains("3L", regex=False).sum()),
+            "방수": int(attr_series.str.contains("방수", regex=False).sum()),
+            "방풍": int(attr_series.str.contains("방풍", regex=False).sum()),
+            "고어텍스": int(attr_series.str.contains("고어텍스", regex=False).sum()),
+            "다운": int(attr_series.str.contains("다운", regex=False).sum()),
+            "집티": int((item_series == "집티").sum()),
+        })
+    return rows
+
+
+def build_item_style_table(df: pd.DataFrame) -> List[dict]:
+    if df.empty:
+        return []
+    grouped = (
+        df.groupby(["brand", "gender", "item_category"])
+        .agg(
+            style_count=("product_url", "nunique"),
+            avg_price=("current_price", "mean"),
+            min_price=("current_price", "min"),
+            max_price=("current_price", "max"),
+        )
+        .reset_index()
+    )
+    grouped["avg_price"] = grouped["avg_price"].fillna(0).round(0).astype(int)
+    grouped["min_price"] = grouped["min_price"].fillna(0).astype(int)
+    grouped["max_price"] = grouped["max_price"].fillna(0).astype(int)
+    grouped = grouped.sort_values(["brand", "gender", "style_count", "avg_price"], ascending=[True, True, False, False])
+    return grouped.to_dict("records")
+
+
 def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df: pd.DataFrame) -> dict:
     if df.empty:
         return {
             "generated_at": TODAY_STR,
-            "kpis": {"brands": 0, "products": 0, "sale_products": 0, "avg_price": 0},
+            "kpis": {"brands": 0, "products": 0, "sale_products": 0, "avg_price": 0, "others_ratio": 0},
             "brand_summary": [],
             "products": [],
             "charts": {},
             "keywords": [],
+            "price_band_gender_table": [],
+            "attribute_gender_table": [],
+            "item_style_table": [],
         }
 
     charts = {
@@ -1353,8 +1366,8 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "values": list(df["price_band"].fillna("기타").value_counts().values),
         },
         "itemCategory": {
-            "labels": list(df["item_category"].fillna("기타").value_counts().head(10).index),
-            "values": list(df["item_category"].fillna("기타").value_counts().head(10).values),
+            "labels": list(df["item_category"].fillna("기타").value_counts().head(12).index),
+            "values": list(df["item_category"].fillna("기타").value_counts().head(12).values),
         },
         "dominantAttribute": {
             "labels": list(df["dominant_attribute"].fillna("기타").value_counts().head(10).index),
@@ -1367,6 +1380,10 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
         "shellType": {
             "labels": list(df["shell_type"].fillna("Unknown").value_counts().index),
             "values": list(df["shell_type"].fillna("Unknown").value_counts().values),
+        },
+        "genderSplit": {
+            "labels": list(df["gender"].fillna("미분류").value_counts().index),
+            "values": list(df["gender"].fillna("미분류").value_counts().values),
         },
         "positioning": [
             {
@@ -1385,6 +1402,8 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
         for brand, g in kw_df.groupby("brand"):
             keywords.append({"brand": brand, "items": g.head(12).to_dict("records")})
 
+    others_ratio = round(float((df["item_category"].fillna("기타") == "기타").mean()) * 100, 1)
+
     return {
         "generated_at": TODAY_STR,
         "kpis": {
@@ -1392,17 +1411,22 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "products": int(len(df)),
             "sale_products": int(df["discount_rate"].fillna(0).gt(0).sum()),
             "avg_price": int(df["current_price"].dropna().mean()) if df["current_price"].notna().any() else 0,
+            "others_ratio": others_ratio,
         },
         "brand_summary": brand_summary.to_dict("records"),
-        "products": df.sort_values(["brand", "current_price"], ascending=[True, False]).fillna("").to_dict("records"),
+        "products": df.sort_values(["brand", "gender", "current_price"], ascending=[True, True, False]).fillna("").to_dict("records"),
         "charts": charts,
         "keywords": keywords,
+        "price_band_gender_table": build_price_band_gender_table(df),
+        "attribute_gender_table": build_attribute_gender_table(df),
+        "item_style_table": build_item_style_table(df),
     }
 
 
 # ============================================================
 # 7. DASHBOARD HTML
 # ============================================================
+
 
 def render_dashboard(payload: dict) -> str:
     data_json = json.dumps(json_safe(payload), ensure_ascii=False)
@@ -1417,17 +1441,26 @@ def render_dashboard(payload: dict) -> str:
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%); }
-    .glass { backdrop-filter: blur(14px); background: rgba(255,255,255,.78); }
-    .metric-card { box-shadow: 0 10px 30px rgba(15,23,42,.06); }
-    .panel { box-shadow: 0 12px 40px rgba(15,23,42,.06); }
+    body { background:
+      radial-gradient(circle at top left, rgba(56,189,248,.10), transparent 22%),
+      radial-gradient(circle at top right, rgba(99,102,241,.08), transparent 20%),
+      linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
+    }
+    .glass { backdrop-filter: blur(16px); background: rgba(255,255,255,.82); }
+    .metric-card, .panel { box-shadow: 0 18px 40px rgba(15,23,42,.06); }
+    .metric-card:hover, .panel:hover { box-shadow: 0 22px 55px rgba(15,23,42,.09); transition: .25s ease; }
     .tag { display:inline-flex; align-items:center; border-radius:999px; padding:4px 10px; font-size:11px; font-weight:800; }
     .product-card:hover { transform: translateY(-2px); transition: .2s ease; }
     .table-wrap::-webkit-scrollbar { height: 8px; width: 8px; }
     .table-wrap::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
-    .chart-box { height: 300px; position: relative; }
+    .chart-box { height: 270px; position: relative; }
     .chart-box.tall { height: 420px; }
     .chart-box canvas { width: 100% !important; height: 100% !important; }
+    .soft-grid { display:grid; gap:16px; grid-template-columns: repeat(12, minmax(0,1fr)); }
+    .span-12{grid-column:span 12/span 12}.span-8{grid-column:span 8/span 8}.span-6{grid-column:span 6/span 6}.span-4{grid-column:span 4/span 4}
+    @media (max-width: 1024px){.span-8,.span-6,.span-4{grid-column:span 12/span 12}}
+    .section-title { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; font-weight: 900; color:#64748b; }
+    .big-title { font-size: 24px; font-weight: 900; letter-spacing: -.04em; color:#0f172a; }
   </style>
 </head>
 <body class="text-slate-900">
@@ -1435,9 +1468,9 @@ def render_dashboard(payload: dict) -> str:
     <div class="rounded-[32px] border border-white/70 glass panel p-6 lg:p-8">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div class="text-[11px] font-extrabold tracking-[0.24em] text-slate-500">COMPETITOR OUTDOOR INTELLIGENCE</div>
-          <h1 class="mt-2 text-3xl font-black tracking-[-0.05em] text-slate-900 lg:text-5xl">경쟁사 상품 분석</h1>
-          <div class="mt-3 max-w-4xl text-sm font-bold leading-6 text-slate-600">브랜드별 SKU, 가격대, 기능 속성, 포지셔닝, 상품 카드 피드까지 한 화면에서 보도록 구성했습니다.</div>
+          <div class="section-title">Competitor Outdoor Intelligence</div>
+          <h1 class="mt-2 text-3xl font-black tracking-[-0.05em] text-slate-900 lg:text-5xl">컬럼비아 vs 디스커버리 상품 분석</h1>
+          <div class="mt-3 max-w-4xl text-sm font-bold leading-6 text-slate-600">남녀 구분 가격대, 속성 수, 아이템별 스타일 수를 한 번에 보도록 재구성했습니다. 기타 비중은 상단 KPI로 계속 추적합니다.</div>
         </div>
         <div class="rounded-3xl bg-slate-900 px-5 py-4 text-white shadow-xl">
           <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-300">GENERATED</div>
@@ -1446,24 +1479,39 @@ def render_dashboard(payload: dict) -> str:
       </div>
     </div>
 
-    <section class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4" id="kpi-grid"></section>
+    <section class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5" id="kpi-grid"></section>
 
-    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-4">
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">브랜드별 SKU 수</div><div class="chart-box"><canvas id="brandCountChart"></canvas></div></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">브랜드별 평균가</div><div class="chart-box"><canvas id="avgPriceChart"></canvas></div></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">가격대 분포</div><div class="chart-box"><canvas id="priceBandChart"></canvas></div></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">카테고리 분포</div><div class="chart-box"><canvas id="categoryChart"></canvas></div></div>
+    <section class="mt-6 soft-grid">
+      <div class="span-4 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">브랜드별 SKU 수</div>
+        <div class="chart-box mt-3"><canvas id="brandCountChart"></canvas></div>
+      </div>
+      <div class="span-4 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">브랜드별 평균가</div>
+        <div class="chart-box mt-3"><canvas id="avgPriceChart"></canvas></div>
+      </div>
+      <div class="span-4 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">남녀 비중</div>
+        <div class="chart-box mt-3"><canvas id="genderSplitChart"></canvas></div>
+      </div>
+
+      <div class="span-4 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">가격대 분포</div>
+        <div class="chart-box mt-3"><canvas id="priceBandChart"></canvas></div>
+      </div>
+      <div class="span-4 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">아이템 분포</div>
+        <div class="chart-box mt-3"><canvas id="categoryChart"></canvas></div>
+      </div>
+      <div class="span-4 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">대표 속성 분포</div>
+        <div class="chart-box mt-3"><canvas id="dominantAttrChart"></canvas></div>
+      </div>
     </section>
 
-    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">대표 속성 분포</div><div class="chart-box"><canvas id="dominantAttrChart"></canvas></div></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">등급 분포</div><div class="chart-box"><canvas id="gradeChart"></canvas></div></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">Shell 타입 분포</div><div class="chart-box"><canvas id="shellChart"></canvas></div></div>
-    </section>
-
-    <section class="mt-6 grid grid-cols-1 gap-4 2xl:grid-cols-[1.25fr_.75fr]">
-      <div class="rounded-[28px] border border-white/70 glass panel p-5">
-        <div class="text-xl font-black">브랜드 비교표</div>
+    <section class="mt-6 soft-grid">
+      <div class="span-8 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">브랜드 비교표</div>
         <div class="table-wrap mt-4 overflow-x-auto">
           <table class="min-w-[1100px] w-full text-sm">
             <thead>
@@ -1485,23 +1533,88 @@ def render_dashboard(payload: dict) -> str:
           </table>
         </div>
       </div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5">
-        <div class="text-xl font-black">브랜드 포지셔닝</div>
-        <div class="mt-3 rounded-2xl bg-white border border-slate-200 p-3">
-          <div class="chart-box tall"><canvas id="positionChart"></canvas></div>
-        </div>
+
+      <div class="span-4 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">포지셔닝</div>
+        <div class="chart-box tall mt-3"><canvas id="positionChart"></canvas></div>
         <div class="mt-3 text-xs font-bold text-slate-500">X: Lifestyle → Performance → Extreme / Y: Mass → Premium → Luxury</div>
       </div>
     </section>
 
+    <section class="mt-6 soft-grid">
+      <div class="span-6 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">브랜드 × 성별 가격대 스타일 수</div>
+        <div class="table-wrap mt-4 overflow-x-auto">
+          <table class="min-w-[860px] w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-200 text-slate-500">
+                <th class="py-3 text-left">Brand</th>
+                <th class="py-3 text-left">Gender</th>
+                <th class="py-3 text-right">0-9.9만</th>
+                <th class="py-3 text-right">10-19.9만</th>
+                <th class="py-3 text-right">20-29.9만</th>
+                <th class="py-3 text-right">30-49.9만</th>
+                <th class="py-3 text-right">50만+</th>
+                <th class="py-3 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody id="priceBandGenderBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="span-6 rounded-[28px] border border-white/70 glass panel p-5">
+        <div class="big-title">브랜드 × 성별 속성 수</div>
+        <div class="table-wrap mt-4 overflow-x-auto">
+          <table class="min-w-[860px] w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-200 text-slate-500">
+                <th class="py-3 text-left">Brand</th>
+                <th class="py-3 text-left">Gender</th>
+                <th class="py-3 text-right">2L</th>
+                <th class="py-3 text-right">2.5L</th>
+                <th class="py-3 text-right">3L</th>
+                <th class="py-3 text-right">방수</th>
+                <th class="py-3 text-right">방풍</th>
+                <th class="py-3 text-right">고어텍스</th>
+                <th class="py-3 text-right">다운</th>
+                <th class="py-3 text-right">집티</th>
+              </tr>
+            </thead>
+            <tbody id="attributeGenderBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section class="mt-6 rounded-[28px] border border-white/70 glass panel p-5">
-      <div class="text-xl font-black">브랜드별 키워드</div>
-      <div id="keywordGrid" class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3"></div>
+      <div class="big-title">브랜드 × 성별 × 아이템별 스타일 수 / 가격대</div>
+      <div class="table-wrap mt-4 overflow-x-auto">
+        <table class="min-w-[1100px] w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-200 text-slate-500">
+              <th class="py-3 text-left">Brand</th>
+              <th class="py-3 text-left">Gender</th>
+              <th class="py-3 text-left">Item</th>
+              <th class="py-3 text-right">Styles</th>
+              <th class="py-3 text-right">Avg Price</th>
+              <th class="py-3 text-right">Min Price</th>
+              <th class="py-3 text-right">Max Price</th>
+            </tr>
+          </thead>
+          <tbody id="itemStyleBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mt-6 rounded-[28px] border border-white/70 glass panel p-5">
+      <div class="big-title">브랜드별 키워드</div>
+      <div id="keywordGrid" class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2"></div>
     </section>
 
     <section class="mt-6 rounded-[28px] border border-white/70 glass panel p-5">
       <div class="flex items-end justify-between gap-3 flex-wrap">
-        <div><div class="text-xl font-black">상품 카드 피드</div></div>
+        <div><div class="big-title">상품 카드 피드</div></div>
         <div id="productCountText" class="text-sm font-bold text-slate-500"></div>
       </div>
       <div id="productGrid" class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"></div>
@@ -1523,10 +1636,11 @@ function formatPrice(v) {
 function createKpis() {
   const k = DATA.kpis;
   const items = [
-    ["브랜드 수", k.brands, "실제 크롤링 완료 브랜드"],
-    ["총 상품 수", k.products, "현재 분석 대상 SKU"],
-    ["세일 상품 수", k.sale_products, "할인율 0 초과 기준"],
+    ["브랜드 수", k.brands, "크롤링 완료 브랜드"],
+    ["총 상품 수", k.products, "현재 분석 SKU"],
+    ["세일 상품 수", k.sale_products, "할인 상품"],
     ["평균가", formatPrice(k.avg_price), "현재가 평균"],
+    ["기타 비중", (k.others_ratio || 0) + "%", "낮을수록 좋음"],
   ];
   document.getElementById('kpi-grid').innerHTML = items.map(([label, value, desc]) => `
     <div class="metric-card rounded-[28px] border border-white/70 glass p-5">
@@ -1554,6 +1668,52 @@ function renderBrandSummary() {
     </tr>`).join('');
 }
 
+function renderPriceBandGenderTable() {
+  const rows = DATA.price_band_gender_table || [];
+  document.getElementById('priceBandGenderBody').innerHTML = rows.map(r => `
+    <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
+      <td class="py-3 font-black">${r.brand}</td>
+      <td class="py-3 font-bold">${r.gender}</td>
+      <td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["20-29.9만"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["50만+"])}</td>
+      <td class="py-3 text-right font-black">${formatNumber(r.total_styles)}</td>
+    </tr>`).join('');
+}
+
+function renderAttributeGenderTable() {
+  const rows = DATA.attribute_gender_table || [];
+  document.getElementById('attributeGenderBody').innerHTML = rows.map(r => `
+    <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
+      <td class="py-3 font-black">${r.brand}</td>
+      <td class="py-3 font-bold">${r.gender}</td>
+      <td class="py-3 text-right">${formatNumber(r["2L"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["2.5L"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["3L"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["방수"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["방풍"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["고어텍스"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["다운"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["집티"])}</td>
+    </tr>`).join('');
+}
+
+function renderItemStyleTable() {
+  const rows = DATA.item_style_table || [];
+  document.getElementById('itemStyleBody').innerHTML = rows.map(r => `
+    <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
+      <td class="py-3 font-black">${r.brand}</td>
+      <td class="py-3 font-bold">${r.gender}</td>
+      <td class="py-3">${r.item_category}</td>
+      <td class="py-3 text-right font-black">${formatNumber(r.style_count)}</td>
+      <td class="py-3 text-right">${formatPrice(r.avg_price)}</td>
+      <td class="py-3 text-right">${formatPrice(r.min_price)}</td>
+      <td class="py-3 text-right">${formatPrice(r.max_price)}</td>
+    </tr>`).join('');
+}
+
 function renderKeywords() {
   const grid = document.getElementById('keywordGrid');
   grid.innerHTML = (DATA.keywords || []).map(block => `
@@ -1569,7 +1729,7 @@ function renderProducts() {
   const items = DATA.products || [];
   document.getElementById('productCountText').textContent = `현재 ${formatNumber(items.length)}개`;
   const grid = document.getElementById('productGrid');
-  grid.innerHTML = items.slice(0, 300).map(p => `
+  grid.innerHTML = items.slice(0, 180).map(p => `
     <article class="product-card rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
       <div class="flex gap-4">
         <div class="h-32 w-32 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">
@@ -1578,9 +1738,9 @@ function renderProducts() {
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap gap-2">
             <span class="tag bg-slate-900 text-white">${p.brand}</span>
-            <span class="tag bg-sky-50 text-sky-700">${p.item_category}</span>
+            <span class="tag bg-sky-50 text-sky-700">${p.gender}</span>
+            <span class="tag bg-indigo-50 text-indigo-700">${p.item_category}</span>
             <span class="tag bg-violet-50 text-violet-700">${p.grade}</span>
-            <span class="tag bg-emerald-50 text-emerald-700">${p.shell_type}</span>
             ${p.sold_out ? '<span class="tag bg-rose-50 text-rose-700">품절</span>' : ''}
           </div>
           <div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${p.name}</div>
@@ -1594,7 +1754,7 @@ function renderProducts() {
           </div>
           <div class="mt-3 text-sm font-bold leading-6 text-slate-500 line-clamp-3">${p.description || '설명 없음'}</div>
           <div class="mt-4 flex items-center justify-between gap-3">
-            <div class="text-xs font-black text-slate-400">${p.gender} - ${p.season} - ${p.price_band}</div>
+            <div class="text-xs font-black text-slate-400">${p.season} - ${p.price_band}</div>
             ${p.product_url ? '<a href="' + p.product_url + '" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>' : ''}
           </div>
         </div>
@@ -1620,11 +1780,10 @@ function renderCharts() {
   const c = DATA.charts || {};
   baseChart('brandCountChart', 'bar', c.brandProductCounts?.labels || [], c.brandProductCounts?.values || []);
   baseChart('avgPriceChart', 'bar', c.brandAvgPrice?.labels || [], c.brandAvgPrice?.values || []);
-  baseChart('priceBandChart', 'doughnut', c.priceBand?.labels || [], c.priceBand?.values || [], { scales: {} });
+  baseChart('genderSplitChart', 'doughnut', c.genderSplit?.labels || [], c.genderSplit?.values || [], { scales: {} });
+  baseChart('priceBandChart', 'bar', c.priceBand?.labels || [], c.priceBand?.values || []);
   baseChart('categoryChart', 'bar', c.itemCategory?.labels || [], c.itemCategory?.values || []);
   baseChart('dominantAttrChart', 'bar', c.dominantAttribute?.labels || [], c.dominantAttribute?.values || []);
-  baseChart('gradeChart', 'pie', c.grade?.labels || [], c.grade?.values || [], { scales: {} });
-  baseChart('shellChart', 'pie', c.shellType?.labels || [], c.shellType?.values || [], { scales: {} });
 
   const pctx = document.getElementById('positionChart');
   new Chart(pctx, {
@@ -1659,6 +1818,9 @@ function renderCharts() {
 
 createKpis();
 renderBrandSummary();
+renderPriceBandGenderTable();
+renderAttributeGenderTable();
+renderItemStyleTable();
 renderKeywords();
 renderProducts();
 renderCharts();
