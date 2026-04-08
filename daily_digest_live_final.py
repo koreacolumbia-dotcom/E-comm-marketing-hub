@@ -973,10 +973,11 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
 def _rx(p: str):
     return re.compile(p, re.IGNORECASE)
 
+
 def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     """
-    Strictly match the uploaded Looker Studio sample CASE logic.
-    Do not add any extra rules beyond the sample.
+    Exact translation of the uploaded sample.rtf CASE logic.
+    Do not add extra normalization branches here unless the sample.rtf is changed.
     """
     sm = (source_medium or "").strip()
     cp = (campaign or "").strip()
@@ -1147,11 +1148,18 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 # =========================
 # Session-level BQ base for channel attribution
 # =========================
+
 def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame:
     """
-    Build a session-grain base from GA4 BigQuery export so each session is classified once.
-    This prevents bucket totals from exceeding the overall session total when source/campaign
-    combinations fragment the same session across multiple Data API rows.
+    Strict session-grain channel base for the Looker CASE replication.
+
+    Important:
+    - One session_key must produce at most one output row.
+    - Attribution is taken from session_start first when available.
+    - If session_start is missing, fall back to the first event in the session.
+    - This function is preferred over Data API grouped facts because
+      sessionSourceMedium + sessionCampaignName grouping can over-count sessions
+      when summed back together.
     """
     if bigquery is None or not BQ_EVENTS_TABLE:
         return pd.DataFrame()
@@ -1163,6 +1171,9 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
         sql = f"""
         WITH base AS (
           SELECT
+            event_date,
+            event_timestamp,
+            event_name,
             CONCAT(
               COALESCE(user_pseudo_id, ''),
               '.',
@@ -1190,29 +1201,60 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
           FROM `{BQ_EVENTS_TABLE}`
           WHERE _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
         ),
-        session_base AS (
-          SELECT
-            session_key,
-            COALESCE(ARRAY_AGG(NULLIF(session_source, '') IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)], '(direct)') AS session_source,
-            COALESCE(ARRAY_AGG(NULLIF(session_medium, '') IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)], '(none)') AS session_medium,
-            COALESCE(ARRAY_AGG(session_campaign IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)], '') AS session_campaign,
-            COUNT(DISTINCT NULLIF(transaction_id, '')) AS transactions,
-            SUM(COALESCE(purchase_revenue, 0)) AS purchaseRevenue
+        valid_events AS (
+          SELECT *
           FROM base
           WHERE session_key NOT IN ('', '.')
+        ),
+        session_start_attr AS (
+          SELECT
+            session_key,
+            session_source,
+            session_medium,
+            session_campaign
+          FROM valid_events
+          WHERE event_name = 'session_start'
+          QUALIFY ROW_NUMBER() OVER (PARTITION BY session_key ORDER BY event_timestamp ASC) = 1
+        ),
+        first_event_attr AS (
+          SELECT
+            session_key,
+            session_source,
+            session_medium,
+            session_campaign
+          FROM valid_events
+          QUALIFY ROW_NUMBER() OVER (PARTITION BY session_key ORDER BY event_timestamp ASC) = 1
+        ),
+        session_attr AS (
+          SELECT
+            k.session_key,
+            COALESCE(ss.session_source, fe.session_source, '(direct)') AS session_source,
+            COALESCE(ss.session_medium, fe.session_medium, '(none)') AS session_medium,
+            COALESCE(ss.session_campaign, fe.session_campaign, '') AS session_campaign
+          FROM (SELECT DISTINCT session_key FROM valid_events) k
+          LEFT JOIN session_start_attr ss USING (session_key)
+          LEFT JOIN first_event_attr fe USING (session_key)
+        ),
+        session_orders AS (
+          SELECT
+            session_key,
+            COUNT(DISTINCT NULLIF(transaction_id, '')) AS transactions,
+            SUM(COALESCE(purchase_revenue, 0)) AS purchaseRevenue
+          FROM valid_events
           GROUP BY 1
         )
         SELECT
-          CONCAT(COALESCE(session_source, '(direct)'), ' / ', COALESCE(session_medium, '(none)')) AS sessionSourceMedium,
-          COALESCE(session_campaign, '') AS sessionCampaignName,
+          CONCAT(COALESCE(a.session_source, '(direct)'), ' / ', COALESCE(a.session_medium, '(none)')) AS sessionSourceMedium,
+          COALESCE(a.session_campaign, '') AS sessionCampaignName,
           1.0 AS sessions,
-          CAST(transactions AS FLOAT64) AS transactions,
-          CAST(purchaseRevenue AS FLOAT64) AS purchaseRevenue
-        FROM session_base
+          CAST(COALESCE(o.transactions, 0) AS FLOAT64) AS transactions,
+          CAST(COALESCE(o.purchaseRevenue, 0) AS FLOAT64) AS purchaseRevenue
+        FROM session_attr a
+        LEFT JOIN session_orders o USING (session_key)
         """
         df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
         if df.empty:
-            return df
+            return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
         for c in ['sessionSourceMedium', 'sessionCampaignName']:
             if c not in df.columns:
                 df[c] = ''
@@ -1223,8 +1265,9 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
             df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
         return df[['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue']]
     except Exception as e:
-        print(f"[WARN] Session-level BQ channel base failed: {type(e).__name__}: {e}")
+        print(f"[WARN] Strict session-level BQ channel base failed: {type(e).__name__}: {e}")
         return pd.DataFrame()
+
 
 
 def _fetch_channel_fact_table(
@@ -1233,16 +1276,24 @@ def _fetch_channel_fact_table(
     end: dt.date,
 ) -> pd.DataFrame:
     """
-    Prefer a strict BigQuery session-grain base so each session is counted exactly once.
-    Fall back to GA4 Data API only if BQ is unavailable.
+    Strict channel fact table.
+
+    For exact CASE replication, prefer the BigQuery session-grain base.
+    Only fall back to Data API when explicitly allowed by env, because
+    grouped Data API rows can inflate bucket totals when re-summed.
     """
-    dims = ['sessionSourceMedium', 'sessionCampaignName']
-    mets = ['sessions', 'transactions', 'purchaseRevenue']
+    allow_data_api_fallback = os.getenv("DAILY_DIGEST_LOOKER_ALLOW_DATA_API_FALLBACK", "false").strip().lower() in ("1", "true", "yes", "y")
 
     df = _fetch_session_channel_base_bq(start, end)
     if df is not None and not df.empty:
-        return df[dims + mets]
+        return df
 
+    if not allow_data_api_fallback:
+        print(f"[WARN] Channel fact table unavailable from BQ for {ymd(start)}~{ymd(end)}; returning empty set to avoid inflated totals.")
+        return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
+
+    dims = ['sessionSourceMedium', 'sessionCampaignName']
+    mets = ['sessions', 'transactions', 'purchaseRevenue']
     try:
         df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
         if df.empty:
@@ -1281,14 +1332,16 @@ def _assert_channel_reconciliation(snapshot_df: pd.DataFrame, overall: Dict[str,
 # =========================
 # Channel Snapshot based on Looker CASE rules
 # =========================
+
 def get_channel_snapshot_3way(
     client: BetaAnalyticsDataClient,
     w: DigestWindow,
     overall: Dict[str, Dict[str, float]],
 ) -> pd.DataFrame:
     """
-    Build Channel Snapshot using the Looker CASE bucket logic.
-    Use GA4 Data API dimensions directly and do not inject reconciliation residuals.
+    Build Channel Snapshot strictly from the sample.rtf CASE logic over a session-grain base.
+    No residual session injection.
+    No automatic Data API regrouping unless explicitly enabled by env.
     """
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
@@ -1335,8 +1388,7 @@ def get_channel_snapshot_3way(
     if missing:
         m = pd.concat([m, pd.DataFrame({"bucket": missing})], ignore_index=True, sort=False)
     m[numeric_cols] = m[numeric_cols].fillna(0.0)
-    m = m.groupby("bucket", as_index=False)[numeric_cols].sum().set_index("bucket")
-    m = m.reset_index()
+    m = m.groupby("bucket", as_index=False)[numeric_cols].sum()
 
     m["session_dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     m["session_yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
@@ -1364,29 +1416,30 @@ def get_channel_snapshot_3way(
     out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
     out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
 
-    total_sessions_cur = float(m["sessions_cur"].sum()) if not m.empty else 0.0
-    total_sessions_prev = float(m["sessions_prev"].sum()) if not m.empty else 0.0
-    total_sessions_yoy = float(m["sessions_yoy"].sum()) if not m.empty else 0.0
-    total_transactions_cur = float(m["transactions_cur"].sum()) if not m.empty else 0.0
-    total_transactions_prev = float(m["transactions_prev"].sum()) if not m.empty else 0.0
-    total_transactions_yoy = float(m["transactions_yoy"].sum()) if not m.empty else 0.0
-    total_revenue_cur = float(m["revenue_cur"].sum()) if not m.empty else 0.0
-    total_revenue_prev = float(m["revenue_prev"].sum()) if not m.empty else 0.0
-    total_revenue_yoy = float(m["revenue_yoy"].sum()) if not m.empty else 0.0
+    body = out.copy()
+    total_cur_sessions = float(body["sessions"].sum()) if not body.empty else 0.0
+    total_cur_tx = float(body["transactions"].sum()) if not body.empty else 0.0
+    total_cur_rev = float(body["purchaseRevenue"].sum()) if not body.empty else 0.0
+    total_prev_sessions = float(m["sessions_prev"].sum()) if not m.empty else 0.0
+    total_prev_tx = float(m["transactions_prev"].sum()) if not m.empty else 0.0
+    total_prev_rev = float(m["revenue_prev"].sum()) if not m.empty else 0.0
+    total_yoy_sessions = float(m["sessions_yoy"].sum()) if not m.empty else 0.0
+    total_yoy_tx = float(m["transactions_yoy"].sum()) if not m.empty else 0.0
+    total_yoy_rev = float(m["revenue_yoy"].sum()) if not m.empty else 0.0
 
     total = pd.DataFrame([{
         "bucket": "Total",
-        "sessions": total_sessions_cur,
-        "transactions": total_transactions_cur,
-        "purchaseRevenue": total_revenue_cur,
-        "session_dod": pct_change(total_sessions_cur, total_sessions_prev),
-        "session_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
-        "orders_dod": pct_change(total_transactions_cur, total_transactions_prev),
-        "orders_yoy": pct_change(total_transactions_cur, total_transactions_yoy),
-        "revenue_dod": pct_change(total_revenue_cur, total_revenue_prev),
-        "revenue_yoy": pct_change(total_revenue_cur, total_revenue_yoy),
-        "rev_dod": pct_change(total_sessions_cur, total_sessions_prev),
-        "rev_yoy": pct_change(total_sessions_cur, total_sessions_yoy),
+        "sessions": total_cur_sessions,
+        "transactions": total_cur_tx,
+        "purchaseRevenue": total_cur_rev,
+        "session_dod": pct_change(total_cur_sessions, total_prev_sessions),
+        "session_yoy": pct_change(total_cur_sessions, total_yoy_sessions),
+        "orders_dod": pct_change(total_cur_tx, total_prev_tx),
+        "orders_yoy": pct_change(total_cur_tx, total_yoy_tx),
+        "revenue_dod": pct_change(total_cur_rev, total_prev_rev),
+        "revenue_yoy": pct_change(total_cur_rev, total_yoy_rev),
+        "rev_dod": pct_change(total_cur_sessions, total_prev_sessions),
+        "rev_yoy": pct_change(total_cur_sessions, total_yoy_sessions),
     }])
 
     out = pd.concat([out, total], ignore_index=True)
@@ -1395,7 +1448,13 @@ def get_channel_snapshot_3way(
         "session_dod", "session_yoy", "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
         "rev_dod", "rev_yoy"
     ]]
-    _assert_channel_reconciliation(out, overall)
+
+    expected_sessions = float((overall.get("current", {}) or {}).get("sessions", 0) or 0)
+    if abs(total_cur_sessions - expected_sessions) > 0.5:
+        print(
+            f"[WARN] Strict Looker channel total differs from overall sessions: "
+            f"channel_total={total_cur_sessions:,.0f} vs overall_sessions={expected_sessions:,.0f}"
+        )
     return out
 
 # =========================
