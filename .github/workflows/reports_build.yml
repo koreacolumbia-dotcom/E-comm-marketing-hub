@@ -903,6 +903,18 @@ jobs:
           echo "[CHECK] reports/daily_digest/data/funnel:"
           ls -lah reports/daily_digest/data/funnel | head -n 60 || true
 
+      - name: Force clean Member Funnel outputs
+        if: ${{ steps.modes.outputs.run_member == 'true' }}
+        continue-on-error: false
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[INFO] Force clean member funnel outputs before rebuild"
+          rm -rf reports/member_funnel || true
+          rm -rf site/member_funnel || true
+          rm -rf site/data/member_funnel || true
+          mkdir -p reports/member_funnel reports/member_funnel/data site/member_funnel site/data/member_funnel
+
       - name: Build Member Funnel
         if: ${{ steps.modes.outputs.run_member == 'true' }}
         continue-on-error: false
@@ -934,8 +946,13 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "member_funnel_final_v2.py" ]; then
-            echo "[ERROR] member_funnel_final_v2.py not found"
+          MEMBER_FUNNEL_SCRIPT="member_funnel_final_v2.py"
+          if [ -f "member_funnel_final_v2_patched.py" ]; then
+            MEMBER_FUNNEL_SCRIPT="member_funnel_final_v2_patched.py"
+          fi
+
+          if [ ! -f "$MEMBER_FUNNEL_SCRIPT" ]; then
+            echo "[ERROR] member funnel builder not found: $MEMBER_FUNNEL_SCRIPT"
             exit 1
           fi
 
@@ -975,7 +992,8 @@ jobs:
             echo "[WARN] ${MEMBER_FUNNEL_PATCH_SQL} not found -> skip channel patch"
           fi
 
-          python -u member_funnel_final_v2.py
+          echo "[INFO] Running member funnel builder: ${MEMBER_FUNNEL_SCRIPT}"
+          python -u "$MEMBER_FUNNEL_SCRIPT"
 
           test -f reports/member_funnel/index.html || { echo "[ERROR] reports/member_funnel/index.html missing"; exit 1; }
 
@@ -989,6 +1007,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf site/member_funnel site/data/member_funnel || true
           mkdir -p site/member_funnel site/data/member_funnel
 
           cp -f reports/member_funnel/index.html site/member_funnel/index.html
