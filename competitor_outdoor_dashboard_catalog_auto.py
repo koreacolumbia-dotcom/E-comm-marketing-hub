@@ -99,7 +99,7 @@ DEFAULT_WAIT_SEC = int(os.getenv("DEFAULT_WAIT_SEC", "18"))
 SCREENSHOT_ON_ERROR = os.getenv("SCREENSHOT_ON_ERROR", "1").strip().lower() in {"1", "true", "yes"}
 TODAY_STR = datetime.now().strftime("%Y-%m-%d %H:%M")
 REQUESTS_TIMEOUT = int(os.getenv("REQUESTS_TIMEOUT", "20"))
-DETAIL_WORKERS = int(os.getenv("DETAIL_WORKERS", "8"))
+DETAIL_WORKERS = int(os.getenv("DETAIL_WORKERS", "6"))
 REQUEST_HEADERS = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36","Accept-Language":"ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"}
 
 
@@ -115,6 +115,12 @@ class BrandConfig:
     force_allow_url_keywords: List[str] = field(default_factory=list)
     category_hints: List[str] = field(default_factory=list)
     max_products: int = MAX_PRODUCTS_PER_BRAND
+    detail_mode: str = "hybrid"
+    detail_name_selectors: List[str] = field(default_factory=list)
+    detail_price_selectors: List[str] = field(default_factory=list)
+    detail_original_price_selectors: List[str] = field(default_factory=list)
+    detail_desc_selectors: List[str] = field(default_factory=list)
+    detail_image_selectors: List[str] = field(default_factory=list)
 
 
 
@@ -128,6 +134,7 @@ BRAND_CONFIGS: List[BrandConfig] = [
         listing_url_keywords=["/product/list", "gdv=", "cno=", "/category", "/display"],
         deny_url_keywords=["benefit", "download", "event", "notice", "inside", "faq", "login", "join", "magazine"],
         category_hints=["자켓", "팬츠", "슈즈", "신발", "티셔츠", "플리스", "패딩"],
+        detail_mode="hybrid",
     ),
     BrandConfig(
         brand="DISCOVERY_EXPEDITION",
@@ -138,6 +145,12 @@ BRAND_CONFIGS: List[BrandConfig] = [
         listing_url_keywords=["/display/", "/category/", "/collection/", "/shop/"],
         deny_url_keywords=["login", "join", "benefit", "guide", "notice", "store-locator", "about", "magazine"],
         force_allow_url_keywords=["product-detail"],
+        detail_mode="selenium_only",
+        detail_name_selectors=["[class*=product] [class*=name]", "[class*=detail] [class*=name]", "[class*=title]", "h1", "h2"],
+        detail_price_selectors=["[class*=sale][class*=price]", "[class*=current][class*=price]", "[class*=price] strong", "[class*=price]"],
+        detail_original_price_selectors=["[class*=origin][class*=price]", "[class*=consumer]", "[class*=normal][class*=price]", "del"],
+        detail_desc_selectors=["[class*=product][class*=desc]", "[class*=detail][class*=desc]", "[class*=detail][class*=info]", "[class*=summary]"],
+        detail_image_selectors=["[class*=detail] img", "[class*=product] img", ".swiper-slide img", "img"],
     ),
     # Disabled for now
     # BrandConfig(... THE_NORTH_FACE ...),
@@ -226,18 +239,6 @@ NOISE_WORDS = {
     "자켓", "팬츠", "셔츠", "신발", "모자", "가방", "상품", "제품", "스타일",
 }
 
-
-KEYWORD_STOPWORDS = {
-    "BETTER","MAKE","MKAE","NOW","PERPECT","PERFECT","COLUMBIA","DISCOVERY","COMING","SOLD","OUT","SOON",
-    "EVA","BLACK","GARY","GRAY","WHITE","BLUE","BEIGE","PINK","GREEN","RED","KHAKI","NAVY","IVORY",
-    "WOMEN","WOMAN","WOMENS","MEN","MENS","UNISEX","KOREA","NEW","BEST","STYLE","ITEM","SIZE","SALE"
-}
-KEYWORD_STOP_PATTERNS = [
-    r"^[A-Z]{1,3}$",
-    r"^\d+[A-Z]?$",
-    r"^(BLACK|WHITE|BLUE|BEIGE|GRAY|GARY|GREEN|RED|NAVY|KHAKI|IVORY|PINK)$",
-]
-
 BRAND_TERM_MAP: Dict[str, str] = {
     "DRYVENT": "방수",
     "FUTURELIGHT": "방수",
@@ -308,7 +309,7 @@ CATEGORY_RULES: Dict[str, List[str]] = {
     "후디": ["hoodie", "hood", "후디", "후드", "후드티", "sweatshirt", "맨투맨"],
     "티셔츠": ["tee", "t-shirt", "t shirt", "티셔츠", "반팔", "긴팔", "sleeve"],
     "셔츠": ["shirt", "셔츠"],
-    "슈즈": ["shoe", "shoes", "boot", "boots", "sneaker", "trail", "등산화", "신발", "부츠", "sandals", "샌들"],
+    "슈즈": ["shoe", "shoes", "boot", "boots", "sneaker", "trail", "등산화", "신발", "부츠", "sandals", "sandal", "샌들", "슬라이드", "slide", "슬리퍼"],
     "백팩": ["backpack", "bag", "pack", "배낭", "백팩", "가방"],
     "캡": ["cap", "hat", "모자", "캡", "비니"],
 }
@@ -489,6 +490,7 @@ def try_find_text(driver_or_el, selectors: List[str]) -> str:
     return ""
 
 
+
 def try_find_long_text(driver_or_el, selectors: List[str]) -> str:
     candidates: List[str] = []
     for css in selectors:
@@ -512,6 +514,26 @@ def try_find_long_text(driver_or_el, selectors: List[str]) -> str:
     return candidates[0][:4000]
 
 
+def try_find_all_texts(driver_or_el, selectors: List[str], limit: int = 30) -> List[str]:
+    out = []
+    for css in selectors:
+        try:
+            if css.startswith("meta["):
+                elem = driver_or_el.find_element(By.CSS_SELECTOR, css)
+                content = compact_text(elem.get_attribute("content"))
+                if content:
+                    out.append(content)
+            else:
+                elems = driver_or_el.find_elements(By.CSS_SELECTOR, css)
+                for elem in elems[:limit]:
+                    txt = get_text_from_element(elem)
+                    if txt:
+                        out.append(txt)
+        except Exception:
+            continue
+    return out
+
+
 def try_find_attr(driver_or_el, selectors: List[str], attr: str) -> str:
     for css in selectors:
         try:
@@ -524,6 +546,30 @@ def try_find_attr(driver_or_el, selectors: List[str], attr: str) -> str:
             continue
     return ""
 
+
+
+
+def is_bad_discovery_desc(text: str) -> bool:
+    t = compact_text(text).lower()
+    if not t:
+        return False
+    bad_patterns = [
+        "반품/교환 신청기간", "상품 수령일로부터", "마이페이지", "취소/교환/반품",
+        "상세 주문내역", "반품 버튼", "교환 버튼", "상품 수령", "교환/반품",
+    ]
+    hits = sum(1 for p in bad_patterns if p.lower() in t)
+    return hits >= 2 or (len(t) < 220 and hits >= 1)
+
+
+def choose_first_good_text(values: List[str], brand: str = "") -> str:
+    cleaned = [compact_text(v) for v in values if compact_text(v)]
+    if not cleaned:
+        return ""
+    if brand == "DISCOVERY_EXPEDITION":
+        good = [v for v in cleaned if not is_bad_discovery_desc(v)]
+        if good:
+            return sorted(good, key=len, reverse=True)[0]
+    return sorted(cleaned, key=len, reverse=True)[0]
 
 def text_contains_brand(text: str, brand_terms: List[str]) -> bool:
     low = (text or "").lower()
@@ -600,14 +646,15 @@ def bs_first_attr(soup: BeautifulSoup, selectors: List[str], attr: str) -> str:
 # ============================================================
 # 3. ANALYZER
 # ============================================================
+
 def infer_gender(name: str, description: str, raw_gender: str) -> str:
     blob = f"{name} {description} {raw_gender}".lower()
+    if any(x in blob for x in ["unisex", "공용", "유니섹스"]):
+        return "공용"
     if any(x in blob for x in ["women", "womens", "여성", "우먼", "woman"]):
         return "여성"
     if any(x in blob for x in ["men", "mens", "남성", "맨즈", "man"]):
         return "남성"
-    if any(x in blob for x in ["unisex", "공용"]):
-        return "공용"
     return "미분류"
 
 
@@ -647,7 +694,7 @@ def infer_item_category(name: str, description: str) -> str:
         return "자켓"
     if any(x in blob for x in ["pants", "pant", "바지", "팬츠"]):
         return "팬츠"
-    if any(x in blob for x in ["shoe", "boot", "신발", "등산화", "부츠"]):
+    if any(x in blob for x in ["shoe", "shoes", "boot", "boots", "신발", "등산화", "부츠", "샌들", "sandals", "sandal", "슬라이드", "slide", "슬리퍼"]):
         return "슈즈"
     if any(x in blob for x in ["tee", "티셔츠", "반팔", "긴팔"]):
         return "티셔츠"
@@ -770,73 +817,6 @@ def classify_positioning_x(attrs: List[str], dominant_attribute: str, shell_type
     return "Lifestyle"
 
 
-
-
-def refine_item_category(name: str, description: str, current_category: str) -> str:
-    if current_category != "기타":
-        return current_category
-    blob = f"{name} {description}".lower()
-    extra_rules = [
-        ("집티", ["zip tee", "zip-up", "zip up", "집업", "하프집업", "half zip", "half-zip"]),
-        ("후디", ["hoodie", "후디", "후드", "후드티", "맨투맨", "sweatshirt"]),
-        ("플리스", ["fleece", "플리스", "boa", "보아"]),
-        ("다운", ["down", "패딩", "덕다운", "구스다운", "puffer"]),
-        ("자켓", ["jacket", "shell", "parka", "자켓", "재킷", "아노락", "바람막이"]),
-        ("팬츠", ["pants", "pant", "바지", "팬츠", "조거", "쇼츠", "반바지"]),
-        ("슈즈", ["shoe", "boot", "신발", "등산화", "부츠", "sneaker"]),
-        ("티셔츠", ["tee", "티셔츠", "반팔", "긴팔", "sleeve"]),
-    ]
-    for cat, rules in extra_rules:
-        if any(x in blob for x in rules):
-            return cat
-    return current_category
-
-
-def refine_standard_attributes(name: str, description: str, attrs: List[str]) -> List[str]:
-    blob = f"{name} {description}".lower()
-    out = list(attrs)
-    mapping_rules = [
-        ("2L", ["2l", "2-layer", "2 layer"]),
-        ("2.5L", ["2.5l", "2.5-layer", "2.5 layer"]),
-        ("3L", ["3l", "3-layer", "3 layer"]),
-        ("방풍", ["windproof", "wind stopper", "windstopper", "방풍"]),
-        ("방수", ["waterproof", "wp", "방수", "발수", "water resistant"]),
-        ("고어텍스", ["gore-tex", "gore tex"]),
-        ("다운", ["down", "덕다운", "구스다운", "충전재"]),
-        ("보온", ["thermal", "heat", "보온", "플리스"]),
-    ]
-    for attr, rules in mapping_rules:
-        if attr not in out and any(x in blob for x in rules):
-            out.append(attr)
-    return unique_preserve_order(out)
-
-
-def build_other_debug_table(df: pd.DataFrame) -> List[dict]:
-    if df.empty:
-        return []
-    rows = []
-    subset = df[(df["item_category"].fillna("기타") == "기타") | (df["dominant_attribute"].fillna("기타") == "기타")].copy()
-    for _, r in subset.head(60).iterrows():
-        blob = f"{r.get('name','')} {r.get('description','')}".lower()
-        reason_parts = []
-        if r.get("item_category", "기타") == "기타":
-            reason_parts.append("item rule miss")
-        if r.get("dominant_attribute", "기타") == "기타":
-            reason_parts.append("attribute rule miss")
-        tokens = re.findall(r"[a-zA-Z가-힣0-9\-\.]{3,}", blob)
-        tokens = [t for t in tokens if t.lower() not in NOISE_WORDS][:8]
-        rows.append({
-            "brand": r.get("brand", ""),
-            "gender": r.get("gender", ""),
-            "name": r.get("name", ""),
-            "item_category": r.get("item_category", ""),
-            "dominant_attribute": r.get("dominant_attribute", ""),
-            "reason": ", ".join(reason_parts),
-            "tokens": ", ".join(tokens),
-        })
-    return rows
-
-
 def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     current_price = parse_price_to_int(raw.price_text)
     original_price = parse_price_to_int(raw.original_price_text)
@@ -849,7 +829,6 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
 
     raw_keywords = extract_raw_keywords(raw.name, raw.description)
     std_attrs = map_standard_attributes(raw_keywords, raw.name, raw.description)
-    std_attrs = refine_standard_attributes(raw.name, raw.description, std_attrs)
     resolved_attrs = resolve_conflicts(std_attrs)
     dominant = select_dominant_attribute(resolved_attrs)
     grade = classify_grade(resolved_attrs, dominant)
@@ -857,7 +836,6 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     price_band = classify_price_band(current_price)
     pos_y = classify_positioning_y(current_price)
     pos_x = classify_positioning_x(resolved_attrs, dominant, shell_type)
-    item_category = refine_item_category(raw.name, raw.description, infer_item_category(raw.name, raw.description))
 
     return ProductAnalyzed(
         brand=raw.brand,
@@ -872,7 +850,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         sold_out=bool(safe_text(raw.sold_out_text)),
         gender=infer_gender(raw.name, raw.description, raw.gender_text),
         season=infer_season(raw.name, raw.description, raw.season_text),
-        item_category=item_category,
+        item_category=infer_item_category(raw.name, raw.description),
         raw_keywords=raw_keywords,
         standard_attributes=resolved_attrs,
         dominant_attribute=dominant,
@@ -889,22 +867,6 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
 # ============================================================
 # 4. KEYWORD DISCOVERY
 # ============================================================
-
-def _keyword_allowed(kw: str, brand: str = "") -> bool:
-    raw = safe_text(kw).upper()
-    if not raw or len(raw) < 2:
-        return False
-    if raw in KEYWORD_STOPWORDS:
-        return False
-    if brand and raw == brand.upper():
-        return False
-    if raw.lower() in NOISE_WORDS:
-        return False
-    if any(re.match(p, raw) for p in KEYWORD_STOP_PATTERNS):
-        return False
-    return True
-
-
 def discover_keywords(products: List[ProductAnalyzed]) -> pd.DataFrame:
     rows = []
     brand_keyword_counter: Dict[str, Dict[str, int]] = {}
@@ -914,7 +876,7 @@ def discover_keywords(products: List[ProductAnalyzed]) -> pd.DataFrame:
         raws = unique_preserve_order([x.upper() for x in p.raw_keywords if safe_text(x)])
         brand_keyword_counter.setdefault(p.brand, {})
         for kw in raws:
-            if not _keyword_allowed(kw, p.brand):
+            if kw.lower() in NOISE_WORDS or len(kw) < 2:
                 continue
             brand_keyword_counter[p.brand][kw] = brand_keyword_counter[p.brand].get(kw, 0) + 1
             global_counter[kw] = global_counter.get(kw, 0) + 1
@@ -1170,6 +1132,97 @@ class AutoCompetitorCrawler:
 
 
     def crawl_product_detail(self, product_url: str, source_url: str, cfg: BrandConfig) -> Optional[ProductRaw]:
+        # Discovery: selenium-first to avoid capturing policy text from server-rendered fallback HTML
+        if cfg.detail_mode == "selenium_only":
+            if not self._safe_get(product_url):
+                return None
+            try:
+                time.sleep(0.8)
+            except Exception:
+                pass
+
+            name_selectors = cfg.detail_name_selectors or GENERIC_NAME_SELECTORS
+            price_selectors = cfg.detail_price_selectors or GENERIC_PRICE_SELECTORS
+            original_price_selectors = cfg.detail_original_price_selectors or GENERIC_ORIGINAL_PRICE_SELECTORS
+            desc_selectors = cfg.detail_desc_selectors or GENERIC_DESC_SELECTORS
+            image_selectors = cfg.detail_image_selectors or GENERIC_IMAGE_SELECTORS
+
+            title = try_find_text(self.driver, name_selectors)
+            if not title:
+                try:
+                    title = self.driver.title
+                except Exception:
+                    title = ""
+
+            price_candidates = try_find_all_texts(self.driver, price_selectors)
+            original_price_candidates = try_find_all_texts(self.driver, original_price_selectors)
+            desc_candidates = try_find_all_texts(self.driver, desc_selectors, limit=40)
+            desc = choose_first_good_text(desc_candidates, cfg.brand)
+            image_url = try_find_attr(self.driver, image_selectors, "src") or try_find_attr(self.driver, image_selectors, "content")
+            sold_out_text = try_find_text(self.driver, GENERIC_SOLDOUT_SELECTORS)
+            gender_text = try_find_text(self.driver, GENERIC_GENDER_SELECTORS)
+            season_text = try_find_text(self.driver, GENERIC_SEASON_SELECTORS)
+
+            price_text = choose_first_good_text(price_candidates, cfg.brand)
+            original_price_text = choose_first_good_text(original_price_candidates, cfg.brand)
+
+            if not title and not price_text and not desc:
+                return None
+
+            sanity_blob = f"{title} {desc}"
+            cp, op = select_current_original_price(price_text, original_price_text)
+            return ProductRaw(
+                brand=cfg.brand,
+                source_url=source_url,
+                product_url=product_url,
+                name=compact_text(title),
+                description=compact_text(desc),
+                price_text=str(cp) if cp is not None else compact_text(price_text),
+                original_price_text=str(op) if op is not None else compact_text(original_price_text),
+                image_url=compact_text(image_url),
+                sold_out_text=compact_text(sold_out_text),
+                gender_text=compact_text(gender_text),
+                season_text=compact_text(season_text),
+                crawled_at=TODAY_STR,
+            )
+
+        # requests-first for speed
+        resp = _requests_get(product_url)
+        if resp is not None and getattr(resp, "ok", False) and resp.text:
+            try:
+                soup = BeautifulSoup(resp.text, "html.parser")
+                title = bs_first_text(soup, GENERIC_NAME_SELECTORS) or compact_text(soup.title.get_text(" ", strip=True) if soup.title else "")
+                price_text = bs_first_text(soup, GENERIC_PRICE_SELECTORS)
+                original_price_text = bs_first_text(soup, GENERIC_ORIGINAL_PRICE_SELECTORS)
+                desc = bs_long_text(soup, GENERIC_DESC_SELECTORS)
+                image_url = bs_first_attr(soup, GENERIC_IMAGE_SELECTORS, "src") or bs_first_attr(soup, GENERIC_IMAGE_SELECTORS, "content")
+                sold_out_text = bs_first_text(soup, GENERIC_SOLDOUT_SELECTORS)
+                gender_text = bs_first_text(soup, GENERIC_GENDER_SELECTORS)
+                season_text = bs_first_text(soup, GENERIC_SEASON_SELECTORS)
+
+                sanity_blob = f"{title} {desc}"
+                if title or price_text or desc:
+                    if cfg.brand_terms and cfg.domain in {"www.k-village.co.kr"}:
+                        if not text_contains_brand(sanity_blob, cfg.brand_terms):
+                            return None
+                    cp, op = select_current_original_price(price_text, original_price_text)
+                    return ProductRaw(
+                        brand=cfg.brand,
+                        source_url=source_url,
+                        product_url=product_url,
+                        name=compact_text(title),
+                        description=compact_text(desc),
+                        price_text=str(cp) if cp is not None else compact_text(price_text),
+                        original_price_text=str(op) if op is not None else compact_text(original_price_text),
+                        image_url=compact_text(image_url),
+                        sold_out_text=compact_text(sold_out_text),
+                        gender_text=compact_text(gender_text),
+                        season_text=compact_text(season_text),
+                        crawled_at=TODAY_STR,
+                    )
+            except Exception:
+                pass
+
         if not self._safe_get(product_url):
             return None
 
@@ -1201,21 +1254,21 @@ class AutoCompetitorCrawler:
             if not text_contains_brand(sanity_blob, cfg.brand_terms):
                 return None
 
+        cp, op = select_current_original_price(price_text, original_price_text)
         return ProductRaw(
             brand=cfg.brand,
             source_url=source_url,
             product_url=product_url,
             name=compact_text(title),
             description=compact_text(desc),
-            price_text=compact_text(price_text),
-            original_price_text=compact_text(original_price_text),
+            price_text=str(cp) if cp is not None else compact_text(price_text),
+            original_price_text=str(op) if op is not None else compact_text(original_price_text),
             image_url=compact_text(image_url),
             sold_out_text=compact_text(sold_out_text),
             gender_text=compact_text(gender_text),
             season_text=compact_text(season_text),
             crawled_at=TODAY_STR,
         )
-
 
     def crawl_brand(self, cfg: BrandConfig) -> List[ProductRaw]:
         print(f"\n[CRAWL START] {cfg.brand} :: seeds={len(cfg.seed_urls)}")
@@ -1415,6 +1468,7 @@ def build_attribute_gender_table(df: pd.DataFrame) -> List[dict]:
     return rows
 
 
+
 def build_item_style_table(df: pd.DataFrame) -> List[dict]:
     if df.empty:
         return []
@@ -1428,12 +1482,29 @@ def build_item_style_table(df: pd.DataFrame) -> List[dict]:
         )
         .reset_index()
     )
+
+    band_counts = (
+        df.groupby(["brand", "gender", "item_category", "price_band"])
+        .size()
+        .reset_index(name="cnt")
+    )
+
+    for band in ["0-9.9만", "10-19.9만", "20-29.9만", "30-49.9만", "50만+"]:
+        pivot = (
+            band_counts[band_counts["price_band"] == band]
+            .rename(columns={"cnt": band})
+            [["brand", "gender", "item_category", band]]
+        )
+        grouped = grouped.merge(pivot, on=["brand", "gender", "item_category"], how="left")
+
+    for band in ["0-9.9만", "10-19.9만", "20-29.9만", "30-49.9만", "50만+"]:
+        grouped[band] = grouped[band].fillna(0).astype(int)
+
     grouped["avg_price"] = grouped["avg_price"].fillna(0).round(0).astype(int)
     grouped["min_price"] = grouped["min_price"].fillna(0).astype(int)
     grouped["max_price"] = grouped["max_price"].fillna(0).astype(int)
     grouped = grouped.sort_values(["brand", "gender", "style_count", "avg_price"], ascending=[True, True, False, False])
     return grouped.to_dict("records")
-
 
 
 def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df: pd.DataFrame) -> dict:
@@ -1448,7 +1519,6 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "price_band_gender_table": [],
             "attribute_gender_table": [],
             "item_style_table": [],
-            "other_debug_table": [],
         }
 
     charts = {
@@ -1499,15 +1569,9 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
     keywords = []
     if not kw_df.empty:
         for brand, g in kw_df.groupby("brand"):
-            keywords.append({"brand": brand, "items": g.head(16).to_dict("records")})
+            keywords.append({"brand": brand, "items": g.head(12).to_dict("records")})
 
     others_ratio = round(float((df["item_category"].fillna("기타") == "기타").mean()) * 100, 1)
-    products_feed = (
-        df.loc[~df["sold_out"].fillna(False)]
-        .sort_values(["brand", "item_category", "gender", "current_price"], ascending=[True, True, True, False])
-        .fillna("")
-        .to_dict("records")
-    )
 
     return {
         "generated_at": TODAY_STR,
@@ -1519,14 +1583,20 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "others_ratio": others_ratio,
         },
         "brand_summary": brand_summary.to_dict("records"),
-        "products": products_feed,
+        "products": df.sort_values(["brand", "gender", "current_price"], ascending=[True, True, False]).fillna("").to_dict("records"),
         "charts": charts,
         "keywords": keywords,
         "price_band_gender_table": build_price_band_gender_table(df),
         "attribute_gender_table": build_attribute_gender_table(df),
         "item_style_table": build_item_style_table(df),
-        "other_debug_table": build_other_debug_table(df),
+        "other_debug": build_other_debug(df),
     }
+
+
+# ============================================================
+# 7. DASHBOARD HTML
+# ============================================================
+
 
 
 def render_dashboard(payload: dict) -> str:
@@ -1543,361 +1613,216 @@ def render_dashboard(payload: dict) -> str:
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#0f172a; --bg0:#f6f8fb; --bg1:#eef3f9; --line:rgba(255,255,255,0.78); }
-    * { box-sizing:border-box; }
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
     body{
       background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      color:#0f172a;
-      min-height:100vh;
+      font-family: 'Plus Jakarta Sans', sans-serif; color:#0f172a; min-height:100vh;
     }
     .glass-card{
-      background: rgba(255,255,255,0.68);
-      backdrop-filter: blur(18px);
-      border: 1px solid rgba(255,255,255,0.85);
-      border-radius: 28px;
+      background: rgba(255,255,255,0.60); backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.75); border-radius: 28px;
       box-shadow: 0 20px 50px rgba(0,45,114,0.06);
-      animation: fadeUp .6s ease both;
+      animation: fadeUp .55s ease both;
     }
-    .hero-card{
-      position:relative;
-      overflow:hidden;
+    .mini-kpi{animation: slideUpSoft .55s ease both;}
+    .section-eyebrow{font-size:10px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;color:#94a3b8;}
+    .tab-btn{
+      border-radius:999px;padding:8px 14px;font-size:12px;font-weight:900;
+      background:rgba(255,255,255,.72); color:#64748b; border:1px solid rgba(148,163,184,.18);
+      transition:.2s ease; cursor:pointer;
     }
-    .hero-card::before{
-      content:'';
-      position:absolute;
-      inset:-20% auto auto -10%;
-      width:280px;
-      height:280px;
-      border-radius:999px;
-      background: radial-gradient(circle, rgba(29,78,216,.16), rgba(29,78,216,0));
-      filter: blur(4px);
-      pointer-events:none;
-      animation: softPulse 6s ease-in-out infinite;
-    }
-    .hero-card::after{
-      content:'';
-      position:absolute;
-      inset:auto -10% -25% auto;
-      width:240px;
-      height:240px;
-      border-radius:999px;
-      background: radial-gradient(circle, rgba(96,165,250,.14), rgba(96,165,250,0));
-      filter: blur(4px);
-      pointer-events:none;
-      animation: softPulse 7s ease-in-out infinite;
-    }
-    .metric-card{
-      position:relative;
-      overflow:hidden;
-      transition: transform .22s ease, box-shadow .22s ease;
-    }
-    .metric-card:hover, .panel:hover{
-      transform: translateY(-2px);
-      box-shadow: 0 24px 56px rgba(15,23,42,.09);
-    }
-    .panel{
-      transition: transform .22s ease, box-shadow .22s ease;
-      animation: fadeUp .65s ease both;
-    }
-    .tag{
-      display:inline-flex;
-      align-items:center;
-      border-radius:999px;
-      padding:4px 10px;
-      font-size:11px;
-      font-weight:800;
-    }
-    .chart-shell{
-      position:relative;
-      min-height: 340px;
-    }
-    .chart-shell canvas{
-      width:100% !important;
-      height:100% !important;
-    }
-    .chart-shell.compact{ min-height: 280px; }
-    .chart-shell.tall{ min-height: 420px; }
-    .table-wrap::-webkit-scrollbar{ height:8px; width:8px; }
-    .table-wrap::-webkit-scrollbar-thumb{ background:#cbd5e1; border-radius:999px; }
-    .section-eyebrow{
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: .24em;
-      text-transform: uppercase;
-      color:#94a3b8;
-    }
-    .mention-card{
-      padding:16px;
-      border-radius:24px;
-      background: rgba(255,255,255,0.92);
-      border:1px solid rgba(226,232,240,.95);
-      box-shadow: 0 10px 28px rgba(15,23,42,.04);
-      transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-      animation: slideUpSoft .55s ease both;
-    }
-    .mention-card:hover{
-      transform: translateY(-2px);
-      border-color: rgba(96,165,250,.7);
-      box-shadow: 0 16px 32px rgba(15,23,42,.08);
-    }
-    .brand-section-title{
-      display:flex; align-items:center; gap:10px; margin-bottom:14px;
-    }
-    .brand-dot{
-      width:10px; height:10px; border-radius:999px;
-      background: linear-gradient(180deg, #1d4ed8, #60a5fa);
-      box-shadow: 0 0 0 6px rgba(96,165,250,.14);
-    }
-    .pill-dark{ background:#0f172a; color:#fff; }
-    .pill-soft{ background:#f1f5f9; color:#334155; }
-    .pill-blue{ background:#eff6ff; color:#1d4ed8; }
-    .pill-violet{ background:#f5f3ff; color:#6d28d9; }
-    .pill-emerald{ background:#ecfdf5; color:#047857; }
-    .pill-rose{ background:#fff1f2; color:#be123c; }
-    .product-grid-group{
-      margin-top:28px;
-    }
-    .divider{
-      height:1px; background: rgba(148,163,184,.18); margin: 18px 0;
-    }
-    @keyframes fadeUp{
-      from{ opacity:0; transform: translateY(10px) scale(.99); }
-      to{ opacity:1; transform: translateY(0) scale(1); }
-    }
-    @keyframes slideUpSoft{
-      from{ opacity:0; transform: translateY(12px); }
-      to{ opacity:1; transform: translateY(0); }
-    }
-    @keyframes softPulse{
-      0%,100%{ transform: scale(1); opacity:.85; }
-      50%{ transform: scale(1.08); opacity:1; }
-    }
+    .tab-btn.active{ background:#0f172a; color:#fff; box-shadow:0 10px 24px rgba(15,23,42,.12); }
+    .tag{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800;}
+    .chart-box{height:280px; position:relative;}
+    .chart-box.tall{height:280px;}
+    .chart-box canvas{width:100%!important;height:100%!important;}
+    .product-card:hover{transform:translateY(-2px);transition:.2s ease;}
+    .fade-in{animation: fadeUp .5s ease both;}
+    .hidden-pane{display:none;}
+    .table-wrap::-webkit-scrollbar{height:8px;width:8px;}
+    .table-wrap::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px;}
+    @keyframes fadeUp{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
+    @keyframes slideUpSoft{from{opacity:0; transform:translateY(12px) scale(.99)} to{opacity:1; transform:translateY(0) scale(1)}}
+    @keyframes softPulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.15)}100%{box-shadow:0 0 0 12px rgba(59,130,246,0)}}
   </style>
 </head>
-<body>
+<body class="text-slate-900">
   <div class="mx-auto max-w-[1800px] px-5 py-6 lg:px-8">
-    <section class="glass-card hero-card p-6 lg:p-8">
-      <div class="relative z-[2] flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div class="glass-card p-6 lg:p-8">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div class="section-eyebrow">COMPETITOR PRODUCT INTELLIGENCE</div>
-          <h1 class="mt-2 text-3xl lg:text-5xl font-black tracking-[-0.05em] text-slate-900">컬럼비아 · 디스커버리 경쟁사 상품 분석</h1>
-          <div class="mt-3 max-w-4xl text-sm font-bold leading-6 text-slate-600">브랜드 × 성별 × 가격대 스타일 수, 기능 속성, 아이템별 스타일 수를 실무용으로 바로 보기 쉽게 정리했습니다. 기타는 자동 보정 후 남은 항목만 디버그 테이블로 노출합니다.</div>
+          <div class="section-eyebrow">Competitor Outdoor Intelligence</div>
+          <h1 class="mt-2 text-3xl font-black tracking-[-0.05em] text-slate-900 lg:text-5xl">컬럼비아 vs 디스커버리 상품 분석</h1>
+          <div class="mt-3 max-w-4xl text-sm font-bold leading-6 text-slate-600">가격대·속성·스타일 수를 보기 쉽게 정리하고, 기타 분류는 가장 아래에서 디버그할 수 있게 구성했습니다.</div>
         </div>
-        <div class="rounded-3xl bg-slate-900 px-5 py-4 text-white shadow-xl">
+        <div class="rounded-3xl bg-slate-900 px-5 py-4 text-white shadow-xl" style="animation:softPulse 2.2s ease-in-out infinite alternate;">
           <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-300">GENERATED</div>
           <div class="mt-2 text-lg font-black">__GENERATED_AT__</div>
         </div>
       </div>
+    </div>
+
+    <section class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5" id="kpi-grid"></section>
+
+    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div class="glass-card p-5"><div class="section-eyebrow">SKU</div><div class="mt-2 text-xl font-black">브랜드별 SKU 수</div><div class="chart-box mt-4"><canvas id="brandCountChart"></canvas></div></div>
+      <div class="glass-card p-5"><div class="section-eyebrow">PRICE</div><div class="mt-2 text-xl font-black">브랜드별 평균가</div><div class="chart-box mt-4"><canvas id="avgPriceChart"></canvas></div></div>
+      <div class="glass-card p-5"><div class="section-eyebrow">GENDER</div><div class="mt-2 text-xl font-black">남녀 비중</div><div class="chart-box mt-4"><canvas id="genderSplitChart"></canvas></div></div>
     </section>
 
-    <section class="mt-6 grid grid-cols-2 lg:grid-cols-5 gap-4" id="kpi-grid"></section>
-
-    <section class="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-4">
-      <div class="glass-card panel p-5 xl:col-span-1">
-        <div class="section-eyebrow">SKU</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">브랜드별 SKU 수</div>
-        <div class="chart-shell compact mt-4"><canvas id="brandCountChart"></canvas></div>
-      </div>
-      <div class="glass-card panel p-5 xl:col-span-1">
-        <div class="section-eyebrow">PRICE</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">브랜드별 평균가</div>
-        <div class="chart-shell compact mt-4"><canvas id="avgPriceChart"></canvas></div>
-      </div>
-      <div class="glass-card panel p-5 xl:col-span-1">
-        <div class="section-eyebrow">GENDER</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">남녀 비중</div>
-        <div class="chart-shell compact mt-4"><canvas id="genderSplitChart"></canvas></div>
-      </div>
+    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div class="glass-card p-5"><div class="section-eyebrow">PRICE BAND</div><div class="mt-2 text-xl font-black">가격대 분포</div><div class="chart-box mt-4"><canvas id="priceBandChart"></canvas></div></div>
+      <div class="glass-card p-5"><div class="section-eyebrow">ITEM</div><div class="mt-2 text-xl font-black">아이템 분포</div><div class="chart-box mt-4"><canvas id="categoryChart"></canvas></div></div>
+      <div class="glass-card p-5"><div class="section-eyebrow">ATTRIBUTE</div><div class="mt-2 text-xl font-black">대표 속성 분포</div><div class="chart-box mt-4"><canvas id="dominantAttrChart"></canvas></div></div>
     </section>
 
-    <section class="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-4">
-      <div class="glass-card panel p-5">
-        <div class="section-eyebrow">PRICE BAND</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">가격대 분포</div>
-        <div class="chart-shell mt-4"><canvas id="priceBandChart"></canvas></div>
-      </div>
-      <div class="glass-card panel p-5">
-        <div class="section-eyebrow">ITEM MIX</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">아이템 분포</div>
-        <div class="chart-shell mt-4"><canvas id="categoryChart"></canvas></div>
-      </div>
-      <div class="glass-card panel p-5">
-        <div class="section-eyebrow">ATTRIBUTE</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">대표 속성 분포</div>
-        <div class="chart-shell mt-4"><canvas id="dominantAttrChart"></canvas></div>
-      </div>
-    </section>
-
-    <section class="mt-6 grid grid-cols-1 xl:grid-cols-[1.35fr_.65fr] gap-4">
-      <div class="glass-card panel p-5">
-        <div class="section-eyebrow">BRAND TABLE</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">브랜드 비교표</div>
+    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_.65fr]">
+      <div class="glass-card p-5">
+        <div class="section-eyebrow">COMPARE</div>
+        <div class="mt-2 text-xl font-black">브랜드 비교표</div>
         <div class="table-wrap mt-4 overflow-x-auto">
           <table class="min-w-[1100px] w-full text-sm">
-            <thead>
-              <tr class="border-b border-slate-200 text-slate-500">
-                <th class="py-3 text-left">Brand</th>
-                <th class="py-3 text-right">Total</th>
-                <th class="py-3 text-right">Active</th>
-                <th class="py-3 text-right">Avg Price</th>
-                <th class="py-3 text-right">Sale %</th>
-                <th class="py-3 text-right">방수</th>
-                <th class="py-3 text-right">고어텍스</th>
-                <th class="py-3 text-right">다운</th>
-                <th class="py-3 text-right">자켓</th>
-                <th class="py-3 text-right">팬츠</th>
-                <th class="py-3 text-right">슈즈</th>
-              </tr>
-            </thead>
+            <thead><tr class="border-b border-slate-200 text-slate-500">
+              <th class="py-3 text-left">Brand</th><th class="py-3 text-right">Total</th><th class="py-3 text-right">Active</th>
+              <th class="py-3 text-right">Avg Price</th><th class="py-3 text-right">Sale %</th><th class="py-3 text-right">방수</th>
+              <th class="py-3 text-right">고어텍스</th><th class="py-3 text-right">다운</th><th class="py-3 text-right">자켓</th>
+              <th class="py-3 text-right">팬츠</th><th class="py-3 text-right">슈즈</th>
+            </tr></thead>
             <tbody id="brandSummaryBody"></tbody>
           </table>
         </div>
       </div>
-      <div class="glass-card panel p-5">
+      <div class="glass-card p-5">
         <div class="section-eyebrow">POSITIONING</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">브랜드 포지셔닝</div>
-        <div class="chart-shell tall mt-4"><canvas id="positionChart"></canvas></div>
+        <div class="mt-2 text-xl font-black">브랜드 포지셔닝</div>
+        <div class="chart-box tall mt-4"><canvas id="positionChart"></canvas></div>
         <div class="mt-3 text-xs font-bold text-slate-500">X: Lifestyle → Performance → Extreme / Y: Mass → Premium → Luxury</div>
       </div>
     </section>
 
-    <section class="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-4">
-      <div class="glass-card panel p-5">
-        <div class="section-eyebrow">PRICE BY GENDER</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">브랜드 × 성별 가격대 스타일 수</div>
+    <section class="mt-6 glass-card p-5">
+      <div class="section-eyebrow">ITEM STYLE MIX</div>
+      <div class="mt-2 text-xl font-black">브랜드 × 성별 × 아이템별 스타일 수 / 가격대</div>
+      <div class="mt-4 flex flex-wrap gap-2" id="brandItemTabs"></div>
+      <div class="table-wrap mt-4 overflow-x-auto">
+        <table class="min-w-[1400px] w-full text-sm">
+          <thead><tr class="border-b border-slate-200 text-slate-500">
+            <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-left">Item</th>
+            <th class="py-3 text-right">Styles</th><th class="py-3 text-right">0-9.9만</th><th class="py-3 text-right">10-19.9만</th>
+            <th class="py-3 text-right">20-29.9만</th><th class="py-3 text-right">30-49.9만</th><th class="py-3 text-right">50만+</th>
+            <th class="py-3 text-right">Avg Price</th><th class="py-3 text-right">Min Price</th><th class="py-3 text-right">Max Price</th>
+          </tr></thead>
+          <tbody id="itemStyleBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div class="glass-card p-5">
+        <div class="section-eyebrow">PRICE MIX</div>
+        <div class="mt-2 text-xl font-black">브랜드 × 성별 가격대 스타일 수</div>
+        <div class="mt-4 flex flex-wrap gap-2" id="brandPriceTabs"></div>
         <div class="table-wrap mt-4 overflow-x-auto">
-          <table class="min-w-[900px] w-full text-sm">
-            <thead>
-              <tr class="border-b border-slate-200 text-slate-500">
-                <th class="py-3 text-left">Brand</th>
-                <th class="py-3 text-left">Gender</th>
-                <th class="py-3 text-right">0-9.9만</th>
-                <th class="py-3 text-right">10-19.9만</th>
-                <th class="py-3 text-right">20-29.9만</th>
-                <th class="py-3 text-right">30-49.9만</th>
-                <th class="py-3 text-right">50만+</th>
-                <th class="py-3 text-right">Total</th>
-              </tr>
-            </thead>
+          <table class="min-w-[860px] w-full text-sm">
+            <thead><tr class="border-b border-slate-200 text-slate-500">
+              <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th>
+              <th class="py-3 text-right">0-9.9만</th><th class="py-3 text-right">10-19.9만</th><th class="py-3 text-right">20-29.9만</th>
+              <th class="py-3 text-right">30-49.9만</th><th class="py-3 text-right">50만+</th><th class="py-3 text-right">Total</th>
+            </tr></thead>
             <tbody id="priceBandGenderBody"></tbody>
           </table>
         </div>
       </div>
 
-      <div class="glass-card panel p-5">
-        <div class="section-eyebrow">ATTRIBUTE BY GENDER</div>
-        <div class="mt-1 text-xl font-black tracking-[-0.03em]">브랜드 × 성별 속성 수</div>
+      <div class="glass-card p-5">
+        <div class="section-eyebrow">ATTRIBUTE MIX</div>
+        <div class="mt-2 text-xl font-black">브랜드 × 성별 속성 수</div>
+        <div class="mt-4 flex flex-wrap gap-2" id="brandAttrTabs"></div>
         <div class="table-wrap mt-4 overflow-x-auto">
-          <table class="min-w-[960px] w-full text-sm">
-            <thead>
-              <tr class="border-b border-slate-200 text-slate-500">
-                <th class="py-3 text-left">Brand</th>
-                <th class="py-3 text-left">Gender</th>
-                <th class="py-3 text-right">2L</th>
-                <th class="py-3 text-right">2.5L</th>
-                <th class="py-3 text-right">3L</th>
-                <th class="py-3 text-right">방수</th>
-                <th class="py-3 text-right">방풍</th>
-                <th class="py-3 text-right">고어텍스</th>
-                <th class="py-3 text-right">다운</th>
-                <th class="py-3 text-right">집티</th>
-              </tr>
-            </thead>
+          <table class="min-w-[860px] w-full text-sm">
+            <thead><tr class="border-b border-slate-200 text-slate-500">
+              <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th>
+              <th class="py-3 text-right">2L</th><th class="py-3 text-right">2.5L</th><th class="py-3 text-right">3L</th>
+              <th class="py-3 text-right">방수</th><th class="py-3 text-right">방풍</th><th class="py-3 text-right">고어텍스</th>
+              <th class="py-3 text-right">다운</th><th class="py-3 text-right">집티</th>
+            </tr></thead>
             <tbody id="attributeGenderBody"></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <section class="mt-6 glass-card panel p-5">
-      <div class="section-eyebrow">ITEM STYLE MIX</div>
-      <div class="mt-1 text-xl font-black tracking-[-0.03em]">브랜드 × 성별 × 아이템별 스타일 수 / 가격대</div>
-      <div class="table-wrap mt-4 overflow-x-auto">
-        <table class="min-w-[1100px] w-full text-sm">
-          <thead>
-            <tr class="border-b border-slate-200 text-slate-500">
-              <th class="py-3 text-left">Brand</th>
-              <th class="py-3 text-left">Gender</th>
-              <th class="py-3 text-left">Item</th>
-              <th class="py-3 text-right">Styles</th>
-              <th class="py-3 text-right">Avg Price</th>
-              <th class="py-3 text-right">Min Price</th>
-              <th class="py-3 text-right">Max Price</th>
-            </tr>
-          </thead>
-          <tbody id="itemStyleBody"></tbody>
-        </table>
-      </div>
+    <section class="mt-6 glass-card p-5">
+      <div class="section-eyebrow">KEYWORD</div>
+      <div class="mt-2 text-xl font-black">브랜드별 키워드</div>
+      <div id="keywordGrid" class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2"></div>
     </section>
 
-    <section class="mt-6 glass-card panel p-5">
-      <div class="section-eyebrow">KEYWORD MAP</div>
-      <div class="mt-1 text-xl font-black tracking-[-0.03em]">브랜드별 키워드</div>
-      <div id="keywordGrid" class="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
-    </section>
-
-    <section class="mt-6 glass-card panel p-5">
-      <div class="section-eyebrow">OTHER DEBUG</div>
-      <div class="mt-1 text-xl font-black tracking-[-0.03em]">기타 디버그</div>
-      <div class="mt-2 text-sm font-bold text-slate-500">자동 분류 후에도 기타로 남은 항목만 표시합니다. 이 표를 보고 규칙을 계속 추가하면 기타 비중을 더 낮출 수 있습니다.</div>
-      <div class="table-wrap mt-4 overflow-x-auto">
-        <table class="min-w-[1100px] w-full text-sm">
-          <thead>
-            <tr class="border-b border-slate-200 text-slate-500">
-              <th class="py-3 text-left">Brand</th>
-              <th class="py-3 text-left">Gender</th>
-              <th class="py-3 text-left">Name</th>
-              <th class="py-3 text-left">Item</th>
-              <th class="py-3 text-left">Dominant Attr</th>
-              <th class="py-3 text-left">Reason</th>
-              <th class="py-3 text-left">Tokens</th>
-            </tr>
-          </thead>
-          <tbody id="otherDebugBody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="mt-6 glass-card panel p-5">
+    <section class="mt-6 glass-card p-5">
       <div class="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <div class="section-eyebrow">PRODUCT FEED</div>
-          <div class="mt-1 text-xl font-black tracking-[-0.03em]">상품 카드 피드</div>
+          <div class="mt-2 text-xl font-black">상품 카드 피드</div>
         </div>
         <div id="productCountText" class="text-sm font-bold text-slate-500"></div>
       </div>
-      <div id="productGroupedFeed" class="mt-4"></div>
+      <div class="mt-4 flex flex-wrap gap-2" id="productBrandTabs"></div>
+      <div class="mt-2 flex flex-wrap gap-2" id="productCategoryTabs"></div>
+      <div id="productGroupContainer" class="mt-4 space-y-8"></div>
+    </section>
+
+    <section class="mt-6 glass-card p-5">
+      <div class="section-eyebrow">OTHER DEBUG</div>
+      <div class="mt-2 text-xl font-black">기타 디버그</div>
+      <div class="mt-2 text-sm font-bold text-slate-500">자동 분류 후에도 기타로 남는 항목만 표시합니다. 이 표를 보고 규칙을 계속 추가하면 기타 비중을 더 낮출 수 있습니다.</div>
+      <div class="table-wrap mt-4 overflow-x-auto">
+        <table class="min-w-[1400px] w-full text-sm">
+          <thead><tr class="border-b border-slate-200 text-slate-500">
+            <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-left">Name</th>
+            <th class="py-3 text-left">Item</th><th class="py-3 text-left">Item = Dominant Attr</th><th class="py-3 text-left">Reason</th><th class="py-3 text-left">Tokens</th>
+          </tr></thead>
+          <tbody id="otherDebugBody"></tbody>
+        </table>
+      </div>
     </section>
   </div>
 
 <script>
 const DATA = __DATA_JSON__;
+const NOISE_KEYWORDS = new Set(["BETTER","MKAE","NOW","PERPECT","PERFECT","COLUMBIA","COMING","SOLD","OUT","SOON","EVA","BLACK","GARY","GRAY","WHITE","BLUE","BEIGE","MAKE"]);
+const STATE = { itemBrand:"전체", priceBrand:"전체", attrBrand:"전체", productBrand:"전체", productCategory:"전체" };
 
-function formatNumber(v){
-  if (v === null || v === undefined || v === "") return "-";
-  return new Intl.NumberFormat('ko-KR').format(v);
-}
-function formatPrice(v){
-  if (!v && v !== 0) return "-";
-  return formatNumber(v) + "원";
-}
+function formatNumber(v){ if(v===null||v===undefined||v==="") return "-"; return new Intl.NumberFormat('ko-KR').format(v); }
+function formatPrice(v){ if(!v&&v!==0) return "-"; return formatNumber(v)+"원"; }
 
 function createKpis(){
   const k = DATA.kpis;
-  const items = [
-    ["브랜드 수", k.brands, "크롤링 완료 브랜드"],
-    ["총 상품 수", k.products, "현재 분석 SKU"],
-    ["세일 상품 수", k.sale_products, "할인 상품"],
-    ["평균가", formatPrice(k.avg_price), "현재가 평균"],
-    ["기타 비중", (k.others_ratio || 0) + "%", "낮을수록 좋음"],
-  ];
-  document.getElementById('kpi-grid').innerHTML = items.map(([label, value, desc], idx) => `
-    <div class="glass-card metric-card p-5" style="animation-delay:${idx * 55}ms">
-      <div class="section-eyebrow">${label}</div>
+  const items = [["브랜드 수",k.brands,"크롤링 완료 브랜드"],["총 상품 수",k.products,"현재 분석 SKU"],["세일 상품 수",k.sale_products,"할인 상품"],["평균가",formatPrice(k.avg_price),"현재가 평균"],["기타 비중",(k.others_ratio||0)+"%","낮을수록 좋음"]];
+  document.getElementById("kpi-grid").innerHTML = items.map(([label,value,desc],i)=>`
+    <div class="glass-card mini-kpi p-5" style="animation-delay:${i*60}ms">
+      <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">${label}</div>
       <div class="mt-2 text-3xl font-black tracking-[-0.05em] text-slate-900">${value}</div>
       <div class="mt-1 text-xs font-bold text-slate-500">${desc}</div>
-    </div>`).join('');
+    </div>`).join("");
+}
+
+function groupRowspan(rows, brandKey="brand"){
+  const out = [];
+  let i = 0;
+  while(i < rows.length){
+    const brand = rows[i][brandKey];
+    let j = i;
+    while(j < rows.length && rows[j][brandKey] === brand) j++;
+    const span = j - i;
+    for(let k=i; k<j; k++){
+      const r = {...rows[k]};
+      r._showBrand = (k===i);
+      r._brandRowspan = span;
+      out.push(r);
+    }
+    i = j;
+  }
+  return out;
 }
 
 function renderBrandSummary(){
@@ -1918,24 +1843,22 @@ function renderBrandSummary(){
     </tr>`).join('');
 }
 
-function renderMergedRows(targetId, rows, rowBuilder){
-  const tbody = document.getElementById(targetId);
-  let html = '';
-  let i = 0;
-  while (i < rows.length){
-    const brand = rows[i].brand;
-    const group = rows.filter(r => r.brand === brand);
-    group.forEach((r, idx) => { html += rowBuilder(r, idx, group.length); });
-    i += group.length;
-  }
-  tbody.innerHTML = html;
+function makeTabs(elId, values, stateKey, onChange){
+  const el = document.getElementById(elId);
+  el.innerHTML = ["전체", ...values].map(v => `<button class="tab-btn ${STATE[stateKey]===v?'active':''}" data-val="${v}">${v}</button>`).join("");
+  [...el.querySelectorAll(".tab-btn")].forEach(btn => btn.onclick = () => { STATE[stateKey]=btn.dataset.val; makeTabs(elId, values, stateKey, onChange); onChange(); });
 }
 
 function renderPriceBandGenderTable(){
-  const rows = (DATA.price_band_gender_table || []).slice().sort((a,b) => (a.brand+b.gender).localeCompare(b.brand+b.gender));
-  renderMergedRows('priceBandGenderBody', rows, (r, idx, span) => `
+  const allRows = DATA.price_band_gender_table || [];
+  const brands = [...new Set(allRows.map(r=>r.brand))];
+  makeTabs("brandPriceTabs", brands, "priceBrand", renderPriceBandGenderTable);
+
+  const rows = STATE.priceBrand === "전체" ? allRows : allRows.filter(r => r.brand === STATE.priceBrand);
+  const merged = groupRowspan(rows);
+  document.getElementById('priceBandGenderBody').innerHTML = merged.map(r => `
     <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
-      ${idx === 0 ? `<td class="py-3 font-black align-top" rowspan="${span}">${r.brand}</td>` : ``}
+      ${r._showBrand ? `<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>` : ``}
       <td class="py-3 font-bold">${r.gender}</td>
       <td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td>
       <td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td>
@@ -1943,14 +1866,19 @@ function renderPriceBandGenderTable(){
       <td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td>
       <td class="py-3 text-right">${formatNumber(r["50만+"])}</td>
       <td class="py-3 text-right font-black">${formatNumber(r.total_styles)}</td>
-    </tr>`);
+    </tr>`).join('');
 }
 
 function renderAttributeGenderTable(){
-  const rows = (DATA.attribute_gender_table || []).slice().sort((a,b) => (a.brand+b.gender).localeCompare(b.brand+b.gender));
-  renderMergedRows('attributeGenderBody', rows, (r, idx, span) => `
+  const allRows = DATA.attribute_gender_table || [];
+  const brands = [...new Set(allRows.map(r=>r.brand))];
+  makeTabs("brandAttrTabs", brands, "attrBrand", renderAttributeGenderTable);
+
+  const rows = STATE.attrBrand === "전체" ? allRows : allRows.filter(r => r.brand === STATE.attrBrand);
+  const merged = groupRowspan(rows);
+  document.getElementById('attributeGenderBody').innerHTML = merged.map(r => `
     <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
-      ${idx === 0 ? `<td class="py-3 font-black align-top" rowspan="${span}">${r.brand}</td>` : ``}
+      ${r._showBrand ? `<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>` : ``}
       <td class="py-3 font-bold">${r.gender}</td>
       <td class="py-3 text-right">${formatNumber(r["2L"])}</td>
       <td class="py-3 text-right">${formatNumber(r["2.5L"])}</td>
@@ -1960,157 +1888,144 @@ function renderAttributeGenderTable(){
       <td class="py-3 text-right">${formatNumber(r["고어텍스"])}</td>
       <td class="py-3 text-right">${formatNumber(r["다운"])}</td>
       <td class="py-3 text-right">${formatNumber(r["집티"])}</td>
-    </tr>`);
+    </tr>`).join('');
 }
 
 function renderItemStyleTable(){
-  const rows = (DATA.item_style_table || []).slice().sort((a,b) => (a.brand+a.gender).localeCompare(b.brand+b.gender));
-  const tbody = document.getElementById('itemStyleBody');
-  let html = '';
-  let i = 0;
-  while (i < rows.length){
-    const brand = rows[i].brand;
-    const brandGroup = rows.filter(r => r.brand === brand);
-    let j = 0;
-    while (j < brandGroup.length){
-      const gender = brandGroup[j].gender;
-      const genderGroup = brandGroup.filter(r => r.gender === gender);
-      genderGroup.forEach((r, idx) => {
-        html += `<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
-          ${(j === 0 && idx === 0) ? `<td class="py-3 font-black align-top" rowspan="${brandGroup.length}">${r.brand}</td>` : ``}
-          ${idx === 0 ? `<td class="py-3 font-bold align-top" rowspan="${genderGroup.length}">${r.gender}</td>` : ``}
-          <td class="py-3">${r.item_category}</td>
-          <td class="py-3 text-right font-black">${formatNumber(r.style_count)}</td>
-          <td class="py-3 text-right">${formatPrice(r.avg_price)}</td>
-          <td class="py-3 text-right">${formatPrice(r.min_price)}</td>
-          <td class="py-3 text-right">${formatPrice(r.max_price)}</td>
-        </tr>`;
-      });
-      j += genderGroup.length;
-    }
-    i += brandGroup.length;
+  const allRows = DATA.item_style_table || [];
+  const brands = [...new Set(allRows.map(r=>r.brand))];
+  makeTabs("brandItemTabs", brands, "itemBrand", renderItemStyleTable);
+
+  const rows = STATE.itemBrand === "전체" ? allRows : allRows.filter(r => r.brand === STATE.itemBrand);
+  const merged = groupRowspan(rows);
+  document.getElementById('itemStyleBody').innerHTML = merged.map(r => `
+    <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
+      ${r._showBrand ? `<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>` : ``}
+      <td class="py-3 font-bold">${r.gender}</td>
+      <td class="py-3">${r.item_category}</td>
+      <td class="py-3 text-right font-black">${formatNumber(r.style_count)}</td>
+      <td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["20-29.9만"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td>
+      <td class="py-3 text-right">${formatNumber(r["50만+"])}</td>
+      <td class="py-3 text-right">${formatPrice(r.avg_price)}</td>
+      <td class="py-3 text-right">${formatPrice(r.min_price)}</td>
+      <td class="py-3 text-right">${formatPrice(r.max_price)}</td>
+    </tr>`).join('');
+}
+
+function renderKeywords(){
+  const grid = document.getElementById('keywordGrid');
+  const blocks = (DATA.keywords || []).map(b => ({
+    brand: b.brand,
+    items: (b.items||[]).filter(it => !NOISE_KEYWORDS.has(String(it.keyword||"").toUpperCase()))
+  }));
+  grid.innerHTML = blocks.map(block => `
+    <div class="rounded-[24px] border border-slate-200 bg-white p-4 fade-in">
+      <div class="text-lg font-black text-slate-900">${block.brand}</div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        ${(block.items || []).map(it => '<span class="tag bg-slate-900 text-white">' + it.keyword + ' - ' + it.count + '</span>').join('')}
+      </div>
+    </div>`).join('');
+}
+
+function renderProducts(){
+  const all = (DATA.products || []).filter(p => !p.sold_out);
+  const brands = [...new Set(all.map(p=>p.brand))];
+  const brandFiltered = STATE.productBrand === "전체" ? all : all.filter(p => p.brand === STATE.productBrand);
+  const cats = [...new Set(brandFiltered.map(p=>p.item_category).filter(Boolean))];
+  makeTabs("productBrandTabs", brands, "productBrand", renderProducts);
+  makeTabs("productCategoryTabs", cats, "productCategory", renderProducts);
+
+  let items = brandFiltered;
+  if (STATE.productCategory !== "전체") items = items.filter(p => p.item_category === STATE.productCategory);
+
+  document.getElementById('productCountText').textContent = `품절 제외 ${formatNumber(items.length)}개`;
+  const grouped = {};
+  for(const p of items){
+    const brand = p.brand || "UNKNOWN";
+    const cat = p.item_category || "기타";
+    grouped[brand] = grouped[brand] || {};
+    grouped[brand][cat] = grouped[brand][cat] || [];
+    grouped[brand][cat].push(p);
   }
-  tbody.innerHTML = html;
+
+  const container = document.getElementById("productGroupContainer");
+  container.innerHTML = Object.entries(grouped).map(([brand, catMap]) => `
+    <section>
+      <div class="flex items-center justify-between gap-3">
+        <div class="text-2xl font-black tracking-[-0.03em]">${brand}</div>
+      </div>
+      <div class="mt-4 space-y-8">
+        ${Object.entries(catMap).map(([cat, arr]) => `
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <div class="text-lg font-black">${cat}</div>
+              <div class="text-sm font-bold text-slate-500">${arr.length} styles</div>
+            </div>
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              ${arr.slice(0,120).map(p => `
+                <article class="product-card rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <div class="flex gap-4">
+                    <div class="h-28 w-28 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">
+                      ${p.image_url ? '<img src="' + p.image_url + '" alt="' + p.name + '" class="h-full w-full object-cover" loading="lazy" />' : '<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap gap-2">
+                        <span class="tag bg-slate-900 text-white">${p.brand}</span>
+                        <span class="tag bg-sky-50 text-sky-700">${p.gender}</span>
+                        <span class="tag bg-indigo-50 text-indigo-700">${p.item_category}</span>
+                        <span class="tag bg-violet-50 text-violet-700">${p.grade}</span>
+                      </div>
+                      <div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${p.name}</div>
+                      <div class="mt-2 flex flex-wrap items-end gap-3">
+                        <div class="text-2xl font-black">${formatPrice(p.current_price)}</div>
+                        ${p.original_price && p.original_price != p.current_price ? '<div class="text-sm font-bold text-slate-400 line-through">' + formatPrice(p.original_price) + '</div>' : ''}
+                        ${p.discount_rate ? '<div class="text-sm font-black text-rose-600">-' + p.discount_rate + '%</div>' : ''}
+                      </div>
+                      <div class="mt-3 flex flex-wrap gap-2">
+                        ${String(p.standard_attributes||'').split(',').map(x => x.trim()).filter(Boolean).slice(0,6).map(x => '<span class="tag bg-slate-100 text-slate-700">' + x + '</span>').join('')}
+                      </div>
+                      <div class="mt-3 text-sm font-bold leading-6 text-slate-500 line-clamp-3">${p.description || '설명 없음'}</div>
+                      <div class="mt-4 flex items-center justify-between gap-3">
+                        <div class="text-xs font-black text-slate-400">${p.season} - ${p.price_band}</div>
+                        ${p.product_url ? '<a href="' + p.product_url + '" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>' : ''}
+                      </div>
+                    </div>
+                  </div>
+                </article>`).join('')}
+            </div>
+          </div>`).join('')}
+      </div>
+    </section>`).join('');
 }
 
 function renderOtherDebug(){
-  const rows = DATA.other_debug_table || [];
-  document.getElementById('otherDebugBody').innerHTML = rows.map(r => `
+  const rows = (DATA.other_debug || []).map(r => ({...r, gender: (r.name||"").includes("공용") ? "공용" : (r.gender || "미분류")}));
+  document.getElementById("otherDebugBody").innerHTML = rows.map(r => `
     <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
       <td class="py-3 font-black">${r.brand}</td>
       <td class="py-3 font-bold">${r.gender}</td>
-      <td class="py-3 max-w-[320px]">${r.name}</td>
-      <td class="py-3">${r.item_category}</td>
+      <td class="py-3">${r.name}</td>
+      <td class="py-3">${r.item}</td>
       <td class="py-3">${r.dominant_attribute}</td>
       <td class="py-3">${r.reason}</td>
       <td class="py-3 text-slate-500">${r.tokens}</td>
     </tr>`).join('');
 }
 
-function renderKeywords(){
-  const grid = document.getElementById('keywordGrid');
-  grid.innerHTML = (DATA.keywords || []).map((block, idx) => `
-    <div class="mention-card" style="animation-delay:${idx * 70}ms">
-      <div class="brand-section-title">
-        <span class="brand-dot"></span>
-        <div class="text-lg font-black text-slate-900">${block.brand}</div>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        ${(block.items || []).map(it => '<span class="tag pill-dark">' + it.keyword + ' - ' + it.count + '</span>').join('')}
-      </div>
-    </div>`).join('');
-}
-
-function renderProducts(){
-  const items = DATA.products || [];
-  document.getElementById('productCountText').textContent = `품절 제외 ${formatNumber(items.length)}개`;
-
-  const root = document.getElementById('productGroupedFeed');
-  const grouped = {};
-  items.forEach(p => {
-    if (!grouped[p.brand]) grouped[p.brand] = {};
-    if (!grouped[p.brand][p.item_category]) grouped[p.brand][p.item_category] = [];
-    grouped[p.brand][p.item_category].push(p);
-  });
-
-  let html = '';
-  Object.keys(grouped).sort().forEach((brand, bIdx) => {
-    html += `<div class="product-grid-group">
-      <div class="brand-section-title">
-        <span class="brand-dot"></span>
-        <div class="text-2xl font-black tracking-[-0.04em]">${brand}</div>
-      </div>`;
-    Object.keys(grouped[brand]).sort().forEach(cat => {
-      const bucket = grouped[brand][cat];
-      html += `<div class="mt-6">
-        <div class="flex items-center justify-between gap-3">
-          <div class="text-lg font-black tracking-[-0.03em]">${cat}</div>
-          <div class="text-sm font-bold text-slate-500">${formatNumber(bucket.length)} styles</div>
-        </div>
-        <div class="mt-3 grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">`;
-      bucket.forEach((p, idx) => {
-        html += `<article class="mention-card">
-          <div class="flex gap-4">
-            <div class="h-32 w-32 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">
-              ${p.image_url ? '<img src="' + p.image_url + '" alt="' + p.name + '" class="h-full w-full object-cover" loading="lazy" />' : '<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap gap-2">
-                <span class="tag pill-dark">${p.brand}</span>
-                <span class="tag pill-blue">${p.gender}</span>
-                <span class="tag pill-soft">${p.item_category}</span>
-                <span class="tag pill-violet">${p.grade}</span>
-                <span class="tag pill-emerald">${p.shell_type}</span>
-              </div>
-              <div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${p.name}</div>
-              <div class="mt-2 flex flex-wrap items-end gap-3">
-                <div class="text-2xl font-black">${formatPrice(p.current_price)}</div>
-                ${p.original_price && p.original_price != p.current_price ? '<div class="text-sm font-bold text-slate-400 line-through">' + formatPrice(p.original_price) + '</div>' : ''}
-                ${p.discount_rate ? '<div class="text-sm font-black text-rose-600">-' + p.discount_rate + '%</div>' : ''}
-              </div>
-              <div class="mt-3 flex flex-wrap gap-2">
-                ${String(p.standard_attributes||'').split(',').map(x => x.trim()).filter(Boolean).slice(0,6).map(x => '<span class="tag pill-soft">' + x + '</span>').join('')}
-              </div>
-              <div class="mt-3 text-sm font-bold leading-6 text-slate-500 line-clamp-3">${p.description || '설명 없음'}</div>
-              <div class="mt-4 flex items-center justify-between gap-3">
-                <div class="text-xs font-black text-slate-400">${p.season} - ${p.price_band}</div>
-                ${p.product_url ? '<a href="' + p.product_url + '" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>' : ''}
-              </div>
-            </div>
-          </div>
-        </article>`;
-      });
-      html += `</div></div>`;
-    });
-    html += `<div class="divider"></div></div>`;
-  });
-  root.innerHTML = html;
-}
-
 function baseChart(id, type, labels, values, extra={}){
   const ctx = document.getElementById(id);
-  const many = labels && labels.length >= 7;
+  const horizontal = labels.length >= 6 && type === 'bar';
   return new Chart(ctx, {
     type,
-    data: {
-      labels,
-      datasets: [{
-        data: values,
-        borderWidth: 0,
-        borderRadius: 12,
-        maxBarThickness: many ? 26 : 42,
-      }]
-    },
+    data: { labels, datasets: [{ data: values, borderWidth: 2, borderRadius: 10, tension: .35 }] },
     options: Object.assign({
-      indexAxis: many && type === 'bar' ? 'y' : 'x',
-      responsive: true,
-      maintainAspectRatio: false,
+      indexAxis: horizontal ? 'y' : 'x',
+      responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
-      scales: {
-        y: { beginAtZero: true, ticks: { precision: 0, font: { weight: '700' } } },
-        x: { ticks: { autoSkip: false, font: { weight: '700' } } }
-      },
-      animation: { duration: 900, easing: 'easeOutQuart' }
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { autoSkip: false } } }
     }, extra)
   });
 }
@@ -2130,40 +2045,31 @@ function renderCharts(){
     data: {
       datasets: (c.positioning || []).map(item => ({
         label: item.brand,
-        data: [{ x: item.x, y: item.y, r: Math.max(10, Math.min(28, item.size / 3)) }],
+        data: [{ x: item.x, y: item.y, r: Math.max(8, Math.min(22, item.size / 6)) }],
       }))
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, font: { weight: '700' } } },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => {
-              const item = c.positioning[ctx.datasetIndex];
-              return `${item.brand} - Avg ${formatPrice(item.avg_price)} - SKU ${item.size}`;
-            }
-          }
-        }
+        legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } },
+        tooltip: { callbacks: { label: (ctx) => { const item = c.positioning[ctx.datasetIndex]; return `${item.brand} - Avg ${formatPrice(item.avg_price)} - SKU ${item.size}`; } } }
       },
       scales: {
         x: { min: .5, max: 3.5, ticks: { stepSize: 1, callback: (v) => ({1:'Lifestyle',2:'Performance',3:'Extreme'}[v] || '') } },
         y: { min: .5, max: 3.5, ticks: { stepSize: 1, callback: (v) => ({1:'Mass',2:'Premium',3:'Luxury'}[v] || '') } }
-      },
-      animation: { duration: 1100, easing: 'easeOutQuart' }
+      }
     }
   });
 }
 
 createKpis();
 renderBrandSummary();
+renderItemStyleTable();
 renderPriceBandGenderTable();
 renderAttributeGenderTable();
-renderItemStyleTable();
 renderKeywords();
-renderOtherDebug();
 renderProducts();
+renderOtherDebug();
 renderCharts();
 </script>
 </body>
