@@ -503,12 +503,9 @@ def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Optional[floa
             or _bundle_get(bundle, "summary", "signups")
             or _bundle_get(bundle, "signup_users", "current")
         ),
-        "cvr": _safe_float(
-            _bundle_get(bundle, "kpis", "cvr")
-            or _bundle_get(bundle, "overview", "cvr")
-            or _bundle_get(bundle, "summary", "cvr")
-            or _bundle_get(bundle, "overall", "current", "cvr")
-        ),
+        # CVR is intentionally recomputed after source selection.
+        # Never trust bundle-level cvr directly because it can be based on a different aggregation grain.
+        "cvr": None,
     }
 
     channel_rows = _find_best_channel_rows(bundle)
@@ -521,20 +518,16 @@ def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Optional[floa
                 out[metric] = rtf_totals[metric]
         if rtf_totals.get("signups") not in (None, 0):
             out["signups"] = rtf_totals["signups"]
-        if rtf_totals.get("cvr") is not None:
-            out["cvr"] = rtf_totals["cvr"]
 
     if out["signups"] is None:
         out["signups"] = _safe_int(_bundle_get(bundle, "signup_users", "current"))
 
-    if out["cvr"] is None and out.get("sessions") and out.get("orders") is not None:
-        try:
-            out["cvr"] = float(out["orders"]) / float(out["sessions"]) if float(out["sessions"]) > 0 else None
-        except Exception:
-            out["cvr"] = None
-
-    if out["cvr"] is not None and out["cvr"] > 1.0:
-        out["cvr"] = out["cvr"] / 100.0
+    try:
+        sessions = _safe_float(out.get("sessions"))
+        orders = _safe_float(out.get("orders"))
+        out["cvr"] = (orders / sessions) if (sessions is not None and sessions > 0 and orders is not None) else None
+    except Exception:
+        out["cvr"] = None
 
     return out
 
@@ -620,26 +613,30 @@ def _ensure_daily_kpi_json(reports_dir: Path) -> Dict[str, Any]:
         if yj:
             yoy_kpis = _extract_kpis_from_bundle(yj)
 
+    cur_cvr = _safe_float(cur_kpis.get("cvr"))
+    wow_cvr = _safe_float(wow_kpis.get("cvr"))
+    yoy_cvr = _safe_float(yoy_kpis.get("cvr"))
+
     built = {
         "date": latest_date,
         "sessions": cur_kpis.get("sessions"),
         "orders": cur_kpis.get("orders"),
         "revenue": cur_kpis.get("revenue"),
-        "cvr": cur_kpis.get("cvr"),
+        "cvr": cur_cvr,
         "signups": cur_kpis.get("signups"),
         "wow": {
             "sessions": _ratio(cur_kpis.get("sessions"), wow_kpis.get("sessions")),
             "orders": _ratio(cur_kpis.get("orders"), wow_kpis.get("orders")),
             "revenue": _ratio(cur_kpis.get("revenue"), wow_kpis.get("revenue")),
             "signups": _ratio(cur_kpis.get("signups"), wow_kpis.get("signups")),
-            "cvr_pp": _pp(cur_kpis.get("cvr"), wow_kpis.get("cvr")),
+            "cvr_pp": _pp(cur_cvr, wow_cvr),
         },
         "yoy": {
             "sessions": _ratio(cur_kpis.get("sessions"), yoy_kpis.get("sessions")),
             "orders": _ratio(cur_kpis.get("orders"), yoy_kpis.get("orders")),
             "revenue": _ratio(cur_kpis.get("revenue"), yoy_kpis.get("revenue")),
             "signups": _ratio(cur_kpis.get("signups"), yoy_kpis.get("signups")),
-            "cvr_pp": _pp(cur_kpis.get("cvr"), yoy_kpis.get("cvr")),
+            "cvr_pp": _pp(cur_cvr, yoy_cvr),
         },
         "updated": now_kst_label(),
         "source": str(latest_bundle),
@@ -689,27 +686,31 @@ def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
         if yj:
             yoy_kpis = _extract_kpis_from_bundle(yj)
 
+    cur_cvr = _safe_float(cur_kpis.get("cvr"))
+    prev_cvr = _safe_float(prev_kpis.get("cvr"))
+    yoy_cvr = _safe_float(yoy_kpis.get("cvr"))
+
     built = {
         "start": start_s,
         "end": latest_end,
         "sessions": cur_kpis.get("sessions"),
         "orders": cur_kpis.get("orders"),
         "revenue": cur_kpis.get("revenue"),
-        "cvr": cur_kpis.get("cvr"),
+        "cvr": cur_cvr,
         "signups": cur_kpis.get("signups"),
         "wow": {
             "sessions": _ratio(cur_kpis.get("sessions"), prev_kpis.get("sessions")),
             "orders": _ratio(cur_kpis.get("orders"), prev_kpis.get("orders")),
             "revenue": _ratio(cur_kpis.get("revenue"), prev_kpis.get("revenue")),
             "signups": _ratio(cur_kpis.get("signups"), prev_kpis.get("signups")),
-            "cvr_pp": _pp(cur_kpis.get("cvr"), prev_kpis.get("cvr")),
+            "cvr_pp": _pp(cur_cvr, prev_cvr),
         },
         "yoy": {
             "sessions": _ratio(cur_kpis.get("sessions"), yoy_kpis.get("sessions")),
             "orders": _ratio(cur_kpis.get("orders"), yoy_kpis.get("orders")),
             "revenue": _ratio(cur_kpis.get("revenue"), yoy_kpis.get("revenue")),
             "signups": _ratio(cur_kpis.get("signups"), yoy_kpis.get("signups")),
-            "cvr_pp": _pp(cur_kpis.get("cvr"), yoy_kpis.get("cvr")),
+            "cvr_pp": _pp(cur_cvr, yoy_cvr),
         },
         "updated": now_kst_label(),
         "source": str(latest_bundle),
@@ -1955,13 +1956,14 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         return [];
       }};
       const rangeStartForSeries = (series, rangeKey) => {{
+        // 1MONTH must mean rolling recent 30 days, not month-to-date.
         if (!series.length) return null;
         const latestDate = series[series.length - 1].date;
         const latest = parseISODate(latestDate);
         if (!latest) return null;
         if (rangeKey === '7D') return shiftDate(latestDate, -6);
         if (rangeKey === '14D') return shiftDate(latestDate, -13);
-        if (rangeKey === '1MONTH') return new Date(latest.getFullYear(), latest.getMonth(), 1);
+        if (rangeKey === '1MONTH') return shiftDate(latestDate, -29);
         if (rangeKey === '1YEAR') return shiftYearKeepDay(latestDate, 1);
         if (rangeKey === '2YEAR') return shiftYearKeepDay(latestDate, 2);
         return null;
