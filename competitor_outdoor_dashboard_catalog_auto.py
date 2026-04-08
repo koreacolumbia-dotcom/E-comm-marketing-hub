@@ -38,6 +38,9 @@ from typing import Dict, List, Optional, Iterable, Set, Tuple
 from urllib.parse import urljoin, urlparse, urlunparse
 
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def json_safe(obj):
@@ -95,6 +98,9 @@ SCROLL_PAUSE_SEC = float(os.getenv("SCROLL_PAUSE_SEC", "1.0"))
 DEFAULT_WAIT_SEC = int(os.getenv("DEFAULT_WAIT_SEC", "18"))
 SCREENSHOT_ON_ERROR = os.getenv("SCREENSHOT_ON_ERROR", "1").strip().lower() in {"1", "true", "yes"}
 TODAY_STR = datetime.now().strftime("%Y-%m-%d %H:%M")
+REQUESTS_TIMEOUT = int(os.getenv("REQUESTS_TIMEOUT", "20"))
+DETAIL_WORKERS = int(os.getenv("DETAIL_WORKERS", "8"))
+REQUEST_HEADERS = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36","Accept-Language":"ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"}
 
 
 @dataclass
@@ -590,6 +596,73 @@ def text_contains_brand(text: str, brand_terms: List[str]) -> bool:
     return any(term.lower() in low for term in brand_terms if term)
 
 
+
+def _requests_get(url: str):
+    try:
+        return requests.get(url, headers=REQUEST_HEADERS, timeout=REQUESTS_TIMEOUT)
+    except Exception:
+        return None
+
+
+def bs_first_text(soup: BeautifulSoup, selectors: List[str]) -> str:
+    for css in selectors:
+        try:
+            if css.startswith("meta["):
+                el = soup.select_one(css)
+                if el:
+                    val = compact_text(el.get("content") or "")
+                    if val:
+                        return val
+            else:
+                for el in soup.select(css)[:20]:
+                    txt = compact_text(el.get_text(" ", strip=True))
+                    if txt and len(txt) <= 300:
+                        return txt
+        except Exception:
+            continue
+    return ""
+
+
+def bs_long_text(soup: BeautifulSoup, selectors: List[str]) -> str:
+    candidates: List[str] = []
+    for css in selectors:
+        try:
+            if css.startswith("meta["):
+                el = soup.select_one(css)
+                if el:
+                    val = compact_text(el.get("content") or "")
+                    if val:
+                        candidates.append(val)
+            else:
+                for el in soup.select(css)[:30]:
+                    txt = compact_text(el.get_text(" ", strip=True))
+                    if txt:
+                        candidates.append(txt)
+        except Exception:
+            continue
+    if not candidates:
+        return ""
+    return sorted(set(candidates), key=lambda x: len(x), reverse=True)[0][:4000]
+
+
+def bs_first_attr(soup: BeautifulSoup, selectors: List[str], attr: str) -> str:
+    for css in selectors:
+        try:
+            if css.startswith("meta["):
+                el = soup.select_one(css)
+                if el:
+                    val = compact_text(el.get(attr) or el.get("content") or "")
+                    if val:
+                        return val
+            else:
+                for el in soup.select(css)[:20]:
+                    val = compact_text(el.get(attr) or "")
+                    if val:
+                        return val
+        except Exception:
+            continue
+    return ""
+
 # ============================================================
 # 3. ANALYZER
 # ============================================================
@@ -744,6 +817,8 @@ def classify_positioning_x(attrs: List[str], dominant_attribute: str, shell_type
 def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     current_price = parse_price_to_int(raw.price_text)
     original_price = parse_price_to_int(raw.original_price_text)
+    if current_price is not None and original_price is not None and original_price < current_price:
+        original_price = current_price
     if current_price is None and original_price is not None:
         current_price = original_price
     if original_price is None and current_price is not None:
@@ -854,6 +929,18 @@ class AutoCompetitorCrawler:
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(60)
+        try:
+            driver.execute_cdp_cmd("Network.enable", {})
+            driver.execute_cdp_cmd("Network.setBlockedURLs", {
+                "urls": [
+                    "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg",
+                    "*.woff", "*.woff2", "*.ttf", "*.otf",
+                    "*google-analytics*", "*googletagmanager*", "*doubleclick*",
+                    "*facebook*", "*analytics*", "*tracker*"
+                ]
+            })
+        except Exception:
+            pass
         return driver
 
     def close(self):
@@ -865,7 +952,7 @@ class AutoCompetitorCrawler:
     def _safe_get(self, url: str) -> bool:
         try:
             self.driver.get(url)
-            time.sleep(1.0)
+            time.sleep(0.6)
             return True
         except Exception:
             return False
@@ -999,11 +1086,57 @@ class AutoCompetitorCrawler:
 
         return unique_preserve_order(product_urls)
 
+
+    def crawl_product_detail_requests(self, product_url: str, source_url: str, cfg: BrandConfig) -> Optional[ProductRaw]:
+        resp = _requests_get(product_url)
+        if resp is None or not getattr(resp, "ok", False) or not getattr(resp, "text", ""):
+            return None
+        try:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            title = bs_first_text(soup, GENERIC_NAME_SELECTORS) or compact_text(soup.title.get_text(" ", strip=True) if soup.title else "")
+            price_text = bs_first_text(soup, GENERIC_PRICE_SELECTORS)
+            original_price_text = bs_first_text(soup, GENERIC_ORIGINAL_PRICE_SELECTORS)
+            desc = bs_long_text(soup, GENERIC_DESC_SELECTORS)
+            image_url = bs_first_attr(soup, GENERIC_IMAGE_SELECTORS, "src") or bs_first_attr(soup, GENERIC_IMAGE_SELECTORS, "content")
+            sold_out_text = bs_first_text(soup, GENERIC_SOLDOUT_SELECTORS)
+            gender_text = bs_first_text(soup, GENERIC_GENDER_SELECTORS)
+            season_text = bs_first_text(soup, GENERIC_SEASON_SELECTORS)
+
+            if not title and not price_text and not desc:
+                return None
+
+            sanity_blob = f"{title} {desc}"
+            if cfg.brand_terms and cfg.domain in {"www.k-village.co.kr"}:
+                if not text_contains_brand(sanity_blob, cfg.brand_terms):
+                    return None
+
+            return ProductRaw(
+                brand=cfg.brand,
+                source_url=source_url,
+                product_url=product_url,
+                name=compact_text(title),
+                description=compact_text(desc),
+                price_text=compact_text(price_text),
+                original_price_text=compact_text(original_price_text),
+                image_url=compact_text(image_url),
+                sold_out_text=compact_text(sold_out_text),
+                gender_text=compact_text(gender_text),
+                season_text=compact_text(season_text),
+                crawled_at=TODAY_STR,
+            )
+        except Exception:
+            return None
+
+
     def crawl_product_detail(self, product_url: str, source_url: str, cfg: BrandConfig) -> Optional[ProductRaw]:
         if not self._safe_get(product_url):
             return None
 
-        self._scroll_to_end()
+        try:
+            time.sleep(0.5)
+        except Exception:
+            pass
+
         title = try_find_text(self.driver, GENERIC_NAME_SELECTORS)
         if not title:
             try:
@@ -1022,7 +1155,6 @@ class AutoCompetitorCrawler:
         if not title and not price_text and not desc:
             return None
 
-        # brand text sanity filter for marketplace-style domains
         sanity_blob = f"{title} {desc}"
         if cfg.brand_terms and cfg.domain in {"www.k-village.co.kr"}:
             if not text_contains_brand(sanity_blob, cfg.brand_terms):
@@ -1042,6 +1174,7 @@ class AutoCompetitorCrawler:
             season_text=compact_text(season_text),
             crawled_at=TODAY_STR,
         )
+
 
     def crawl_brand(self, cfg: BrandConfig) -> List[ProductRaw]:
         print(f"\n[CRAWL START] {cfg.brand} :: seeds={len(cfg.seed_urls)}")
@@ -1063,20 +1196,42 @@ class AutoCompetitorCrawler:
         print(f"  - discovered product urls: {len(product_urls)}")
 
         raw_products: List[ProductRaw] = []
-        seen_products: Set[str] = set()
+        unresolved_urls: List[str] = []
 
-        for idx, product_url in enumerate(product_urls, start=1):
-            if product_url in seen_products:
-                continue
-            seen_products.add(product_url)
+        # Fast path: requests-first in parallel
+        with ThreadPoolExecutor(max_workers=max(1, DETAIL_WORKERS)) as ex:
+            futures = {ex.submit(self.crawl_product_detail_requests, url, url, cfg): url for url in product_urls}
+            done_count = 0
+            for fut in as_completed(futures):
+                done_count += 1
+                url = futures[fut]
+                try:
+                    item = fut.result()
+                    if item and item.name:
+                        raw_products.append(item)
+                    else:
+                        unresolved_urls.append(url)
+                except Exception:
+                    unresolved_urls.append(url)
+                if done_count % 20 == 0:
+                    print(f"    [OK] {cfg.brand} requests pass {done_count}/{len(product_urls)} | valid {len(raw_products)}")
+
+        # Accurate fallback: selenium only for unresolved URLs
+        for idx, product_url in enumerate(unresolved_urls, start=1):
             try:
                 item = self.crawl_product_detail(product_url, product_url, cfg)
                 if item and item.name:
                     raw_products.append(item)
-                    if len(raw_products) % 20 == 0:
-                        print(f"    [OK] {cfg.brand} {len(raw_products)} products")
             except Exception as e:
-                print(f"    [WARN] product detail failed: {product_url} | {e}")
+                print(f"    [WARN] selenium fallback failed: {product_url} | {e}")
+            if idx % 20 == 0:
+                print(f"    [OK] {cfg.brand} selenium fallback {idx}/{len(unresolved_urls)} | valid {len(raw_products)}")
+
+        # dedupe by product_url
+        dedup = {}
+        for item in raw_products:
+            dedup[item.product_url] = item
+        raw_products = list(dedup.values())
 
         print(f"[CRAWL DONE] {cfg.brand} -> {len(raw_products)} products")
         return raw_products
