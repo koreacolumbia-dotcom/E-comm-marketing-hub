@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, List, Tuple
 import pandas as pd
 
 KST = timezone(timedelta(hours=9))
+KPI_LOGIC_VERSION = "2026-04-08-kpi-direct-total-v2"
 
 
 def now_kst() -> datetime:
@@ -508,16 +509,24 @@ def _extract_kpis_from_bundle(bundle: Dict[str, Any]) -> Dict[str, Optional[floa
         "cvr": None,
     }
 
+    # Channel snapshot / RTF rows are breakdown-only.
+    # Do not override top KPI totals with RTF aggregates because bucket coverage can be incomplete
+    # and that inflates CVR by shrinking sessions.
     channel_rows = _find_best_channel_rows(bundle)
     rtf_totals = _aggregate_rtf_totals_from_rows(channel_rows) if channel_rows else None
 
     out = dict(direct)
+
+    # Fallback only when direct totals are missing in the bundle.
     if rtf_totals:
-        for metric in ("sessions", "orders", "revenue"):
-            if rtf_totals.get(metric) is not None:
-                out[metric] = rtf_totals[metric]
-        if rtf_totals.get("signups") not in (None, 0):
-            out["signups"] = rtf_totals["signups"]
+        if out["sessions"] is None and rtf_totals.get("sessions") is not None:
+            out["sessions"] = _safe_int(rtf_totals.get("sessions"))
+        if out["orders"] is None and rtf_totals.get("orders") is not None:
+            out["orders"] = _safe_int(rtf_totals.get("orders"))
+        if out["revenue"] is None and rtf_totals.get("revenue") is not None:
+            out["revenue"] = _safe_float(rtf_totals.get("revenue"))
+        if out["signups"] is None and rtf_totals.get("signups") not in (None, 0):
+            out["signups"] = _safe_int(rtf_totals.get("signups"))
 
     if out["signups"] is None:
         out["signups"] = _safe_int(_bundle_get(bundle, "signup_users", "current"))
@@ -582,7 +591,8 @@ def _ensure_daily_kpi_json(reports_dir: Path) -> Dict[str, Any]:
     latest_date = _bundle_date_from_path(latest_bundle) if latest_bundle else None
     existing = _read_json_path(out_path) or {}
     existing_date = existing.get("date")
-    need_rebuild = (not existing) or (latest_date and existing_date != latest_date) or ("wow" not in existing)
+    existing_logic_version = existing.get("logic_version")
+    need_rebuild = (not existing) or (latest_date and existing_date != latest_date) or ("wow" not in existing) or (existing_logic_version != KPI_LOGIC_VERSION)
 
     if not need_rebuild:
         if not existing.get("updated"):
@@ -640,6 +650,7 @@ def _ensure_daily_kpi_json(reports_dir: Path) -> Dict[str, Any]:
         },
         "updated": now_kst_label(),
         "source": str(latest_bundle),
+        "logic_version": KPI_LOGIC_VERSION,
     }
     _write_json_path(out_path, built)
     return built
@@ -653,7 +664,8 @@ def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
     latest_end = _bundle_date_from_path(latest_bundle) if latest_bundle else None
     existing = _read_json_path(out_path) or {}
     existing_end = existing.get("end")
-    need_rebuild = (not existing) or (latest_end and existing_end != latest_end)
+    existing_logic_version = existing.get("logic_version")
+    need_rebuild = (not existing) or (latest_end and existing_end != latest_end) or (existing_logic_version != KPI_LOGIC_VERSION)
 
     if not need_rebuild:
         if not existing.get("updated"):
@@ -714,6 +726,7 @@ def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
         },
         "updated": now_kst_label(),
         "source": str(latest_bundle),
+        "logic_version": KPI_LOGIC_VERSION,
     }
     _write_json_path(out_path, built)
     return built
