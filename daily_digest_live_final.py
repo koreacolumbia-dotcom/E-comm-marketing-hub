@@ -1077,19 +1077,135 @@ def classify_looker_subchannel(source_medium: str, campaign: str = "") -> str:
 
 
 def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
+    """Apply the sample.rtf CASE logic in the same evaluation order."""
     sm = normalize_source_medium(source_medium)
-    cp = str(campaign or '')
-    sub = classify_looker_subchannel(sm, cp)
-    if sub in {'Paid Social', 'Paid Video'} and (re.search(r'(mkt|_bd)', sm, re.I) or re.search(r'(mkt|\[bd)', cp, re.I) or (re.search(r'google / cpc', sm, re.I) and re.search(r'(디멘드젠|디멘드잰|디맨드젠|디맨드잰|demand\s*gen|(^|[^a-z])dg([^a-z]|$)|youtube|yt|instream|vac|vvc|discovery)', cp, re.I))):
-        return 'Awareness'
-    if sub in {'Paid Social', 'Paid Search', 'Paid Display', 'Paid Omni Channel'}:
-        return 'Paid Ad'
-    if sub in {'Direct', 'Referral', 'Organic Search', 'Social', 'Inhouse Purchase'}:
-        return 'Organic Traffic'
-    if sub in {'Instagram Feed', 'Instagram Story', 'Instagram Official Account', 'Instagram Official Shop'}:
+    cp = str(campaign or '').strip().lower()
+
+    if re.search(r'(?i).*(instagram).*', sm) and re.search(r'(?i).*(story).*', sm):
         return 'Official SNS'
-    if sub in {'Email', 'Kakao Channel', 'Kakao Alimtalk', 'LMS', 'Kakao Coupon', 'Kakao Chatbot', 'Kakao FriendsTalk'}:
+    if re.search(r'(?i).*(benz).*', sm):
+        return 'Organic Traffic'
+
+    if re.search(r'(?i).*(nap).*', sm) and re.search(r'(?i).*(da).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(toss).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(blind).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(kakaobs).*', sm):
+        return 'Paid Ad'
+
+    if re.search(r'(?i).*(inhouse).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(lms).*', sm) or re.search(r'(?i).*(lms).*', cp):
         return 'Owned Channel'
+    if re.search(r'(?i).*(email|edm).*', sm):
+        return 'Owned Channel'
+    if re.search(r'(?i).*(kakao_fridnstalk).*', sm):
+        return 'Owned Channel'
+
+    if re.search(r'(?i).*(mkt|_bd).*', sm) or re.search(r'(?i).*(mkt|\[bd).*', cp):
+        return 'Awareness'
+
+    if re.search(r'(?i).*(igshopping).*', sm):
+        return 'Official SNS'
+    if re.search(r'(?i).*(facebook).*', sm) and re.search(r'(?i).*(referral).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(instagram).*', sm) and re.search(r'(?i).*(referral).*', sm):
+        return 'Official SNS'
+    if re.search(r'(?i).*(meta|facebook|instagram|ig|fb).*', sm):
+        return 'Paid Ad'
+
+    if re.search(r'(?i).*(google / cpc).*', sm) and re.search(r'(?i).*(디멘드젠|디멘드잰|디맨드젠|디맨드잰|dg|demandgen).*', cp):
+        return 'Awareness'
+    if re.search(r'(?i).*(google / cpc).*', sm) and re.search(r'(?i).*(pmax).*', cp):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(google / cpc).*', sm) and re.search(r'(?i).*(유튜브|yt|youtube|instream|vac|vvc).*', cp):
+        return 'Awareness'
+    if re.search(r'(?i).*(google / cpc).*', sm) and re.search(r'(?i).*(discovery).*', cp):
+        return 'Awareness'
+    if re.search(r'(?i).*(google / cpc).*', sm) and re.search(r'(?i).*(sa|ss|검색).*', cp):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(google / cpc).*', sm):
+        return 'Paid Ad'
+
+    if re.search(r'(?i).*(google / organic).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(google).*', sm):
+        return 'Organic Traffic'
+
+    if re.search(r'(?i).*(youtube).*', sm):
+        return 'Organic Traffic'
+
+    if re.search(r'(?i).*(naver).*', sm) and re.search(r'(?i).*(da).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(gfa).*', sm):
+        return 'Paid Ad'
+
+    if re.search(r'(?i).*(naverbs).*', sm):
+        return 'Paid Ad'
+
+    if re.search(r'(?i).*(naver).*', sm) and re.search(r'(?i).*(cpc).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(shopping_ad).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(naver).*', sm) and re.search(r'(?i).*(shopping).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(naver).*', sm) and re.search(r'(?i).*(organic).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(naver).*', sm):
+        return 'Organic Traffic'
+
+    if re.search(r'(?i).*(daum / organic).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(daum).*', sm) and re.search(r'(?i).*(referral).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(kakao_ch).*', sm) or re.search(r'(?i).*(kakao_ch).*', cp):
+        return 'Owned Channel'
+    if re.search(r'(?i).*(kakao_alimtalk).*', sm):
+        return 'Owned Channel'
+    if re.search(r'(?i).*(kakao_coupon).*', sm):
+        return 'Owned Channel'
+    if re.search(r'(?i).*(kakao_chatbot).*', sm):
+        return 'Owned Channel'
+    if re.search(r'(?i).*(kakao).*', sm):
+        return 'Paid Ad'
+
+    if re.search(r'(?i).*(\(direct\) / \(none\)).*', sm):
+        return 'Organic Traffic'
+
+    if re.search(r'(?i).*(signalplay|signal play|signal_play|sg_|signal|manplus).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(buzzvill).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(criteo).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(mobon).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(snow).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(smr).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(tg).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(t_cafe).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(blind).*', sm):
+        return 'Paid Ad'
+
+    if re.search(r'(?i).*(cpc).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(organic).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(banner|da).*', sm):
+        return 'Paid Ad'
+    if re.search(r'(?i).*(referral).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(shopping).*', sm):
+        return 'Organic Traffic'
+    if re.search(r'(?i).*(social).*', sm):
+        return 'Organic Traffic'
+
     return 'etc'
 
 
