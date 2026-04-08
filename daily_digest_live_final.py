@@ -2464,6 +2464,8 @@ def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
     return {k: float(v or 0) for k, v in manual.items()}
 
 def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, pd.DataFrame]:
+    dims = ["sessionSourceMedium", "sessionCampaignName"]
+    mets = ["sessions", "transactions", "purchaseRevenue"]
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         df = _fetch_channel_fact_table(client, start, end)
         if df.empty:
