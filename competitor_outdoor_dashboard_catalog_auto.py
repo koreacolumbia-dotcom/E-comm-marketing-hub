@@ -434,17 +434,38 @@ def compact_text(value: Optional[str]) -> str:
     return safe_text(value).replace("\xa0", " ")
 
 
+
 def parse_price_to_int(text: str) -> Optional[int]:
     if not text:
         return None
-    cleaned = re.sub(r"[^0-9]", "", text)
+
+    raw = str(text).replace("\xa0", " ")
+    candidates = re.findall(r'\d{1,3}(?:,\d{3})+', raw)
+    if not candidates:
+        candidates = re.findall(r'\d{4,7}', raw)
+
+    values = []
+    for c in candidates:
+        try:
+            v = int(re.sub(r'[^0-9]', '', c))
+        except Exception:
+            continue
+        if 1000 <= v <= 5000000:
+            values.append(v)
+
+    if values:
+        return min(values)
+
+    cleaned = re.sub(r'[^0-9]', '', raw)
     if not cleaned:
         return None
     try:
-        return int(cleaned)
+        v = int(cleaned)
     except ValueError:
         return None
-
+    if 1000 <= v <= 5000000:
+        return v
+    return None
 
 def calc_discount_rate(current_price: Optional[int], original_price: Optional[int]) -> Optional[float]:
     if current_price is None or original_price is None or original_price <= 0:
@@ -1249,6 +1270,9 @@ def render_dashboard(payload: dict) -> str:
     .product-card:hover { transform: translateY(-2px); transition: .2s ease; }
     .table-wrap::-webkit-scrollbar { height: 8px; width: 8px; }
     .table-wrap::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+    .chart-box { height: 300px; position: relative; }
+    .chart-box.tall { height: 420px; }
+    .chart-box canvas { width: 100% !important; height: 100% !important; }
   </style>
 </head>
 <body class="text-slate-900">
@@ -1270,16 +1294,16 @@ def render_dashboard(payload: dict) -> str:
     <section class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4" id="kpi-grid"></section>
 
     <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-4">
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">브랜드별 SKU 수</div><canvas id="brandCountChart" height="210"></canvas></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">브랜드별 평균가</div><canvas id="avgPriceChart" height="210"></canvas></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">가격대 분포</div><canvas id="priceBandChart" height="210"></canvas></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">카테고리 분포</div><canvas id="categoryChart" height="210"></canvas></div>
+      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">브랜드별 SKU 수</div><div class="chart-box"><canvas id="brandCountChart"></canvas></div></div>
+      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">브랜드별 평균가</div><div class="chart-box"><canvas id="avgPriceChart"></canvas></div></div>
+      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">가격대 분포</div><div class="chart-box"><canvas id="priceBandChart"></canvas></div></div>
+      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">카테고리 분포</div><div class="chart-box"><canvas id="categoryChart"></canvas></div></div>
     </section>
 
     <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">대표 속성 분포</div><canvas id="dominantAttrChart" height="220"></canvas></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">등급 분포</div><canvas id="gradeChart" height="220"></canvas></div>
-      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">Shell 타입 분포</div><canvas id="shellChart" height="220"></canvas></div>
+      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">대표 속성 분포</div><div class="chart-box"><canvas id="dominantAttrChart"></canvas></div></div>
+      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">등급 분포</div><div class="chart-box"><canvas id="gradeChart"></canvas></div></div>
+      <div class="rounded-[28px] border border-white/70 glass panel p-5"><div class="mb-3 text-lg font-black">Shell 타입 분포</div><div class="chart-box"><canvas id="shellChart"></canvas></div></div>
     </section>
 
     <section class="mt-6 grid grid-cols-1 gap-4 2xl:grid-cols-[1.25fr_.75fr]">
@@ -1309,7 +1333,7 @@ def render_dashboard(payload: dict) -> str:
       <div class="rounded-[28px] border border-white/70 glass panel p-5">
         <div class="text-xl font-black">브랜드 포지셔닝</div>
         <div class="mt-3 rounded-2xl bg-white border border-slate-200 p-3">
-          <canvas id="positionChart" height="380"></canvas>
+          <div class="chart-box tall"><canvas id="positionChart"></canvas></div>
         </div>
         <div class="mt-3 text-xs font-bold text-slate-500">X: Lifestyle → Performance → Extreme / Y: Mass → Premium → Luxury</div>
       </div>
