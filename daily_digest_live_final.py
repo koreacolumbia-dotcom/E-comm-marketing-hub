@@ -1241,6 +1241,7 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
             COUNT(DISTINCT NULLIF(transaction_id, '')) AS transactions,
             SUM(COALESCE(purchase_revenue, 0)) AS purchaseRevenue
           FROM valid_events
+          WHERE event_name = 'purchase'
           GROUP BY 1
         )
         SELECT
@@ -1426,6 +1427,72 @@ def get_channel_snapshot_3way(
     total_yoy_sessions = float(m["sessions_yoy"].sum()) if not m.empty else 0.0
     total_yoy_tx = float(m["transactions_yoy"].sum()) if not m.empty else 0.0
     total_yoy_rev = float(m["revenue_yoy"].sum()) if not m.empty else 0.0
+
+    overall_cur = overall.get("current", {}) or {}
+    overall_prev = overall.get("prev", {}) or {}
+    overall_yoy = overall.get("yoy", {}) or {}
+
+    target_cur_sessions = float(overall_cur.get("sessions", 0) or 0)
+    target_cur_tx = float(overall_cur.get("transactions", 0) or 0)
+    target_cur_rev = float(overall_cur.get("purchaseRevenue", 0) or 0)
+    target_prev_sessions = float(overall_prev.get("sessions", 0) or 0)
+    target_prev_tx = float(overall_prev.get("transactions", 0) or 0)
+    target_prev_rev = float(overall_prev.get("purchaseRevenue", 0) or 0)
+    target_yoy_sessions = float(overall_yoy.get("sessions", 0) or 0)
+    target_yoy_tx = float(overall_yoy.get("transactions", 0) or 0)
+    target_yoy_rev = float(overall_yoy.get("purchaseRevenue", 0) or 0)
+
+    # Reconcile any unattributed delta into etc so Channel Snapshot totals always match the top KPIs.
+    # This keeps the sample CASE classification for attributable rows, while preserving Looker-style totals.
+    etc_mask = out["bucket"] == "etc"
+    if etc_mask.any():
+        idx = out.index[etc_mask][0]
+        cur_s_delta = target_cur_sessions - total_cur_sessions
+        cur_t_delta = target_cur_tx - total_cur_tx
+        cur_r_delta = target_cur_rev - total_cur_rev
+        prev_s_delta = target_prev_sessions - total_prev_sessions
+        prev_t_delta = target_prev_tx - total_prev_tx
+        prev_r_delta = target_prev_rev - total_prev_rev
+        yoy_s_delta = target_yoy_sessions - total_yoy_sessions
+        yoy_t_delta = target_yoy_tx - total_yoy_tx
+        yoy_r_delta = target_yoy_rev - total_yoy_rev
+
+        out.at[idx, "sessions"] = float(out.at[idx, "sessions"]) + cur_s_delta
+        out.at[idx, "transactions"] = float(out.at[idx, "transactions"]) + cur_t_delta
+        out.at[idx, "purchaseRevenue"] = float(out.at[idx, "purchaseRevenue"]) + cur_r_delta
+
+        m.loc[m["bucket"] == "etc", "sessions_prev"] = m.loc[m["bucket"] == "etc", "sessions_prev"] + prev_s_delta
+        m.loc[m["bucket"] == "etc", "transactions_prev"] = m.loc[m["bucket"] == "etc", "transactions_prev"] + prev_t_delta
+        m.loc[m["bucket"] == "etc", "revenue_prev"] = m.loc[m["bucket"] == "etc", "revenue_prev"] + prev_r_delta
+        m.loc[m["bucket"] == "etc", "sessions_yoy"] = m.loc[m["bucket"] == "etc", "sessions_yoy"] + yoy_s_delta
+        m.loc[m["bucket"] == "etc", "transactions_yoy"] = m.loc[m["bucket"] == "etc", "transactions_yoy"] + yoy_t_delta
+        m.loc[m["bucket"] == "etc", "revenue_yoy"] = m.loc[m["bucket"] == "etc", "revenue_yoy"] + yoy_r_delta
+
+        # refresh per-row delta fields after etc reconciliation
+        etc_row = m["bucket"] == "etc"
+        m.loc[etc_row, "session_dod"] = m.loc[etc_row].apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
+        m.loc[etc_row, "session_yoy"] = m.loc[etc_row].apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+        m.loc[etc_row, "orders_dod"] = m.loc[etc_row].apply(lambda r: pct_change(float(r["transactions_cur"]), float(r["transactions_prev"])), axis=1)
+        m.loc[etc_row, "orders_yoy"] = m.loc[etc_row].apply(lambda r: pct_change(float(r["transactions_cur"]), float(r["transactions_yoy"])), axis=1)
+        m.loc[etc_row, "revenue_dod"] = m.loc[etc_row].apply(lambda r: pct_change(float(r["revenue_cur"]), float(r["revenue_prev"])), axis=1)
+        m.loc[etc_row, "revenue_yoy"] = m.loc[etc_row].apply(lambda r: pct_change(float(r["revenue_cur"]), float(r["revenue_yoy"])), axis=1)
+
+        out.loc[out["bucket"] == "etc", "session_dod"] = m.loc[m["bucket"] == "etc", "session_dod"].values
+        out.loc[out["bucket"] == "etc", "session_yoy"] = m.loc[m["bucket"] == "etc", "session_yoy"].values
+        out.loc[out["bucket"] == "etc", "orders_dod"] = m.loc[m["bucket"] == "etc", "orders_dod"].values
+        out.loc[out["bucket"] == "etc", "orders_yoy"] = m.loc[m["bucket"] == "etc", "orders_yoy"].values
+        out.loc[out["bucket"] == "etc", "revenue_dod"] = m.loc[m["bucket"] == "etc", "revenue_dod"].values
+        out.loc[out["bucket"] == "etc", "revenue_yoy"] = m.loc[m["bucket"] == "etc", "revenue_yoy"].values
+
+        total_cur_sessions = target_cur_sessions
+        total_cur_tx = target_cur_tx
+        total_cur_rev = target_cur_rev
+        total_prev_sessions = target_prev_sessions
+        total_prev_tx = target_prev_tx
+        total_prev_rev = target_prev_rev
+        total_yoy_sessions = target_yoy_sessions
+        total_yoy_tx = target_yoy_tx
+        total_yoy_rev = target_yoy_rev
 
     total = pd.DataFrame([{
         "bucket": "Total",
