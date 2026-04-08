@@ -70,7 +70,7 @@ WRITE_DATA_CACHE = os.getenv("MEMBER_FUNNEL_WRITE_DATA_CACHE", "true").lower() i
 PERIOD_PRESETS = [
     {"key": "1d", "label": "1DAY", "days": 1, "filename": "daily.html", "is_default": False},
     {"key": "7d", "label": "7D", "days": 7, "filename": "7d.html", "is_default": False},
-    {"key": "1m", "label": "1MONTH", "days": 30, "filename": "index.html", "is_default": True},
+    {"key": "1m", "label": "30D", "days": 30, "filename": "index.html", "is_default": True},
     {"key": "1y", "label": "1YEAR", "days": 365, "filename": "1year.html", "is_default": False},
 ]
 
@@ -750,7 +750,7 @@ def pills_html(items: List[dict], style: str = "default") -> str:
     return "".join(rows)
 
 
-def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Optional[set] = None, limit: int = 20) -> str:
+def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Optional[set] = None, limit: int = 15) -> str:
     numeric = numeric or set()
     head = "".join(f'<th class="{"num" if key in numeric else ""}">{esc(label)}</th>' for key, label in columns)
     body = []
@@ -776,7 +776,7 @@ def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Option
                 else:
                     tds.append(f'<td class="{td_cls}">{esc(val)}</td>')
             body.append(f"<tr>{''.join(tds)}</tr>")
-    meta = f'<div class="table-meta">전체 {fmt_int(len(rows))}행 중 {fmt_int(len(visible_rows))}행 표시</div>' if rows else ''
+    meta = f'<div class="table-meta">전체 {fmt_int(len(rows))}행 중 {fmt_int(len(visible_rows))}행 기본 표시</div>' if rows else ''
     return f'{meta}<div class="table-wrap"><table class="data-table"><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
 
 
@@ -998,12 +998,12 @@ th.num,td.num{{text-align:right}}
   </section>
 
   <section class="panel active" id="user-view">
-    <div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰</h2></div><div class="download-row">{'<a class="download-btn" href="'+esc(downloads.get('non_buyer',''))+'">Non Buyer Excel</a>' if downloads.get('non_buyer') else ''}{'<a class="download-btn" href="'+esc(downloads.get('target',''))+'">Target Segment Excel</a>' if downloads.get('target') else ''}</div></div>
+    <div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰 (USER_ID 대표행 기준)</h2></div><div class="download-row">{'<a class="download-btn" href="'+esc(downloads.get('non_buyer',''))+'">Non Buyer Excel</a>' if downloads.get('non_buyer') else ''}{'<a class="download-btn" href="'+esc(downloads.get('target',''))+'">Target Segment Excel</a>' if downloads.get('target') else ''}</div></div>
 
     <div class="grid-4">
-      <div class="card"><div class="kicker">Non Buyer Members</div><div class="kpi">{fmt_int(non_buyer['summary']['members'])}</div><div class="kpi-sub">가입했지만 아직 구매하지 않은 Member 기준</div></div>
-      <div class="card"><div class="kicker">Non Buyer Sessions</div><div class="kpi">{fmt_int(non_buyer['summary']['sessions'])}</div><div class="kpi-sub">대상자의 공식몰 세션 합계</div></div>
-      <div class="card"><div class="kicker">Buyer Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">구매자 누적 매출</div></div>
+      <div class="card"><div class="kicker">Non Buyer Members</div><div class="kpi">{fmt_int(non_buyer['summary']['members'])}</div><div class="kpi-sub">USER_ID 대표행 기준 미구매 회원 수</div></div>
+      <div class="card"><div class="kicker">Non Buyer Sessions</div><div class="kpi">{fmt_int(non_buyer['summary']['sessions'])}</div><div class="kpi-sub">대표행 기준 세션 합계</div></div>
+      <div class="card"><div class="kicker">Buyer Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">USER_ID 대표행 기준 USER_ID 대표행 기준 매출</div></div>
       <div class="card"><div class="kicker">Top Campaign</div><div class="kpi">{esc(buyer['summary']['top_campaign'])}</div><div class="kpi-sub">구매자 기준 가장 많이 잡힌 캠페인</div></div>
     </div>
 
@@ -1018,9 +1018,9 @@ th.num,td.num{{text-align:right}}
 
     <div class="section-head"><div><div class="section-title">Buyer Revenue</div><h2>누가 매출을 만들었는지</h2></div></div>
     <div class="grid-4">
-      <div class="card"><div class="kicker">Buyers</div><div class="kpi">{fmt_int(buyer['summary']['buyers'])}</div><div class="kpi-sub">구매자 수</div></div>
-      <div class="card"><div class="kicker">Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">구매자 매출</div></div>
-      <div class="card"><div class="kicker">AOV</div><div class="kpi">{fmt_money(buyer['summary']['aov'])}</div><div class="kpi-sub">주문당 평균 매출</div></div>
+      <div class="card"><div class="kicker">Buyers</div><div class="kpi">{fmt_int(buyer['summary']['buyers'])}</div><div class="kpi-sub">USER_ID 대표행 기준 구매자 수</div></div>
+      <div class="card"><div class="kicker">Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">USER_ID 대표행 기준 매출</div></div>
+      <div class="card"><div class="kicker">AOV</div><div class="kpi">{fmt_money(buyer['summary']['aov'])}</div><div class="kpi-sub">대표행 기준 주문당 평균 매출</div></div>
       <div class="card"><div class="kicker">Top Product</div><div class="kpi">{esc(buyer['summary']['top_product'])}</div><div class="kpi-sub">구매자 기준 최다 제품</div></div>
     </div>
     <div class="grid-2">
@@ -1129,7 +1129,7 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     out["member_id_norm"] = safe_series(out, ["member_id", "memberid", "member_no", "memberno"], "").astype(str).str.strip()
     out["user_id_norm"] = safe_series(out, ["user_id", "userid"], "").astype(str).str.strip()
-    out["phone_norm"] = safe_series(out, ["mobile_phone", "phone", "cellphone", "member_phone", "mobile"], "").astype(str).str.strip()
+    out["phone_norm"] = safe_series(out, ["mobile_phone", "phone", "cellphone", "member_phone", "mobile", "phone_number", "mobile_number", "mobile_no", "hp", "hp_no", "handphone", "tel_no", "telephone", "member_tel", "member_mobile", "member_hp", "cust_phone", "customer_phone", "receiver_phone", "order_phone"], "").astype(str).str.strip()
 
     out["channel_group_norm"] = [
         canonical_bucket(cg, fs, None, camp)
@@ -1166,11 +1166,13 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     out["last_category_norm"] = clean_label_series(safe_series(out, ["last_category", "top_category", "preferred_category"], None), "")
     out["top_category_norm"] = clean_label_series(safe_series(out, ["top_category", "preferred_category", "last_category"], None), "")
     out["purchase_product_name_norm"] = clean_label_series(safe_series(out, [
-        "purchase_product_name", "product_name", "last_product_name", "last_purchase_product", "ordered_product_name",
-        "item_name", "top_product", "preferred_product", "first_purchase_product"
+        "purchase_product_name", "top_product_name", "first_purchase_product_name", "last_purchase_product_name",
+        "top_purchased_item_name", "product_name_display", "product_name", "last_product_name",
+        "last_purchase_product", "ordered_product_name", "item_name", "top_product",
+        "preferred_product", "first_purchase_product"
     ], None), "")
     out["top_product_norm"] = out["purchase_product_name_norm"]
-    out["campaign_norm"] = clean_label_series(safe_series(out, ["session_campaign", "first_campaign", "latest_campaign"], None), "")
+    out["campaign_norm"] = clean_label_series(safe_series(out, ["campaign_display", "session_campaign", "first_campaign", "latest_campaign"], None), "")
     out["campaign_display_norm"] = [
         clean_label(camp, "") or clean_label(ch, "") or "미분류"
         for camp, ch in zip(out["campaign_norm"], out["channel_group_norm"])
@@ -1399,7 +1401,7 @@ def donut_chart_html(items: List[dict]) -> str:
     return f'<div class="donut-wrap"><div class="donut" style="background:{bg}"></div><div class="donut-legend">{legend}</div></div>'
 
 
-def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Optional[set] = None, limit: int = 20) -> str:
+def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Optional[set] = None, limit: int = 15) -> str:
     numeric = numeric or set()
     head = "".join(f'<th class="{"num" if key in numeric else ""}">{esc(label)}</th>' for key, label in columns)
     body = []
@@ -1425,7 +1427,7 @@ def table_html(rows: List[dict], columns: List[Tuple[str, str]], numeric: Option
                 else:
                     tds.append(f'<td>{esc(val)}</td>')
             body.append(f"<tr>{''.join(tds)}</tr>")
-    meta = f'<div class="table-meta">전체 {fmt_int(len(rows))}행 중 {fmt_int(len(visible_rows))}행 표시</div>' if rows else ''
+    meta = f'<div class="table-meta">전체 {fmt_int(len(rows))}행 중 {fmt_int(len(visible_rows))}행 기본 표시</div>' if rows else ''
     return f'{meta}<div class="table-wrap"><table class="data-table"><thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
 
 
@@ -1521,7 +1523,7 @@ def render_page(bundle: dict, preset: dict) -> str:
       <div>
         <div class="eyebrow">External Signal Style · CRM Funnel</div>
         <h1>Member Funnel</h1>
-        <p>채널별 행동 데이터와 CRM 액션 대상을 한 화면에서 빠르게 읽고, 바로 추출할 수 있게 재정렬했습니다. USER VIEW는 유입 기반 액션 분석, TOTAL VIEW는 기존 회원 전체 분석입니다.</p>
+        <p>채널별 행동 데이터와 CRM 액션 대상을 한 화면에서 빠르게 읽고, 바로 추출할 수 있게 재정렬했습니다. USER VIEW는 USER_ID 단위 대표행 기준 액션 분석, TOTAL VIEW는 기존 회원 전체 분석입니다.</p>
         <div class="hero-meta">{period_nav}</div>
       </div>
       <div class="hero-kpis">
@@ -1539,21 +1541,19 @@ def render_page(bundle: dict, preset: dict) -> str:
       <button class="tab-btn" data-tab-target="total-view" aria-selected="false">TOTAL VIEW</button>
     </div>
     <div class="date-tools">
-      <input type="date" id="start-date" value="{esc(bundle['date_range']['start'])}" />
-      <input type="date" id="end-date" value="{esc(bundle['date_range']['end'])}" />
-      <button id="apply-date">Apply</button>
+      <div class="mini-copy">Preset 기반 정적 리포트 · 커스텀 날짜 Apply는 제거하고 1DAY / 7D / 30D / 1YEAR만 사용합니다.</div>
     </div>
   </div>
 
   <div class="summary-card"><div class="section-title">이번 구간 핵심 요약</div><ul>{latest_summary}</ul></div>
 
   <section class="panel active" id="user-view" data-tab-panel>
-    <div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰</h2></div><div class="download-row">{'<a class="download-btn" href="'+esc(downloads.get('non_buyer',''))+'">Non Buyer Excel</a>' if downloads.get('non_buyer') else ''}{'<a class="download-btn" href="'+esc(downloads.get('target',''))+'">Target Segment Excel</a>' if downloads.get('target') else ''}</div></div>
+    <div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰 (USER_ID 대표행 기준)</h2></div><div class="download-row">{'<a class="download-btn" href="'+esc(downloads.get('non_buyer',''))+'">Non Buyer Excel</a>' if downloads.get('non_buyer') else ''}{'<a class="download-btn" href="'+esc(downloads.get('target',''))+'">Target Segment Excel</a>' if downloads.get('target') else ''}</div></div>
     <div class="grid-4">
-      <div class="card"><div class="kicker">Non Buyer Members</div><div class="kpi">{fmt_int(non_buyer['summary']['members'])}</div><div class="kpi-sub">가입했지만 아직 구매하지 않은 Member 기준</div></div>
-      <div class="card"><div class="kicker">Non Buyer Sessions</div><div class="kpi">{fmt_int(non_buyer['summary']['sessions'])}</div><div class="kpi-sub">대상자의 공식몰 세션 합계</div></div>
-      <div class="card"><div class="kicker">Buyer Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">구매자 누적 매출</div></div>
-      <div class="card"><div class="kicker">Top Campaign</div><div class="kpi">{esc(display_label(buyer['summary']['top_campaign']))}</div><div class="kpi-sub">구매자 기준 대표 캠페인</div></div>
+      <div class="card"><div class="kicker">Non Buyer Members</div><div class="kpi">{fmt_int(non_buyer['summary']['members'])}</div><div class="kpi-sub">USER_ID 대표행 기준 미구매 회원 수</div></div>
+      <div class="card"><div class="kicker">Non Buyer Sessions</div><div class="kpi">{fmt_int(non_buyer['summary']['sessions'])}</div><div class="kpi-sub">대표행 기준 세션 합계</div></div>
+      <div class="card"><div class="kicker">Buyer Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">USER_ID 대표행 기준 USER_ID 대표행 기준 매출</div></div>
+      <div class="card"><div class="kicker">Top Campaign</div><div class="kpi">{esc(display_label(buyer['summary']['top_campaign']))}</div><div class="kpi-sub">USER_ID 대표행 기준 대표 캠페인</div></div>
     </div>
 
     <div class="section-head"><div><div class="section-title">NON BUYER</div><h2>가입했지만 아직 사지 않은 사람</h2></div></div>
@@ -1561,16 +1561,16 @@ def render_page(bundle: dict, preset: dict) -> str:
       <div class="card"><div class="section-title">AGE 비율</div><div class="chart-grid">{bar_chart_html(non_buyer['age_dist'])}</div></div>
       <div class="card"><div class="section-title">GENDER 비율</div>{donut_chart_html(non_buyer['gender_dist'])}</div>
       <div class="card"><div class="section-title">Last Category 비율</div><div class="chart-grid">{bar_chart_html(non_buyer['category_dist'])}</div></div>
-      <div class="card"><div class="kicker">대표 유입 채널</div><div class="kpi">{esc(display_label(_top_label(pd.DataFrame(non_buyer['rows']) if non_buyer['rows'] else pd.DataFrame(), 'channel_group')))}</div><div class="kpi-sub">미구매 회원 기준 가장 많이 잡힌 채널</div></div>
+      <div class="card"><div class="kicker">대표 유입 채널</div><div class="kpi">{esc(display_label(_top_label(pd.DataFrame(non_buyer['rows']) if non_buyer['rows'] else pd.DataFrame(), 'channel_group')))}</div><div class="kpi-sub">USER_ID 대표행 기준 최다 채널</div></div>
     </div>
     <div class="card">{non_buyer_table}</div>
 
     <div class="section-head"><div><div class="section-title">BUYER REVENUE</div><h2>누가 매출을 만들었는지</h2></div></div>
     <div class="grid-4">
-      <div class="card"><div class="kicker">Buyers</div><div class="kpi">{fmt_int(buyer['summary']['buyers'])}</div><div class="kpi-sub">구매자 수</div></div>
-      <div class="card"><div class="kicker">Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">구매자 매출</div></div>
-      <div class="card"><div class="kicker">AOV</div><div class="kpi">{fmt_money(buyer['summary']['aov'])}</div><div class="kpi-sub">주문당 평균 매출</div></div>
-      <div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">{esc(display_label(buyer['summary']['top_product']))}</div><div class="kpi-sub">구매자 기준 가장 많이 확인된 상품명</div></div>
+      <div class="card"><div class="kicker">Buyers</div><div class="kpi">{fmt_int(buyer['summary']['buyers'])}</div><div class="kpi-sub">USER_ID 대표행 기준 구매자 수</div></div>
+      <div class="card"><div class="kicker">Revenue</div><div class="kpi">{fmt_money(buyer['summary']['revenue'])}</div><div class="kpi-sub">USER_ID 대표행 기준 매출</div></div>
+      <div class="card"><div class="kicker">AOV</div><div class="kpi">{fmt_money(buyer['summary']['aov'])}</div><div class="kpi-sub">대표행 기준 주문당 평균 매출</div></div>
+      <div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">{esc(display_label(buyer['summary']['top_product']))}</div><div class="kpi-sub">USER_ID 대표행 기준 대표 구매 상품명</div></div>
     </div>
     <div class="grid-2">
       <div class="card"><div class="section-title">AGE 비율</div><div class="chart-grid">{bar_chart_html(buyer['age_dist'])}</div></div>
@@ -1624,15 +1624,6 @@ def render_page(bundle: dict, preset: dict) -> str:
     }});
   }}
   buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.tabTarget)));
-  document.getElementById('apply-date').addEventListener('click', function(){{
-    const s = document.getElementById('start-date').value;
-    const e = document.getElementById('end-date').value;
-    if(!s || !e) return;
-    const u = new URL(window.location.href);
-    u.searchParams.set('start', s);
-    u.searchParams.set('end', e);
-    window.location.href = u.toString();
-  }});
   activate('user-view');
 }})();
 </script>
