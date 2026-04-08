@@ -1071,26 +1071,52 @@ jobs:
           mkdir -p reports
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
 
-      - name: Commit & push report results
+      - name: Commit & push report results (SAFE - exclude large bundles)
         if: ${{ always() }}
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
+
+          echo "[INFO] Removing oversized member funnel bundles before commit"
+
+          rm -f reports/member_funnel/data/1d_bundle.json || true
+          rm -f reports/member_funnel/data/7d_bundle.json || true
+          rm -f reports/member_funnel/data/1m_bundle.json || true
+          rm -f reports/member_funnel/data/1y_bundle.json || true
+          find reports/member_funnel/data -maxdepth 1 -name "*_bundle.json" -size +95M -delete || true
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add -A reports site .naver_cache scripts sql || true
-          if git diff --cached --quiet; then echo "No changes to commit"; exit 0; fi
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
           git fetch origin main
           git pull --rebase --autostash origin main
+
           git add -A reports site .naver_cache scripts sql || true
-          if git diff --cached --quiet; then echo "No changes to commit after rebase"; exit 0; fi
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit after rebase"
+            exit 0
+          fi
+
           git commit -m "Reports auto update" || true
+
           for i in 1 2 3; do
             echo "[INFO] push attempt $i/3"
-            if git push origin HEAD:main; then echo "[OK] pushed"; exit 0; fi
+            if git push origin HEAD:main; then
+              echo "[OK] pushed"
+              exit 0
+            fi
             git fetch origin main
             git pull --rebase --autostash origin main
           done
+
           echo "[ERROR] failed to push after retries"
           exit 1
