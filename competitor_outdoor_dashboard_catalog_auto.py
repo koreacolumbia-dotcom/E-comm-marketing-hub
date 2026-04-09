@@ -596,6 +596,8 @@ def extract_discovery_payload_price(html_text: str) -> Optional[int]:
         r'"event_code"\s*:\s*"ViewContent"[\s\S]*?"products"\s*:\s*\[\s*\{[\s\S]*?"price"\s*:\s*"?(?P<price>\d{4,7})"?',
         r'"products"\s*:\s*\[\s*\{[\s\S]*?"price"\s*:\s*"?(?P<price>\d{4,7})"?',
         r'"price"\s*:\s*"?(?P<price>\d{4,7})"?',
+        r"'price'\s*:\s*'?(?P<price>\d{4,7})'?",
+        r'"prc"\s*:\s*"?(?P<price>\d{4,7})"?',
     ]
     for pat in patterns:
         m = re.search(pat, html_text, flags=re.I)
@@ -607,6 +609,33 @@ def extract_discovery_payload_price(html_text: str) -> Optional[int]:
             except Exception:
                 pass
     return None
+
+
+
+def extract_columbia_korean_name(html_text: str) -> str:
+    if not html_text:
+        return ""
+    patterns = [
+        r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<title>([^<]+)</title>',
+        r'상품명[^가-힣A-Za-z0-9]{0,20}([가-힣][^<\n\r]{3,80})',
+    ]
+    for pat in patterns:
+        m = re.search(pat, html_text, flags=re.I)
+        if m:
+            val = clean_product_text(m.group(1))
+            if re.search(r'[가-힣]', val):
+                return val
+    return ""
+
+
+def normalize_columbia_name(name: str, html_text: str = "") -> str:
+    if name and re.search(r'[가-힣]', name):
+        return clean_product_text(name)
+    kor = extract_columbia_korean_name(html_text)
+    if kor:
+        return kor
+    return clean_product_text(name)
 
 def strip_discovery_prefix(name: str) -> str:
     t = clean_product_text(name)
@@ -1193,7 +1222,7 @@ class AutoCompetitorCrawler:
                 brand=cfg.brand,
                 source_url=source_url,
                 product_url=product_url,
-                name=compact_text(title),
+                name=compact_text(final_title),
                 description=compact_text(desc),
                 price_text=compact_text(price_text),
                 original_price_text=compact_text(original_price_text),
@@ -1253,6 +1282,12 @@ class AutoCompetitorCrawler:
 
             sanity_blob = f"{title} {desc}"
             cp, op = select_current_original_price(price_text, original_price_text)
+            final_title = title
+            if cfg.brand == "COLUMBIA":
+                try:
+                    final_title = normalize_columbia_name(title, self.driver.page_source)
+                except Exception:
+                    final_title = title
             return ProductRaw(
                 brand=cfg.brand,
                 source_url=source_url,
@@ -1709,6 +1744,7 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
 
 
 
+
 def render_dashboard(payload: dict) -> str:
     data_json = json.dumps(json_safe(payload), ensure_ascii=False)
     generated_at = html.escape(payload.get("generated_at", ""))
@@ -1756,9 +1792,24 @@ def render_dashboard(payload: dict) -> str:
     </section>
 
     <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-      <div class="glass-card p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE BAND</div><div class="mt-2 text-xl font-black">가격대 분포</div><div class="chart-box mt-4"><canvas id="priceBandChart"></canvas></div></div>
-      <div class="glass-card p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ITEM</div><div class="mt-2 text-xl font-black">아이템 분포</div><div class="chart-box mt-4"><canvas id="categoryChart"></canvas></div></div>
-      <div class="glass-card p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ATTRIBUTE</div><div class="mt-2 text-xl font-black">대표 속성 분포</div><div class="chart-box mt-4"><canvas id="dominantAttrChart"></canvas></div></div>
+      <div class="glass-card p-5">
+        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE BAND</div>
+        <div class="mt-2 text-xl font-black">가격대 분포</div>
+        <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsA"></div>
+        <div class="chart-box mt-4"><canvas id="priceBandChart"></canvas></div>
+      </div>
+      <div class="glass-card p-5">
+        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ITEM</div>
+        <div class="mt-2 text-xl font-black">아이템 분포</div>
+        <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsB"></div>
+        <div class="chart-box mt-4"><canvas id="categoryChart"></canvas></div>
+      </div>
+      <div class="glass-card p-5">
+        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ATTRIBUTE</div>
+        <div class="mt-2 text-xl font-black">대표 속성 분포</div>
+        <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsC"></div>
+        <div class="chart-box mt-4"><canvas id="dominantAttrChart"></canvas></div>
+      </div>
     </section>
 
     <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_.65fr]">
@@ -1839,7 +1890,7 @@ def render_dashboard(payload: dict) -> str:
       </div>
       <div class="mt-4 flex flex-wrap gap-2" id="productBrandTabs"></div>
       <div class="mt-2 flex flex-wrap gap-2" id="productCategoryTabs"></div>
-      <div id="productGroupContainer" class="mt-4 space-y-8"></div>
+      <div id="productGroupContainer" class="mt-4 space-y-6"></div>
     </section>
 
     <section class="mt-6 glass-card p-5">
@@ -1860,7 +1911,8 @@ def render_dashboard(payload: dict) -> str:
 <script>
 const DATA = __DATA_JSON__;
 const NOISE_KEYWORDS = new Set(["BETTER","MKAE","NOW","PERPECT","PERFECT","COLUMBIA","COMING","SOLD","OUT","SOON","EVA","BLACK","GARY","GRAY","WHITE","BLUE","BEIGE","MAKE"]);
-const STATE = { itemBrand:"전체", priceBrand:"전체", attrBrand:"전체", productBrand:"전체", productCategory:"전체" };
+const STATE = { itemBrand:"전체", priceBrand:"전체", attrBrand:"전체", productBrand:"전체", productCategory:"전체", chartBrand:"전체" };
+let chartRefs = {};
 
 function formatNumber(v){ if(v===null||v===undefined||v==="") return "-"; return new Intl.NumberFormat('ko-KR').format(v); }
 function formatPrice(v){ if(v===null||v===undefined||v==="") return "-"; return formatNumber(v)+"원"; }
@@ -1901,7 +1953,7 @@ function groupRowspan(rows, brandKey="brand"){
   return out;
 }
 function makeTabs(elId, values, stateKey, onChange){
-  const el=document.getElementById(elId);
+  const el=document.getElementById(elId); if(!el) return;
   el.innerHTML=["전체",...values].map(v=>`<button class="tab-btn ${STATE[stateKey]===v?'active':''}" data-val="${v}">${v}</button>`).join("");
   [...el.querySelectorAll(".tab-btn")].forEach(btn=>btn.onclick=()=>{STATE[stateKey]=btn.dataset.val; makeTabs(elId, values, stateKey, onChange); onChange();});
 }
@@ -1946,27 +1998,47 @@ function renderProducts(){
     grouped[brand]=grouped[brand]||{}; grouped[brand][cat]=grouped[brand][cat]||[]; grouped[brand][cat].push(p);
   }
   const container=document.getElementById("productGroupContainer");
-  container.innerHTML=Object.entries(grouped).map(([brand,catMap])=>`<section><div class="flex items-center justify-between gap-3"><div class="text-2xl font-black tracking-[-0.03em]">${brand}</div></div><div class="mt-4 space-y-8">${Object.entries(catMap).map(([cat,arr])=>`<div><div class="flex items-center justify-between mb-4"><div class="text-lg font-black">${cat}</div><div class="text-sm font-bold text-slate-500">${arr.length} styles</div></div><div class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">${arr.slice(0,120).map(p=>`<article class="product-card rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm"><div class="flex gap-4 items-start"><div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">${p.image_url?'<img src="'+p.image_url+'" alt="'+p.name+'" class="h-full w-full object-cover" loading="lazy" />':'<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}</div><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2"><span class="tag bg-slate-900 text-white">${p.brand}</span><span class="tag bg-indigo-50 text-indigo-700">${cat}</span></div><div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${compactNameJS(p.name,p.brand)}</div><div class="mt-2 text-2xl font-black">${formatPrice(p.current_price)}</div><div class="mt-3 flex flex-wrap gap-2">${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-slate-100 text-slate-700">'+x+'</span>').join('')}</div><div class="mt-4 flex items-center justify-between gap-3"><button class="rounded-2xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-700" onclick="this.closest('article').querySelector('.extra-box').classList.toggle('hidden')">접기/펼치기</button>${p.product_url?'<a href="'+p.product_url+'" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>':''}</div><div class="extra-box hidden mt-3 text-xs font-bold text-slate-500">${compactNameJS(p.name,p.brand)} / ${formatPrice(p.current_price)} / ${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).join(", ")}</div></div></div></article>`).join('')}</div></div>`).join('')}</div></section>`).join('');
+  container.innerHTML=Object.entries(grouped).map(([brand,catMap])=>`<section><div class="text-2xl font-black tracking-[-0.03em]">${brand}</div><div class="mt-4 space-y-6">${Object.entries(catMap).map(([cat,arr],ci)=>`<div><button class="w-full flex items-center justify-between rounded-2xl bg-white border border-slate-200 px-4 py-3 text-left font-black" onclick="this.nextElementSibling.classList.toggle('hidden')"><span>${cat}</span><span class="text-sm text-slate-500">${arr.length} styles</span></button><div class="hidden mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">${arr.slice(0,120).map(p=>`<article class="product-card rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm"><div class="flex gap-4 items-start"><div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">${p.image_url?'<img src="'+p.image_url+'" alt="'+p.name+'" class="h-full w-full object-cover" loading="lazy" />':'<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}</div><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2"><span class="tag bg-slate-900 text-white">${p.brand}</span><span class="tag bg-indigo-50 text-indigo-700">${cat}</span></div><div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${compactNameJS(p.name,p.brand)}</div><div class="mt-2 text-2xl font-black">${formatPrice(p.current_price)}</div><div class="mt-3 flex flex-wrap gap-2">${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-slate-100 text-slate-700">'+x+'</span>').join('')}</div><div class="mt-4 flex items-center justify-between gap-3">${p.product_url?'<a href="'+p.product_url+'" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>':''}</div></div></div></article>`).join('')}</div></div>`).join('')}</div></section>`).join('');
 }
 function renderOtherDebug(){
   const rows=(DATA.other_debug||[]).map(r=>({...r, gender:(r.name||"").includes("공용")?"공용":(r.gender||"공용")}));
   document.getElementById("otherDebugBody").innerHTML=rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.name}</td><td class="py-3">${r.item}</td><td class="py-3">${r.dominant_attribute}</td><td class="py-3">${r.reason}</td></tr>`).join('');
 }
 function baseChart(id,type,labels,values,extra={}){
+  if(chartRefs[id]){ chartRefs[id].destroy(); }
   const ctx=document.getElementById(id);
   const horizontal=labels.length>=6 && type==='bar';
-  return new Chart(ctx,{type,data:{labels,datasets:[{data:values,borderWidth:2,borderRadius:10,tension:.35}]},options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{autoSkip:false}}}},extra)});
+  chartRefs[id] = new Chart(ctx,{type,data:{labels,datasets:[{data:values,borderWidth:2,borderRadius:10,tension:.35}]},options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{autoSkip:false}}}},extra)});
+}
+function renderTopCharts(){
+  const brand = STATE.chartBrand;
+  const df = (DATA.products||[]).filter(p => brand==="전체" ? true : p.brand===brand);
+  const countBy = (arr, key) => {
+    const m = {};
+    arr.forEach(x => { const v = (x[key]||"기타"); if(v==="기타") return; m[v] = (m[v]||0)+1; });
+    return m;
+  };
+  const priceMap = countBy(df.filter(x=>x.price_band), "price_band");
+  const itemMap = countBy(df.map(x=>({...x, item_category: ((x.item_category&&x.item_category!=="기타")?x.item_category:inferCategoryJS(x.name||"", x.description||""))})), "item_category");
+  const attrMap = countBy(df.filter(x=>x.dominant_attribute), "dominant_attribute");
+  baseChart('priceBandChart','bar',Object.keys(priceMap),Object.values(priceMap));
+  baseChart('categoryChart','bar',Object.keys(itemMap),Object.values(itemMap));
+  baseChart('dominantAttrChart','bar',Object.keys(attrMap),Object.values(attrMap));
 }
 function renderCharts(){
   const c=DATA.charts||{};
   baseChart('brandCountChart','bar',c.brandProductCounts?.labels||[],c.brandProductCounts?.values||[]);
   baseChart('avgPriceChart','bar',c.brandAvgPrice?.labels||[],c.brandAvgPrice?.values||[]);
   baseChart('genderSplitChart','doughnut',c.genderSplit?.labels||[],c.genderSplit?.values||[],{scales:{}});
-  baseChart('priceBandChart','bar',c.priceBand?.labels||[],c.priceBand?.values||[]);
-  baseChart('categoryChart','bar',c.itemCategory?.labels||[],c.itemCategory?.values||[]);
-  baseChart('dominantAttrChart','bar',c.dominantAttribute?.labels||[],c.dominantAttribute?.values||[]);
+  const brands = [...new Set((DATA.products||[]).map(p=>p.brand))];
+  makeTabs("chartBrandTabsA", brands, "chartBrand", renderTopCharts);
+  makeTabs("chartBrandTabsB", brands, "chartBrand", renderTopCharts);
+  makeTabs("chartBrandTabsC", brands, "chartBrand", renderTopCharts);
+  renderTopCharts();
+
   const pctx=document.getElementById('positionChart');
-  new Chart(pctx,{type:'bubble',data:{datasets:(c.positioning||[]).map(item=>({label:item.brand,data:[{x:item.x,y:item.y,r:Math.max(8,Math.min(22,item.size/6))}]}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>{const item=c.positioning[ctx.datasetIndex];return `${item.brand} - Avg ${formatPrice(item.avg_price)} - SKU ${item.size}`;}}}},scales:{x:{min:.5,max:3.5,ticks:{stepSize:1,callback:(v)=>({1:'Lifestyle',2:'Performance',3:'Extreme'}[v]||'')}},y:{min:.5,max:3.5,ticks:{stepSize:1,callback:(v)=>({1:'Mass',2:'Premium',3:'Luxury'}[v]||'')}}}}});
+  if(chartRefs['positionChart']) chartRefs['positionChart'].destroy();
+  chartRefs['positionChart'] = new Chart(pctx,{type:'bubble',data:{datasets:(c.positioning||[]).map(item=>({label:item.brand,data:[{x:item.x,y:item.y,r:Math.max(8,Math.min(22,item.size/6))}]}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>{const item=c.positioning[ctx.datasetIndex];return `${item.brand} - Avg ${formatPrice(item.avg_price)} - SKU ${item.size}`;}}}},scales:{x:{min:.5,max:3.5,ticks:{stepSize:1,callback:(v)=>({1:'Lifestyle',2:'Performance',3:'Extreme'}[v]||'')}},y:{min:.5,max:3.5,ticks:{stepSize:1,callback:(v)=>({1:'Mass',2:'Premium',3:'Luxury'}[v]||'')}}}}});
 }
 createKpis(); renderBrandSummary(); renderItemStyleTable(); renderPriceBandGenderTable(); renderAttributeGenderTable(); renderKeywords(); renderProducts(); renderOtherDebug(); renderCharts();
 </script>
