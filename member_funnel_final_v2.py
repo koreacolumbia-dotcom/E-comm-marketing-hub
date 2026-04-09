@@ -349,7 +349,6 @@ def export_excel_files(bundle: dict, period_key: str):
 def render_page(bundle: dict, preset: dict) -> str:
     period_nav = ''.join(f'<a class="period-chip {"active" if p["key"] == preset["key"] else ""}" href="{esc(p["filename"])}">{esc(p["label"])} </a>' for p in PERIOD_PRESETS)
     latest_summary = ''.join(f'<li>{esc(x)}</li>' for x in bundle.get('latest_summary', []))
-    data_json = json.dumps(bundle, ensure_ascii=False)
     downloads = bundle.get('downloads', {})
     html_template = """<!doctype html>
 <html lang="ko">
@@ -383,7 +382,7 @@ h1{margin:18px 0 10px;font-size:56px;line-height:1}.hero p{margin:0 0 18px;font-
 <section class="panel" id="total-view"><div class="section-head"><div><div class="section-title">TOTAL VIEW</div><h2>기존 회원 전체 분석</h2></div></div><div id="total-sections"></div></section>
 </div>
 <script>
-const BUNDLE = __DATA_JSON__;
+let BUNDLE = null;
 function money(v){const n=Number(v||0); return '₩'+Math.round(n).toLocaleString('ko-KR')}
 function num(v){return Math.round(Number(v||0)).toLocaleString('ko-KR')}
 function pct(v){return `${Number(v||0).toFixed(1)}%`}
@@ -399,10 +398,27 @@ function renderBuyer(block){ return `<div class="section-head"><div><div class="
 function renderProduct(block){ return `<div class="section-head"><div><div class="section-title">PRODUCT INSIGHT</div><h2>무슨 상품이 고객을 움직였는지</h2></div></div>${tabsHtml('product', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="product" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-2"><div class="card"><div class="section-title">Category 비율</div>${bar(p.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(p.products)}</div></div></div><div class="card">${table(p.rows,[['channel','Channel'],['product','Product'],['buyers','Buyers'],['revenue','Revenue']],['buyers','revenue'],`prod-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
 function renderTarget(target){ return `<div class="section-head"><div><div class="section-title">지금 바로 액션 가능한 대상자</div><h2>세그먼트별 채널 · 관심상품 · 추천 메시지</h2></div></div><div class="grid-2">${(target.cards||[]).map(x=>`<div class="card"><div class="kicker">${esc2(x.label)}</div><div class="kpi">${num(x.count)}명</div><div class="stack-meta">Top Channel · ${esc2(x.top_channel)}</div><div class="stack-meta">Top Product · ${esc2(x.top_product)}</div><div class="stack-meta">Message · ${esc2(x.top_message)}</div></div>`).join('')}</div>`; }
 function renderTotal(block){ return `${tabsHtml('totalmember', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="totalmember" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">기존 회원</div><div class="kpi">${num(p.summary.members)}</div></div><div class="card"><div class="kicker">구매 회원</div><div class="kpi">${num(p.summary.buyers)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(p.summary.revenue)}</div></div><div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">${esc2(p.summary.top_product)}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">AGE 비율</div>${bar(p.age_dist)}</div><div class="card"><div class="section-title">GENDER 비율</div>${donut(p.gender_dist)}</div><div class="card"><div class="section-title">Category 비율</div>${bar(p.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(p.products)}</div></div></div><div class="card">${table(p.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['orders','Orders'],['revenue','Revenue']],['orders','revenue'],`tot-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
-document.getElementById('user-sections').innerHTML = renderNonBuyer(BUNDLE.user_view.non_buyer) + renderBuyer(BUNDLE.user_view.buyer) + renderProduct(BUNDLE.user_view.product) + renderTarget(BUNDLE.user_view.target);
-document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview);
-document.querySelectorAll('[data-main-target]').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('[data-main-target]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); document.getElementById(btn.dataset.mainTarget).classList.add('active'); }));
-document.addEventListener('click', (e)=>{ const sub=e.target.closest('.subtab-btn'); if(sub){ const g=sub.dataset.group, t=sub.dataset.target; document.querySelectorAll(`.subtab-btn[data-group="${g}"]`).forEach(b=>b.classList.toggle('active', b===sub)); document.querySelectorAll(`.channel-panel[data-panel-group="${g}"]`).forEach(p=>{ const on=p.dataset.panelId===t; p.hidden=!on; p.classList.toggle('active', on); }); } const ex=e.target.closest('[data-expand]'); if(ex){ const table=document.getElementById(ex.dataset.expand); if(table){ table.querySelectorAll('.extra-row').forEach(r=>r.classList.toggle('is-hidden')); ex.textContent = ex.textContent==='전체보기' ? '접기' : '전체보기'; } } });
+function bindUi(){
+  document.querySelectorAll('[data-main-target]').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('[data-main-target]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); document.getElementById(btn.dataset.mainTarget).classList.add('active'); }));
+  document.addEventListener('click', (e)=>{ const sub=e.target.closest('.subtab-btn'); if(sub){ const g=sub.dataset.group, t=sub.dataset.target; document.querySelectorAll(`.subtab-btn[data-group="${g}"]`).forEach(b=>b.classList.toggle('active', b===sub)); document.querySelectorAll(`.channel-panel[data-panel-group="${g}"]`).forEach(p=>{ const on=p.dataset.panelId===t; p.hidden=!on; p.classList.toggle('active', on); }); } const ex=e.target.closest('[data-expand]'); if(ex){ const table=document.getElementById(ex.dataset.expand); if(table){ table.querySelectorAll('.extra-row').forEach(r=>r.classList.toggle('is-hidden')); ex.textContent = ex.textContent==='전체보기' ? '접기' : '전체보기'; } } });
+}
+function init(bundle){
+  BUNDLE = bundle;
+  document.getElementById('user-sections').innerHTML = renderNonBuyer(BUNDLE.user_view.non_buyer) + renderBuyer(BUNDLE.user_view.buyer) + renderProduct(BUNDLE.user_view.product) + renderTarget(BUNDLE.user_view.target);
+  document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview);
+}
+(async function(){
+  try {
+    const res = await fetch('data/__BUNDLE_FILE__', {cache:'no-store'});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bundle = await res.json();
+    init(bundle);
+    bindUi();
+  } catch(err) {
+    document.getElementById('user-sections').innerHTML = `<div class="summary-card"><strong>데이터 로드 실패</strong><div class="kpi-sub">${esc2(err && err.message ? err.message : err)}</div></div>`;
+    bindUi();
+  }
+})();
 </script></body></html>"""
     download_html = ''
     if downloads.get('non_buyer'):
@@ -417,7 +433,7 @@ document.addEventListener('click', (e)=>{ const sub=e.target.closest('.subtab-bt
         .replace('__MEMBERS__', fmt_int(bundle['overview']['members']))
         .replace('__LATEST_SUMMARY__', latest_summary)
         .replace('__DOWNLOADS__', download_html)
-        .replace('__DATA_JSON__', data_json)
+        .replace('__BUNDLE_FILE__', f"{preset['key']}_bundle.json")
     )
 
 def main():
