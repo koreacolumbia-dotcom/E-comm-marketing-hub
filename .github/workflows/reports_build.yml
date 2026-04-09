@@ -934,27 +934,26 @@ jobs:
             exit 1
           fi
 
-          MEMBER_FUNNEL_SCRIPT=""
-          for cand in             "member_funnel_final_viewjson_patched.py"             "member_funnel_final_full_patch_light_html_fetchfixed.py"             "member_funnel_final_full_patch_light_html.py"             "member_funnel_final_full_patch.py"             "member_funnel_final_v2_patched.py"             "member_funnel_final_v2.py"
+          BUILDER=""
+          for cand in             member_funnel_final_viewjson_patched.py             member_funnel_final_full_patch_light_html_fetchfixed.py             member_funnel_final_full_patch_light_html.py             member_funnel_final_full_patch.py             member_funnel_final_v2_patched.py             member_funnel_final_v2.py
           do
             if [ -f "$cand" ]; then
-              MEMBER_FUNNEL_SCRIPT="$cand"
+              BUILDER="$cand"
               break
             fi
           done
 
-          if [ -z "$MEMBER_FUNNEL_SCRIPT" ]; then
-            echo "[ERROR] member funnel builder not found"
+          if [ -z "$BUILDER" ]; then
+            echo "[ERROR] No member funnel builder found"
+            ls -la || true
             exit 1
           fi
-
-          echo "[INFO] Using member funnel builder: $MEMBER_FUNNEL_SCRIPT"
 
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/member_funnel_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/member_funnel_sa.json
 
           rm -rf reports/member_funnel site/member_funnel site/data/member_funnel || true
-          mkdir -p reports/member_funnel reports/member_funnel/data
+          mkdir -p reports/member_funnel reports/member_funnel/data site/member_funnel site/data/member_funnel
 
           if [ -f "${MEMBER_FUNNEL_PATCH_SQL}" ]; then
             echo "[INFO] Running channel patch SQL before member funnel build"
@@ -987,39 +986,51 @@ jobs:
             echo "[WARN] ${MEMBER_FUNNEL_PATCH_SQL} not found -> skip channel patch"
           fi
 
-          python -u "$MEMBER_FUNNEL_SCRIPT"
+          echo "[INFO] Running Member Funnel builder: $BUILDER"
+          python -u "$BUILDER"
 
           test -f reports/member_funnel/index.html || { echo "[ERROR] reports/member_funnel/index.html missing"; exit 1; }
 
           echo "[INFO] Member Funnel outputs:"
           ls -la reports/member_funnel || true
-          ls -la reports/member_funnel/data | head -n 50 || true
+          ls -la reports/member_funnel/data || true
 
+          for f in 1d_view.json 7d_view.json 1m_view.json 1y_view.json; do
+            if [ ! -f "reports/member_funnel/data/$f" ]; then
+              echo "[ERROR] missing reports/member_funnel/data/$f"
+              echo "[DEBUG] reports/member_funnel/data contents:"
+              ls -la reports/member_funnel/data || true
+              exit 1
+            fi
+          done
       - name: Publish Member Funnel to site/
         if: ${{ steps.modes.outputs.run_member == 'true' }}
         continue-on-error: false
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf site/member_funnel site/data/member_funnel || true
           mkdir -p site/member_funnel site/data/member_funnel
 
           cp -f reports/member_funnel/index.html site/member_funnel/index.html
-          [ -f "reports/member_funnel/daily.html" ] && cp -f reports/member_funnel/daily.html site/member_funnel/daily.html || true
-          [ -f "reports/member_funnel/7d.html" ] && cp -f reports/member_funnel/7d.html site/member_funnel/7d.html || true
-          [ -f "reports/member_funnel/1year.html" ] && cp -f reports/member_funnel/1year.html site/member_funnel/1year.html || true
 
           if [ -d "reports/member_funnel/data" ]; then
-            rsync -a --delete --include='*_view.json' --include='*.xlsx' --exclude='*' reports/member_funnel/data/ site/data/member_funnel/
+            rsync -a --delete reports/member_funnel/data/ site/data/member_funnel/
           fi
-          rm -f site/data/member_funnel/*_bundle.json || true
 
           test -f site/member_funnel/index.html || { echo "[ERROR] site/member_funnel/index.html missing after publish"; exit 1; }
 
           echo "[INFO] Member Funnel published:"
           ls -la site/member_funnel || true
-          ls -la site/data/member_funnel | head -n 50 || true
+          ls -la site/data/member_funnel || true
 
+          for f in 1d_view.json 7d_view.json 1m_view.json 1y_view.json; do
+            if [ ! -f "site/data/member_funnel/$f" ]; then
+              echo "[ERROR] missing site/data/member_funnel/$f"
+              echo "[DEBUG] site/data/member_funnel contents:"
+              ls -la site/data/member_funnel || true
+              exit 1
+            fi
+          done
       - name: Build Search Volume dashboard
         if: ${{ steps.modes.outputs.run_search_volume == 'true' }}
         continue-on-error: false
@@ -1088,16 +1099,18 @@ jobs:
           mkdir -p reports
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
 
-      - name: Commit & push report results (SAFE - exclude large member funnel bundles)
+      - name: Commit & push report results (SAFE - keep *_view.json, remove oversized legacy files)
         if: ${{ always() }}
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "[INFO] Removing legacy large member funnel artifacts before commit"
+          echo "[INFO] Removing oversized legacy member funnel files before commit"
 
-          # Legacy bundle caches are no longer needed in git-published site
+          mkdir -p reports/member_funnel/data site/data/member_funnel site/member_funnel || true
+
+          # Remove legacy bundle json only (do NOT remove *_view.json)
           rm -f reports/member_funnel/data/1d_bundle.json || true
           rm -f reports/member_funnel/data/7d_bundle.json || true
           rm -f reports/member_funnel/data/1m_bundle.json || true
@@ -1107,13 +1120,13 @@ jobs:
           rm -f site/data/member_funnel/1m_bundle.json || true
           rm -f site/data/member_funnel/1y_bundle.json || true
 
-          # Defensive cleanup for oversized legacy html / bundle artifacts only
-          find reports/member_funnel -maxdepth 1 -name "*.html" -size +95M -delete || true
-          find site/member_funnel -maxdepth 1 -name "*.html" -size +95M -delete || true
           find reports/member_funnel/data -maxdepth 1 -name "*_bundle.json" -size +95M -delete || true
           find site/data/member_funnel -maxdepth 1 -name "*_bundle.json" -size +95M -delete || true
 
-          # Remove legacy large tracked artifacts from git index if they still exist
+          # Remove oversized legacy html only if any slipped through
+          find reports/member_funnel -maxdepth 1 -name "*.html" -size +95M -delete || true
+          find site/member_funnel -maxdepth 1 -name "*.html" -size +95M -delete || true
+
           git rm --cached -f reports/member_funnel/data/1d_bundle.json 2>/dev/null || true
           git rm --cached -f reports/member_funnel/data/7d_bundle.json 2>/dev/null || true
           git rm --cached -f reports/member_funnel/data/1m_bundle.json 2>/dev/null || true
@@ -1122,14 +1135,10 @@ jobs:
           git rm --cached -f site/data/member_funnel/7d_bundle.json 2>/dev/null || true
           git rm --cached -f site/data/member_funnel/1m_bundle.json 2>/dev/null || true
           git rm --cached -f site/data/member_funnel/1y_bundle.json 2>/dev/null || true
-          git rm --cached -f reports/member_funnel/daily.html 2>/dev/null || true
-          git rm --cached -f reports/member_funnel/7d.html 2>/dev/null || true
-          git rm --cached -f reports/member_funnel/index.html 2>/dev/null || true
-          git rm --cached -f reports/member_funnel/1year.html 2>/dev/null || true
-          git rm --cached -f site/member_funnel/daily.html 2>/dev/null || true
-          git rm --cached -f site/member_funnel/7d.html 2>/dev/null || true
-          git rm --cached -f site/member_funnel/index.html 2>/dev/null || true
-          git rm --cached -f site/member_funnel/1year.html 2>/dev/null || true
+
+          echo "[DEBUG] Final member funnel data candidates before git add"
+          ls -la reports/member_funnel/data || true
+          ls -la site/data/member_funnel || true
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -1167,3 +1176,4 @@ jobs:
 
           echo "[ERROR] failed to push after retries"
           exit 1
+
