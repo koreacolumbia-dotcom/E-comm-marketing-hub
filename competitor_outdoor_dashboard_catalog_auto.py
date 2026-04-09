@@ -573,6 +573,20 @@ def clean_product_text(text: str) -> str:
     t = re.sub(r'\s+', ' ', t).strip()
     return t
 
+
+def strip_discovery_prefix(name: str) -> str:
+    t = clean_product_text(name)
+    patterns = [
+        r'^디스커버리\s*익스페디션\s*[|｜:/-]\s*',
+        r'^DISCOVERY\s*EXPEDITION\s*[|｜:/-]\s*',
+        r'^디스커버리\s*익스페디션\s+',
+        r'^DISCOVERY\s*EXPEDITION\s+',
+    ]
+    for pat in patterns:
+        t = re.sub(pat, '', t, flags=re.I)
+    return compact_text(t)
+
+
 def choose_price_text(values: List[str]) -> str:
     cleaned = [compact_text(v) for v in values if compact_text(v)]
     if not cleaned:
