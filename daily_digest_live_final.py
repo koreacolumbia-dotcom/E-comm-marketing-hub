@@ -1312,6 +1312,14 @@ def get_channel_snapshot_3way(
     if merged.empty:
         merged = pd.DataFrame(columns=['bucket','sessions_cur','transactions_cur','revenue_cur','sessions_prev','transactions_prev','revenue_prev','sessions_yoy','transactions_yoy','revenue_yoy'])
 
+    for col in [
+        "sessions_cur", "sessions_prev", "sessions_yoy",
+        "transactions_cur", "transactions_prev", "transactions_yoy",
+        "revenue_cur", "revenue_prev", "revenue_yoy",
+    ]:
+        if col not in merged.columns:
+            merged[col] = 0.0
+
     for bucket in CHANNEL_BUCKET_ORDER:
         if bucket not in merged['bucket'].astype(str).tolist():
             merged = pd.concat([merged, pd.DataFrame([{
@@ -1352,15 +1360,16 @@ def get_channel_snapshot_3way(
 
     merged = pd.concat([merged, pd.DataFrame([total])], ignore_index=True)
 
-    return merged.rename(columns={
+    out = merged.rename(columns={
         "sessions_cur": "sessions",
         "transactions_cur": "orders",
         "revenue_cur": "purchaseRevenue",
         "session_dod": "dod",
         "session_yoy": "yoy",
-    })[[
+    })
+    return out[[
         "bucket", "sessions", "orders", "purchaseRevenue",
-        "session_dod", "session_yoy", "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
+        "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
         "dod", "yoy"
     ]]
 
