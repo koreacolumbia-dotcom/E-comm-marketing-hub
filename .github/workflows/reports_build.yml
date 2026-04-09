@@ -129,8 +129,14 @@ on:
           - "true"
 
   schedule:
-    # 04:00 KST daily
+    # Competitor Product dashboard only → 01:00 KST daily (16:00 UTC previous day)
     - cron: "0 16 * * *"
+    # All other regular dashboards except Competitor/Summary → 04:00 KST daily (19:00 UTC previous day)
+    - cron: "0 19 * * *"
+    # Summary Dashboard only → 08:00 KST daily (23:00 UTC previous day)
+    - cron: "0 23 * * *"
+    # Summary Dashboard only → 14:00 KST daily (05:00 UTC same day)
+    - cron: "0 5 * * *"
 
 concurrency:
   group: reports-build
@@ -166,6 +172,7 @@ jobs:
           set -euo pipefail
 
           EVENT="${{ github.event_name }}"
+          SCHEDULE_RAW="${{ github.event.schedule || '' }}"
 
           VOC_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.voc_only == 'true' }}"
           BLOG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.blog_only == 'true' }}"
@@ -209,6 +216,46 @@ jobs:
           RUN_FUNNEL=false
           RUN_MEMBER=false
           RUN_SEARCH_VOLUME=true
+
+          if [ "$EVENT" = "schedule" ]; then
+            # Reset all first, then enable only the schedule-specific targets.
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_COMPETITOR=false
+            RUN_OWNED=false
+            RUN_FUNNEL=false
+            RUN_MEMBER=false
+            RUN_SEARCH_VOLUME=false
+
+            case "$SCHEDULE_RAW" in
+              "0 16 * * *")
+                echo "[INFO] Scheduled run: Competitor Product dashboard only (01:00 KST)"
+                RUN_COMPETITOR=true
+                ;;
+              "0 23 * * *"|"0 5 * * *")
+                echo "[INFO] Scheduled run: Summary Dashboard only"
+                RUN_SUMMARY=true
+                ;;
+              "0 19 * * *")
+                echo "[INFO] Scheduled run: regular 04:00 KST batch (excluding Competitor/Summary)"
+                RUN_PRICE=true
+                RUN_HERO=true
+                RUN_EXTSIG=true
+                RUN_CREMA=true
+                RUN_BLOG=true
+                RUN_OWNED=true
+                RUN_SEARCH_VOLUME=true
+                ;;
+              *)
+                echo "[ERROR] Unknown schedule: $SCHEDULE_RAW"
+                exit 1
+                ;;
+            esac
+          fi
 
           if [ "$OWNED_BACKFILL" = "true" ] || [ "$OWNED_ONLY" = "true" ]; then
             RUN_PRICE=false
@@ -373,7 +420,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         env:
-          NEEDS_PLAYWRIGHT: ${{ steps.modes.outputs.run_hero == 'true' || steps.modes.outputs.run_blog == 'true' || steps.modes.outputs.run_extsig == 'true' }}
+          NEEDS_PLAYWRIGHT: ${{ steps.modes.outputs.run_hero == 'true' || steps.modes.outputs.run_blog == 'true' || steps.modes.outputs.run_extsig == 'true' || steps.modes.outputs.run_competitor == 'true' }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
@@ -1176,4 +1223,3 @@ jobs:
 
           echo "[ERROR] failed to push after retries"
           exit 1
-
