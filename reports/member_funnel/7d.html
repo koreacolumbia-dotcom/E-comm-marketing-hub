@@ -57,7 +57,8 @@ function init(bundle){
 }
 (async function(){
   try {
-    const res = await fetch('data/7d_bundle.json', {cache:'no-store'});
+    const bundlePath = '../data/member_funnel/7d_bundle.json';
+    const res = await fetch(bundlePath, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const bundle = await res.json();
     init(bundle);
