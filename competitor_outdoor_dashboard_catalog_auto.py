@@ -333,7 +333,7 @@ class ProductRaw:
     season_text: str
     source_category: str = ""
     source_category_url: str = ""
-    crawled_at: str
+    crawled_at: str = ""
 
 
 @dataclass
