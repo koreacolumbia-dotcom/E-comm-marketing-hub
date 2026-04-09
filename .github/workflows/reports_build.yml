@@ -934,14 +934,26 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "member_funnel_final_v2.py" ]; then
-            echo "[ERROR] member_funnel_final_v2.py not found"
+          MEMBER_FUNNEL_SCRIPT=""
+          for cand in             "member_funnel_final_viewjson_patched.py"             "member_funnel_final_full_patch_light_html_fetchfixed.py"             "member_funnel_final_full_patch_light_html.py"             "member_funnel_final_full_patch.py"             "member_funnel_final_v2_patched.py"             "member_funnel_final_v2.py"
+          do
+            if [ -f "$cand" ]; then
+              MEMBER_FUNNEL_SCRIPT="$cand"
+              break
+            fi
+          done
+
+          if [ -z "$MEMBER_FUNNEL_SCRIPT" ]; then
+            echo "[ERROR] member funnel builder not found"
             exit 1
           fi
+
+          echo "[INFO] Using member funnel builder: $MEMBER_FUNNEL_SCRIPT"
 
           echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/member_funnel_sa.json
           export GOOGLE_APPLICATION_CREDENTIALS=/tmp/member_funnel_sa.json
 
+          rm -rf reports/member_funnel site/member_funnel site/data/member_funnel || true
           mkdir -p reports/member_funnel reports/member_funnel/data
 
           if [ -f "${MEMBER_FUNNEL_PATCH_SQL}" ]; then
@@ -975,7 +987,7 @@ jobs:
             echo "[WARN] ${MEMBER_FUNNEL_PATCH_SQL} not found -> skip channel patch"
           fi
 
-          python -u member_funnel_final_v2.py
+          python -u "$MEMBER_FUNNEL_SCRIPT"
 
           test -f reports/member_funnel/index.html || { echo "[ERROR] reports/member_funnel/index.html missing"; exit 1; }
 
@@ -989,13 +1001,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf site/member_funnel site/data/member_funnel || true
           mkdir -p site/member_funnel site/data/member_funnel
 
           cp -f reports/member_funnel/index.html site/member_funnel/index.html
+          [ -f "reports/member_funnel/daily.html" ] && cp -f reports/member_funnel/daily.html site/member_funnel/daily.html || true
+          [ -f "reports/member_funnel/7d.html" ] && cp -f reports/member_funnel/7d.html site/member_funnel/7d.html || true
+          [ -f "reports/member_funnel/1year.html" ] && cp -f reports/member_funnel/1year.html site/member_funnel/1year.html || true
 
           if [ -d "reports/member_funnel/data" ]; then
-            rsync -a reports/member_funnel/data/ site/data/member_funnel/
+            rsync -a --delete --include='*_view.json' --include='*.xlsx' --exclude='*' reports/member_funnel/data/ site/data/member_funnel/
           fi
+          rm -f site/data/member_funnel/*_bundle.json || true
 
           test -f site/member_funnel/index.html || { echo "[ERROR] site/member_funnel/index.html missing after publish"; exit 1; }
 
@@ -1078,28 +1095,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "[INFO] Removing oversized member funnel bundles before commit"
+          echo "[INFO] Removing legacy large member funnel artifacts before commit"
 
-          # Remove large member funnel bundle caches from both reports/ and site/
+          # Legacy bundle caches are no longer needed in git-published site
           rm -f reports/member_funnel/data/1d_bundle.json || true
           rm -f reports/member_funnel/data/7d_bundle.json || true
           rm -f reports/member_funnel/data/1m_bundle.json || true
           rm -f reports/member_funnel/data/1y_bundle.json || true
-
           rm -f site/data/member_funnel/1d_bundle.json || true
           rm -f site/data/member_funnel/7d_bundle.json || true
           rm -f site/data/member_funnel/1m_bundle.json || true
           rm -f site/data/member_funnel/1y_bundle.json || true
 
-          # Defensive cleanup for any future oversized bundle/data files
+          # Defensive cleanup for oversized legacy html / bundle artifacts only
+          find reports/member_funnel -maxdepth 1 -name "*.html" -size +95M -delete || true
+          find site/member_funnel -maxdepth 1 -name "*.html" -size +95M -delete || true
           find reports/member_funnel/data -maxdepth 1 -name "*_bundle.json" -size +95M -delete || true
           find site/data/member_funnel -maxdepth 1 -name "*_bundle.json" -size +95M -delete || true
 
-          # Defensive cleanup for oversized member funnel HTML files
-          find reports/member_funnel -maxdepth 1 -name "*.html" -size +95M -delete || true
-          find site/member_funnel -maxdepth 1 -name "*.html" -size +95M -delete || true
-
-          # Ensure removed files are also removed from git index if already tracked
+          # Remove legacy large tracked artifacts from git index if they still exist
           git rm --cached -f reports/member_funnel/data/1d_bundle.json 2>/dev/null || true
           git rm --cached -f reports/member_funnel/data/7d_bundle.json 2>/dev/null || true
           git rm --cached -f reports/member_funnel/data/1m_bundle.json 2>/dev/null || true
@@ -1108,7 +1122,6 @@ jobs:
           git rm --cached -f site/data/member_funnel/7d_bundle.json 2>/dev/null || true
           git rm --cached -f site/data/member_funnel/1m_bundle.json 2>/dev/null || true
           git rm --cached -f site/data/member_funnel/1y_bundle.json 2>/dev/null || true
-
           git rm --cached -f reports/member_funnel/daily.html 2>/dev/null || true
           git rm --cached -f reports/member_funnel/7d.html 2>/dev/null || true
           git rm --cached -f reports/member_funnel/index.html 2>/dev/null || true
@@ -1118,7 +1131,7 @@ jobs:
           git rm --cached -f site/member_funnel/index.html 2>/dev/null || true
           git rm --cached -f site/member_funnel/1year.html 2>/dev/null || true
 
-          git config user.name "github-actions[bot]"
+git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add -A reports site .naver_cache scripts sql || true
