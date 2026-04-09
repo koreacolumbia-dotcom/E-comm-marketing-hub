@@ -973,8 +973,12 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
 def _rx(p: str):
     return re.compile(p, re.IGNORECASE)
 
+
 def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
-    """Strictly follow the uploaded sample.rtf CASE order and rules only."""
+    """
+    Strictly follow the uploaded sample.rtf CASE logic only.
+    Do not add extra fallback branches outside the sample order / conditions.
+    """
     sm = (source_medium or "").strip()
     cp = (campaign or "").strip()
 
@@ -1143,27 +1147,29 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 # =========================
 # Session-level BQ base for channel attribution
 # =========================
+
 def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame:
     """
-    Build a session-grain base from GA4 BigQuery export so each session is classified once.
-    This prevents bucket totals from exceeding the overall session total when source/campaign
-    combinations fragment the same session across multiple Data API rows.
+    Build a strict session-grain base from GA4 BigQuery export.
+
+    Important:
+    - Count exactly one row per distinct (user_pseudo_id, ga_session_id)
+    - Derive attribution from the session_start row when available
+    - Count orders / revenue from purchase events only
     """
     if bigquery is None or not BQ_EVENTS_TABLE:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
 
     try:
         bq = bigquery.Client()
         start_suffix = start.strftime('%Y%m%d')
         end_suffix = end.strftime('%Y%m%d')
         sql = f"""
-        WITH base AS (
+        WITH src AS (
           SELECT
-            CONCAT(
-              COALESCE(user_pseudo_id, ''),
-              '.',
-              COALESCE(CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING), '')
-            ) AS session_key,
+            user_pseudo_id,
+            (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS ga_session_id,
+            event_name,
             event_timestamp,
             COALESCE(
               session_traffic_source_last_click.manual_campaign.source,
@@ -1186,28 +1192,42 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
             ecommerce.purchase_revenue AS purchase_revenue
           FROM `{BQ_EVENTS_TABLE}`
           WHERE _TABLE_SUFFIX BETWEEN '{start_suffix}' AND '{end_suffix}'
+            AND user_pseudo_id IS NOT NULL
+            AND (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') IS NOT NULL
+            AND event_name IN ('session_start', 'purchase')
         ),
-        session_base AS (
+        session_attr AS (
           SELECT
-            session_key,
-            ARRAY_AGG(STRUCT(session_source, session_medium, session_campaign) ORDER BY event_timestamp ASC LIMIT 1)[OFFSET(0)] AS first_attr,
+            CONCAT(user_pseudo_id, '.', CAST(ga_session_id AS STRING)) AS session_key,
+            ARRAY_AGG(
+              STRUCT(session_source, session_medium, session_campaign, event_name, event_timestamp)
+              ORDER BY CASE WHEN event_name = 'session_start' THEN 0 ELSE 1 END, event_timestamp
+              LIMIT 1
+            )[OFFSET(0)] AS attr
+          FROM src
+          GROUP BY 1
+        ),
+        session_purchase AS (
+          SELECT
+            CONCAT(user_pseudo_id, '.', CAST(ga_session_id AS STRING)) AS session_key,
             COUNT(DISTINCT NULLIF(transaction_id, '')) AS transactions,
-            SUM(COALESCE(purchase_revenue, 0)) AS purchaseRevenue
-          FROM base
-          WHERE session_key NOT IN ('', '.')
+            SUM(IF(event_name = 'purchase', COALESCE(purchase_revenue, 0), 0)) AS purchaseRevenue
+          FROM src
           GROUP BY 1
         )
         SELECT
-          CONCAT(COALESCE(first_attr.session_source, '(direct)'), ' / ', COALESCE(first_attr.session_medium, '(none)')) AS sessionSourceMedium,
-          COALESCE(first_attr.session_campaign, '') AS sessionCampaignName,
+          CONCAT(COALESCE(a.attr.session_source, '(direct)'), ' / ', COALESCE(a.attr.session_medium, '(none)')) AS sessionSourceMedium,
+          COALESCE(a.attr.session_campaign, '') AS sessionCampaignName,
           1.0 AS sessions,
-          CAST(transactions AS FLOAT64) AS transactions,
-          CAST(purchaseRevenue AS FLOAT64) AS purchaseRevenue
-        FROM session_base
+          CAST(COALESCE(p.transactions, 0) AS FLOAT64) AS transactions,
+          CAST(COALESCE(p.purchaseRevenue, 0) AS FLOAT64) AS purchaseRevenue
+        FROM session_attr a
+        LEFT JOIN session_purchase p
+          ON a.session_key = p.session_key
         """
         df = bq.query(sql, location=BQ_LOCATION or None).to_dataframe()
         if df.empty:
-            return df
+            return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
         for c in ['sessionSourceMedium', 'sessionCampaignName']:
             if c not in df.columns:
                 df[c] = ''
@@ -1219,7 +1239,7 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
         return df[['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue']]
     except Exception as e:
         print(f"[WARN] Session-level BQ channel base failed: {type(e).__name__}: {e}")
-        return pd.DataFrame()
+        return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
 
 
 def _fetch_channel_fact_table(
@@ -1227,27 +1247,15 @@ def _fetch_channel_fact_table(
     start: dt.date,
     end: dt.date,
 ) -> pd.DataFrame:
-    """GA-only channel fact table. No BigQuery override or reconciliation logic."""
-    dims = ['sessionSourceMedium', 'sessionCampaignName']
-    mets = ['sessions', 'transactions', 'purchaseRevenue']
-    try:
-        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
-    except Exception:
-        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ['sessionSourceMedium'], mets, limit=250000)
-        if not df.empty:
-            df['sessionCampaignName'] = ''
-    if df.empty:
-        return pd.DataFrame(columns=dims + mets)
-    df = df.copy()
-    for c in ['sessionSourceMedium', 'sessionCampaignName']:
-        if c not in df.columns:
-            df[c] = ''
-        df[c] = df[c].astype(str).fillna('')
-    for c in mets:
-        if c not in df.columns:
-            df[c] = 0.0
-        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
-    return df[dims + mets]
+    """
+    Use the strict session-grain BigQuery base only.
+    Do not fall back to GA grouped rows, because that inflates session totals.
+    """
+    df = _fetch_session_channel_base_bq(start, end)
+    if df is None or df.empty:
+        print(f"[WARN] Channel fact table unavailable from BQ for {ymd(start)}~{ymd(end)}; returning empty set to avoid inflated totals.")
+        return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
+    return df.copy()
 
 def _assert_channel_reconciliation(snapshot_df: pd.DataFrame, overall: Dict[str, Dict[str, float]], label: str = 'Channel Snapshot') -> None:
     if snapshot_df is None or snapshot_df.empty:
@@ -1265,13 +1273,18 @@ def _assert_channel_reconciliation(snapshot_df: pd.DataFrame, overall: Dict[str,
 # =========================
 # Channel Snapshot based on Looker CASE rules
 # =========================
+
 def get_channel_snapshot_3way(
     client: BetaAnalyticsDataClient,
     w: DigestWindow,
     overall: Dict[str, Dict[str, float]],
 ) -> pd.DataFrame:
-    """Strict RTF channel bucketing using GA rows only. No non-RTF reconciliation."""
-
+    """
+    Strict channel snapshot:
+    - classify using sample.rtf logic only
+    - aggregate strict session-grain BQ rows
+    - no residual reconciliation / no fallback inflation
+    """
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         df = _fetch_channel_fact_table(client, start, end)
         if df.empty:
@@ -1280,66 +1293,86 @@ def get_channel_snapshot_3way(
         out['bucket'] = out.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
         return out
 
+    cur = fetch(w.cur_start, w.cur_end)
+    prev = fetch(w.prev_start, w.prev_end)
+    yoy = fetch(w.yoy_start, w.yoy_end)
+
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=['bucket', f'sessions{suffix}', f'transactions{suffix}', f'revenue{suffix}'])
-        g = df.groupby('bucket', as_index=False)[['sessions', 'transactions', 'purchaseRevenue']].sum()
+            return pd.DataFrame(columns=["bucket", f"sessions{suffix}", f"transactions{suffix}", f"revenue{suffix}"])
+        g = df.groupby("bucket", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
         return g.rename(columns={
-            'sessions': f'sessions{suffix}',
-            'transactions': f'transactions{suffix}',
-            'purchaseRevenue': f'revenue{suffix}',
+            "sessions": f"sessions{suffix}",
+            "transactions": f"transactions{suffix}",
+            "purchaseRevenue": f"revenue{suffix}",
         })
 
-    cur = agg(fetch(w.cur_start, w.cur_end), '_cur')
-    prev = agg(fetch(w.prev_start, w.prev_end), '_prev')
-    yoy = agg(fetch(w.yoy_start, w.yoy_end), '_yoy')
+    merged = agg(cur, "_cur").merge(agg(prev, "_prev"), on="bucket", how="outer").merge(agg(yoy, "_yoy"), on="bucket", how="outer").fillna(0.0)
 
-    merged = cur.merge(prev, on='bucket', how='outer').merge(yoy, on='bucket', how='outer').fillna(0.0)
-    canonical = pd.DataFrame({'bucket': CHANNEL_BUCKET_ORDER})
-    merged = canonical.merge(merged, on='bucket', how='left').fillna(0.0)
+    if merged.empty:
+        merged = pd.DataFrame(columns=['bucket','sessions_cur','transactions_cur','revenue_cur','sessions_prev','transactions_prev','revenue_prev','sessions_yoy','transactions_yoy','revenue_yoy'])
 
-    merged['session_dod'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_prev'])), axis=1)
-    merged['session_yoy'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_yoy'])), axis=1)
-    merged['orders_dod'] = merged.apply(lambda r: pct_change(float(r['transactions_cur']), float(r['transactions_prev'])), axis=1)
-    merged['orders_yoy'] = merged.apply(lambda r: pct_change(float(r['transactions_cur']), float(r['transactions_yoy'])), axis=1)
-    merged['revenue_dod'] = merged.apply(lambda r: pct_change(float(r['revenue_cur']), float(r['revenue_prev'])), axis=1)
-    merged['revenue_yoy'] = merged.apply(lambda r: pct_change(float(r['revenue_cur']), float(r['revenue_yoy'])), axis=1)
-    merged['rev_dod'] = merged['session_dod']
-    merged['rev_yoy'] = merged['session_yoy']
+    for bucket in CHANNEL_BUCKET_ORDER:
+        if bucket not in merged['bucket'].astype(str).tolist():
+            merged = pd.concat([merged, pd.DataFrame([{
+                'bucket': bucket,
+                'sessions_cur': 0.0, 'transactions_cur': 0.0, 'revenue_cur': 0.0,
+                'sessions_prev': 0.0, 'transactions_prev': 0.0, 'revenue_prev': 0.0,
+                'sessions_yoy': 0.0, 'transactions_yoy': 0.0, 'revenue_yoy': 0.0,
+            }])], ignore_index=True)
 
-    out = merged.rename(columns={
-        'sessions_cur': 'sessions',
-        'transactions_cur': 'transactions',
-        'revenue_cur': 'purchaseRevenue',
+    merged["session_dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
+    merged["session_yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    merged["orders_dod"] = merged.apply(lambda r: pct_change(float(r["transactions_cur"]), float(r["transactions_prev"])), axis=1)
+    merged["orders_yoy"] = merged.apply(lambda r: pct_change(float(r["transactions_cur"]), float(r["transactions_yoy"])), axis=1)
+    merged["revenue_dod"] = merged.apply(lambda r: pct_change(float(r["revenue_cur"]), float(r["revenue_prev"])), axis=1)
+    merged["revenue_yoy"] = merged.apply(lambda r: pct_change(float(r["revenue_cur"]), float(r["revenue_yoy"])), axis=1)
+
+    merged["order"] = merged["bucket"].map({b: i for i, b in enumerate(CHANNEL_BUCKET_ORDER)})
+    merged = merged.sort_values(["order", "bucket"]).drop(columns=["order"])
+
+    total = {
+        "bucket": "Total",
+        "sessions_cur": float(merged["sessions_cur"].sum()),
+        "transactions_cur": float(merged["transactions_cur"].sum()),
+        "revenue_cur": float(merged["revenue_cur"].sum()),
+        "sessions_prev": float(merged["sessions_prev"].sum()),
+        "transactions_prev": float(merged["transactions_prev"].sum()),
+        "revenue_prev": float(merged["revenue_prev"].sum()),
+        "sessions_yoy": float(merged["sessions_yoy"].sum()),
+        "transactions_yoy": float(merged["transactions_yoy"].sum()),
+        "revenue_yoy": float(merged["revenue_yoy"].sum()),
+    }
+    total["session_dod"] = pct_change(total["sessions_cur"], total["sessions_prev"])
+    total["session_yoy"] = pct_change(total["sessions_cur"], total["sessions_yoy"])
+    total["orders_dod"] = pct_change(total["transactions_cur"], total["transactions_prev"])
+    total["orders_yoy"] = pct_change(total["transactions_cur"], total["transactions_yoy"])
+    total["revenue_dod"] = pct_change(total["revenue_cur"], total["revenue_prev"])
+    total["revenue_yoy"] = pct_change(total["revenue_cur"], total["revenue_yoy"])
+
+    merged = pd.concat([merged, pd.DataFrame([total])], ignore_index=True)
+
+    return merged.rename(columns={
+        "sessions_cur": "sessions",
+        "transactions_cur": "orders",
+        "revenue_cur": "purchaseRevenue",
+        "session_dod": "dod",
+        "session_yoy": "yoy",
     })[[
-        'bucket', 'sessions', 'transactions', 'purchaseRevenue',
-        'session_dod', 'session_yoy', 'orders_dod', 'orders_yoy', 'revenue_dod', 'revenue_yoy',
-        'rev_dod', 'rev_yoy'
+        "bucket", "sessions", "orders", "purchaseRevenue",
+        "session_dod", "session_yoy", "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
+        "dod", "yoy"
     ]]
 
-    total = pd.DataFrame([{
-        'bucket': 'Total',
-        'sessions': float(out['sessions'].sum()),
-        'transactions': float(out['transactions'].sum()),
-        'purchaseRevenue': float(out['purchaseRevenue'].sum()),
-        'session_dod': pct_change(float(out['sessions'].sum()), float(merged['sessions_prev'].sum())),
-        'session_yoy': pct_change(float(out['sessions'].sum()), float(merged['sessions_yoy'].sum())),
-        'orders_dod': pct_change(float(out['transactions'].sum()), float(merged['transactions_prev'].sum())),
-        'orders_yoy': pct_change(float(out['transactions'].sum()), float(merged['transactions_yoy'].sum())),
-        'revenue_dod': pct_change(float(out['purchaseRevenue'].sum()), float(merged['revenue_prev'].sum())),
-        'revenue_yoy': pct_change(float(out['purchaseRevenue'].sum()), float(merged['revenue_yoy'].sum())),
-        'rev_dod': pct_change(float(out['sessions'].sum()), float(merged['sessions_prev'].sum())),
-        'rev_yoy': pct_change(float(out['sessions'].sum()), float(merged['sessions_yoy'].sum())),
-    }])
-    return pd.concat([out, total], ignore_index=True)
 
 def get_paid_detail_3way(
     client: BetaAnalyticsDataClient,
     w: DigestWindow,
     paid_ad_totals: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> pd.DataFrame:
-    """Strict RTF paid detail using the same GA-only base and RTF bucket logic."""
-
+    """
+    Paid detail built from the same strict session-grain BQ base.
+    """
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         df = _fetch_channel_fact_table(client, start, end)
         if df.empty:
@@ -1347,36 +1380,81 @@ def get_paid_detail_3way(
         out = df.copy()
         out['bucket'] = out.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
         out = out[out['bucket'] == 'Paid Ad'].copy()
+        if out.empty:
+            out['sub'] = []
+            return out
         out['sub'] = out.apply(lambda r: classify_paid_detail(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
         return out
 
-    def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
+    cur = fetch(w.cur_start, w.cur_end)
+    prev = fetch(w.prev_start, w.prev_end)
+    yoy = fetch(w.yoy_start, w.yoy_end)
+
+    def agg(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=['sub', f'sessions{suffix}', f'orders{suffix}', f'rev{suffix}'])
-        g = df.groupby('sub', as_index=False)[['sessions', 'transactions', 'purchaseRevenue']].sum()
-        return g.rename(columns={'sessions': f'sessions{suffix}', 'transactions': f'orders{suffix}', 'purchaseRevenue': f'rev{suffix}'})
+            return pd.DataFrame(columns=["sub", "sessions", "transactions", "purchaseRevenue"])
+        return df.groupby("sub", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
 
-    cur = agg(fetch(w.cur_start, w.cur_end), '_cur')
-    prev = agg(fetch(w.prev_start, w.prev_end), '_prev')
-    yoy = agg(fetch(w.yoy_start, w.yoy_end), '_yoy')
+    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "transactions": "orders_cur", "purchaseRevenue": "rev_cur"})
+    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "transactions": "orders_prev", "purchaseRevenue": "rev_prev"})
+    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "transactions": "orders_yoy", "purchaseRevenue": "rev_yoy_base"})
 
-    merged = cur.merge(prev, on='sub', how='outer').merge(yoy, on='sub', how='outer').fillna(0.0)
+    merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
     if merged.empty:
-        cols = ['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy']
-        return pd.DataFrame(columns=cols)
+        merged = pd.DataFrame(columns=["sub","sessions_cur","orders_cur","rev_cur","sessions_prev","orders_prev","rev_prev","sessions_yoy","orders_yoy","rev_yoy_base"])
 
-    merged['session_dod'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_prev'])), axis=1)
-    merged['session_yoy'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_yoy'])), axis=1)
-    merged['orders_dod'] = merged.apply(lambda r: pct_change(float(r['orders_cur']), float(r['orders_prev'])), axis=1)
-    merged['orders_yoy'] = merged.apply(lambda r: pct_change(float(r['orders_cur']), float(r['orders_yoy'])), axis=1)
-    merged['revenue_dod'] = merged.apply(lambda r: pct_change(float(r['rev_cur']), float(r['rev_prev'])), axis=1)
-    merged['revenue_yoy'] = merged.apply(lambda r: pct_change(float(r['rev_cur']), float(r['rev_yoy'])), axis=1)
-    merged['dod'] = merged['session_dod']
-    merged['yoy'] = merged['session_yoy']
+    for sub in PAID_DETAIL_SOURCES:
+        if sub not in merged['sub'].astype(str).tolist():
+            merged = pd.concat([merged, pd.DataFrame([{
+                'sub': sub,
+                'sessions_cur': 0.0, 'orders_cur': 0.0, 'rev_cur': 0.0,
+                'sessions_prev': 0.0, 'orders_prev': 0.0, 'rev_prev': 0.0,
+                'sessions_yoy': 0.0, 'orders_yoy': 0.0, 'rev_yoy_base': 0.0
+            }])], ignore_index=True)
 
-    out = merged.rename(columns={'sub': 'sub_channel', 'rev_cur': 'purchaseRevenue', 'sessions_cur': 'sessions', 'orders_cur': 'orders'})
-    out = out[['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy']]
-    return out.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).reset_index(drop=True)
+    merged["session_dod"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
+    merged["session_yoy"] = merged.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
+    merged["orders_dod"] = merged.apply(lambda r: pct_change(float(r["orders_cur"]), float(r["orders_prev"])), axis=1)
+    merged["orders_yoy"] = merged.apply(lambda r: pct_change(float(r["orders_cur"]), float(r["orders_yoy"])), axis=1)
+    merged["revenue_dod"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_prev"])), axis=1)
+    merged["revenue_yoy"] = merged.apply(lambda r: pct_change(float(r["rev_cur"]), float(r["rev_yoy_base"])), axis=1)
+
+    merged["order"] = merged["sub"].map({s: i for i, s in enumerate(PAID_DETAIL_SOURCES)})
+    merged = merged.sort_values(["order", "sub"]).drop(columns=["order"])
+
+    total = {
+        "sub": "Total",
+        "sessions_cur": float(merged["sessions_cur"].sum()),
+        "orders_cur": float(merged["orders_cur"].sum()),
+        "rev_cur": float(merged["rev_cur"].sum()),
+        "sessions_prev": float(merged["sessions_prev"].sum()),
+        "orders_prev": float(merged["orders_prev"].sum()),
+        "rev_prev": float(merged["rev_prev"].sum()),
+        "sessions_yoy": float(merged["sessions_yoy"].sum()),
+        "orders_yoy": float(merged["orders_yoy"].sum()),
+        "rev_yoy_base": float(merged["rev_yoy_base"].sum()),
+    }
+    total["session_dod"] = pct_change(total["sessions_cur"], total["sessions_prev"])
+    total["session_yoy"] = pct_change(total["sessions_cur"], total["sessions_yoy"])
+    total["orders_dod"] = pct_change(total["orders_cur"], total["orders_prev"])
+    total["orders_yoy"] = pct_change(total["orders_cur"], total["orders_yoy"])
+    total["revenue_dod"] = pct_change(total["rev_cur"], total["rev_prev"])
+    total["revenue_yoy"] = pct_change(total["rev_cur"], total["rev_yoy_base"])
+
+    merged = pd.concat([merged, pd.DataFrame([total])], ignore_index=True)
+
+    return merged.rename(columns={
+        "sub": "sub_channel",
+        "sessions_cur": "sessions",
+        "orders_cur": "orders",
+        "rev_cur": "purchaseRevenue",
+        "session_dod": "dod",
+        "session_yoy": "yoy",
+    })[[
+        "sub_channel", "sessions", "orders", "purchaseRevenue",
+        "session_dod", "session_yoy", "orders_dod", "orders_yoy",
+        "revenue_dod", "revenue_yoy", "dod", "yoy"
+    ]]
 
 def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
     if w.mode != "daily":
@@ -2265,6 +2343,7 @@ def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
     manual = load_manual_spend_map(MEDIA_SPEND_XLS_PATH, start, end)
     return {k: float(v or 0) for k, v in manual.items()}
 
+
 def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, pd.DataFrame]:
     dims = ['sessionSourceMedium', 'sessionCampaignName']
     mets = ['sessions', 'transactions', 'purchaseRevenue']
@@ -2283,14 +2362,14 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
 
     def make_detail_key(df: pd.DataFrame, bucket: str) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=dims + mets + ['bucket', 'sub'])
-        out = df[df['bucket'] == bucket].copy()
+            return pd.DataFrame(columns=dims + mets + ["bucket", "sub"])
+        out = df[df["bucket"] == bucket].copy()
         if out.empty:
-            return pd.DataFrame(columns=dims + mets + ['bucket', 'sub'])
-        if bucket == 'Paid Ad':
-            out['sub'] = out.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium', '')), str(r.get('sessionCampaignName', ''))), axis=1)
+            return pd.DataFrame(columns=dims + mets + ["bucket", "sub"])
+        if bucket == "Paid Ad":
+            out["sub"] = out.apply(lambda r: classify_paid_detail(str(r.get("sessionSourceMedium", "")), str(r.get("sessionCampaignName", ""))), axis=1)
         else:
-            out['sub'] = out['sessionSourceMedium'].astype(str).str.strip().replace('', '(not set)')
+            out["sub"] = out["sessionSourceMedium"].astype(str).str.strip().replace("", "(not set)")
         return out
 
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
@@ -2315,10 +2394,15 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
         merged['orders_yoy'] = merged.apply(lambda r: pct_change(float(r['transactions_cur']), float(r['transactions_yoy'])), axis=1)
         merged['revenue_dod'] = merged.apply(lambda r: pct_change(float(r['revenue_cur']), float(r['revenue_prev'])), axis=1)
         merged['revenue_yoy'] = merged.apply(lambda r: pct_change(float(r['revenue_cur']), float(r['revenue_yoy'])), axis=1)
-        merged['dod'] = merged['session_dod']
-        merged['yoy'] = merged['session_yoy']
-        detail = merged.rename(columns={'sub':'sub_channel','sessions_cur':'sessions','transactions_cur':'orders','revenue_cur':'purchaseRevenue'})[['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy']]
-        out_map[bucket] = detail.sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).head(12).reset_index(drop=True)
+        merged = merged.rename(columns={
+            'sub':'sub_channel',
+            'sessions_cur':'sessions',
+            'transactions_cur':'orders',
+            'revenue_cur':'purchaseRevenue',
+            'session_dod':'dod',
+            'session_yoy':'yoy'
+        })
+        out_map[bucket] = merged[['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy']].sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).reset_index(drop=True)
     return out_map
 
 def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
