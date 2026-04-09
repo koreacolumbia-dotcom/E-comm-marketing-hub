@@ -446,17 +446,27 @@ function init(bundle){
   document.getElementById('user-sections').innerHTML = renderNonBuyer(BUNDLE.user_view.non_buyer) + renderBuyer(BUNDLE.user_view.buyer) + renderProduct(BUNDLE.user_view.product) + renderTarget(BUNDLE.user_view.target);
   document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview);
 }
+const INLINE_BUNDLE = __INLINE_BUNDLE__;
 (async function(){
   try {
-    const bundlePath = '../data/member_funnel/__VIEW_FILE__';
-    const res = await fetch(bundlePath, {cache:'no-store'});
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const bundle = await res.json();
-    init(bundle);
+    init(INLINE_BUNDLE);
     bindUi();
   } catch(err) {
-    document.getElementById('user-sections').innerHTML = `<div class="summary-card"><strong>데이터 로드 실패</strong><div class="kpi-sub">${esc2(err && err.message ? err.message : err)}</div></div>`;
+    const msg = err && err.message ? err.message : String(err);
+    document.getElementById('user-sections').innerHTML = `<div class="summary-card"><strong>초기 렌더 실패</strong><div class="kpi-sub">${esc2(msg)}</div></div>`;
     bindUi();
+    return;
+  }
+  try {
+    const bundleUrl = new URL('../data/member_funnel/__VIEW_FILE__', window.location.href);
+    bundleUrl.searchParams.set('_ts', String(Date.now()));
+    const res = await fetch(bundleUrl.toString(), {cache:'no-store'});
+    if(!res.ok) throw new Error(`HTTP ${res.status} | ${bundleUrl.pathname}`);
+    const remoteBundle = await res.json();
+    init(remoteBundle);
+    bindUi();
+  } catch(err) {
+    console.warn('[Member Funnel] remote bundle fetch skipped:', err && err.message ? err.message : err);
   }
 })();
 </script></body></html>"""
@@ -474,6 +484,7 @@ function init(bundle){
         .replace('__LATEST_SUMMARY__', latest_summary)
         .replace('__DOWNLOADS__', download_html)
         .replace('__VIEW_FILE__', f"{preset['key']}_view.json")
+        .replace('__INLINE_BUNDLE__', json.dumps(bundle, ensure_ascii=False))
     )
 
 def main():
