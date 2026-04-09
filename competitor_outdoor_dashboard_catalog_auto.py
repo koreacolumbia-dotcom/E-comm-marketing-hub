@@ -874,6 +874,40 @@ def classify_positioning_x(attrs: List[str], dominant_attribute: str, shell_type
 
 
 
+
+
+def extract_price_candidates(text: str) -> List[int]:
+    if not text:
+        return []
+    raw = str(text).replace("\xa0", " ")
+    candidates = re.findall(r'\d{1,3}(?:,\d{3})+|\d{4,7}', raw)
+    vals = []
+    for c in candidates:
+        try:
+            v = int(re.sub(r'[^0-9]', '', c))
+        except Exception:
+            continue
+        if 1000 <= v <= 5000000:
+            vals.append(v)
+    return sorted(set(vals))
+
+
+def select_current_original_price(price_text: str, original_text: str) -> Tuple[Optional[int], Optional[int]]:
+    cand_current = extract_price_candidates(price_text)
+    cand_original = extract_price_candidates(original_text)
+
+    current_price = min(cand_current) if cand_current else None
+    original_price = max(cand_original) if cand_original else None
+
+    if current_price is None and original_price is not None:
+        current_price = original_price
+    if original_price is None and current_price is not None:
+        original_price = current_price
+    if current_price is not None and original_price is not None and original_price < current_price:
+        original_price = current_price
+
+    return current_price, original_price
+
 def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     raw.name = clean_product_text(raw.name)
     raw.description = clean_product_text(raw.description)
