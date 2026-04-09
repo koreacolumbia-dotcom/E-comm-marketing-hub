@@ -1220,12 +1220,52 @@ def _fetch_channel_fact_table(
     start: dt.date,
     end: dt.date,
 ) -> pd.DataFrame:
-    """Prefer the stable BQ session base. Return empty rather than inflating totals."""
-    df = _fetch_session_channel_base_bq(start, end)
-    if df is not None and not df.empty:
-        return df
-    print(f"[WARN] Channel fact table unavailable from BQ for {ymd(start)}~{ymd(end)}; returning empty set to avoid inflated totals.")
-    return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
+    """GA Data API only session-grain fact table.
+
+    The user wants channel attribution to follow the same GA session dimensions every day,
+    not a reconstructed BigQuery session base. So this function intentionally bypasses BQ
+    and reads GA4 session-scoped dimensions directly.
+    """
+
+    dims = ['sessionSourceMedium', 'sessionCampaignName']
+    mets = ['sessions', 'transactions', 'purchaseRevenue']
+
+    try:
+        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
+    except Exception as e:
+        print(f"[WARN] GA channel fact fetch failed for {ymd(start)}~{ymd(end)} with campaign dim: {type(e).__name__}: {e}")
+        try:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), ['sessionSourceMedium'], mets, limit=250000)
+            if df.empty:
+                return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
+            df = df.copy()
+            df['sessionCampaignName'] = ''
+        except Exception as e2:
+            print(f"[WARN] GA channel fact fetch failed for {ymd(start)}~{ymd(end)}: {type(e2).__name__}: {e2}")
+            return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
+
+    if df.empty:
+        return pd.DataFrame(columns=['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue'])
+
+    df = df.copy()
+    if 'sessionSourceMedium' not in df.columns:
+        df['sessionSourceMedium'] = ''
+    if 'sessionCampaignName' not in df.columns:
+        df['sessionCampaignName'] = ''
+    df['sessionSourceMedium'] = df['sessionSourceMedium'].astype(str).fillna('')
+    df['sessionCampaignName'] = df['sessionCampaignName'].astype(str).fillna('')
+    for c in ['sessions', 'transactions', 'purchaseRevenue']:
+        if c not in df.columns:
+            df[c] = 0.0
+        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+
+    # Defensive re-aggregation in case the API returns duplicate rows.
+    df = (
+        df.groupby(['sessionSourceMedium', 'sessionCampaignName'], as_index=False)[['sessions', 'transactions', 'purchaseRevenue']]
+          .sum()
+    )
+    return df[['sessionSourceMedium', 'sessionCampaignName', 'sessions', 'transactions', 'purchaseRevenue']]
+
 
 
 def _assert_channel_reconciliation(snapshot_df: pd.DataFrame, overall: Dict[str, Dict[str, float]], label: str = 'Channel Snapshot') -> None:
