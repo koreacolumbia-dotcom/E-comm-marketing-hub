@@ -750,6 +750,8 @@ def infer_item_category(name: str, description: str) -> str:
         return "백"
     if any(x in blob for x in ["부니", "모자", "cap", "hat", "accessory", "accessories"]):
         return "ACC"
+    if any(x in blob for x in ["샌들", "sandals", "sandal", "슬라이드", "slide", "슬리퍼", "shoe", "shoes", "boot", "boots", "등산화", "신발", "부츠", "outdry"]):
+        return "슈즈"
     if any(x in blob for x in ["자켓", "재킷", "jacket", "windbreaker", "바람막이", "shell", "parka", "퍼텍스"]):
         return "자켓"
     if any(x in blob for x in ["티셔츠", "tee", "t-shirt", "반팔", "긴팔", "half zip", "half-zip", "집업티"]):
@@ -766,8 +768,6 @@ def infer_item_category(name: str, description: str) -> str:
         return "팬츠"
     if any(x in blob for x in ["shirt", "셔츠"]):
         return "셔츠"
-    if any(x in blob for x in ["샌들", "sandals", "sandal", "슬라이드", "slide", "슬리퍼", "shoe", "shoes", "boot", "boots", "등산화", "신발", "부츠", "peakfreak", "konos", "crestwood"]):
-        return "슈즈"
     return "기타"
 
 
@@ -936,6 +936,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     std_attrs = map_standard_attributes(raw_keywords, raw.name, raw.description)
     resolved_attrs = resolve_conflicts(std_attrs)
     dominant = select_dominant_attribute(resolved_attrs)
+    inferred_item = infer_item_category(raw.name, raw.description)
     grade = classify_grade(resolved_attrs, dominant)
     shell_type = classify_shell_type(resolved_attrs, raw.name, raw.description)
     price_band = classify_price_band(current_price)
@@ -955,7 +956,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         sold_out=bool(safe_text(raw.sold_out_text)),
         gender=infer_gender(raw.name, raw.description, raw.gender_text),
         season=infer_season(raw.name, raw.description, raw.season_text),
-        item_category=infer_item_category(raw.name, raw.description),
+        item_category=inferred_item,
         raw_keywords=raw_keywords,
         standard_attributes=resolved_attrs,
         dominant_attribute=dominant,
@@ -1551,24 +1552,28 @@ def build_other_debug(df: pd.DataFrame) -> List[dict]:
     rows = []
     for _, r in df.iterrows():
         original_item = str(r.get("item_category", "") or "")
-        item = infer_item_category(str(r.get("name", "") or ""), str(r.get("description", "") or ""))
+        promoted_item = infer_item_category(str(r.get("name", "") or ""), str(r.get("description", "") or ""))
         dominant = str(r.get("dominant_attribute", "") or "")
+        final_item = promoted_item if promoted_item != "기타" else original_item
+
         reasons = []
-        if original_item == "기타":
+        if final_item == "기타":
             reasons.append("item rule miss")
         if dominant == "기타":
             reasons.append("attribute rule miss")
         if not reasons:
             continue
+
         gender = str(r.get("gender", "") or "공용")
         name = str(r.get("name", "") or "")
         if "공용" in name:
             gender = "공용"
+
         rows.append({
             "brand": r.get("brand", ""),
             "gender": gender or "공용",
             "name": name,
-            "item": item if item != "기타" else original_item,
+            "item": final_item,
             "dominant_attribute": dominant,
             "reason": ", ".join(reasons),
         })
@@ -1934,12 +1939,12 @@ function inferCategoryJS(name, description){
   if (/백팩|backpack|bag|bags|바디백|body bag|bodybag|슬링백|슬링|sling|숄더케이스|shoulder case|케이스/.test(blob)) return "백";
   if (/부니|모자|cap|hat|accessory/.test(blob)) return "ACC";
   if (/자켓|재킷|jacket|windbreaker|바람막이|shell|parka|퍼텍스/.test(blob)) return "자켓";
-  if (/티셔츠|tee|t-shirt|반팔|긴팔|half zip|half-zip|집업티/.test(blob)) return "티셔츠";
+  if (/pants|pant|바지|팬츠|cargo|조거|슬랙스/.test(blob)) return "팬츠";
+  if (/티셔츠|tee|t-shirt|반팔|긴팔|half zip|half-zip|집업티|iconic tee/.test(blob)) return "티셔츠";
   if (/후디|후드|hoodie|hood|sweatshirt|맨투맨/.test(blob)) return "후디";
   if (/플리스|fleece|boa|보아/.test(blob)) return "플리스";
   if (/down|패딩|덕다운|구스다운|puffer/.test(blob)) return "다운";
   if (/vest|베스트/.test(blob)) return "베스트";
-  if (/pants|pant|바지|팬츠|cargo|조거|슬랙스/.test(blob)) return "팬츠";
   if (/shirt|셔츠/.test(blob)) return "셔츠";
   if (/샌들|sandals|sandal|슬라이드|slide|슬리퍼|shoe|shoes|boot|boots|등산화|신발|부츠|peakfreak|konos|crestwood/.test(blob)) return "슈즈";
   return "기타";
@@ -1984,54 +1989,23 @@ function renderKeywords(){
   grid.innerHTML=blocks.map(block=>`<div class="rounded-[24px] border border-slate-200 bg-white p-4"><div class="text-lg font-black">${block.brand}</div><div class="mt-3 flex flex-wrap gap-2">${(block.items||[]).map(it=>'<span class="tag bg-slate-900 text-white">'+it.keyword+' - '+it.count+'</span>').join('')}</div></div>`).join('');
 }
 function renderProducts(){
-  const all = (DATA.products || []).filter(p => !p.sold_out);
-  const brands = [...new Set(all.map(p=>p.brand))];
-  const brandFiltered = STATE.productBrand === "전체" ? all : all.filter(p => p.brand === STATE.productBrand);
-  const normalized = brandFiltered.map(p => ({...p, _cat: ((p.item_category&&p.item_category!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||"", p.source_category||""))}));
-  const cats = [...new Set(normalized.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))];
+  const all=(DATA.products||[]).filter(p=>!p.sold_out).map(p=>({...p,_cat:(((p.item_category||"") && (p.item_category||"")!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||""))}));
+  const brands=[...new Set(all.map(p=>p.brand))];
+  const brandFiltered=STATE.productBrand==="전체"?all:all.filter(p=>p.brand===STATE.productBrand);
+  const cats=[...new Set(brandFiltered.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))];
   makeTabs("productBrandTabs", brands, "productBrand", renderProducts);
   makeTabs("productCategoryTabs", cats, "productCategory", renderProducts);
-
-  let items = normalized;
-  if (STATE.productCategory !== "전체") items = items.filter(p => p._cat === STATE.productCategory);
-
-  document.getElementById('productCountText').textContent = `품절 제외 ${formatNumber(items.length)}개`;
-  const grouped = {};
-  for (const p of items) {
-    const cat = p._cat || "기타";
-    grouped[cat] = grouped[cat] || [];
-    grouped[cat].push(p);
+  let items=brandFiltered;
+  if(STATE.productCategory!=="전체") items=items.filter(p=>(p._cat===STATE.productCategory));
+  document.getElementById('productCountText').textContent=`품절 제외 ${formatNumber(items.length)}개`;
+  const grouped={};
+  for(const p of items){
+    const brand=p.brand||"UNKNOWN";
+    const cat=(p._cat||"기타");
+    grouped[brand]=grouped[brand]||{}; grouped[brand][cat]=grouped[brand][cat]||[]; grouped[brand][cat].push(p);
   }
-
-  const container = document.getElementById("productGroupContainer");
-  container.innerHTML = Object.entries(grouped).map(([cat, arr]) => `
-    <div class="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
-      <button class="w-full text-left" onclick="this.nextElementSibling.classList.toggle('hidden')">
-        <div class="text-base font-black">${cat}</div>
-        <div class="mt-1 text-sm font-bold text-slate-500">${arr.length} styles</div>
-      </button>
-      <div class="hidden mt-4 space-y-3">
-        ${arr.slice(0,20).map(p => `
-          <article class="rounded-[18px] border border-slate-200 bg-slate-50/70 p-3">
-            <div class="flex gap-3 items-start">
-              <div class="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-white border border-slate-200">
-                ${p.image_url ? '<img src="' + p.image_url + '" alt="' + p.name + '" class="h-full w-full object-cover" loading="lazy" />' : '<div class="flex h-full items-center justify-center text-[10px] font-black text-slate-400">NO IMAGE</div>'}
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap gap-2">
-                  <span class="tag bg-slate-900 text-white">${p.brand}</span>
-                  <span class="tag bg-indigo-50 text-indigo-700">${cat}</span>
-                </div>
-                <div class="mt-2 line-clamp-2 text-sm font-black leading-6">${compactNameJS(p.name,p.brand)}</div>
-                <div class="mt-1 text-xl font-black tracking-[-0.03em]">${formatPrice(p.current_price)}</div>
-                <div class="mt-2 flex flex-wrap gap-2">
-                  ${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-white text-slate-700 border border-slate-200">'+x+'</span>').join('')}
-                </div>
-              </div>
-            </div>
-          </article>`).join('')}
-      </div>
-    </div>`).join('');
+  const container=document.getElementById("productGroupContainer");
+  container.innerHTML=Object.entries(grouped).map(([brand,catMap])=>`<section><div class="text-2xl font-black tracking-[-0.03em]">${brand}</div><div class="mt-4 space-y-6">${Object.entries(catMap).map(([cat,arr],ci)=>`<div><button class="w-full flex items-center justify-between rounded-2xl bg-white border border-slate-200 px-4 py-3 text-left font-black" onclick="this.nextElementSibling.classList.toggle('hidden')"><span>${cat}</span><span class="text-sm text-slate-500">${arr.length} styles</span></button><div class="hidden mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">${arr.slice(0,120).map(p=>`<article class="product-card rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm"><div class="flex gap-4 items-start"><div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">${p.image_url?'<img src="'+p.image_url+'" alt="'+p.name+'" class="h-full w-full object-cover" loading="lazy" />':'<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}</div><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2"><span class="tag bg-slate-900 text-white">${p.brand}</span><span class="tag bg-indigo-50 text-indigo-700">${cat}</span></div><div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${compactNameJS(p.name,p.brand)}</div><div class="mt-2 text-2xl font-black">${formatPrice(p.current_price)}</div><div class="mt-3 flex flex-wrap gap-2">${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-slate-100 text-slate-700">'+x+'</span>').join('')}</div><div class="mt-4 flex items-center justify-between gap-3">${p.product_url?'<a href="'+p.product_url+'" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>':''}</div></div></div></article>`).join('')}</div></div>`).join('')}</div></section>`).join('');
 }
 function renderOtherDebug(){
   const rows=(DATA.other_debug||[]).map(r=>({...r, gender:(r.name||"").includes("공용")?"공용":(r.gender||"공용")}));
@@ -2045,14 +2019,14 @@ function baseChart(id,type,labels,values,extra={}){
 }
 function renderTopCharts(){
   const brand = STATE.chartBrand;
-  const df = (DATA.products||[]).filter(p => brand==="전체" ? true : p.brand===brand);
+  const df = (DATA.products||[]).map(p=>({...p,item_category:(((p.item_category||"") && (p.item_category||"")!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||""))})).filter(p => brand==="전체" ? true : p.brand===brand);
   const countBy = (arr, key) => {
     const m = {};
     arr.forEach(x => { const v = (x[key]||"기타"); if(v==="기타") return; m[v] = (m[v]||0)+1; });
     return m;
   };
   const priceMap = countBy(df.filter(x=>x.price_band), "price_band");
-  const itemMap = countBy(df.map(x=>({...x, item_category: ((x.item_category&&x.item_category!=="기타")?x.item_category:inferCategoryJS(x.name||"", x.description||""))})), "item_category");
+  const itemMap = countBy(df, "item_category");
   const attrMap = countBy(df.filter(x=>x.dominant_attribute), "dominant_attribute");
   baseChart('priceBandChart','bar',Object.keys(priceMap),Object.values(priceMap));
   baseChart('categoryChart','bar',Object.keys(itemMap),Object.values(itemMap));
