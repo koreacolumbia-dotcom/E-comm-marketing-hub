@@ -29,6 +29,9 @@ BQ_LOCATION = os.getenv("MEMBER_FUNNEL_BQ_LOCATION", "asia-northeast3").strip()
 BASE_TABLE = os.getenv("MEMBER_FUNNEL_BASE_TABLE", "crm_mart.member_funnel_master").strip()
 SAMPLE_JSON = os.getenv("MEMBER_FUNNEL_SAMPLE_JSON", "").strip()
 WRITE_DATA_CACHE = os.getenv("MEMBER_FUNNEL_WRITE_DATA_CACHE", "true").lower() in {"1","true","yes","y"}
+UI_MAX_TABLE_ROWS = int(os.getenv("MEMBER_FUNNEL_UI_MAX_TABLE_ROWS", "300"))
+UI_MAX_PRODUCT_ROWS = int(os.getenv("MEMBER_FUNNEL_UI_MAX_PRODUCT_ROWS", "200"))
+UI_MAX_TARGET_ROWS = int(os.getenv("MEMBER_FUNNEL_UI_MAX_TARGET_ROWS", "1000"))
 
 PERIOD_PRESETS = [
     {"key": "1d", "label": "1DAY", "days": 1, "filename": "daily.html", "is_default": False},
@@ -326,6 +329,42 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
     return bundle
 
 
+
+def make_light_bundle(bundle: dict) -> dict:
+    import copy
+    light = copy.deepcopy(bundle)
+
+    def trim_panel_rows(block: dict, max_rows: int):
+        if not isinstance(block, dict):
+            return
+        for panel in (block.get("panels") or {}).values():
+            rows = panel.get("rows")
+            if isinstance(rows, list) and len(rows) > max_rows:
+                panel["rows"] = rows[:max_rows]
+                panel["rows_total"] = len(rows)
+            elif isinstance(rows, list):
+                panel["rows_total"] = len(rows)
+
+    trim_panel_rows(light.get("user_view", {}).get("non_buyer", {}), UI_MAX_TABLE_ROWS)
+    trim_panel_rows(light.get("user_view", {}).get("buyer", {}), UI_MAX_TABLE_ROWS)
+    trim_panel_rows(light.get("user_view", {}).get("product", {}), UI_MAX_PRODUCT_ROWS)
+    trim_panel_rows(light.get("total_view", {}).get("member_overview", {}), UI_MAX_TABLE_ROWS)
+
+    target = light.get("user_view", {}).get("target", {})
+    if isinstance(target.get("rows"), list):
+        total = len(target["rows"])
+        target["rows_total"] = total
+        if total > UI_MAX_TARGET_ROWS:
+            target["rows"] = target["rows"][:UI_MAX_TARGET_ROWS]
+
+    light["meta"] = {
+        "ui_max_table_rows": UI_MAX_TABLE_ROWS,
+        "ui_max_product_rows": UI_MAX_PRODUCT_ROWS,
+        "ui_max_target_rows": UI_MAX_TARGET_ROWS,
+    }
+    return light
+
+
 def export_excel_files(bundle: dict, period_key: str):
     ensure_dir(DOWNLOAD_DIR)
     links = {}
@@ -409,7 +448,7 @@ function init(bundle){
 }
 (async function(){
   try {
-    const bundlePath = '../data/member_funnel/__BUNDLE_FILE__';
+    const bundlePath = '../data/member_funnel/__VIEW_FILE__';
     const res = await fetch(bundlePath, {cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const bundle = await res.json();
@@ -434,7 +473,7 @@ function init(bundle){
         .replace('__MEMBERS__', fmt_int(bundle['overview']['members']))
         .replace('__LATEST_SUMMARY__', latest_summary)
         .replace('__DOWNLOADS__', download_html)
-        .replace('__BUNDLE_FILE__', f"{preset['key']}_bundle.json")
+        .replace('__VIEW_FILE__', f"{preset['key']}_view.json")
     )
 
 def main():
@@ -445,11 +484,12 @@ def main():
         df = load_rows(preset['key'])
         bundle = build_bundle(df, start_date, end_date, preset['key'], preset['label'])
         export_excel_files(bundle, preset['key'])
+        light_bundle = make_light_bundle(bundle)
         if WRITE_DATA_CACHE:
-            write_json(DATA_DIR / f"{preset['key']}_bundle.json", bundle)
-        (OUT_DIR / preset['filename']).write_text(render_page(bundle, preset), encoding='utf-8')
+            write_json(DATA_DIR / f"{preset['key']}_view.json", light_bundle)
+        (OUT_DIR / preset['filename']).write_text(render_page(light_bundle, preset), encoding='utf-8')
         if preset['is_default']:
-            default_payload = bundle
+            default_payload = light_bundle
     if default_payload:
         _write_summary_json(HUB_SUMMARY_DIR, 'member_funnel', {'title':'Member Funnel','updated_at':default_payload.get('generated_at'),'range':default_payload.get('date_range'),'sessions':default_payload.get('overview',{}).get('sessions',0),'buyers':default_payload.get('overview',{}).get('buyers',0)})
 
