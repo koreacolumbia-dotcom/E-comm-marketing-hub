@@ -143,7 +143,7 @@ BRAND_CONFIGS: List[BrandConfig] = [
         brand_terms=["discovery", "디스커버리"],
         product_url_keywords=["product-detail", "/product/", "/goods/", "sku", "style"],
         listing_url_keywords=["/display/", "/category/", "/collection/", "/shop/"],
-        deny_url_keywords=["login", "join", "benefit", "guide", "notice", "store-locator", "about", "magazine"],
+        deny_url_keywords=["login", "join", "benefit", "guide", "notice", "store-locator", "about", "magazine", "style-pick", "discoverer-picks", "brand/style-pick"],
         force_allow_url_keywords=["product-detail"],
         detail_mode="selenium_only",
         detail_name_selectors=["[class*=product] [class*=name]", "[class*=detail] [class*=name]", "[class*=title]", "h1", "h2"],
@@ -579,71 +579,23 @@ def choose_price_text(values: List[str]) -> str:
         return ""
     preferred = []
     for v in cleaned:
-        if '%' in v and ('원' not in v and ',' not in v):
+        if "%" in v and ("원" not in v and "," not in v):
             continue
-        if re.search(r'\d{1,3}(?:,\d{3})+', v) or '원' in v:
-            preferred.append(v)
+        if re.search(r'\d{1,3}(?:,\d{3})+', v) or "원" in v:
+            score = 0
+            if "원" in v:
+                score += 3
+            if v.strip().endswith("원"):
+                score += 2
+            if len(v) <= 15:
+                score += 2
+            if re.fullmatch(r'[0-9,\s원]+', v):
+                score += 3
+            preferred.append((score, v))
     if preferred:
-        return sorted(preferred, key=lambda x: (0 if '판매가' in x or 'price' in x.lower() else 1, len(x)))[0]
+        preferred.sort(key=lambda x: (-x[0], len(x[1])))
+        return preferred[0][1]
     return cleaned[0]
-
-
-
-def extract_discovery_payload_price(html_text: str) -> Optional[int]:
-    if not html_text:
-        return None
-    patterns = [
-        r'"event_code"\s*:\s*"ViewContent"[\s\S]*?"products"\s*:\s*\[\s*\{[\s\S]*?"price"\s*:\s*"?(?P<price>\d{4,7})"?',
-        r'"products"\s*:\s*\[\s*\{[\s\S]*?"price"\s*:\s*"?(?P<price>\d{4,7})"?',
-        r'"price"\s*:\s*"?(?P<price>\d{4,7})"?',
-        r"'price'\s*:\s*'?(?P<price>\d{4,7})'?",
-        r'"prc"\s*:\s*"?(?P<price>\d{4,7})"?',
-    ]
-    for pat in patterns:
-        m = re.search(pat, html_text, flags=re.I)
-        if m:
-            try:
-                v = int(m.group("price"))
-                if 1000 <= v <= 5000000:
-                    return v
-            except Exception:
-                pass
-    return None
-
-
-
-def extract_columbia_korean_name(html_text: str) -> str:
-    if not html_text:
-        return ""
-    patterns = [
-        r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']',
-        r'<title>([^<]+)</title>',
-        r'상품명[^가-힣A-Za-z0-9]{0,20}([가-힣][^<\n\r]{3,80})',
-    ]
-    for pat in patterns:
-        m = re.search(pat, html_text, flags=re.I)
-        if m:
-            val = clean_product_text(m.group(1))
-            if re.search(r'[가-힣]', val):
-                return val
-    return ""
-
-
-def normalize_columbia_name(name: str, html_text: str = "") -> str:
-    if name and re.search(r'[가-힣]', name):
-        return clean_product_text(name)
-    kor = extract_columbia_korean_name(html_text)
-    if kor:
-        return kor
-    return clean_product_text(name)
-
-def strip_discovery_prefix(name: str) -> str:
-    t = clean_product_text(name)
-    t = re.sub(r'^디스커버리\s*익스페디션\s*[|｜:/-]\s*', '', t, flags=re.I)
-    t = re.sub(r'^DISCOVERY\s*EXPEDITION\s*[|｜:/-]\s*', '', t, flags=re.I)
-    t = re.sub(r'^디스커버리\s*익스페디션\s+', '', t, flags=re.I)
-    t = re.sub(r'^DISCOVERY\s*EXPEDITION\s+', '', t, flags=re.I)
-    return compact_text(t)
 
 def extract_discount_rate_from_text(text: str) -> Optional[float]:
     if not text:
@@ -1145,6 +1097,8 @@ class AutoCompetitorCrawler:
                 if self._is_product_url(link, cfg):
                     continue
                 if self._is_listing_url(link, cfg):
+                    if cfg.brand == "DISCOVERY" and any(x in link.lower() for x in ["style-pick", "discoverer-picks", "/brand/style-pick"]):
+                        continue
                     if link not in seen:
                         seen.add(link)
                         discovered.append(link)
