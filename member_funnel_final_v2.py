@@ -41,6 +41,7 @@ IMAGE_XLS_CANDIDATES = [
     "../상품코드별 이미지.xlsx",
     "../../상품코드별 이미지.xlsx",
 ]
+IMAGE_BASE_URL = os.getenv("MEMBER_FUNNEL_IMAGE_BASE_URL", "https://www.columbiasportswear.co.kr").strip().rstrip("/")
 SAMPLE_JSON = os.getenv("MEMBER_FUNNEL_SAMPLE_JSON", "").strip()
 WRITE_DATA_CACHE = os.getenv("MEMBER_FUNNEL_WRITE_DATA_CACHE", "true").lower() in {"1","true","yes","y"}
 UI_MAX_TABLE_ROWS = int(os.getenv("MEMBER_FUNNEL_UI_MAX_TABLE_ROWS", "300"))
@@ -272,6 +273,21 @@ def derive_category_name(product_name: Any, fallback: str = "") -> str:
             return label
     return fallback or "미분류"
 
+
+def normalize_image_url(v: Any) -> str:
+    s = str(v or "").strip()
+    if not s:
+        return ""
+    if s.startswith("//"):
+        return "https:" + s
+    if s.startswith("http://") or s.startswith("https://"):
+        return s
+    if s.startswith("/"):
+        return f"{IMAGE_BASE_URL}{s}"
+    if re.match(r"^[A-Za-z]:\\", s):
+        return ""
+    return f"{IMAGE_BASE_URL}/{s.lstrip('./')}"
+
 def _find_col(cols: list[str], candidates: list[str]) -> str:
     low = {str(c).strip().lower(): c for c in cols}
     for cand in candidates:
@@ -326,7 +342,7 @@ def load_image_map() -> dict[str, dict[str, str]]:
         if not img_col:
             return _IMAGE_MAP_CACHE
         for _, r in xdf.iterrows():
-            img = str(r.get(img_col, "") or "").strip()
+            img = normalize_image_url(r.get(img_col, "") or "")
             if not img:
                 continue
             if code_col:
@@ -569,7 +585,10 @@ def channel_names(df: pd.DataFrame):
 
 
 def non_buyer_df(user_df: pd.DataFrame):
-    return user_df[(user_df["is_non_buyer_norm"] == 1) | ((user_df["orders_norm"] <= 0) & (user_df["member_id_norm"] != ""))].copy()
+    login_mask = (user_df["user_id_norm"] != "") | (user_df["member_id_norm"] != "")
+    session_mask = user_df["sessions_norm"] > 0
+    no_purchase_mask = (user_df["orders_norm"] <= 0) & (user_df["purchase_norm"] <= 0) & (user_df["metric_revenue_norm"] <= 0)
+    return user_df[session_mask & login_mask & no_purchase_mask].copy()
 
 
 def buyer_df(user_df: pd.DataFrame):
@@ -594,7 +613,11 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
     total_rows = buyer_df(members)
     latest_date = max(df["event_date_norm"].tolist() or [YESTERDAY_KST])
     latest = df[df["event_date_norm"] == latest_date].copy()
-    admin_daily = fetch_admin_period_snapshot(start_date, end_date) or (fetch_admin_daily_snapshot(end_date) if period_key == "1d" else None)
+    admin_daily = fetch_admin_period_snapshot(start_date, end_date)
+    if period_key == "1d" and (not admin_daily or float(admin_daily.get("sessions", 0) or 0) <= 0):
+        mssql_daily = fetch_admin_daily_snapshot(end_date)
+        if mssql_daily:
+            admin_daily = mssql_daily
 
     def channel_panels(source: pd.DataFrame, mode: str):
         out = {}
@@ -610,8 +633,8 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             ) if not sdf.empty else pd.DataFrame()
             prod_cards = [{"product": clean_label(r.get("purchase_product_name_norm"), "미분류"), "category": clean_label(r.get("top_category_norm"), "미분류"), "buyers": int(r.get("buyers",0)), "revenue": float(r.get("revenue",0)), "image": str(r.get("product_image_norm","") or "")} for _,r in products.head(8).iterrows()]
             if mode == "non_buyer":
-                rows = rows_from_df(sdf, {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","sessions_norm":"sessions","pageviews_norm":"pageviews","consent_norm":"consent"})
-                summary = {"members": int(sdf["member_id_norm"].replace("", pd.NA).nunique()), "sessions": int(sdf["sessions_norm"].sum()), "avg_age": avg_age(sdf), "top_channel": top_label(sdf, "channel_group_norm")}
+                rows = rows_from_df(sdf.sort_values(["sessions_norm","pageviews_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","sessions_norm":"sessions","pageviews_norm":"pageviews","consent_norm":"consent"})
+                summary = {"members": int(max(sdf["member_id_norm"].replace("", pd.NA).nunique(), sdf["user_id_norm"].replace("", pd.NA).nunique())), "sessions": int(sdf["sessions_norm"].sum()), "avg_age": avg_age(sdf), "top_channel": top_label(sdf, "channel_group_norm")}
                 extra = {"channel_dist": distribution(sdf, "channel_group_norm", 6)}
             elif mode == "buyer":
                 rows = rows_from_df(sdf.sort_values(["metric_revenue_norm","orders_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"purchase_product_name","orders_norm":"orders","metric_revenue_norm":"revenue","consent_norm":"consent"})
@@ -622,7 +645,7 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                 summary = {"members": int(sdf["member_id_norm"].replace("", pd.NA).nunique()), "buyers": int(buyer_df(sdf)["member_id_norm"].replace("", pd.NA).nunique()), "revenue": revenue, "aov": revenue/orders if orders else 0.0, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm")}
                 extra = {"category_dist": distribution(buyer_df(sdf), "top_category_norm", 8), "products": prod_cards}
             else:
-                table = sdf[sdf["purchase_product_name_norm"] != ""].groupby(["channel_group_norm","purchase_product_name_norm"], dropna=False).agg(buyers=("member_id_norm","nunique"), revenue=("revenue_norm","sum")).reset_index().sort_values(["revenue","buyers"], ascending=[False,False])
+                table = sdf[sdf["purchase_product_name_norm"] != ""].groupby(["channel_group_norm","purchase_product_name_norm"], dropna=False).agg(buyers=("member_id_norm","nunique"), revenue=("metric_revenue_norm","sum")).reset_index().sort_values(["revenue","buyers"], ascending=[False,False])
                 rows = [{"channel": clean_label(r.get("channel_group_norm"),"미분류"), "product": clean_label(r.get("purchase_product_name_norm"),"미분류"), "buyers": int(r.get("buyers",0)), "revenue": float(r.get("revenue",0))} for _,r in table.head(100).iterrows()]
                 summary = {"buyers": int(sdf["member_id_norm"].replace("", pd.NA).nunique()), "revenue": revenue, "avg_age": avg_age(sdf)}
                 extra = {"category_dist": distribution(sdf, "top_category_norm", 8), "products": prod_cards}
@@ -657,6 +680,22 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             f"선택 기간 운영 KPI 기준 세션 {fmt_int(admin_daily.get('sessions', 0))} / 가입 {fmt_int(admin_daily.get('signups', 0))} / 주문 {fmt_int(admin_daily.get('orders', 0))} / 매출 {fmt_money(admin_daily.get('revenue', 0))} 입니다.",
             "상단 KPI는 운영 집계(BigQuery Admin Daily 우선, 필요 시 MSSQL fallback) 기준입니다.",
         ]
+        # USER VIEW > BUYER REVENUE > ALL 카드 보정
+        try:
+            all_buyer = bundle["user_view"]["buyer"]["panels"]["ALL"]["summary"]
+            all_buyer["buyers"] = int(round(float(admin_daily.get("buyers", 0) or admin_daily.get("orders", 0) or 0)))
+            all_buyer["revenue"] = float(admin_daily.get("revenue", 0) or 0)
+            all_buyer["aov"] = float(admin_daily.get("aov", 0) or (all_buyer["revenue"] / float(admin_daily.get("orders", 0) or 1)))
+        except Exception:
+            pass
+        # TOTAL VIEW > ALL 카드 보정
+        try:
+            all_total = bundle["total_view"]["member_overview"]["panels"]["ALL"]["summary"]
+            all_total["buyers"] = int(round(float(admin_daily.get("buyers", 0) or admin_daily.get("orders", 0) or 0)))
+            all_total["revenue"] = float(admin_daily.get("revenue", 0) or 0)
+            all_total["aov"] = float(admin_daily.get("aov", 0) or (all_total["revenue"] / float(admin_daily.get("orders", 0) or 1)))
+        except Exception:
+            pass
     elif period_key == "1d":
         bundle["overview"].update({
             "sessions": 0,
@@ -745,16 +784,16 @@ def render_page(bundle: dict, preset: dict) -> str:
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Member Funnel</title>
 <style>
-:root{--bg:#eef4ff;--bg2:#f8fbff;--surface:#ffffff;--surface-2:#f8fbff;--line:#d9e6fb;--line-strong:#bfd3fb;--navy:#0f255f;--blue:#2451e6;--blue-2:#4d7bff;--ink:#0f172a;--muted:#60708f;--chip:#eaf1ff;--shadow:0 22px 50px rgba(28,53,125,.10);--shadow-soft:0 12px 28px rgba(15,23,42,.06)}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at top,rgba(77,123,255,.10),transparent 22%),linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);color:var(--ink);font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif}.page{max-width:1680px;margin:0 auto;padding:42px 34px 68px}
-.hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#16348a 0%,#2451e6 58%,#5f86ff 100%);border:1px solid rgba(255,255,255,.14);border-radius:34px;padding:40px 42px;color:#fff;box-shadow:0 26px 60px rgba(29,70,201,.24)}.hero:before{content:'';position:absolute;inset:auto -80px -110px auto;width:320px;height:320px;border-radius:999px;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 64%)}.hero:after{content:'';position:absolute;inset:-120px auto auto -110px;width:280px;height:280px;border-radius:999px;background:radial-gradient(circle,rgba(255,255,255,.12),transparent 68%)}
-.hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.42fr) minmax(420px,.96fr);gap:34px;align-items:stretch}.eyebrow{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid rgba(255,255,255,.26);border-radius:999px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.14em;background:rgba(255,255,255,.10);backdrop-filter:blur(10px)}h1{margin:18px 0 10px;font-size:58px;line-height:1;letter-spacing:-.03em}.hero p{max-width:880px;margin:0 0 20px;font-size:16px;font-weight:800;line-height:1.72;opacity:.97}.hero-meta{display:flex;gap:10px;flex-wrap:wrap}.period-chip{display:inline-flex;align-items:center;justify-content:center;min-width:78px;height:44px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:#fff;text-decoration:none;font-size:14px;font-weight:900;backdrop-filter:blur(8px);transition:.18s ease}.period-chip:hover{transform:translateY(-1px);background:rgba(255,255,255,.12)}.period-chip.active{background:#fff;color:var(--navy);border-color:#fff;box-shadow:0 10px 24px rgba(8,19,58,.16)}
-.hero-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}.hero-stat,.card,.summary-card{background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow-soft)}.hero-stat{position:relative;padding:24px 26px;color:var(--ink);min-height:134px;display:flex;flex-direction:column;justify-content:center}.hero-stat:before{content:'';position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:999px;background:linear-gradient(180deg,var(--blue) 0%,#8eb4ff 100%)}.label,.kicker{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}.value,.kpi{margin-top:10px;font-size:28px;font-weight:1000;line-height:1.08;word-break:break-word;letter-spacing:-.03em}
-.toolbar{display:flex;justify-content:space-between;align-items:center;gap:24px;margin:30px 0 24px}.tabs,.subtabs{display:flex;gap:10px;flex-wrap:wrap}.tab-btn,.subtab-btn,.table-expand-btn{height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.9);color:var(--navy);font-weight:900;cursor:pointer;box-shadow:0 8px 20px rgba(15,23,42,.05);transition:.18s ease}.tab-btn:hover,.subtab-btn:hover,.table-expand-btn:hover{transform:translateY(-1px);border-color:var(--line-strong)}.tab-btn.active,.subtab-btn.active{background:linear-gradient(135deg,#102a74 0%,#1a43bc 100%);color:#fff;border-color:transparent;box-shadow:0 14px 30px rgba(31,67,183,.22)}
-.summary-card{padding:28px 32px;margin-bottom:30px;background:linear-gradient(180deg,rgba(255,255,255,.98) 0%,rgba(247,250,255,.98) 100%)}.summary-card ul{margin:8px 0 0 16px;padding:0}.summary-card li{margin:10px 0;font-weight:800}
+:root{--bg:#ffffff;--bg2:#ffffff;--surface:#ffffff;--surface-2:#f8fbff;--line:#d9e6fb;--line-strong:#bfd3fb;--navy:#0f255f;--blue:#2451e6;--blue-2:#4d7bff;--ink:#0f172a;--muted:#60708f;--chip:#eaf1ff;--shadow:0 22px 50px rgba(28,53,125,.10);--shadow-soft:0 12px 28px rgba(15,23,42,.06)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#ffffff;color:var(--ink);font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif}.page{max-width:1720px;margin:0 auto;padding:48px 42px 84px}
+.hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#16348a 0%,#2451e6 58%,#5f86ff 100%);border:1px solid rgba(255,255,255,.14);border-radius:34px;padding:44px 46px;color:#fff;box-shadow:0 26px 60px rgba(29,70,201,.24);animation:fadeInUp .45s ease}.hero:before{content:'';position:absolute;inset:auto -80px -110px auto;width:320px;height:320px;border-radius:999px;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 64%)}.hero:after{content:'';position:absolute;inset:-120px auto auto -110px;width:280px;height:280px;border-radius:999px;background:radial-gradient(circle,rgba(255,255,255,.12),transparent 68%)}
+.hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.42fr) minmax(420px,.96fr);gap:42px;align-items:stretch}.eyebrow{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid rgba(255,255,255,.26);border-radius:999px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.14em;background:rgba(255,255,255,.10);backdrop-filter:blur(10px)}h1{margin:18px 0 10px;font-size:58px;line-height:1;letter-spacing:-.03em}.hero p{max-width:880px;margin:0 0 20px;font-size:16px;font-weight:800;line-height:1.72;opacity:.97}.hero-meta{display:flex;gap:10px;flex-wrap:wrap}.period-chip{display:inline-flex;align-items:center;justify-content:center;min-width:78px;height:44px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:#fff;text-decoration:none;font-size:14px;font-weight:900;backdrop-filter:blur(8px);transition:.18s ease}.period-chip:hover{transform:translateY(-1px);background:rgba(255,255,255,.12)}.period-chip.active{background:#fff;color:var(--navy);border-color:#fff;box-shadow:0 10px 24px rgba(8,19,58,.16)}
+.hero-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:32px}.hero-stat,.card,.summary-card{background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow-soft)}.hero-stat{position:relative;padding:28px 30px;color:var(--ink);min-height:142px;display:flex;flex-direction:column;justify-content:center;animation:fadeInUp .4s ease}.hero-stat:before{content:'';position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:999px;background:linear-gradient(180deg,var(--blue) 0%,#8eb4ff 100%)}.label,.kicker{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}.value,.kpi{margin-top:10px;font-size:28px;font-weight:1000;line-height:1.08;word-break:break-word;letter-spacing:-.03em}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:28px;margin:36px 0 30px}.tabs,.subtabs{display:flex;gap:10px;flex-wrap:wrap}.tab-btn,.subtab-btn,.table-expand-btn{height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.9);color:var(--navy);font-weight:900;cursor:pointer;box-shadow:0 8px 20px rgba(15,23,42,.05);transition:.18s ease}.tab-btn:hover,.subtab-btn:hover,.table-expand-btn:hover{transform:translateY(-1px);border-color:var(--line-strong)}.tab-btn.active,.subtab-btn.active{background:linear-gradient(135deg,#102a74 0%,#1a43bc 100%);color:#fff;border-color:transparent;box-shadow:0 14px 30px rgba(31,67,183,.22)}
+.summary-card{padding:32px 36px;margin-bottom:38px;background:linear-gradient(180deg,rgba(255,255,255,.98) 0%,rgba(247,250,255,.98) 100%);animation:fadeInUp .32s ease}.summary-card ul{margin:8px 0 0 16px;padding:0}.summary-card li{margin:10px 0;font-weight:800}
 .panel{display:none}.panel.active{display:block}.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin:36px 0 24px}.section-title{font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#697a98}.section-head h2{margin:6px 0 0;font-size:24px;line-height:1.2;letter-spacing:-.02em}
 .download-row{display:flex;gap:12px;flex-wrap:wrap}.download-btn{display:inline-flex;align-items:center;height:40px;padding:0 14px;border-radius:999px;background:linear-gradient(135deg,#102a74 0%,#2043b8 100%);color:#fff;text-decoration:none;font-weight:900;box-shadow:0 12px 24px rgba(31,67,183,.18)}
-.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}.card{padding:28px;min-height:152px;background:linear-gradient(180deg,#fff 0%,#fbfdff 100%)}.kpi-sub{margin-top:8px;font-size:12px;font-weight:800;color:var(--muted)}
+.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:34px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:34px}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:34px}.card{padding:32px;min-height:166px;background:linear-gradient(180deg,#fff 0%,#fbfdff 100%);animation:fadeInUp .35s ease}.kpi-sub{margin-top:8px;font-size:12px;font-weight:800;color:var(--muted)}
 .chart-row{display:grid;grid-template-columns:92px 1fr 60px;gap:10px;align-items:center;margin:12px 0}.chart-label,.chart-metric{font-size:12px;font-weight:900}.chart-track{height:10px;background:#e6edf9;border-radius:999px;overflow:hidden}.chart-fill{display:block;height:100%;background:linear-gradient(90deg,#2451e6,#92b7ff);border-radius:999px}
 .donut-wrap{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}.donut{width:120px;height:120px;border-radius:50%;box-shadow:inset 0 0 0 10px rgba(255,255,255,.6),0 10px 22px rgba(36,81,230,.10)}.legend-item{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:8px 0;font-size:12px;font-weight:900}.legend-dot{width:10px;height:10px;border-radius:50%;background:#2451e6;display:inline-block;margin-right:8px;box-shadow:0 0 0 4px rgba(36,81,230,.10)}.legend-dot.alt{background:#93c5fd;box-shadow:0 0 0 4px rgba(147,197,253,.18)}
 .product-card{display:flex;gap:18px;align-items:center}.thumb{width:44px;height:44px;border-radius:14px;object-fit:cover;border:1px solid var(--line);background:#fff}.thumb-empty{display:flex;align-items:center;justify-content:center;background:#eef3ff;color:#64748b;font-size:11px;font-weight:900}.mini-title{margin-top:4px;font-size:15px;font-weight:900;line-height:1.35}.stack-meta{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted)}
@@ -800,9 +839,9 @@ function tabsHtml(group, channels){ return `<div class="subtabs">${channels.map(
 function groupSlug(s){ return String(s).toLowerCase().replace(/[^a-z0-9가-힣]+/g,'-'); }
 function renderNonBuyer(block){ return `<div class="section-head"><div><div class="section-title">NON BUYER</div><h2>가입했지만 아직 사지 않은 사람</h2></div></div>${tabsHtml('nonbuyer', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="nonbuyer" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Non Buyer Members</div><div class="kpi">${num(p.summary.members)}</div></div><div class="card"><div class="kicker">Non Buyer Sessions</div><div class="kpi">${num(p.summary.sessions)}</div></div><div class="card"><div class="kicker">평균 나이</div><div class="kpi">${p.summary.avg_age||'-'}</div></div><div class="card"><div class="kicker">대표 유입 채널</div><div class="kpi">${esc2(p.summary.top_channel)}</div></div></div><div class="grid-3"><div class="card"><div class="section-title">AGE 비율</div>${bar(p.age_dist)}</div><div class="card"><div class="section-title">GENDER 비율</div>${donut(p.gender_dist)}</div><div class="card"><div class="section-title">대표 유입 채널 비율</div>${bar(p.channel_dist)}</div></div><div class="card">${table(p.rows,[['member_id','Member ID'],['phone','Phone'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['sessions','Sessions'],['pageviews','PV']],['sessions','pageviews'],`nb-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
 function renderBuyer(block){ return `<div class="section-head"><div><div class="section-title">BUYER REVENUE</div><h2>누가 매출을 만들었는지</h2></div></div>${tabsHtml('buyer', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="buyer" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(p.summary.buyers)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(p.summary.revenue)}</div></div><div class="card"><div class="kicker">AOV</div><div class="kpi">${money(p.summary.aov)}</div></div><div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">${esc2(p.summary.top_product)}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">AGE 비율</div>${bar(p.age_dist)}</div><div class="card"><div class="section-title">GENDER 비율</div>${donut(p.gender_dist)}</div></div><div class="card">${table(p.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['orders','Orders'],['revenue','Revenue']],['orders','revenue'],`buy-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
-function renderProduct(block){ return `<div class="section-head"><div><div class="section-title">PRODUCT INSIGHT</div><h2>무슨 상품이 고객을 움직였는지</h2></div></div>${tabsHtml('product', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="product" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-2"><div class="card"><div class="section-title">Category 비율</div>${bar(p.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(p.products)}</div></div></div><div class="card">${table(p.rows,[['channel','Channel'],['product','Product'],['buyers','Buyers'],['revenue','Revenue']],['buyers','revenue'],`prod-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
+function renderProduct(block){ return `<div class="section-head"><div><div class="section-title">PRODUCT INSIGHT</div><h2>무슨 상품이 고객을 움직였는지</h2></div></div>${tabsHtml('product', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="product" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-2"><div class="card"><div class="section-title">카테고리 구매 비율</div>${bar(p.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(p.products)}</div></div></div><div class="card">${table(p.rows,[['channel','Channel'],['product','Product'],['buyers','Buyers'],['revenue','Revenue']],['buyers','revenue'],`prod-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
 function renderTarget(target){ return `<div class="section-head"><div><div class="section-title">지금 바로 액션 가능한 대상자</div><h2>세그먼트별 채널 · 관심상품 · 추천 메시지</h2></div></div><div class="grid-2">${(target.cards||[]).map(x=>`<div class="card"><div class="kicker">${esc2(x.label)}</div><div class="kpi">${num(x.count)}명</div><div class="stack-meta">Top Channel · ${esc2(x.top_channel)}</div><div class="stack-meta">Top Product · ${esc2(x.top_product)}</div><div class="stack-meta">Message · ${esc2(x.top_message)}</div></div>`).join('')}</div>`; }
-function renderTotal(block){ return `${tabsHtml('totalmember', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="totalmember" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">기존 회원</div><div class="kpi">${num(p.summary.members)}</div></div><div class="card"><div class="kicker">구매 회원</div><div class="kpi">${num(p.summary.buyers)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(p.summary.revenue)}</div></div><div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">${esc2(p.summary.top_product)}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">AGE 비율</div>${bar(p.age_dist)}</div><div class="card"><div class="section-title">GENDER 비율</div>${donut(p.gender_dist)}</div><div class="card"><div class="section-title">Category 비율</div>${bar(p.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(p.products)}</div></div></div><div class="card">${table(p.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['orders','Orders'],['revenue','Revenue']],['orders','revenue'],`tot-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
+function renderTotal(block){ return `${tabsHtml('totalmember', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="totalmember" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">기존 회원</div><div class="kpi">${num(p.summary.members)}</div></div><div class="card"><div class="kicker">구매 회원</div><div class="kpi">${num(p.summary.buyers)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(p.summary.revenue)}</div></div><div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">${esc2(p.summary.top_product)}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">AGE 비율</div>${bar(p.age_dist)}</div><div class="card"><div class="section-title">GENDER 비율</div>${donut(p.gender_dist)}</div><div class="card"><div class="section-title">카테고리 구매 비율</div>${bar(p.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(p.products)}</div></div></div><div class="card">${table(p.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['orders','Orders'],['revenue','Revenue']],['orders','revenue'],`tot-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
 function bindUi(){
   document.querySelectorAll('[data-main-target]').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('[data-main-target]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); document.getElementById(btn.dataset.mainTarget).classList.add('active'); }));
   document.addEventListener('click', (e)=>{ const sub=e.target.closest('.subtab-btn'); if(sub){ const g=sub.dataset.group, t=sub.dataset.target; document.querySelectorAll(`.subtab-btn[data-group="${g}"]`).forEach(b=>b.classList.toggle('active', b===sub)); document.querySelectorAll(`.channel-panel[data-panel-group="${g}"]`).forEach(p=>{ const on=p.dataset.panelId===t; p.hidden=!on; p.classList.toggle('active', on); }); } const ex=e.target.closest('[data-expand]'); if(ex){ const table=document.getElementById(ex.dataset.expand); if(table){ table.querySelectorAll('.extra-row').forEach(r=>r.classList.toggle('is-hidden')); ex.textContent = ex.textContent==='전체보기' ? '접기' : '전체보기'; } } });
