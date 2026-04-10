@@ -967,6 +967,28 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
     }
 
 
+def _fetch_ga_channel_orders_revenue(client: BetaAnalyticsDataClient, start: dt.date, end: dt.date) -> pd.DataFrame:
+    """
+    Fetch GA-channel grouped transactions/purchaseRevenue only.
+    This is used to populate current-period orders from GA transactions directly,
+    while keeping the existing BQ session-grain session base intact.
+    """
+    try:
+        dims = ["sessionSourceMedium", "sessionCampaignName"]
+        mets = ["transactions", "purchaseRevenue"]
+        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
+        if df.empty:
+            return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName", "transactions", "purchaseRevenue"])
+        out = df.copy()
+        out["sessionSourceMedium"] = out.get("sessionSourceMedium", "").astype(str).fillna("")
+        out["sessionCampaignName"] = out.get("sessionCampaignName", "").astype(str).fillna("")
+        out["transactions"] = pd.to_numeric(out.get("transactions", 0), errors="coerce").fillna(0.0)
+        out["purchaseRevenue"] = pd.to_numeric(out.get("purchaseRevenue", 0), errors="coerce").fillna(0.0)
+        return out[["sessionSourceMedium", "sessionCampaignName", "transactions", "purchaseRevenue"]]
+    except Exception as e:
+        print(f"[WARN] GA channel orders fetch failed: {type(e).__name__}: {e}")
+        return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName", "transactions", "purchaseRevenue"])
+
 # =========================
 # Looker CASE rules based on sample.rtf source/medium + campaign logic
 # =========================
@@ -1285,9 +1307,9 @@ def get_channel_snapshot_3way(
 ) -> pd.DataFrame:
     """
     Strict channel snapshot:
-    - classify using sample.rtf logic only
-    - aggregate strict session-grain BQ rows
-    - no residual reconciliation / no fallback inflation
+    - sessions from strict BQ session-grain base
+    - current-period orders/revenue overwritten from GA transactions/purchaseRevenue
+    - classification uses sample.rtf logic only
     """
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         df = _fetch_channel_fact_table(client, start, end)
@@ -1324,6 +1346,19 @@ def get_channel_snapshot_3way(
         if col not in merged.columns:
             merged[col] = 0.0
 
+    # Overwrite current-period orders/revenue from GA transactions grouped by the same RTF buckets.
+    ga_cur = _fetch_ga_channel_orders_revenue(client, w.cur_start, w.cur_end)
+    if not ga_cur.empty:
+        ga_cur['bucket'] = ga_cur.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
+        ga_bucket = ga_cur.groupby('bucket', as_index=False)[['transactions', 'purchaseRevenue']].sum().rename(columns={
+            'transactions': 'ga_transactions_cur',
+            'purchaseRevenue': 'ga_revenue_cur',
+        })
+        merged = merged.merge(ga_bucket, on='bucket', how='left')
+        merged['transactions_cur'] = pd.to_numeric(merged.get('ga_transactions_cur', 0), errors='coerce').fillna(merged['transactions_cur'])
+        merged['revenue_cur'] = pd.to_numeric(merged.get('ga_revenue_cur', 0), errors='coerce').fillna(merged['revenue_cur'])
+        merged = merged.drop(columns=[c for c in ['ga_transactions_cur', 'ga_revenue_cur'] if c in merged.columns])
+
     for bucket in CHANNEL_BUCKET_ORDER:
         if bucket not in merged['bucket'].astype(str).tolist():
             merged = pd.concat([merged, pd.DataFrame([{
@@ -1343,9 +1378,6 @@ def get_channel_snapshot_3way(
     merged["order"] = merged["bucket"].map({b: i for i, b in enumerate(CHANNEL_BUCKET_ORDER)})
     merged = merged.sort_values(["order", "bucket"]).drop(columns=["order"])
 
-    # Keep the rendered total aligned to the authoritative KPI totals.
-    # When a small number of sessions are missing from the strict channel fact base,
-    # assign the current-period residual to etc rather than letting the Total row drift.
     expected_cur_sessions = float((overall.get('current', {}) or {}).get('sessions', 0) or 0)
     expected_cur_orders = float((overall.get('current', {}) or {}).get('transactions', 0) or 0)
     expected_cur_revenue = float((overall.get('current', {}) or {}).get('purchaseRevenue', 0) or 0)
@@ -1401,6 +1433,7 @@ def get_channel_snapshot_3way(
         "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
         "dod", "yoy"
     ]]
+
 
 
 def get_paid_detail_3way(
@@ -2399,6 +2432,11 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
     prev = fetch(w.prev_start, w.prev_end)
     yoy = fetch(w.yoy_start, w.yoy_end)
 
+    # GA current-period orders/revenue overlay
+    ga_cur = _fetch_ga_channel_orders_revenue(client, w.cur_start, w.cur_end)
+    if not ga_cur.empty:
+        ga_cur['bucket'] = ga_cur.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+
     def make_detail_key(df: pd.DataFrame, bucket: str) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame(columns=dims + mets + ['bucket', 'sub'])
@@ -2431,6 +2469,23 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
             out_map[bucket] = pd.DataFrame(columns=output_cols)
             continue
 
+        # Overlay current-period GA transactions/purchaseRevenue at the same sub-channel grain.
+        if not ga_cur.empty:
+            ga_bucket = ga_cur[ga_cur['bucket'] == bucket].copy()
+            if not ga_bucket.empty:
+                if bucket == 'Paid Ad':
+                    ga_bucket['sub'] = ga_bucket.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+                else:
+                    ga_bucket['sub'] = ga_bucket['sessionSourceMedium'].astype(str).str.strip().replace('', '(not set)')
+                ga_agg = ga_bucket.groupby('sub', as_index=False)[['transactions', 'purchaseRevenue']].sum().rename(columns={
+                    'transactions': 'ga_transactions_cur',
+                    'purchaseRevenue': 'ga_revenue_cur',
+                })
+                merged = merged.merge(ga_agg, on='sub', how='left')
+                merged['transactions_cur'] = pd.to_numeric(merged.get('ga_transactions_cur', 0), errors='coerce').fillna(merged.get('transactions_cur', 0))
+                merged['revenue_cur'] = pd.to_numeric(merged.get('ga_revenue_cur', 0), errors='coerce').fillna(merged.get('revenue_cur', 0))
+                merged = merged.drop(columns=[c for c in ['ga_transactions_cur', 'ga_revenue_cur'] if c in merged.columns])
+
         for col in [
             'sessions_cur', 'sessions_prev', 'sessions_yoy',
             'transactions_cur', 'transactions_prev', 'transactions_yoy',
@@ -2456,6 +2511,7 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
         out_map[bucket] = merged[output_cols].sort_values(['sessions', 'purchaseRevenue'], ascending=[False, False]).reset_index(drop=True)
 
     return out_map
+
 
 def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
