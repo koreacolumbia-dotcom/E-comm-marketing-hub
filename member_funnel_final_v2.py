@@ -34,6 +34,13 @@ BQ_LOCATION = os.getenv("MEMBER_FUNNEL_BQ_LOCATION", "asia-northeast3").strip()
 BASE_TABLE = os.getenv("MEMBER_FUNNEL_BASE_TABLE", "crm_mart.member_funnel_master").strip()
 ADMIN_BQ_TABLE = os.getenv("MEMBER_FUNNEL_ADMIN_BQ_TABLE", "crm_mart.member_funnel_admin_daily").strip()
 IMAGE_XLS_PATH = os.getenv("MEMBER_FUNNEL_IMAGE_XLS_PATH", os.getenv("IMAGE_XLS_PATH", "")).strip()
+IMAGE_XLS_CANDIDATES = [
+    "E-comm-marketing-hub/상품코드별 이미지.xlsx",
+    "./E-comm-marketing-hub/상품코드별 이미지.xlsx",
+    "./상품코드별 이미지.xlsx",
+    "../상품코드별 이미지.xlsx",
+    "../../상품코드별 이미지.xlsx",
+]
 SAMPLE_JSON = os.getenv("MEMBER_FUNNEL_SAMPLE_JSON", "").strip()
 WRITE_DATA_CACHE = os.getenv("MEMBER_FUNNEL_WRITE_DATA_CACHE", "true").lower() in {"1","true","yes","y"}
 UI_MAX_TABLE_ROWS = int(os.getenv("MEMBER_FUNNEL_UI_MAX_TABLE_ROWS", "300"))
@@ -272,12 +279,41 @@ def _find_col(cols: list[str], candidates: list[str]) -> str:
             return str(low[cand.lower()])
     return ""
 
+
+def resolve_image_xls_path() -> Path | None:
+    raw = str(IMAGE_XLS_PATH or "").strip()
+    candidates: list[Path] = []
+    if raw:
+        p = Path(raw)
+        candidates.append(p)
+        candidates.append((Path.cwd() / raw))
+        candidates.append((Path(__file__).resolve().parent / raw))
+    base = Path(__file__).resolve().parent
+    for rel in IMAGE_XLS_CANDIDATES:
+        candidates.append(base / rel)
+        candidates.append(base.parent / rel)
+        candidates.append(base.parent.parent / rel)
+        candidates.append(Path.cwd() / rel)
+    seen = set()
+    for cand in candidates:
+        try:
+            cp = cand.resolve()
+        except Exception:
+            cp = cand
+        key = str(cp)
+        if key in seen:
+            continue
+        seen.add(key)
+        if cp.exists() and cp.is_file():
+            return cp
+    return None
+
 def load_image_map() -> dict[str, dict[str, str]]:
     global _IMAGE_MAP_CACHE
     if _IMAGE_MAP_CACHE is not None:
         return _IMAGE_MAP_CACHE
     _IMAGE_MAP_CACHE = {"by_code": {}, "by_name": {}}
-    p = Path(IMAGE_XLS_PATH) if IMAGE_XLS_PATH else None
+    p = resolve_image_xls_path()
     if not p or not p.exists():
         return _IMAGE_MAP_CACHE
     try:
@@ -666,10 +702,12 @@ def make_light_bundle(bundle: dict) -> dict:
         if total > UI_MAX_TARGET_ROWS:
             target["rows"] = target["rows"][:UI_MAX_TARGET_ROWS]
 
+    resolved_img = resolve_image_xls_path()
     light["meta"] = {
         "ui_max_table_rows": UI_MAX_TABLE_ROWS,
         "ui_max_product_rows": UI_MAX_PRODUCT_ROWS,
         "ui_max_target_rows": UI_MAX_TARGET_ROWS,
+        "image_xls_path": str(resolved_img) if resolved_img else "",
     }
     return light
 
