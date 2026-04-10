@@ -94,6 +94,60 @@ CROSS JOIN signups s
 CROSS JOIN orders o;
 """
 
+DEFAULT_ADMIN_PERIOD_SQL = r"""
+DECLARE @START_DATE date = '__START_DATE__';
+DECLARE @END_DATE   date = '__END_DATE__';
+DECLARE @VIEW_MODE nvarchar(10) = '__VIEW_MODE__';
+
+WITH traffic AS (
+    SELECT
+        SUM(ISNULL(StatisticsPV, 0)) AS pv,
+        SUM(ISNULL(StatisticsSessions, 0)) AS sessions
+    FROM dbo.TB_Statistics_Google
+    WHERE CAST(StatisticsDate AS date) BETWEEN @START_DATE AND @END_DATE
+),
+signups AS (
+    SELECT
+        COUNT(*) AS signups
+    FROM dbo.TB_Member
+    WHERE CAST(MemberRegdate AS date) BETWEEN @START_DATE AND @END_DATE
+),
+orders AS (
+    SELECT
+        COUNT(DISTINCT OrderNo) AS order_count,
+        COUNT(DISTINCT CASE WHEN NULLIF(LTRIM(RTRIM(CAST(MemberID AS nvarchar(255)))), '') IS NOT NULL THEN MemberID END) AS buyer_count,
+        SUM(ISNULL(OrderTotalPay, 0)) AS revenue,
+        SUM(ISNULL(OrderTotalPrice, 0)) AS total_price,
+        SUM(ISNULL(OrderUseCouponPrice, 0)) AS coupon_used,
+        SUM(ISNULL(OrderUsePoint, 0)) AS point_used,
+        SUM(ISNULL(OrderCancelPrice, 0)) AS cancel_amount
+    FROM dbo.TB_Order
+    WHERE CAST(OrderRegdate AS date) BETWEEN @START_DATE AND @END_DATE
+)
+SELECT
+    @START_DATE AS start_date,
+    @END_DATE AS end_date,
+    @VIEW_MODE AS view_mode,
+    t.sessions,
+    t.pv,
+    s.signups,
+    o.order_count AS orders,
+    o.buyer_count AS buyers,
+    o.revenue,
+    o.total_price,
+    o.coupon_used,
+    o.point_used,
+    o.cancel_amount,
+    CASE
+        WHEN CASE WHEN @VIEW_MODE = 'total' THEN o.order_count ELSE o.buyer_count END > 0
+            THEN CAST(o.revenue AS float) / NULLIF(CASE WHEN @VIEW_MODE = 'total' THEN o.order_count ELSE o.buyer_count END, 0)
+        ELSE 0
+    END AS aov
+FROM traffic t
+CROSS JOIN signups s
+CROSS JOIN orders o;
+"""
+
 PERIOD_PRESETS = [
     {"key": "1d", "label": "1DAY", "days": 1, "filename": "daily.html", "is_default": False},
     {"key": "7d", "label": "7D", "days": 7, "filename": "7d.html", "is_default": False},
@@ -269,6 +323,44 @@ def fetch_admin_daily_snapshot(target_date: dt.date) -> dict | None:
             "raw": {str(k): (None if pd.isna(v) else v) for k, v in row.items()},
         }
         return snapshot
+    except Exception:
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
+
+def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date, view_mode: str = "user") -> dict | None:
+    sql = DEFAULT_ADMIN_PERIOD_SQL
+    sql = sql.replace("__START_DATE__", start_date.strftime("%Y-%m-%d"))
+    sql = sql.replace("__END_DATE__", end_date.strftime("%Y-%m-%d"))
+    sql = sql.replace("__VIEW_MODE__", "total" if str(view_mode).lower() == "total" else "user")
+    conn = None
+    try:
+        conn = get_mssql_connection()
+        df = pd.read_sql(sql, conn)
+        if df.empty:
+            return None
+        row = df.iloc[0].to_dict()
+        orders = _pick_value(row, "order_count", "orders", "주문건수", "주문건")
+        buyers = _pick_value(row, "buyer_count", "buyers", "구매자수", "구매회원")
+        return {
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "view_mode": "total" if str(view_mode).lower() == "total" else "user",
+            "sessions": _pick_value(row, "sessions", "SESSION", "세션"),
+            "pv": _pick_value(row, "pv", "PV"),
+            "signups": _pick_value(row, "signups", "가입자수", "가입자"),
+            "orders": orders,
+            "buyers": buyers,
+            "revenue": _pick_value(row, "revenue", "총매출금액", "ERP매출", "매출금액", "sales", "total_pay"),
+            "total_price": _pick_value(row, "total_price", "상품금액"),
+            "coupon_used": _pick_value(row, "coupon_used", "쿠폰사용", "쿠폰"),
+            "point_used": _pick_value(row, "point_used", "포인트사용", "포인트"),
+            "cancel_amount": _pick_value(row, "cancel_amount", "취소금액", "cancel"),
+            "aov": _pick_value(row, "aov", "AOV", "객단가"),
+            "source": "admin_mssql",
+            "raw": {str(k): (None if pd.isna(v) else v) for k, v in row.items()},
+        }
     except Exception:
         return None
     finally:
@@ -457,35 +549,20 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
         "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": {"cards": [{"label": SEGMENT_LABELS[k], "count": int(user[user[f'is_{k}_norm'] == 1]['member_id_norm'].replace('', pd.NA).nunique()), "top_channel": top_label(user[user[f'is_{k}_norm'] == 1], 'channel_group_norm'), "top_product": top_label(user[user[f'is_{k}_norm'] == 1], 'purchase_product_name_norm'), "top_message": top_label(user[user[f'is_{k}_norm'] == 1], 'recommended_message_norm', 'GENERAL')} for k in SEGMENT_ORDER if f'is_{k}_norm' in user.columns and not user[user[f'is_{k}_norm'] == 1].empty], "rows": rows_from_df(user[(user[[c for c in user.columns if c.startswith('is_') and c.endswith('_norm')]].sum(axis=1) > 0)], {"member_id_norm":"member_id","phone_norm":"phone","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product","recommended_message_norm":"recommended_message","consent_norm":"consent"})}},
         "total_view": {"member_overview": channel_panels(members, 'total')},
     }
-    if period_key == "1d":
-        if admin_daily:
-            bundle["overview"].update({
-                "sessions": int(round(float(admin_daily.get("sessions", 0) or 0))),
-                "orders": int(round(float(admin_daily.get("orders", 0) or 0))),
-                "revenue": float(admin_daily.get("revenue", 0) or 0),
-                "signups": int(round(float(admin_daily.get("signups", 0) or 0))),
-                "buyers": int(round(float(admin_daily.get("orders", 0) or admin_daily.get("buyers", 0) or 0))),
-                "metric_source": "admin_mssql",
-            })
-            bundle["latest_summary"] = [
-                f"최근 선택 가능 일자 기준 최신 데이터는 {fmt_date(end_date)}입니다.",
-                f"해당 일자 세션 {fmt_int(admin_daily.get('sessions', 0))} / 가입 {fmt_int(admin_daily.get('signups', 0))} / 주문 {fmt_int(admin_daily.get('orders', 0))} 흐름입니다.",
-                f"1DAY 상단 KPI는 MSSQL 운영 집계(TB_Order / TB_Statistics_Google / TB_Member) 기준입니다.",
-            ]
-        else:
-            bundle["overview"].update({
-                "sessions": 0,
-                "orders": 0,
-                "revenue": 0.0,
-                "signups": 0,
-                "buyers": 0,
-                "metric_source": "admin_mssql_failed",
-            })
-            bundle["latest_summary"] = [
-                f"최근 선택 가능 일자 기준 최신 데이터는 {fmt_date(end_date)}입니다.",
-                "1DAY 운영 KPI를 불러오지 못했습니다.",
-                "MSSQL 연결 또는 환경변수(MSSQL_HOST / DATABASE / USERNAME / PASSWORD)를 확인해주세요.",
-            ]
+    if admin_daily:
+        bundle["overview"].update({
+            "sessions": int(round(float(admin_daily.get("sessions", 0) or 0))),
+            "orders": int(round(float(admin_daily.get("orders", 0) or 0))),
+            "revenue": float(admin_daily.get("revenue", 0) or 0),
+            "signups": int(round(float(admin_daily.get("signups", 0) or 0))),
+            "buyers": int(round(float(admin_daily.get("orders", 0) or admin_daily.get("buyers", 0) or 0))),
+            "metric_source": "admin_mssql",
+        })
+        bundle["latest_summary"] = [
+            f"최근 선택 가능 일자 기준 최신 데이터는 {fmt_date(end_date)}입니다.",
+            f"해당 일자 세션 {fmt_int(admin_daily.get('sessions', 0))} / 가입 {fmt_int(admin_daily.get('signups', 0))} / 주문 {fmt_int(admin_daily.get('orders', 0))} 흐름입니다.",
+            f"1DAY 상단 KPI는 MSSQL 운영 집계(TB_Order / TB_Statistics_Google / TB_Member) 기준입니다.",
+        ]
     return bundle
 
 
@@ -550,51 +627,36 @@ def render_page(bundle: dict, preset: dict) -> str:
     latest_summary = ''.join(f'<li>{esc(x)}</li>' for x in bundle.get('latest_summary', []))
     downloads = bundle.get('downloads', {})
     metric_source = str(bundle.get('overview', {}).get('metric_source', 'ga4_crm_mart'))
-    revenue_label = 'Revenue' if metric_source in {'admin_mssql', 'admin_mssql_failed'} else 'GA Revenue'
-    count_label = 'Orders' if metric_source in {'admin_mssql', 'admin_mssql_failed'} else 'Buyers'
+    revenue_label = 'Revenue' if metric_source == 'admin_mssql' else 'GA Revenue'
+    count_label = 'Orders' if metric_source == 'admin_mssql' else 'Buyers'
     html_template = """<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Member Funnel</title>
 <style>
-:root{--bg:#eef4ff;--bg2:#f8fbff;--surface:#ffffff;--surface-2:#f8fbff;--line:#d9e6fb;--line-strong:#bfd3fb;--navy:#0f255f;--blue:#2451e6;--blue-2:#4d7bff;--ink:#0f172a;--muted:#60708f;--chip:#eaf1ff;--shadow:0 22px 50px rgba(28,53,125,.10);--shadow-soft:0 12px 28px rgba(15,23,42,.06)}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at top,rgba(77,123,255,.10),transparent 22%),linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);color:var(--ink);font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif}.page{max-width:1680px;margin:0 auto;padding:42px 34px 68px}
-.hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#16348a 0%,#2451e6 58%,#5f86ff 100%);border:1px solid rgba(255,255,255,.14);border-radius:34px;padding:40px 42px;color:#fff;box-shadow:0 26px 60px rgba(29,70,201,.24)}.hero:before{content:'';position:absolute;inset:auto -80px -110px auto;width:320px;height:320px;border-radius:999px;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 64%)}.hero:after{content:'';position:absolute;inset:-120px auto auto -110px;width:280px;height:280px;border-radius:999px;background:radial-gradient(circle,rgba(255,255,255,.12),transparent 68%)}
-.hero-grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1.42fr) minmax(420px,.96fr);gap:34px;align-items:stretch}.eyebrow{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid rgba(255,255,255,.26);border-radius:999px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.14em;background:rgba(255,255,255,.10);backdrop-filter:blur(10px)}h1{margin:18px 0 10px;font-size:58px;line-height:1;letter-spacing:-.03em}.hero p{max-width:880px;margin:0 0 20px;font-size:16px;font-weight:800;line-height:1.72;opacity:.97}.hero-meta{display:flex;gap:10px;flex-wrap:wrap}.period-chip{display:inline-flex;align-items:center;justify-content:center;min-width:78px;height:44px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:#fff;text-decoration:none;font-size:14px;font-weight:900;backdrop-filter:blur(8px);transition:.18s ease}.period-chip:hover{transform:translateY(-1px);background:rgba(255,255,255,.12)}.period-chip.active{background:#fff;color:var(--navy);border-color:#fff;box-shadow:0 10px 24px rgba(8,19,58,.16)}
-.hero-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}.hero-stat,.card,.summary-card{background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow-soft)}.hero-stat{position:relative;padding:24px 26px;color:var(--ink);min-height:134px;display:flex;flex-direction:column;justify-content:center}.hero-stat:before{content:'';position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:999px;background:linear-gradient(180deg,var(--blue) 0%,#8eb4ff 100%)}.label,.kicker{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}.value,.kpi{margin-top:10px;font-size:28px;font-weight:1000;line-height:1.08;word-break:break-word;letter-spacing:-.03em}
-.toolbar{display:flex;justify-content:space-between;align-items:center;gap:24px;margin:30px 0 24px}.tabs,.subtabs{display:flex;gap:10px;flex-wrap:wrap}.tab-btn,.subtab-btn,.table-expand-btn{height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.9);color:var(--navy);font-weight:900;cursor:pointer;box-shadow:0 8px 20px rgba(15,23,42,.05);transition:.18s ease}.tab-btn:hover,.subtab-btn:hover,.table-expand-btn:hover{transform:translateY(-1px);border-color:var(--line-strong)}.tab-btn.active,.subtab-btn.active{background:linear-gradient(135deg,#102a74 0%,#1a43bc 100%);color:#fff;border-color:transparent;box-shadow:0 14px 30px rgba(31,67,183,.22)}
-.summary-card{padding:28px 32px;margin-bottom:30px;background:linear-gradient(180deg,rgba(255,255,255,.98) 0%,rgba(247,250,255,.98) 100%)}.summary-card ul{margin:8px 0 0 16px;padding:0}.summary-card li{margin:10px 0;font-weight:800}
-.panel{display:none}.panel.active{display:block}.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin:36px 0 24px}.section-title{font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#697a98}.section-head h2{margin:6px 0 0;font-size:24px;line-height:1.2;letter-spacing:-.02em}
-.download-row{display:flex;gap:12px;flex-wrap:wrap}.download-btn{display:inline-flex;align-items:center;height:40px;padding:0 14px;border-radius:999px;background:linear-gradient(135deg,#102a74 0%,#2043b8 100%);color:#fff;text-decoration:none;font-weight:900;box-shadow:0 12px 24px rgba(31,67,183,.18)}
-.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}.card{padding:28px;min-height:152px;background:linear-gradient(180deg,#fff 0%,#fbfdff 100%)}.kpi-sub{margin-top:8px;font-size:12px;font-weight:800;color:var(--muted)}
-.chart-row{display:grid;grid-template-columns:92px 1fr 60px;gap:10px;align-items:center;margin:12px 0}.chart-label,.chart-metric{font-size:12px;font-weight:900}.chart-track{height:10px;background:#e6edf9;border-radius:999px;overflow:hidden}.chart-fill{display:block;height:100%;background:linear-gradient(90deg,#2451e6,#92b7ff);border-radius:999px}
-.donut-wrap{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}.donut{width:120px;height:120px;border-radius:50%;box-shadow:inset 0 0 0 10px rgba(255,255,255,.6),0 10px 22px rgba(36,81,230,.10)}.legend-item{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:8px 0;font-size:12px;font-weight:900}.legend-dot{width:10px;height:10px;border-radius:50%;background:#2451e6;display:inline-block;margin-right:8px;box-shadow:0 0 0 4px rgba(36,81,230,.10)}.legend-dot.alt{background:#93c5fd;box-shadow:0 0 0 4px rgba(147,197,253,.18)}
-.product-card{display:flex;gap:18px;align-items:center}.thumb{width:44px;height:44px;border-radius:14px;object-fit:cover;border:1px solid var(--line);background:#fff}.thumb-empty{display:flex;align-items:center;justify-content:center;background:#eef3ff;color:#64748b;font-size:11px;font-weight:900}.mini-title{margin-top:4px;font-size:15px;font-weight:900;line-height:1.35}.stack-meta{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted)}
-.table-meta,.table-tools{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;font-size:12px;font-weight:800;color:var(--muted)}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:24px;background:#fff;box-shadow:0 18px 32px rgba(15,23,42,.06)}.data-table{width:100%;min-width:860px;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid #eef3f8;text-align:left;font-size:12px;font-weight:800;white-space:nowrap}th{background:#f6f9ff;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-size:11px;position:sticky;top:0}td.num,th.num{text-align:right}.is-hidden{display:none}
-.channel-panel{animation:fadeInUp .24s ease}.channel-panel[hidden]{display:none!important}@keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@media (max-width:1280px){.hero-grid{grid-template-columns:1fr}.hero-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:1100px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}.page{padding:22px}.hero{padding:32px 24px}.hero-kpis{grid-template-columns:1fr}.toolbar{flex-direction:column;align-items:flex-start}h1{font-size:40px}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif}.page{max-width:1680px;margin:0 auto;padding:44px 48px}
+:root{--bg:#f3f6fb;--card:#fff;--line:#dbe5f0;--navy:#0f255f;--blue:#2043b8;--text:#0f172a;--muted:#64748b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif}.page{max-width:1680px;margin:0 auto;padding:44px 52px}
 .hero{background:radial-gradient(circle at top right,rgba(255,255,255,.10),transparent 22%),linear-gradient(135deg,#17327f 0%,#1f43b7 55%,#3158df 100%);border-radius:38px;padding:46px 48px;color:#fff;box-shadow:0 34px 70px rgba(15,37,95,.20)}
-.hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(460px,0.95fr);gap:40px;align-items:stretch}.eyebrow{display:inline-flex;padding:8px 12px;border:1px solid rgba(255,255,255,.25);border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;background:rgba(255,255,255,.08)}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.42fr) minmax(500px,0.98fr);gap:42px;align-items:stretch}.eyebrow{display:inline-flex;padding:8px 12px;border:1px solid rgba(255,255,255,.25);border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;background:rgba(255,255,255,.08)}
 h1{margin:18px 0 10px;font-size:56px;line-height:1}.hero p{margin:0 0 18px;font-size:16px;font-weight:700;line-height:1.6;opacity:.96}
 .hero-meta{display:flex;gap:10px;flex-wrap:wrap}.period-chip{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.24);color:#fff;text-decoration:none;font-weight:900}.period-chip.active{background:#fff;color:var(--navy)}
-.hero-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}.hero-stat,.card,.summary-card{background:var(--card);border:1px solid var(--line);border-radius:26px;box-shadow:0 16px 34px rgba(15,23,42,.06)}.hero-stat{padding:24px 28px;color:var(--text);min-height:136px;display:flex;flex-direction:column;justify-content:center}.label,.kicker{font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}.value,.kpi{margin-top:10px;font-size:28px;font-weight:1000;line-height:1.1;word-break:break-word}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:26px;margin:42px 0 28px}.tabs,.subtabs{display:flex;gap:10px;flex-wrap:wrap}.tab-btn,.subtab-btn,.table-expand-btn{height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--navy);font-weight:900;cursor:pointer;box-shadow:0 4px 10px rgba(15,23,42,.03)}.tab-btn.active,.subtab-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}.summary-card{padding:28px 32px;margin-bottom:34px}.summary-card ul{margin:8px 0 0 16px;padding:0}.summary-card li{margin:8px 0;font-weight:700}
-.panel{display:none}.panel.active{display:block}.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:22px;margin:38px 0 24px}.section-title{font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#64748b}.section-head h2{margin:6px 0 0;font-size:24px;line-height:1.2}
+.hero-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}.hero-stat,.card,.summary-card{background:var(--card);border:1px solid var(--line);border-radius:26px;box-shadow:0 16px 34px rgba(15,23,42,.06)}.warn-banner{margin-top:14px;padding:12px 14px;border-radius:14px;background:#fff7ed;color:#9a3412;border:1px solid #fdba74;font-weight:800}.hero-stat{padding:28px 32px;color:var(--text);min-height:136px;display:flex;flex-direction:column;justify-content:center}.label,.kicker{font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}.value,.kpi{margin-top:10px;font-size:28px;font-weight:1000;line-height:1.1;word-break:break-word}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:22px;margin:36px 0 24px}.tabs,.subtabs{display:flex;gap:10px;flex-wrap:wrap}.tab-btn,.subtab-btn,.table-expand-btn{height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--navy);font-weight:900;cursor:pointer;box-shadow:0 4px 10px rgba(15,23,42,.03)}.tab-btn.active,.subtab-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}.summary-card{padding:22px 26px;margin-bottom:28px}.summary-card ul{margin:8px 0 0 16px;padding:0}.summary-card li{margin:8px 0;font-weight:700}
+.panel{display:none}.panel.active{display:block}.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:30px 0 18px}.section-title{font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#64748b}.section-head h2{margin:6px 0 0;font-size:24px;line-height:1.2}
 .download-row{display:flex;gap:12px;flex-wrap:wrap}.download-btn{display:inline-flex;align-items:center;height:40px;padding:0 14px;border-radius:999px;background:var(--navy);color:#fff;text-decoration:none;font-weight:900}
-.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:26px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}.card{padding:28px;min-height:152px}.kpi-sub{margin-top:8px;font-size:12px;font-weight:700;color:var(--muted)}
+.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.card{padding:22px;min-height:136px}.kpi-sub{margin-top:8px;font-size:12px;font-weight:700;color:var(--muted)}
 .chart-row{display:grid;grid-template-columns:88px 1fr 58px;gap:10px;align-items:center;margin:12px 0}.chart-label,.chart-metric{font-size:12px;font-weight:800}.chart-track{height:10px;background:#e6edf7;border-radius:999px;overflow:hidden}.chart-fill{display:block;height:100%;background:linear-gradient(90deg,#2b5cff,#84b6ff);border-radius:999px}
 .donut-wrap{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}.donut{width:120px;height:120px;border-radius:50%}.legend-item{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:8px 0;font-size:12px;font-weight:800}.legend-dot{width:10px;height:10px;border-radius:50%;background:#2563eb;display:inline-block;margin-right:8px}.legend-dot.alt{background:#93c5fd}
-.product-card{display:flex;gap:18px;align-items:center}.thumb{width:44px;height:44px;border-radius:12px;object-fit:cover;border:1px solid var(--line)}.thumb-empty{display:flex;align-items:center;justify-content:center;background:#eef3f8;color:#64748b;font-size:11px;font-weight:900}.mini-title{margin-top:4px;font-size:15px;font-weight:900}.stack-meta{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted)}
-.table-meta,.table-tools{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;font-size:12px;font-weight:800;color:var(--muted)}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:24px;background:#fff;box-shadow:0 16px 30px rgba(15,23,42,.05)}.data-table{width:100%;min-width:860px;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid #eef3f8;text-align:left;font-size:12px;font-weight:800;white-space:nowrap}th{background:#f8fbff;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-size:11px}td.num,th.num{text-align:right}.is-hidden{display:none}
-
+.product-card{display:flex;gap:14px;align-items:center}.thumb{width:44px;height:44px;border-radius:12px;object-fit:cover;border:1px solid var(--line)}.thumb-empty{display:flex;align-items:center;justify-content:center;background:#eef3f8;color:#64748b;font-size:11px;font-weight:900}.mini-title{margin-top:4px;font-size:15px;font-weight:900}.stack-meta{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted)}
+.table-meta,.table-tools{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:12px;font-weight:800;color:var(--muted)}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:20px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.04)}.data-table{width:100%;min-width:860px;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid #eef3f8;text-align:left;font-size:12px;font-weight:800;white-space:nowrap}th{background:#f8fbff;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-size:11px}td.num,th.num{text-align:right}.is-hidden{display:none}
+@media (max-width:1280px){.hero-grid{grid-template-columns:1fr}.hero-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:1100px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}.page{padding:24px}.hero{padding:30px}.hero-kpis{grid-template-columns:1fr}.toolbar{flex-direction:column;align-items:flex-start}h1{font-size:40px}}
 </style>
 </head>
 <body>
 <div class="page">
-<section class="hero"><div class="hero-grid"><div><div class="eyebrow">External Signal Style · CRM Funnel</div><h1>Member Funnel</h1><p>채널별 행동 데이터와 CRM 액션 대상을 한 화면에서 빠르게 읽고, 바로 추출할 수 있게 재정렬했습니다. USER VIEW는 USER_ID 단위 대표행 기준 액션 분석, TOTAL VIEW는 기존 회원 전체 분석입니다.</p><div class="hero-meta">__PERIOD_NAV__</div></div><div class="hero-kpis"><div class="hero-stat"><div class="label">Sessions</div><div class="value">__SESSIONS__</div></div><div class="hero-stat"><div class="label">__COUNT_LABEL__</div><div class="value">__BUYERS__</div></div><div class="hero-stat"><div class="label">__REVENUE_LABEL__</div><div class="value">__REVENUE__</div></div><div class="hero-stat"><div class="label">Members</div><div class="value">__MEMBERS__</div></div></div></div></section>
+<section class="hero"><div class="hero-grid"><div><div class="eyebrow">External Signal Style · CRM Funnel</div><h1>Member Funnel</h1><p>채널별 행동 데이터와 CRM 액션 대상을 한 화면에서 빠르게 읽고, 바로 추출할 수 있게 재정렬했습니다. USER VIEW는 USER_ID 단위 대표행 기준 액션 분석, TOTAL VIEW는 기존 회원 전체 분석입니다.</p><div class="hero-meta">__PERIOD_NAV__</div></div><div class="hero-kpis"><div class="hero-stat"><div class="label">Sessions</div><div class="value" id="hero-sessions">__SESSIONS__</div></div><div class="hero-stat"><div class="label" id="hero-count-label">__COUNT_LABEL__</div><div class="value" id="hero-count">__COUNT_VALUE__</div></div><div class="hero-stat"><div class="label" id="hero-revenue-label">__REVENUE_LABEL__</div><div class="value" id="hero-revenue">__REVENUE__</div></div><div class="hero-stat"><div class="label">Members</div><div class="value" id="hero-members">__MEMBERS__</div></div></div></div></section>
 <div class="toolbar"><div class="tabs"><button class="tab-btn active" data-main-target="user-view">USER VIEW</button><button class="tab-btn" data-main-target="total-view">TOTAL VIEW</button></div></div>
-<div class="summary-card"><div class="section-title">이번 구간 핵심 요약</div><ul>__LATEST_SUMMARY__</ul><div class="kpi-sub" style="margin-top:14px">상단 KPI Source · __METRIC_SOURCE__</div></div>
+<div class="summary-card"><div class="section-title">이번 구간 핵심 요약</div><ul>__LATEST_SUMMARY__</ul>__WARNING_HTML__<div class="kpi-sub" style="margin-top:14px">상단 KPI Source · <span id="hero-source">__METRIC_SOURCE__</span></div></div>
 <section class="panel active" id="user-view"><div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰 (USER_ID 대표행 기준)</h2></div><div class="download-row">__DOWNLOADS__</div></div><div id="user-sections"></div></section>
 <section class="panel" id="total-view"><div class="section-head"><div><div class="section-title">TOTAL VIEW</div><h2>기존 회원 전체 분석</h2></div></div><div id="total-sections"></div></section>
 </div>
@@ -604,7 +666,11 @@ const INLINE_BUNDLE = __INLINE_BUNDLE__;
 function money(v){const n=Number(v||0); return '₩'+Math.round(n).toLocaleString('ko-KR')}
 function num(v){return Math.round(Number(v||0)).toLocaleString('ko-KR')}
 function pct(v){return `${Number(v||0).toFixed(1)}%`}
-function esc2(s){return String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function esc2(s){return String(s ?? '').replace(/[&<>\"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]))}
+function metricSourceLabel(v){ return v === 'admin_mssql' ? 'MSSQL Admin KPI' : 'GA4 + CRM Mart'; }
+function activeOverview(mode){ const all=(BUNDLE&&BUNDLE.overview_by_view)||{}; return all[mode] || BUNDLE.overview || {}; }
+function syncHero(mode){ const o = activeOverview(mode); const countValue = mode === 'total' ? (o.orders ?? 0) : (o.buyers ?? 0); const sessions=document.getElementById('hero-sessions'); const count=document.getElementById('hero-count'); const countLabel=document.getElementById('hero-count-label'); const revenue=document.getElementById('hero-revenue'); const revenueLabel=document.getElementById('hero-revenue-label'); const members=document.getElementById('hero-members'); const source=document.getElementById('hero-source'); if(sessions) sessions.textContent=num(o.sessions||0); if(count) count.textContent=num(countValue||0); if(countLabel) countLabel.textContent=o.count_label || (mode==='total'?'Orders':'Buyers'); if(revenue) revenue.textContent=money(o.revenue||0); if(revenueLabel) revenueLabel.textContent=o.revenue_label || 'Revenue'; if(members) members.textContent=num(o.members||0); if(source) source.textContent=metricSourceLabel(o.metric_source); }
+async function safeFetch(urls){ for (const url of urls){ try{ const res = await fetch(url, {cache:'no-store'}); if(res.ok){ return await res.json(); } } catch(err){} } return null; }
 function bar(items){ if(!items||!items.length) return '<div class="kpi-sub">데이터가 없습니다.</div>'; const max=Math.max(...items.map(x=>Number(x.count||0)),1); return items.map(x=>`<div class="chart-row"><div class="chart-label">${esc2(x.label)}</div><div class="chart-track"><span class="chart-fill" style="width:${(Number(x.count||0)/max*100).toFixed(1)}%"></span></div><div class="chart-metric">${pct(x.share_pct)}</div></div>`).join('') }
 function donut(items){ if(!items||!items.length) return '<div class="kpi-sub">데이터가 없습니다.</div>'; const a=Number(items[0]?.share_pct||0), b=Number(items[1]?.share_pct||Math.max(0,100-a)); const bg=`conic-gradient(#2563eb 0 ${a}%, #93c5fd ${a}% ${a+b}%, #e2e8f0 ${a+b}% 100%)`; const lg=items.slice(0,2).map((x,i)=>`<div class="legend-item"><span><span class="legend-dot ${i?'alt':''}"></span>${esc2(x.label)}</span><strong>${pct(x.share_pct)}</strong></div>`).join(''); return `<div class="donut-wrap"><div class="donut" style="background:${bg}"></div><div>${lg}</div></div>`; }
 function table(rows, cols, numeric, id){ const limit=15; const head=cols.map(c=>`<th class="${numeric.includes(c[0])?'num':''}">${esc2(c[1])}</th>`).join(''); const body=(rows||[]).map((r,i)=>`<tr class="${i>=limit?'is-hidden extra-row':''}">${cols.map(c=>{let v=r[c[0]] ?? ''; if(numeric.includes(c[0])) v=(c[0].includes('revenue')||c[0]==='aov')?money(v):num(v); return `<td class="${numeric.includes(c[0])?'num':''}">${esc2(v)}</td>`;}).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}">데이터가 없습니다.</td></tr>`; const btn=(rows||[]).length>limit?`<button class="table-expand-btn" data-expand="${id}">전체보기</button>`:''; return `<div class="table-meta"><span>전체 ${num((rows||[]).length)}행 중 ${num(Math.min((rows||[]).length,15))}행 기본 표시</span><span>${btn}</span></div><div class="table-wrap"><table class="data-table" id="${id}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`; }
@@ -617,38 +683,27 @@ function renderProduct(block){ return `<div class="section-head"><div><div class
 function renderTarget(target){ return `<div class="section-head"><div><div class="section-title">지금 바로 액션 가능한 대상자</div><h2>세그먼트별 채널 · 관심상품 · 추천 메시지</h2></div></div><div class="grid-2">${(target.cards||[]).map(x=>`<div class="card"><div class="kicker">${esc2(x.label)}</div><div class="kpi">${num(x.count)}명</div><div class="stack-meta">Top Channel · ${esc2(x.top_channel)}</div><div class="stack-meta">Top Product · ${esc2(x.top_product)}</div><div class="stack-meta">Message · ${esc2(x.top_message)}</div></div>`).join('')}</div>`; }
 function renderTotal(block){ return `${tabsHtml('totalmember', block.channels)}${block.channels.map((ch,i)=>{ const p=block.panels[ch]; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="totalmember" data-panel-id="${ch}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">기존 회원</div><div class="kpi">${num(p.summary.members)}</div></div><div class="card"><div class="kicker">구매 회원</div><div class="kpi">${num(p.summary.buyers)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(p.summary.revenue)}</div></div><div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi">${esc2(p.summary.top_product)}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">AGE 비율</div>${bar(p.age_dist)}</div><div class="card"><div class="section-title">GENDER 비율</div>${donut(p.gender_dist)}</div><div class="card"><div class="section-title">Category 비율</div>${bar(p.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(p.products)}</div></div></div><div class="card">${table(p.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['orders','Orders'],['revenue','Revenue']],['orders','revenue'],`tot-${groupSlug(ch)}`)}</div></div>`; }).join('')}`; }
 function bindUi(){
-  document.querySelectorAll('[data-main-target]').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('[data-main-target]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); document.getElementById(btn.dataset.mainTarget).classList.add('active'); }));
+  document.querySelectorAll('[data-main-target]').forEach(btn=>btn.addEventListener('click',()=>{ const mode = btn.dataset.mainTarget === 'total-view' ? 'total' : 'user'; document.querySelectorAll('[data-main-target]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); document.getElementById(btn.dataset.mainTarget).classList.add('active'); syncHero(mode); }));
   document.addEventListener('click', (e)=>{ const sub=e.target.closest('.subtab-btn'); if(sub){ const g=sub.dataset.group, t=sub.dataset.target; document.querySelectorAll(`.subtab-btn[data-group="${g}"]`).forEach(b=>b.classList.toggle('active', b===sub)); document.querySelectorAll(`.channel-panel[data-panel-group="${g}"]`).forEach(p=>{ const on=p.dataset.panelId===t; p.hidden=!on; p.classList.toggle('active', on); }); } const ex=e.target.closest('[data-expand]'); if(ex){ const table=document.getElementById(ex.dataset.expand); if(table){ table.querySelectorAll('.extra-row').forEach(r=>r.classList.toggle('is-hidden')); ex.textContent = ex.textContent==='전체보기' ? '접기' : '전체보기'; } } });
 }
 function init(bundle){
   BUNDLE = bundle;
   document.getElementById('user-sections').innerHTML = renderNonBuyer(BUNDLE.user_view.non_buyer) + renderBuyer(BUNDLE.user_view.buyer) + renderProduct(BUNDLE.user_view.product) + renderTarget(BUNDLE.user_view.target);
   document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview);
-}
-async function tryFetchBundle(paths){
-  for(const bundlePath of paths){
-    try {
-      const res = await fetch(bundlePath, {cache:'no-store'});
-      if(!res.ok) continue;
-      return await res.json();
-    } catch(err) {}
-  }
-  throw new Error('all bundle fetch paths failed');
+  syncHero('user');
 }
 (async function(){
   init(INLINE_BUNDLE);
   bindUi();
   try {
-    const viewFile = '__VIEW_FILE__';
-    const candidates = [
-      `./data/${viewFile}`,
-      `data/${viewFile}`,
-      `./${viewFile}`,
-      `../member_funnel/data/${viewFile}`,
-      `../data/member_funnel/${viewFile}`,
-    ];
-    const bundle = await tryFetchBundle(candidates);
-    init(bundle);
+    const bundle = await safeFetch([
+      '../data/member_funnel/__VIEW_FILE__',
+      './data/member_funnel/__VIEW_FILE__',
+      'data/__VIEW_FILE__',
+      './data/__VIEW_FILE__',
+      '__VIEW_FILE__'
+    ]);
+    if(bundle) init(bundle);
   } catch(err) {
     console.warn('member_funnel fetch fallback -> inline bundle used', err);
   }
@@ -662,14 +717,15 @@ async function tryFetchBundle(paths){
     return (html_template
         .replace('__PERIOD_NAV__', period_nav)
         .replace('__SESSIONS__', fmt_int(bundle['overview']['sessions']))
-        .replace('__BUYERS__', fmt_int(bundle['overview']['buyers']))
+        .replace('__COUNT_VALUE__', fmt_int(bundle['overview']['buyers']))
         .replace('__REVENUE__', fmt_money(bundle['overview']['revenue']))
         .replace('__REVENUE_LABEL__', revenue_label)
-        .replace('__COUNT_LABEL__', count_label)
         .replace('__MEMBERS__', fmt_int(bundle['overview']['members']))
         .replace('__LATEST_SUMMARY__', latest_summary)
         .replace('__DOWNLOADS__', download_html)
-        .replace('__METRIC_SOURCE__', 'MSSQL Admin Daily' if metric_source == 'admin_mssql' else ('ADMIN LOAD FAILED' if metric_source == 'admin_mssql_failed' else 'GA4 + CRM Mart'))
+        .replace('__METRIC_SOURCE__', 'MSSQL Admin KPI' if metric_source == 'admin_mssql' else 'GA4 + CRM Mart')
+        .replace('__COUNT_LABEL__', count_label)
+        .replace('__WARNING_HTML__', f'<div class="warn-banner">{esc(bundle.get("warning", ""))}</div>' if bundle.get('warning') else '')
         .replace('__INLINE_BUNDLE__', json.dumps(bundle, ensure_ascii=False))
         .replace('__VIEW_FILE__', f"{preset['key']}_view.json")
     )
