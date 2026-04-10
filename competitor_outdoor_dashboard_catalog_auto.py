@@ -772,7 +772,7 @@ def normalize_source_category(text: str) -> str:
         return "ACC"
     return ""
 
-def infer_item_category(name: str, description: str) -> str:
+def infer_item_category(name: str, description: str, source_category: str = "") -> str:
     blob = f"{name} {description}".lower()
 
     if any(x in blob for x in ["장갑", "glove", "gloves", "mitt"]):
