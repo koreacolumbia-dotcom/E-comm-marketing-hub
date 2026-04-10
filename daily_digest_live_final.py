@@ -1210,7 +1210,11 @@ def _fetch_session_channel_base_bq(start: dt.date, end: dt.date) -> pd.DataFrame
         session_purchase AS (
           SELECT
             CONCAT(user_pseudo_id, '.', CAST(ga_session_id AS STRING)) AS session_key,
-            COUNT(DISTINCT NULLIF(transaction_id, '')) AS transactions,
+            COUNT(DISTINCT IF(
+              event_name = 'purchase',
+              COALESCE(NULLIF(transaction_id, ''), CONCAT('evt_', CAST(event_timestamp AS STRING))),
+              NULL
+            )) AS transactions,
             SUM(IF(event_name = 'purchase', COALESCE(purchase_revenue, 0), 0)) AS purchaseRevenue
           FROM src
           GROUP BY 1
@@ -1339,11 +1343,36 @@ def get_channel_snapshot_3way(
     merged["order"] = merged["bucket"].map({b: i for i, b in enumerate(CHANNEL_BUCKET_ORDER)})
     merged = merged.sort_values(["order", "bucket"]).drop(columns=["order"])
 
+    # Keep the rendered total aligned to the authoritative KPI totals.
+    # When a small number of sessions are missing from the strict channel fact base,
+    # assign the current-period residual to etc rather than letting the Total row drift.
+    expected_cur_sessions = float((overall.get('current', {}) or {}).get('sessions', 0) or 0)
+    expected_cur_orders = float((overall.get('current', {}) or {}).get('transactions', 0) or 0)
+    expected_cur_revenue = float((overall.get('current', {}) or {}).get('purchaseRevenue', 0) or 0)
+    session_delta = expected_cur_sessions - float(merged['sessions_cur'].sum())
+    orders_delta = expected_cur_orders - float(merged['transactions_cur'].sum())
+    revenue_delta = expected_cur_revenue - float(merged['revenue_cur'].sum())
+    if abs(session_delta) > 0.5 or abs(orders_delta) > 0.5 or abs(revenue_delta) > 0.5:
+        etc_mask = merged['bucket'].astype(str).eq('etc')
+        if etc_mask.any():
+            merged.loc[etc_mask, 'sessions_cur'] = merged.loc[etc_mask, 'sessions_cur'].astype(float) + session_delta
+            merged.loc[etc_mask, 'transactions_cur'] = merged.loc[etc_mask, 'transactions_cur'].astype(float) + orders_delta
+            merged.loc[etc_mask, 'revenue_cur'] = merged.loc[etc_mask, 'revenue_cur'].astype(float) + revenue_delta
+        else:
+            merged = pd.concat([merged, pd.DataFrame([{
+                'bucket': 'etc',
+                'sessions_cur': session_delta, 'transactions_cur': orders_delta, 'revenue_cur': revenue_delta,
+                'sessions_prev': 0.0, 'transactions_prev': 0.0, 'revenue_prev': 0.0,
+                'sessions_yoy': 0.0, 'transactions_yoy': 0.0, 'revenue_yoy': 0.0,
+                'session_dod': 0.0, 'session_yoy': 0.0, 'orders_dod': 0.0, 'orders_yoy': 0.0,
+                'revenue_dod': 0.0, 'revenue_yoy': 0.0,
+            }])], ignore_index=True)
+
     total = {
         "bucket": "Total",
-        "sessions_cur": float(merged["sessions_cur"].sum()),
-        "transactions_cur": float(merged["transactions_cur"].sum()),
-        "revenue_cur": float(merged["revenue_cur"].sum()),
+        "sessions_cur": expected_cur_sessions if expected_cur_sessions else float(merged["sessions_cur"].sum()),
+        "transactions_cur": expected_cur_orders if expected_cur_orders else float(merged["transactions_cur"].sum()),
+        "revenue_cur": expected_cur_revenue if expected_cur_revenue else float(merged["revenue_cur"].sum()),
         "sessions_prev": float(merged["sessions_prev"].sum()),
         "transactions_prev": float(merged["transactions_prev"].sum()),
         "revenue_prev": float(merged["revenue_prev"].sum()),
