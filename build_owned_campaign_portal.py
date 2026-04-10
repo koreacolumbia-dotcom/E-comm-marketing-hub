@@ -157,6 +157,26 @@ def is_kakao_message_group_candidate(value: Any) -> bool:
     return "KAKAO_CH_MESSAGE_" in s
 
 
+LMS_GROUP_OVERRIDES: tuple[tuple[str, str], ...] = (
+    ("LMS_ECOM_0401_GNR_TRAILRUNNING", "0401"),
+    ("LMS_ECOM_0401_COUPONNOT_TRAILRUNNING", "0401"),
+    ("LMS_ECOM_0401_TRAILRUNNING", "0401_2"),
+    ("LMS_ECOM_0401_SPRINGHIKING", "0401_2"),
+    ("LMS_ECOM_0410PANTS2", "0410"),
+    ("LMS_ECOM_0410EXCLUSIVE2", "0410"),
+)
+
+
+def resolve_lms_group_override(*values: Any) -> str:
+    haystack = " ".join(clean_text(v).upper() for v in values if clean_text(v))
+    if not haystack:
+        return ""
+    for token, group_mmdd in LMS_GROUP_OVERRIDES:
+        if token in haystack:
+            return group_mmdd
+    return ""
+
+
 def resolve_row_grouping_fields(row: pd.Series) -> tuple[str, str, bool, str]:
     raw_date = str(row.get("date", "") or "")
     channel = str(row.get("channel", "") or "").strip().upper()
@@ -184,6 +204,14 @@ def resolve_row_grouping_fields(row: pd.Series) -> tuple[str, str, bool, str]:
     if channel == "KAKAO":
         kakao_group_candidates = [v for v in [campaign, term] if is_kakao_message_group_candidate(v)]
         year, mmdd, has_group = extract_group_year_mmdd(*kakao_group_candidates, fallback_date=raw_date)
+    elif channel == "LMS":
+        forced_mmdd = resolve_lms_group_override(campaign, term, send_id, title)
+        if forced_mmdd:
+            year = raw_date[:4] if len(raw_date) >= 4 else ""
+            mmdd = forced_mmdd
+            has_group = True
+        else:
+            year, mmdd, has_group = extract_group_year_mmdd(*candidates, fallback_date=raw_date)
     else:
         year, mmdd, has_group = extract_group_year_mmdd(*candidates, fallback_date=raw_date)
 
@@ -203,11 +231,15 @@ def is_countable_send_row(row: pd.Series) -> bool:
     channel = str(row.get("channel", "") or "").strip().upper()
     if channel != "KAKAO":
         return True
-    campaign = str(row.get("campaign", "") or "").strip().upper()
-    term = str(row.get("term", "") or "").strip().upper()
+    campaign = clean_text(row.get("campaign", "")).upper()
+    term = clean_text(row.get("term", "")).upper()
 
-    # KAKAO send count / MMDD grouping only includes rows where campaign or
-    # term contains KAKAO_CH_MESSAGE_<date>. Menu campaigns must never count.
+    # KAKAO send count는 campaign/term 둘 중 하나라도 실제 MESSAGE 패턴이 있어야만 인정.
+    # campaign/term 이 비었거나 generic placeholder 인 경우는 절대 count 하지 않음.
+    if not campaign and not term:
+        return False
+    if campaign in {"(NOT_SET)", "-"} and term in {"", "-", "(NOT_SET)"}:
+        return False
     if is_kakao_menu_value(campaign) or is_kakao_menu_value(term):
         return False
     return is_kakao_message_group_candidate(campaign) or is_kakao_message_group_candidate(term)
@@ -228,7 +260,7 @@ def apply_send_group_metrics(camp: pd.DataFrame) -> pd.DataFrame:
     valid_mask = (
         camp["has_group_mmdd"].astype(bool)
         & camp["year"].astype(str).str.fullmatch(r"\d{4}")
-        & camp["mmdd"].astype(str).str.fullmatch(r"\d{4}")
+        & camp["mmdd"].astype(str).str.fullmatch(r"\d{4}(?:_\d+)?")
         & camp.apply(is_countable_send_row, axis=1)
     )
 
