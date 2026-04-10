@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import glob
 import json
+import os
 import re
 from pathlib import Path
 from datetime import datetime, timezone, timedelta, date
@@ -12,8 +13,18 @@ from typing import Any, Dict, Optional, List, Tuple
 
 import pandas as pd
 
+try:
+    import pyodbc  # type: ignore
+except Exception:
+    pyodbc = None
+
+try:
+    from google.cloud import bigquery  # type: ignore
+except Exception:
+    bigquery = None
+
 KST = timezone(timedelta(hours=9))
-KPI_LOGIC_VERSION = "2026-04-08-kpi-direct-total-v2"
+KPI_LOGIC_VERSION = "2026-04-10-admin-bigquery-v1"
 
 
 def now_kst() -> datetime:
@@ -732,11 +743,288 @@ def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
     return built
 
 
+
+ADMIN_BQ_ENABLE = os.getenv("SUMMARY_USE_ADMIN_BQ", "true").strip().lower() in {"1", "true", "yes", "y"}
+ADMIN_BQ_PROJECT = os.getenv("SUMMARY_BQ_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "")).strip()
+ADMIN_BQ_LOCATION = os.getenv("SUMMARY_BQ_LOCATION", "asia-northeast3").strip()
+ADMIN_BQ_DAILY_TABLE = os.getenv("SUMMARY_ADMIN_DAILY_TABLE", "").strip()
+ADMIN_BQ_ORDER_TABLE = os.getenv("SUMMARY_BQ_ORDER_TABLE", "").strip()
+ADMIN_BQ_TRAFFIC_TABLE = os.getenv("SUMMARY_BQ_TRAFFIC_TABLE", "").strip()
+ADMIN_BQ_MEMBER_TABLE = os.getenv("SUMMARY_BQ_MEMBER_TABLE", "").strip()
+
+if not ADMIN_BQ_ORDER_TABLE and ADMIN_BQ_PROJECT:
+    ADMIN_BQ_ORDER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_order"
+if not ADMIN_BQ_TRAFFIC_TABLE and ADMIN_BQ_PROJECT:
+    ADMIN_BQ_TRAFFIC_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_statistics_google"
+if not ADMIN_BQ_MEMBER_TABLE and ADMIN_BQ_PROJECT:
+    ADMIN_BQ_MEMBER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_member"
+
+
+def _admin_ready() -> bool:
+    if not ADMIN_BQ_ENABLE or bigquery is None:
+        return False
+    if not ADMIN_BQ_PROJECT:
+        return False
+    if ADMIN_BQ_DAILY_TABLE:
+        return True
+    return bool(ADMIN_BQ_ORDER_TABLE and ADMIN_BQ_TRAFFIC_TABLE and ADMIN_BQ_MEMBER_TABLE)
+
+
+def _admin_get_client():
+    if bigquery is None:
+        raise RuntimeError("google-cloud-bigquery is not installed")
+    return bigquery.Client(project=ADMIN_BQ_PROJECT, location=ADMIN_BQ_LOCATION)
+
+
+def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame(columns=["report_date", "sessions", "pv", "signups", "orders", "revenue", "cvr"])
+    out = df.copy()
+    out.columns = [str(c).strip() for c in out.columns]
+    if "report_date" not in out.columns:
+        if "date" in out.columns:
+            out = out.rename(columns={"date": "report_date"})
+        elif "StatisticsDate" in out.columns:
+            out = out.rename(columns={"StatisticsDate": "report_date"})
+    out["report_date"] = pd.to_datetime(out["report_date"], errors="coerce").dt.date
+    for col in ("sessions", "pv", "signups", "orders", "revenue", "total_price", "coupon_used", "point_used", "cancel_amount"):
+        if col not in out.columns:
+            out[col] = 0
+        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0)
+    if "cvr" in out.columns:
+        out["cvr"] = pd.to_numeric(out["cvr"], errors="coerce")
+    else:
+        out["cvr"] = out.apply(lambda r: (float(r["orders"]) / float(r["sessions"])) if float(r["sessions"]) > 0 else 0.0, axis=1)
+    out = out.dropna(subset=["report_date"]).sort_values("report_date").reset_index(drop=True)
+    return out
+
+
+def _fetch_admin_daily_frame(start_date: date, end_date: date) -> Optional[pd.DataFrame]:
+    if not _admin_ready():
+        return None
+    try:
+        client = _admin_get_client()
+        if ADMIN_BQ_DAILY_TABLE:
+            sql = f"""
+                SELECT
+                  CAST(report_date AS DATE) AS report_date,
+                  SAFE_CAST(sessions AS INT64) AS sessions,
+                  SAFE_CAST(pv AS INT64) AS pv,
+                  SAFE_CAST(signups AS INT64) AS signups,
+                  SAFE_CAST(orders AS INT64) AS orders,
+                  SAFE_CAST(revenue AS FLOAT64) AS revenue,
+                  SAFE_CAST(total_price AS FLOAT64) AS total_price,
+                  SAFE_CAST(coupon_used AS FLOAT64) AS coupon_used,
+                  SAFE_CAST(point_used AS FLOAT64) AS point_used,
+                  SAFE_CAST(cancel_amount AS FLOAT64) AS cancel_amount,
+                  SAFE_CAST(cvr AS FLOAT64) AS cvr
+                FROM `{ADMIN_BQ_DAILY_TABLE}`
+                WHERE CAST(report_date AS DATE) BETWEEN @start_date AND @end_date
+                ORDER BY report_date
+            """
+            job = client.query(
+                sql,
+                job_config=bigquery.QueryJobConfig(
+                    query_parameters=[
+                        bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
+                        bigquery.ScalarQueryParameter("end_date", "DATE", end_date.isoformat()),
+                    ]
+                ),
+                location=ADMIN_BQ_LOCATION,
+            )
+            return _admin_standardize_df(job.result().to_dataframe())
+
+        sql = f"""
+            WITH traffic AS (
+              SELECT
+                CAST(StatisticsDate AS DATE) AS report_date,
+                SUM(COALESCE(CAST(StatisticsPV AS INT64), 0)) AS pv,
+                SUM(COALESCE(CAST(StatisticsSessions AS INT64), 0)) AS sessions
+              FROM `{ADMIN_BQ_TRAFFIC_TABLE}`
+              WHERE CAST(StatisticsDate AS DATE) BETWEEN @start_date AND @end_date
+              GROUP BY 1
+            ),
+            signups AS (
+              SELECT
+                CAST(MemberRegdate AS DATE) AS report_date,
+                COUNT(1) AS signups
+              FROM `{ADMIN_BQ_MEMBER_TABLE}`
+              WHERE CAST(MemberRegdate AS DATE) BETWEEN @start_date AND @end_date
+              GROUP BY 1
+            ),
+            orders AS (
+              SELECT
+                CAST(OrderRegdate AS DATE) AS report_date,
+                COUNT(DISTINCT OrderNo) AS orders,
+                SUM(COALESCE(CAST(OrderTotalPay AS INT64), 0)) AS revenue,
+                SUM(COALESCE(CAST(OrderTotalPrice AS INT64), 0)) AS total_price,
+                SUM(COALESCE(CAST(OrderUseCouponPrice AS INT64), 0)) AS coupon_used,
+                SUM(COALESCE(CAST(OrderUsePoint AS INT64), 0)) AS point_used,
+                SUM(COALESCE(CAST(OrderCancelPrice AS INT64), 0)) AS cancel_amount
+              FROM `{ADMIN_BQ_ORDER_TABLE}`
+              WHERE CAST(OrderRegdate AS DATE) BETWEEN @start_date AND @end_date
+              GROUP BY 1
+            )
+            SELECT
+              COALESCE(t.report_date, s.report_date, o.report_date) AS report_date,
+              COALESCE(t.sessions, 0) AS sessions,
+              COALESCE(t.pv, 0) AS pv,
+              COALESCE(s.signups, 0) AS signups,
+              COALESCE(o.orders, 0) AS orders,
+              COALESCE(o.revenue, 0) AS revenue,
+              COALESCE(o.total_price, 0) AS total_price,
+              COALESCE(o.coupon_used, 0) AS coupon_used,
+              COALESCE(o.point_used, 0) AS point_used,
+              COALESCE(o.cancel_amount, 0) AS cancel_amount,
+              SAFE_DIVIDE(COALESCE(o.orders, 0), NULLIF(COALESCE(t.sessions, 0), 0)) AS cvr
+            FROM traffic t
+            FULL OUTER JOIN signups s ON t.report_date = s.report_date
+            FULL OUTER JOIN orders o ON COALESCE(t.report_date, s.report_date) = o.report_date
+            ORDER BY report_date
+        """
+        job = client.query(
+            sql,
+            job_config=bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
+                    bigquery.ScalarQueryParameter("end_date", "DATE", end_date.isoformat()),
+                ]
+            ),
+            location=ADMIN_BQ_LOCATION,
+        )
+        return _admin_standardize_df(job.result().to_dataframe())
+    except Exception:
+        return None
+
+
+def _admin_daily_snapshot(target_date: date) -> Optional[Dict[str, Any]]:
+    df = _fetch_admin_daily_frame(target_date, target_date)
+    if df is None or df.empty:
+        return None
+    row = df.iloc[-1]
+    return {
+        "date": ymd(target_date),
+        "sessions": _safe_int(row.get("sessions")),
+        "orders": _safe_int(row.get("orders")),
+        "revenue": _safe_float(row.get("revenue")),
+        "cvr": _safe_float(row.get("cvr")),
+        "signups": _safe_int(row.get("signups")),
+        "pv": _safe_int(row.get("pv")),
+        "source": "bigquery_admin_daily",
+        "updated": now_kst_label(),
+        "logic_version": KPI_LOGIC_VERSION,
+    }
+
+
+def _build_daily_kpi_from_admin(reports_dir: Path) -> Optional[Dict[str, Any]]:
+    target_date = kst_yesterday()
+    cur = _admin_daily_snapshot(target_date)
+    if not cur:
+        return None
+    wow = _admin_daily_snapshot(target_date - timedelta(days=7)) or {}
+    yoy = _admin_daily_snapshot(target_date - timedelta(days=364)) or {}
+    return {
+        "date": cur.get("date"),
+        "sessions": cur.get("sessions"),
+        "orders": cur.get("orders"),
+        "revenue": cur.get("revenue"),
+        "cvr": cur.get("cvr"),
+        "signups": cur.get("signups"),
+        "pv": cur.get("pv"),
+        "wow": {
+            "sessions": _ratio(cur.get("sessions"), wow.get("sessions")),
+            "orders": _ratio(cur.get("orders"), wow.get("orders")),
+            "revenue": _ratio(cur.get("revenue"), wow.get("revenue")),
+            "signups": _ratio(cur.get("signups"), wow.get("signups")),
+            "cvr_pp": _pp(cur.get("cvr"), wow.get("cvr")),
+        },
+        "yoy": {
+            "sessions": _ratio(cur.get("sessions"), yoy.get("sessions")),
+            "orders": _ratio(cur.get("orders"), yoy.get("orders")),
+            "revenue": _ratio(cur.get("revenue"), yoy.get("revenue")),
+            "signups": _ratio(cur.get("signups"), yoy.get("signups")),
+            "cvr_pp": _pp(cur.get("cvr"), yoy.get("cvr")),
+        },
+        "updated": now_kst_label(),
+        "source": "bigquery_admin_daily",
+        "logic_version": KPI_LOGIC_VERSION,
+    }
+
+
+def _sum_admin_frame(df: pd.DataFrame, start_d: date, end_d: date) -> Dict[str, Any]:
+    sessions = float(df["sessions"].sum()) if (df is not None and not df.empty) else 0.0
+    orders = float(df["orders"].sum()) if (df is not None and not df.empty) else 0.0
+    revenue = float(df["revenue"].sum()) if (df is not None and not df.empty) else 0.0
+    signups = float(df["signups"].sum()) if (df is not None and not df.empty) else 0.0
+    pv = float(df["pv"].sum()) if (df is not None and not df.empty) else 0.0
+    cvr = (orders / sessions) if sessions > 0 else 0.0
+    return {
+        "start": ymd(start_d),
+        "end": ymd(end_d),
+        "sessions": int(round(sessions)),
+        "orders": int(round(orders)),
+        "revenue": revenue,
+        "cvr": cvr,
+        "signups": int(round(signups)),
+        "pv": int(round(pv)),
+    }
+
+
+def _build_weekly_kpi_from_admin(reports_dir: Path) -> Optional[Dict[str, Any]]:
+    end_d = kst_yesterday()
+    start_d = end_d - timedelta(days=6)
+    prev_end = end_d - timedelta(days=7)
+    prev_start = prev_end - timedelta(days=6)
+    yoy_end = end_d - timedelta(days=364)
+    yoy_start = yoy_end - timedelta(days=6)
+    df = _fetch_admin_daily_frame(yoy_start, end_d)
+    if df is None:
+        return None
+    cur_df = df[(df["report_date"] >= start_d) & (df["report_date"] <= end_d)]
+    prev_df = df[(df["report_date"] >= prev_start) & (df["report_date"] <= prev_end)]
+    yoy_df = df[(df["report_date"] >= yoy_start) & (df["report_date"] <= yoy_end)]
+    cur = _sum_admin_frame(cur_df, start_d, end_d)
+    prev = _sum_admin_frame(prev_df, prev_start, prev_end)
+    yoy = _sum_admin_frame(yoy_df, yoy_start, yoy_end)
+    return {
+        "start": cur["start"],
+        "end": cur["end"],
+        "sessions": cur.get("sessions"),
+        "orders": cur.get("orders"),
+        "revenue": cur.get("revenue"),
+        "cvr": cur.get("cvr"),
+        "signups": cur.get("signups"),
+        "pv": cur.get("pv"),
+        "wow": {
+            "sessions": _ratio(cur.get("sessions"), prev.get("sessions")),
+            "orders": _ratio(cur.get("orders"), prev.get("orders")),
+            "revenue": _ratio(cur.get("revenue"), prev.get("revenue")),
+            "signups": _ratio(cur.get("signups"), prev.get("signups")),
+            "cvr_pp": _pp(cur.get("cvr"), prev.get("cvr")),
+        },
+        "yoy": {
+            "sessions": _ratio(cur.get("sessions"), yoy.get("sessions")),
+            "orders": _ratio(cur.get("orders"), yoy.get("orders")),
+            "revenue": _ratio(cur.get("revenue"), yoy.get("revenue")),
+            "signups": _ratio(cur.get("signups"), yoy.get("signups")),
+            "cvr_pp": _pp(cur.get("cvr"), yoy.get("cvr")),
+        },
+        "updated": now_kst_label(),
+        "source": "bigquery_admin_weekly",
+        "logic_version": KPI_LOGIC_VERSION,
+    }
+
 def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
+    admin = _build_daily_kpi_from_admin(reports_dir)
+    if admin:
+        return admin
     return _ensure_daily_kpi_json(reports_dir)
 
 
 def build_weekly_kpis(reports_dir: Path) -> Dict[str, Any]:
+    admin = _build_weekly_kpi_from_admin(reports_dir)
+    if admin:
+        return admin
     return _ensure_weekly_kpi_json(reports_dir)
 
 
@@ -1247,6 +1535,22 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
 
 
 def build_daily_trend_series(reports_dir: Path, limit: int = 800) -> List[Dict[str, Any]]:
+    if _admin_ready():
+        end_d = kst_yesterday()
+        start_d = end_d - timedelta(days=max(limit - 1, 0))
+        df = _fetch_admin_daily_frame(start_d, end_d)
+        if df is not None and not df.empty:
+            out: List[Dict[str, Any]] = []
+            for _, row in df.sort_values("report_date").iterrows():
+                out.append({
+                    "date": ymd(row["report_date"]),
+                    "sessions": float(_safe_float(row.get("sessions")) or 0.0),
+                    "orders": float(_safe_float(row.get("orders")) or 0.0),
+                    "revenue": float(_safe_float(row.get("revenue")) or 0.0),
+                    "cvr": float(_safe_float(row.get("cvr")) or 0.0),
+                    "signups": float(_safe_float(row.get("signups")) or 0.0),
+                })
+            return out[-limit:]
 
     files = list((reports_dir / "daily_digest" / "data" / "daily").glob("*.json"))
     files = [p for p in files if re.match(r"^\d{4}-\d{2}-\d{2}\.json$", p.name)]
