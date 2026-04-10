@@ -1593,25 +1593,83 @@ def _position_y_to_num(avg_price: Optional[float]) -> float:
 
 
 
+def resolve_item_category_value(name: str, description: str, item_category: str = "", source_category: str = "", source_category_url: str = "") -> str:
+    original_item = safe_text(item_category) or "기타"
+    inferred_item = infer_item_category(name or "", description or "", source_category or "")
+    source_item = normalize_source_category(source_category or "") or normalize_source_category(source_category_url or "")
+
+    for candidate in [inferred_item, source_item, original_item]:
+        candidate = safe_text(candidate)
+        if candidate and candidate != "기타":
+            return candidate
+    return "기타"
+
+
+def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df.copy() if isinstance(df, pd.DataFrame) else pd.DataFrame()
+
+    out = df.copy()
+    resolved = []
+    recat_source = []
+    for _, r in out.iterrows():
+        original_item = safe_text(r.get("item_category", "") or "") or "기타"
+        inferred_item = infer_item_category(
+            str(r.get("name", "") or ""),
+            str(r.get("description", "") or ""),
+            str(r.get("source_category", "") or ""),
+        )
+        source_item = normalize_source_category(str(r.get("source_category", "") or "")) or normalize_source_category(str(r.get("source_category_url", "") or ""))
+        final_item = resolve_item_category_value(
+            str(r.get("name", "") or ""),
+            str(r.get("description", "") or ""),
+            original_item,
+            str(r.get("source_category", "") or ""),
+            str(r.get("source_category_url", "") or ""),
+        )
+        resolved.append(final_item)
+        if final_item != original_item:
+            if inferred_item and inferred_item != "기타":
+                recat_source.append("ITEM RULE")
+            elif source_item and source_item != "":
+                recat_source.append("CRAWLED CATEGORY")
+            else:
+                recat_source.append("FALLBACK")
+        else:
+            recat_source.append("ORIGINAL")
+
+    out["item_category"] = resolved
+    out["item_category_resolved"] = resolved
+    out["item_recat_source"] = recat_source
+    return out
+
+
 def build_other_debug(df: pd.DataFrame) -> List[dict]:
     if df.empty:
         return []
     rows = []
     for _, r in df.iterrows():
-        original_item = str(r.get("item_category", "") or "")
-        promoted_item = infer_item_category(
+        original_item = safe_text(r.get("item_category", "") or "") or "기타"
+        inferred_item = infer_item_category(
             str(r.get("name", "") or ""),
             str(r.get("description", "") or ""),
             str(r.get("source_category", "") or ""),
         )
+        source_item = normalize_source_category(str(r.get("source_category", "") or "")) or normalize_source_category(str(r.get("source_category_url", "") or ""))
+        final_item = resolve_item_category_value(
+            str(r.get("name", "") or ""),
+            str(r.get("description", "") or ""),
+            original_item,
+            str(r.get("source_category", "") or ""),
+            str(r.get("source_category_url", "") or ""),
+        )
         dominant = str(r.get("dominant_attribute", "") or "")
-        final_item = promoted_item if promoted_item != "기타" else original_item
 
         reasons = []
         if final_item == "기타":
-            reasons.append("item rule miss")
+            reasons.append("item unresolved")
         if dominant == "기타":
-            reasons.append("attribute rule miss")
+            reasons.append("attribute unresolved")
         if not reasons:
             continue
 
@@ -1624,6 +1682,11 @@ def build_other_debug(df: pd.DataFrame) -> List[dict]:
             "brand": r.get("brand", ""),
             "gender": gender or "공용",
             "name": name,
+            "original_item": original_item,
+            "source_category": str(r.get("source_category", "") or ""),
+            "source_category_url": str(r.get("source_category_url", "") or ""),
+            "item_rule": inferred_item,
+            "crawler_item": source_item or "기타",
             "item": final_item,
             "dominant_attribute": dominant,
             "reason": ", ".join(reasons),
@@ -1714,7 +1777,7 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
     if df.empty:
         return {
             "generated_at": TODAY_STR,
-            "kpis": {"brands": 0, "products": 0, "sale_products": 0, "avg_price": 0, "others_ratio": 0},
+            "kpis": {"brands": 0, "products": 0, "sale_products": 0, "avg_price": 0, "others_ratio": 0, "reclassified_count": 0},
             "brand_summary": [],
             "products": [],
             "charts": {},
@@ -1722,7 +1785,11 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "price_band_gender_table": [],
             "attribute_gender_table": [],
             "item_style_table": [],
+            "other_debug": [],
         }
+
+    df = apply_item_reclassification(df)
+    brand_summary = build_brand_summary(df)
 
     charts = {
         "brandProductCounts": {
@@ -1784,6 +1851,7 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "sale_products": int(df["discount_rate"].fillna(0).gt(0).sum()),
             "avg_price": int(df["current_price"].dropna().mean()) if df["current_price"].notna().any() else 0,
             "others_ratio": others_ratio,
+            "reclassified_count": int((df["item_recat_source"].fillna("ORIGINAL") != "ORIGINAL").sum()) if "item_recat_source" in df.columns else 0,
         },
         "brand_summary": brand_summary.to_dict("records"),
         "products": df.sort_values(["brand", "gender", "current_price"], ascending=[True, True, False]).fillna("").to_dict("records"),
@@ -1808,7 +1876,7 @@ def render_dashboard(payload: dict) -> str:
     data_json = json.dumps(json_safe(payload), ensure_ascii=False)
     generated_at = html.escape(payload.get("generated_at", ""))
 
-    template = """<!DOCTYPE html>
+    template = r"""<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -1817,154 +1885,179 @@ def render_dashboard(payload: dict) -> str:
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body{background:linear-gradient(180deg,#f8fafc 0%,#eef4ff 100%);color:#0f172a}
-    .glass-card{background:rgba(255,255,255,.78);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.8);border-radius:28px;box-shadow:0 18px 48px rgba(15,23,42,.07)}
-    .chart-box{height:280px;position:relative}.chart-box.tall{height:280px}.chart-box canvas{width:100%!important;height:100%!important}
-    .tag{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800}
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
+    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+    html, body { height:100%; overflow:auto; margin:0; }
+    body {
+      background: linear-gradient(180deg, var(--bg0), var(--bg1));
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color:#0f172a;
+      min-height:100vh;
+      margin:0;
+    }
+    .glass {
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(15,23,42,.08);
+      box-shadow: 0 10px 30px rgba(2,6,23,.08);
+      backdrop-filter: blur(10px);
+    }
+    .glass-strong {
+      background: linear-gradient(135deg, rgba(255,255,255,.88), rgba(255,255,255,.72));
+      border: 1px solid rgba(148,163,184,.18);
+      box-shadow: 0 18px 40px rgba(15,23,42,.08);
+      backdrop-filter: blur(14px);
+    }
+    .metric-card { min-height: 150px; }
     .tab-btn{border-radius:999px;padding:8px 14px;font-size:12px;font-weight:900;background:rgba(255,255,255,.85);color:#64748b;border:1px solid rgba(148,163,184,.18)}
-    .tab-btn.active{background:#0f172a;color:#fff}
+    .tab-btn.active{background:#0f172a;color:#fff;border-color:#0f172a}
+    .tag{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800}
+    .chart-box{height:320px;position:relative}
+    .chart-box canvas{width:100%!important;height:100%!important}
     .table-wrap::-webkit-scrollbar{height:8px;width:8px}.table-wrap::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
+    .table-head th{position:sticky;top:0;background:rgba(248,250,252,.94);backdrop-filter:blur(8px);z-index:1;}
   </style>
 </head>
-<body class="text-slate-900">
-  <div class="mx-auto max-w-[1800px] px-5 py-6 lg:px-8">
-    <div class="glass-card p-6 lg:p-8">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+<body class="w-full">
+  <div class="w-full px-0">
+    <div class="glass rounded-none p-5 md:p-7 w-full">
+      <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <div class="text-[11px] font-extrabold tracking-[0.24em] text-slate-500 uppercase">Competitor Outdoor Intelligence</div>
-          <h1 class="mt-2 text-3xl font-black tracking-[-0.05em] lg:text-5xl">컬럼비아 vs 디스커버리 상품 분석</h1>
-          <div class="mt-3 max-w-4xl text-sm font-bold leading-6 text-slate-600">기타 비중을 줄이고, 남녀/가격대/아이템/속성을 보기 쉽게 정리했습니다.</div>
+          <div class="text-xs text-slate-500 font-extrabold tracking-wide">COMPETITOR PRODUCT INTELLIGENCE</div>
+          <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-[-0.04em]">컬럼비아 vs 디스커버리 상품 분석 대시보드</h1>
+          <div class="mt-2 max-w-5xl text-sm md:text-[15px] font-bold leading-6 text-slate-600">OTHER DEBUG에서 살아 있는 ITEM 신호가 있으면 ITEM STYLE MIX, 상단 KPI, 차트까지 동일 기준으로 다시 반영되도록 패치했습니다. 크롤링 카테고리(source_category / source_category_url)도 최종 아이템 분류에 함께 사용합니다.</div>
         </div>
-        <div class="rounded-3xl bg-slate-900 px-5 py-4 text-white shadow-xl">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-300">GENERATED</div>
+        <div class="glass-strong rounded-3xl px-5 py-4 text-slate-900">
+          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">UPDATED</div>
           <div class="mt-2 text-lg font-black">__GENERATED_AT__</div>
         </div>
       </div>
+
+      <div class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="kpi-grid"></div>
     </div>
 
-    <section class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5" id="kpi-grid"></section>
+    <div class="px-5 py-6 md:px-7 space-y-6">
+      <section class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">SKU</div><div class="mt-2 text-2xl font-black">브랜드별 SKU 수</div><div class="chart-box mt-4"><canvas id="brandCountChart"></canvas></div></div>
+        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE</div><div class="mt-2 text-2xl font-black">브랜드별 평균가</div><div class="chart-box mt-4"><canvas id="avgPriceChart"></canvas></div></div>
+        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">GENDER</div><div class="mt-2 text-2xl font-black">남녀 비중</div><div class="chart-box mt-4"><canvas id="genderSplitChart"></canvas></div></div>
+      </section>
 
-    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-      <div class="glass-card p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">SKU</div><div class="mt-2 text-xl font-black">브랜드별 SKU 수</div><div class="chart-box mt-4"><canvas id="brandCountChart"></canvas></div></div>
-      <div class="glass-card p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE</div><div class="mt-2 text-xl font-black">브랜드별 평균가</div><div class="chart-box mt-4"><canvas id="avgPriceChart"></canvas></div></div>
-      <div class="glass-card p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">GENDER</div><div class="mt-2 text-xl font-black">남녀비중</div><div class="chart-box mt-4"><canvas id="genderSplitChart"></canvas></div></div>
-    </section>
-
-    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-      <div class="glass-card p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE BAND</div>
-        <div class="mt-2 text-xl font-black">가격대 분포</div>
-        <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsA"></div>
-        <div class="chart-box mt-4"><canvas id="priceBandChart"></canvas></div>
-      </div>
-      <div class="glass-card p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ITEM</div>
-        <div class="mt-2 text-xl font-black">아이템 분포</div>
-        <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsB"></div>
-        <div class="chart-box mt-4"><canvas id="categoryChart"></canvas></div>
-      </div>
-      <div class="glass-card p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ATTRIBUTE</div>
-        <div class="mt-2 text-xl font-black">대표 속성 분포</div>
-        <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsC"></div>
-        <div class="chart-box mt-4"><canvas id="dominantAttrChart"></canvas></div>
-      </div>
-    </section>
-
-    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_.65fr]">
-      <div class="glass-card p-5 overflow-hidden">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">COMPARE</div>
-        <div class="mt-2 text-xl font-black">브랜드 비교표</div>
-        <div class="table-wrap mt-4 overflow-x-auto w-full">
-          <table class="min-w-[860px] w-full text-sm">
-            <thead><tr class="border-b border-slate-200 text-slate-500">
-              <th class="py-3 text-left">Brand</th><th class="py-3 text-right">Total</th><th class="py-3 text-right">Active</th><th class="py-3 text-right">Avg Price</th><th class="py-3 text-right">Sale %</th><th class="py-3 text-right">방수</th><th class="py-3 text-right">고어텍스</th><th class="py-3 text-right">다운</th><th class="py-3 text-right">자켓</th><th class="py-3 text-right">팬츠</th><th class="py-3 text-right">슈즈</th>
-            </tr></thead>
-            <tbody id="brandSummaryBody"></tbody>
-          </table>
+      <section class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div class="glass rounded-3xl p-5">
+          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE BAND</div>
+          <div class="mt-2 text-2xl font-black">가격대 분포</div>
+          <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsA"></div>
+          <div class="chart-box mt-4"><canvas id="priceBandChart"></canvas></div>
         </div>
-      </div>
-      <div class="glass-card p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">POSITIONING</div>
-        <div class="mt-2 text-xl font-black">브랜드 포지셔닝</div>
-        <div class="chart-box tall mt-4"><canvas id="positionChart"></canvas></div>
-        <div class="mt-3 text-xs font-bold text-slate-500">→ X축: 라이프스타일에서 퍼포먼스/익스트림으로 갈수록 기능성 강화 / ↑ Y축: 매스에서 프리미엄/럭셔리로 갈수록 가격대 상승</div>
-      </div>
-    </section>
+        <div class="glass rounded-3xl p-5">
+          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ITEM</div>
+          <div class="mt-2 text-2xl font-black">아이템 분포</div>
+          <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsB"></div>
+          <div class="chart-box mt-4"><canvas id="categoryChart"></canvas></div>
+        </div>
+        <div class="glass rounded-3xl p-5">
+          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ATTRIBUTE</div>
+          <div class="mt-2 text-2xl font-black">대표 속성 분포</div>
+          <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsC"></div>
+          <div class="chart-box mt-4"><canvas id="dominantAttrChart"></canvas></div>
+        </div>
+      </section>
 
-    <section class="mt-6 glass-card p-5">
-      <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ITEM STYLE MIX</div>
-      <div class="mt-2 text-xl font-black">브랜드 × 성별 × 아이템별 스타일 수 / 가격대</div>
-      <div class="mt-4 flex flex-wrap gap-2" id="brandItemTabs"></div>
-      <div class="table-wrap mt-4 overflow-x-auto">
-        <table class="min-w-[1400px] w-full text-sm">
-          <thead><tr class="border-b border-slate-200 text-slate-500">
-            <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-left">Item</th><th class="py-3 text-right">Styles</th><th class="py-3 text-right">0-9.9만</th><th class="py-3 text-right">10-19.9만</th><th class="py-3 text-right">20-29.9만</th><th class="py-3 text-right">30-49.9만</th><th class="py-3 text-right">50만+</th><th class="py-3 text-right">Avg Price</th><th class="py-3 text-right">Min Price</th><th class="py-3 text-right">Max Price</th>
-          </tr></thead>
-          <tbody id="itemStyleBody"></tbody>
-        </table>
-      </div>
-    </section>
+      <section class="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_.65fr]">
+        <div class="glass rounded-3xl p-5 overflow-hidden">
+          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">COMPARE</div>
+          <div class="mt-2 text-2xl font-black">브랜드 비교표</div>
+          <div class="table-wrap mt-4 overflow-x-auto w-full">
+            <table class="min-w-[920px] w-full text-sm">
+              <thead class="table-head"><tr class="border-b border-slate-200 text-slate-500">
+                <th class="py-3 text-left">Brand</th><th class="py-3 text-right">Total</th><th class="py-3 text-right">Active</th><th class="py-3 text-right">Avg Price</th><th class="py-3 text-right">Sale %</th><th class="py-3 text-right">방수</th><th class="py-3 text-right">고어텍스</th><th class="py-3 text-right">다운</th><th class="py-3 text-right">자켓</th><th class="py-3 text-right">팬츠</th><th class="py-3 text-right">슈즈</th>
+              </tr></thead>
+              <tbody id="brandSummaryBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="glass rounded-3xl p-5">
+          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">POSITIONING</div>
+          <div class="mt-2 text-2xl font-black">브랜드 포지셔닝</div>
+          <div class="chart-box mt-4"><canvas id="positionChart"></canvas></div>
+          <div class="mt-3 text-xs font-bold text-slate-500">→ X축: 라이프스타일 → 퍼포먼스/익스트림 / ↑ Y축: 매스 → 프리미엄</div>
+        </div>
+      </section>
 
-    <section class="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
-      <div class="glass-card p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE BY GENDER</div>
-        <div class="mt-2 text-xl font-black">브랜드 × 성별 가격대 스타일 수</div>
-        <div class="mt-4 flex flex-wrap gap-2" id="brandPriceTabs"></div>
+      <section class="glass rounded-3xl p-5">
+        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ITEM STYLE MIX</div>
+        <div class="mt-2 text-2xl font-black">브랜드 × 성별 × 아이템별 스타일 수 / 가격대</div>
+        <div class="mt-2 text-sm font-bold text-slate-500">OTHER DEBUG에서 구조화 가능한 ITEM과 크롤링 카테고리 기준을 먼저 반영한 뒤 집계합니다.</div>
+        <div class="mt-4 flex flex-wrap gap-2" id="brandItemTabs"></div>
         <div class="table-wrap mt-4 overflow-x-auto">
-          <table class="min-w-[860px] w-full text-sm">
-            <thead><tr class="border-b border-slate-200 text-slate-500">
-              <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-right">0-9.9만</th><th class="py-3 text-right">10-19.9만</th><th class="py-3 text-right">20-29.9만</th><th class="py-3 text-right">30-49.9만</th><th class="py-3 text-right">50만+</th><th class="py-3 text-right">Total</th>
+          <table class="min-w-[1400px] w-full text-sm">
+            <thead class="table-head"><tr class="border-b border-slate-200 text-slate-500">
+              <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-left">Item</th><th class="py-3 text-right">Styles</th><th class="py-3 text-right">0-9.9만</th><th class="py-3 text-right">10-19.9만</th><th class="py-3 text-right">20-29.9만</th><th class="py-3 text-right">30-49.9만</th><th class="py-3 text-right">50만+</th><th class="py-3 text-right">Avg Price</th><th class="py-3 text-right">Min Price</th><th class="py-3 text-right">Max Price</th>
             </tr></thead>
-            <tbody id="priceBandGenderBody"></tbody>
+            <tbody id="itemStyleBody"></tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <div class="glass-card p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ATTRIBUTE BY GENDER</div>
-        <div class="mt-2 text-xl font-black">브랜드 × 스타일 속성 수</div>
-        <div class="mt-4 flex flex-wrap gap-2" id="brandAttrTabs"></div>
+      <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div class="glass rounded-3xl p-5">
+          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE BY GENDER</div>
+          <div class="mt-2 text-2xl font-black">브랜드 × 성별 가격대 스타일 수</div>
+          <div class="mt-4 flex flex-wrap gap-2" id="brandPriceTabs"></div>
+          <div class="table-wrap mt-4 overflow-x-auto">
+            <table class="min-w-[860px] w-full text-sm">
+              <thead class="table-head"><tr class="border-b border-slate-200 text-slate-500">
+                <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-right">0-9.9만</th><th class="py-3 text-right">10-19.9만</th><th class="py-3 text-right">20-29.9만</th><th class="py-3 text-right">30-49.9만</th><th class="py-3 text-right">50만+</th><th class="py-3 text-right">Total</th>
+              </tr></thead>
+              <tbody id="priceBandGenderBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="glass rounded-3xl p-5">
+          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ATTRIBUTE BY GENDER</div>
+          <div class="mt-2 text-2xl font-black">브랜드 × 스타일 속성 수</div>
+          <div class="mt-4 flex flex-wrap gap-2" id="brandAttrTabs"></div>
+          <div class="table-wrap mt-4 overflow-x-auto">
+            <table class="min-w-[860px] w-full text-sm">
+              <thead class="table-head"><tr class="border-b border-slate-200 text-slate-500">
+                <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-right">2L</th><th class="py-3 text-right">2.5L</th><th class="py-3 text-right">3L</th><th class="py-3 text-right">방수</th><th class="py-3 text-right">방풍</th><th class="py-3 text-right">고어텍스</th><th class="py-3 text-right">다운</th><th class="py-3 text-right">티셔츠</th>
+              </tr></thead>
+              <tbody id="attributeGenderBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass rounded-3xl p-5">
+        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">KEYWORD</div>
+        <div class="mt-2 text-2xl font-black">브랜드별 키워드</div>
+        <div id="keywordGrid" class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2"></div>
+      </section>
+
+      <section class="glass rounded-3xl p-5">
+        <div class="flex items-end justify-between gap-3 flex-wrap">
+          <div><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRODUCT FEED</div><div class="mt-2 text-2xl font-black">상품 카드 피드</div></div>
+          <div id="productCountText" class="text-sm font-bold text-slate-500"></div>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-2" id="productBrandTabs"></div>
+        <div class="mt-2 flex flex-wrap gap-2" id="productCategoryTabs"></div>
+        <div id="productGroupContainer" class="mt-4 space-y-6"></div>
+      </section>
+
+      <section class="glass rounded-3xl p-5">
+        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">OTHER DEBUG</div>
+        <div class="mt-2 text-2xl font-black">기타 디버그</div>
+        <div class="mt-2 text-sm font-bold text-slate-500">끝까지 기타로 남은 항목만 보여줍니다. item rule / crawler category / original item을 같이 확인할 수 있게 확장했습니다.</div>
         <div class="table-wrap mt-4 overflow-x-auto">
-          <table class="min-w-[860px] w-full text-sm">
-            <thead><tr class="border-b border-slate-200 text-slate-500">
-              <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-right">2L</th><th class="py-3 text-right">2.5L</th><th class="py-3 text-right">3L</th><th class="py-3 text-right">방수</th><th class="py-3 text-right">방풍</th><th class="py-3 text-right">고어텍스</th><th class="py-3 text-right">다운</th><th class="py-3 text-right">티셔츠</th>
+          <table class="min-w-[1500px] w-full text-sm">
+            <thead class="table-head"><tr class="border-b border-slate-200 text-slate-500">
+              <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-left">Name</th><th class="py-3 text-left">Original Item</th><th class="py-3 text-left">Item Rule</th><th class="py-3 text-left">Crawler Item</th><th class="py-3 text-left">Final Item</th><th class="py-3 text-left">Dominant Attr</th><th class="py-3 text-left">Reason</th>
             </tr></thead>
-            <tbody id="attributeGenderBody"></tbody>
+            <tbody id="otherDebugBody"></tbody>
           </table>
         </div>
-      </div>
-    </section>
-
-    <section class="mt-6 glass-card p-5">
-      <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">KEYWORD</div>
-      <div class="mt-2 text-xl font-black">브랜드별 키워드</div>
-      <div id="keywordGrid" class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2"></div>
-    </section>
-
-    <section class="mt-6 glass-card p-5">
-      <div class="flex items-end justify-between gap-3 flex-wrap">
-        <div><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRODUCT FEED</div><div class="mt-2 text-xl font-black">상품 카드 피드</div></div>
-        <div id="productCountText" class="text-sm font-bold text-slate-500"></div>
-      </div>
-      <div class="mt-4 flex flex-wrap gap-2" id="productBrandTabs"></div>
-      <div class="mt-2 flex flex-wrap gap-2" id="productCategoryTabs"></div>
-      <div id="productGroupContainer" class="mt-4 space-y-6"></div>
-    </section>
-
-    <section class="mt-6 glass-card p-5">
-      <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">OTHER DEBUG</div>
-      <div class="mt-2 text-xl font-black">기타 디버그</div>
-      <div class="mt-2 text-sm font-bold text-slate-500">자동 분류 후에도 기타로 남는 항목만 표시합니다.</div>
-      <div class="table-wrap mt-4 overflow-x-auto">
-        <table class="min-w-[1200px] w-full text-sm">
-          <thead><tr class="border-b border-slate-200 text-slate-500">
-            <th class="py-3 text-left">Brand</th><th class="py-3 text-left">Gender</th><th class="py-3 text-left">Name</th><th class="py-3 text-left">Item</th><th class="py-3 text-left">Item = Dominant Attr</th><th class="py-3 text-left">Reason</th>
-          </tr></thead>
-          <tbody id="otherDebugBody"></tbody>
-        </table>
-      </div>
-    </section>
+      </section>
+    </div>
   </div>
 
 <script>
@@ -1975,18 +2068,9 @@ let chartRefs = {};
 
 function formatNumber(v){ if(v===null||v===undefined||v==="") return "-"; return new Intl.NumberFormat('ko-KR').format(v); }
 function formatPrice(v){ if(v===null||v===undefined||v==="") return "-"; return formatNumber(v)+"원"; }
-function compactNameJS(name, brand){
-  let t = (name || "").trim();
-  if ((brand || "") === "DISCOVERY") {
-    t = t.replace(/^디스커버리\s*익스페디션\s*[|｜:/-]\s*/i, "");
-    t = t.replace(/^디스커버리\s*익스페디션\s+/i, "");
-    t = t.replace(/^DISCOVERY\s*EXPEDITION\s*[|｜:/-]\s*/i, "");
-    t = t.replace(/^DISCOVERY\s*EXPEDITION\s+/i, "");
-  }
-  return t;
-}
-function inferCategoryJS(name, description, sourceCategory=""){
-  const src = (sourceCategory || "").toLowerCase();
+function compactNameJS(name, brand){ let t=(name||"").trim(); if((brand||"")==="DISCOVERY"){ t=t.replace(/^디스커버리\s*익스페디션\s*[|｜:/-]\s*/i,""); t=t.replace(/^디스커버리\s*익스페디션\s+/i,""); t=t.replace(/^DISCOVERY\s*EXPEDITION\s*[|｜:/-]\s*/i,""); t=t.replace(/^DISCOVERY\s*EXPEDITION\s+/i,""); } return t; }
+function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl="", itemCategory=""){
+  const src=((sourceCategory||"")+" "+(sourceCategoryUrl||"")).toLowerCase();
   if(/자켓|재킷|jacket|windbreaker|shell|outer/.test(src)) return "자켓";
   if(/팬츠|바지|pants|pant/.test(src)) return "팬츠";
   if(/티셔츠|tee|t-shirt|tops|top/.test(src)) return "티셔츠";
@@ -1997,120 +2081,53 @@ function inferCategoryJS(name, description, sourceCategory=""){
   if(/백|가방|bag|backpack|pack/.test(src)) return "백";
   if(/장갑|glove/.test(src)) return "장갑";
   if(/acc|accessory|모자|hat|cap/.test(src)) return "ACC";
-  const blob = ((name || "") + " " + (description || "")).toLowerCase();
-  if (/장갑|glove|mitt/.test(blob)) return "장갑";
-  if (/백팩|backpack|bag|bags|바디백|body bag|bodybag|슬링백|슬링|sling|숄더케이스|shoulder case|케이스/.test(blob)) return "백";
-  if (/부니|모자|cap|hat|accessory/.test(blob)) return "ACC";
-  if (/자켓|재킷|jacket|windbreaker|바람막이|shell|parka|퍼텍스/.test(blob)) return "자켓";
-  if (/pants|pant|바지|팬츠|cargo|조거|슬랙스/.test(blob)) return "팬츠";
-  if (/티셔츠|tee|t-shirt|반팔|긴팔|half zip|half-zip|집업티|iconic tee/.test(blob)) return "티셔츠";
-  if (/후디|후드|hoodie|hood|sweatshirt|맨투맨/.test(blob)) return "후디";
-  if (/플리스|fleece|boa|보아/.test(blob)) return "플리스";
-  if (/down|패딩|덕다운|구스다운|puffer/.test(blob)) return "다운";
-  if (/vest|베스트/.test(blob)) return "베스트";
-  if (/shirt|셔츠/.test(blob)) return "셔츠";
-  if (/샌들|sandals|sandal|슬라이드|slide|슬리퍼|shoe|shoes|boot|boots|등산화|신발|부츠|peakfreak|konos|crestwood/.test(blob)) return "슈즈";
-  return "기타";
+  const blob=((name||"")+" "+(description||"")).toLowerCase();
+  if(/장갑|glove|mitt/.test(blob)) return "장갑";
+  if(/백팩|backpack|bag|bags|바디백|body bag|bodybag|슬링백|슬링|sling|숄더케이스|shoulder case|케이스/.test(blob)) return "백";
+  if(/부니|모자|cap|hat|accessory/.test(blob)) return "ACC";
+  if(/자켓|재킷|jacket|windbreaker|바람막이|shell|parka|퍼텍스/.test(blob)) return "자켓";
+  if(/pants|pant|바지|팬츠|cargo|조거|슬랙스/.test(blob)) return "팬츠";
+  if(/티셔츠|tee|t-shirt|반팔|긴팔|half zip|half-zip|집업티|iconic tee/.test(blob)) return "티셔츠";
+  if(/후디|후드|hoodie|hood|sweatshirt|맨투맨/.test(blob)) return "후디";
+  if(/플리스|fleece|boa|보아/.test(blob)) return "플리스";
+  if(/down|패딩|덕다운|구스다운|puffer/.test(blob)) return "다운";
+  if(/vest|베스트/.test(blob)) return "베스트";
+  if(/shirt|셔츠/.test(blob)) return "셔츠";
+  if(/샌들|sandals|sandal|슬라이드|slide|슬리퍼|shoe|shoes|boot|boots|등산화|신발|부츠|peakfreak|konos|crestwood/.test(blob)) return "슈즈";
+  return (itemCategory && itemCategory!=="기타") ? itemCategory : "기타";
+}
+function normalizeProducts(){
+  return (DATA.products||[]).map(p=>{
+    const resolved = inferCategoryJS(p.name||"", p.description||"", p.source_category||"", p.source_category_url||"", p.item_category||"");
+    return {...p, item_category: resolved, _cat: resolved};
+  });
 }
 function createKpis(){
-  const k = DATA.kpis;
-  const items = [["브랜드 수",k.brands,"크롤링 완료 브랜드"],["총 상품 수",k.products,"현재 분석 SKU"],["세일 상품 수",k.sale_products,"할인 상품"],["평균가",formatPrice(k.avg_price),"현재가 평균"],["기타 비중",(k.others_ratio||0)+"%","낮을수록 좋음"]];
-  document.getElementById("kpi-grid").innerHTML = items.map(([label,value,desc]) => `<div class="glass-card p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">${label}</div><div class="mt-2 text-3xl font-black tracking-[-0.05em]">${value}</div><div class="mt-1 text-xs font-bold text-slate-500">${desc}</div></div>`).join("");
+  const k = DATA.kpis || {};
+  const items = [
+    ["브랜드 수",k.brands,"크롤링 완료 브랜드"],
+    ["총 상품 수",k.products,"현재 분석 SKU"],
+    ["세일 상품 수",k.sale_products,"할인 상품"],
+    ["평균가",formatPrice(k.avg_price),"현재가 평균"],
+    ["기타 비중",(k.others_ratio||0)+"%","낮을수록 좋음"],
+    ["재분류 반영",formatNumber(k.reclassified_count||0)+"건","ITEM RULE + CRAWLER CATEGORY 적용"]
+  ];
+  document.getElementById("kpi-grid").innerHTML = items.map(([label,value,desc]) => `<div class="glass-strong metric-card rounded-3xl p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">${label}</div><div class="mt-3 text-3xl font-black tracking-[-0.05em]">${value}</div><div class="mt-2 text-xs font-bold text-slate-500">${desc}</div></div>`).join("");
 }
-function groupRowspan(rows, brandKey="brand"){
-  const out=[]; let i=0;
-  while(i<rows.length){ const b=rows[i][brandKey]; let j=i; while(j<rows.length && rows[j][brandKey]===b) j++; const span=j-i; for(let k=i;k<j;k++){ const r={...rows[k]}; r._showBrand=(k===i); r._brandRowspan=span; out.push(r);} i=j; }
-  return out;
-}
-function makeTabs(elId, values, stateKey, onChange){
-  const el=document.getElementById(elId); if(!el) return;
-  el.innerHTML=["전체",...values].map(v=>`<button class="tab-btn ${STATE[stateKey]===v?'active':''}" data-val="${v}">${v}</button>`).join("");
-  [...el.querySelectorAll(".tab-btn")].forEach(btn=>btn.onclick=()=>{STATE[stateKey]=btn.dataset.val; makeTabs(elId, values, stateKey, onChange); onChange();});
-}
-function renderBrandSummary(){
-  const rows=DATA.brand_summary||[];
-  document.getElementById('brandSummaryBody').innerHTML = rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 text-right">${formatNumber(r.total_products)}</td><td class="py-3 text-right">${formatNumber(r.active_products)}</td><td class="py-3 text-right">${formatPrice(r.avg_price)}</td><td class="py-3 text-right">${r.sale_share_pct}%</td><td class="py-3 text-right">${formatNumber(r.waterproof_products)}</td><td class="py-3 text-right">${formatNumber(r.goretex_products)}</td><td class="py-3 text-right">${formatNumber(r.down_products)}</td><td class="py-3 text-right">${formatNumber(r.jackets)}</td><td class="py-3 text-right">${formatNumber(r.pants)}</td><td class="py-3 text-right">${formatNumber(r.shoes)}</td></tr>`).join('');
-}
-function renderPriceBandGenderTable(){
-  const allRows=DATA.price_band_gender_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandPriceTabs", brands, "priceBrand", renderPriceBandGenderTable);
-  const rows=STATE.priceBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.priceBrand); const merged=groupRowspan(rows);
-  document.getElementById('priceBandGenderBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td><td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td><td class="py-3 text-right">${formatNumber(r["20-29.9만"])}</td><td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td><td class="py-3 text-right">${formatNumber(r["50만+"])}</td><td class="py-3 text-right font-black">${formatNumber(r.total_styles)}</td></tr>`).join('');
-}
-function renderAttributeGenderTable(){
-  const allRows=DATA.attribute_gender_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandAttrTabs", brands, "attrBrand", renderAttributeGenderTable);
-  const rows=STATE.attrBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.attrBrand); const merged=groupRowspan(rows);
-  document.getElementById('attributeGenderBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3 text-right">${formatNumber(r["2L"])}</td><td class="py-3 text-right">${formatNumber(r["2.5L"])}</td><td class="py-3 text-right">${formatNumber(r["3L"])}</td><td class="py-3 text-right">${formatNumber(r["방수"])}</td><td class="py-3 text-right">${formatNumber(r["방풍"])}</td><td class="py-3 text-right">${formatNumber(r["고어텍스"])}</td><td class="py-3 text-right">${formatNumber(r["다운"])}</td><td class="py-3 text-right">${formatNumber(r["티셔츠"]||0)}</td></tr>`).join('');
-}
-function renderItemStyleTable(){
-  const allRows=DATA.item_style_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandItemTabs", brands, "itemBrand", renderItemStyleTable);
-  const rows=STATE.itemBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.itemBrand); const merged=groupRowspan(rows);
-  document.getElementById('itemStyleBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.item_category}</td><td class="py-3 text-right font-black">${formatNumber(r.style_count)}</td><td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td><td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td><td class="py-3 text-right">${formatNumber(r["20-29.9만"])}</td><td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td><td class="py-3 text-right">${formatNumber(r["50만+"])}</td><td class="py-3 text-right">${formatPrice(r.avg_price)}</td><td class="py-3 text-right">${formatPrice(r.min_price)}</td><td class="py-3 text-right">${formatPrice(r.max_price)}</td></tr>`).join('');
-}
-function renderKeywords(){
-  const grid=document.getElementById('keywordGrid');
-  const blocks=(DATA.keywords||[]).map(b=>({brand:b.brand, items:(b.items||[]).filter(it=>!NOISE_KEYWORDS.has(String(it.keyword||"").toUpperCase()))}));
-  grid.innerHTML=blocks.map(block=>`<div class="rounded-[24px] border border-slate-200 bg-white p-4"><div class="text-lg font-black">${block.brand}</div><div class="mt-3 flex flex-wrap gap-2">${(block.items||[]).map(it=>'<span class="tag bg-slate-900 text-white">'+it.keyword+' - '+it.count+'</span>').join('')}</div></div>`).join('');
-}
-function renderProducts(){
-  const all=(DATA.products||[]).filter(p=>!p.sold_out).map(p=>({...p,_cat:(((p.item_category||"") && (p.item_category||"")!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||"", p.source_category||""))}));
-  const brands=[...new Set(all.map(p=>p.brand))];
-  const brandFiltered=STATE.productBrand==="전체"?all:all.filter(p=>p.brand===STATE.productBrand);
-  const cats=[...new Set(brandFiltered.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))];
-  makeTabs("productBrandTabs", brands, "productBrand", renderProducts);
-  makeTabs("productCategoryTabs", cats, "productCategory", renderProducts);
-  let items=brandFiltered;
-  if(STATE.productCategory!=="전체") items=items.filter(p=>(p._cat===STATE.productCategory));
-  document.getElementById('productCountText').textContent=`품절 제외 ${formatNumber(items.length)}개`;
-  const grouped={};
-  for(const p of items){
-    const brand=p.brand||"UNKNOWN";
-    const cat=(p._cat||"기타");
-    grouped[brand]=grouped[brand]||{}; grouped[brand][cat]=grouped[brand][cat]||[]; grouped[brand][cat].push(p);
-  }
-  const container=document.getElementById("productGroupContainer");
-  container.innerHTML=Object.entries(grouped).map(([brand,catMap])=>`<section><div class="text-2xl font-black tracking-[-0.03em]">${brand}</div><div class="mt-4 space-y-6">${Object.entries(catMap).map(([cat,arr],ci)=>`<div><button class="w-full flex items-center justify-between rounded-2xl bg-white border border-slate-200 px-4 py-3 text-left font-black" onclick="this.nextElementSibling.classList.toggle('hidden')"><span>${cat}</span><span class="text-sm text-slate-500">${arr.length} styles</span></button><div class="hidden mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">${arr.slice(0,120).map(p=>`<article class="product-card rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm"><div class="flex gap-4 items-start"><div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">${p.image_url?'<img src="'+p.image_url+'" alt="'+p.name+'" class="h-full w-full object-cover" loading="lazy" />':'<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}</div><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2"><span class="tag bg-slate-900 text-white">${p.brand}</span><span class="tag bg-indigo-50 text-indigo-700">${cat}</span></div><div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${compactNameJS(p.name,p.brand)}</div><div class="mt-2 text-2xl font-black">${formatPrice(p.current_price)}</div><div class="mt-3 flex flex-wrap gap-2">${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-slate-100 text-slate-700">'+x+'</span>').join('')}</div><div class="mt-4 flex items-center justify-between gap-3">${p.product_url?'<a href="'+p.product_url+'" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>':''}</div></div></div></article>`).join('')}</div></div>`).join('')}</div></section>`).join('');
-}
-function renderOtherDebug(){
-  const rows=(DATA.other_debug||[]).map(r=>({...r, gender:(r.name||"").includes("공용")?"공용":(r.gender||"공용")}));
-  document.getElementById("otherDebugBody").innerHTML=rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.name}</td><td class="py-3">${r.item}</td><td class="py-3">${r.dominant_attribute}</td><td class="py-3">${r.reason}</td></tr>`).join('');
-}
-function baseChart(id,type,labels,values,extra={}){
-  if(chartRefs[id]){ chartRefs[id].destroy(); }
-  const ctx=document.getElementById(id);
-  const horizontal=labels.length>=6 && type==='bar';
-  chartRefs[id] = new Chart(ctx,{type,data:{labels,datasets:[{data:values,borderWidth:2,borderRadius:10,tension:.35}]},options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{autoSkip:false}}}},extra)});
-}
-function renderTopCharts(){
-  const brand = STATE.chartBrand;
-  const df = (DATA.products||[]).map(p=>({...p,item_category:(((p.item_category||"") && (p.item_category||"")!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||"", p.source_category||""))})).filter(p => brand==="전체" ? true : p.brand===brand);
-  const countBy = (arr, key) => {
-    const m = {};
-    arr.forEach(x => { const v = (x[key]||"기타"); if(v==="기타") return; m[v] = (m[v]||0)+1; });
-    return m;
-  };
-  const priceMap = countBy(df.filter(x=>x.price_band), "price_band");
-  const itemMap = countBy(df, "item_category");
-  const attrMap = countBy(df.filter(x=>x.dominant_attribute), "dominant_attribute");
-  baseChart('priceBandChart','bar',Object.keys(priceMap),Object.values(priceMap));
-  baseChart('categoryChart','bar',Object.keys(itemMap),Object.values(itemMap));
-  baseChart('dominantAttrChart','bar',Object.keys(attrMap),Object.values(attrMap));
-}
-function renderCharts(){
-  const c=DATA.charts||{};
-  baseChart('brandCountChart','bar',c.brandProductCounts?.labels||[],c.brandProductCounts?.values||[]);
-  baseChart('avgPriceChart','bar',c.brandAvgPrice?.labels||[],c.brandAvgPrice?.values||[]);
-  baseChart('genderSplitChart','doughnut',c.genderSplit?.labels||[],c.genderSplit?.values||[],{scales:{}});
-  const brands = [...new Set((DATA.products||[]).map(p=>p.brand))];
-  makeTabs("chartBrandTabsA", brands, "chartBrand", renderTopCharts);
-  makeTabs("chartBrandTabsB", brands, "chartBrand", renderTopCharts);
-  makeTabs("chartBrandTabsC", brands, "chartBrand", renderTopCharts);
-  renderTopCharts();
-
-  const pctx=document.getElementById('positionChart');
-  if(chartRefs['positionChart']) chartRefs['positionChart'].destroy();
-  chartRefs['positionChart'] = new Chart(pctx,{type:'bubble',data:{datasets:(c.positioning||[]).map(item=>({label:item.brand,data:[{x:item.x,y:item.y,r:Math.max(8,Math.min(22,item.size/6))}]}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>{const item=c.positioning[ctx.datasetIndex];return `${item.brand} - Avg ${formatPrice(item.avg_price)} - SKU ${item.size}`;}}}},scales:{x:{min:.5,max:3.5,ticks:{stepSize:1,callback:(v)=>({1:'Lifestyle',2:'Performance',3:'Extreme'}[v]||'')}},y:{min:.5,max:3.5,ticks:{stepSize:1,callback:(v)=>({1:'Mass',2:'Premium',3:'Luxury'}[v]||'')}}}}});
-}
-createKpis(); renderBrandSummary(); renderItemStyleTable(); renderPriceBandGenderTable(); renderAttributeGenderTable(); renderKeywords(); renderProducts(); renderOtherDebug(); renderCharts();
+function groupRowspan(rows, brandKey="brand"){ const out=[]; let i=0; while(i<rows.length){ const b=rows[i][brandKey]; let j=i; while(j<rows.length && rows[j][brandKey]===b) j++; const span=j-i; for(let k=i;k<j;k++){ const r={...rows[k]}; r._showBrand=(k===i); r._brandRowspan=span; out.push(r);} i=j; } return out; }
+function makeTabs(elId, values, stateKey, onChange){ const el=document.getElementById(elId); if(!el) return; el.innerHTML=["전체",...values].map(v=>`<button class="tab-btn ${STATE[stateKey]===v?'active':''}" data-val="${v}">${v}</button>`).join(""); [...el.querySelectorAll(".tab-btn")].forEach(btn=>btn.onclick=()=>{STATE[stateKey]=btn.dataset.val; makeTabs(elId, values, stateKey, onChange); onChange();}); }
+function renderBrandSummary(){ const rows=DATA.brand_summary||[]; document.getElementById('brandSummaryBody').innerHTML = rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 text-right">${formatNumber(r.total_products)}</td><td class="py-3 text-right">${formatNumber(r.active_products)}</td><td class="py-3 text-right">${formatPrice(r.avg_price)}</td><td class="py-3 text-right">${r.sale_share_pct}%</td><td class="py-3 text-right">${formatNumber(r.waterproof_products)}</td><td class="py-3 text-right">${formatNumber(r.goretex_products)}</td><td class="py-3 text-right">${formatNumber(r.down_products)}</td><td class="py-3 text-right">${formatNumber(r.jackets)}</td><td class="py-3 text-right">${formatNumber(r.pants)}</td><td class="py-3 text-right">${formatNumber(r.shoes)}</td></tr>`).join(''); }
+function renderPriceBandGenderTable(){ const allRows=DATA.price_band_gender_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandPriceTabs", brands, "priceBrand", renderPriceBandGenderTable); const rows=STATE.priceBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.priceBrand); const merged=groupRowspan(rows); document.getElementById('priceBandGenderBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td><td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td><td class="py-3 text-right">${formatNumber(r["20-29.9만"])}</td><td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td><td class="py-3 text-right">${formatNumber(r["50만+"])}</td><td class="py-3 text-right font-black">${formatNumber(r.total_styles)}</td></tr>`).join(''); }
+function renderAttributeGenderTable(){ const allRows=DATA.attribute_gender_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandAttrTabs", brands, "attrBrand", renderAttributeGenderTable); const rows=STATE.attrBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.attrBrand); const merged=groupRowspan(rows); document.getElementById('attributeGenderBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3 text-right">${formatNumber(r["2L"])}</td><td class="py-3 text-right">${formatNumber(r["2.5L"])}</td><td class="py-3 text-right">${formatNumber(r["3L"])}</td><td class="py-3 text-right">${formatNumber(r["방수"])}</td><td class="py-3 text-right">${formatNumber(r["방풍"])}</td><td class="py-3 text-right">${formatNumber(r["고어텍스"])}</td><td class="py-3 text-right">${formatNumber(r["다운"])}</td><td class="py-3 text-right">${formatNumber(r["티셔츠"]||0)}</td></tr>`).join(''); }
+function renderItemStyleTable(){ const allRows=DATA.item_style_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandItemTabs", brands, "itemBrand", renderItemStyleTable); const rows=STATE.itemBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.itemBrand); const merged=groupRowspan(rows); document.getElementById('itemStyleBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.item_category}</td><td class="py-3 text-right font-black">${formatNumber(r.style_count)}</td><td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td><td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td><td class="py-3 text-right">${formatNumber(r["20-29.9만"])}</td><td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td><td class="py-3 text-right">${formatNumber(r["50만+"])}</td><td class="py-3 text-right">${formatPrice(r.avg_price)}</td><td class="py-3 text-right">${formatPrice(r.min_price)}</td><td class="py-3 text-right">${formatPrice(r.max_price)}</td></tr>`).join(''); }
+function renderKeywords(){ const grid=document.getElementById('keywordGrid'); const blocks=(DATA.keywords||[]).map(b=>({brand:b.brand, items:(b.items||[]).filter(it=>!NOISE_KEYWORDS.has(String(it.keyword||"").toUpperCase()))})); grid.innerHTML=blocks.map(block=>`<div class="glass-strong rounded-3xl p-4"><div class="text-lg font-black">${block.brand}</div><div class="mt-3 flex flex-wrap gap-2">${(block.items||[]).map(it=>'<span class="tag bg-slate-900 text-white">'+it.keyword+' · '+it.count+'</span>').join('')}</div></div>`).join(''); }
+function renderProducts(){ const all=normalizeProducts().filter(p=>!p.sold_out); const brands=[...new Set(all.map(p=>p.brand))]; const brandFiltered=STATE.productBrand==="전체"?all:all.filter(p=>p.brand===STATE.productBrand); const cats=[...new Set(brandFiltered.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))]; makeTabs("productBrandTabs", brands, "productBrand", renderProducts); makeTabs("productCategoryTabs", cats, "productCategory", renderProducts); let items=brandFiltered; if(STATE.productCategory!=="전체") items=items.filter(p=>(p._cat===STATE.productCategory)); document.getElementById('productCountText').textContent=`품절 제외 ${formatNumber(items.length)}개`; const grouped={}; for(const p of items){ const brand=p.brand||"UNKNOWN"; const cat=(p._cat||"기타"); grouped[brand]=grouped[brand]||{}; grouped[brand][cat]=grouped[brand][cat]||[]; grouped[brand][cat].push(p); } const container=document.getElementById("productGroupContainer"); container.innerHTML=Object.entries(grouped).map(([brand,catMap])=>`<section><div class="text-2xl font-black tracking-[-0.03em]">${brand}</div><div class="mt-4 space-y-6">${Object.entries(catMap).map(([cat,arr],ci)=>`<div><button class="w-full flex items-center justify-between rounded-2xl bg-white/90 border border-slate-200 px-4 py-3 text-left font-black" onclick="this.nextElementSibling.classList.toggle('hidden')"><span>${cat}</span><span class="text-sm text-slate-500">${arr.length} styles</span></button><div class="hidden mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">${arr.slice(0,120).map(p=>`<article class="rounded-[24px] border border-slate-200 bg-white/90 p-4 shadow-sm"><div class="flex gap-4 items-start"><div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">${p.image_url?'<img src="'+p.image_url+'" alt="'+p.name+'" class="h-full w-full object-cover" loading="lazy" />':'<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}</div><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2"><span class="tag bg-slate-900 text-white">${p.brand}</span><span class="tag bg-indigo-50 text-indigo-700">${cat}</span></div><div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${compactNameJS(p.name,p.brand)}</div><div class="mt-2 text-2xl font-black">${formatPrice(p.current_price)}</div><div class="mt-3 flex flex-wrap gap-2">${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-slate-100 text-slate-700">'+x+'</span>').join('')}</div><div class="mt-4 flex items-center justify-between gap-3">${p.product_url?'<a href="'+p.product_url+'" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>':''}</div></div></div></article>`).join('')}</div></div>`).join('')}</div></section>`).join(''); }
+function renderOtherDebug(){ const rows=(DATA.other_debug||[]).map(r=>({...r, gender:(r.name||"").includes("공용")?"공용":(r.gender||"공용")})); document.getElementById("otherDebugBody").innerHTML=rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.name}</td><td class="py-3">${r.original_item||'-'}</td><td class="py-3">${r.item_rule||'-'}</td><td class="py-3">${r.crawler_item||'-'}</td><td class="py-3 font-black">${r.item||'-'}</td><td class="py-3">${r.dominant_attribute||'-'}</td><td class="py-3">${r.reason||'-'}</td></tr>`).join(''); }
+function baseChart(id,type,labels,values,extra={}){ if(chartRefs[id]){ chartRefs[id].destroy(); } const ctx=document.getElementById(id); const horizontal=labels.length>=6 && type==='bar'; chartRefs[id] = new Chart(ctx,{type,data:{labels,datasets:[{data:values,borderWidth:2,borderRadius:10,tension:.35}]},options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{autoSkip:false}}}},extra)}); }
+function renderTopCharts(){ const brand = STATE.chartBrand; const df = normalizeProducts().filter(p => brand==="전체" ? true : p.brand===brand); const countBy = (arr, key) => { const m = {}; arr.forEach(x => { const v = (x[key]||"기타"); if(v==="기타") return; m[v] = (m[v]||0)+1; }); return m; }; const priceMap = countBy(df.filter(x=>x.price_band), "price_band"); const itemMap = countBy(df, "item_category"); const attrMap = countBy(df.filter(x=>x.dominant_attribute), "dominant_attribute"); baseChart('priceBandChart','bar',Object.keys(priceMap),Object.values(priceMap)); baseChart('categoryChart','bar',Object.keys(itemMap),Object.values(itemMap)); baseChart('dominantAttrChart','bar',Object.keys(attrMap),Object.values(attrMap)); }
+function renderCharts(){ const c=DATA.charts||{}; baseChart('brandCountChart','bar',c.brandProductCounts?.labels||[],c.brandProductCounts?.values||[]); baseChart('avgPriceChart','bar',c.brandAvgPrice?.labels||[],c.brandAvgPrice?.values||[]); baseChart('genderSplitChart','doughnut',c.genderSplit?.labels||[],c.genderSplit?.values||[],{scales:{}}); const brands = [...new Set((DATA.products||[]).map(p=>p.brand))]; makeTabs("chartBrandTabsA", brands, "chartBrand", renderTopCharts); makeTabs("chartBrandTabsB", brands, "chartBrand", renderTopCharts); makeTabs("chartBrandTabsC", brands, "chartBrand", renderTopCharts); renderTopCharts(); const points = c.positioning || []; if(chartRefs.positionChart){ chartRefs.positionChart.destroy(); } chartRefs.positionChart = new Chart(document.getElementById('positionChart'), { type:'bubble', data:{ datasets: points.map((p,i)=>({ label:p.brand, data:[{x:p.x,y:p.y,r:Math.max(8, Math.min(24, Math.round((p.size||1)/4)))}], avgPrice:p.avg_price })) }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12, font:{weight:'700'} } }, tooltip:{ callbacks:{ label:(ctx)=>{ const raw=ctx.raw||{}; const ds=ctx.dataset||{}; return `${ds.label} · Avg ${formatPrice(ds.avgPrice)} · ${formatNumber(raw.r)} radius`; } } } }, scales:{ x:{ min:0.5, max:3.5, ticks:{ callback:(v)=>({1:'Lifestyle',2:'Performance',3:'Extreme'}[v]||'') } }, y:{ min:0.5, max:3.5, ticks:{ callback:(v)=>({1:'Mass',2:'Premium',3:'Luxury'}[v]||'') } } } } }); }
+function init(){ createKpis(); renderBrandSummary(); renderPriceBandGenderTable(); renderAttributeGenderTable(); renderItemStyleTable(); renderKeywords(); renderProducts(); renderOtherDebug(); renderCharts(); }
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
