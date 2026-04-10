@@ -233,6 +233,22 @@ GENERIC_SEASON_SELECTORS = [
     "[class*='season']",
 ]
 
+GENERIC_BREADCRUMB_SELECTORS = [
+    "nav[aria-label*=breadcrumb i] a",
+    "nav[aria-label*=breadcrumb i] li",
+    "[class*=breadcrumb] a",
+    "[class*=breadcrumb] li",
+    "[class*=breadCrumb] a",
+    "[class*=breadCrumb] li",
+    "[class*=crumb] a",
+    "[class*=crumb] li",
+    "ol.breadcrumb li",
+    "ul.breadcrumb li",
+    ".breadcrumb-item",
+    "[data-breadcrumb] a",
+    "[data-breadcrumb] li",
+]
+
 NOISE_WORDS = {
     "the", "and", "with", "for", "from", "outdoor", "sports", "wear", "new", "best",
     "남성", "여성", "공용", "신상", "기본", "시즌", "정품", "단독", "라인", "기능성",
@@ -333,6 +349,7 @@ class ProductRaw:
     season_text: str
     source_category: str = ""
     source_category_url: str = ""
+    breadcrumb_text: str = ""
     crawled_at: str = ""
 
 
@@ -362,6 +379,7 @@ class ProductAnalyzed:
     attribute_coverage_flag: str = "OK"
     source_category: str = ""
     source_category_url: str = ""
+    breadcrumb_text: str = ""
     crawled_at: str = ""
 
 
@@ -552,6 +570,129 @@ def try_find_attr(driver_or_el, selectors: List[str], attr: str) -> str:
     return ""
 
 
+
+
+def _clean_breadcrumb_parts(parts: List[str]) -> List[str]:
+    cleaned = []
+    seen = set()
+    for raw in parts:
+        t = compact_text(raw)
+        if not t:
+            continue
+        low = t.lower()
+        if low in {"home", "홈", "전체", "all", ">", "/"}:
+            continue
+        if len(t) > 80:
+            continue
+        if low in seen:
+            continue
+        seen.add(low)
+        cleaned.append(t)
+    return cleaned
+
+
+def normalize_breadcrumb_text(text: str) -> str:
+    raw = compact_text(text)
+    if not raw:
+        return ""
+    parts = re.split(r"\s*(?:>|/|›|»|→|::|\\|\||＞)\s*", raw)
+    parts = _clean_breadcrumb_parts(parts)
+    if not parts and raw:
+        parts = _clean_breadcrumb_parts([raw])
+    return " > ".join(parts[:8])
+
+
+def extract_breadcrumb_from_jsonld(html_text: str) -> str:
+    if not html_text:
+        return ""
+    try:
+        soup = BeautifulSoup(html_text, "html.parser")
+        scripts = soup.find_all("script", attrs={"type": re.compile("ld\+json", re.I)})
+        for script in scripts:
+            raw = script.string or script.get_text(" ", strip=True)
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                continue
+            queue = parsed if isinstance(parsed, list) else [parsed]
+            while queue:
+                node = queue.pop(0)
+                if isinstance(node, list):
+                    queue.extend(node)
+                    continue
+                if not isinstance(node, dict):
+                    continue
+                node_type = node.get("@type")
+                node_type = " ".join(node_type) if isinstance(node_type, list) else str(node_type or "")
+                if "BreadcrumbList" in node_type:
+                    items = node.get("itemListElement") or []
+                    names = []
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                        name = item.get("name")
+                        if not name and isinstance(item.get("item"), dict):
+                            name = item.get("item", {}).get("name")
+                        if name:
+                            names.append(str(name))
+                    breadcrumb = normalize_breadcrumb_text(" > ".join(names))
+                    if breadcrumb:
+                        return breadcrumb
+                for v in node.values():
+                    if isinstance(v, (dict, list)):
+                        queue.append(v)
+    except Exception:
+        return ""
+    return ""
+
+
+def extract_breadcrumb_soup(soup: BeautifulSoup) -> str:
+    if soup is None:
+        return ""
+    try:
+        nav = soup.select_one('nav[aria-label*=breadcrumb i]')
+        if nav:
+            parts = [x.get_text(" ", strip=True) for x in nav.select("a, li, span")[:20]]
+            breadcrumb = normalize_breadcrumb_text(" > ".join(parts))
+            if breadcrumb:
+                return breadcrumb
+    except Exception:
+        pass
+    for css in GENERIC_BREADCRUMB_SELECTORS:
+        try:
+            nodes = soup.select(css)
+            if not nodes:
+                continue
+            parts = [n.get_text(" ", strip=True) for n in nodes[:20]]
+            breadcrumb = normalize_breadcrumb_text(" > ".join(parts))
+            if breadcrumb:
+                return breadcrumb
+        except Exception:
+            continue
+    return extract_breadcrumb_from_jsonld(str(soup))
+
+
+def extract_breadcrumb_driver(driver) -> str:
+    try:
+        for css in GENERIC_BREADCRUMB_SELECTORS:
+            elems = driver.find_elements(By.CSS_SELECTOR, css)
+            if not elems:
+                continue
+            parts = [get_text_from_element(el) for el in elems[:20]]
+            breadcrumb = normalize_breadcrumb_text(" > ".join(parts))
+            if breadcrumb:
+                return breadcrumb
+    except Exception:
+        pass
+    try:
+        html_text = driver.page_source
+        if html_text:
+            return extract_breadcrumb_soup(BeautifulSoup(html_text, "html.parser"))
+    except Exception:
+        pass
+    return ""
 
 
 def is_bad_discovery_desc(text: str) -> bool:
@@ -746,60 +887,55 @@ def infer_season(name: str, description: str, raw_season: str) -> str:
 
 
 
+def _contains_any(text: str, keywords: List[str]) -> bool:
+    t = safe_text(text).lower()
+    return any(k.lower() in t for k in keywords if k)
+
+
+def _item_keyword_map() -> Dict[str, List[str]]:
+    return {
+        "자켓": ["자켓", "재킷", "jacket", "windbreaker", "바람막이", "shell", "anorak", "parka", "파카", "breaker", "track top", "트랙탑", "우븐자켓", "방풍자켓"],
+        "팬츠": ["팬츠", "바지", "pants", "pant", "trouser", "slacks", "슬랙스", "cargo", "카고", "jogger", "조거", "shorts", "short", "쇼츠", "반바지", "skort", "스커트", "5 pocket", "5-pocket", "pocket pant", "치노", "chino", "legging", "레깅스"],
+        "플리스": ["플리스", "fleece", "boa", "보아"],
+        "다운": ["다운", "패딩", "down", "duck down", "goose down", "덕다운", "구스다운", "puffer", "insulated jacket", "인슐레이티드"],
+        "베스트": ["베스트", "vest"],
+        "후디": ["후디", "후드", "hoodie", "hood", "sweatshirt", "맨투맨", "sweat"],
+        "티셔츠": ["티셔츠", "tee", "tees", "t-shirt", "t shirt", "반팔", "긴팔", "top", "tops", "jersey", "half zip", "half-zip", "집업티", "zip tee", "zip-tee", "sleeve", "crewneck", "크루넥", "폴로티", "polo shirt"],
+        "셔츠": ["셔츠", "shirt", "overshirt"],
+        "슈즈": ["슈즈", "신발", "shoe", "shoes", "boot", "boots", "sneaker", "sneakers", "trail shoe", "등산화", "부츠", "sandal", "sandals", "샌들", "slide", "slides", "슬리퍼", "outdry"],
+        "장갑": ["장갑", "glove", "gloves", "mitt", "mittens"],
+        "백": ["백", "가방", "bag", "bags", "backpack", "pack", "백팩", "배낭", "duffel", "더플", "tote", "토트", "sling", "슬링", "body bag", "bodybag", "크로스백", "숄더백", "파우치"],
+        "ACC": ["acc", "accessory", "accessories", "모자", "cap", "hat", "beanie", "비니", "bucket", "버킷", "visor", "양말", "sock", "socks", "belt", "벨트", "머플러", "워머", "넥게이터", "헤어밴드"],
+    }
+
+
 def normalize_source_category(text: str) -> str:
     t = safe_text(text).lower()
     if not t:
         return ""
-    if any(x in t for x in ["자켓", "재킷", "jacket", "windbreaker", "shell", "outer"]):
-        return "자켓"
-    if any(x in t for x in ["팬츠", "바지", "pants", "pant", "trouser"]):
-        return "팬츠"
-    if any(x in t for x in ["티셔츠", "tee", "t-shirt", "tops", "top"]):
-        return "티셔츠"
-    if any(x in t for x in ["후디", "후드", "hoodie"]):
-        return "후디"
-    if any(x in t for x in ["플리스", "fleece"]):
-        return "플리스"
-    if any(x in t for x in ["다운", "패딩", "down"]):
-        return "다운"
-    if any(x in t for x in ["슈즈", "신발", "shoe", "shoes", "boot", "boots", "sandal", "sandals"]):
-        return "슈즈"
-    if any(x in t for x in ["백", "가방", "bag", "backpack", "pack"]):
-        return "백"
-    if any(x in t for x in ["장갑", "glove"]):
-        return "장갑"
-    if any(x in t for x in ["acc", "accessory", "모자", "hat", "cap"]):
-        return "ACC"
-    return ""
+    scores: Dict[str, int] = {}
+    for item, keys in _item_keyword_map().items():
+        score = sum(1 for k in keys if k.lower() in t)
+        if score:
+            scores[item] = score
+    if not scores:
+        return ""
+    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+
 
 def infer_item_category(name: str, description: str, source_category: str = "") -> str:
-    blob = f"{name} {description}".lower()
-
-    if any(x in blob for x in ["장갑", "glove", "gloves", "mitt"]):
-        return "장갑"
-    if any(x in blob for x in ["백팩", "backpack", "bag", "bags", "바디백", "body bag", "bodybag", "슬링백", "슬링", "sling", "숄더케이스", "shoulder case", "케이스"]):
-        return "백"
-    if any(x in blob for x in ["부니", "모자", "cap", "hat", "accessory", "accessories"]):
-        return "ACC"
-    if any(x in blob for x in ["샌들", "sandals", "sandal", "슬라이드", "slide", "슬리퍼", "shoe", "shoes", "boot", "boots", "등산화", "신발", "부츠", "outdry"]):
-        return "슈즈"
-    if any(x in blob for x in ["자켓", "재킷", "jacket", "windbreaker", "바람막이", "shell", "parka", "퍼텍스"]):
-        return "자켓"
-    if any(x in blob for x in ["티셔츠", "tee", "t-shirt", "반팔", "긴팔", "half zip", "half-zip", "집업티"]):
-        return "티셔츠"
-    if any(x in blob for x in ["후디", "후드", "hoodie", "hood", "sweatshirt", "맨투맨"]):
-        return "후디"
-    if any(x in blob for x in ["플리스", "fleece", "boa", "보아"]):
-        return "플리스"
-    if any(x in blob for x in ["down", "패딩", "덕다운", "구스다운", "puffer"]):
-        return "다운"
-    if any(x in blob for x in ["vest", "베스트"]):
-        return "베스트"
-    if any(x in blob for x in ["pants", "pant", "바지", "팬츠", "cargo", "조거", "슬랙스"]):
-        return "팬츠"
-    if any(x in blob for x in ["shirt", "셔츠"]):
-        return "셔츠"
-    return "기타"
+    blob = f"{name} {description} {source_category}".lower()
+    scores: Dict[str, int] = {}
+    for item, keys in _item_keyword_map().items():
+        score = 0
+        for k in keys:
+            if k.lower() in blob:
+                score += 3 if k.lower() in safe_text(name).lower() else 1
+        if score:
+            scores[item] = score
+    if not scores:
+        return "기타"
+    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
 
 
 def extract_raw_keywords(name: str, description: str) -> List[str]:
@@ -967,7 +1103,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     std_attrs = map_standard_attributes(raw_keywords, raw.name, raw.description)
     resolved_attrs = resolve_conflicts(std_attrs)
     dominant = select_dominant_attribute(resolved_attrs)
-    inferred_item = infer_item_category(raw.name, raw.description, getattr(raw, 'source_category', ''))
+    inferred_item = infer_item_category(raw.name, raw.description, " ".join([getattr(raw, 'breadcrumb_text', ''), getattr(raw, 'source_category', ''), getattr(raw, 'source_category_url', ''), getattr(raw, 'source_url', ''), getattr(raw, 'product_url', '')]))
     grade = classify_grade(resolved_attrs, dominant)
     shell_type = classify_shell_type(resolved_attrs, raw.name, raw.description)
     price_band = classify_price_band(current_price)
@@ -987,7 +1123,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         sold_out=bool(safe_text(raw.sold_out_text)),
         gender=infer_gender(raw.name, raw.description, raw.gender_text),
         season=infer_season(raw.name, raw.description, raw.season_text),
-        item_category=(inferred_item if inferred_item != '기타' else normalize_source_category(getattr(raw, 'source_category', '')) or inferred_item),
+        item_category=(inferred_item if inferred_item != '기타' else normalize_source_category(getattr(raw, 'breadcrumb_text', '')) or normalize_source_category(getattr(raw, 'source_category', '')) or normalize_source_category(getattr(raw, 'source_category_url', '')) or inferred_item),
         raw_keywords=raw_keywords,
         standard_attributes=resolved_attrs,
         dominant_attribute=dominant,
@@ -997,6 +1133,9 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         positioning_y=pos_y,
         positioning_x=pos_x,
         attribute_coverage_flag="OK",
+        source_category=raw.source_category,
+        source_category_url=raw.source_category_url,
+        breadcrumb_text=getattr(raw, "breadcrumb_text", ""),
         crawled_at=raw.crawled_at,
     )
 
@@ -1252,6 +1391,7 @@ class AutoCompetitorCrawler:
             sold_out_text = bs_first_text(soup, GENERIC_SOLDOUT_SELECTORS)
             gender_text = bs_first_text(soup, GENERIC_GENDER_SELECTORS)
             season_text = bs_first_text(soup, GENERIC_SEASON_SELECTORS)
+            breadcrumb_text = extract_breadcrumb_soup(soup) or normalize_breadcrumb_text(source_url)
 
             if not title and not price_text and not desc:
                 return None
@@ -1261,18 +1401,27 @@ class AutoCompetitorCrawler:
                 if not text_contains_brand(sanity_blob, cfg.brand_terms):
                     return None
 
+            cp, op = select_current_original_price(price_text, original_price_text)
+            final_title = title
+            if cfg.brand == "COLUMBIA":
+                try:
+                    final_title = normalize_columbia_name(title, resp.text)
+                except Exception:
+                    final_title = title
+
             return ProductRaw(
                 brand=cfg.brand,
                 source_url=source_url,
                 product_url=product_url,
                 name=compact_text(final_title),
                 description=compact_text(desc),
-                price_text=compact_text(price_text),
-                original_price_text=compact_text(original_price_text),
+                price_text=str(cp) if cp is not None else compact_text(price_text),
+                original_price_text=str(op) if op is not None else compact_text(original_price_text),
                 image_url=compact_text(image_url),
                 sold_out_text=compact_text(sold_out_text),
                 gender_text=compact_text(gender_text),
                 season_text=compact_text(season_text),
+                breadcrumb_text=compact_text(breadcrumb_text),
                 crawled_at=TODAY_STR,
             )
         except Exception:
@@ -1307,6 +1456,7 @@ class AutoCompetitorCrawler:
             desc_candidates = try_find_all_texts(self.driver, desc_selectors, limit=40)
             desc = clean_product_text(choose_first_good_text(desc_candidates, cfg.brand))
             image_url = try_find_attr(self.driver, image_selectors, "src") or try_find_attr(self.driver, image_selectors, "content")
+            breadcrumb_text = extract_breadcrumb_driver(self.driver) or normalize_breadcrumb_text(source_url)
             sold_out_text = try_find_text(self.driver, GENERIC_SOLDOUT_SELECTORS)
             gender_text = try_find_text(self.driver, GENERIC_GENDER_SELECTORS)
             season_text = try_find_text(self.driver, GENERIC_SEASON_SELECTORS)
@@ -1335,7 +1485,7 @@ class AutoCompetitorCrawler:
                 brand=cfg.brand,
                 source_url=source_url,
                 product_url=product_url,
-                name=compact_text(title),
+                name=compact_text(final_title),
                 description=compact_text(desc),
                 price_text=str(cp) if cp is not None else compact_text(price_text),
                 original_price_text=str(op) if op is not None else compact_text(original_price_text),
@@ -1343,6 +1493,7 @@ class AutoCompetitorCrawler:
                 sold_out_text=compact_text(sold_out_text),
                 gender_text=compact_text(gender_text),
                 season_text=compact_text(season_text),
+                breadcrumb_text=compact_text(breadcrumb_text),
                 crawled_at=TODAY_STR,
             )
 
@@ -1359,6 +1510,7 @@ class AutoCompetitorCrawler:
                 sold_out_text = bs_first_text(soup, GENERIC_SOLDOUT_SELECTORS)
                 gender_text = bs_first_text(soup, GENERIC_GENDER_SELECTORS)
                 season_text = bs_first_text(soup, GENERIC_SEASON_SELECTORS)
+                breadcrumb_text = extract_breadcrumb_soup(soup) or normalize_breadcrumb_text(source_url)
 
                 sanity_blob = f"{title} {desc}"
                 if title or price_text or desc:
@@ -1378,6 +1530,7 @@ class AutoCompetitorCrawler:
                         sold_out_text=compact_text(sold_out_text),
                         gender_text=compact_text(gender_text),
                         season_text=compact_text(season_text),
+                        breadcrumb_text=compact_text(breadcrumb_text),
                         crawled_at=TODAY_STR,
                     )
             except Exception:
@@ -1402,6 +1555,7 @@ class AutoCompetitorCrawler:
         original_price_text = try_find_text(self.driver, GENERIC_ORIGINAL_PRICE_SELECTORS)
         desc = try_find_long_text(self.driver, GENERIC_DESC_SELECTORS)
         image_url = try_find_attr(self.driver, GENERIC_IMAGE_SELECTORS, "src") or try_find_attr(self.driver, GENERIC_IMAGE_SELECTORS, "content")
+        breadcrumb_text = extract_breadcrumb_driver(self.driver) or normalize_breadcrumb_text(source_url)
         sold_out_text = try_find_text(self.driver, GENERIC_SOLDOUT_SELECTORS)
         gender_text = try_find_text(self.driver, GENERIC_GENDER_SELECTORS)
         season_text = try_find_text(self.driver, GENERIC_SEASON_SELECTORS)
@@ -1427,6 +1581,7 @@ class AutoCompetitorCrawler:
             sold_out_text=compact_text(sold_out_text),
             gender_text=compact_text(gender_text),
             season_text=compact_text(season_text),
+            breadcrumb_text=compact_text(breadcrumb_text),
             crawled_at=TODAY_STR,
         )
 
@@ -1593,10 +1748,17 @@ def _position_y_to_num(avg_price: Optional[float]) -> float:
 
 
 
-def resolve_item_category_value(name: str, description: str, item_category: str = "", source_category: str = "", source_category_url: str = "") -> str:
+def resolve_item_category_value(name: str, description: str, item_category: str = "", source_category: str = "", source_category_url: str = "", source_url: str = "", product_url: str = "", breadcrumb_text: str = "") -> str:
     original_item = safe_text(item_category) or "기타"
-    inferred_item = infer_item_category(name or "", description or "", source_category or "")
-    source_item = normalize_source_category(source_category or "") or normalize_source_category(source_category_url or "")
+    inferred_item = infer_item_category(name or "", description or "", " ".join([breadcrumb_text or "", source_category or "", source_category_url or "", source_url or "", product_url or ""]))
+    source_candidates = [
+        normalize_source_category(breadcrumb_text or ""),
+        normalize_source_category(source_category or ""),
+        normalize_source_category(source_category_url or ""),
+        normalize_source_category(source_url or ""),
+        normalize_source_category(product_url or ""),
+    ]
+    source_item = next((x for x in source_candidates if x), "")
 
     for candidate in [inferred_item, source_item, original_item]:
         candidate = safe_text(candidate)
@@ -1610,34 +1772,60 @@ def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
         return df.copy() if isinstance(df, pd.DataFrame) else pd.DataFrame()
 
     out = df.copy()
+    original_items = []
     resolved = []
+    item_rules = []
+    crawler_items = []
     recat_source = []
+
     for _, r in out.iterrows():
         original_item = safe_text(r.get("item_category", "") or "") or "기타"
-        inferred_item = infer_item_category(
+        item_rule = infer_item_category(
             str(r.get("name", "") or ""),
             str(r.get("description", "") or ""),
-            str(r.get("source_category", "") or ""),
+            " ".join([
+                str(r.get("breadcrumb_text", "") or ""),
+                str(r.get("source_category", "") or ""),
+                str(r.get("source_category_url", "") or ""),
+                str(r.get("source_url", "") or ""),
+                str(r.get("product_url", "") or "")
+            ]),
         )
-        source_item = normalize_source_category(str(r.get("source_category", "") or "")) or normalize_source_category(str(r.get("source_category_url", "") or ""))
+        crawler_item = next((x for x in [
+            normalize_source_category(str(r.get("breadcrumb_text", "") or "")),
+            normalize_source_category(str(r.get("source_category", "") or "")),
+            normalize_source_category(str(r.get("source_category_url", "") or "")),
+            normalize_source_category(str(r.get("source_url", "") or "")),
+            normalize_source_category(str(r.get("product_url", "") or "")),
+        ] if x), "")
         final_item = resolve_item_category_value(
             str(r.get("name", "") or ""),
             str(r.get("description", "") or ""),
             original_item,
             str(r.get("source_category", "") or ""),
             str(r.get("source_category_url", "") or ""),
+            str(r.get("source_url", "") or ""),
+            str(r.get("product_url", "") or ""),
         )
+
+        original_items.append(original_item)
+        item_rules.append(item_rule)
+        crawler_items.append(crawler_item or "")
         resolved.append(final_item)
+
         if final_item != original_item:
-            if inferred_item and inferred_item != "기타":
+            if item_rule and item_rule != "기타":
                 recat_source.append("ITEM RULE")
-            elif source_item and source_item != "":
+            elif crawler_item:
                 recat_source.append("CRAWLED CATEGORY")
             else:
                 recat_source.append("FALLBACK")
         else:
             recat_source.append("ORIGINAL")
 
+    out["item_category_original"] = original_items
+    out["item_rule"] = item_rules
+    out["crawler_item"] = crawler_items
     out["item_category"] = resolved
     out["item_category_resolved"] = resolved
     out["item_recat_source"] = recat_source
@@ -1649,47 +1837,130 @@ def build_other_debug(df: pd.DataFrame) -> List[dict]:
         return []
     rows = []
     for _, r in df.iterrows():
-        original_item = safe_text(r.get("item_category", "") or "") or "기타"
-        inferred_item = infer_item_category(
+        original_item = safe_text(r.get("item_category_original", "") or r.get("item_category", "") or "") or "기타"
+        inferred_item = safe_text(r.get("item_rule", "") or "") or infer_item_category(
             str(r.get("name", "") or ""),
             str(r.get("description", "") or ""),
-            str(r.get("source_category", "") or ""),
+            " ".join([
+                str(r.get("breadcrumb_text", "") or ""),
+                str(r.get("source_category", "") or ""),
+                str(r.get("source_category_url", "") or ""),
+                str(r.get("source_url", "") or ""),
+                str(r.get("product_url", "") or "")
+            ]),
         )
-        source_item = normalize_source_category(str(r.get("source_category", "") or "")) or normalize_source_category(str(r.get("source_category_url", "") or ""))
-        final_item = resolve_item_category_value(
+        source_item = safe_text(r.get("crawler_item", "") or "") or next((x for x in [
+            normalize_source_category(str(r.get("breadcrumb_text", "") or "")),
+            normalize_source_category(str(r.get("source_category", "") or "")),
+            normalize_source_category(str(r.get("source_category_url", "") or "")),
+            normalize_source_category(str(r.get("source_url", "") or "")),
+            normalize_source_category(str(r.get("product_url", "") or "")),
+        ] if x), "")
+        final_item = safe_text(r.get("item_category", "") or "") or resolve_item_category_value(
             str(r.get("name", "") or ""),
             str(r.get("description", "") or ""),
             original_item,
             str(r.get("source_category", "") or ""),
             str(r.get("source_category_url", "") or ""),
+            str(r.get("source_url", "") or ""),
+            str(r.get("product_url", "") or ""),
         )
         dominant = str(r.get("dominant_attribute", "") or "")
 
+        reasons = []
+        if inferred_item and inferred_item != "기타":
+            reasons.append(f"item rule → {inferred_item}")
+        if source_item:
+            reasons.append(f"crawled category → {source_item}")
+        if not reasons:
+            reasons.append("name/description/category signal weak")
+
+        if final_item != "기타":
+            continue
+
+        rows.append({
+            "brand": str(r.get("brand", "") or ""),
+            "gender": str(r.get("gender", "") or "공용"),
+            "name": str(r.get("name", "") or ""),
+            "original_item": original_item,
+            "item_rule": inferred_item or "-",
+            "crawler_item": source_item or "-",
+            "item": final_item,
+            "dominant_attribute": dominant or "-",
+            "reason": " / ".join(reasons),
+        })
+
+    return rows[:400]
+
+
+def build_other_debug(df: pd.DataFrame) -> List[dict]:
+    if df.empty:
+        return []
+    rows = []
+    for _, r in df.iterrows():
+        original_item = safe_text(r.get("item_category_original", "") or r.get("item_category", "") or "") or "기타"
+        inferred_item = safe_text(r.get("item_rule", "") or "") or infer_item_category(
+            str(r.get("name", "") or ""),
+            str(r.get("description", "") or ""),
+            " ".join([
+                str(r.get("breadcrumb_text", "") or ""),
+                str(r.get("source_category", "") or ""),
+                str(r.get("source_category_url", "") or ""),
+                str(r.get("source_url", "") or ""),
+                str(r.get("product_url", "") or ""),
+            ]),
+        )
+        breadcrumb_item = normalize_source_category(str(r.get("breadcrumb_text", "") or ""))
+        source_item = safe_text(r.get("crawler_item", "") or "") or next((x for x in [
+            breadcrumb_item,
+            normalize_source_category(str(r.get("source_category", "") or "")),
+            normalize_source_category(str(r.get("source_category_url", "") or "")),
+            normalize_source_category(str(r.get("source_url", "") or "")),
+            normalize_source_category(str(r.get("product_url", "") or "")),
+        ] if x), "")
+        final_item = safe_text(r.get("item_category", "") or "") or resolve_item_category_value(
+            str(r.get("name", "") or ""),
+            str(r.get("description", "") or ""),
+            original_item,
+            str(r.get("source_category", "") or ""),
+            str(r.get("source_category_url", "") or ""),
+            str(r.get("source_url", "") or ""),
+            str(r.get("product_url", "") or ""),
+            str(r.get("breadcrumb_text", "") or ""),
+        )
+        dominant = str(r.get("dominant_attribute", "") or "")
         reasons = []
         if final_item == "기타":
             reasons.append("item unresolved")
         if dominant == "기타":
             reasons.append("attribute unresolved")
+        if breadcrumb_item:
+            reasons.append(f"breadcrumb → {breadcrumb_item}")
+        if inferred_item and inferred_item != "기타":
+            reasons.append(f"item rule → {inferred_item}")
+        if source_item and source_item != breadcrumb_item:
+            reasons.append(f"crawled category → {source_item}")
         if not reasons:
             continue
-
         gender = str(r.get("gender", "") or "공용")
         name = str(r.get("name", "") or "")
         if "공용" in name:
             gender = "공용"
-
         rows.append({
             "brand": r.get("brand", ""),
             "gender": gender or "공용",
             "name": name,
             "original_item": original_item,
+            "breadcrumb_text": str(r.get("breadcrumb_text", "") or ""),
             "source_category": str(r.get("source_category", "") or ""),
             "source_category_url": str(r.get("source_category_url", "") or ""),
-            "item_rule": inferred_item,
+            "breadcrumb_text": str(r.get("breadcrumb_text", "") or ""),
+            "item_rule": inferred_item or "-",
+            "breadcrumb_item": breadcrumb_item or "-",
             "crawler_item": source_item or "기타",
             "item": final_item,
-            "dominant_attribute": dominant,
-            "reason": ", ".join(reasons),
+            "dominant_attribute": dominant or "-",
+            "reason": " / ".join(unique_preserve_order(reasons)),
         })
     return rows
 
@@ -1907,56 +2178,67 @@ def render_dashboard(payload: dict) -> str:
       box-shadow: 0 18px 40px rgba(15,23,42,.08);
       backdrop-filter: blur(14px);
     }
+    .hero-shell{position:relative;overflow:hidden}
+    .hero-shell:before{content:"";position:absolute;inset:-25% auto auto -10%;width:420px;height:420px;background:radial-gradient(circle, rgba(59,130,246,.18), rgba(59,130,246,0));pointer-events:none}
+    .hero-shell:after{content:"";position:absolute;inset:auto -10% -40% auto;width:520px;height:520px;background:radial-gradient(circle, rgba(15,23,42,.10), rgba(15,23,42,0));pointer-events:none}
     .metric-card { min-height: 150px; }
-    .tab-btn{border-radius:999px;padding:8px 14px;font-size:12px;font-weight:900;background:rgba(255,255,255,.85);color:#64748b;border:1px solid rgba(148,163,184,.18)}
-    .tab-btn.active{background:#0f172a;color:#fff;border-color:#0f172a}
+    .tab-btn{border-radius:999px;padding:8px 14px;font-size:12px;font-weight:900;background:rgba(255,255,255,.85);color:#64748b;border:1px solid rgba(148,163,184,.18);transition:all .2s ease}
+    .tab-btn.active,.tab-btn:hover{background:#0f172a;color:#fff;border-color:#0f172a}
+    .hero-tab{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:10px 16px;font-size:12px;font-weight:900;background:rgba(255,255,255,.85);color:#0f172a;border:1px solid rgba(148,163,184,.18)}
     .tag{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800}
     .chart-box{height:320px;position:relative}
     .chart-box canvas{width:100%!important;height:100%!important}
     .table-wrap::-webkit-scrollbar{height:8px;width:8px}.table-wrap::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
     .table-head th{position:sticky;top:0;background:rgba(248,250,252,.94);backdrop-filter:blur(8px);z-index:1;}
+    .section-lead{letter-spacing:.18em;text-transform:uppercase}
   </style>
 </head>
 <body class="w-full">
   <div class="w-full px-0">
-    <div class="glass rounded-none p-5 md:p-7 w-full">
-      <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <div class="text-xs text-slate-500 font-extrabold tracking-wide">COMPETITOR PRODUCT INTELLIGENCE</div>
-          <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-[-0.04em]">컬럼비아 vs 디스커버리 상품 분석 대시보드</h1>
-          <div class="mt-2 max-w-5xl text-sm md:text-[15px] font-bold leading-6 text-slate-600">OTHER DEBUG에서 살아 있는 ITEM 신호가 있으면 ITEM STYLE MIX, 상단 KPI, 차트까지 동일 기준으로 다시 반영되도록 패치했습니다. 크롤링 카테고리(source_category / source_category_url)도 최종 아이템 분류에 함께 사용합니다.</div>
+    <div class="glass rounded-none p-5 md:p-7 w-full hero-shell">
+      <div class="relative z-10 flex flex-col gap-6">
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <div class="text-xs text-slate-500 font-extrabold tracking-wide">COMPETITOR PRODUCT INTELLIGENCE</div>
+            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-[-0.04em]">컬럼비아 vs 디스커버리 상품 분석 대시보드</h1>
+            <div class="mt-2 max-w-5xl text-sm md:text-[15px] font-bold leading-6 text-slate-600">EXTERNAL SIGNAL COMBINED 레이아웃 톤을 최대한 그대로 가져가고, 상세 페이지 breadcrumb를 직접 수집해 OTHER DEBUG에서 복구 가능한 ITEM은 ITEM STYLE MIX / KPI / 차트에 선반영되도록 다시 묶었습니다. breadcrumb + source_category + URL 단서를 함께 사용합니다.</div>
+          </div>
+          <div class="glass-strong rounded-3xl px-5 py-4 text-slate-900">
+            <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">UPDATED</div>
+            <div class="mt-2 text-lg font-black">__GENERATED_AT__</div>
+          </div>
         </div>
-        <div class="glass-strong rounded-3xl px-5 py-4 text-slate-900">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">UPDATED</div>
-          <div class="mt-2 text-lg font-black">__GENERATED_AT__</div>
+        <div class="flex flex-wrap gap-2">
+          <span class="hero-tab">SKU / PRICE / GENDER SNAPSHOT</span>
+          <span class="hero-tab">ITEM RECLASSIFICATION ACTIVE</span>
+          <span class="hero-tab">CRAWLED CATEGORY PRIORITY</span>
         </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="kpi-grid"></div>
       </div>
-
-      <div class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="kpi-grid"></div>
     </div>
 
     <div class="px-5 py-6 md:px-7 space-y-6">
       <section class="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">SKU</div><div class="mt-2 text-2xl font-black">브랜드별 SKU 수</div><div class="chart-box mt-4"><canvas id="brandCountChart"></canvas></div></div>
-        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE</div><div class="mt-2 text-2xl font-black">브랜드별 평균가</div><div class="chart-box mt-4"><canvas id="avgPriceChart"></canvas></div></div>
-        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">GENDER</div><div class="mt-2 text-2xl font-black">남녀 비중</div><div class="chart-box mt-4"><canvas id="genderSplitChart"></canvas></div></div>
+        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold section-lead text-slate-500">SKU</div><div class="mt-2 text-2xl font-black">브랜드별 SKU 수</div><div class="chart-box mt-4"><canvas id="brandCountChart"></canvas></div></div>
+        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold section-lead text-slate-500">PRICE</div><div class="mt-2 text-2xl font-black">브랜드별 평균가</div><div class="chart-box mt-4"><canvas id="avgPriceChart"></canvas></div></div>
+        <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold section-lead text-slate-500">GENDER</div><div class="mt-2 text-2xl font-black">남녀 비중</div><div class="chart-box mt-4"><canvas id="genderSplitChart"></canvas></div></div>
       </section>
 
       <section class="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div class="glass rounded-3xl p-5">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE BAND</div>
+          <div class="text-[11px] font-extrabold section-lead text-slate-500">PRICE BAND</div>
           <div class="mt-2 text-2xl font-black">가격대 분포</div>
           <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsA"></div>
           <div class="chart-box mt-4"><canvas id="priceBandChart"></canvas></div>
         </div>
         <div class="glass rounded-3xl p-5">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ITEM</div>
+          <div class="text-[11px] font-extrabold section-lead text-slate-500">ITEM</div>
           <div class="mt-2 text-2xl font-black">아이템 분포</div>
           <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsB"></div>
           <div class="chart-box mt-4"><canvas id="categoryChart"></canvas></div>
         </div>
         <div class="glass rounded-3xl p-5">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ATTRIBUTE</div>
+          <div class="text-[11px] font-extrabold section-lead text-slate-500">ATTRIBUTE</div>
           <div class="mt-2 text-2xl font-black">대표 속성 분포</div>
           <div class="mt-3 flex flex-wrap gap-2" id="chartBrandTabsC"></div>
           <div class="chart-box mt-4"><canvas id="dominantAttrChart"></canvas></div>
@@ -1965,7 +2247,7 @@ def render_dashboard(payload: dict) -> str:
 
       <section class="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_.65fr]">
         <div class="glass rounded-3xl p-5 overflow-hidden">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">COMPARE</div>
+          <div class="text-[11px] font-extrabold section-lead text-slate-500">COMPARE</div>
           <div class="mt-2 text-2xl font-black">브랜드 비교표</div>
           <div class="table-wrap mt-4 overflow-x-auto w-full">
             <table class="min-w-[920px] w-full text-sm">
@@ -1977,7 +2259,7 @@ def render_dashboard(payload: dict) -> str:
           </div>
         </div>
         <div class="glass rounded-3xl p-5">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">POSITIONING</div>
+          <div class="text-[11px] font-extrabold section-lead text-slate-500">POSITIONING</div>
           <div class="mt-2 text-2xl font-black">브랜드 포지셔닝</div>
           <div class="chart-box mt-4"><canvas id="positionChart"></canvas></div>
           <div class="mt-3 text-xs font-bold text-slate-500">→ X축: 라이프스타일 → 퍼포먼스/익스트림 / ↑ Y축: 매스 → 프리미엄</div>
@@ -1985,7 +2267,7 @@ def render_dashboard(payload: dict) -> str:
       </section>
 
       <section class="glass rounded-3xl p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ITEM STYLE MIX</div>
+        <div class="text-[11px] font-extrabold section-lead text-slate-500">ITEM STYLE MIX</div>
         <div class="mt-2 text-2xl font-black">브랜드 × 성별 × 아이템별 스타일 수 / 가격대</div>
         <div class="mt-2 text-sm font-bold text-slate-500">OTHER DEBUG에서 구조화 가능한 ITEM과 크롤링 카테고리 기준을 먼저 반영한 뒤 집계합니다.</div>
         <div class="mt-4 flex flex-wrap gap-2" id="brandItemTabs"></div>
@@ -2001,7 +2283,7 @@ def render_dashboard(payload: dict) -> str:
 
       <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div class="glass rounded-3xl p-5">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRICE BY GENDER</div>
+          <div class="text-[11px] font-extrabold section-lead text-slate-500">PRICE BY GENDER</div>
           <div class="mt-2 text-2xl font-black">브랜드 × 성별 가격대 스타일 수</div>
           <div class="mt-4 flex flex-wrap gap-2" id="brandPriceTabs"></div>
           <div class="table-wrap mt-4 overflow-x-auto">
@@ -2014,7 +2296,7 @@ def render_dashboard(payload: dict) -> str:
           </div>
         </div>
         <div class="glass rounded-3xl p-5">
-          <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">ATTRIBUTE BY GENDER</div>
+          <div class="text-[11px] font-extrabold section-lead text-slate-500">ATTRIBUTE BY GENDER</div>
           <div class="mt-2 text-2xl font-black">브랜드 × 스타일 속성 수</div>
           <div class="mt-4 flex flex-wrap gap-2" id="brandAttrTabs"></div>
           <div class="table-wrap mt-4 overflow-x-auto">
@@ -2029,14 +2311,14 @@ def render_dashboard(payload: dict) -> str:
       </section>
 
       <section class="glass rounded-3xl p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">KEYWORD</div>
+        <div class="text-[11px] font-extrabold section-lead text-slate-500">KEYWORD</div>
         <div class="mt-2 text-2xl font-black">브랜드별 키워드</div>
         <div id="keywordGrid" class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2"></div>
       </section>
 
       <section class="glass rounded-3xl p-5">
         <div class="flex items-end justify-between gap-3 flex-wrap">
-          <div><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">PRODUCT FEED</div><div class="mt-2 text-2xl font-black">상품 카드 피드</div></div>
+          <div><div class="text-[11px] font-extrabold section-lead text-slate-500">PRODUCT FEED</div><div class="mt-2 text-2xl font-black">상품 카드 피드</div></div>
           <div id="productCountText" class="text-sm font-bold text-slate-500"></div>
         </div>
         <div class="mt-4 flex flex-wrap gap-2" id="productBrandTabs"></div>
@@ -2045,7 +2327,7 @@ def render_dashboard(payload: dict) -> str:
       </section>
 
       <section class="glass rounded-3xl p-5">
-        <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500 uppercase">OTHER DEBUG</div>
+        <div class="text-[11px] font-extrabold section-lead text-slate-500">OTHER DEBUG</div>
         <div class="mt-2 text-2xl font-black">기타 디버그</div>
         <div class="mt-2 text-sm font-bold text-slate-500">끝까지 기타로 남은 항목만 보여줍니다. item rule / crawler category / original item을 같이 확인할 수 있게 확장했습니다.</div>
         <div class="table-wrap mt-4 overflow-x-auto">
@@ -2069,11 +2351,11 @@ let chartRefs = {};
 function formatNumber(v){ if(v===null||v===undefined||v==="") return "-"; return new Intl.NumberFormat('ko-KR').format(v); }
 function formatPrice(v){ if(v===null||v===undefined||v==="") return "-"; return formatNumber(v)+"원"; }
 function compactNameJS(name, brand){ let t=(name||"").trim(); if((brand||"")==="DISCOVERY"){ t=t.replace(/^디스커버리\s*익스페디션\s*[|｜:/-]\s*/i,""); t=t.replace(/^디스커버리\s*익스페디션\s+/i,""); t=t.replace(/^DISCOVERY\s*EXPEDITION\s*[|｜:/-]\s*/i,""); t=t.replace(/^DISCOVERY\s*EXPEDITION\s+/i,""); } return t; }
-function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl="", itemCategory=""){
-  const src=((sourceCategory||"")+" "+(sourceCategoryUrl||"")).toLowerCase();
+function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl="", itemCategory="", breadcrumbText=""){
+  const src=((breadcrumbText||"")+" "+(sourceCategory||"")+" "+(sourceCategoryUrl||"")).toLowerCase();
   if(/자켓|재킷|jacket|windbreaker|shell|outer/.test(src)) return "자켓";
-  if(/팬츠|바지|pants|pant/.test(src)) return "팬츠";
-  if(/티셔츠|tee|t-shirt|tops|top/.test(src)) return "티셔츠";
+  if(/팬츠|바지|pants|pant|shorts|short|chino|5 pocket|5-pocket|cargo|jogger|skort/.test(src)) return "팬츠";
+  if(/티셔츠|tee|t-shirt|tops|top|jersey|crewneck|polo/.test(src)) return "티셔츠";
   if(/후디|후드|hoodie/.test(src)) return "후디";
   if(/플리스|fleece/.test(src)) return "플리스";
   if(/다운|패딩|down/.test(src)) return "다운";
@@ -2086,8 +2368,8 @@ function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl
   if(/백팩|backpack|bag|bags|바디백|body bag|bodybag|슬링백|슬링|sling|숄더케이스|shoulder case|케이스/.test(blob)) return "백";
   if(/부니|모자|cap|hat|accessory/.test(blob)) return "ACC";
   if(/자켓|재킷|jacket|windbreaker|바람막이|shell|parka|퍼텍스/.test(blob)) return "자켓";
-  if(/pants|pant|바지|팬츠|cargo|조거|슬랙스/.test(blob)) return "팬츠";
-  if(/티셔츠|tee|t-shirt|반팔|긴팔|half zip|half-zip|집업티|iconic tee/.test(blob)) return "티셔츠";
+  if(/pants|pant|바지|팬츠|cargo|조거|슬랙스|shorts|short|chino|5 pocket|5-pocket|skort|jogger/.test(blob)) return "팬츠";
+  if(/티셔츠|tee|t-shirt|반팔|긴팔|half zip|half-zip|집업티|iconic tee|jersey|crewneck|top|polo/.test(blob)) return "티셔츠";
   if(/후디|후드|hoodie|hood|sweatshirt|맨투맨/.test(blob)) return "후디";
   if(/플리스|fleece|boa|보아/.test(blob)) return "플리스";
   if(/down|패딩|덕다운|구스다운|puffer/.test(blob)) return "다운";
@@ -2098,7 +2380,7 @@ function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl
 }
 function normalizeProducts(){
   return (DATA.products||[]).map(p=>{
-    const resolved = inferCategoryJS(p.name||"", p.description||"", p.source_category||"", p.source_category_url||"", p.item_category||"");
+    const resolved = inferCategoryJS(p.name||"", p.description||"", p.source_category||"", p.source_category_url||"", p.item_category||"", p.breadcrumb_text||"");
     return {...p, item_category: resolved, _cat: resolved};
   });
 }
@@ -2121,8 +2403,8 @@ function renderPriceBandGenderTable(){ const allRows=DATA.price_band_gender_tabl
 function renderAttributeGenderTable(){ const allRows=DATA.attribute_gender_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandAttrTabs", brands, "attrBrand", renderAttributeGenderTable); const rows=STATE.attrBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.attrBrand); const merged=groupRowspan(rows); document.getElementById('attributeGenderBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3 text-right">${formatNumber(r["2L"])}</td><td class="py-3 text-right">${formatNumber(r["2.5L"])}</td><td class="py-3 text-right">${formatNumber(r["3L"])}</td><td class="py-3 text-right">${formatNumber(r["방수"])}</td><td class="py-3 text-right">${formatNumber(r["방풍"])}</td><td class="py-3 text-right">${formatNumber(r["고어텍스"])}</td><td class="py-3 text-right">${formatNumber(r["다운"])}</td><td class="py-3 text-right">${formatNumber(r["티셔츠"]||0)}</td></tr>`).join(''); }
 function renderItemStyleTable(){ const allRows=DATA.item_style_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandItemTabs", brands, "itemBrand", renderItemStyleTable); const rows=STATE.itemBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.itemBrand); const merged=groupRowspan(rows); document.getElementById('itemStyleBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.item_category}</td><td class="py-3 text-right font-black">${formatNumber(r.style_count)}</td><td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td><td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td><td class="py-3 text-right">${formatNumber(r["20-29.9만"])}</td><td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td><td class="py-3 text-right">${formatNumber(r["50만+"])}</td><td class="py-3 text-right">${formatPrice(r.avg_price)}</td><td class="py-3 text-right">${formatPrice(r.min_price)}</td><td class="py-3 text-right">${formatPrice(r.max_price)}</td></tr>`).join(''); }
 function renderKeywords(){ const grid=document.getElementById('keywordGrid'); const blocks=(DATA.keywords||[]).map(b=>({brand:b.brand, items:(b.items||[]).filter(it=>!NOISE_KEYWORDS.has(String(it.keyword||"").toUpperCase()))})); grid.innerHTML=blocks.map(block=>`<div class="glass-strong rounded-3xl p-4"><div class="text-lg font-black">${block.brand}</div><div class="mt-3 flex flex-wrap gap-2">${(block.items||[]).map(it=>'<span class="tag bg-slate-900 text-white">'+it.keyword+' · '+it.count+'</span>').join('')}</div></div>`).join(''); }
-function renderProducts(){ const all=normalizeProducts().filter(p=>!p.sold_out); const brands=[...new Set(all.map(p=>p.brand))]; const brandFiltered=STATE.productBrand==="전체"?all:all.filter(p=>p.brand===STATE.productBrand); const cats=[...new Set(brandFiltered.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))]; makeTabs("productBrandTabs", brands, "productBrand", renderProducts); makeTabs("productCategoryTabs", cats, "productCategory", renderProducts); let items=brandFiltered; if(STATE.productCategory!=="전체") items=items.filter(p=>(p._cat===STATE.productCategory)); document.getElementById('productCountText').textContent=`품절 제외 ${formatNumber(items.length)}개`; const grouped={}; for(const p of items){ const brand=p.brand||"UNKNOWN"; const cat=(p._cat||"기타"); grouped[brand]=grouped[brand]||{}; grouped[brand][cat]=grouped[brand][cat]||[]; grouped[brand][cat].push(p); } const container=document.getElementById("productGroupContainer"); container.innerHTML=Object.entries(grouped).map(([brand,catMap])=>`<section><div class="text-2xl font-black tracking-[-0.03em]">${brand}</div><div class="mt-4 space-y-6">${Object.entries(catMap).map(([cat,arr],ci)=>`<div><button class="w-full flex items-center justify-between rounded-2xl bg-white/90 border border-slate-200 px-4 py-3 text-left font-black" onclick="this.nextElementSibling.classList.toggle('hidden')"><span>${cat}</span><span class="text-sm text-slate-500">${arr.length} styles</span></button><div class="hidden mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">${arr.slice(0,120).map(p=>`<article class="rounded-[24px] border border-slate-200 bg-white/90 p-4 shadow-sm"><div class="flex gap-4 items-start"><div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">${p.image_url?'<img src="'+p.image_url+'" alt="'+p.name+'" class="h-full w-full object-cover" loading="lazy" />':'<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}</div><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2"><span class="tag bg-slate-900 text-white">${p.brand}</span><span class="tag bg-indigo-50 text-indigo-700">${cat}</span></div><div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${compactNameJS(p.name,p.brand)}</div><div class="mt-2 text-2xl font-black">${formatPrice(p.current_price)}</div><div class="mt-3 flex flex-wrap gap-2">${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-slate-100 text-slate-700">'+x+'</span>').join('')}</div><div class="mt-4 flex items-center justify-between gap-3">${p.product_url?'<a href="'+p.product_url+'" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>':''}</div></div></div></article>`).join('')}</div></div>`).join('')}</div></section>`).join(''); }
-function renderOtherDebug(){ const rows=(DATA.other_debug||[]).map(r=>({...r, gender:(r.name||"").includes("공용")?"공용":(r.gender||"공용")})); document.getElementById("otherDebugBody").innerHTML=rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.name}</td><td class="py-3">${r.original_item||'-'}</td><td class="py-3">${r.item_rule||'-'}</td><td class="py-3">${r.crawler_item||'-'}</td><td class="py-3 font-black">${r.item||'-'}</td><td class="py-3">${r.dominant_attribute||'-'}</td><td class="py-3">${r.reason||'-'}</td></tr>`).join(''); }
+function renderProducts(){ const all=normalizeProducts().filter(p=>!p.sold_out); const brands=[...new Set(all.map(p=>p.brand))]; const brandFiltered=STATE.productBrand==="전체"?all:all.filter(p=>p.brand===STATE.productBrand); const cats=[...new Set(brandFiltered.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))]; makeTabs("productBrandTabs", brands, "productBrand", renderProducts); makeTabs("productCategoryTabs", cats, "productCategory", renderProducts); let items=brandFiltered; if(STATE.productCategory!=="전체") items=items.filter(p=>(p._cat===STATE.productCategory)); document.getElementById('productCountText').textContent=`품절 제외 ${formatNumber(items.length)}개`; const grouped={}; for(const p of items){ const brand=p.brand||"UNKNOWN"; const cat=(p._cat||"기타"); grouped[brand]=grouped[brand]||{}; grouped[brand][cat]=grouped[brand][cat]||[]; grouped[brand][cat].push(p); } const container=document.getElementById("productGroupContainer"); container.innerHTML=Object.entries(grouped).map(([brand,catMap])=>`<section><div class="text-2xl font-black tracking-[-0.03em]">${brand}</div><div class="mt-4 space-y-6">${Object.entries(catMap).map(([cat,arr],ci)=>`<div><button class="w-full flex items-center justify-between rounded-2xl bg-white/90 border border-slate-200 px-4 py-3 text-left font-black" onclick="this.nextElementSibling.classList.toggle('hidden')"><span>${cat}</span><span class="text-sm text-slate-500">${arr.length} styles</span></button><div class="hidden mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">${arr.slice(0,120).map(p=>`<article class="glass-strong rounded-[24px] p-4"><div class="flex gap-4 items-start"><div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">${p.image_url?'<img src="'+p.image_url+'" alt="'+p.name+'" class="h-full w-full object-cover" loading="lazy" />':'<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}</div><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2"><span class="tag bg-slate-900 text-white">${p.brand}</span><span class="tag bg-indigo-50 text-indigo-700">${cat}</span></div><div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${compactNameJS(p.name,p.brand)}</div><div class="mt-2 text-2xl font-black">${formatPrice(p.current_price)}</div><div class="mt-3 flex flex-wrap gap-2">${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-slate-100 text-slate-700">'+x+'</span>').join('')}</div><div class="mt-4 flex items-center justify-between gap-3">${p.product_url?'<a href="'+p.product_url+'" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>':''}</div></div></div></article>`).join('')}</div></div>`).join('')}</div></section>`).join(''); }
+function renderOtherDebug(){ const rows=(DATA.other_debug||[]).map(r=>({...r, gender:(r.name||"").includes("공용")?"공용":(r.gender||"공용")})); document.getElementById("otherDebugBody").innerHTML=rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.name}</td><td class="py-3">${r.original_item||'-'}</td><td class="py-3">${r.item_rule||'-'}</td><td class="py-3">${r.breadcrumb_item||'-'}</td><td class="py-3">${r.crawler_item||'-'}</td><td class="py-3 font-black">${r.item||'-'}</td><td class="py-3">${r.dominant_attribute||'-'}</td><td class="py-3">${r.reason||'-'}</td></tr>`).join(''); }
 function baseChart(id,type,labels,values,extra={}){ if(chartRefs[id]){ chartRefs[id].destroy(); } const ctx=document.getElementById(id); const horizontal=labels.length>=6 && type==='bar'; chartRefs[id] = new Chart(ctx,{type,data:{labels,datasets:[{data:values,borderWidth:2,borderRadius:10,tension:.35}]},options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{autoSkip:false}}}},extra)}); }
 function renderTopCharts(){ const brand = STATE.chartBrand; const df = normalizeProducts().filter(p => brand==="전체" ? true : p.brand===brand); const countBy = (arr, key) => { const m = {}; arr.forEach(x => { const v = (x[key]||"기타"); if(v==="기타") return; m[v] = (m[v]||0)+1; }); return m; }; const priceMap = countBy(df.filter(x=>x.price_band), "price_band"); const itemMap = countBy(df, "item_category"); const attrMap = countBy(df.filter(x=>x.dominant_attribute), "dominant_attribute"); baseChart('priceBandChart','bar',Object.keys(priceMap),Object.values(priceMap)); baseChart('categoryChart','bar',Object.keys(itemMap),Object.values(itemMap)); baseChart('dominantAttrChart','bar',Object.keys(attrMap),Object.values(attrMap)); }
 function renderCharts(){ const c=DATA.charts||{}; baseChart('brandCountChart','bar',c.brandProductCounts?.labels||[],c.brandProductCounts?.values||[]); baseChart('avgPriceChart','bar',c.brandAvgPrice?.labels||[],c.brandAvgPrice?.values||[]); baseChart('genderSplitChart','doughnut',c.genderSplit?.labels||[],c.genderSplit?.values||[],{scales:{}}); const brands = [...new Set((DATA.products||[]).map(p=>p.brand))]; makeTabs("chartBrandTabsA", brands, "chartBrand", renderTopCharts); makeTabs("chartBrandTabsB", brands, "chartBrand", renderTopCharts); makeTabs("chartBrandTabsC", brands, "chartBrand", renderTopCharts); renderTopCharts(); const points = c.positioning || []; if(chartRefs.positionChart){ chartRefs.positionChart.destroy(); } chartRefs.positionChart = new Chart(document.getElementById('positionChart'), { type:'bubble', data:{ datasets: points.map((p,i)=>({ label:p.brand, data:[{x:p.x,y:p.y,r:Math.max(8, Math.min(24, Math.round((p.size||1)/4)))}], avgPrice:p.avg_price })) }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12, font:{weight:'700'} } }, tooltip:{ callbacks:{ label:(ctx)=>{ const raw=ctx.raw||{}; const ds=ctx.dataset||{}; return `${ds.label} · Avg ${formatPrice(ds.avgPrice)} · ${formatNumber(raw.r)} radius`; } } } }, scales:{ x:{ min:0.5, max:3.5, ticks:{ callback:(v)=>({1:'Lifestyle',2:'Performance',3:'Extreme'}[v]||'') } }, y:{ min:0.5, max:3.5, ticks:{ callback:(v)=>({1:'Mass',2:'Premium',3:'Luxury'}[v]||'') } } } } }); }
