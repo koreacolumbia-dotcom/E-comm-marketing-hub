@@ -331,7 +331,9 @@ class ProductRaw:
     sold_out_text: str
     gender_text: str
     season_text: str
-    crawled_at: str
+    source_category: str = ""
+    source_category_url: str = ""
+    crawled_at: str = ""
 
 
 @dataclass
@@ -358,6 +360,8 @@ class ProductAnalyzed:
     positioning_y: str = "Mass"
     positioning_x: str = "Lifestyle"
     attribute_coverage_flag: str = "OK"
+    source_category: str = ""
+    source_category_url: str = ""
     crawled_at: str = ""
 
 
@@ -741,6 +745,33 @@ def infer_season(name: str, description: str, raw_season: str) -> str:
 
 
 
+
+def normalize_source_category(text: str) -> str:
+    t = safe_text(text).lower()
+    if not t:
+        return ""
+    if any(x in t for x in ["자켓", "재킷", "jacket", "windbreaker", "shell", "outer"]):
+        return "자켓"
+    if any(x in t for x in ["팬츠", "바지", "pants", "pant", "trouser"]):
+        return "팬츠"
+    if any(x in t for x in ["티셔츠", "tee", "t-shirt", "tops", "top"]):
+        return "티셔츠"
+    if any(x in t for x in ["후디", "후드", "hoodie"]):
+        return "후디"
+    if any(x in t for x in ["플리스", "fleece"]):
+        return "플리스"
+    if any(x in t for x in ["다운", "패딩", "down"]):
+        return "다운"
+    if any(x in t for x in ["슈즈", "신발", "shoe", "shoes", "boot", "boots", "sandal", "sandals"]):
+        return "슈즈"
+    if any(x in t for x in ["백", "가방", "bag", "backpack", "pack"]):
+        return "백"
+    if any(x in t for x in ["장갑", "glove"]):
+        return "장갑"
+    if any(x in t for x in ["acc", "accessory", "모자", "hat", "cap"]):
+        return "ACC"
+    return ""
+
 def infer_item_category(name: str, description: str) -> str:
     blob = f"{name} {description}".lower()
 
@@ -936,7 +967,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     std_attrs = map_standard_attributes(raw_keywords, raw.name, raw.description)
     resolved_attrs = resolve_conflicts(std_attrs)
     dominant = select_dominant_attribute(resolved_attrs)
-    inferred_item = infer_item_category(raw.name, raw.description)
+    inferred_item = infer_item_category(raw.name, raw.description, getattr(raw, 'source_category', ''))
     grade = classify_grade(resolved_attrs, dominant)
     shell_type = classify_shell_type(resolved_attrs, raw.name, raw.description)
     price_band = classify_price_band(current_price)
@@ -956,7 +987,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         sold_out=bool(safe_text(raw.sold_out_text)),
         gender=infer_gender(raw.name, raw.description, raw.gender_text),
         season=infer_season(raw.name, raw.description, raw.season_text),
-        item_category=inferred_item,
+        item_category=(inferred_item if inferred_item != '기타' else normalize_source_category(getattr(raw, 'source_category', '')) or inferred_item),
         raw_keywords=raw_keywords,
         standard_attributes=resolved_attrs,
         dominant_attribute=dominant,
@@ -1154,8 +1185,9 @@ class AutoCompetitorCrawler:
 
         return discovered[:MAX_DISCOVERED_LISTING_URLS]
 
-    def collect_product_urls_from_listing(self, listing_url: str, cfg: BrandConfig) -> List[str]:
-        product_urls: List[str] = []
+    def collect_product_urls_from_listing(self, listing_url: str, cfg: BrandConfig) -> List[dict]:
+        product_urls: List[dict] = []
+        source_cat = normalize_source_category(listing_url)
         if not self._safe_get(listing_url):
             return product_urls
 
@@ -1169,7 +1201,7 @@ class AutoCompetitorCrawler:
                 continue
             if self._is_product_url(link, cfg):
                 if self._passes_brand_filter(link, cfg):
-                    product_urls.append(link)
+                    product_urls.append({"url": link, "source_category": source_cat, "source_category_url": listing_url})
 
         # direct CSS fallback: product-detail style anchors
         direct_selectors = [
@@ -1191,11 +1223,19 @@ class AutoCompetitorCrawler:
                     href = canonicalize_url(href)
                     if same_domain(href, cfg.domain) and not self._is_deny_url(href, cfg):
                         if self._passes_brand_filter(href, cfg):
-                            product_urls.append(href)
+                            product_urls.append({"url": href, "source_category": source_cat, "source_category_url": listing_url})
             except Exception:
                 continue
 
-        return unique_preserve_order(product_urls)
+        dedup = []
+        seen_urls = set()
+        for meta in product_urls:
+            u = meta["url"]
+            if u in seen_urls:
+                continue
+            seen_urls.add(u)
+            dedup.append(meta)
+        return dedup
 
 
     def crawl_product_detail_requests(self, product_url: str, source_url: str, cfg: BrandConfig) -> Optional[ProductRaw]:
@@ -1393,7 +1433,7 @@ class AutoCompetitorCrawler:
     def crawl_brand(self, cfg: BrandConfig) -> List[ProductRaw]:
         print(f"\n[CRAWL START] {cfg.brand} :: seeds={len(cfg.seed_urls)}")
         listings = self.discover_listing_urls(cfg)
-        product_urls: List[str] = []
+        product_urls: List[dict] = []
 
         for listing in listings:
             print(f"  - listing: {listing}")
@@ -1403,7 +1443,6 @@ class AutoCompetitorCrawler:
             except Exception as e:
                 print(f"    [WARN] listing failed: {e}")
 
-        product_urls = unique_preserve_order(product_urls)
         if len(product_urls) > cfg.max_products:
             product_urls = product_urls[:cfg.max_products]
 
@@ -1414,14 +1453,17 @@ class AutoCompetitorCrawler:
 
         # Fast path: requests-first in parallel
         with ThreadPoolExecutor(max_workers=max(1, DETAIL_WORKERS)) as ex:
-            futures = {ex.submit(self.crawl_product_detail_requests, url, url, cfg): url for url in product_urls}
+            futures = {ex.submit(self.crawl_product_detail_requests, meta['url'], meta.get('source_category_url',''), cfg): meta for meta in product_urls}
             done_count = 0
             for fut in as_completed(futures):
                 done_count += 1
-                url = futures[fut]
+                meta = futures[fut]
+                url = meta['url']
                 try:
                     item = fut.result()
                     if item and item.name:
+                        item.source_category = meta.get('source_category','')
+                        item.source_category_url = meta.get('source_category_url','')
                         raw_products.append(item)
                     else:
                         unresolved_urls.append(url)
@@ -1431,10 +1473,14 @@ class AutoCompetitorCrawler:
                     print(f"    [OK] {cfg.brand} requests pass {done_count}/{len(product_urls)} | valid {len(raw_products)}")
 
         # Accurate fallback: selenium only for unresolved URLs
-        for idx, product_url in enumerate(unresolved_urls, start=1):
+        unresolved_meta = [m for m in product_urls if m['url'] in unresolved_urls]
+        for idx, meta in enumerate(unresolved_meta, start=1):
+            product_url = meta['url']
             try:
-                item = self.crawl_product_detail(product_url, product_url, cfg)
+                item = self.crawl_product_detail(product_url, meta.get('source_category_url',''), cfg)
                 if item and item.name:
+                    item.source_category = meta.get('source_category','')
+                    item.source_category_url = meta.get('source_category_url','')
                     raw_products.append(item)
             except Exception as e:
                 print(f"    [WARN] selenium fallback failed: {product_url} | {e}")
@@ -1546,13 +1592,18 @@ def _position_y_to_num(avg_price: Optional[float]) -> float:
 
 
 
+
 def build_other_debug(df: pd.DataFrame) -> List[dict]:
     if df.empty:
         return []
     rows = []
     for _, r in df.iterrows():
         original_item = str(r.get("item_category", "") or "")
-        promoted_item = infer_item_category(str(r.get("name", "") or ""), str(r.get("description", "") or ""))
+        promoted_item = infer_item_category(
+            str(r.get("name", "") or ""),
+            str(r.get("description", "") or ""),
+            str(r.get("source_category", "") or ""),
+        )
         dominant = str(r.get("dominant_attribute", "") or "")
         final_item = promoted_item if promoted_item != "기타" else original_item
 
@@ -1578,6 +1629,7 @@ def build_other_debug(df: pd.DataFrame) -> List[dict]:
             "reason": ", ".join(reasons),
         })
     return rows
+
 
 
 def build_price_band_gender_table(df: pd.DataFrame) -> List[dict]:
@@ -1933,7 +1985,18 @@ function compactNameJS(name, brand){
   }
   return t;
 }
-function inferCategoryJS(name, description){
+function inferCategoryJS(name, description, sourceCategory=""){
+  const src = (sourceCategory || "").toLowerCase();
+  if(/자켓|재킷|jacket|windbreaker|shell|outer/.test(src)) return "자켓";
+  if(/팬츠|바지|pants|pant/.test(src)) return "팬츠";
+  if(/티셔츠|tee|t-shirt|tops|top/.test(src)) return "티셔츠";
+  if(/후디|후드|hoodie/.test(src)) return "후디";
+  if(/플리스|fleece/.test(src)) return "플리스";
+  if(/다운|패딩|down/.test(src)) return "다운";
+  if(/슈즈|신발|shoe|shoes|boot|boots|sandal/.test(src)) return "슈즈";
+  if(/백|가방|bag|backpack|pack/.test(src)) return "백";
+  if(/장갑|glove/.test(src)) return "장갑";
+  if(/acc|accessory|모자|hat|cap/.test(src)) return "ACC";
   const blob = ((name || "") + " " + (description || "")).toLowerCase();
   if (/장갑|glove|mitt/.test(blob)) return "장갑";
   if (/백팩|backpack|bag|bags|바디백|body bag|bodybag|슬링백|슬링|sling|숄더케이스|shoulder case|케이스/.test(blob)) return "백";
@@ -1989,7 +2052,7 @@ function renderKeywords(){
   grid.innerHTML=blocks.map(block=>`<div class="rounded-[24px] border border-slate-200 bg-white p-4"><div class="text-lg font-black">${block.brand}</div><div class="mt-3 flex flex-wrap gap-2">${(block.items||[]).map(it=>'<span class="tag bg-slate-900 text-white">'+it.keyword+' - '+it.count+'</span>').join('')}</div></div>`).join('');
 }
 function renderProducts(){
-  const all=(DATA.products||[]).filter(p=>!p.sold_out).map(p=>({...p,_cat:(((p.item_category||"") && (p.item_category||"")!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||""))}));
+  const all=(DATA.products||[]).filter(p=>!p.sold_out).map(p=>({...p,_cat:(((p.item_category||"") && (p.item_category||"")!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||"", p.source_category||""))}));
   const brands=[...new Set(all.map(p=>p.brand))];
   const brandFiltered=STATE.productBrand==="전체"?all:all.filter(p=>p.brand===STATE.productBrand);
   const cats=[...new Set(brandFiltered.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))];
@@ -2019,7 +2082,7 @@ function baseChart(id,type,labels,values,extra={}){
 }
 function renderTopCharts(){
   const brand = STATE.chartBrand;
-  const df = (DATA.products||[]).map(p=>({...p,item_category:(((p.item_category||"") && (p.item_category||"")!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||""))})).filter(p => brand==="전체" ? true : p.brand===brand);
+  const df = (DATA.products||[]).map(p=>({...p,item_category:(((p.item_category||"") && (p.item_category||"")!=="기타") ? p.item_category : inferCategoryJS(p.name||"", p.description||"", p.source_category||""))})).filter(p => brand==="전체" ? true : p.brand===brand);
   const countBy = (arr, key) => {
     const m = {};
     arr.forEach(x => { const v = (x[key]||"기타"); if(v==="기타") return; m[v] = (m[v]||0)+1; });
