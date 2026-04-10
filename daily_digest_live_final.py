@@ -2372,47 +2372,60 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
 
     def make_detail_key(df: pd.DataFrame, bucket: str) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=dims + mets + ["bucket", "sub"])
-        out = df[df["bucket"] == bucket].copy()
+            return pd.DataFrame(columns=dims + mets + ['bucket', 'sub'])
+        out = df[df['bucket'] == bucket].copy()
         if out.empty:
-            return pd.DataFrame(columns=dims + mets + ["bucket", "sub"])
-        if bucket == "Paid Ad":
-            out["sub"] = out.apply(lambda r: classify_paid_detail(str(r.get("sessionSourceMedium", "")), str(r.get("sessionCampaignName", ""))), axis=1)
+            return pd.DataFrame(columns=dims + mets + ['bucket', 'sub'])
+        if bucket == 'Paid Ad':
+            out['sub'] = out.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium', '')), str(r.get('sessionCampaignName', ''))), axis=1)
         else:
-            out["sub"] = out["sessionSourceMedium"].astype(str).str.strip().replace("", "(not set)")
+            out['sub'] = out['sessionSourceMedium'].astype(str).str.strip().replace('', '(not set)')
         return out
 
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame(columns=['sub', f'sessions{suffix}', f'transactions{suffix}', f'revenue{suffix}'])
-        g = df.groupby('sub', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
-        return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'transactions{suffix}','purchaseRevenue':f'revenue{suffix}'})
+        g = df.groupby('sub', as_index=False)[['sessions', 'transactions', 'purchaseRevenue']].sum()
+        return g.rename(columns={'sessions': f'sessions{suffix}', 'transactions': f'transactions{suffix}', 'purchaseRevenue': f'revenue{suffix}'})
 
+    output_cols = ['sub_channel', 'sessions', 'orders', 'purchaseRevenue', 'orders_dod', 'orders_yoy', 'revenue_dod', 'revenue_yoy', 'dod', 'yoy']
     out_map: Dict[str, pd.DataFrame] = {}
+
     for bucket in CHANNEL_BUCKET_ORDER:
-        merged = agg(make_detail_key(cur, bucket),'_cur').merge(
-            agg(make_detail_key(prev, bucket),'_prev'), on='sub', how='outer'
+        merged = agg(make_detail_key(cur, bucket), '_cur').merge(
+            agg(make_detail_key(prev, bucket), '_prev'), on='sub', how='outer'
         ).merge(
-            agg(make_detail_key(yoy, bucket),'_yoy'), on='sub', how='outer'
+            agg(make_detail_key(yoy, bucket), '_yoy'), on='sub', how='outer'
         ).fillna(0.0)
+
         if merged.empty:
-            out_map[bucket] = pd.DataFrame(columns=['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy'])
+            out_map[bucket] = pd.DataFrame(columns=output_cols)
             continue
+
+        for col in [
+            'sessions_cur', 'sessions_prev', 'sessions_yoy',
+            'transactions_cur', 'transactions_prev', 'transactions_yoy',
+            'revenue_cur', 'revenue_prev', 'revenue_yoy',
+        ]:
+            if col not in merged.columns:
+                merged[col] = 0.0
+
         merged['session_dod'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_prev'])), axis=1)
         merged['session_yoy'] = merged.apply(lambda r: pct_change(float(r['sessions_cur']), float(r['sessions_yoy'])), axis=1)
         merged['orders_dod'] = merged.apply(lambda r: pct_change(float(r['transactions_cur']), float(r['transactions_prev'])), axis=1)
         merged['orders_yoy'] = merged.apply(lambda r: pct_change(float(r['transactions_cur']), float(r['transactions_yoy'])), axis=1)
         merged['revenue_dod'] = merged.apply(lambda r: pct_change(float(r['revenue_cur']), float(r['revenue_prev'])), axis=1)
         merged['revenue_yoy'] = merged.apply(lambda r: pct_change(float(r['revenue_cur']), float(r['revenue_yoy'])), axis=1)
-        merged = merged.rename(columns={
-            'sub':'sub_channel',
-            'sessions_cur':'sessions',
-            'transactions_cur':'orders',
-            'revenue_cur':'purchaseRevenue',
-            'session_dod':'dod',
-            'session_yoy':'yoy'
-        })
-        out_map[bucket] = merged[['sub_channel','sessions','orders','purchaseRevenue','session_dod','session_yoy','orders_dod','orders_yoy','revenue_dod','revenue_yoy','dod','yoy']].sort_values(['sessions','purchaseRevenue'], ascending=[False,False]).reset_index(drop=True)
+
+        merged['sub_channel'] = merged['sub']
+        merged['sessions'] = merged['sessions_cur']
+        merged['orders'] = merged['transactions_cur']
+        merged['purchaseRevenue'] = merged['revenue_cur']
+        merged['dod'] = merged['session_dod']
+        merged['yoy'] = merged['session_yoy']
+
+        out_map[bucket] = merged[output_cols].sort_values(['sessions', 'purchaseRevenue'], ascending=[False, False]).reset_index(drop=True)
+
     return out_map
 
 def get_paid_media_comparison_table(client: BetaAnalyticsDataClient, w: DigestWindow, target_roas_map: Dict[str, float]) -> pd.DataFrame:
