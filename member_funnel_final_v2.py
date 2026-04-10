@@ -46,6 +46,54 @@ MSSQL_USERNAME = os.getenv("MSSQL_USERNAME", "")
 MSSQL_PASSWORD = os.getenv("MSSQL_PASSWORD", "")
 MEMBER_FUNNEL_ADMIN_DAILY_SQL = os.getenv("MEMBER_FUNNEL_ADMIN_DAILY_SQL", "").strip()
 
+DEFAULT_ADMIN_DAILY_SQL = r"""
+DECLARE @TARGET_DATE date = '__TARGET_DATE__';
+
+WITH traffic AS (
+    SELECT
+        SUM(ISNULL(StatisticsPV, 0)) AS pv,
+        SUM(ISNULL(StatisticsSessions, 0)) AS sessions
+    FROM dbo.TB_Statistics_Google
+    WHERE CAST(StatisticsDate AS date) = @TARGET_DATE
+),
+signups AS (
+    SELECT
+        COUNT(*) AS signups
+    FROM dbo.TB_Member
+    WHERE CAST(MemberRegdate AS date) = @TARGET_DATE
+),
+orders AS (
+    SELECT
+        COUNT(DISTINCT OrderNo) AS order_count,
+        SUM(ISNULL(OrderTotalPay, 0)) AS revenue,
+        SUM(ISNULL(OrderTotalPrice, 0)) AS total_price,
+        SUM(ISNULL(OrderUseCouponPrice, 0)) AS coupon_used,
+        SUM(ISNULL(OrderUsePoint, 0)) AS point_used,
+        SUM(ISNULL(OrderCancelPrice, 0)) AS cancel_amount
+    FROM dbo.TB_Order
+    WHERE CAST(OrderRegdate AS date) = @TARGET_DATE
+)
+SELECT
+    @TARGET_DATE AS report_date,
+    t.sessions,
+    t.pv,
+    s.signups,
+    o.order_count AS orders,
+    o.order_count AS buyers,
+    o.revenue,
+    o.total_price,
+    o.coupon_used,
+    o.point_used,
+    o.cancel_amount,
+    CASE
+        WHEN o.order_count > 0 THEN CAST(o.revenue AS float) / o.order_count
+        ELSE 0
+    END AS aov
+FROM traffic t
+CROSS JOIN signups s
+CROSS JOIN orders o;
+"""
+
 PERIOD_PRESETS = [
     {"key": "1d", "label": "1DAY", "days": 1, "filename": "daily.html", "is_default": False},
     {"key": "7d", "label": "7D", "days": 7, "filename": "7d.html", "is_default": False},
@@ -193,7 +241,7 @@ def get_mssql_connection():
     return pyodbc.connect(conn_str)
 
 def fetch_admin_daily_snapshot(target_date: dt.date) -> dict | None:
-    sql = MEMBER_FUNNEL_ADMIN_DAILY_SQL
+    sql = MEMBER_FUNNEL_ADMIN_DAILY_SQL or DEFAULT_ADMIN_DAILY_SQL
     if not sql:
         return None
     sql = sql.replace("__TARGET_DATE__", target_date.strftime("%Y-%m-%d"))
@@ -204,14 +252,19 @@ def fetch_admin_daily_snapshot(target_date: dt.date) -> dict | None:
         if df.empty:
             return None
         row = df.iloc[0].to_dict()
+        orders = _pick_value(row, "order_count", "orders", "주문건수", "주문건")
+        buyers = _pick_value(row, "buyers", "구매자수", "구매회원")
+        if buyers <= 0:
+            buyers = orders
         snapshot = {
             "date": target_date.isoformat(),
-            "revenue": _pick_value(row, "총매출금액", "ERP매출", "매출금액", "revenue", "sales"),
-            "sessions": _pick_value(row, "SESSION", "세션"),
-            "signups": _pick_value(row, "가입자수", "가입자", "signups"),
-            "buyers": _pick_value(row, "구매자수", "구매회원", "buyers", "주문건수", "주문건", "구매수량"),
-            "orders": _pick_value(row, "주문건수", "주문건", "orders"),
-            "aov": _pick_value(row, "AOV", "객단가"),
+            "revenue": _pick_value(row, "revenue", "총매출금액", "ERP매출", "매출금액", "sales", "total_pay"),
+            "sessions": _pick_value(row, "sessions", "SESSION", "세션"),
+            "signups": _pick_value(row, "signups", "가입자수", "가입자"),
+            "buyers": buyers,
+            "orders": orders,
+            "aov": _pick_value(row, "aov", "AOV", "객단가"),
+            "pv": _pick_value(row, "pv", "PV"),
             "source": "admin_mssql",
             "raw": {str(k): (None if pd.isna(v) else v) for k, v in row.items()},
         }
@@ -400,10 +453,24 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             f"해당 일자 세션 {fmt_int(latest['sessions_norm'].sum())} / 가입 {fmt_int(latest['signup_norm'].sum())} / 구매자 {fmt_int(latest['purchase_norm'].sum())} 흐름입니다.",
             f"주요 채널은 {top_label(latest, 'channel_group_norm')}, 매출 기여 상위 상품은 {top_label(latest[latest['metric_revenue_norm']>0], 'purchase_product_name_norm')}입니다.",
         ],
-        "overview": {"sessions": int(df['sessions_norm'].sum()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(buy['member_id_norm'].replace('', pd.NA).nunique()), "members": int(user['member_id_norm'].replace('', pd.NA).nunique())},
+        "overview": {"sessions": int(df['sessions_norm'].sum()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(buy['member_id_norm'].replace('', pd.NA).nunique()), "members": int(user['member_id_norm'].replace('', pd.NA).nunique()), "metric_source": "ga4_crm_mart"},
         "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": {"cards": [{"label": SEGMENT_LABELS[k], "count": int(user[user[f'is_{k}_norm'] == 1]['member_id_norm'].replace('', pd.NA).nunique()), "top_channel": top_label(user[user[f'is_{k}_norm'] == 1], 'channel_group_norm'), "top_product": top_label(user[user[f'is_{k}_norm'] == 1], 'purchase_product_name_norm'), "top_message": top_label(user[user[f'is_{k}_norm'] == 1], 'recommended_message_norm', 'GENERAL')} for k in SEGMENT_ORDER if f'is_{k}_norm' in user.columns and not user[user[f'is_{k}_norm'] == 1].empty], "rows": rows_from_df(user[(user[[c for c in user.columns if c.startswith('is_') and c.endswith('_norm')]].sum(axis=1) > 0)], {"member_id_norm":"member_id","phone_norm":"phone","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product","recommended_message_norm":"recommended_message","consent_norm":"consent"})}},
         "total_view": {"member_overview": channel_panels(members, 'total')},
     }
+    if admin_daily:
+        bundle["overview"].update({
+            "sessions": int(round(float(admin_daily.get("sessions", 0) or 0))),
+            "orders": int(round(float(admin_daily.get("orders", 0) or 0))),
+            "revenue": float(admin_daily.get("revenue", 0) or 0),
+            "signups": int(round(float(admin_daily.get("signups", 0) or 0))),
+            "buyers": int(round(float(admin_daily.get("orders", 0) or admin_daily.get("buyers", 0) or 0))),
+            "metric_source": "admin_mssql",
+        })
+        bundle["latest_summary"] = [
+            f"최근 선택 가능 일자 기준 최신 데이터는 {fmt_date(end_date)}입니다.",
+            f"해당 일자 세션 {fmt_int(admin_daily.get('sessions', 0))} / 가입 {fmt_int(admin_daily.get('signups', 0))} / 주문 {fmt_int(admin_daily.get('orders', 0))} 흐름입니다.",
+            f"1DAY 상단 KPI는 MSSQL 운영 집계(TB_Order / TB_Statistics_Google / TB_Member) 기준입니다.",
+        ]
     return bundle
 
 
@@ -468,7 +535,8 @@ def render_page(bundle: dict, preset: dict) -> str:
     latest_summary = ''.join(f'<li>{esc(x)}</li>' for x in bundle.get('latest_summary', []))
     downloads = bundle.get('downloads', {})
     metric_source = str(bundle.get('overview', {}).get('metric_source', 'ga4_crm_mart'))
-    revenue_label = 'ERP Revenue' if metric_source == 'admin_mssql' else 'GA Revenue'
+    revenue_label = 'Revenue' if metric_source == 'admin_mssql' else 'GA Revenue'
+    count_label = 'Orders' if metric_source == 'admin_mssql' else 'Buyers'
     html_template = """<!doctype html>
 <html lang="ko">
 <head>
@@ -476,25 +544,25 @@ def render_page(bundle: dict, preset: dict) -> str:
 <title>Member Funnel</title>
 <style>
 :root{--bg:#f3f6fb;--card:#fff;--line:#dbe5f0;--navy:#0f255f;--blue:#2043b8;--text:#0f172a;--muted:#64748b}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif}.page{max-width:1480px;margin:0 auto;padding:36px}
-.hero{background:linear-gradient(135deg,var(--navy),var(--blue));border-radius:36px;padding:40px 44px;color:#fff;box-shadow:0 28px 60px rgba(15,37,95,.18)}
-.hero-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(420px,0.95fr);gap:28px;align-items:stretch}.eyebrow{display:inline-flex;padding:8px 12px;border:1px solid rgba(255,255,255,.25);border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;background:rgba(255,255,255,.08)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif}.page{max-width:1600px;margin:0 auto;padding:40px 44px}
+.hero{background:radial-gradient(circle at top right,rgba(255,255,255,.10),transparent 22%),linear-gradient(135deg,#17327f 0%,#1f43b7 55%,#3158df 100%);border-radius:38px;padding:46px 48px;color:#fff;box-shadow:0 34px 70px rgba(15,37,95,.20)}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(460px,0.95fr);gap:34px;align-items:stretch}.eyebrow{display:inline-flex;padding:8px 12px;border:1px solid rgba(255,255,255,.25);border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;background:rgba(255,255,255,.08)}
 h1{margin:18px 0 10px;font-size:56px;line-height:1}.hero p{margin:0 0 18px;font-size:16px;font-weight:700;line-height:1.6;opacity:.96}
 .hero-meta{display:flex;gap:10px;flex-wrap:wrap}.period-chip{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.24);color:#fff;text-decoration:none;font-weight:900}.period-chip.active{background:#fff;color:var(--navy)}
-.hero-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.hero-stat,.card,.summary-card{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:0 12px 28px rgba(15,23,42,.06)}.hero-stat{padding:20px 24px;color:var(--text);min-height:124px;display:flex;flex-direction:column;justify-content:center}.label,.kicker{font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}.value,.kpi{margin-top:10px;font-size:28px;font-weight:1000;line-height:1.1;word-break:break-word}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin:32px 0 22px}.tabs,.subtabs{display:flex;gap:10px;flex-wrap:wrap}.tab-btn,.subtab-btn,.table-expand-btn{height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--navy);font-weight:900;cursor:pointer}.tab-btn.active,.subtab-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}.summary-card{padding:22px 26px;margin-bottom:28px}.summary-card ul{margin:8px 0 0 16px;padding:0}.summary-card li{margin:8px 0;font-weight:700}
-.panel{display:none}.panel.active{display:block}.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:26px 0 14px}.section-title{font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#64748b}.section-head h2{margin:6px 0 0;font-size:24px;line-height:1.2}
-.download-row{display:flex;gap:8px;flex-wrap:wrap}.download-btn{display:inline-flex;align-items:center;height:40px;padding:0 14px;border-radius:999px;background:var(--navy);color:#fff;text-decoration:none;font-weight:900}
+.hero-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}.hero-stat,.card,.summary-card{background:var(--card);border:1px solid var(--line);border-radius:26px;box-shadow:0 16px 34px rgba(15,23,42,.06)}.hero-stat{padding:24px 28px;color:var(--text);min-height:136px;display:flex;flex-direction:column;justify-content:center}.label,.kicker{font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}.value,.kpi{margin-top:10px;font-size:28px;font-weight:1000;line-height:1.1;word-break:break-word}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:22px;margin:36px 0 24px}.tabs,.subtabs{display:flex;gap:10px;flex-wrap:wrap}.tab-btn,.subtab-btn,.table-expand-btn{height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--navy);font-weight:900;cursor:pointer;box-shadow:0 4px 10px rgba(15,23,42,.03)}.tab-btn.active,.subtab-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}.summary-card{padding:22px 26px;margin-bottom:28px}.summary-card ul{margin:8px 0 0 16px;padding:0}.summary-card li{margin:8px 0;font-weight:700}
+.panel{display:none}.panel.active{display:block}.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:30px 0 18px}.section-title{font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#64748b}.section-head h2{margin:6px 0 0;font-size:24px;line-height:1.2}
+.download-row{display:flex;gap:12px;flex-wrap:wrap}.download-btn{display:inline-flex;align-items:center;height:40px;padding:0 14px;border-radius:999px;background:var(--navy);color:#fff;text-decoration:none;font-weight:900}
 .grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{padding:22px;min-height:136px}.kpi-sub{margin-top:8px;font-size:12px;font-weight:700;color:var(--muted)}
 .chart-row{display:grid;grid-template-columns:88px 1fr 58px;gap:10px;align-items:center;margin:12px 0}.chart-label,.chart-metric{font-size:12px;font-weight:800}.chart-track{height:10px;background:#e6edf7;border-radius:999px;overflow:hidden}.chart-fill{display:block;height:100%;background:linear-gradient(90deg,#2b5cff,#84b6ff);border-radius:999px}
 .donut-wrap{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}.donut{width:120px;height:120px;border-radius:50%}.legend-item{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:8px 0;font-size:12px;font-weight:800}.legend-dot{width:10px;height:10px;border-radius:50%;background:#2563eb;display:inline-block;margin-right:8px}.legend-dot.alt{background:#93c5fd}
-.product-card{display:flex;gap:12px;align-items:center}.thumb{width:44px;height:44px;border-radius:12px;object-fit:cover;border:1px solid var(--line)}.thumb-empty{display:flex;align-items:center;justify-content:center;background:#eef3f8;color:#64748b;font-size:11px;font-weight:900}.mini-title{margin-top:4px;font-size:15px;font-weight:900}.stack-meta{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted)}
-.table-meta,.table-tools{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;font-weight:800;color:var(--muted)}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:18px}.data-table{width:100%;min-width:860px;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid #eef3f8;text-align:left;font-size:12px;font-weight:800;white-space:nowrap}th{background:#f8fbff;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-size:11px}td.num,th.num{text-align:right}.is-hidden{display:none}
-@media (max-width:1100px){.hero-grid,.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}h1{font-size:40px}}
+.product-card{display:flex;gap:14px;align-items:center}.thumb{width:44px;height:44px;border-radius:12px;object-fit:cover;border:1px solid var(--line)}.thumb-empty{display:flex;align-items:center;justify-content:center;background:#eef3f8;color:#64748b;font-size:11px;font-weight:900}.mini-title{margin-top:4px;font-size:15px;font-weight:900}.stack-meta{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted)}
+.table-meta,.table-tools{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:12px;font-weight:800;color:var(--muted)}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:20px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.04)}.data-table{width:100%;min-width:860px;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid #eef3f8;text-align:left;font-size:12px;font-weight:800;white-space:nowrap}th{background:#f8fbff;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-size:11px}td.num,th.num{text-align:right}.is-hidden{display:none}
+@media (max-width:1280px){.hero-grid{grid-template-columns:1fr}.hero-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:1100px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}.page{padding:24px}.hero{padding:30px}.hero-kpis{grid-template-columns:1fr}.toolbar{flex-direction:column;align-items:flex-start}h1{font-size:40px}}
 </style>
 </head>
 <body>
 <div class="page">
-<section class="hero"><div class="hero-grid"><div><div class="eyebrow">External Signal Style · CRM Funnel</div><h1>Member Funnel</h1><p>채널별 행동 데이터와 CRM 액션 대상을 한 화면에서 빠르게 읽고, 바로 추출할 수 있게 재정렬했습니다. USER VIEW는 USER_ID 단위 대표행 기준 액션 분석, TOTAL VIEW는 기존 회원 전체 분석입니다.</p><div class="hero-meta">__PERIOD_NAV__</div></div><div class="hero-kpis"><div class="hero-stat"><div class="label">Sessions</div><div class="value">__SESSIONS__</div></div><div class="hero-stat"><div class="label">Buyers</div><div class="value">__BUYERS__</div></div><div class="hero-stat"><div class="label">__REVENUE_LABEL__</div><div class="value">__REVENUE__</div></div><div class="hero-stat"><div class="label">Members</div><div class="value">__MEMBERS__</div></div></div></div></section>
+<section class="hero"><div class="hero-grid"><div><div class="eyebrow">External Signal Style · CRM Funnel</div><h1>Member Funnel</h1><p>채널별 행동 데이터와 CRM 액션 대상을 한 화면에서 빠르게 읽고, 바로 추출할 수 있게 재정렬했습니다. USER VIEW는 USER_ID 단위 대표행 기준 액션 분석, TOTAL VIEW는 기존 회원 전체 분석입니다.</p><div class="hero-meta">__PERIOD_NAV__</div></div><div class="hero-kpis"><div class="hero-stat"><div class="label">Sessions</div><div class="value">__SESSIONS__</div></div><div class="hero-stat"><div class="label">__COUNT_LABEL__</div><div class="value">__BUYERS__</div></div><div class="hero-stat"><div class="label">__REVENUE_LABEL__</div><div class="value">__REVENUE__</div></div><div class="hero-stat"><div class="label">Members</div><div class="value">__MEMBERS__</div></div></div></div></section>
 <div class="toolbar"><div class="tabs"><button class="tab-btn active" data-main-target="user-view">USER VIEW</button><button class="tab-btn" data-main-target="total-view">TOTAL VIEW</button></div></div>
 <div class="summary-card"><div class="section-title">이번 구간 핵심 요약</div><ul>__LATEST_SUMMARY__</ul><div class="kpi-sub" style="margin-top:14px">상단 KPI Source · __METRIC_SOURCE__</div></div>
 <section class="panel active" id="user-view"><div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰 (USER_ID 대표행 기준)</h2></div><div class="download-row">__DOWNLOADS__</div></div><div id="user-sections"></div></section>
