@@ -1452,17 +1452,18 @@ def get_paid_detail_3way(
 
     merged = pd.concat([merged, pd.DataFrame([total])], ignore_index=True)
 
-    return merged.rename(columns={
+    out = merged.rename(columns={
         "sub": "sub_channel",
         "sessions_cur": "sessions",
         "orders_cur": "orders",
         "rev_cur": "purchaseRevenue",
         "session_dod": "dod",
         "session_yoy": "yoy",
-    })[[
+    })
+    return out[[
         "sub_channel", "sessions", "orders", "purchaseRevenue",
-        "session_dod", "session_yoy", "orders_dod", "orders_yoy",
-        "revenue_dod", "revenue_yoy", "dod", "yoy"
+        "orders_dod", "orders_yoy", "revenue_dod", "revenue_yoy",
+        "dod", "yoy"
     ]]
 
 def get_paid_top3(client: BetaAnalyticsDataClient, w: DigestWindow) -> pd.DataFrame:
