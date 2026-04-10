@@ -1308,7 +1308,7 @@ def get_channel_snapshot_3way(
     """
     Strict channel snapshot:
     - sessions from strict BQ session-grain base
-    - current-period orders/revenue overwritten from GA transactions/purchaseRevenue
+    - orders/revenue from the same strict BQ session-grain base
     - classification uses sample.rtf logic only
     """
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
@@ -1346,18 +1346,8 @@ def get_channel_snapshot_3way(
         if col not in merged.columns:
             merged[col] = 0.0
 
-    # Overwrite current-period orders/revenue from GA transactions grouped by the same RTF buckets.
-    ga_cur = _fetch_ga_channel_orders_revenue(client, w.cur_start, w.cur_end)
-    if not ga_cur.empty:
-        ga_cur['bucket'] = ga_cur.apply(lambda r: classify_looker_channel(r['sessionSourceMedium'], r['sessionCampaignName']), axis=1)
-        ga_bucket = ga_cur.groupby('bucket', as_index=False)[['transactions', 'purchaseRevenue']].sum().rename(columns={
-            'transactions': 'ga_transactions_cur',
-            'purchaseRevenue': 'ga_revenue_cur',
-        })
-        merged = merged.merge(ga_bucket, on='bucket', how='left')
-        merged['transactions_cur'] = pd.to_numeric(merged.get('ga_transactions_cur', 0), errors='coerce').fillna(merged['transactions_cur'])
-        merged['revenue_cur'] = pd.to_numeric(merged.get('ga_revenue_cur', 0), errors='coerce').fillna(merged['revenue_cur'])
-        merged = merged.drop(columns=[c for c in ['ga_transactions_cur', 'ga_revenue_cur'] if c in merged.columns])
+    # Keep current-period orders/revenue on the same strict BQ session-grain base as sessions.
+    # Do not overlay GA grouped transactions here, because that breaks bucket-level reconciliation.
 
     for bucket in CHANNEL_BUCKET_ORDER:
         if bucket not in merged['bucket'].astype(str).tolist():
@@ -2432,10 +2422,7 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
     prev = fetch(w.prev_start, w.prev_end)
     yoy = fetch(w.yoy_start, w.yoy_end)
 
-    # GA current-period orders/revenue overlay
-    ga_cur = _fetch_ga_channel_orders_revenue(client, w.cur_start, w.cur_end)
-    if not ga_cur.empty:
-        ga_cur['bucket'] = ga_cur.apply(lambda r: classify_looker_channel(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
+    # Keep current-period orders/revenue on the same strict BQ session-grain base as sessions.
 
     def make_detail_key(df: pd.DataFrame, bucket: str) -> pd.DataFrame:
         if df.empty:
@@ -2469,22 +2456,7 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
             out_map[bucket] = pd.DataFrame(columns=output_cols)
             continue
 
-        # Overlay current-period GA transactions/purchaseRevenue at the same sub-channel grain.
-        if not ga_cur.empty:
-            ga_bucket = ga_cur[ga_cur['bucket'] == bucket].copy()
-            if not ga_bucket.empty:
-                if bucket == 'Paid Ad':
-                    ga_bucket['sub'] = ga_bucket.apply(lambda r: classify_paid_detail(str(r.get('sessionSourceMedium','')), str(r.get('sessionCampaignName',''))), axis=1)
-                else:
-                    ga_bucket['sub'] = ga_bucket['sessionSourceMedium'].astype(str).str.strip().replace('', '(not set)')
-                ga_agg = ga_bucket.groupby('sub', as_index=False)[['transactions', 'purchaseRevenue']].sum().rename(columns={
-                    'transactions': 'ga_transactions_cur',
-                    'purchaseRevenue': 'ga_revenue_cur',
-                })
-                merged = merged.merge(ga_agg, on='sub', how='left')
-                merged['transactions_cur'] = pd.to_numeric(merged.get('ga_transactions_cur', 0), errors='coerce').fillna(merged.get('transactions_cur', 0))
-                merged['revenue_cur'] = pd.to_numeric(merged.get('ga_revenue_cur', 0), errors='coerce').fillna(merged.get('revenue_cur', 0))
-                merged = merged.drop(columns=[c for c in ['ga_transactions_cur', 'ga_revenue_cur'] if c in merged.columns])
+        # Keep current-period orders/revenue on the same strict BQ session-grain base as sessions.
 
         for col in [
             'sessions_cur', 'sessions_prev', 'sessions_yoy',
