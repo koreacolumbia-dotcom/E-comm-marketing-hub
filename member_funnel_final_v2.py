@@ -32,6 +32,7 @@ HUB_SUMMARY_DIR = Path(os.getenv("MEMBER_FUNNEL_HUB_SUMMARY_DIR", "reports"))
 PROJECT_ID = os.getenv("MEMBER_FUNNEL_PROJECT_ID", "").strip()
 BQ_LOCATION = os.getenv("MEMBER_FUNNEL_BQ_LOCATION", "asia-northeast3").strip()
 BASE_TABLE = os.getenv("MEMBER_FUNNEL_BASE_TABLE", "crm_mart.member_funnel_master").strip()
+ADMIN_DAILY_TABLE = os.getenv("MEMBER_FUNNEL_ADMIN_DAILY_TABLE", "crm_mart.member_funnel_admin_daily").strip()
 SAMPLE_JSON = os.getenv("MEMBER_FUNNEL_SAMPLE_JSON", "").strip()
 WRITE_DATA_CACHE = os.getenv("MEMBER_FUNNEL_WRITE_DATA_CACHE", "true").lower() in {"1","true","yes","y"}
 UI_MAX_TABLE_ROWS = int(os.getenv("MEMBER_FUNNEL_UI_MAX_TABLE_ROWS", "300"))
@@ -367,6 +368,64 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date, view_mod
         if conn is not None:
             conn.close()
 
+def fetch_admin_period_snapshot_bq(start_date: dt.date, end_date: dt.date, view_mode: str = "user") -> dict | None:
+    if not PROJECT_ID or not ADMIN_DAILY_TABLE:
+        return None
+    try:
+        client = get_bq_client()
+        table_ref = ADMIN_DAILY_TABLE if '.' in ADMIN_DAILY_TABLE else f"{PROJECT_ID}.{ADMIN_DAILY_TABLE}"
+        sql = f"""
+        SELECT
+          MIN(report_date) AS start_date,
+          MAX(report_date) AS end_date,
+          SUM(COALESCE(sessions, 0)) AS sessions,
+          SUM(COALESCE(pv, 0)) AS pv,
+          SUM(COALESCE(signups, 0)) AS signups,
+          SUM(COALESCE(orders, 0)) AS orders,
+          SUM(COALESCE(buyers, 0)) AS buyers,
+          SUM(COALESCE(revenue, 0)) AS revenue,
+          SUM(COALESCE(total_price, 0)) AS total_price,
+          SUM(COALESCE(coupon_used, 0)) AS coupon_used,
+          SUM(COALESCE(point_used, 0)) AS point_used,
+          SUM(COALESCE(cancel_amount, 0)) AS cancel_amount
+        FROM `{table_ref}`
+        WHERE report_date BETWEEN @start_date AND @end_date
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
+                bigquery.ScalarQueryParameter("end_date", "DATE", end_date.isoformat()),
+            ]
+        )
+        df = client.query(sql, job_config=job_config, location=BQ_LOCATION).to_dataframe()
+        if df.empty:
+            return None
+        row = df.iloc[0].to_dict()
+        orders = _pick_value(row, "orders", "order_count")
+        buyers = _pick_value(row, "buyers", "buyer_count")
+        revenue = _pick_value(row, "revenue", "sales", "total_pay")
+        denom = orders if str(view_mode).lower() == "total" else buyers
+        return {
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "view_mode": "total" if str(view_mode).lower() == "total" else "user",
+            "sessions": _pick_value(row, "sessions"),
+            "pv": _pick_value(row, "pv"),
+            "signups": _pick_value(row, "signups"),
+            "orders": orders,
+            "buyers": buyers,
+            "revenue": revenue,
+            "total_price": _pick_value(row, "total_price"),
+            "coupon_used": _pick_value(row, "coupon_used"),
+            "point_used": _pick_value(row, "point_used"),
+            "cancel_amount": _pick_value(row, "cancel_amount"),
+            "aov": (revenue / denom) if denom else 0.0,
+            "source": "bq_admin_daily",
+            "raw": {str(k): (None if pd.isna(v) else v) for k, v in row.items()},
+        }
+    except Exception:
+        return None
+
 def get_bq_client():
     if bigquery is None:
         raise RuntimeError("google-cloud-bigquery is not installed")
@@ -500,7 +559,8 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
     total_rows = buyer_df(members)
     latest_date = max(df["event_date_norm"].tolist() or [YESTERDAY_KST])
     latest = df[df["event_date_norm"] == latest_date].copy()
-    admin_daily = fetch_admin_daily_snapshot(end_date) if period_key == "1d" else None
+    admin_user = fetch_admin_period_snapshot_bq(start_date, end_date, 'user') or fetch_admin_period_snapshot(start_date, end_date, 'user')
+    admin_total = fetch_admin_period_snapshot_bq(start_date, end_date, 'total') or fetch_admin_period_snapshot(start_date, end_date, 'total')
 
     def channel_panels(source: pd.DataFrame, mode: str):
         out = {}
@@ -545,24 +605,66 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             f"해당 일자 세션 {fmt_int(latest['sessions_norm'].sum())} / 가입 {fmt_int(latest['signup_norm'].sum())} / 구매자 {fmt_int(latest['purchase_norm'].sum())} 흐름입니다.",
             f"주요 채널은 {top_label(latest, 'channel_group_norm')}, 매출 기여 상위 상품은 {top_label(latest[latest['metric_revenue_norm']>0], 'purchase_product_name_norm')}입니다.",
         ],
-        "overview": {"sessions": int(df['sessions_norm'].sum()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(buy['member_id_norm'].replace('', pd.NA).nunique()), "members": int(user['member_id_norm'].replace('', pd.NA).nunique()), "metric_source": "ga4_crm_mart"},
+        "overview": {"sessions": int(df['sessions_norm'].sum()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(buy['member_id_norm'].replace('', pd.NA).nunique()), "members": int(user['member_id_norm'].replace('', pd.NA).nunique()), "metric_source": "ga4_crm_mart", "count_label": "Buyers", "revenue_label": "GA Revenue"},
         "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": {"cards": [{"label": SEGMENT_LABELS[k], "count": int(user[user[f'is_{k}_norm'] == 1]['member_id_norm'].replace('', pd.NA).nunique()), "top_channel": top_label(user[user[f'is_{k}_norm'] == 1], 'channel_group_norm'), "top_product": top_label(user[user[f'is_{k}_norm'] == 1], 'purchase_product_name_norm'), "top_message": top_label(user[user[f'is_{k}_norm'] == 1], 'recommended_message_norm', 'GENERAL')} for k in SEGMENT_ORDER if f'is_{k}_norm' in user.columns and not user[user[f'is_{k}_norm'] == 1].empty], "rows": rows_from_df(user[(user[[c for c in user.columns if c.startswith('is_') and c.endswith('_norm')]].sum(axis=1) > 0)], {"member_id_norm":"member_id","phone_norm":"phone","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product","recommended_message_norm":"recommended_message","consent_norm":"consent"})}},
         "total_view": {"member_overview": channel_panels(members, 'total')},
     }
-    if admin_daily:
-        bundle["overview"].update({
-            "sessions": int(round(float(admin_daily.get("sessions", 0) or 0))),
-            "orders": int(round(float(admin_daily.get("orders", 0) or 0))),
-            "revenue": float(admin_daily.get("revenue", 0) or 0),
-            "signups": int(round(float(admin_daily.get("signups", 0) or 0))),
-            "buyers": int(round(float(admin_daily.get("orders", 0) or admin_daily.get("buyers", 0) or 0))),
-            "metric_source": "admin_mssql",
-        })
+    bundle["overview_by_view"] = {
+        "user": {
+            "sessions": int(bundle["overview"]["sessions"]),
+            "buyers": int(bundle["overview"]["buyers"]),
+            "orders": int(bundle["overview"]["orders"]),
+            "revenue": float(bundle["overview"]["revenue"]),
+            "signups": int(bundle["overview"]["signups"]),
+            "members": int(bundle["overview"]["members"]),
+            "metric_source": bundle["overview"]["metric_source"],
+            "count_label": "Buyers",
+            "revenue_label": "GA Revenue",
+        },
+        "total": {
+            "sessions": int(bundle["overview"]["sessions"]),
+            "buyers": int(bundle["overview"]["buyers"]),
+            "orders": int(bundle["overview"]["orders"]),
+            "revenue": float(bundle["overview"]["revenue"]),
+            "signups": int(bundle["overview"]["signups"]),
+            "members": int(bundle["overview"]["members"]),
+            "metric_source": bundle["overview"]["metric_source"],
+            "count_label": "Orders",
+            "revenue_label": "GA Revenue",
+        },
+    }
+    admin_source = admin_user or admin_total
+    if admin_user or admin_total:
+        if admin_user:
+            bundle["overview_by_view"]["user"].update({
+                "sessions": int(round(float(admin_user.get("sessions", 0) or 0))),
+                "buyers": int(round(float(admin_user.get("buyers", 0) or 0))),
+                "orders": int(round(float(admin_user.get("orders", 0) or 0))),
+                "revenue": float(admin_user.get("revenue", 0) or 0),
+                "signups": int(round(float(admin_user.get("signups", 0) or 0))),
+                "metric_source": str(admin_user.get("source") or "bq_admin_daily"),
+                "count_label": "Buyers",
+                "revenue_label": "Revenue",
+            })
+        if admin_total:
+            bundle["overview_by_view"]["total"].update({
+                "sessions": int(round(float(admin_total.get("sessions", 0) or 0))),
+                "buyers": int(round(float(admin_total.get("buyers", 0) or 0))),
+                "orders": int(round(float(admin_total.get("orders", 0) or 0))),
+                "revenue": float(admin_total.get("revenue", 0) or 0),
+                "signups": int(round(float(admin_total.get("signups", 0) or 0))),
+                "metric_source": str(admin_total.get("source") or "bq_admin_daily"),
+                "count_label": "Orders",
+                "revenue_label": "Revenue",
+            })
+        bundle["overview"] = dict(bundle["overview_by_view"]["user"])
         bundle["latest_summary"] = [
             f"최근 선택 가능 일자 기준 최신 데이터는 {fmt_date(end_date)}입니다.",
-            f"해당 일자 세션 {fmt_int(admin_daily.get('sessions', 0))} / 가입 {fmt_int(admin_daily.get('signups', 0))} / 주문 {fmt_int(admin_daily.get('orders', 0))} 흐름입니다.",
-            f"1DAY 상단 KPI는 MSSQL 운영 집계(TB_Order / TB_Statistics_Google / TB_Member) 기준입니다.",
+            f"선택 구간 세션 {fmt_int((admin_source or {}).get('sessions', 0))} / 가입 {fmt_int((admin_source or {}).get('signups', 0))} / 주문 {fmt_int((admin_total or admin_user or {}).get('orders', 0))} 흐름입니다.",
+            f"상단 KPI는 BigQuery 운영 KPI 테이블(member_funnel_admin_daily) 우선, 실패 시 MSSQL 운영 집계 fallback 기준입니다.",
         ]
+    else:
+        bundle["warning"] = "운영 KPI 로드 실패 · 현재 상단은 GA4 + CRM mart 기준입니다."
     return bundle
 
 
@@ -627,8 +729,8 @@ def render_page(bundle: dict, preset: dict) -> str:
     latest_summary = ''.join(f'<li>{esc(x)}</li>' for x in bundle.get('latest_summary', []))
     downloads = bundle.get('downloads', {})
     metric_source = str(bundle.get('overview', {}).get('metric_source', 'ga4_crm_mart'))
-    revenue_label = 'Revenue' if metric_source == 'admin_mssql' else 'GA Revenue'
-    count_label = 'Orders' if metric_source == 'admin_mssql' else 'Buyers'
+    revenue_label = 'Revenue' if metric_source in {'admin_mssql','bq_admin_daily'} else 'GA Revenue'
+    count_label = 'Orders' if metric_source in {'admin_mssql','bq_admin_daily'} else 'Buyers'
     html_template = """<!doctype html>
 <html lang="ko">
 <head>
@@ -667,7 +769,7 @@ function money(v){const n=Number(v||0); return '₩'+Math.round(n).toLocaleStrin
 function num(v){return Math.round(Number(v||0)).toLocaleString('ko-KR')}
 function pct(v){return `${Number(v||0).toFixed(1)}%`}
 function esc2(s){return String(s ?? '').replace(/[&<>\"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]))}
-function metricSourceLabel(v){ return v === 'admin_mssql' ? 'MSSQL Admin KPI' : 'GA4 + CRM Mart'; }
+function metricSourceLabel(v){ if(v==='admin_mssql') return 'MSSQL Admin KPI'; if(v==='bq_admin_daily') return 'BigQuery Admin KPI'; return 'GA4 + CRM Mart'; }
 function activeOverview(mode){ const all=(BUNDLE&&BUNDLE.overview_by_view)||{}; return all[mode] || BUNDLE.overview || {}; }
 function syncHero(mode){ const o = activeOverview(mode); const countValue = mode === 'total' ? (o.orders ?? 0) : (o.buyers ?? 0); const sessions=document.getElementById('hero-sessions'); const count=document.getElementById('hero-count'); const countLabel=document.getElementById('hero-count-label'); const revenue=document.getElementById('hero-revenue'); const revenueLabel=document.getElementById('hero-revenue-label'); const members=document.getElementById('hero-members'); const source=document.getElementById('hero-source'); if(sessions) sessions.textContent=num(o.sessions||0); if(count) count.textContent=num(countValue||0); if(countLabel) countLabel.textContent=o.count_label || (mode==='total'?'Orders':'Buyers'); if(revenue) revenue.textContent=money(o.revenue||0); if(revenueLabel) revenueLabel.textContent=o.revenue_label || 'Revenue'; if(members) members.textContent=num(o.members||0); if(source) source.textContent=metricSourceLabel(o.metric_source); }
 async function safeFetch(urls){ for (const url of urls){ try{ const res = await fetch(url, {cache:'no-store'}); if(res.ok){ return await res.json(); } } catch(err){} } return null; }
@@ -723,7 +825,7 @@ function init(bundle){
         .replace('__MEMBERS__', fmt_int(bundle['overview']['members']))
         .replace('__LATEST_SUMMARY__', latest_summary)
         .replace('__DOWNLOADS__', download_html)
-        .replace('__METRIC_SOURCE__', 'MSSQL Admin KPI' if metric_source == 'admin_mssql' else 'GA4 + CRM Mart')
+        .replace('__METRIC_SOURCE__', 'BigQuery Admin KPI' if metric_source == 'bq_admin_daily' else ('MSSQL Admin KPI' if metric_source == 'admin_mssql' else 'GA4 + CRM Mart'))
         .replace('__COUNT_LABEL__', count_label)
         .replace('__WARNING_HTML__', f'<div class="warn-banner">{esc(bundle.get("warning", ""))}</div>' if bundle.get('warning') else '')
         .replace('__INLINE_BUNDLE__', json.dumps(bundle, ensure_ascii=False))
