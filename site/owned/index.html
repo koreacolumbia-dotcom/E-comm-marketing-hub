@@ -1747,18 +1747,27 @@
       .replace(/'/g, '&#39;');
   }
 
+  function getLmsForcedGroup(r){
+    const raw = `${normalizeLooseText(r && r.campaign)} ${normalizeLooseText(r && r.term)} ${normalizeLooseText(r && r.send_id)} ${normalizeLooseText(r && r.message_title)}`;
+    if(!raw) return null;
+    if(raw.includes('LMS_ECOM_0401_GNR_TRAILRUNNING') || raw.includes('LMS_ECOM_0401_COUPONNOT_TRAILRUNNING')) return '0401';
+    if(raw.includes('LMS_ECOM_0401_TRAILRUNNING') || raw.includes('LMS_ECOM_0401_SPRINGHIKING')) return '0401_2';
+    if(raw.includes('LMS_ECOM_0410PANTS2') || raw.includes('LMS_ECOM_0410EXCLUSIVE2')) return '0410';
+    return null;
+  }
+
   function extractGroupFromText(s, fallbackYear=''){
     s = String(s || '').trim();
     if(!s) return null;
 
-    let m = s.match(/(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
-    if(m) return { year: m[1], mmdd: `${m[2]}${m[3]}` };
+    let m = s.match(/(?<!\d)(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(_\d+)?(?!\d)/);
+    if(m) return { year: m[1], mmdd: `${m[2]}${m[3]}${m[4] || ''}` };
 
-    m = s.match(/(?<!\d)(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
-    if(m) return { year: `20${m[1]}`, mmdd: `${m[2]}${m[3]}` };
+    m = s.match(/(?<!\d)(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(_\d+)?(?!\d)/);
+    if(m) return { year: `20${m[1]}`, mmdd: `${m[2]}${m[3]}${m[4] || ''}` };
 
-    m = s.match(/(?<!\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(?!\d)/);
-    if(m) return { year: fallbackYear, mmdd: `${m[1]}${m[2]}` };
+    m = s.match(/(?<!\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])(_\d+)?(?!\d)/);
+    if(m) return { year: fallbackYear, mmdd: `${m[1]}${m[2]}${m[3] || ''}` };
 
     return null;
   }
@@ -1785,12 +1794,17 @@
     const rowYear = String((r && (r.year || '')) || '').trim();
     const rowMmdd = String((r && (r.mmdd || '')) || '').trim();
 
-    // LMS_ECOM_familycoupon is a business exception:
-    // treat every matching row as 0319 for grouping and aggregation,
-    // not only for chip rendering. This keeps sessions/revenue/products aligned.
-    if(channel === 'LMS' && isLmsFamilyCouponRow(r)){
+    // LMS business exceptions:
+    // force selected message families into requested buckets for grouping and aggregation.
+    if(channel === 'LMS'){
       const forcedYear = getFallbackYear(r);
-      return { year: forcedYear, mmdd: '0319', explicit: true };
+      const forcedLmsGroup = getLmsForcedGroup(r);
+      if(forcedLmsGroup){
+        return { year: forcedYear, mmdd: forcedLmsGroup, explicit: true };
+      }
+      if(isLmsFamilyCouponRow(r)){
+        return { year: forcedYear, mmdd: '0319', explicit: true };
+      }
     }
 
     if(hasExplicitGroupMmdd(r) && /^\d{4}$/.test(rowYear) && /^\d{4}$/.test(rowMmdd)){
@@ -2053,7 +2067,7 @@
 
   function parseScopedGroupKey(gk){
     const raw = String(gk || '');
-    const m = raw.match(/^(\d{4})-(\d{4}|NO_DATE)$/);
+    const m = raw.match(/^(\d{4})-(\d{4}(?:_\d+)?|NO_DATE)$/);
     if(!m) return null;
     return { year:m[1], mmdd:m[2] };
   }
