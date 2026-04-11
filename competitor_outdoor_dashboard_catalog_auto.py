@@ -2,7 +2,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Competitor Outdoor Product Intelligence Dashboard (final patched)
+Competitor Outdoor Product Intelligence Dashboard (final patched v5)
 - Single-file crawler + analyzer + dashboard builder
 - Auto-discovery friendly: works without manual document.querySelector debugging
 - Brand-aware URL filtering + detail-link fallback + generic selector fallback
@@ -1027,13 +1027,14 @@ def extract_discovery_price_bundle(driver) -> Tuple[str, str, str]:
 
 def infer_gender(name: str, description: str, raw_gender: str) -> str:
     blob = f"{name} {description} {raw_gender}".lower()
+    if any(x in blob for x in ["키즈", "kids", "kid", "junior", "juniors", "youth", "boy", "boys", "girl", "girls", "toddler", "infant", "children"]):
+        return "키즈"
     if any(x in blob for x in ["여성", "우먼", "women", "womens", "woman", "(w)", " w "]):
         return "여성"
     if any(x in blob for x in ["남성", "맨즈", "men", "mens", "man", "(m)", " m "]):
         return "남성"
     if any(x in blob for x in ["공용", "유니섹스", "unisex"]):
         return "공용"
-    return "공용"
     return "공용"
 
 
@@ -2658,33 +2659,50 @@ def render_dashboard(payload: dict) -> str:
     @keyframes ambientShift { 0% { background-position:0% 0%; } 100% { background-position:100% 100%; } }
     @keyframes floatBlob { 0%,100% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(-18px,18px,0) scale(1.05); } }
     @keyframes floatBlobReverse { 0%,100% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(18px,-18px,0) scale(1.08); } }
+
+    .premium-hero{position:relative;overflow:hidden;border-radius:32px;background:#020617;color:#fff;box-shadow:0 22px 48px rgba(2,6,23,.28)}
+    .premium-hero::before{content:"";position:absolute;inset:-20% -10% auto auto;width:420px;height:420px;border-radius:999px;background:radial-gradient(circle, rgba(37,99,235,.26), transparent 68%);filter:blur(10px);animation:floatBlob 12s ease-in-out infinite}
+    .premium-hero::after{content:"";position:absolute;left:-120px;bottom:-120px;width:340px;height:340px;border-radius:999px;background:radial-gradient(circle, rgba(14,165,233,.18), transparent 68%);filter:blur(10px);animation:floatBlobReverse 14s ease-in-out infinite}
+    .premium-kpi{border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.08);backdrop-filter:blur(10px)}
+    .surface-card{animation:panelIn .72s cubic-bezier(.2,.7,.2,1) both}
+    .sticky-switch{position:sticky;top:12px;z-index:40}
+    [data-animate]{opacity:0;transform:translateY(18px) scale(.985)}
+    .motion-ready [data-animate]{animation:revealUp .68s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(var(--index,0) * 55ms)}
+    .product-card{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}
+    .product-card:hover{transform:translateY(-4px);box-shadow:0 26px 48px rgba(15,23,42,.12);border-color:rgba(37,99,235,.18)}
+    .metric-card{transition:transform .18s ease, box-shadow .18s ease}
+    .metric-card:hover{transform:translateY(-3px);box-shadow:0 22px 44px rgba(15,23,42,.12)}
+    .trend-fill{transform-origin:left center;transform:scaleX(0)}
+    .motion-ready .trend-fill{animation:growBar .9s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(var(--index,0) * 55ms)}
+    @keyframes panelIn { 0% { opacity:0; transform:translateY(20px) scale(.99);} 100% { opacity:1; transform:translateY(0) scale(1);} }
+    @keyframes revealUp { 0% { opacity:0; transform:translateY(18px) scale(.985);} 100% { opacity:1; transform:translateY(0) scale(1);} }
+    @keyframes growBar { from { transform:scaleX(0);} to { transform:scaleX(var(--scale,1));} }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after{animation:none !important;transition:none !important;} [data-animate]{opacity:1;transform:none;} .trend-fill{transform:scaleX(var(--scale,1));} }
+
   </style>
 </head>
 <body class="min-h-screen text-slate-900">
   <div class="mx-auto my-3 w-[min(1600px,calc(100vw-24px))] rounded-[36px] border border-white/70 bg-white/65 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-2xl md:p-6">
-    <div class="glass rounded-[32px] p-5 md:p-7 w-full hero-shell">
-      <div class="relative z-10 flex flex-col gap-6">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <div class="text-xs text-slate-500 font-extrabold tracking-wide">COMPETITOR PRODUCT INTELLIGENCE</div>
-            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-[-0.04em]">컬럼비아 vs 디스커버리 상품 분석 대시보드</h1>
-            <div class="mt-2 max-w-5xl text-sm md:text-[15px] font-bold leading-6 text-slate-600">External Signal premium UI 톤을 그대로 가져오고, 상품명에 티셔츠·자켓·팬츠·슈즈 등 명시된 품목어를 최우선으로 final item에 반영하도록 재분류 로직을 강화했습니다. 이 결과를 ITEM STYLE MIX, KPI, 차트, 상품 카드 전부에 동일하게 적용합니다.</div>
-          </div>
-          <div class="glass-strong rounded-3xl px-5 py-4 text-slate-900">
-            <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">UPDATED</div>
-            <div class="mt-2 text-lg font-black">__GENERATED_AT__</div>
-          </div>
+    <section class="premium-hero px-6 py-6 md:px-8 surface-card">
+      <div class="relative z-10">
+        <div class="inline-flex rounded-full bg-white/10 px-4 py-2 text-[11px] font-black tracking-[0.18em]">EXTERNAL SIGNAL PREMIUM HUB</div>
+        <h1 class="mt-5 text-4xl font-black tracking-[-0.05em] md:text-6xl">Competitor Product Dashboard</h1>
+        <p class="mt-4 max-w-4xl text-sm font-semibold leading-7 text-white/80 md:text-base">
+          Community Signal Dashboard의 다크 히어로, 깊은 그라데이션, 모션 리듬을 그대로 가져오고,
+          상품 카드/차트/테이블 전체를 같은 UX 톤으로 재구성했습니다. 상품명 품목어·크롤러 카테고리·브레드크럼을 함께 반영해
+          최종 item을 결정합니다.
+        </p>
+        <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div class="premium-kpi rounded-3xl p-4"><div class="text-xs font-black text-white/60">브랜드 수</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em]" id="hero-brand-count">-</div><div class="mt-1 text-xs font-bold text-white/60">크롤링 완료 브랜드</div></div>
+          <div class="premium-kpi rounded-3xl p-4"><div class="text-xs font-black text-white/60">총 상품 수</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em]" id="hero-product-count">-</div><div class="mt-1 text-xs font-bold text-white/60">품절 제외 활성 SKU</div></div>
+          <div class="premium-kpi rounded-3xl p-4"><div class="text-xs font-black text-white/60">세일 상품 수</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em]" id="hero-sale-count">-</div><div class="mt-1 text-xs font-bold text-white/60">현재 할인 상품</div></div>
+          <div class="premium-kpi rounded-3xl p-4"><div class="text-xs font-black text-white/60">Updated</div><div class="mt-2 text-xl font-black">__GENERATED_AT__</div><div class="mt-1 text-xs font-bold text-white/60">최근 생성 기준</div></div>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <span class="hero-tab">SKU / PRICE / GENDER SNAPSHOT</span>
-          <span class="hero-tab">ITEM RECLASSIFICATION ACTIVE</span>
-          <span class="hero-tab">CRAWLED CATEGORY PRIORITY</span>
-        </div>
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" id="kpi-grid"></div>
+        <div class="mt-6 flex flex-wrap gap-3" id="kpi-grid"></div>
       </div>
-    </div>
+    </section>
 
-    <div class="px-5 py-6 md:px-7 space-y-6">
+    <div class="px-5 py-6 md:px-7 space-y-6 motion-ready">
       <section class="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold section-lead text-slate-500">SKU</div><div class="mt-2 text-2xl font-black">브랜드별 SKU 수</div><div class="chart-box mt-4"><canvas id="brandCountChart"></canvas></div></div>
         <div class="glass rounded-3xl p-5"><div class="text-[11px] font-extrabold section-lead text-slate-500">PRICE</div><div class="mt-2 text-2xl font-black">브랜드별 평균가</div><div class="chart-box mt-4"><canvas id="avgPriceChart"></canvas></div></div>
@@ -2844,12 +2862,27 @@ function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl
   if(/부니|모자|cap|hat|accessory/.test(blob)) return "ACC";
   return "ACC";
 }
+
+function inferGenderJS(name, description="", sourceCategory="", sourceCategoryUrl="", breadcrumbText="", currentGender=""){
+  const explicit = (currentGender||"").toLowerCase();
+  if(/키즈|kids|kid|junior|juniors|youth|boy|boys|girl|girls|toddler|infant|children/.test(explicit)) return "키즈";
+  if(/여성|women|womens|woman/.test(explicit)) return "여성";
+  if(/남성|men|mens|man/.test(explicit)) return "남성";
+  if(/공용|unisex/.test(explicit)) return "공용";
+  const src=((breadcrumbText||"")+" "+(sourceCategory||"")+" "+(sourceCategoryUrl||"")+" "+(name||"")+" "+(description||"")).toLowerCase();
+  if(/키즈|kids|kid|junior|juniors|youth|boy|boys|girl|girls|toddler|infant|children/.test(src)) return "키즈";
+  if(/여성|women|womens|woman/.test(src)) return "여성";
+  if(/남성|men|mens|man/.test(src)) return "남성";
+  if(/공용|unisex/.test(src)) return "공용";
+  return currentGender || "공용";
+}
 function normalizeProducts(){
   const seen = new Set();
   return (DATA.products||[]).map(p=>{
     const resolved = inferCategoryJS(p.name||"", p.description||"", p.source_category||"", p.source_category_url||"", p.item_category||"", p.breadcrumb_text||"");
+    const resolvedGender = inferGenderJS(p.name||"", p.description||"", p.source_category||"", p.source_category_url||"", p.breadcrumb_text||"", p.gender||"");
     const imageUrl = p.image_url || p.imageUrl || "";
-    return {...p, image_url: imageUrl, item_category: resolved, _cat: resolved};
+    return {...p, image_url: imageUrl, item_category: resolved, _cat: resolved, gender: resolvedGender};
   }).filter(p=>{
     const key = [p.brand||"", compactNameJS(p.name,p.brand), p.product_url||"", p.image_url||""].join("||");
     if(seen.has(key)) return false;
@@ -2867,7 +2900,10 @@ function createKpis(){
     ["기타 비중",(k.others_ratio||0)+"%","낮을수록 좋음"],
     ["재분류 반영",formatNumber(k.reclassified_count||0)+"건","ITEM RULE + CRAWLER CATEGORY 적용"]
   ];
-  document.getElementById("kpi-grid").innerHTML = items.map(([label,value,desc]) => `<div class="glass-strong metric-card rounded-3xl p-5"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">${label}</div><div class="mt-3 text-3xl font-black tracking-[-0.05em]">${value}</div><div class="mt-2 text-xs font-bold text-slate-500">${desc}</div></div>`).join("");
+  document.getElementById("hero-brand-count").textContent = formatNumber(k.brands||0);
+  document.getElementById("hero-product-count").textContent = formatNumber(k.products||0);
+  document.getElementById("hero-sale-count").textContent = formatNumber(k.sale_products||0);
+  document.getElementById("kpi-grid").innerHTML = items.map(([label,value,desc],i) => `<div class="glass-strong metric-card rounded-3xl p-5 surface-card" data-animate style="--index:${i}"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">${label}</div><div class="mt-3 text-3xl font-black tracking-[-0.05em]">${value}</div><div class="mt-2 text-xs font-bold text-slate-500">${desc}</div></div>`).join("");
 }
 function groupRowspan(rows, brandKey="brand"){ const out=[]; let i=0; while(i<rows.length){ const b=rows[i][brandKey]; let j=i; while(j<rows.length && rows[j][brandKey]===b) j++; const span=j-i; for(let k=i;k<j;k++){ const r={...rows[k]}; r._showBrand=(k===i); r._brandRowspan=span; out.push(r);} i=j; } return out; }
 function makeTabs(elId, values, stateKey, onChange){ const el=document.getElementById(elId); if(!el) return; el.innerHTML=["전체",...values].map(v=>`<button class="tab-btn ${STATE[stateKey]===v?'active':''}" data-val="${v}">${v}</button>`).join(""); [...el.querySelectorAll(".tab-btn")].forEach(btn=>btn.onclick=()=>{STATE[stateKey]=btn.dataset.val; makeTabs(elId, values, stateKey, onChange); onChange();}); }
@@ -2902,7 +2938,7 @@ function renderProducts(){
   }
 
   container.innerHTML = `
-    <section class="panel-hero overflow-hidden rounded-[34px] border border-white/70 bg-white/60 p-5 shadow-sm backdrop-blur-xl">
+    <section class="panel-hero surface-card overflow-hidden rounded-[34px] border border-white/70 bg-white/60 p-5 shadow-sm backdrop-blur-xl" data-animate style="--index:0">
       <div class="hero-orb hero-orb-primary"></div>
       <div class="hero-orb hero-orb-secondary"></div>
       <div class="relative z-10">
@@ -2918,12 +2954,12 @@ function renderProducts(){
           </div>
         </div>
         <div class="product-grid mt-6">
-          ${items.slice(0,240).map(p=>{
+          ${items.slice(0,240).map((p,i)=>{
             const attrs = String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,4);
             const orig = Number(p.original_price||0);
             const curr = Number(p.current_price||0);
             const discount = (orig > curr && curr > 0) ? Math.round((1 - (curr / orig)) * 100) : null;
-            return `<article class="product-card p-4">
+            return `<article class="product-card p-4 surface-card" data-animate style="--index:${i+1}">
               <div class="relative z-10">
                 <div class="product-thumb">
                   ${p.image_url ? `<img src="${p.image_url}" alt="${p.name||''}" class="h-full w-full object-cover" loading="lazy" />` : `<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>`}
