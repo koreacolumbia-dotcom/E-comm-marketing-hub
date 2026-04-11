@@ -494,6 +494,70 @@ def get_attr_from_element(el, attr: str) -> str:
         return ""
 
 
+def best_image_from_element(el) -> str:
+    candidates = []
+    try:
+        imgs = []
+        try:
+            imgs = el.find_elements(By.CSS_SELECTOR, "img")
+        except Exception:
+            imgs = []
+        for img in imgs[:8]:
+            for attr in ["src", "data-src", "data-lazy-src", "data-original", "currentSrc", "content"]:
+                try:
+                    val = compact_text(img.get_attribute(attr))
+                except Exception:
+                    val = ""
+                if val and val.startswith("http"):
+                    candidates.append(val)
+            try:
+                srcset = compact_text(img.get_attribute("srcset"))
+            except Exception:
+                srcset = ""
+            if srcset:
+                first = srcset.split(",")[0].strip().split(" ")[0].strip()
+                if first.startswith("http"):
+                    candidates.append(first)
+    except Exception:
+        pass
+    if not candidates:
+        return ""
+    def _score(url: str) -> tuple:
+        low = url.lower()
+        score = 0
+        if "static-resource.discovery-expedition.com" in low:
+            score += 8
+        if "/thnail/" in low:
+            score += 6
+        if "/goods/" in low:
+            score += 4
+        if any(x in low for x in ["icon", "logo", "arrow", "sprite", "blank", "placeholder", "noimage"]):
+            score -= 8
+        if any(x in low for x in ["wash", "care", "label"]):
+            score -= 6
+        return (-score, len(url))
+    return sorted(dict.fromkeys(candidates), key=_score)[0]
+
+
+def should_use_listing_image(brand: str, detail_image_url: str, listing_image_url: str) -> bool:
+    listing = compact_text(listing_image_url)
+    if not listing:
+        return False
+    detail = compact_text(detail_image_url)
+    if not detail:
+        return True
+    if brand == "DISCOVERY":
+        d = detail.lower()
+        l = listing.lower()
+        if "static-resource.discovery-expedition.com" in l and "static-resource.discovery-expedition.com" not in d:
+            return True
+        if "/thnail/" in l and "/thnail/" not in d:
+            return True
+        if any(x in d for x in ["wash", "care", "label", "placeholder", "blank"]):
+            return True
+    return False
+
+
 def try_find_text(driver_or_el, selectors: List[str]) -> str:
     for css in selectors:
         try:
@@ -1719,7 +1783,12 @@ class AutoCompetitorCrawler:
                 if href in seen_urls:
                     continue
                 seen_urls.add(href)
-                product_urls.append({"url": href, "source_category": source_context, "source_category_url": listing_url})
+                product_urls.append({
+                    "url": href,
+                    "source_category": source_context,
+                    "source_category_url": listing_url,
+                    "image_url": best_image_from_element(a),
+                })
 
         if not product_urls:
             links = self._extract_all_links()
@@ -1732,7 +1801,7 @@ class AutoCompetitorCrawler:
                     if link in seen_urls:
                         continue
                     seen_urls.add(link)
-                    product_urls.append({"url": link, "source_category": source_context, "source_category_url": listing_url})
+                    product_urls.append({"url": link, "source_category": source_context, "source_category_url": listing_url, "image_url": ""})
 
         return product_urls
 
@@ -1987,6 +2056,8 @@ class AutoCompetitorCrawler:
                     if item and item.name:
                         item.source_category = meta.get('source_category','')
                         item.source_category_url = meta.get('source_category_url','')
+                        if should_use_listing_image(cfg.brand, item.image_url, meta.get('image_url','')):
+                            item.image_url = meta.get('image_url','')
                         raw_products.append(item)
                     else:
                         unresolved_urls.append(url)
@@ -2784,12 +2855,6 @@ function normalizeProducts(){
     if(seen.has(key)) return false;
     seen.add(key);
     return true;
-  });
-}
-function normalizeProducts(){
-  return (DATA.products||[]).map(p=>{
-    const resolved = inferCategoryJS(p.name||"", p.description||"", p.source_category||"", p.source_category_url||"", p.item_category||"", p.breadcrumb_text||"");
-    return {...p, item_category: resolved, _cat: resolved};
   });
 }
 function createKpis(){
