@@ -755,8 +755,6 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                 "1DAY 운영 KPI를 불러오지 못했습니다.",
                 "BigQuery admin daily 테이블 또는 MSSQL 연결 정보를 확인해주세요.",
             ]
-
-    bundle_ref["overview"] = bundle["overview"]
     return bundle
 
 
