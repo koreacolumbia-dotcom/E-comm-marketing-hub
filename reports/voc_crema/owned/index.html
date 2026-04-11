@@ -2088,6 +2088,7 @@
       const group = getScopedRowGroup(r, 'KAKAO', 'MESSAGE');
       if(!/^\d{4}$/.test(String(group.mmdd || ''))) continue;
       if(year && String(group.year || '') !== year) continue;
+      if(shouldHideKakaoEmptyMessageGroup(group.year, group.mmdd)) continue;
       if(endDate){
         const groupDate = dateStrFromYearMmdd(group.year, group.mmdd);
         if(groupDate > endDate) continue;
@@ -2504,6 +2505,7 @@
       if(!isRowEligibleForYearCutoff(r, r.channel, cutoffDate, sourceMessageLog, subtype)) continue;
       if(!matchesSearch(r)) continue;
       const scoped = getScopedRowGroup(r, CHANNEL, subtype);
+      if(CHANNEL === 'KAKAO' && subtype === 'MESSAGE' && shouldHideKakaoEmptyMessageGroup(scoped.year, scoped.mmdd || 'NO_DATE')) continue;
       const key = `${r.channel}||${scoped.year || ''}||${scoped.mmdd || ''}||${r.campaign||''}||${r.term||''}`;
       if(seen.has(key)) continue;
       seen.add(key);
@@ -2530,6 +2532,7 @@
       if(!isRowEligibleForYearCutoff(pseudo, pseudo.channel, cutoffDate, sourceMessageLog, subtype)) continue;
       if(!matchesSearch(pseudo)) continue;
       const scoped = getScopedRowGroup(pseudo, CHANNEL, subtype);
+      if(CHANNEL === 'KAKAO' && subtype === 'MESSAGE' && shouldHideKakaoEmptyMessageGroup(scoped.year, scoped.mmdd || 'NO_DATE')) continue;
       const key = `${pseudo.channel}||${scoped.year || ''}||${scoped.mmdd || ''}||${pseudo.campaign}||`;
       if(seen.has(key)) continue;
       seen.add(key);
@@ -3427,6 +3430,34 @@
       });
     }
     return [];
+  }
+
+
+  function hasKakaoMessageGroupDetail(year, mmdd){
+    if(!RAW) return false;
+    const groupSel = { type:'group', channel:'KAKAO', subtype:'MESSAGE', year:String(year||''), mmdd:String(mmdd||'') };
+    const termRows = getSelectedKpiRows(groupSel) || [];
+    const prodRows = getSelectedProdRows(groupSel) || [];
+    const hasTermData = termRows.some(r => {
+      const campaign = normalizeLooseText(r && r.campaign);
+      const term = normalizeLooseText(r && r.term);
+      return !!(campaign || term);
+    });
+    const hasProductData = prodRows.some(r => {
+      const itemId = normalizeLooseText(r && r.item_id);
+      const itemName = normalizeLooseText(r && r.item_name);
+      return !!(itemId || itemName || Number(r && r.prod_items || 0) || Number(r && r.prod_revenue || 0));
+    });
+    return hasTermData || hasProductData;
+  }
+
+  function shouldHideKakaoEmptyMessageGroup(year, mmdd){
+    if(String(CHANNEL || '').trim().toUpperCase() !== 'KAKAO') return false;
+    if(normalizeSubtype('KAKAO', CHANNEL_SUBTYPE) !== 'MESSAGE') return false;
+    if(!/^\d{4}$/.test(String(year || ''))) return false;
+    const groupMmdd = String(mmdd || '');
+    if(!groupMmdd || groupMmdd === 'NO_DATE') return true;
+    return !hasKakaoMessageGroupDetail(year, groupMmdd);
   }
 
   function getSelectedAnalysisRows(sel){
