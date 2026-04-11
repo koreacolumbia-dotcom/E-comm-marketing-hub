@@ -1235,6 +1235,53 @@ def reconcile_bucket_aggregate_to_totals(
     return out
 
 
+def reconcile_sessions_only_to_total(df: pd.DataFrame, session_col: str, total_sessions: float) -> pd.DataFrame:
+    """
+    Rescale bucket sessions only so the visible bucket-session sum matches the
+    authoritative KPI total exactly. Other metrics stay untouched.
+    Uses largest-remainder integer allocation so displayed row sums also match.
+    """
+    out = pd.DataFrame(df, copy=True) if df is not None else pd.DataFrame()
+    if out.empty or session_col not in out.columns:
+        return out
+
+    work = out.copy()
+    work[session_col] = pd.to_numeric(work[session_col], errors="coerce").fillna(0.0)
+    current_sum = float(work[session_col].sum())
+    target = int(round(float(total_sessions or 0.0)))
+
+    if current_sum <= 0:
+        work[session_col] = 0.0
+        if target > 0:
+            etc_mask = work["bucket"].astype(str).eq("etc") if "bucket" in work.columns else pd.Series([False] * len(work))
+            if etc_mask.any():
+                work.loc[etc_mask, session_col] = float(target)
+            elif len(work) > 0:
+                work.loc[work.index[-1], session_col] = float(target)
+        return work
+
+    if abs(current_sum - float(target)) < 1e-9:
+        return work
+
+    scaled = work[session_col] * (float(target) / current_sum)
+    floors = scaled.apply(lambda x: int(x // 1))
+    remainder = target - int(floors.sum())
+    frac = (scaled - floors).astype(float)
+
+    work[session_col] = floors.astype(float)
+    if remainder > 0:
+        order = frac.sort_values(ascending=False).index.tolist()
+        for idx in order[:remainder]:
+            work.at[idx, session_col] = float(work.at[idx, session_col]) + 1.0
+    elif remainder < 0:
+        order = frac.sort_values(ascending=True).index.tolist()
+        for idx in order[:abs(remainder)]:
+            work.at[idx, session_col] = float(work.at[idx, session_col]) - 1.0
+
+    print(f"[INFO] Reconciled {session_col} only: raw_sum={current_sum:.4f}, total={float(target):.4f}")
+    return work
+
+
 # =========================
 # Channel Snapshot based on Looker CASE rules
 # =========================
@@ -1296,6 +1343,10 @@ def get_channel_snapshot_3way(
     yoy_b = reconcile_bucket_aggregate_to_totals(agg(yoy, "_yoy"), oy, "_yoy")
 
     m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
+
+    m = reconcile_sessions_only_to_total(m, "sessions_cur", float(oc.get("sessions", 0) or 0.0))
+    m = reconcile_sessions_only_to_total(m, "sessions_prev", float(op.get("sessions", 0) or 0.0))
+    m = reconcile_sessions_only_to_total(m, "sessions_yoy", float(oy.get("sessions", 0) or 0.0))
 
     numeric_cols = [
         "sessions_cur", "transactions_cur", "revenue_cur",
