@@ -737,21 +737,23 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             f"선택 기간 운영 KPI 기준 세션 {fmt_int(admin_daily.get('sessions', 0))} / 가입 {fmt_int(admin_daily.get('signups', 0))} / 주문 {fmt_int(admin_daily.get('orders', 0))} / 매출 {fmt_money(admin_daily.get('revenue', 0))} 입니다.",
             "상단 KPI는 운영 집계(BigQuery Admin Daily 우선, 필요 시 MSSQL fallback) 기준입니다.",
         ]
+    else:
+        if period_key == "1d":
+            bundle["overview"].update({
+                "sessions": 0,
+                "orders": 0,
+                "revenue": 0.0,
+                "signups": 0,
+                "buyers": 0,
+                "metric_source": "admin_load_failed",
+            })
+            bundle["latest_summary"] = [
+                f"최근 선택 가능 일자 기준 최신 데이터는 {fmt_date(end_date)}입니다.",
+                "1DAY 운영 KPI를 불러오지 못했습니다.",
+                "BigQuery admin daily 테이블 또는 MSSQL 연결 정보를 확인해주세요.",
+            ]
+
     bundle_ref["overview"] = bundle["overview"]
-    elif period_key == "1d":
-        bundle["overview"].update({
-            "sessions": 0,
-            "orders": 0,
-            "revenue": 0.0,
-            "signups": 0,
-            "buyers": 0,
-            "metric_source": "admin_load_failed",
-        })
-        bundle["latest_summary"] = [
-            f"최근 선택 가능 일자 기준 최신 데이터는 {fmt_date(end_date)}입니다.",
-            "1DAY 운영 KPI를 불러오지 못했습니다.",
-            "BigQuery admin daily 테이블 또는 MSSQL 연결 정보를 확인해주세요.",
-        ]
 
     try:
         _ov = bundle.get("overview", {})
