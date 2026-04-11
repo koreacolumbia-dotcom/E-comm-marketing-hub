@@ -852,6 +852,109 @@ def bs_first_attr(soup: BeautifulSoup, selectors: List[str], attr: str) -> str:
             continue
     return ""
 
+
+
+def _extract_price_ints_from_texts(values: List[str]) -> List[int]:
+    out: List[int] = []
+    for value in values or []:
+        out.extend(extract_price_candidates(value))
+    return sorted(set(v for v in out if 1000 <= v <= 5000000))
+
+
+def _discovery_is_partial_soldout_text(text: str) -> bool:
+    t = compact_text(text)
+    return "일시품절" in t and "전체품절" not in t
+
+
+def extract_discovery_payload_price(page_source: str) -> Optional[int]:
+    if not page_source:
+        return None
+    patterns = [
+        r'"salePrice"\s*:\s*"?(\d{4,7})"?',
+        r'"price"\s*:\s*"?(\d{4,7})"?',
+        r'"consumerPrice"\s*:\s*"?(\d{4,7})"?',
+        r'"originPrice"\s*:\s*"?(\d{4,7})"?',
+    ]
+    vals: List[int] = []
+    for pat in patterns:
+        for m in re.findall(pat, page_source):
+            try:
+                v = int(str(m))
+            except Exception:
+                continue
+            if 1000 <= v <= 5000000:
+                vals.append(v)
+    return min(vals) if vals else None
+
+
+def extract_discovery_price_bundle(driver) -> Tuple[str, str, str]:
+    current_vals: List[int] = []
+    original_vals: List[int] = []
+    sold_out_text = ""
+
+    try:
+        detail_current_nodes = driver.find_elements(By.CSS_SELECTOR, "p.css-9luaii")
+        detail_original_nodes = driver.find_elements(By.CSS_SELECTOR, "p.css-1orl9yu")
+        current_vals.extend(_extract_price_ints_from_texts([get_text_from_element(n) for n in detail_current_nodes]))
+        original_vals.extend(_extract_price_ints_from_texts([get_text_from_element(n) for n in detail_original_nodes]))
+    except Exception:
+        pass
+
+    try:
+        card_current_nodes = driver.find_elements(By.CSS_SELECTOR, ".product-price")
+        card_original_nodes = driver.find_elements(By.CSS_SELECTOR, ".product-origin-price")
+        current_vals.extend(_extract_price_ints_from_texts([get_text_from_element(n) for n in card_current_nodes]))
+        original_vals.extend(_extract_price_ints_from_texts([get_text_from_element(n) for n in card_original_nodes]))
+    except Exception:
+        pass
+
+    try:
+        mui_nodes = driver.find_elements(By.CSS_SELECTOR, "p.MuiTypography-root, p[class*='MuiTypography'], span.MuiTypography-root, span[class*='MuiTypography']")
+        vals = _extract_price_ints_from_texts([get_text_from_element(n) for n in mui_nodes])
+        if vals:
+            if not current_vals:
+                current_vals.append(min(vals))
+            if len(vals) >= 2 and not original_vals:
+                original_vals.append(max(vals))
+    except Exception:
+        pass
+
+    try:
+        payload_price = extract_discovery_payload_price(driver.page_source or "")
+        if payload_price is not None and not current_vals:
+            current_vals.append(payload_price)
+    except Exception:
+        pass
+
+    current_vals = sorted(set(v for v in current_vals if 1000 <= v <= 5000000))
+    original_vals = sorted(set(v for v in original_vals if 1000 <= v <= 5000000))
+
+    current_price = min(current_vals) if current_vals else None
+    original_price = max(original_vals) if original_vals else None
+
+    if current_price is None and original_price is not None:
+        current_price = original_price
+    if current_price is not None and original_price is not None and original_price <= current_price:
+        bigger = [v for v in original_vals if v > current_price]
+        original_price = max(bigger) if bigger else None
+
+    soldout_keywords = ["전체품절", "품절입니다", "SOLD OUT", "OUT OF STOCK"]
+    try:
+        soldout_nodes = driver.find_elements(By.XPATH, "//*[contains(text(),'품절') or contains(text(),'SOLD OUT') or contains(text(),'OUT OF STOCK')]")
+        sold_texts = [compact_text(get_text_from_element(n)) for n in soldout_nodes]
+        sold_texts = [t for t in sold_texts if t and not _discovery_is_partial_soldout_text(t)]
+        sold_texts = [t for t in sold_texts if any(k.lower() in t.lower() for k in soldout_keywords)]
+        if sold_texts:
+            sold_out_text = sold_texts[0]
+    except Exception:
+        sold_out_text = ""
+
+    return (
+        str(current_price) if current_price is not None else "",
+        str(original_price) if original_price is not None else "",
+        compact_text(sold_out_text),
+    )
+
 # ============================================================
 # 3. ANALYZER
 # ============================================================
@@ -909,13 +1012,110 @@ def _item_keyword_map() -> Dict[str, List[str]]:
     }
 
 
+def extract_discovery_listing_context(driver, listing_url: str) -> str:
+    parts: List[str] = []
+    seen = set()
+
+    def _push(value: str):
+        v = compact_text(value)
+        if not v:
+            return
+        low = v.lower()
+        if low in seen:
+            return
+        seen.add(low)
+        parts.append(v)
+
+    try:
+        current_url = canonicalize_url(getattr(driver, "current_url", "") or listing_url)
+        for src in [current_url, listing_url]:
+            m = re.search(r'/display/([A-Z0-9]+)', src or '', flags=re.I)
+            if m:
+                _push(m.group(1).upper())
+    except Exception:
+        pass
+
+    try:
+        selected = driver.find_elements(By.CSS_SELECTOR, '#selectedCategory a, #selectedCategory span, #selectedCategory p')
+        for el in selected[:12]:
+            _push(get_text_from_element(el))
+    except Exception:
+        pass
+
+    try:
+        selected_menu = driver.find_elements(By.CSS_SELECTOR, '#category a.is-selected p, #category a.is-selected, .is-selected p, .is-selected')
+        for el in selected_menu[:12]:
+            _push(get_text_from_element(el))
+    except Exception:
+        pass
+
+    try:
+        title = compact_text(getattr(driver, 'title', '') or '')
+        if title:
+            _push(title)
+    except Exception:
+        pass
+
+    try:
+        html_text = driver.page_source or ''
+        if html_text:
+            for token in re.findall(r'/display/([A-Z0-9]+)', html_text, flags=re.I)[:12]:
+                _push(token.upper())
+    except Exception:
+        pass
+
+    return ' '.join(parts)
+
+
+def _discovery_category_tokens(text: str) -> List[str]:
+    t = safe_text(text)
+    if not t:
+        return []
+    low = t.lower()
+    hits: List[str] = []
+    explicit = [
+        ('슈즈', ['dxmb03', '신발', '슈즈', 'shoe', 'shoes', 'boots', 'boot', 'sandal', 'sandals']),
+        ('자켓', ['b17', '자켓', '재킷', 'jacket']),
+        ('자켓', ['b15', '경량자켓', '라이트 자켓', 'light jacket']),
+        ('자켓', ['b10', '바람막이', 'windbreaker']),
+        ('자켓', ['b12', '아노락', 'anorak']),
+        ('팬츠', ['팬츠', '바지', 'pants', 'pant', 'shorts', 'short', 'skort']),
+        ('티셔츠', ['티셔츠', '반팔티', '긴팔티', '반팔', '긴팔', 'tee', 't-shirt', 'jersey', 'top', 'tops']),
+        ('후디', ['후드티', '후디', '후드', 'hoodie', 'sweatshirt', '맨투맨']),
+        ('플리스', ['플리스', 'fleece', 'boa', '보아']),
+        ('다운', ['다운', '패딩', 'down', 'puffer']),
+        ('베스트', ['베스트', 'vest']),
+        ('백', ['가방', '백', 'backpack', 'bag', 'bags', 'sling', 'tote']),
+        ('ACC', ['용품', '모자', 'cap', 'hat', 'accessory', 'accessories', 'acc']),
+    ]
+    for item, kws in explicit:
+        if any(kw in low for kw in kws):
+            hits.append(item)
+    return hits
+
+
 def normalize_source_category(text: str) -> str:
-    t = safe_text(text).lower()
+    t = safe_text(text)
     if not t:
         return ""
+    low = t.lower()
+
+    discovery_hits = _discovery_category_tokens(t)
+    if discovery_hits:
+        priority = ["슈즈", "자켓", "팬츠", "티셔츠", "후디", "플리스", "다운", "베스트", "백", "ACC"]
+        for item in priority:
+            if item in discovery_hits:
+                return item
+
     scores: Dict[str, int] = {}
     for item, keys in _item_keyword_map().items():
-        score = sum(1 for k in keys if k.lower() in t)
+        score = 0
+        for k in keys:
+            kk = k.lower()
+            if kk in low:
+                score += 1
+                if re.search(rf'(^|[^a-z가-힣]){re.escape(kk)}([^a-z가-힣]|$)', low):
+                    score += 1
         if score:
             scores[item] = score
     if not scores:
@@ -924,18 +1124,41 @@ def normalize_source_category(text: str) -> str:
 
 
 def infer_item_category(name: str, description: str, source_category: str = "") -> str:
-    blob = f"{name} {description} {source_category}".lower()
+    name_text = safe_text(name)
+    desc_text = safe_text(description)
+    source_text = safe_text(source_category)
+    name_blob = name_text.lower()
+    desc_blob = desc_text.lower()
+    src_blob = source_text.lower()
+    full_blob = " ".join(x for x in [name_blob, desc_blob, src_blob] if x)
+
     scores: Dict[str, int] = {}
     for item, keys in _item_keyword_map().items():
         score = 0
         for k in keys:
-            if k.lower() in blob:
-                score += 3 if k.lower() in safe_text(name).lower() else 1
+            kk = k.lower()
+            if not kk:
+                continue
+            if kk in name_blob:
+                score += 8
+                if re.search(rf'(^|[^a-z가-힣]){re.escape(kk)}([^a-z가-힣]|$)', name_blob):
+                    score += 3
+            if kk in src_blob:
+                score += 4
+            if kk in desc_blob:
+                score += 2
         if score:
             scores[item] = score
-    if not scores:
-        return "기타"
-    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+
+    if scores:
+        return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+
+    # 이름 안에 명시적인 품목명이 없더라도 최종 분류에서 기타가 남지 않도록 마지막 안전장치를 둡니다.
+    if any(x in full_blob for x in ["set", "세트", "kit", "키트", "워머", "양말", "sock", "socks", "belt", "벨트", "cap", "hat", "모자"]):
+        return "ACC"
+    if full_blob:
+        return normalize_source_category(full_blob) or "ACC"
+    return "ACC"
 
 
 def extract_raw_keywords(name: str, description: str) -> List[str]:
@@ -1326,9 +1549,21 @@ class AutoCompetitorCrawler:
 
     def collect_product_urls_from_listing(self, listing_url: str, cfg: BrandConfig) -> List[dict]:
         product_urls: List[dict] = []
-        source_cat = normalize_source_category(listing_url)
         if not self._safe_get(listing_url):
             return product_urls
+
+        source_context = listing_url
+        if cfg.brand == "DISCOVERY":
+            try:
+                self.wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
+            except Exception:
+                pass
+            try:
+                time.sleep(1.6)
+            except Exception:
+                pass
+            source_context = extract_discovery_listing_context(self.driver, listing_url) or listing_url
+        source_cat = normalize_source_category(source_context)
 
         self._scroll_to_end()
         links = self._extract_all_links()
@@ -1340,7 +1575,7 @@ class AutoCompetitorCrawler:
                 continue
             if self._is_product_url(link, cfg):
                 if self._passes_brand_filter(link, cfg):
-                    product_urls.append({"url": link, "source_category": source_cat, "source_category_url": listing_url})
+                    product_urls.append({"url": link, "source_category": source_context, "source_category_url": listing_url})
 
         # direct CSS fallback: product-detail style anchors
         direct_selectors = [
@@ -1362,7 +1597,7 @@ class AutoCompetitorCrawler:
                     href = canonicalize_url(href)
                     if same_domain(href, cfg.domain) and not self._is_deny_url(href, cfg):
                         if self._passes_brand_filter(href, cfg):
-                            product_urls.append({"url": href, "source_category": source_cat, "source_category_url": listing_url})
+                            product_urls.append({"url": href, "source_category": source_context, "source_category_url": listing_url})
             except Exception:
                 continue
 
@@ -1378,6 +1613,8 @@ class AutoCompetitorCrawler:
 
 
     def crawl_product_detail_requests(self, product_url: str, source_url: str, cfg: BrandConfig) -> Optional[ProductRaw]:
+        if cfg.detail_mode == "selenium_only":
+            return None
         resp = _requests_get(product_url)
         if resp is None or not getattr(resp, "ok", False) or not getattr(resp, "text", ""):
             return None
@@ -1434,53 +1671,60 @@ class AutoCompetitorCrawler:
             if not self._safe_get(product_url):
                 return None
             try:
-                time.sleep(0.8)
+                self.wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
+            except Exception:
+                pass
+            try:
+                WebDriverWait(self.driver, 6).until(
+                    lambda d: len(d.find_elements(By.CSS_SELECTOR, "p.css-9luaii, p.css-1orl9yu, .product-price, .product-origin-price, p.MuiTypography-root, p[class*='MuiTypography']")) > 0
+                )
+            except Exception:
+                pass
+            try:
+                time.sleep(3.0)
             except Exception:
                 pass
 
             name_selectors = cfg.detail_name_selectors or GENERIC_NAME_SELECTORS
-            price_selectors = cfg.detail_price_selectors or GENERIC_PRICE_SELECTORS
-            original_price_selectors = cfg.detail_original_price_selectors or GENERIC_ORIGINAL_PRICE_SELECTORS
             desc_selectors = cfg.detail_desc_selectors or GENERIC_DESC_SELECTORS
             image_selectors = cfg.detail_image_selectors or GENERIC_IMAGE_SELECTORS
 
             title = strip_discovery_prefix(clean_product_text(try_find_text(self.driver, name_selectors)))
             if not title:
                 try:
-                    title = self.driver.title
+                    title = strip_discovery_prefix(clean_product_text(self.driver.title))
                 except Exception:
                     title = ""
 
-            price_candidates = try_find_all_texts(self.driver, price_selectors)
-            original_price_candidates = try_find_all_texts(self.driver, original_price_selectors)
+            price_text, original_price_text, sold_out_text = extract_discovery_price_bundle(self.driver)
             desc_candidates = try_find_all_texts(self.driver, desc_selectors, limit=40)
             desc = clean_product_text(choose_first_good_text(desc_candidates, cfg.brand))
+            if is_bad_discovery_desc(desc):
+                desc = ""
             image_url = try_find_attr(self.driver, image_selectors, "src") or try_find_attr(self.driver, image_selectors, "content")
             breadcrumb_text = extract_breadcrumb_driver(self.driver) or normalize_breadcrumb_text(source_url)
-            sold_out_text = try_find_text(self.driver, GENERIC_SOLDOUT_SELECTORS)
             gender_text = try_find_text(self.driver, GENERIC_GENDER_SELECTORS)
             season_text = try_find_text(self.driver, GENERIC_SEASON_SELECTORS)
 
-            price_text = choose_price_text(price_candidates)
-            original_price_text = choose_price_text(original_price_candidates)
-            try:
-                payload_price = extract_discovery_payload_price(self.driver.page_source)
-            except Exception:
-                payload_price = None
-            if payload_price is not None and not parse_price_to_int(price_text or ""):
-                price_text = str(payload_price)
-
-            if not title and not price_text and not desc:
+            if not title and not price_text and not desc and not sold_out_text:
                 return None
 
-            sanity_blob = f"{title} {desc}"
             cp, op = select_current_original_price(price_text, original_price_text)
+            if cp is None:
+                try:
+                    payload_price = extract_discovery_payload_price(self.driver.page_source or "")
+                except Exception:
+                    payload_price = None
+                if payload_price is not None:
+                    cp = payload_price
+
             final_title = title
             if cfg.brand == "COLUMBIA":
                 try:
                     final_title = normalize_columbia_name(title, self.driver.page_source)
                 except Exception:
                     final_title = title
+
             return ProductRaw(
                 brand=cfg.brand,
                 source_url=source_url,
@@ -1496,7 +1740,6 @@ class AutoCompetitorCrawler:
                 breadcrumb_text=compact_text(breadcrumb_text),
                 crawled_at=TODAY_STR,
             )
-
         # requests-first for speed
         resp = _requests_get(product_url)
         if resp is not None and getattr(resp, "ok", False) and resp.text:
@@ -1764,7 +2007,9 @@ def resolve_item_category_value(name: str, description: str, item_category: str 
         candidate = safe_text(candidate)
         if candidate and candidate != "기타":
             return candidate
-    return "기타"
+
+    # 최종적으로 남는 기타는 전부 ACC 버킷으로 보내서 ITEM STYLE MIX / 카드 / 차트에서 빠지지 않게 합니다.
+    return "ACC"
 
 
 def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
@@ -2156,52 +2401,78 @@ def render_dashboard(payload: dict) -> str:
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
     html, body { height:100%; overflow:auto; margin:0; }
     body {
-      background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
       color:#0f172a;
       min-height:100vh;
       margin:0;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(59,130,246,.20), transparent 28%),
+        radial-gradient(circle at 84% 14%, rgba(34,197,94,.14), transparent 24%),
+        radial-gradient(circle at 72% 74%, rgba(249,115,22,.12), transparent 24%),
+        linear-gradient(180deg,#f8fbff 0%,#eef4fb 52%,#e8eff8 100%);
+      background-size:120% 120%;
+      animation:ambientShift 18s ease-in-out infinite alternate;
     }
     .glass {
-      background: rgba(255,255,255,.65);
-      border: 1px solid rgba(15,23,42,.08);
-      box-shadow: 0 10px 30px rgba(2,6,23,.08);
-      backdrop-filter: blur(10px);
+      background: rgba(255,255,255,.72);
+      border: 1px solid rgba(255,255,255,.72);
+      box-shadow: 0 18px 42px rgba(15,23,42,.08);
+      backdrop-filter: blur(18px);
     }
     .glass-strong {
-      background: linear-gradient(135deg, rgba(255,255,255,.88), rgba(255,255,255,.72));
+      background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(255,255,255,.78));
       border: 1px solid rgba(148,163,184,.18);
-      box-shadow: 0 18px 40px rgba(15,23,42,.08);
-      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 40px rgba(15,23,42,.10);
+      backdrop-filter: blur(18px);
     }
-    .hero-shell{position:relative;overflow:hidden}
-    .hero-shell:before{content:"";position:absolute;inset:-25% auto auto -10%;width:420px;height:420px;background:radial-gradient(circle, rgba(59,130,246,.18), rgba(59,130,246,0));pointer-events:none}
-    .hero-shell:after{content:"";position:absolute;inset:auto -10% -40% auto;width:520px;height:520px;background:radial-gradient(circle, rgba(15,23,42,.10), rgba(15,23,42,0));pointer-events:none}
+    .panel-hero { position:relative; background:linear-gradient(135deg, rgba(37,99,235,.16), rgba(255,255,255,.96) 38%, rgba(37,99,235,.08)); }
+    .hero-orb { position:absolute; border-radius:999px; filter:blur(8px); pointer-events:none; mix-blend-mode:screen; }
+    .hero-orb-primary { width:220px; height:220px; right:-42px; top:-42px; background:radial-gradient(circle, rgba(37,99,235,.28), transparent 70%); animation:floatBlob 12s ease-in-out infinite; }
+    .hero-orb-secondary { width:180px; height:180px; left:-32px; bottom:-46px; background:radial-gradient(circle, rgba(37,99,235,.18), transparent 70%); animation:floatBlobReverse 14s ease-in-out infinite; }
+    .filter-chip { border-radius:999px; padding:10px 16px; font-size:12px; font-weight:900; background:rgba(255,255,255,.92); color:#475569; border:1px solid rgba(148,163,184,.25); transition:all .18s ease; }
+    .filter-chip.active,.filter-chip:hover{ color:#fff; background:linear-gradient(135deg, #2563eb, #0f172a); border-color:#17305f; box-shadow:0 16px 28px rgba(15,23,42,.18); transform:translateY(-1px); }
+    .product-grid { display:grid; grid-template-columns:repeat(1,minmax(0,1fr)); gap:16px; }
+    @media (min-width: 768px){ .product-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (min-width: 1280px){ .product-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+    @media (min-width: 1536px){ .product-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+    .product-card { position:relative; overflow:hidden; border-radius:28px; border:1px solid rgba(255,255,255,.72); background:rgba(255,255,255,.72); box-shadow:0 18px 42px rgba(15,23,42,.08); backdrop-filter:blur(18px); }
+    .product-card::before { content:""; position:absolute; inset:0; background:linear-gradient(135deg, rgba(37,99,235,.08), transparent 38%, rgba(15,23,42,.03)); pointer-events:none; }
+    .product-thumb { aspect-ratio:1 / 1; border-radius:24px; overflow:hidden; background:#f1f5f9; border:1px solid rgba(148,163,184,.16); }
+    .product-price-row { display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap; }
+    .price-current { font-family:'Space Grotesk','Pretendard',sans-serif; font-size:30px; line-height:1; font-weight:700; letter-spacing:-0.05em; color:#0f172a; }
+    .price-original { font-size:14px; font-weight:800; color:#94a3b8; text-decoration:line-through; }
+    .price-discount { display:inline-flex; align-items:center; border-radius:999px; padding:4px 8px; background:rgba(37,99,235,.10); color:#1d4ed8; font-size:11px; font-weight:900; }
+    .hero-shell{position:relative;overflow:hidden;background:linear-gradient(135deg, rgba(37,99,235,.12), rgba(255,255,255,.96) 38%, rgba(37,99,235,.06));}
+    .hero-shell:before{content:"";position:absolute;right:-42px;top:-42px;width:220px;height:220px;border-radius:999px;background:radial-gradient(circle, rgba(37,99,235,.24), transparent 70%);filter:blur(8px);animation:floatBlob 12s ease-in-out infinite;pointer-events:none}
+    .hero-shell:after{content:"";position:absolute;left:-32px;bottom:-46px;width:180px;height:180px;border-radius:999px;background:radial-gradient(circle, rgba(14,165,233,.14), transparent 70%);filter:blur(8px);animation:floatBlobReverse 14s ease-in-out infinite;pointer-events:none}
     .metric-card { min-height: 150px; }
-    .tab-btn{border-radius:999px;padding:8px 14px;font-size:12px;font-weight:900;background:rgba(255,255,255,.85);color:#64748b;border:1px solid rgba(148,163,184,.18);transition:all .2s ease}
-    .tab-btn.active,.tab-btn:hover{background:#0f172a;color:#fff;border-color:#0f172a}
-    .hero-tab{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:10px 16px;font-size:12px;font-weight:900;background:rgba(255,255,255,.85);color:#0f172a;border:1px solid rgba(148,163,184,.18)}
+    .tab-btn{border-radius:999px;padding:10px 16px;font-size:12px;font-weight:900;background:rgba(255,255,255,.92);color:#475569;border:1px solid rgba(148,163,184,.25);transition:all .18s ease}
+    .tab-btn.active,.tab-btn:hover{color:#fff;background:linear-gradient(135deg, #2563eb, #0f172a);border-color:#17305f;box-shadow:0 16px 28px rgba(15,23,42,.18);transform:translateY(-1px)}
+    .hero-tab{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:10px 16px;font-size:12px;font-weight:900;background:rgba(255,255,255,.88);color:#0f172a;border:1px solid rgba(148,163,184,.18);box-shadow:0 10px 18px rgba(15,23,42,.06)}
     .tag{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800}
     .chart-box{height:320px;position:relative}
     .chart-box canvas{width:100%!important;height:100%!important}
     .table-wrap::-webkit-scrollbar{height:8px;width:8px}.table-wrap::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
     .table-head th{position:sticky;top:0;background:rgba(248,250,252,.94);backdrop-filter:blur(8px);z-index:1;}
     .section-lead{letter-spacing:.18em;text-transform:uppercase}
+    @keyframes ambientShift { 0% { background-position:0% 0%; } 100% { background-position:100% 100%; } }
+    @keyframes floatBlob { 0%,100% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(-18px,18px,0) scale(1.05); } }
+    @keyframes floatBlobReverse { 0%,100% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(18px,-18px,0) scale(1.08); } }
   </style>
 </head>
-<body class="w-full">
-  <div class="w-full px-0">
-    <div class="glass rounded-none p-5 md:p-7 w-full hero-shell">
+<body class="min-h-screen text-slate-900">
+  <div class="mx-auto my-3 w-[min(1600px,calc(100vw-24px))] rounded-[36px] border border-white/70 bg-white/65 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-2xl md:p-6">
+    <div class="glass rounded-[32px] p-5 md:p-7 w-full hero-shell">
       <div class="relative z-10 flex flex-col gap-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div class="text-xs text-slate-500 font-extrabold tracking-wide">COMPETITOR PRODUCT INTELLIGENCE</div>
             <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-[-0.04em]">컬럼비아 vs 디스커버리 상품 분석 대시보드</h1>
-            <div class="mt-2 max-w-5xl text-sm md:text-[15px] font-bold leading-6 text-slate-600">EXTERNAL SIGNAL COMBINED 레이아웃 톤을 최대한 그대로 가져가고, 상세 페이지 breadcrumb를 직접 수집해 OTHER DEBUG에서 복구 가능한 ITEM은 ITEM STYLE MIX / KPI / 차트에 선반영되도록 다시 묶었습니다. breadcrumb + source_category + URL 단서를 함께 사용합니다.</div>
+            <div class="mt-2 max-w-5xl text-sm md:text-[15px] font-bold leading-6 text-slate-600">External Signal premium UI 톤을 그대로 가져오고, 상품명에 티셔츠·자켓·팬츠·슈즈 등 명시된 품목어를 최우선으로 final item에 반영하도록 재분류 로직을 강화했습니다. 이 결과를 ITEM STYLE MIX, KPI, 차트, 상품 카드 전부에 동일하게 적용합니다.</div>
           </div>
           <div class="glass-strong rounded-3xl px-5 py-4 text-slate-900">
             <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">UPDATED</div>
@@ -2269,7 +2540,7 @@ def render_dashboard(payload: dict) -> str:
       <section class="glass rounded-3xl p-5">
         <div class="text-[11px] font-extrabold section-lead text-slate-500">ITEM STYLE MIX</div>
         <div class="mt-2 text-2xl font-black">브랜드 × 성별 × 아이템별 스타일 수 / 가격대</div>
-        <div class="mt-2 text-sm font-bold text-slate-500">OTHER DEBUG에서 구조화 가능한 ITEM과 크롤링 카테고리 기준을 먼저 반영한 뒤 집계합니다.</div>
+        <div class="mt-2 text-sm font-bold text-slate-500">상품명 직접 매칭 → breadcrumb/source category → 기존 item 순서로 final item을 강제 확정한 뒤 집계합니다. 기타는 최종적으로 ACC로 흡수됩니다.</div>
         <div class="mt-4 flex flex-wrap gap-2" id="brandItemTabs"></div>
         <div class="table-wrap mt-4 overflow-x-auto">
           <table class="min-w-[1400px] w-full text-sm">
@@ -2323,13 +2594,13 @@ def render_dashboard(payload: dict) -> str:
         </div>
         <div class="mt-4 flex flex-wrap gap-2" id="productBrandTabs"></div>
         <div class="mt-2 flex flex-wrap gap-2" id="productCategoryTabs"></div>
-        <div id="productGroupContainer" class="mt-4 space-y-6"></div>
+        <div id="productGroupContainer" class="mt-4"></div>
       </section>
 
       <section class="glass rounded-3xl p-5">
         <div class="text-[11px] font-extrabold section-lead text-slate-500">OTHER DEBUG</div>
         <div class="mt-2 text-2xl font-black">기타 디버그</div>
-        <div class="mt-2 text-sm font-bold text-slate-500">끝까지 기타로 남은 항목만 보여줍니다. item rule / crawler category / original item을 같이 확인할 수 있게 확장했습니다.</div>
+        <div class="mt-2 text-sm font-bold text-slate-500">재분류 이후에도 검토가 필요한 항목만 보여줍니다. 상품명 우선 규칙, crawler category, original item을 같이 확인할 수 있습니다.</div>
         <div class="table-wrap mt-4 overflow-x-auto">
           <table class="min-w-[1500px] w-full text-sm">
             <thead class="table-head"><tr class="border-b border-slate-200 text-slate-500">
@@ -2376,7 +2647,8 @@ function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl
   if(/vest|베스트/.test(blob)) return "베스트";
   if(/shirt|셔츠/.test(blob)) return "셔츠";
   if(/샌들|sandals|sandal|슬라이드|slide|슬리퍼|shoe|shoes|boot|boots|등산화|신발|부츠|peakfreak|konos|crestwood/.test(blob)) return "슈즈";
-  return (itemCategory && itemCategory!=="기타") ? itemCategory : "기타";
+  if(itemCategory && itemCategory!=="기타") return itemCategory;
+  return "ACC";
 }
 function normalizeProducts(){
   return (DATA.products||[]).map(p=>{
@@ -2403,7 +2675,84 @@ function renderPriceBandGenderTable(){ const allRows=DATA.price_band_gender_tabl
 function renderAttributeGenderTable(){ const allRows=DATA.attribute_gender_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandAttrTabs", brands, "attrBrand", renderAttributeGenderTable); const rows=STATE.attrBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.attrBrand); const merged=groupRowspan(rows); document.getElementById('attributeGenderBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3 text-right">${formatNumber(r["2L"])}</td><td class="py-3 text-right">${formatNumber(r["2.5L"])}</td><td class="py-3 text-right">${formatNumber(r["3L"])}</td><td class="py-3 text-right">${formatNumber(r["방수"])}</td><td class="py-3 text-right">${formatNumber(r["방풍"])}</td><td class="py-3 text-right">${formatNumber(r["고어텍스"])}</td><td class="py-3 text-right">${formatNumber(r["다운"])}</td><td class="py-3 text-right">${formatNumber(r["티셔츠"]||0)}</td></tr>`).join(''); }
 function renderItemStyleTable(){ const allRows=DATA.item_style_table||[]; const brands=[...new Set(allRows.map(r=>r.brand))]; makeTabs("brandItemTabs", brands, "itemBrand", renderItemStyleTable); const rows=STATE.itemBrand==="전체"?allRows:allRows.filter(r=>r.brand===STATE.itemBrand); const merged=groupRowspan(rows); document.getElementById('itemStyleBody').innerHTML=merged.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">${r._showBrand?`<td class="py-3 font-black align-top" rowspan="${r._brandRowspan}">${r.brand}</td>`:``}<td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.item_category}</td><td class="py-3 text-right font-black">${formatNumber(r.style_count)}</td><td class="py-3 text-right">${formatNumber(r["0-9.9만"])}</td><td class="py-3 text-right">${formatNumber(r["10-19.9만"])}</td><td class="py-3 text-right">${formatNumber(r["20-29.9만"])}</td><td class="py-3 text-right">${formatNumber(r["30-49.9만"])}</td><td class="py-3 text-right">${formatNumber(r["50만+"])}</td><td class="py-3 text-right">${formatPrice(r.avg_price)}</td><td class="py-3 text-right">${formatPrice(r.min_price)}</td><td class="py-3 text-right">${formatPrice(r.max_price)}</td></tr>`).join(''); }
 function renderKeywords(){ const grid=document.getElementById('keywordGrid'); const blocks=(DATA.keywords||[]).map(b=>({brand:b.brand, items:(b.items||[]).filter(it=>!NOISE_KEYWORDS.has(String(it.keyword||"").toUpperCase()))})); grid.innerHTML=blocks.map(block=>`<div class="glass-strong rounded-3xl p-4"><div class="text-lg font-black">${block.brand}</div><div class="mt-3 flex flex-wrap gap-2">${(block.items||[]).map(it=>'<span class="tag bg-slate-900 text-white">'+it.keyword+' · '+it.count+'</span>').join('')}</div></div>`).join(''); }
-function renderProducts(){ const all=normalizeProducts().filter(p=>!p.sold_out); const brands=[...new Set(all.map(p=>p.brand))]; const brandFiltered=STATE.productBrand==="전체"?all:all.filter(p=>p.brand===STATE.productBrand); const cats=[...new Set(brandFiltered.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))]; makeTabs("productBrandTabs", brands, "productBrand", renderProducts); makeTabs("productCategoryTabs", cats, "productCategory", renderProducts); let items=brandFiltered; if(STATE.productCategory!=="전체") items=items.filter(p=>(p._cat===STATE.productCategory)); document.getElementById('productCountText').textContent=`품절 제외 ${formatNumber(items.length)}개`; const grouped={}; for(const p of items){ const brand=p.brand||"UNKNOWN"; const cat=(p._cat||"기타"); grouped[brand]=grouped[brand]||{}; grouped[brand][cat]=grouped[brand][cat]||[]; grouped[brand][cat].push(p); } const container=document.getElementById("productGroupContainer"); container.innerHTML=Object.entries(grouped).map(([brand,catMap])=>`<section><div class="text-2xl font-black tracking-[-0.03em]">${brand}</div><div class="mt-4 space-y-6">${Object.entries(catMap).map(([cat,arr],ci)=>`<div><button class="w-full flex items-center justify-between rounded-2xl bg-white/90 border border-slate-200 px-4 py-3 text-left font-black" onclick="this.nextElementSibling.classList.toggle('hidden')"><span>${cat}</span><span class="text-sm text-slate-500">${arr.length} styles</span></button><div class="hidden mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">${arr.slice(0,120).map(p=>`<article class="glass-strong rounded-[24px] p-4"><div class="flex gap-4 items-start"><div class="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">${p.image_url?'<img src="'+p.image_url+'" alt="'+p.name+'" class="h-full w-full object-cover" loading="lazy" />':'<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>'}</div><div class="min-w-0 flex-1"><div class="flex flex-wrap gap-2"><span class="tag bg-slate-900 text-white">${p.brand}</span><span class="tag bg-indigo-50 text-indigo-700">${cat}</span></div><div class="mt-3 line-clamp-2 text-lg font-black leading-7 text-slate-900">${compactNameJS(p.name,p.brand)}</div><div class="mt-2 text-2xl font-black">${formatPrice(p.current_price)}</div><div class="mt-3 flex flex-wrap gap-2">${String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,3).map(x=>'<span class="tag bg-slate-100 text-slate-700">'+x+'</span>').join('')}</div><div class="mt-4 flex items-center justify-between gap-3">${p.product_url?'<a href="'+p.product_url+'" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>':''}</div></div></div></article>`).join('')}</div></div>`).join('')}</div></section>`).join(''); }
+function renderProducts(){
+  const all = normalizeProducts().filter(p=>!p.sold_out);
+  const brands = [...new Set(all.map(p=>p.brand).filter(Boolean))];
+  const brandFiltered = STATE.productBrand==="전체" ? all : all.filter(p=>p.brand===STATE.productBrand);
+  const cats = [...new Set(brandFiltered.map(p=>p._cat).filter(Boolean).filter(x=>x!=="기타"))];
+  makeTabs("productBrandTabs", brands, "productBrand", renderProducts);
+  makeTabs("productCategoryTabs", cats, "productCategory", renderProducts);
+
+  let items = brandFiltered;
+  if(STATE.productCategory!=="전체") items = items.filter(p=>p._cat===STATE.productCategory);
+
+  items = items.slice().sort((a,b)=>{
+    const ap = Number(a.current_price||0), bp = Number(b.current_price||0);
+    if (bp !== ap) return bp - ap;
+    return String(compactNameJS(a.name,a.brand)).localeCompare(String(compactNameJS(b.name,b.brand)), 'ko');
+  });
+
+  document.getElementById('productCountText').textContent = `품절 제외 ${formatNumber(items.length)}개`;
+  const container = document.getElementById("productGroupContainer");
+
+  if(!items.length){
+    container.innerHTML = `<div class="glass rounded-[30px] p-8 text-center"><div class="text-sm font-black text-slate-400">조건에 맞는 상품이 없습니다.</div></div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <section class="panel-hero overflow-hidden rounded-[34px] border border-white/70 bg-white/60 p-5 shadow-sm backdrop-blur-xl">
+      <div class="hero-orb hero-orb-primary"></div>
+      <div class="hero-orb hero-orb-secondary"></div>
+      <div class="relative z-10">
+        <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">LIVE PRODUCT GRID</div>
+            <div class="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-900">${STATE.productBrand==="전체"?"ALL BRANDS":STATE.productBrand}${STATE.productCategory==="전체"?"":" · "+STATE.productCategory}</div>
+            <div class="mt-2 text-sm font-bold text-slate-500">External Signal UI 톤 그대로, 카테고리 펼침형 대신 상품 카드 grid로 바로 노출합니다.</div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="hero-tab">Filtered ${formatNumber(items.length)} styles</span>
+            <span class="hero-tab">Price capture active</span>
+          </div>
+        </div>
+        <div class="product-grid mt-6">
+          ${items.slice(0,240).map(p=>{
+            const attrs = String(p.standard_attributes||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,4);
+            const orig = Number(p.original_price||0);
+            const curr = Number(p.current_price||0);
+            const discount = (orig > curr && curr > 0) ? Math.round((1 - (curr / orig)) * 100) : null;
+            return `<article class="product-card p-4">
+              <div class="relative z-10">
+                <div class="product-thumb">
+                  ${p.image_url ? `<img src="${p.image_url}" alt="${p.name||''}" class="h-full w-full object-cover" loading="lazy" />` : `<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>`}
+                </div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <span class="tag bg-slate-900 text-white">${p.brand||'-'}</span>
+                  <span class="tag bg-indigo-50 text-indigo-700">${p._cat||'-'}</span>
+                  <span class="tag bg-slate-100 text-slate-700">${p.gender||'공용'}</span>
+                </div>
+                <div class="mt-3 line-clamp-2 text-[19px] font-black leading-7 tracking-[-0.03em] text-slate-900">${compactNameJS(p.name,p.brand)}</div>
+                <div class="mt-3 product-price-row">
+                  <div class="price-current">${formatPrice(p.current_price)}</div>
+                  ${orig > curr && curr > 0 ? `<div class="price-original">${formatPrice(orig)}</div><div class="price-discount">${discount}% OFF</div>` : ``}
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  ${attrs.map(x=>`<span class="tag bg-slate-100 text-slate-700">${x}</span>`).join('')}
+                  ${!attrs.length && p.dominant_attribute ? `<span class="tag bg-slate-100 text-slate-700">${p.dominant_attribute}</span>` : ``}
+                </div>
+                <div class="mt-4 flex items-center justify-between gap-3">
+                  <div class="text-xs font-bold text-slate-500">${p.price_band||'-'}</div>
+                  ${p.product_url ? `<a href="${p.product_url}" target="_blank" rel="noopener noreferrer" class="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-black text-white">상품 보기</a>` : ``}
+                </div>
+              </div>
+            </article>`;
+          }).join('')}
+        </div>
+      </div>
+    </section>
+  `;
+}
 function renderOtherDebug(){ const rows=(DATA.other_debug||[]).map(r=>({...r, gender:(r.name||"").includes("공용")?"공용":(r.gender||"공용")})); document.getElementById("otherDebugBody").innerHTML=rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.name}</td><td class="py-3">${r.original_item||'-'}</td><td class="py-3">${r.item_rule||'-'}</td><td class="py-3">${r.breadcrumb_item||'-'}</td><td class="py-3">${r.crawler_item||'-'}</td><td class="py-3 font-black">${r.item||'-'}</td><td class="py-3">${r.dominant_attribute||'-'}</td><td class="py-3">${r.reason||'-'}</td></tr>`).join(''); }
 function baseChart(id,type,labels,values,extra={}){ if(chartRefs[id]){ chartRefs[id].destroy(); } const ctx=document.getElementById(id); const horizontal=labels.length>=6 && type==='bar'; chartRefs[id] = new Chart(ctx,{type,data:{labels,datasets:[{data:values,borderWidth:2,borderRadius:10,tension:.35}]},options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{autoSkip:false}}}},extra)}); }
 function renderTopCharts(){ const brand = STATE.chartBrand; const df = normalizeProducts().filter(p => brand==="전체" ? true : p.brand===brand); const countBy = (arr, key) => { const m = {}; arr.forEach(x => { const v = (x[key]||"기타"); if(v==="기타") return; m[v] = (m[v]||0)+1; }); return m; }; const priceMap = countBy(df.filter(x=>x.price_band), "price_band"); const itemMap = countBy(df, "item_category"); const attrMap = countBy(df.filter(x=>x.dominant_attribute), "dominant_attribute"); baseChart('priceBandChart','bar',Object.keys(priceMap),Object.values(priceMap)); baseChart('categoryChart','bar',Object.keys(itemMap),Object.values(itemMap)); baseChart('dominantAttrChart','bar',Object.keys(attrMap),Object.values(attrMap)); }
