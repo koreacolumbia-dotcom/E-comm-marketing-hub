@@ -910,20 +910,33 @@ def make_light_bundle(bundle: dict) -> dict:
 def export_excel_files(bundle: dict, period_key: str):
     ensure_dir(DOWNLOAD_DIR)
     links = {}
-    nb = pd.DataFrame(bundle['user_view']['non_buyer']['panels']['ALL']['rows'])
+    nb = pd.DataFrame((((bundle.get('user_view') or {}).get('non_buyer') or {}).get('panels') or {}).get('ALL', {}).get('rows', []))
     if not nb.empty and 'consent' in nb.columns:
-        nb = nb[nb['consent'].astype(int) == 1]
+        nb = nb[pd.to_numeric(nb['consent'], errors='coerce').fillna(0).astype(int) == 1]
         if not nb.empty:
             p = DOWNLOAD_DIR / f'member_funnel_{period_key}_non_buyer.xlsx'
             nb[[c for c in ['member_id','phone','user_id','channel_group','campaign'] if c in nb.columns]].to_excel(p, index=False)
             links['non_buyer'] = os.path.relpath(p, OUT_DIR).replace('\\','/')
-    tgt = pd.DataFrame(bundle['user_view']['target']['rows'])
-    if not tgt.empty and 'consent' in tgt.columns:
-        tgt = tgt[tgt['consent'].astype(int) == 1]
-        if not tgt.empty:
-            p = DOWNLOAD_DIR / f'member_funnel_{period_key}_target_segments.xlsx'
-            tgt[[c for c in ['member_id','phone','channel_group','campaign','preferred_product','recommended_message'] if c in tgt.columns]].to_excel(p, index=False)
-            links['target'] = os.path.relpath(p, OUT_DIR).replace('\\','/')
+
+    target = ((bundle.get('user_view') or {}).get('target') or {})
+    seg_links = {}
+    for seg_key, seg in (target.get('segments') or {}).items():
+        tgt = pd.DataFrame((seg or {}).get('rows', []))
+        if tgt.empty or 'consent' not in tgt.columns:
+            continue
+        tgt = tgt[pd.to_numeric(tgt['consent'], errors='coerce').fillna(0).astype(int) == 1]
+        if tgt.empty:
+            continue
+        p = DOWNLOAD_DIR / f'member_funnel_{period_key}_{seg_key}.xlsx'
+        cols = [c for c in ['member_id','phone','channel_group','campaign','preferred_product','recommended_message'] if c in tgt.columns]
+        tgt[cols].to_excel(p, index=False)
+        seg_links[seg_key] = os.path.relpath(p, OUT_DIR).replace('\\','/')
+
+    if seg_links:
+        links['target_segments'] = seg_links
+        active_key = target.get('active_key') or next(iter(seg_links.keys()))
+        if active_key in seg_links:
+            links['target'] = seg_links[active_key]
     bundle['downloads'] = links
 
 
