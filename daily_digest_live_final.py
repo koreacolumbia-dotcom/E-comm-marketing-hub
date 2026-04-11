@@ -1152,134 +1152,42 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
     return base or "other"
 
 
-def normalize_channel_bucket(bucket: Any) -> str:
-    bucket_str = str(bucket or "").strip()
-    if bucket_str in CHANNEL_BUCKET_ORDER:
-        return bucket_str
+def map_ga_default_channel_to_bucket(channel_group: str) -> str:
+    cg = str(channel_group or "").strip().lower()
+    if cg in {"paid search", "paid social", "display"}:
+        return "Paid Ad"
+    if cg in {"email", "sms", "mobile push notifications"}:
+        return "Owned Channel"
+    if cg in {"organic social"}:
+        return "Official SNS"
+    if cg in {"referral", "video", "organic video", "affiliates", "cross-network"}:
+        return "Awareness"
+    if cg in {"organic search", "direct", "organic shopping", "organic shopping", "unassigned"}:
+        return "Organic Traffic"
     return "etc"
 
 
-def apply_channel_bucket_classification(
-    df: pd.DataFrame,
-    source_col: str = "sessionSourceMedium",
-    campaign_col: str = "sessionCampaignName",
-    bucket_col: str = "bucket",
+def get_channel_sessions_from_ga_default_group(
+    client: BetaAnalyticsDataClient,
+    start: dt.date,
+    end: dt.date,
 ) -> pd.DataFrame:
-    if df is None or df.empty:
-        return pd.DataFrame(df, copy=True)
+    dims = ["sessionDefaultChannelGroup"]
+    mets = ["sessions"]
+    try:
+        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=1000)
+    except Exception:
+        return pd.DataFrame(columns=["bucket", "sessions"])
 
-    out = df.copy()
-    if source_col not in out.columns:
-        out[source_col] = ""
-    if campaign_col not in out.columns:
-        out[campaign_col] = ""
+    if df.empty:
+        return pd.DataFrame(columns=["bucket", "sessions"])
 
-    out[source_col] = out[source_col].astype(str).fillna("")
-    out[campaign_col] = out[campaign_col].astype(str).fillna("")
-    out[bucket_col] = out.apply(
-        lambda r: normalize_channel_bucket(classify_looker_channel(r[source_col], r[campaign_col])),
-        axis=1,
-    )
-    out[bucket_col] = out[bucket_col].replace({"": "etc", "nan": "etc", "None": "etc"}).fillna("etc")
-    return out
-
-
-def reconcile_bucket_aggregate_to_totals(
-    agg_df: pd.DataFrame,
-    totals: Dict[str, float],
-    suffix: str,
-) -> pd.DataFrame:
-    out = pd.DataFrame(agg_df, copy=True) if agg_df is not None else pd.DataFrame()
-    bucket_col = "bucket"
-    metrics = {
-        f"sessions{suffix}": float((totals or {}).get("sessions", 0) or 0.0),
-        f"transactions{suffix}": float((totals or {}).get("transactions", 0) or 0.0),
-        f"revenue{suffix}": float((totals or {}).get("purchaseRevenue", 0) or 0.0),
-    }
-
-    required_cols = [bucket_col] + list(metrics.keys())
-    if out.empty:
-        out = pd.DataFrame([{bucket_col: b, **{k: 0.0 for k in metrics.keys()}} for b in CHANNEL_BUCKET_ORDER])
-    else:
-        for col in required_cols:
-            if col not in out.columns:
-                out[col] = 0.0 if col != bucket_col else "etc"
-
-    out[bucket_col] = out[bucket_col].map(normalize_channel_bucket)
-    out = out.groupby(bucket_col, as_index=False)[list(metrics.keys())].sum()
-
-    existing = set(out[bucket_col].tolist())
-    missing = [b for b in CHANNEL_BUCKET_ORDER if b not in existing]
-    if missing:
-        out = pd.concat([
-            out,
-            pd.DataFrame([{bucket_col: b, **{k: 0.0 for k in metrics.keys()}} for b in missing])
-        ], ignore_index=True)
-
-    etc_mask = out[bucket_col] == "etc"
-    if not etc_mask.any():
-        out = pd.concat([out, pd.DataFrame([{bucket_col: "etc", **{k: 0.0 for k in metrics.keys()}}])], ignore_index=True)
-        etc_mask = out[bucket_col] == "etc"
-
-    for col, total_val in metrics.items():
-        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
-        bucket_sum = float(out[col].sum())
-        diff = total_val - bucket_sum
-        if abs(diff) > 1e-6:
-            out.loc[etc_mask, col] = out.loc[etc_mask, col].astype(float) + diff
-            print(f"[INFO] Reconciled {col}: bucket_sum={bucket_sum:.4f}, total={total_val:.4f}, diff={diff:.4f} -> applied to etc")
-
-    order_map = {b: i for i, b in enumerate(CHANNEL_BUCKET_ORDER)}
-    out["__o"] = out[bucket_col].map(order_map).fillna(999).astype(int)
-    out = out.sort_values(["__o", bucket_col]).drop(columns="__o").reset_index(drop=True)
-    return out
-
-
-def reconcile_sessions_only_to_total(df: pd.DataFrame, session_col: str, total_sessions: float) -> pd.DataFrame:
-    """
-    Rescale bucket sessions only so the visible bucket-session sum matches the
-    authoritative KPI total exactly. Other metrics stay untouched.
-    Uses largest-remainder integer allocation so displayed row sums also match.
-    """
-    out = pd.DataFrame(df, copy=True) if df is not None else pd.DataFrame()
-    if out.empty or session_col not in out.columns:
-        return out
-
-    work = out.copy()
-    work[session_col] = pd.to_numeric(work[session_col], errors="coerce").fillna(0.0)
-    current_sum = float(work[session_col].sum())
-    target = int(round(float(total_sessions or 0.0)))
-
-    if current_sum <= 0:
-        work[session_col] = 0.0
-        if target > 0:
-            etc_mask = work["bucket"].astype(str).eq("etc") if "bucket" in work.columns else pd.Series([False] * len(work))
-            if etc_mask.any():
-                work.loc[etc_mask, session_col] = float(target)
-            elif len(work) > 0:
-                work.loc[work.index[-1], session_col] = float(target)
-        return work
-
-    if abs(current_sum - float(target)) < 1e-9:
-        return work
-
-    scaled = work[session_col] * (float(target) / current_sum)
-    floors = scaled.apply(lambda x: int(x // 1))
-    remainder = target - int(floors.sum())
-    frac = (scaled - floors).astype(float)
-
-    work[session_col] = floors.astype(float)
-    if remainder > 0:
-        order = frac.sort_values(ascending=False).index.tolist()
-        for idx in order[:remainder]:
-            work.at[idx, session_col] = float(work.at[idx, session_col]) + 1.0
-    elif remainder < 0:
-        order = frac.sort_values(ascending=True).index.tolist()
-        for idx in order[:abs(remainder)]:
-            work.at[idx, session_col] = float(work.at[idx, session_col]) - 1.0
-
-    print(f"[INFO] Reconciled {session_col} only: raw_sum={current_sum:.4f}, total={float(target):.4f}")
-    return work
+    df = df.copy()
+    df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("")
+    df["sessions"] = pd.to_numeric(df.get("sessions", 0), errors="coerce").fillna(0.0)
+    df["bucket"] = df["sessionDefaultChannelGroup"].map(map_ga_default_channel_to_bucket)
+    g = df.groupby("bucket", as_index=False)[["sessions"]].sum()
+    return g
 
 
 # =========================
@@ -1292,9 +1200,7 @@ def get_channel_snapshot_3way(
 ) -> pd.DataFrame:
     """
     Build Channel Snapshot using the Looker CASE bucket logic.
-    The bucket rows are reconciled back to the authoritative overall KPI totals,
-    so Channel Snapshot sum always matches the KPI total even when some rows fall
-    through source / medium edge cases.
+    The Total row is always forced from the authoritative overall KPI.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
@@ -1303,25 +1209,34 @@ def get_channel_snapshot_3way(
         try:
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
             if df.empty:
-                return pd.DataFrame(columns=dims + mets + ["bucket"])
+                return pd.DataFrame(columns=dims + mets)
             df = df.copy()
+            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
+            df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            return apply_channel_bucket_classification(df)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
+            return df
         except Exception:
             dims2 = ["sessionSourceMedium"]
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims2, mets, limit=250000)
             if df.empty:
                 return pd.DataFrame(columns=dims2 + mets + ["sessionCampaignName", "bucket"])
             df = df.copy()
+            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
             df["sessionCampaignName"] = ""
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            return apply_channel_bucket_classification(df)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
+            return df
 
     cur = fetch(w.cur_start, w.cur_end)
     prev = fetch(w.prev_start, w.prev_end)
     yoy = fetch(w.yoy_start, w.yoy_end)
+
+    ga_cur_sessions = get_channel_sessions_from_ga_default_group(client, w.cur_start, w.cur_end).rename(columns={"sessions": "ga_sessions_cur"})
+    ga_prev_sessions = get_channel_sessions_from_ga_default_group(client, w.prev_start, w.prev_end).rename(columns={"sessions": "ga_sessions_prev"})
+    ga_yoy_sessions = get_channel_sessions_from_ga_default_group(client, w.yoy_start, w.yoy_end).rename(columns={"sessions": "ga_sessions_yoy"})
 
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
@@ -1334,29 +1249,46 @@ def get_channel_snapshot_3way(
         })
         return g
 
+    cur_b = agg(cur, "_cur")
+    prev_b = agg(prev, "_prev")
+    yoy_b = agg(yoy, "_yoy")
+
+    m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer")
+    m = m.merge(ga_cur_sessions, on="bucket", how="outer")
+    m = m.merge(ga_prev_sessions, on="bucket", how="outer")
+    m = m.merge(ga_yoy_sessions, on="bucket", how="outer")
+    m = m.fillna(0.0)
+
     oc = overall.get("current", {}) or {}
     op = overall.get("prev", {}) or {}
     oy = overall.get("yoy", {}) or {}
 
-    cur_b = reconcile_bucket_aggregate_to_totals(agg(cur, "_cur"), oc, "_cur")
-    prev_b = reconcile_bucket_aggregate_to_totals(agg(prev, "_prev"), op, "_prev")
-    yoy_b = reconcile_bucket_aggregate_to_totals(agg(yoy, "_yoy"), oy, "_yoy")
-
-    m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
-
-    m = reconcile_sessions_only_to_total(m, "sessions_cur", float(oc.get("sessions", 0) or 0.0))
-    m = reconcile_sessions_only_to_total(m, "sessions_prev", float(op.get("sessions", 0) or 0.0))
-    m = reconcile_sessions_only_to_total(m, "sessions_yoy", float(oy.get("sessions", 0) or 0.0))
-
+    canonical_buckets = list(CHANNEL_BUCKET_ORDER)
     numeric_cols = [
         "sessions_cur", "transactions_cur", "revenue_cur",
         "sessions_prev", "transactions_prev", "revenue_prev",
         "sessions_yoy", "transactions_yoy", "revenue_yoy",
+        "ga_sessions_cur", "ga_sessions_prev", "ga_sessions_yoy",
     ]
+    if m.empty:
+        m = pd.DataFrame({"bucket": canonical_buckets})
     for col in numeric_cols:
         if col not in m.columns:
             m[col] = 0.0
-    m[numeric_cols] = m[numeric_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0)
+    missing = [b for b in canonical_buckets if b not in set(m["bucket"].tolist())]
+    if missing:
+        m = pd.concat([m, pd.DataFrame({"bucket": missing})], ignore_index=True, sort=False)
+    m[numeric_cols] = m[numeric_cols].fillna(0.0)
+    m = m.groupby("bucket", as_index=False)[numeric_cols].sum().set_index("bucket")
+    m = m.reset_index()
+
+    # Sessions must come directly from GA default channel group totals.
+    if "ga_sessions_cur" in m.columns:
+        m["sessions_cur"] = m["ga_sessions_cur"]
+    if "ga_sessions_prev" in m.columns:
+        m["sessions_prev"] = m["ga_sessions_prev"]
+    if "ga_sessions_yoy" in m.columns:
+        m["sessions_yoy"] = m["ga_sessions_yoy"]
 
     m["session_dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     m["session_yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
@@ -1380,33 +1312,9 @@ def get_channel_snapshot_3way(
         "rev_yoy": m["session_yoy"],
     })
 
-    paid_row = m[m["bucket"] == "Paid Ad"]
-    out.attrs["paid_ad_totals"] = {
-        "current": {
-            "sessions": float(paid_row["sessions_cur"].iloc[0]) if not paid_row.empty else 0.0,
-            "transactions": float(paid_row["transactions_cur"].iloc[0]) if not paid_row.empty else 0.0,
-            "revenue": float(paid_row["revenue_cur"].iloc[0]) if not paid_row.empty else 0.0,
-        },
-        "prev": {
-            "sessions": float(paid_row["sessions_prev"].iloc[0]) if not paid_row.empty else 0.0,
-            "transactions": float(paid_row["transactions_prev"].iloc[0]) if not paid_row.empty else 0.0,
-            "revenue": float(paid_row["revenue_prev"].iloc[0]) if not paid_row.empty else 0.0,
-        },
-        "yoy": {
-            "sessions": float(paid_row["sessions_yoy"].iloc[0]) if not paid_row.empty else 0.0,
-            "transactions": float(paid_row["transactions_yoy"].iloc[0]) if not paid_row.empty else 0.0,
-            "revenue": float(paid_row["revenue_yoy"].iloc[0]) if not paid_row.empty else 0.0,
-        },
-    }
-
     order = {b: i for i, b in enumerate(CHANNEL_BUCKET_ORDER)}
     out["__o"] = out["bucket"].map(order).fillna(99).astype(int)
     out = out.sort_values(["__o", "bucket"]).drop(columns="__o")
-
-    bucket_session_sum = float(out["sessions"].sum()) if not out.empty else 0.0
-    total_sessions = float(oc.get("sessions", 0) or 0.0)
-    if abs(bucket_session_sum - total_sessions) > 1e-6:
-        print(f"[WARN] Channel Snapshot session mismatch remained after reconciliation: buckets={bucket_session_sum:.4f}, total={total_sessions:.4f}")
 
     total = pd.DataFrame([{
         "bucket": "Total",
@@ -1449,14 +1357,15 @@ def get_paid_detail_3way(
         try:
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
             if df.empty:
-                return pd.DataFrame(columns=dims + mets + ["bucket", "sub"])
+                return pd.DataFrame(columns=dims + mets)
             df = df.copy()
+            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
+            df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df = apply_channel_bucket_classification(df)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
             df = df[df["bucket"] == "Paid Ad"].copy()
             df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
-            df["sub"] = df["sub"].astype(str).fillna("").replace({"": "other", "nan": "other", "None": "other"})
             return df
         except Exception:
             dims2 = ["sessionSourceMedium"]
@@ -1464,13 +1373,13 @@ def get_paid_detail_3way(
             if df.empty:
                 return pd.DataFrame(columns=["sessionSourceMedium", "sessionCampaignName"] + mets + ["bucket", "sub"])
             df = df.copy()
+            df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
             df["sessionCampaignName"] = ""
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df = apply_channel_bucket_classification(df)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
             df = df[df["bucket"] == "Paid Ad"].copy()
             df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], ""), axis=1)
-            df["sub"] = df["sub"].astype(str).fillna("").replace({"": "other", "nan": "other", "None": "other"})
             return df
 
     cur = fetch(w.cur_start, w.cur_end)
@@ -1530,31 +1439,24 @@ def get_paid_detail_3way(
     merged_yoy_r = float(merged["rev_yoy_base"].sum()) if not merged.empty else 0.0
 
     if paid_ad_totals:
-        t_cur_s = float(paid_ad_totals.get("current", {}).get("sessions", merged_cur_s) or merged_cur_s)
+        t_cur_s = float(paid_ad_totals.get("current", {}).get("sessions", merged_cur_s) or 0.0)
+        t_cur_r = float(paid_ad_totals.get("current", {}).get("revenue", merged_cur_r) or 0.0)
         t_prev_s = float(paid_ad_totals.get("prev", {}).get("sessions", merged_prev_s) or merged_prev_s)
         t_yoy_s = float(paid_ad_totals.get("yoy", {}).get("sessions", merged_yoy_s) or merged_yoy_s)
-        t_cur_o = float(paid_ad_totals.get("current", {}).get("transactions", merged_cur_o) or merged_cur_o)
-        t_prev_o = float(paid_ad_totals.get("prev", {}).get("transactions", merged_prev_o) or merged_prev_o)
-        t_yoy_o = float(paid_ad_totals.get("yoy", {}).get("transactions", merged_yoy_o) or merged_yoy_o)
-        t_cur_r = float(paid_ad_totals.get("current", {}).get("revenue", merged_cur_r) or merged_cur_r)
-        t_prev_r = float(paid_ad_totals.get("prev", {}).get("revenue", merged_prev_r) or merged_prev_r)
-        t_yoy_r = float(paid_ad_totals.get("yoy", {}).get("revenue", merged_yoy_r) or merged_yoy_r)
     else:
-        t_cur_s, t_prev_s, t_yoy_s = merged_cur_s, merged_prev_s, merged_yoy_s
-        t_cur_o, t_prev_o, t_yoy_o = merged_cur_o, merged_prev_o, merged_yoy_o
-        t_cur_r, t_prev_r, t_yoy_r = merged_cur_r, merged_prev_r, merged_yoy_r
+        t_cur_s, t_prev_s, t_yoy_s, t_cur_r = merged_cur_s, merged_prev_s, merged_yoy_s, merged_cur_r
 
     total_row = {
         "sub_channel": "Total",
         "sessions": t_cur_s,
-        "orders": t_cur_o,
+        "orders": merged_cur_o,
         "purchaseRevenue": t_cur_r,
         "session_dod": pct_change(t_cur_s, t_prev_s),
         "session_yoy": pct_change(t_cur_s, t_yoy_s),
-        "orders_dod": pct_change(t_cur_o, t_prev_o),
-        "orders_yoy": pct_change(t_cur_o, t_yoy_o),
-        "revenue_dod": pct_change(t_cur_r, t_prev_r),
-        "revenue_yoy": pct_change(t_cur_r, t_yoy_r),
+        "orders_dod": pct_change(merged_cur_o, merged_prev_o),
+        "orders_yoy": pct_change(merged_cur_o, merged_yoy_o),
+        "revenue_dod": pct_change(t_cur_r, merged_prev_r),
+        "revenue_yoy": pct_change(t_cur_r, merged_yoy_r),
         "dod": pct_change(t_cur_s, t_prev_s),
         "yoy": pct_change(t_cur_s, t_yoy_s),
         "has_yoy": (t_yoy_s not in (None, 0, 0.0)),
@@ -4406,17 +4308,16 @@ def build_one(
 
     # Extract Paid AD totals from Channel Snapshot for Paid Detail alignment.
     paid_ad_totals = {
-        "current": {"sessions": None, "transactions": None, "revenue": None},
-        "prev": {"sessions": None, "transactions": None, "revenue": None},
-        "yoy": {"sessions": None, "transactions": None, "revenue": None},
+        "current": {"sessions": None, "revenue": None},
+        "prev": {"sessions": None, "revenue": None},
+        "yoy": {"sessions": None, "revenue": None},
     }
     try:
-        paid_ad_totals = channel_snapshot.attrs.get("paid_ad_totals", paid_ad_totals)
+        # Only current-period absolute values are needed to force Paid Detail Total.
         row = channel_snapshot[channel_snapshot["bucket"] == "Paid Ad"]
         if not row.empty:
-            paid_ad_totals.setdefault("current", {})["sessions"] = float(row.iloc[0]["sessions"])
-            paid_ad_totals.setdefault("current", {})["transactions"] = float(row.iloc[0]["transactions"])
-            paid_ad_totals.setdefault("current", {})["revenue"] = float(row.iloc[0]["purchaseRevenue"])
+            paid_ad_totals["current"]["sessions"] = float(row.iloc[0]["sessions"])
+            paid_ad_totals["current"]["revenue"] = float(row.iloc[0]["purchaseRevenue"])
     except Exception:
         pass
 
