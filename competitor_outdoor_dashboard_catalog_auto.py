@@ -1003,9 +1003,9 @@ def _item_keyword_map() -> Dict[str, List[str]]:
         "다운": ["다운", "패딩", "down", "duck down", "goose down", "덕다운", "구스다운", "puffer", "insulated jacket", "인슐레이티드"],
         "베스트": ["베스트", "vest"],
         "후디": ["후디", "후드", "hoodie", "hood", "sweatshirt", "맨투맨", "sweat"],
-        "티셔츠": ["티셔츠", "tee", "tees", "t-shirt", "t shirt", "반팔", "긴팔", "top", "tops", "jersey", "half zip", "half-zip", "집업티", "zip tee", "zip-tee", "sleeve", "crewneck", "크루넥", "폴로티", "polo shirt"],
+        "티셔츠": ["티셔츠", "tee", "tees", "t-shirt", "t shirt", "반팔", "긴팔", "jersey", "half zip", "half-zip", "집업티", "zip tee", "zip-tee", "short sleeve", "long sleeve", "sleeve", "crewneck", "크루넥", "라운드티", "폴로티", "polo shirt", "polo tee"],
         "셔츠": ["셔츠", "shirt", "overshirt"],
-        "슈즈": ["슈즈", "신발", "shoe", "shoes", "boot", "boots", "sneaker", "sneakers", "trail shoe", "등산화", "부츠", "sandal", "sandals", "샌들", "slide", "slides", "슬리퍼", "outdry"],
+        "슈즈": ["슈즈", "신발", "shoe", "shoes", "boot", "boots", "sneaker", "sneakers", "trail shoe", "trail running", "등산화", "부츠", "sandal", "sandals", "샌들", "slide", "slides", "슬리퍼", "outdry", "konos", "peakfreak", "crestwood", "thrive revive", "clog", "omni-max", "omni max"],
         "장갑": ["장갑", "glove", "gloves", "mitt", "mittens"],
         "백": ["백", "가방", "bag", "bags", "backpack", "pack", "백팩", "배낭", "duffel", "더플", "tote", "토트", "sling", "슬링", "body bag", "bodybag", "크로스백", "숄더백", "파우치"],
         "ACC": ["acc", "accessory", "accessories", "모자", "cap", "hat", "beanie", "비니", "bucket", "버킷", "visor", "양말", "sock", "socks", "belt", "벨트", "머플러", "워머", "넥게이터", "헤어밴드"],
@@ -1067,6 +1067,87 @@ def extract_discovery_listing_context(driver, listing_url: str) -> str:
     return ' '.join(parts)
 
 
+def extract_columbia_listing_context(driver, listing_url: str) -> str:
+    parts: List[str] = []
+    seen = set()
+
+    def _push(value: str):
+        v = compact_text(value)
+        if not v:
+            return
+        low = v.lower()
+        if low in seen:
+            return
+        seen.add(low)
+        parts.append(v)
+
+    try:
+        current_url = canonicalize_url(getattr(driver, "current_url", "") or listing_url)
+        for src in [current_url, listing_url]:
+            _push(src)
+    except Exception:
+        pass
+
+    selectors = [
+        "nav a", ".breadcrumb a", ".breadcrumb li", "h1", "h2",
+        ".title", ".tit", ".location a", ".location li",
+        ".category a.on", ".category .on", ".cate a.on", ".cate .on",
+        "a[href*='product/list']"
+    ]
+    for css in selectors:
+        try:
+            elems = driver.find_elements(By.CSS_SELECTOR, css)
+            for el in elems[:30]:
+                txt = get_text_from_element(el)
+                href = get_attr_from_element(el, "href")
+                if txt:
+                    _push(txt)
+                if href and ("cno=" in href or "gdv=" in href):
+                    _push(href)
+        except Exception:
+            continue
+
+    try:
+        title = compact_text(getattr(driver, "title", "") or "")
+        if title:
+            _push(title)
+    except Exception:
+        pass
+
+    return " ".join(parts)
+
+
+def choose_driver_image_url(driver_or_el, selectors: List[str]) -> str:
+    def _from_elem(elem):
+        for attr in ["src", "data-src", "data-original", "currentSrc", "content"]:
+            try:
+                val = compact_text(elem.get_attribute(attr))
+            except Exception:
+                val = ""
+            if val and not val.startswith("data:") and any(ext in val.lower() for ext in [".jpg", ".jpeg", ".png", ".webp"]):
+                return val
+        try:
+            srcset = compact_text(elem.get_attribute("srcset"))
+        except Exception:
+            srcset = ""
+        if srcset:
+            first = srcset.split(",")[0].strip().split(" ")[0].strip()
+            if first and not first.startswith("data:"):
+                return first
+        return ""
+
+    for css in selectors:
+        try:
+            elems = driver_or_el.find_elements(By.CSS_SELECTOR, css)
+            for elem in elems:
+                val = _from_elem(elem)
+                if val:
+                    return val
+        except Exception:
+            continue
+    return ""
+
+
 def _discovery_category_tokens(text: str) -> List[str]:
     t = safe_text(text)
     if not t:
@@ -1107,6 +1188,20 @@ def normalize_source_category(text: str) -> str:
             if item in discovery_hits:
                 return item
 
+    explicit_pairs = [
+        ("슈즈", ["신발", "슈즈", "스니커즈", "트레일러닝", "등산화", "샌들", "슬리퍼", "레인 부츠", "omni-max", "omni max"]),
+        ("백", ["가방", "백팩", "크로스", "토트백", "힙색", "슬링백"]),
+        ("티셔츠", ["티셔츠", "라운드티", "폴로티", "집업", "반팔", "긴팔"]),
+        ("후디", ["맨투맨", "후드티"]),
+        ("플리스", ["플리스"]),
+        ("팬츠", ["하의", "긴바지", "카고/조거", "반바지"]),
+        ("자켓", ["아우터", "방수자켓", "바람막이", "경량패딩/슬림다운", "인터체인지", "베스트"]),
+        ("ACC", ["모자", "용품", "장갑", "스틱", "양말", "지갑"]),
+    ]
+    for item, kws in explicit_pairs:
+        if any(kw.lower() in low for kw in kws):
+            return item
+
     scores: Dict[str, int] = {}
     for item, keys in _item_keyword_map().items():
         score = 0
@@ -1132,6 +1227,24 @@ def infer_item_category(name: str, description: str, source_category: str = "") 
     src_blob = source_text.lower()
     full_blob = " ".join(x for x in [name_blob, desc_blob, src_blob] if x)
 
+    src_item = normalize_source_category(source_text)
+    if src_item:
+        return src_item
+
+    tail_checks = [
+        ("슈즈", [r'\b(konos|peakfreak|crestwood|clog|sneaker|sneakers|shoe|shoes|boot|boots|sandals?|slides?)\b', r'\btrail\s+atr\b']),
+        ("티셔츠", [r'\bshort\s+sleeve\b', r'\blong\s+sleeve\b', r'\btee\b', r'\bt-shirt\b', r'\bjersey\b', r'\bcrewneck\b', r'\bround\s*tee\b']),
+        ("후디", [r'\bhoodie\b', r'\bhood\b', r'\bsweatshirt\b']),
+        ("플리스", [r'\bfleece\b', r'\bboa\b']),
+        ("베스트", [r'\bvest\b']),
+        ("셔츠", [r'\bshirt\b']),
+        ("팬츠", [r'\bcargo\s+pant\b', r'\bcargo\s+pants\b', r'\bjogger\b', r'\bpant\b', r'\bpants\b', r'\bshorts\b', r'\bshort\b', r'\bskort\b', r'\bchino\b']),
+        ("자켓", [r'\bwindbreaker\b', r'\banorak\b', r'\bjacket\b', r'\bparka\b', r'\bshell\b']),
+    ]
+    for item, patterns in tail_checks:
+        if any(re.search(p, name_blob) for p in patterns):
+            return item
+
     scores: Dict[str, int] = {}
     for item, keys in _item_keyword_map().items():
         score = 0
@@ -1140,11 +1253,9 @@ def infer_item_category(name: str, description: str, source_category: str = "") 
             if not kk:
                 continue
             if kk in name_blob:
-                score += 8
+                score += 6
                 if re.search(rf'(^|[^a-z가-힣]){re.escape(kk)}([^a-z가-힣]|$)', name_blob):
-                    score += 3
-            if kk in src_blob:
-                score += 4
+                    score += 2
             if kk in desc_blob:
                 score += 2
         if score:
@@ -1153,13 +1264,11 @@ def infer_item_category(name: str, description: str, source_category: str = "") 
     if scores:
         return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
 
-    # 이름 안에 명시적인 품목명이 없더라도 최종 분류에서 기타가 남지 않도록 마지막 안전장치를 둡니다.
     if any(x in full_blob for x in ["set", "세트", "kit", "키트", "워머", "양말", "sock", "socks", "belt", "벨트", "cap", "hat", "모자"]):
         return "ACC"
     if full_blob:
         return normalize_source_category(full_blob) or "ACC"
     return "ACC"
-
 
 def extract_raw_keywords(name: str, description: str) -> List[str]:
     text = f"{name} {description}"
@@ -1435,7 +1544,6 @@ class AutoCompetitorCrawler:
             driver.execute_cdp_cmd("Network.enable", {})
             driver.execute_cdp_cmd("Network.setBlockedURLs", {
                 "urls": [
-                    "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg",
                     "*.woff", "*.woff2", "*.ttf", "*.otf",
                     "*google-analytics*", "*googletagmanager*", "*doubleclick*",
                     "*facebook*", "*analytics*", "*tracker*"
@@ -1553,63 +1661,80 @@ class AutoCompetitorCrawler:
             return product_urls
 
         source_context = listing_url
+        try:
+            self.wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
+        except Exception:
+            pass
+        try:
+            time.sleep(1.6)
+        except Exception:
+            pass
+
         if cfg.brand == "DISCOVERY":
-            try:
-                self.wait.until(lambda d: d.execute_script("return document.readyState") == "complete")
-            except Exception:
-                pass
-            try:
-                time.sleep(1.6)
-            except Exception:
-                pass
             source_context = extract_discovery_listing_context(self.driver, listing_url) or listing_url
-        source_cat = normalize_source_category(source_context)
+        elif cfg.brand == "COLUMBIA":
+            source_context = extract_columbia_listing_context(self.driver, listing_url) or listing_url
 
         self._scroll_to_end()
-        links = self._extract_all_links()
 
-        for link in links:
-            if not same_domain(link, cfg.domain):
-                continue
-            if self._is_deny_url(link, cfg):
-                continue
-            if self._is_product_url(link, cfg):
-                if self._passes_brand_filter(link, cfg):
-                    product_urls.append({"url": link, "source_category": source_context, "source_category_url": listing_url})
-
-        # direct CSS fallback: product-detail style anchors
-        direct_selectors = [
+        candidate_selectors = [
             "a[href*='product-detail']",
-            "a[href*='/product/']",
-            "a[href*='/products/']",
-            "a[href*='/goods/']",
-            "a[href*='/p/']",
-            "a[href*='goodsNo=']",
-            "a[href*='productNo=']",
+            "a[href*='/product/detail']",
+            "a[href*='/product/view']",
+            "a[href*='product_no=']",
+            "a[href*='gdno=']",
+            "a[href*='/shop/goods']",
         ]
-        for css in direct_selectors:
+        if cfg.brand == "DISCOVERY":
+            candidate_selectors = [
+                "a[href*='product-detail']",
+                "a[href*='/product-detail/']",
+                "a[href*='DXSH']",
+                "a[href*='DX']",
+            ] + candidate_selectors
+
+        seen_urls = set()
+        for css in candidate_selectors:
             try:
                 anchors = self.driver.find_elements(By.CSS_SELECTOR, css)
-                for a in anchors:
-                    href = get_attr_from_element(a, "href")
-                    if not href:
-                        continue
-                    href = canonicalize_url(href)
-                    if same_domain(href, cfg.domain) and not self._is_deny_url(href, cfg):
-                        if self._passes_brand_filter(href, cfg):
-                            product_urls.append({"url": href, "source_category": source_context, "source_category_url": listing_url})
             except Exception:
                 continue
+            for a in anchors:
+                try:
+                    if not a.is_displayed():
+                        continue
+                except Exception:
+                    pass
+                href = canonicalize_url(get_attr_from_element(a, "href"))
+                if not href:
+                    continue
+                if not same_domain(href, cfg.domain):
+                    continue
+                if self._is_deny_url(href, cfg):
+                    continue
+                if not self._is_product_url(href, cfg):
+                    continue
+                if not self._passes_brand_filter(href, cfg):
+                    continue
+                if href in seen_urls:
+                    continue
+                seen_urls.add(href)
+                product_urls.append({"url": href, "source_category": source_context, "source_category_url": listing_url})
 
-        dedup = []
-        seen_urls = set()
-        for meta in product_urls:
-            u = meta["url"]
-            if u in seen_urls:
-                continue
-            seen_urls.add(u)
-            dedup.append(meta)
-        return dedup
+        if not product_urls:
+            links = self._extract_all_links()
+            for link in links:
+                if not same_domain(link, cfg.domain):
+                    continue
+                if self._is_deny_url(link, cfg):
+                    continue
+                if self._is_product_url(link, cfg) and self._passes_brand_filter(link, cfg):
+                    if link in seen_urls:
+                        continue
+                    seen_urls.add(link)
+                    product_urls.append({"url": link, "source_category": source_context, "source_category_url": listing_url})
+
+        return product_urls
 
 
     def crawl_product_detail_requests(self, product_url: str, source_url: str, cfg: BrandConfig) -> Optional[ProductRaw]:
@@ -1701,7 +1826,7 @@ class AutoCompetitorCrawler:
             desc = clean_product_text(choose_first_good_text(desc_candidates, cfg.brand))
             if is_bad_discovery_desc(desc):
                 desc = ""
-            image_url = try_find_attr(self.driver, image_selectors, "src") or try_find_attr(self.driver, image_selectors, "content")
+            image_url = choose_driver_image_url(self.driver, image_selectors) or try_find_attr(self.driver, image_selectors, "src") or try_find_attr(self.driver, image_selectors, "content")
             breadcrumb_text = extract_breadcrumb_driver(self.driver) or normalize_breadcrumb_text(source_url)
             gender_text = try_find_text(self.driver, GENERIC_GENDER_SELECTORS)
             season_text = try_find_text(self.driver, GENERIC_SEASON_SELECTORS)
@@ -2623,32 +2748,43 @@ function formatNumber(v){ if(v===null||v===undefined||v==="") return "-"; return
 function formatPrice(v){ if(v===null||v===undefined||v==="") return "-"; return formatNumber(v)+"원"; }
 function compactNameJS(name, brand){ let t=(name||"").trim(); if((brand||"")==="DISCOVERY"){ t=t.replace(/^디스커버리\s*익스페디션\s*[|｜:/-]\s*/i,""); t=t.replace(/^디스커버리\s*익스페디션\s+/i,""); t=t.replace(/^DISCOVERY\s*EXPEDITION\s*[|｜:/-]\s*/i,""); t=t.replace(/^DISCOVERY\s*EXPEDITION\s+/i,""); } return t; }
 function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl="", itemCategory="", breadcrumbText=""){
+  if(itemCategory && itemCategory!=="기타") return itemCategory;
   const src=((breadcrumbText||"")+" "+(sourceCategory||"")+" "+(sourceCategoryUrl||"")).toLowerCase();
-  if(/자켓|재킷|jacket|windbreaker|shell|outer/.test(src)) return "자켓";
-  if(/팬츠|바지|pants|pant|shorts|short|chino|5 pocket|5-pocket|cargo|jogger|skort/.test(src)) return "팬츠";
-  if(/티셔츠|tee|t-shirt|tops|top|jersey|crewneck|polo/.test(src)) return "티셔츠";
-  if(/후디|후드|hoodie/.test(src)) return "후디";
-  if(/플리스|fleece/.test(src)) return "플리스";
-  if(/다운|패딩|down/.test(src)) return "다운";
-  if(/슈즈|신발|shoe|shoes|boot|boots|sandal/.test(src)) return "슈즈";
-  if(/백|가방|bag|backpack|pack/.test(src)) return "백";
+  if(/신발|슈즈|스니커즈|트레일러닝|등산화|샌들|슬리퍼|shoe|shoes|boot|boots|sandal|konos|peakfreak|crestwood|omni-max|omni max|clog/.test(src)) return "슈즈";
+  if(/가방|백팩|크로스|토트백|힙색|슬링백|bag|backpack|pack|sling/.test(src)) return "백";
   if(/장갑|glove/.test(src)) return "장갑";
-  if(/acc|accessory|모자|hat|cap/.test(src)) return "ACC";
+  if(/모자|용품|accessory|acc|hat|cap/.test(src)) return "ACC";
+  if(/플리스|fleece/.test(src)) return "플리스";
+  if(/후드티|후디|후드|hoodie/.test(src)) return "후디";
+  if(/티셔츠|라운드티|폴로티|반팔|긴팔|tee|t-shirt|jersey|crewneck/.test(src)) return "티셔츠";
+  if(/팬츠|하의|긴바지|카고\/조거|반바지|pants|pant|cargo|jogger|shorts|short|skort/.test(src)) return "팬츠";
+  if(/자켓|재킷|아우터|방수자켓|바람막이|경량패딩|슬림다운|인터체인지|베스트|jacket|windbreaker|shell|outer|parka|anorak/.test(src)) return "자켓";
+
   const blob=((name||"")+" "+(description||"")).toLowerCase();
-  if(/장갑|glove|mitt/.test(blob)) return "장갑";
+  if(/(konos|peakfreak|crestwood|clog|shoe|shoes|boot|boots|sandal|sandals|omni-max|omni max)/.test(blob)) return "슈즈";
+  if(/short sleeve|long sleeve|티셔츠|반팔|긴팔|tee|t-shirt|jersey|crewneck|라운드티|폴로티/.test(blob)) return "티셔츠";
+  if(/hoodie|hood|후디|후드|후드티|맨투맨|sweatshirt/.test(blob)) return "후디";
+  if(/fleece|플리스|보아|boa/.test(blob)) return "플리스";
+  if(/vest|베스트/.test(blob)) return "베스트";
+  if(/shirt|셔츠/.test(blob)) return "셔츠";
+  if(/cargo pant|cargo pants|jogger|pant|pants|shorts|short|팬츠|바지|카고|조거|슬랙스|치노|skort/.test(blob)) return "팬츠";
+  if(/jacket|windbreaker|anorak|parka|shell|자켓|재킷|바람막이|아노락|퍼텍스/.test(blob)) return "자켓";
   if(/백팩|backpack|bag|bags|바디백|body bag|bodybag|슬링백|슬링|sling|숄더케이스|shoulder case|케이스/.test(blob)) return "백";
   if(/부니|모자|cap|hat|accessory/.test(blob)) return "ACC";
-  if(/자켓|재킷|jacket|windbreaker|바람막이|shell|parka|퍼텍스/.test(blob)) return "자켓";
-  if(/pants|pant|바지|팬츠|cargo|조거|슬랙스|shorts|short|chino|5 pocket|5-pocket|skort|jogger/.test(blob)) return "팬츠";
-  if(/티셔츠|tee|t-shirt|반팔|긴팔|half zip|half-zip|집업티|iconic tee|jersey|crewneck|top|polo/.test(blob)) return "티셔츠";
-  if(/후디|후드|hoodie|hood|sweatshirt|맨투맨/.test(blob)) return "후디";
-  if(/플리스|fleece|boa|보아/.test(blob)) return "플리스";
-  if(/down|패딩|덕다운|구스다운|puffer/.test(blob)) return "다운";
-  if(/vest|베스트/.test(blob)) return "베스트";
-  if(/shirt|셔츠/.test(blob)) return "셔츠";
-  if(/샌들|sandals|sandal|슬라이드|slide|슬리퍼|shoe|shoes|boot|boots|등산화|신발|부츠|peakfreak|konos|crestwood/.test(blob)) return "슈즈";
-  if(itemCategory && itemCategory!=="기타") return itemCategory;
   return "ACC";
+}
+function normalizeProducts(){
+  const seen = new Set();
+  return (DATA.products||[]).map(p=>{
+    const resolved = inferCategoryJS(p.name||"", p.description||"", p.source_category||"", p.source_category_url||"", p.item_category||"", p.breadcrumb_text||"");
+    const imageUrl = p.image_url || p.imageUrl || "";
+    return {...p, image_url: imageUrl, item_category: resolved, _cat: resolved};
+  }).filter(p=>{
+    const key = [p.brand||"", compactNameJS(p.name,p.brand), p.product_url||"", p.image_url||""].join("||");
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 function normalizeProducts(){
   return (DATA.products||[]).map(p=>{
