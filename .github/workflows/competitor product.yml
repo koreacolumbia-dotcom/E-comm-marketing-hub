@@ -1,0 +1,130 @@
+name: Competitor Product Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Manual run reason (optional)"
+        required: false
+        default: "manual"
+  schedule:
+    # 01:00 KST daily = 16:00 UTC previous day
+    - cron: "0 16 * * *"
+
+concurrency:
+  group: competitor-product-build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run_competitor:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      HEADLESS: "1"
+      MAX_PRODUCTS_PER_SITE: "600"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pull latest main (rebase)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install \
+              pandas \
+              requests \
+              pillow \
+              openpyxl \
+              matplotlib \
+              playwright \
+              selenium \
+              webdriver-manager
+          fi
+
+          python -m playwright install --with-deps chromium
+
+      - name: Ensure reports dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/competitor_intel
+
+      - name: Run Competitor Product dashboard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f competitor_outdoor_dashboard_catalog_auto.py || { echo "[ERROR] competitor_outdoor_dashboard_catalog_auto.py not found"; exit 1; }
+          python -u competitor_outdoor_dashboard_catalog_auto.py
+          test -f reports/competitor_intel/dashboard.html || { echo "[ERROR] reports/competitor_intel/dashboard.html missing"; exit 1; }
+          ls -la reports/competitor_intel || true
+
+      - name: Commit & push report results
+        if: ${{ always() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A reports .naver_cache scripts sql || true
+          [ -f .gitignore ] && git add .gitignore || true
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git fetch origin main
+          git pull --rebase --autostash origin main
+
+          git add -A reports .naver_cache scripts sql || true
+          [ -f .gitignore ] && git add .gitignore || true
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit after rebase"
+            exit 0
+          fi
+
+          git commit -m "Competitor product auto update" || true
+
+          for i in 1 2 3; do
+            echo "[INFO] push attempt $i/3"
+            if git push origin HEAD:main; then
+              echo "[OK] pushed"
+              exit 0
+            fi
+            git fetch origin main
+            git pull --rebase --autostash origin main
+          done
+
+          echo "[ERROR] failed to push after retries"
+          exit 1
