@@ -147,8 +147,8 @@ BRAND_CONFIGS: List[BrandConfig] = [
         force_allow_url_keywords=["product-detail"],
         detail_mode="selenium_only",
         detail_name_selectors=["[class*=product] [class*=name]", "[class*=detail] [class*=name]", "[class*=title]", "h1", "h2"],
-        detail_price_selectors=["[class*=sale][class*=price]", "[class*=current][class*=price]", "[class*=price] strong", "[class*=price]"],
-        detail_original_price_selectors=["[class*=origin][class*=price]", "[class*=consumer]", "[class*=normal][class*=price]", "del"],
+        detail_price_selectors=["p.MuiTypography-root", 'p[class*="MuiTypography"]', "span.MuiTypography-root", 'span[class*="MuiTypography"]', "[class*=sale][class*=price]", "[class*=current][class*=price]", "[class*=price] strong", "[class*=price]"],
+        detail_original_price_selectors=["del", "s", "strike", '[style*="line-through"]', "[class*=origin][class*=price]", "[class*=consumer]", "[class*=normal][class*=price]", 'p[class*="MuiTypography"]', 'span[class*="MuiTypography"]'],
         detail_desc_selectors=["[class*=product][class*=desc]", "[class*=detail][class*=desc]", "[class*=detail][class*=info]", "[class*=summary]"],
         detail_image_selectors=["[class*=detail] img", "[class*=product] img", ".swiper-slide img", "img"],
     ),
@@ -730,6 +730,145 @@ def strip_discovery_prefix(name: str) -> str:
     for pat in patterns:
         t = re.sub(pat, '', t, flags=re.I)
     return compact_text(t)
+
+
+def extract_discovery_payload_price(page_source: str) -> Optional[int]:
+    if not page_source:
+        return None
+    values: List[int] = []
+    patterns = [
+        r'"price"\s*:\s*"?(\d{4,7})"?',
+        r'"salePrice"\s*:\s*"?(\d{4,7})"?',
+        r'"sellingPrice"\s*:\s*"?(\d{4,7})"?',
+        r'"goodsPrice"\s*:\s*"?(\d{4,7})"?',
+        r'"consumerPrice"\s*:\s*"?(\d{4,7})"?',
+        r'"normalPrice"\s*:\s*"?(\d{4,7})"?',
+    ]
+    for pat in patterns:
+        for m in re.findall(pat, page_source, flags=re.I):
+            try:
+                v = int(str(m))
+            except Exception:
+                continue
+            if 1000 <= v <= 5000000:
+                values.append(v)
+    if not values:
+        return None
+    return min(values)
+
+
+def _normalize_price_like_text(text: str) -> str:
+    raw = compact_text(text)
+    if not raw:
+        return ""
+    if re.fullmatch(r'\d{1,3}(?:,\d{3})+|\d{4,7}', raw):
+        return f"{raw}원"
+    return raw
+
+
+def _discovery_price_role(el) -> str:
+    try:
+        cls = (el.get_attribute("class") or "").lower()
+    except Exception:
+        cls = ""
+    try:
+        style = (el.get_attribute("style") or "").lower()
+    except Exception:
+        style = ""
+    try:
+        tag = (el.tag_name or "").lower()
+    except Exception:
+        tag = ""
+    blob = f"{cls} {style} {tag}"
+    if any(k in blob for k in ["origin", "consumer", "normal", "list-price", "strike", "line-through", "through"]):
+        return "original"
+    if tag in {"del", "s", "strike"}:
+        return "original"
+    return "current"
+
+
+def extract_discovery_price_bundle(driver) -> Tuple[str, str, str]:
+    current_candidates: List[int] = []
+    original_candidates: List[int] = []
+    fallback_values: List[int] = []
+    soldout_text = ""
+
+    price_selectors = [
+        "p.MuiTypography-root",
+        "p[class*=\"MuiTypography\"]",
+        "span.MuiTypography-root",
+        "span[class*=\"MuiTypography\"]",
+        "del",
+        "s",
+        "strike",
+        "[style*=\"line-through\"]",
+        "[class*=price]",
+    ]
+    seen_texts = set()
+    for css in price_selectors:
+        try:
+            elems = driver.find_elements(By.CSS_SELECTOR, css)
+        except Exception:
+            continue
+        for el in elems[:80]:
+            txt = _normalize_price_like_text(get_text_from_element(el))
+            if not txt or txt in seen_texts:
+                continue
+            seen_texts.add(txt)
+            vals = extract_price_candidates(txt)
+            if not vals:
+                continue
+            role = _discovery_price_role(el)
+            fallback_values.extend(vals)
+            if role == "original":
+                original_candidates.extend(vals)
+            else:
+                current_candidates.extend(vals)
+
+    payload_price = None
+    try:
+        payload_price = extract_discovery_payload_price(driver.page_source)
+    except Exception:
+        payload_price = None
+
+    if payload_price is not None:
+        fallback_values.append(payload_price)
+        if not current_candidates:
+            current_candidates.append(payload_price)
+
+    soldout_selectors = [
+        "[class*=soldout]",
+        "[class*=sold-out]",
+        "[class*=sold][class*=out]",
+        "[class*=stock]",
+        "button[disabled]",
+    ]
+    soldout_hits: List[str] = []
+    for css in soldout_selectors:
+        try:
+            for el in driver.find_elements(By.CSS_SELECTOR, css)[:20]:
+                txt = compact_text(get_text_from_element(el))
+                if txt and any(k in txt.lower() for k in ["품절", "sold out", "soldout", "out of stock"]):
+                    soldout_hits.append(txt)
+        except Exception:
+            continue
+    soldout_text = " / ".join(unique_preserve_order(soldout_hits))
+
+    current_price = min(current_candidates) if current_candidates else None
+    original_price = max(original_candidates) if original_candidates else None
+
+    if current_price is None and fallback_values:
+        current_price = min(fallback_values)
+    if original_price is None and len(sorted(set(fallback_values))) >= 2:
+        original_price = max(fallback_values)
+    if current_price is None and original_price is not None:
+        current_price = original_price
+    if original_price is None and current_price is not None:
+        original_price = current_price
+    if current_price is not None and original_price is not None and original_price < current_price:
+        original_price = current_price
+
+    return (str(current_price) if current_price is not None else "", str(original_price) if original_price is not None else "", soldout_text)
 
 
 def choose_price_text(values: List[str]) -> str:
@@ -1457,13 +1596,19 @@ class AutoCompetitorCrawler:
             if not self._safe_get(product_url):
                 return None
             try:
-                time.sleep(0.8)
+                time.sleep(2.4)
+            except Exception:
+                pass
+            try:
+                self.wait.until(lambda d: len(d.find_elements(By.CSS_SELECTOR, 'body *')) > 0)
+            except Exception:
+                pass
+            try:
+                self.wait.until(lambda d: len(d.find_elements(By.CSS_SELECTOR, 'p.MuiTypography-root, p[class*="MuiTypography"], [class*=price], h1, h2')) > 0)
             except Exception:
                 pass
 
             name_selectors = cfg.detail_name_selectors or GENERIC_NAME_SELECTORS
-            price_selectors = cfg.detail_price_selectors or GENERIC_PRICE_SELECTORS
-            original_price_selectors = cfg.detail_original_price_selectors or GENERIC_ORIGINAL_PRICE_SELECTORS
             desc_selectors = cfg.detail_desc_selectors or GENERIC_DESC_SELECTORS
             image_selectors = cfg.detail_image_selectors or GENERIC_IMAGE_SELECTORS
 
@@ -1474,26 +1619,18 @@ class AutoCompetitorCrawler:
                 except Exception:
                     title = ""
 
-            price_candidates = try_find_all_texts(self.driver, price_selectors)
-            original_price_candidates = try_find_all_texts(self.driver, original_price_selectors)
             desc_candidates = try_find_all_texts(self.driver, desc_selectors, limit=40)
             desc = clean_product_text(choose_first_good_text(desc_candidates, cfg.brand))
             image_url = try_find_attr(self.driver, image_selectors, "src") or try_find_attr(self.driver, image_selectors, "content")
             breadcrumb_text = extract_breadcrumb_driver(self.driver) or normalize_breadcrumb_text(source_url)
-            sold_out_text = try_find_text(self.driver, GENERIC_SOLDOUT_SELECTORS)
             gender_text = try_find_text(self.driver, GENERIC_GENDER_SELECTORS)
             season_text = try_find_text(self.driver, GENERIC_SEASON_SELECTORS)
 
-            price_text = choose_price_text(price_candidates)
-            original_price_text = choose_price_text(original_price_candidates)
-            try:
-                payload_price = extract_discovery_payload_price(self.driver.page_source)
-            except Exception:
-                payload_price = None
-            if payload_price is not None and not parse_price_to_int(price_text or ""):
-                price_text = str(payload_price)
+            price_text, original_price_text, sold_out_text = extract_discovery_price_bundle(self.driver)
+            if not sold_out_text:
+                sold_out_text = try_find_text(self.driver, GENERIC_SOLDOUT_SELECTORS)
 
-            if not title and not price_text and not desc:
+            if not title and not price_text and not desc and not sold_out_text:
                 return None
 
             sanity_blob = f"{title} {desc}"
