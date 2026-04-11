@@ -924,18 +924,41 @@ def normalize_source_category(text: str) -> str:
 
 
 def infer_item_category(name: str, description: str, source_category: str = "") -> str:
-    blob = f"{name} {description} {source_category}".lower()
+    name_text = safe_text(name)
+    desc_text = safe_text(description)
+    source_text = safe_text(source_category)
+    name_blob = name_text.lower()
+    desc_blob = desc_text.lower()
+    src_blob = source_text.lower()
+    full_blob = " ".join(x for x in [name_blob, desc_blob, src_blob] if x)
+
     scores: Dict[str, int] = {}
     for item, keys in _item_keyword_map().items():
         score = 0
         for k in keys:
-            if k.lower() in blob:
-                score += 3 if k.lower() in safe_text(name).lower() else 1
+            kk = k.lower()
+            if not kk:
+                continue
+            if kk in name_blob:
+                score += 8
+                if re.search(rf'(^|[^a-z가-힣]){re.escape(kk)}([^a-z가-힣]|$)', name_blob):
+                    score += 3
+            if kk in src_blob:
+                score += 4
+            if kk in desc_blob:
+                score += 2
         if score:
             scores[item] = score
-    if not scores:
-        return "기타"
-    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+
+    if scores:
+        return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+
+    # 이름 안에 명시적인 품목명이 없더라도 최종 분류에서 기타가 남지 않도록 마지막 안전장치를 둡니다.
+    if any(x in full_blob for x in ["set", "세트", "kit", "키트", "워머", "양말", "sock", "socks", "belt", "벨트", "cap", "hat", "모자"]):
+        return "ACC"
+    if full_blob:
+        return normalize_source_category(full_blob) or "ACC"
+    return "ACC"
 
 
 def extract_raw_keywords(name: str, description: str) -> List[str]:
@@ -1764,7 +1787,9 @@ def resolve_item_category_value(name: str, description: str, item_category: str 
         candidate = safe_text(candidate)
         if candidate and candidate != "기타":
             return candidate
-    return "기타"
+
+    # 최종적으로 남는 기타는 전부 ACC 버킷으로 보내서 ITEM STYLE MIX / 카드 / 차트에서 빠지지 않게 합니다.
+    return "ACC"
 
 
 def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
@@ -2156,52 +2181,61 @@ def render_dashboard(payload: dict) -> str:
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;600;800&display=swap');
-    :root { --brand:#002d72; --bg0:#f6f8fb; --bg1:#eef3f9; }
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
     html, body { height:100%; overflow:auto; margin:0; }
     body {
-      background: linear-gradient(180deg, var(--bg0), var(--bg1));
-      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-family:'Pretendard','Noto Sans KR',sans-serif;
       color:#0f172a;
       min-height:100vh;
       margin:0;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(59,130,246,.20), transparent 28%),
+        radial-gradient(circle at 84% 14%, rgba(34,197,94,.14), transparent 24%),
+        radial-gradient(circle at 72% 74%, rgba(249,115,22,.12), transparent 24%),
+        linear-gradient(180deg,#f8fbff 0%,#eef4fb 52%,#e8eff8 100%);
+      background-size:120% 120%;
+      animation:ambientShift 18s ease-in-out infinite alternate;
     }
     .glass {
-      background: rgba(255,255,255,.65);
-      border: 1px solid rgba(15,23,42,.08);
-      box-shadow: 0 10px 30px rgba(2,6,23,.08);
-      backdrop-filter: blur(10px);
+      background: rgba(255,255,255,.72);
+      border: 1px solid rgba(255,255,255,.72);
+      box-shadow: 0 18px 42px rgba(15,23,42,.08);
+      backdrop-filter: blur(18px);
     }
     .glass-strong {
-      background: linear-gradient(135deg, rgba(255,255,255,.88), rgba(255,255,255,.72));
+      background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(255,255,255,.78));
       border: 1px solid rgba(148,163,184,.18);
-      box-shadow: 0 18px 40px rgba(15,23,42,.08);
-      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 40px rgba(15,23,42,.10);
+      backdrop-filter: blur(18px);
     }
-    .hero-shell{position:relative;overflow:hidden}
-    .hero-shell:before{content:"";position:absolute;inset:-25% auto auto -10%;width:420px;height:420px;background:radial-gradient(circle, rgba(59,130,246,.18), rgba(59,130,246,0));pointer-events:none}
-    .hero-shell:after{content:"";position:absolute;inset:auto -10% -40% auto;width:520px;height:520px;background:radial-gradient(circle, rgba(15,23,42,.10), rgba(15,23,42,0));pointer-events:none}
+    .hero-shell{position:relative;overflow:hidden;background:linear-gradient(135deg, rgba(37,99,235,.12), rgba(255,255,255,.96) 38%, rgba(37,99,235,.06));}
+    .hero-shell:before{content:"";position:absolute;right:-42px;top:-42px;width:220px;height:220px;border-radius:999px;background:radial-gradient(circle, rgba(37,99,235,.24), transparent 70%);filter:blur(8px);animation:floatBlob 12s ease-in-out infinite;pointer-events:none}
+    .hero-shell:after{content:"";position:absolute;left:-32px;bottom:-46px;width:180px;height:180px;border-radius:999px;background:radial-gradient(circle, rgba(14,165,233,.14), transparent 70%);filter:blur(8px);animation:floatBlobReverse 14s ease-in-out infinite;pointer-events:none}
     .metric-card { min-height: 150px; }
-    .tab-btn{border-radius:999px;padding:8px 14px;font-size:12px;font-weight:900;background:rgba(255,255,255,.85);color:#64748b;border:1px solid rgba(148,163,184,.18);transition:all .2s ease}
-    .tab-btn.active,.tab-btn:hover{background:#0f172a;color:#fff;border-color:#0f172a}
-    .hero-tab{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:10px 16px;font-size:12px;font-weight:900;background:rgba(255,255,255,.85);color:#0f172a;border:1px solid rgba(148,163,184,.18)}
+    .tab-btn{border-radius:999px;padding:10px 16px;font-size:12px;font-weight:900;background:rgba(255,255,255,.92);color:#475569;border:1px solid rgba(148,163,184,.25);transition:all .18s ease}
+    .tab-btn.active,.tab-btn:hover{color:#fff;background:linear-gradient(135deg, #2563eb, #0f172a);border-color:#17305f;box-shadow:0 16px 28px rgba(15,23,42,.18);transform:translateY(-1px)}
+    .hero-tab{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:10px 16px;font-size:12px;font-weight:900;background:rgba(255,255,255,.88);color:#0f172a;border:1px solid rgba(148,163,184,.18);box-shadow:0 10px 18px rgba(15,23,42,.06)}
     .tag{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800}
     .chart-box{height:320px;position:relative}
     .chart-box canvas{width:100%!important;height:100%!important}
     .table-wrap::-webkit-scrollbar{height:8px;width:8px}.table-wrap::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
     .table-head th{position:sticky;top:0;background:rgba(248,250,252,.94);backdrop-filter:blur(8px);z-index:1;}
     .section-lead{letter-spacing:.18em;text-transform:uppercase}
+    @keyframes ambientShift { 0% { background-position:0% 0%; } 100% { background-position:100% 100%; } }
+    @keyframes floatBlob { 0%,100% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(-18px,18px,0) scale(1.05); } }
+    @keyframes floatBlobReverse { 0%,100% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(18px,-18px,0) scale(1.08); } }
   </style>
 </head>
-<body class="w-full">
-  <div class="w-full px-0">
-    <div class="glass rounded-none p-5 md:p-7 w-full hero-shell">
+<body class="min-h-screen text-slate-900">
+  <div class="mx-auto my-3 w-[min(1600px,calc(100vw-24px))] rounded-[36px] border border-white/70 bg-white/65 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-2xl md:p-6">
+    <div class="glass rounded-[32px] p-5 md:p-7 w-full hero-shell">
       <div class="relative z-10 flex flex-col gap-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div class="text-xs text-slate-500 font-extrabold tracking-wide">COMPETITOR PRODUCT INTELLIGENCE</div>
             <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-[-0.04em]">컬럼비아 vs 디스커버리 상품 분석 대시보드</h1>
-            <div class="mt-2 max-w-5xl text-sm md:text-[15px] font-bold leading-6 text-slate-600">EXTERNAL SIGNAL COMBINED 레이아웃 톤을 최대한 그대로 가져가고, 상세 페이지 breadcrumb를 직접 수집해 OTHER DEBUG에서 복구 가능한 ITEM은 ITEM STYLE MIX / KPI / 차트에 선반영되도록 다시 묶었습니다. breadcrumb + source_category + URL 단서를 함께 사용합니다.</div>
+            <div class="mt-2 max-w-5xl text-sm md:text-[15px] font-bold leading-6 text-slate-600">External Signal premium UI 톤을 그대로 가져오고, 상품명에 티셔츠·자켓·팬츠·슈즈 등 명시된 품목어를 최우선으로 final item에 반영하도록 재분류 로직을 강화했습니다. 이 결과를 ITEM STYLE MIX, KPI, 차트, 상품 카드 전부에 동일하게 적용합니다.</div>
           </div>
           <div class="glass-strong rounded-3xl px-5 py-4 text-slate-900">
             <div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">UPDATED</div>
@@ -2269,7 +2303,7 @@ def render_dashboard(payload: dict) -> str:
       <section class="glass rounded-3xl p-5">
         <div class="text-[11px] font-extrabold section-lead text-slate-500">ITEM STYLE MIX</div>
         <div class="mt-2 text-2xl font-black">브랜드 × 성별 × 아이템별 스타일 수 / 가격대</div>
-        <div class="mt-2 text-sm font-bold text-slate-500">OTHER DEBUG에서 구조화 가능한 ITEM과 크롤링 카테고리 기준을 먼저 반영한 뒤 집계합니다.</div>
+        <div class="mt-2 text-sm font-bold text-slate-500">상품명 직접 매칭 → breadcrumb/source category → 기존 item 순서로 final item을 강제 확정한 뒤 집계합니다. 기타는 최종적으로 ACC로 흡수됩니다.</div>
         <div class="mt-4 flex flex-wrap gap-2" id="brandItemTabs"></div>
         <div class="table-wrap mt-4 overflow-x-auto">
           <table class="min-w-[1400px] w-full text-sm">
@@ -2329,7 +2363,7 @@ def render_dashboard(payload: dict) -> str:
       <section class="glass rounded-3xl p-5">
         <div class="text-[11px] font-extrabold section-lead text-slate-500">OTHER DEBUG</div>
         <div class="mt-2 text-2xl font-black">기타 디버그</div>
-        <div class="mt-2 text-sm font-bold text-slate-500">끝까지 기타로 남은 항목만 보여줍니다. item rule / crawler category / original item을 같이 확인할 수 있게 확장했습니다.</div>
+        <div class="mt-2 text-sm font-bold text-slate-500">재분류 이후에도 검토가 필요한 항목만 보여줍니다. 상품명 우선 규칙, crawler category, original item을 같이 확인할 수 있습니다.</div>
         <div class="table-wrap mt-4 overflow-x-auto">
           <table class="min-w-[1500px] w-full text-sm">
             <thead class="table-head"><tr class="border-b border-slate-200 text-slate-500">
@@ -2376,7 +2410,8 @@ function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl
   if(/vest|베스트/.test(blob)) return "베스트";
   if(/shirt|셔츠/.test(blob)) return "셔츠";
   if(/샌들|sandals|sandal|슬라이드|slide|슬리퍼|shoe|shoes|boot|boots|등산화|신발|부츠|peakfreak|konos|crestwood/.test(blob)) return "슈즈";
-  return (itemCategory && itemCategory!=="기타") ? itemCategory : "기타";
+  if(itemCategory && itemCategory!=="기타") return itemCategory;
+  return "ACC";
 }
 function normalizeProducts(){
   return (DATA.products||[]).map(p=>{
