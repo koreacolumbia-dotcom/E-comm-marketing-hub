@@ -1152,54 +1152,33 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
     return base or "other"
 
 
-def map_ga_default_channel_to_bucket(channel_group: str) -> str:
-    cg = str(channel_group or "").strip().lower()
-    if cg in {"paid search", "paid social", "display"}:
-        return "Paid Ad"
-    if cg in {"email", "sms", "mobile push notifications"}:
-        return "Owned Channel"
-    if cg in {"organic social"}:
-        return "Official SNS"
-    if cg in {"referral", "video", "organic video", "affiliates", "cross-network"}:
-        return "Awareness"
-    if cg in {"organic search", "direct", "organic shopping", "organic shopping", "unassigned"}:
-        return "Organic Traffic"
-    return "etc"
-
-
-def get_channel_sessions_from_ga_default_group(
-    client: BetaAnalyticsDataClient,
-    start: dt.date,
-    end: dt.date,
-) -> pd.DataFrame:
-    dims = ["sessionDefaultChannelGroup"]
-    mets = ["sessions"]
-    try:
-        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=1000)
-    except Exception:
-        return pd.DataFrame(columns=["bucket", "sessions"])
-
-    if df.empty:
-        return pd.DataFrame(columns=["bucket", "sessions"])
-
-    df = df.copy()
-    df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("")
-    df["sessions"] = pd.to_numeric(df.get("sessions", 0), errors="coerce").fillna(0.0)
-    df["bucket"] = df["sessionDefaultChannelGroup"].map(map_ga_default_channel_to_bucket)
-    g = df.groupby("bucket", as_index=False)[["sessions"]].sum()
-    return g
-
-
 # =========================
 # Channel Snapshot based on Looker CASE rules
 # =========================
+def map_default_channel_group_to_bucket(channel_group: str) -> str:
+    cg = str(channel_group or "").strip().lower()
+    if cg in ("paid search", "paid social", "display"):
+        return "Paid Ad"
+    if cg in ("organic search",):
+        return "Organic Traffic"
+    if cg in ("organic social",):
+        return "Official SNS"
+    if cg in ("email", "sms", "mobile push notifications", "direct"):
+        return "Owned Channel"
+    if cg in ("referral", "video", "organic video", "affiliates", "cross-network"):
+        return "Awareness"
+    return "etc"
+
+
 def get_channel_snapshot_3way(
     client: BetaAnalyticsDataClient,
     w: DigestWindow,
     overall: Dict[str, Dict[str, float]],
 ) -> pd.DataFrame:
     """
-    Build Channel Snapshot using the Looker CASE bucket logic.
+    Build Channel Snapshot.
+    - Sessions: use GA sessionDefaultChannelGroup directly.
+    - Orders / Revenue: keep existing Looker CASE style source/campaign grouping.
     The Total row is always forced from the authoritative overall KPI.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName"]
@@ -1230,13 +1209,29 @@ def get_channel_snapshot_3way(
             df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
             return df
 
+    def fetch_sessions(start: dt.date, end: dt.date) -> pd.DataFrame:
+        dims_s = ["sessionDefaultChannelGroup"]
+        mets_s = ["sessions"]
+        try:
+            df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims_s, mets_s, limit=250000)
+        except Exception:
+            return pd.DataFrame(columns=["bucket", "sessions"])
+        if df.empty:
+            return pd.DataFrame(columns=["bucket", "sessions"])
+        df = df.copy()
+        df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("")
+        df["sessions"] = pd.to_numeric(df.get("sessions", 0), errors="coerce").fillna(0.0)
+        df["bucket"] = df["sessionDefaultChannelGroup"].map(map_default_channel_group_to_bucket)
+        g = df.groupby("bucket", as_index=False)[["sessions"]].sum()
+        return g
+
     cur = fetch(w.cur_start, w.cur_end)
     prev = fetch(w.prev_start, w.prev_end)
     yoy = fetch(w.yoy_start, w.yoy_end)
 
-    ga_cur_sessions = get_channel_sessions_from_ga_default_group(client, w.cur_start, w.cur_end).rename(columns={"sessions": "ga_sessions_cur"})
-    ga_prev_sessions = get_channel_sessions_from_ga_default_group(client, w.prev_start, w.prev_end).rename(columns={"sessions": "ga_sessions_prev"})
-    ga_yoy_sessions = get_channel_sessions_from_ga_default_group(client, w.yoy_start, w.yoy_end).rename(columns={"sessions": "ga_sessions_yoy"})
+    cur_sessions = fetch_sessions(w.cur_start, w.cur_end).rename(columns={"sessions": "sessions_cur"})
+    prev_sessions = fetch_sessions(w.prev_start, w.prev_end).rename(columns={"sessions": "sessions_prev"})
+    yoy_sessions = fetch_sessions(w.yoy_start, w.yoy_end).rename(columns={"sessions": "sessions_yoy"})
 
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
@@ -1254,9 +1249,9 @@ def get_channel_snapshot_3way(
     yoy_b = agg(yoy, "_yoy")
 
     m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer")
-    m = m.merge(ga_cur_sessions, on="bucket", how="outer")
-    m = m.merge(ga_prev_sessions, on="bucket", how="outer")
-    m = m.merge(ga_yoy_sessions, on="bucket", how="outer")
+    m = m.merge(cur_sessions, on="bucket", how="outer", suffixes=("", "_ga_cur"))
+    m = m.merge(prev_sessions, on="bucket", how="outer", suffixes=("", "_ga_prev"))
+    m = m.merge(yoy_sessions, on="bucket", how="outer", suffixes=("", "_ga_yoy"))
     m = m.fillna(0.0)
 
     oc = overall.get("current", {}) or {}
@@ -1268,7 +1263,6 @@ def get_channel_snapshot_3way(
         "sessions_cur", "transactions_cur", "revenue_cur",
         "sessions_prev", "transactions_prev", "revenue_prev",
         "sessions_yoy", "transactions_yoy", "revenue_yoy",
-        "ga_sessions_cur", "ga_sessions_prev", "ga_sessions_yoy",
     ]
     if m.empty:
         m = pd.DataFrame({"bucket": canonical_buckets})
@@ -1282,13 +1276,24 @@ def get_channel_snapshot_3way(
     m = m.groupby("bucket", as_index=False)[numeric_cols].sum().set_index("bucket")
     m = m.reset_index()
 
-    # Sessions must come directly from GA default channel group totals.
-    if "ga_sessions_cur" in m.columns:
-        m["sessions_cur"] = m["ga_sessions_cur"]
-    if "ga_sessions_prev" in m.columns:
-        m["sessions_prev"] = m["ga_sessions_prev"]
-    if "ga_sessions_yoy" in m.columns:
-        m["sessions_yoy"] = m["ga_sessions_yoy"]
+    # Sessions must come directly from GA sessionDefaultChannelGroup mapping.
+    session_lookup_cur = {str(r["bucket"]): float(r["sessions_cur"]) for _, r in cur_sessions.iterrows()} if not cur_sessions.empty else {}
+    session_lookup_prev = {str(r["bucket"]): float(r["sessions_prev"]) for _, r in prev_sessions.iterrows()} if not prev_sessions.empty else {}
+    session_lookup_yoy = {str(r["bucket"]): float(r["sessions_yoy"]) for _, r in yoy_sessions.iterrows()} if not yoy_sessions.empty else {}
+    m["sessions_cur"] = m["bucket"].map(lambda b: session_lookup_cur.get(str(b), 0.0))
+    m["sessions_prev"] = m["bucket"].map(lambda b: session_lookup_prev.get(str(b), 0.0))
+    m["sessions_yoy"] = m["bucket"].map(lambda b: session_lookup_yoy.get(str(b), 0.0))
+
+    # Small residual protection for unmapped/unknown groups.
+    cur_diff = float(oc.get("sessions", 0) or 0) - float(m["sessions_cur"].sum())
+    prev_diff = float(op.get("sessions", 0) or 0) - float(m["sessions_prev"].sum())
+    yoy_diff = float(oy.get("sessions", 0) or 0) - float(m["sessions_yoy"].sum())
+    if abs(cur_diff) > 0.0:
+        m.loc[m["bucket"] == "etc", "sessions_cur"] += cur_diff
+    if abs(prev_diff) > 0.0:
+        m.loc[m["bucket"] == "etc", "sessions_prev"] += prev_diff
+    if abs(yoy_diff) > 0.0:
+        m.loc[m["bucket"] == "etc", "sessions_yoy"] += yoy_diff
 
     m["session_dod"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_prev"])), axis=1)
     m["session_yoy"] = m.apply(lambda r: pct_change(float(r["sessions_cur"]), float(r["sessions_yoy"])), axis=1)
