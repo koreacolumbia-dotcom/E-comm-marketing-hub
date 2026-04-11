@@ -502,14 +502,35 @@ def best_image_from_element(el) -> str:
             imgs = el.find_elements(By.CSS_SELECTOR, "img")
         except Exception:
             imgs = []
-        for img in imgs[:8]:
+        for img in imgs[:12]:
+            try:
+                displayed = img.is_displayed()
+            except Exception:
+                displayed = True
+            try:
+                alt = compact_text(img.get_attribute("alt"))
+            except Exception:
+                alt = ""
+            try:
+                cls = compact_text(img.get_attribute("class"))
+            except Exception:
+                cls = ""
+            try:
+                w = int(float(img.get_attribute("naturalWidth") or img.get_attribute("width") or 0))
+            except Exception:
+                w = 0
+            try:
+                h = int(float(img.get_attribute("naturalHeight") or img.get_attribute("height") or 0))
+            except Exception:
+                h = 0
+            urls = []
             for attr in ["src", "data-src", "data-lazy-src", "data-original", "currentSrc", "content"]:
                 try:
                     val = compact_text(img.get_attribute(attr))
                 except Exception:
                     val = ""
                 if val and val.startswith("http"):
-                    candidates.append(val)
+                    urls.append(val)
             try:
                 srcset = compact_text(img.get_attribute("srcset"))
             except Exception:
@@ -517,26 +538,43 @@ def best_image_from_element(el) -> str:
             if srcset:
                 first = srcset.split(",")[0].strip().split(" ")[0].strip()
                 if first.startswith("http"):
-                    candidates.append(first)
+                    urls.append(first)
+            for u in urls:
+                candidates.append({"url": u, "alt": alt, "class": cls, "displayed": displayed, "w": w, "h": h})
     except Exception:
         pass
     if not candidates:
         return ""
-    def _score(url: str) -> tuple:
-        low = url.lower()
+
+    def _score(item):
+        low = item["url"].lower()
+        alt = (item.get("alt") or "").lower()
+        cls = (item.get("class") or "").lower()
         score = 0
-        if "static-resource.discovery-expedition.com" in low:
-            score += 8
-        if "/thnail/" in low:
+        if item.get("displayed"):
             score += 6
-        if "/goods/" in low:
+        if item.get("w", 0) >= 180 and item.get("h", 0) >= 180:
+            score += 5
+        if "static-resource.discovery-expedition.com" in low:
+            score += 16
+        if "/thnail/" in low:
+            score += 14
+        if any(x in low for x in ["/goods/", "/thumbnail/", "thumb", "product"]):
+            score += 6
+        if any(x in cls for x in ["thumb", "thumbnail", "goods", "product"]):
             score += 4
-        if any(x in low for x in ["icon", "logo", "arrow", "sprite", "blank", "placeholder", "noimage"]):
-            score -= 8
-        if any(x in low for x in ["wash", "care", "label"]):
-            score -= 6
-        return (-score, len(url))
-    return sorted(dict.fromkeys(candidates), key=_score)[0]
+        if any(x in alt for x in ["디스커버리", "컬럼비아", "expedition", "columbia"]):
+            score += 3
+        if any(x in low for x in ["icon", "logo", "arrow", "sprite", "blank", "placeholder", "noimage", "loading", "1x1", "spacer"]):
+            score -= 20
+        if any(x in low for x in ["wash", "care", "label", "laundry"]):
+            score -= 18
+        if any(x in alt for x in ["손세탁", "염소", "표백", "세탁", "라벨", "wash", "care", "label"]):
+            score -= 20
+        return (-score, len(item["url"]))
+
+    best = sorted(candidates, key=_score)[0]
+    return best["url"]
 
 
 def should_use_listing_image(brand: str, detail_image_url: str, listing_image_url: str) -> bool:
@@ -546,15 +584,17 @@ def should_use_listing_image(brand: str, detail_image_url: str, listing_image_ur
     detail = compact_text(detail_image_url)
     if not detail:
         return True
+    d = detail.lower()
+    l = listing.lower()
     if brand == "DISCOVERY":
-        d = detail.lower()
-        l = listing.lower()
         if "static-resource.discovery-expedition.com" in l and "static-resource.discovery-expedition.com" not in d:
             return True
         if "/thnail/" in l and "/thnail/" not in d:
             return True
-        if any(x in d for x in ["wash", "care", "label", "placeholder", "blank"]):
-            return True
+    if any(x in d for x in ["wash", "care", "label", "placeholder", "blank", "noimage", "loading"]):
+        return True
+    if any(x in l for x in ["wash", "care", "label", "placeholder", "blank", "noimage", "loading"]):
+        return False
     return False
 
 
@@ -1254,14 +1294,17 @@ def normalize_source_category(text: str) -> str:
                 return item
 
     explicit_pairs = [
-        ("슈즈", ["신발", "슈즈", "스니커즈", "트레일러닝", "등산화", "샌들", "슬리퍼", "레인 부츠", "omni-max", "omni max"]),
-        ("백", ["가방", "백팩", "크로스", "토트백", "힙색", "슬링백"]),
-        ("티셔츠", ["티셔츠", "라운드티", "폴로티", "집업", "반팔", "긴팔"]),
-        ("후디", ["맨투맨", "후드티"]),
-        ("플리스", ["플리스"]),
-        ("팬츠", ["하의", "긴바지", "카고/조거", "반바지"]),
-        ("자켓", ["아우터", "방수자켓", "바람막이", "경량패딩/슬림다운", "인터체인지", "베스트"]),
-        ("ACC", ["모자", "용품", "장갑", "스틱", "양말", "지갑"]),
+        ("슈즈", ["신발", "슈즈", "스니커즈", "트레일러닝", "등산화", "샌들", "슬리퍼", "레인 부츠", "omni-max", "omni max", "boot", "shoe"]),
+        ("백", ["가방", "백팩", "크로스", "토트백", "힙색", "슬링백", "숄더", "백"]),
+        ("장갑", ["장갑"]),
+        ("ACC", ["모자", "용품", "스틱", "양말", "지갑", "acc", "accessory"]),
+        ("베스트", ["베스트", "vest"]),
+        ("다운", ["다운", "패딩", "슬림다운"]),
+        ("플리스", ["플리스", "fleece", "boa", "보아"]),
+        ("후디", ["맨투맨", "후드티", "후디"]),
+        ("티셔츠", ["티셔츠", "라운드티", "폴로티", "반팔", "긴팔", "상의", "쿨링"]),
+        ("팬츠", ["하의", "긴바지", "카고/조거", "반바지", "팬츠", "바지"]),
+        ("자켓", ["아우터", "방수자켓", "바람막이", "경량패딩", "인터체인지", "자켓", "재킷", "아노락"]),
     ]
     for item, kws in explicit_pairs:
         if any(kw.lower() in low for kw in kws):
@@ -1520,7 +1563,16 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         sold_out=bool(safe_text(raw.sold_out_text)),
         gender=infer_gender(raw.name, raw.description, raw.gender_text),
         season=infer_season(raw.name, raw.description, raw.season_text),
-        item_category=(inferred_item if inferred_item != '기타' else normalize_source_category(getattr(raw, 'breadcrumb_text', '')) or normalize_source_category(getattr(raw, 'source_category', '')) or normalize_source_category(getattr(raw, 'source_category_url', '')) or inferred_item),
+        item_category=resolve_item_category_value(
+            raw.name,
+            raw.description,
+            getattr(raw, 'item_category', ''),
+            getattr(raw, 'source_category', ''),
+            getattr(raw, 'source_category_url', ''),
+            getattr(raw, 'source_url', ''),
+            getattr(raw, 'product_url', ''),
+            getattr(raw, 'breadcrumb_text', ''),
+        ),
         raw_keywords=raw_keywords,
         standard_attributes=resolved_attrs,
         dominant_attribute=dominant,
@@ -1689,21 +1741,25 @@ class AutoCompetitorCrawler:
     def discover_listing_urls(self, cfg: BrandConfig) -> List[str]:
         discovered: List[str] = []
         seen: Set[str] = set()
+        queue: List[Tuple[str, int]] = [(u, 0) for u in cfg.seed_urls]
+        max_depth = 2 if cfg.brand == "COLUMBIA" else 1
 
-        for seed in cfg.seed_urls:
-            if seed in seen:
+        while queue and len(discovered) < MAX_DISCOVERED_LISTING_URLS:
+            current_url, depth = queue.pop(0)
+            if current_url in seen:
                 continue
-            print(f"  - seed: {seed}")
-            seen.add(seed)
-            discovered.append(seed)
+            seen.add(current_url)
+            if depth == 0:
+                print(f"  - seed: {current_url}")
+            discovered.append(current_url)
 
-            if not self._safe_get(seed):
+            if not self._safe_get(current_url):
                 continue
             self._scroll_to_end()
             links = self._extract_all_links()
 
             for link in links:
-                if len(discovered) >= MAX_DISCOVERED_LISTING_URLS:
+                if len(discovered) + len(queue) >= MAX_DISCOVERED_LISTING_URLS:
                     break
                 if not same_domain(link, cfg.domain):
                     continue
@@ -1711,12 +1767,14 @@ class AutoCompetitorCrawler:
                     continue
                 if self._is_product_url(link, cfg):
                     continue
-                if self._is_listing_url(link, cfg):
-                    if cfg.brand == "DISCOVERY" and any(x in link.lower() for x in ["style-pick", "discoverer-picks", "/brand/style-pick"]):
-                        continue
-                    if link not in seen:
-                        seen.add(link)
-                        discovered.append(link)
+                if not self._is_listing_url(link, cfg):
+                    continue
+                if cfg.brand == "DISCOVERY" and any(x in link.lower() for x in ["style-pick", "discoverer-picks", "/brand/style-pick"]):
+                    continue
+                if link in seen or any(link == q[0] for q in queue):
+                    continue
+                if depth + 1 <= max_depth:
+                    queue.append((link, depth + 1))
 
         return discovered[:MAX_DISCOVERED_LISTING_URLS]
 
@@ -1752,10 +1810,18 @@ class AutoCompetitorCrawler:
         ]
         if cfg.brand == "DISCOVERY":
             candidate_selectors = [
+                ".MuiGrid-root a[href*='product-detail']",
                 "a[href*='product-detail']",
                 "a[href*='/product-detail/']",
                 "a[href*='DXSH']",
                 "a[href*='DX']",
+            ] + candidate_selectors
+        elif cfg.brand == "COLUMBIA":
+            candidate_selectors = [
+                "a[href*='/product/view']",
+                "a[href*='gdno=']",
+                "a[href*='product_no=']",
+                "a[href*='/shop/goods']",
             ] + candidate_selectors
 
         seen_urls = set()
@@ -1764,22 +1830,22 @@ class AutoCompetitorCrawler:
                 anchors = self.driver.find_elements(By.CSS_SELECTOR, css)
             except Exception:
                 continue
-            for a in anchors:
+            for node in anchors:
+                a = node
+                try:
+                    if node.tag_name.lower() == 'img':
+                        a = node.find_element(By.XPATH, './ancestor::a[1]')
+                except Exception:
+                    a = node
                 try:
                     if not a.is_displayed():
                         continue
                 except Exception:
                     pass
                 href = canonicalize_url(get_attr_from_element(a, "href"))
-                if not href:
+                if not href or not same_domain(href, cfg.domain):
                     continue
-                if not same_domain(href, cfg.domain):
-                    continue
-                if self._is_deny_url(href, cfg):
-                    continue
-                if not self._is_product_url(href, cfg):
-                    continue
-                if not self._passes_brand_filter(href, cfg):
+                if self._is_deny_url(href, cfg) or not self._is_product_url(href, cfg) or not self._passes_brand_filter(href, cfg):
                     continue
                 if href in seen_urls:
                     continue
@@ -2076,6 +2142,8 @@ class AutoCompetitorCrawler:
                 if item and item.name:
                     item.source_category = meta.get('source_category','')
                     item.source_category_url = meta.get('source_category_url','')
+                    if should_use_listing_image(cfg.brand, item.image_url, meta.get('image_url','')):
+                        item.image_url = meta.get('image_url','')
                     raw_products.append(item)
             except Exception as e:
                 print(f"    [WARN] selenium fallback failed: {product_url} | {e}")
@@ -2085,7 +2153,22 @@ class AutoCompetitorCrawler:
         # dedupe by product_url
         dedup = {}
         for item in raw_products:
-            dedup[item.product_url] = item
+            existing = dedup.get(item.product_url)
+            if existing is None:
+                dedup[item.product_url] = item
+                continue
+            if (not existing.image_url) and item.image_url:
+                existing.image_url = item.image_url
+            if (not existing.breadcrumb_text) and item.breadcrumb_text:
+                existing.breadcrumb_text = item.breadcrumb_text
+            if (not existing.source_category) and item.source_category:
+                existing.source_category = item.source_category
+            if (not existing.source_category_url) and item.source_category_url:
+                existing.source_category_url = item.source_category_url
+            if (not existing.name) and item.name:
+                existing.name = item.name
+            if (not existing.description) and item.description:
+                existing.description = item.description
         raw_products = list(dedup.values())
 
         print(f"[CRAWL DONE] {cfg.brand} -> {len(raw_products)} products")
@@ -2200,7 +2283,7 @@ def resolve_item_category_value(name: str, description: str, item_category: str 
     ]
     source_item = next((x for x in source_candidates if x), "")
 
-    for candidate in [inferred_item, source_item, original_item]:
+    for candidate in [source_item, original_item, inferred_item]:
         candidate = safe_text(candidate)
         if candidate and candidate != "기타":
             return candidate
@@ -2698,7 +2781,7 @@ def render_dashboard(payload: dict) -> str:
           <div class="premium-kpi rounded-3xl p-4"><div class="text-xs font-black text-white/60">세일 상품 수</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em]" id="hero-sale-count">-</div><div class="mt-1 text-xs font-bold text-white/60">현재 할인 상품</div></div>
           <div class="premium-kpi rounded-3xl p-4"><div class="text-xs font-black text-white/60">Updated</div><div class="mt-2 text-xl font-black">__GENERATED_AT__</div><div class="mt-1 text-xs font-bold text-white/60">최근 생성 기준</div></div>
         </div>
-        <div class="mt-6 flex flex-wrap gap-3" id="kpi-grid"></div>
+        <div class="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-6" id="kpi-grid"></div>
       </div>
     </section>
 
@@ -2837,7 +2920,8 @@ function formatNumber(v){ if(v===null||v===undefined||v==="") return "-"; return
 function formatPrice(v){ if(v===null||v===undefined||v==="") return "-"; return formatNumber(v)+"원"; }
 function compactNameJS(name, brand){ let t=(name||"").trim(); if((brand||"")==="DISCOVERY"){ t=t.replace(/^디스커버리\s*익스페디션\s*[|｜:/-]\s*/i,""); t=t.replace(/^디스커버리\s*익스페디션\s+/i,""); t=t.replace(/^DISCOVERY\s*EXPEDITION\s*[|｜:/-]\s*/i,""); t=t.replace(/^DISCOVERY\s*EXPEDITION\s+/i,""); } return t; }
 function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl="", itemCategory="", breadcrumbText=""){
-  if(itemCategory && itemCategory!=="기타") return itemCategory;
+  const fixed = String(itemCategory||"").trim();
+  if(fixed && fixed!=="기타") return fixed;
   const src=((breadcrumbText||"")+" "+(sourceCategory||"")+" "+(sourceCategoryUrl||"")).toLowerCase();
   if(/신발|슈즈|스니커즈|트레일러닝|등산화|샌들|슬리퍼|shoe|shoes|boot|boots|sandal|konos|peakfreak|crestwood|omni-max|omni max|clog/.test(src)) return "슈즈";
   if(/가방|백팩|크로스|토트백|힙색|슬링백|bag|backpack|pack|sling/.test(src)) return "백";
@@ -2845,24 +2929,24 @@ function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl
   if(/모자|용품|accessory|acc|hat|cap/.test(src)) return "ACC";
   if(/플리스|fleece/.test(src)) return "플리스";
   if(/후드티|후디|후드|hoodie/.test(src)) return "후디";
-  if(/티셔츠|라운드티|폴로티|반팔|긴팔|tee|t-shirt|jersey|crewneck/.test(src)) return "티셔츠";
+  if(/티셔츠|라운드티|폴로티|반팔|긴팔|tee|t-shirt|jersey|crewneck|상의|쿨링/.test(src)) return "티셔츠";
   if(/팬츠|하의|긴바지|카고\/조거|반바지|pants|pant|cargo|jogger|shorts|short|skort/.test(src)) return "팬츠";
-  if(/자켓|재킷|아우터|방수자켓|바람막이|경량패딩|슬림다운|인터체인지|베스트|jacket|windbreaker|shell|outer|parka|anorak/.test(src)) return "자켓";
+  if(/자켓|재킷|아우터|방수자켓|바람막이|경량패딩|인터체인지|jacket|windbreaker|shell|outer|parka|anorak/.test(src)) return "자켓";
+  if(/베스트|vest/.test(src)) return "베스트";
 
   const blob=((name||"")+" "+(description||"")).toLowerCase();
   if(/(konos|peakfreak|crestwood|clog|shoe|shoes|boot|boots|sandal|sandals|omni-max|omni max)/.test(blob)) return "슈즈";
-  if(/short sleeve|long sleeve|티셔츠|반팔|긴팔|tee|t-shirt|jersey|crewneck|라운드티|폴로티/.test(blob)) return "티셔츠";
+  if(/short\s+sleeve|long\s+sleeve|티셔츠|반팔|긴팔|tee|t-shirt|jersey|crewneck|라운드티|폴로티/.test(blob)) return "티셔츠";
   if(/hoodie|hood|후디|후드|후드티|맨투맨|sweatshirt/.test(blob)) return "후디";
   if(/fleece|플리스|보아|boa/.test(blob)) return "플리스";
   if(/vest|베스트/.test(blob)) return "베스트";
   if(/shirt|셔츠/.test(blob)) return "셔츠";
-  if(/cargo pant|cargo pants|jogger|pant|pants|shorts|short|팬츠|바지|카고|조거|슬랙스|치노|skort/.test(blob)) return "팬츠";
+  if(/cargo\s+pant|cargo\s+pants|jogger|pant|pants|shorts|short|팬츠|바지|카고|조거|슬랙스|치노|skort/.test(blob)) return "팬츠";
   if(/jacket|windbreaker|anorak|parka|shell|자켓|재킷|바람막이|아노락|퍼텍스/.test(blob)) return "자켓";
   if(/백팩|backpack|bag|bags|바디백|body bag|bodybag|슬링백|슬링|sling|숄더케이스|shoulder case|케이스/.test(blob)) return "백";
   if(/부니|모자|cap|hat|accessory/.test(blob)) return "ACC";
   return "ACC";
 }
-
 function inferGenderJS(name, description="", sourceCategory="", sourceCategoryUrl="", breadcrumbText="", currentGender=""){
   const explicit = (currentGender||"").toLowerCase();
   if(/키즈|kids|kid|junior|juniors|youth|boy|boys|girl|girls|toddler|infant|children/.test(explicit)) return "키즈";
@@ -2903,7 +2987,7 @@ function createKpis(){
   document.getElementById("hero-brand-count").textContent = formatNumber(k.brands||0);
   document.getElementById("hero-product-count").textContent = formatNumber(k.products||0);
   document.getElementById("hero-sale-count").textContent = formatNumber(k.sale_products||0);
-  document.getElementById("kpi-grid").innerHTML = items.map(([label,value,desc],i) => `<div class="glass-strong metric-card rounded-3xl p-5 surface-card" data-animate style="--index:${i}"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">${label}</div><div class="mt-3 text-3xl font-black tracking-[-0.05em]">${value}</div><div class="mt-2 text-xs font-bold text-slate-500">${desc}</div></div>`).join("");
+  document.getElementById("kpi-grid").innerHTML = items.map(([label,value,desc],i) => `<div class="glass-strong metric-card min-w-0 rounded-3xl p-5 surface-card" data-animate style="--index:${i}"><div class="text-[11px] font-extrabold tracking-[0.18em] text-slate-500">${label}</div><div class="mt-3 truncate text-3xl font-black tracking-[-0.05em]">${value}</div><div class="mt-2 text-xs font-bold leading-5 text-slate-500">${desc}</div></div>`).join("");
 }
 function groupRowspan(rows, brandKey="brand"){ const out=[]; let i=0; while(i<rows.length){ const b=rows[i][brandKey]; let j=i; while(j<rows.length && rows[j][brandKey]===b) j++; const span=j-i; for(let k=i;k<j;k++){ const r={...rows[k]}; r._showBrand=(k===i); r._brandRowspan=span; out.push(r);} i=j; } return out; }
 function makeTabs(elId, values, stateKey, onChange){ const el=document.getElementById(elId); if(!el) return; el.innerHTML=["전체",...values].map(v=>`<button class="tab-btn ${STATE[stateKey]===v?'active':''}" data-val="${v}">${v}</button>`).join(""); [...el.querySelectorAll(".tab-btn")].forEach(btn=>btn.onclick=()=>{STATE[stateKey]=btn.dataset.val; makeTabs(elId, values, stateKey, onChange); onChange();}); }
@@ -2962,7 +3046,7 @@ function renderProducts(){
             return `<article class="product-card p-4 surface-card" data-animate style="--index:${i+1}">
               <div class="relative z-10">
                 <div class="product-thumb">
-                  ${p.image_url ? `<img src="${p.image_url}" alt="${p.name||''}" class="h-full w-full object-cover" loading="lazy" />` : `<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>`}
+                  ${p.image_url ? `<img src="${p.image_url}" alt="${p.name||''}" class="h-full w-full object-contain bg-white" loading="lazy" onerror="this.closest('.product-thumb').innerHTML='<div class=\"flex h-full items-center justify-center text-xs font-black text-slate-400\">NO IMAGE</div>'" />` : `<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>`}
                 </div>
                 <div class="mt-4 flex flex-wrap gap-2">
                   <span class="tag bg-slate-900 text-white">${p.brand||'-'}</span>
@@ -2991,9 +3075,9 @@ function renderProducts(){
   `;
 }
 function renderOtherDebug(){ const rows=(DATA.other_debug||[]).map(r=>({...r, gender:(r.name||"").includes("공용")?"공용":(r.gender||"공용")})); document.getElementById("otherDebugBody").innerHTML=rows.map(r=>`<tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70"><td class="py-3 font-black">${r.brand}</td><td class="py-3 font-bold">${r.gender}</td><td class="py-3">${r.name}</td><td class="py-3">${r.original_item||'-'}</td><td class="py-3">${r.item_rule||'-'}</td><td class="py-3">${r.breadcrumb_item||'-'}</td><td class="py-3">${r.crawler_item||'-'}</td><td class="py-3 font-black">${r.item||'-'}</td><td class="py-3">${r.dominant_attribute||'-'}</td><td class="py-3">${r.reason||'-'}</td></tr>`).join(''); }
-function baseChart(id,type,labels,values,extra={}){ if(chartRefs[id]){ chartRefs[id].destroy(); } const ctx=document.getElementById(id); const horizontal=labels.length>=6 && type==='bar'; chartRefs[id] = new Chart(ctx,{type,data:{labels,datasets:[{data:values,borderWidth:2,borderRadius:10,tension:.35}]},options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{autoSkip:false}}}},extra)}); }
+function baseChart(id,type,labels,values,extra={}){ if(chartRefs[id]){ chartRefs[id].destroy(); } const ctx=document.getElementById(id); if(!ctx) return; const horizontal=labels.length>=6 && type==='bar'; const g=ctx.getContext('2d').createLinearGradient(0,0,0,320); g.addColorStop(0,'rgba(59,130,246,0.92)'); g.addColorStop(1,'rgba(125,211,252,0.55)'); chartRefs[id] = new Chart(ctx,{type,data:{labels,datasets:[{data:values,backgroundColor:type==='doughnut'?['#3b82f6','#fb7185','#fb923c','#22c55e','#a78bfa']:g,borderColor:type==='doughnut'?'#ffffff':'#3b82f6',borderWidth:type==='doughnut'?3:1.5,borderRadius:14,tension:.38,cutout:type==='doughnut'?'54%':undefined,maxBarThickness:48}]},options:Object.assign({indexAxis:horizontal?'y':'x',responsive:true,maintainAspectRatio:false,animation:{duration:900,easing:'easeOutQuart'},plugins:{legend:{display:type==='doughnut',position:'bottom',labels:{usePointStyle:true,boxWidth:10,padding:16,font:{weight:'700'}}},tooltip:{backgroundColor:'rgba(15,23,42,.92)',titleFont:{weight:'800'},bodyFont:{weight:'700'},padding:12,cornerRadius:12}},scales:type==='doughnut'?{}:{y:{beginAtZero:true,ticks:{precision:0,color:'#64748b',font:{weight:'700'}},grid:{color:'rgba(148,163,184,.18)',drawBorder:false}},x:{ticks:{autoSkip:false,color:'#64748b',font:{weight:'700'}},grid:{display:false,drawBorder:false}}}},extra)}); }
 function renderTopCharts(){ const brand = STATE.chartBrand; const df = normalizeProducts().filter(p => brand==="전체" ? true : p.brand===brand); const countBy = (arr, key) => { const m = {}; arr.forEach(x => { const v = (x[key]||"기타"); if(v==="기타") return; m[v] = (m[v]||0)+1; }); return m; }; const priceMap = countBy(df.filter(x=>x.price_band), "price_band"); const itemMap = countBy(df, "item_category"); const attrMap = countBy(df.filter(x=>x.dominant_attribute), "dominant_attribute"); baseChart('priceBandChart','bar',Object.keys(priceMap),Object.values(priceMap)); baseChart('categoryChart','bar',Object.keys(itemMap),Object.values(itemMap)); baseChart('dominantAttrChart','bar',Object.keys(attrMap),Object.values(attrMap)); }
-function renderCharts(){ const c=DATA.charts||{}; baseChart('brandCountChart','bar',c.brandProductCounts?.labels||[],c.brandProductCounts?.values||[]); baseChart('avgPriceChart','bar',c.brandAvgPrice?.labels||[],c.brandAvgPrice?.values||[]); baseChart('genderSplitChart','doughnut',c.genderSplit?.labels||[],c.genderSplit?.values||[],{scales:{}}); const brands = [...new Set((DATA.products||[]).map(p=>p.brand))]; makeTabs("chartBrandTabsA", brands, "chartBrand", renderTopCharts); makeTabs("chartBrandTabsB", brands, "chartBrand", renderTopCharts); makeTabs("chartBrandTabsC", brands, "chartBrand", renderTopCharts); renderTopCharts(); const points = c.positioning || []; if(chartRefs.positionChart){ chartRefs.positionChart.destroy(); } chartRefs.positionChart = new Chart(document.getElementById('positionChart'), { type:'bubble', data:{ datasets: points.map((p,i)=>({ label:p.brand, data:[{x:p.x,y:p.y,r:Math.max(8, Math.min(24, Math.round((p.size||1)/4)))}], avgPrice:p.avg_price })) }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12, font:{weight:'700'} } }, tooltip:{ callbacks:{ label:(ctx)=>{ const raw=ctx.raw||{}; const ds=ctx.dataset||{}; return `${ds.label} · Avg ${formatPrice(ds.avgPrice)} · ${formatNumber(raw.r)} radius`; } } } }, scales:{ x:{ min:0.5, max:3.5, ticks:{ callback:(v)=>({1:'Lifestyle',2:'Performance',3:'Extreme'}[v]||'') } }, y:{ min:0.5, max:3.5, ticks:{ callback:(v)=>({1:'Mass',2:'Premium',3:'Luxury'}[v]||'') } } } } }); }
+function renderCharts(){ const c=DATA.charts||{}; baseChart('brandCountChart','bar',c.brandProductCounts?.labels||[],c.brandProductCounts?.values||[]); baseChart('avgPriceChart','bar',c.brandAvgPrice?.labels||[],c.brandAvgPrice?.values||[]); baseChart('genderSplitChart','doughnut',c.genderSplit?.labels||[],c.genderSplit?.values||[],{}); const brands = [...new Set((DATA.products||[]).map(p=>p.brand))]; makeTabs("chartBrandTabsA", brands, "chartBrand", renderTopCharts); makeTabs("chartBrandTabsB", brands, "chartBrand", renderTopCharts); makeTabs("chartBrandTabsC", brands, "chartBrand", renderTopCharts); renderTopCharts(); const points = c.positioning || []; if(chartRefs.positionChart){ chartRefs.positionChart.destroy(); } chartRefs.positionChart = new Chart(document.getElementById('positionChart'), { type:'bubble', data:{ datasets: points.map((p,i)=>({ label:p.brand, data:[{x:p.x,y:p.y,r:Math.max(10, Math.min(26, Math.round((p.size||1)/4)))}], avgPrice:p.avg_price, backgroundColor:['rgba(59,130,246,.72)','rgba(14,165,233,.72)','rgba(99,102,241,.72)','rgba(236,72,153,.72)'][i%4], borderColor:['#1d4ed8','#0369a1','#4338ca','#be185d'][i%4], borderWidth:2 })) }, options:{ responsive:true, maintainAspectRatio:false, animation:{duration:900,easing:'easeOutQuart'}, plugins:{ legend:{ position:'bottom', labels:{ usePointStyle:true, boxWidth:10, font:{weight:'700'} } }, tooltip:{ backgroundColor:'rgba(15,23,42,.92)', callbacks:{ label:(ctx)=>{ const raw=ctx.raw||{}; const ds=ctx.dataset||{}; return `${ds.label} · Avg ${formatPrice(ds.avgPrice)} · ${formatNumber(raw.r)} radius`; } } } }, scales:{ x:{ min:0.5, max:3.5, ticks:{ color:'#64748b',font:{weight:'700'}, callback:(v)=>({1:'Lifestyle',2:'Performance',3:'Extreme'}[v]||'') }, grid:{color:'rgba(148,163,184,.18)',drawBorder:false} }, y:{ min:0.5, max:3.5, ticks:{ color:'#64748b',font:{weight:'700'}, callback:(v)=>({1:'Mass',2:'Premium',3:'Luxury'}[v]||'') }, grid:{color:'rgba(148,163,184,.18)',drawBorder:false} } } } }); }
 function init(){ createKpis(); renderBrandSummary(); renderPriceBandGenderTable(); renderAttributeGenderTable(); renderItemStyleTable(); renderKeywords(); renderProducts(); renderOtherDebug(); renderCharts(); }
 document.addEventListener('DOMContentLoaded', init);
 </script>
