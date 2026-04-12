@@ -188,6 +188,17 @@ def normalize_member_funnel(df: pd.DataFrame) -> pd.DataFrame:
     out = out.drop_duplicates("entity_id", keep="first").reset_index(drop=True)
     return out
 
+def _coerce_date(v: Any) -> dt.date | None:
+    try:
+        if v is None or pd.isna(v):
+            return None
+        ts = pd.to_datetime(v, errors="coerce")
+        if pd.isna(ts):
+            return None
+        return ts.date()
+    except Exception:
+        return None
+
 def build_training_panel(base: pd.DataFrame) -> pd.DataFrame:
     today = _now_kst().date()
     rows: list[dict[str, Any]] = []
@@ -196,17 +207,22 @@ def build_training_panel(base: pd.DataFrame) -> pd.DataFrame:
     horizon_churn = dt.timedelta(days=PREDICTION_WINDOW_CHURN)
 
     for _, r in base.iterrows():
-        anchor_candidates = [r.get("last_order_date_norm"), r.get("last_visit_date_norm"), r.get("signup_date_norm")]
-        anchor = next((d for d in anchor_candidates if isinstance(d, dt.date)), None)
+        anchor_candidates = [
+            _coerce_date(r.get("last_order_date_norm")),
+            _coerce_date(r.get("last_visit_date_norm")),
+            _coerce_date(r.get("signup_date_norm")),
+        ]
+        anchor = next((d for d in anchor_candidates if d is not None), None)
         if anchor is None:
             continue
-        if (today - anchor).days < max(PREDICTION_WINDOW_CHURN, PREDICTION_WINDOW_REPURCHASE, PREDICTION_WINDOW_FIRST):
+        age_days = (today - anchor).days
+        if age_days < max(PREDICTION_WINDOW_CHURN, PREDICTION_WINDOW_REPURCHASE, PREDICTION_WINDOW_FIRST):
             continue
 
         orders = float(r.get("orders_norm", 0) or 0)
         revenue = float(r.get("revenue_norm", 0) or 0)
-        last_purchase = r.get("last_order_date_norm")
-        signup = r.get("signup_date_norm")
+        last_purchase = _coerce_date(r.get("last_order_date_norm"))
+        signup = _coerce_date(r.get("signup_date_norm"))
 
         repurchase_30d = 0
         churn_60d = 0
@@ -329,6 +345,9 @@ def _base_estimator_multiclass():
 def time_split(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     work = df.copy()
     work["snapshot_date"] = pd.to_datetime(work["snapshot_date"], errors="coerce")
+    work = work[work["snapshot_date"].notna()].copy()
+    if work.empty:
+        return work, work
     work = work.sort_values("snapshot_date")
     cutoff = work["snapshot_date"].quantile(0.80)
     train = work[work["snapshot_date"] <= cutoff].copy()
