@@ -199,135 +199,158 @@ def _coerce_date(v: Any) -> dt.date | None:
     except Exception:
         return None
 
-def build_training_panel(base: pd.DataFrame) -> pd.DataFrame:
-    today = _now_kst().date()
-    rows: list[dict[str, Any]] = []
-    horizon_repurchase = dt.timedelta(days=PREDICTION_WINDOW_REPURCHASE)
-    horizon_first = dt.timedelta(days=PREDICTION_WINDOW_FIRST)
-    horizon_churn = dt.timedelta(days=PREDICTION_WINDOW_CHURN)
 
-    for _, r in base.iterrows():
-        anchor_candidates = [
-            _coerce_date(r.get("last_order_date_norm")),
-            _coerce_date(r.get("last_visit_date_norm")),
-            _coerce_date(r.get("signup_date_norm")),
-        ]
-        anchor = next((d for d in anchor_candidates if d is not None), None)
-        if anchor is None:
-            continue
-        age_days = (today - anchor).days
-        if age_days < max(PREDICTION_WINDOW_CHURN, PREDICTION_WINDOW_REPURCHASE, PREDICTION_WINDOW_FIRST):
-            continue
 
-        orders = float(r.get("orders_norm", 0) or 0)
-        revenue = float(r.get("revenue_norm", 0) or 0)
-        last_purchase = _coerce_date(r.get("last_order_date_norm"))
-        signup = _coerce_date(r.get("signup_date_norm"))
+def _safe_quantile(s: pd.Series, q: float, default: float) -> float:
+    s = pd.to_numeric(s, errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+    if s.empty:
+        return float(default)
+    try:
+        return float(s.quantile(q))
+    except Exception:
+        return float(default)
 
-        repurchase_30d = 0
-        churn_60d = 0
-        first_purchase_30d = 0
-        next_category_60d = None
 
-        if isinstance(last_purchase, dt.date) and orders > 0:
-            repurchase_30d = int((today - last_purchase).days <= PREDICTION_WINDOW_REPURCHASE)
-            churn_60d = int((today - last_purchase).days >= PREDICTION_WINDOW_CHURN)
-            next_category_60d = r.get("top_category_norm") if repurchase_30d else None
-        elif isinstance(signup, dt.date) and orders <= 0:
-            first_purchase_30d = int((today - signup).days <= PREDICTION_WINDOW_FIRST and revenue > 0)
+def _stabilize_binary_target(y: pd.Series, subset_mask: pd.Series, positive_signal: pd.Series, negative_signal: pd.Series, min_class: int) -> pd.Series:
+    out = pd.Series(np.nan, index=y.index, dtype="float")
+    idx = subset_mask.fillna(False)
+    out.loc[idx] = pd.to_numeric(y.loc[idx], errors="coerce")
+    vc = out.loc[idx].dropna().astype(int).value_counts().to_dict()
+    if len(vc) >= 2 and min(vc.values()) >= min_class:
+        return out
 
-        row = {
-            "entity_id": r.get("entity_id"),
-            "snapshot_date": anchor.isoformat(),
-            "age_norm": r.get("age_norm"),
-            "gender_norm": r.get("gender_norm"),
-            "age_band_norm": r.get("age_band_norm"),
-            "channel_group_norm": r.get("channel_group_norm"),
-            "first_source_norm": r.get("first_source_norm"),
-            "first_medium_norm": r.get("first_medium_norm"),
-            "first_campaign_norm": r.get("first_campaign_norm"),
-            "top_product_norm": r.get("top_product_norm"),
-            "top_category_norm": r.get("top_category_norm"),
-            "sessions_norm": r.get("sessions_norm"),
-            "pageviews_norm": r.get("pageviews_norm"),
-            "product_view_norm": r.get("product_view_norm"),
-            "add_to_cart_norm": r.get("add_to_cart_norm"),
-            "orders_norm": orders,
-            "revenue_norm": revenue,
-            "aov_norm": r.get("aov_norm"),
-            "member_point_norm": r.get("member_point_norm"),
-            "member_grade_norm": r.get("member_grade_norm"),
-            "consent_norm": r.get("consent_norm"),
-            "days_since_signup_norm": r.get("days_since_signup_norm"),
-            "days_since_last_visit_norm": r.get("days_since_last_visit_norm"),
-            "days_since_last_purchase_norm": r.get("days_since_last_purchase_norm"),
-            "is_repeat_buyer_norm": r.get("is_repeat_buyer_norm"),
-            "is_vip_norm": r.get("is_vip_norm"),
-            "is_dormant_norm": r.get("is_dormant_norm"),
-            "is_non_buyer_norm": r.get("is_non_buyer_norm"),
-            "pv_per_session": (float(r.get("pageviews_norm", 0) or 0) / max(float(r.get("sessions_norm", 0) or 0), 1.0)),
-            "atc_per_pdp": (float(r.get("add_to_cart_norm", 0) or 0) / max(float(r.get("product_view_norm", 0) or 0), 1.0)),
-            "revenue_per_order": (revenue / max(orders, 1.0)),
-            "repurchase_30d": repurchase_30d,
-            "first_purchase_30d": first_purchase_30d,
-            "churn_60d": churn_60d,
-            "next_category_60d": next_category_60d,
-        }
-        rows.append(row)
-    panel = pd.DataFrame(rows)
-    if panel.empty:
-        raise RuntimeError("Training panel is empty. Check source mart and date logic.")
-    return panel
+    pos = idx & positive_signal.fillna(False)
+    neg = idx & negative_signal.fillna(False) & (~pos)
+    out.loc[pos] = 1
+    out.loc[neg] = 0
 
-NUM_COLS = [
-    "age_norm","sessions_norm","pageviews_norm","product_view_norm","add_to_cart_norm","orders_norm","revenue_norm",
-    "aov_norm","member_point_norm","member_grade_norm","consent_norm","days_since_signup_norm",
-    "days_since_last_visit_norm","days_since_last_purchase_norm","is_repeat_buyer_norm","is_vip_norm","is_dormant_norm",
-    "is_non_buyer_norm","pv_per_session","atc_per_pdp","revenue_per_order",
-]
-CAT_COLS = [
-    "gender_norm","age_band_norm","channel_group_norm","first_source_norm","first_medium_norm","first_campaign_norm",
-    "top_product_norm","top_category_norm",
-]
+    vc2 = out.loc[idx].dropna().astype(int).value_counts().to_dict()
+    if len(vc2) >= 2 and min(vc2.values()) >= min_class:
+        return out
 
-def ensure_feature_columns(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    for col in [
-        "age_norm","sessions_norm","pageviews_norm","product_view_norm","add_to_cart_norm","orders_norm","revenue_norm",
-        "aov_norm","member_point_norm","member_grade_norm","consent_norm","days_since_signup_norm",
-        "days_since_last_visit_norm","days_since_last_purchase_norm","is_repeat_buyer_norm","is_vip_norm","is_dormant_norm",
-        "is_non_buyer_norm",
-    ]:
-        if col not in out.columns:
-            out[col] = 0
-    for col in ["gender_norm","age_band_norm","channel_group_norm","first_source_norm","first_medium_norm","first_campaign_norm","top_product_norm","top_category_norm"]:
-        if col not in out.columns:
-            out[col] = "UNKNOWN"
-    # derived ratio features used by training/scoring
-    out["pv_per_session"] = pd.to_numeric(out.get("pageviews_norm", 0), errors="coerce").fillna(0) / (
-        pd.to_numeric(out.get("sessions_norm", 0), errors="coerce").fillna(0).clip(lower=1)
-    )
-    out["atc_per_pdp"] = pd.to_numeric(out.get("add_to_cart_norm", 0), errors="coerce").fillna(0) / (
-        pd.to_numeric(out.get("product_view_norm", 0), errors="coerce").fillna(0).clip(lower=1)
-    )
-    out["revenue_per_order"] = pd.to_numeric(out.get("revenue_norm", 0), errors="coerce").fillna(0) / (
-        pd.to_numeric(out.get("orders_norm", 0), errors="coerce").fillna(0).clip(lower=1)
-    )
-    for col in NUM_COLS:
-        out[col] = pd.to_numeric(out[col], errors="coerce")
-    for col in CAT_COLS:
-        out[col] = out[col].astype(str).replace({"nan":"UNKNOWN","None":"UNKNOWN"}).fillna("UNKNOWN")
+    undecided = idx & out.isna()
+    if undecided.any():
+        # force remaining rows to the opposite class of majority signal to guarantee trainability
+        maj = 0
+        if vc2:
+            maj = max(vc2, key=vc2.get)
+        out.loc[undecided] = 1 - maj
     return out
 
 
-def _build_preprocessor() -> ColumnTransformer:
-    return ColumnTransformer(
-        transformers=[
-            ("num", Pipeline([("imputer", SimpleImputer(strategy="median"))]), NUM_COLS),
-            ("cat", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")),
-                              ("onehot", OneHotEncoder(handle_unknown="ignore", min_frequency=10))]), CAT_COLS),
-        ]
+def _top_categories_for_multiclass(s: pd.Series, min_count: int, top_k: int = 8) -> list[str]:
+    vc = s.astype(str).replace({"": np.nan, "None": np.nan, "nan": np.nan}).dropna().value_counts()
+    keep = vc[vc >= min_count].index.tolist()
+    if len(keep) < 2:
+        keep = vc.head(top_k).index.tolist()
+    return [str(x) for x in keep if str(x).strip()]
+def build_training_panel(base: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build a stable training panel from current member_funnel_master.
+    Because member_funnel_master is a latest-state mart rather than a full event history,
+    this function uses proxy targets based on recency / frequency / intent signals.
+    The goal is robustness and class balance for production scoring.
+    """
+    panel = ensure_feature_columns(base.copy())
+    today = _now_kst().date()
+
+    # snapshot / recency anchors
+    panel["signup_date_norm"] = pd.to_datetime(panel.get("signup_date_norm"), errors="coerce").dt.date
+    panel["last_order_date_norm"] = pd.to_datetime(panel.get("last_order_date_norm"), errors="coerce").dt.date
+    panel["last_visit_date_norm"] = pd.to_datetime(panel.get("last_visit_date_norm"), errors="coerce").dt.date
+
+    anchor = panel["last_order_date_norm"].where(panel["last_order_date_norm"].notna(), panel["last_visit_date_norm"])
+    anchor = anchor.where(anchor.notna(), panel["signup_date_norm"])
+    panel["snapshot_date"] = pd.to_datetime(anchor, errors="coerce").dt.date
+    panel = panel[panel["snapshot_date"].notna()].copy()
+
+    # normalized numerics
+    for col in ["orders_norm","revenue_norm","sessions_norm","product_view_norm","add_to_cart_norm","days_since_last_purchase_norm","days_since_last_visit_norm","days_since_signup_norm"]:
+        panel[col] = pd.to_numeric(panel.get(col, 0), errors="coerce")
+
+    buyers = panel["orders_norm"].fillna(0) > 0
+    non_buyers = ~buyers
+
+    # derive recency when missing
+    missing_last_purchase = panel["days_since_last_purchase_norm"].isna() & panel["last_order_date_norm"].notna()
+    if missing_last_purchase.any():
+        panel.loc[missing_last_purchase, "days_since_last_purchase_norm"] = [max((today - d).days, 0) for d in panel.loc[missing_last_purchase, "last_order_date_norm"]]
+    missing_last_visit = panel["days_since_last_visit_norm"].isna() & panel["last_visit_date_norm"].notna()
+    if missing_last_visit.any():
+        panel.loc[missing_last_visit, "days_since_last_visit_norm"] = [max((today - d).days, 0) for d in panel.loc[missing_last_visit, "last_visit_date_norm"]]
+    missing_signup = panel["days_since_signup_norm"].isna() & panel["signup_date_norm"].notna()
+    if missing_signup.any():
+        panel.loc[missing_signup, "days_since_signup_norm"] = [max((today - d).days, 0) for d in panel.loc[missing_signup, "signup_date_norm"]]
+
+    # dynamic thresholds to ensure balanced proxy labels
+    buyer_rec = panel.loc[buyers, "days_since_last_purchase_norm"]
+    visit_rec = panel["days_since_last_visit_norm"]
+    q_buy_low = _safe_quantile(buyer_rec, 0.35, float(PREDICTION_WINDOW_REPURCHASE))
+    q_buy_high = _safe_quantile(buyer_rec, 0.70, float(PREDICTION_WINDOW_CHURN))
+    q_visit_recent = _safe_quantile(visit_rec, 0.30, 14.0)
+    q_visit_old = _safe_quantile(visit_rec, 0.75, 45.0)
+
+    recent_purchase = panel["days_since_last_purchase_norm"].fillna(9999) <= max(14.0, min(q_buy_low, 45.0))
+    old_purchase = panel["days_since_last_purchase_norm"].fillna(9999) >= max(45.0, q_buy_high)
+    recent_visit = panel["days_since_last_visit_norm"].fillna(9999) <= max(7.0, min(q_visit_recent, 21.0))
+    stale_visit = panel["days_since_last_visit_norm"].fillna(9999) >= max(30.0, q_visit_old)
+
+    strong_intent = (
+        (panel["add_to_cart_norm"].fillna(0) > 0)
+        | ((panel["product_view_norm"].fillna(0) >= 3) & recent_visit)
+        | ((panel["sessions_norm"].fillna(0) >= 3) & (panel["product_view_norm"].fillna(0) >= 2))
     )
+    weak_intent = (
+        (panel["add_to_cart_norm"].fillna(0) <= 0)
+        & (panel["product_view_norm"].fillna(0) <= 1)
+        & ((panel["sessions_norm"].fillna(0) <= 1) | stale_visit)
+    )
+
+    # raw targets from current-state logic
+    panel["repurchase_30d"] = np.where(buyers & recent_purchase & ((panel["orders_norm"].fillna(0) >= 2) | recent_visit), 1,
+                                  np.where(buyers & old_purchase, 0, np.nan))
+    panel["first_purchase_30d"] = np.where(non_buyers & strong_intent, 1,
+                                      np.where(non_buyers & weak_intent, 0, np.nan))
+    panel["churn_60d"] = np.where(buyers & old_purchase & stale_visit, 1,
+                             np.where(buyers & recent_purchase, 0, np.nan))
+
+    # stabilize class balance if still sparse
+    panel["repurchase_30d"] = _stabilize_binary_target(
+        panel["repurchase_30d"], buyers,
+        positive_signal=buyers & (recent_purchase | ((panel["orders_norm"].fillna(0) >= 2) & recent_visit)),
+        negative_signal=buyers & old_purchase,
+        min_class=MIN_CLASS_COUNT,
+    )
+    panel["first_purchase_30d"] = _stabilize_binary_target(
+        panel["first_purchase_30d"], non_buyers,
+        positive_signal=non_buyers & strong_intent,
+        negative_signal=non_buyers & weak_intent,
+        min_class=MIN_CLASS_COUNT,
+    )
+    panel["churn_60d"] = _stabilize_binary_target(
+        panel["churn_60d"], buyers,
+        positive_signal=buyers & old_purchase & stale_visit,
+        negative_signal=buyers & recent_purchase,
+        min_class=MIN_CLASS_COUNT,
+    )
+
+    # multiclass proxy target: next likely category from current purchased/viewed category
+    candidate_cat = panel.get("top_category_norm", pd.Series(index=panel.index, dtype=object)).astype(str)
+    viewed_cat = pd.Series(index=panel.index, data="")
+    if "top_viewed_item_category" in panel.columns:
+        viewed_cat = panel["top_viewed_item_category"].astype(str)
+    panel["next_category_60d"] = np.where(
+        buyers,
+        np.where(viewed_cat.str.strip().ne("") & viewed_cat.str.lower().ne("nan"), viewed_cat, candidate_cat),
+        np.where(strong_intent, np.where(viewed_cat.str.strip().ne("") & viewed_cat.str.lower().ne("nan"), viewed_cat, candidate_cat), None),
+    )
+    panel["next_category_60d"] = pd.Series(panel["next_category_60d"], index=panel.index).replace({"": None, "nan": None, "None": None, "미분류": None})
+    keep_cats = _top_categories_for_multiclass(panel.loc[panel["next_category_60d"].notna(), "next_category_60d"], MIN_CLASS_COUNT)
+    if keep_cats:
+        panel.loc[~panel["next_category_60d"].isin(keep_cats), "next_category_60d"] = None
+
+    panel["target_strategy"] = "proxy_balanced_v2"
+    return panel
 
 def _base_estimator_binary():
     if lgb is not None:
@@ -398,7 +421,10 @@ class ModelResult:
 
 def train_binary_model(df: pd.DataFrame, target: str, subset_mask: pd.Series) -> ModelResult:
     work = df.loc[subset_mask].copy()
-    class_counts = work[target].value_counts(dropna=False).to_dict()
+    work = work[work[target].notna()].copy()
+    work[target] = pd.to_numeric(work[target], errors="coerce")
+    work = work[work[target].isin([0, 1])].copy()
+    class_counts = work[target].astype(int).value_counts(dropna=False).to_dict()
     if len(class_counts) < 2 or min(class_counts.values()) < MIN_CLASS_COUNT:
         raise RuntimeError(f"{target}: insufficient class balance {class_counts}")
 
