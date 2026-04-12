@@ -24,7 +24,7 @@ except Exception:
     bigquery = None
 
 KST = timezone(timedelta(hours=9))
-KPI_LOGIC_VERSION = "2026-04-10-admin-bigquery-v1"
+KPI_LOGIC_VERSION = "2026-04-12-admin-erp-summary-v2"
 
 
 def now_kst() -> datetime:
@@ -745,19 +745,30 @@ def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
 
 
 ADMIN_BQ_ENABLE = os.getenv("SUMMARY_USE_ADMIN_BQ", "true").strip().lower() in {"1", "true", "yes", "y"}
-ADMIN_BQ_PROJECT = os.getenv("SUMMARY_BQ_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "")).strip()
-ADMIN_BQ_LOCATION = os.getenv("SUMMARY_BQ_LOCATION", "asia-northeast3").strip()
-ADMIN_BQ_DAILY_TABLE = os.getenv("SUMMARY_ADMIN_DAILY_TABLE", "").strip()
+ADMIN_BQ_PROJECT = os.getenv(
+    "SUMMARY_BQ_PROJECT",
+    os.getenv("DAILY_DIGEST_ADMIN_BQ_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "columbia-ga4")),
+).strip()
+ADMIN_BQ_LOCATION = os.getenv(
+    "SUMMARY_BQ_LOCATION",
+    os.getenv("DAILY_DIGEST_ADMIN_BQ_LOCATION", "asia-northeast3"),
+).strip()
+ADMIN_BQ_DAILY_TABLE = os.getenv(
+    "SUMMARY_ADMIN_DAILY_TABLE",
+    os.getenv("DAILY_DIGEST_ADMIN_BQ_TABLE", f"{ADMIN_BQ_PROJECT}.crm_mart.member_funnel_admin_daily" if ADMIN_BQ_PROJECT else ""),
+).strip()
 ADMIN_BQ_ORDER_TABLE = os.getenv("SUMMARY_BQ_ORDER_TABLE", "").strip()
 ADMIN_BQ_TRAFFIC_TABLE = os.getenv("SUMMARY_BQ_TRAFFIC_TABLE", "").strip()
 ADMIN_BQ_MEMBER_TABLE = os.getenv("SUMMARY_BQ_MEMBER_TABLE", "").strip()
 
+if ADMIN_BQ_DAILY_TABLE and ADMIN_BQ_PROJECT and "." not in ADMIN_BQ_DAILY_TABLE.split("`")[-1]:
+    ADMIN_BQ_DAILY_TABLE = f"{ADMIN_BQ_PROJECT}.{ADMIN_BQ_DAILY_TABLE}"
 if not ADMIN_BQ_ORDER_TABLE and ADMIN_BQ_PROJECT:
-    ADMIN_BQ_ORDER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_order"
+    ADMIN_BQ_ORDER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_order_staging"
 if not ADMIN_BQ_TRAFFIC_TABLE and ADMIN_BQ_PROJECT:
-    ADMIN_BQ_TRAFFIC_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_statistics_google"
+    ADMIN_BQ_TRAFFIC_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_statistics_google_staging"
 if not ADMIN_BQ_MEMBER_TABLE and ADMIN_BQ_PROJECT:
-    ADMIN_BQ_MEMBER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_member"
+    ADMIN_BQ_MEMBER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_member_staging"
 
 
 def _admin_ready() -> bool:
@@ -791,6 +802,11 @@ def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
         if col not in out.columns:
             out[col] = 0
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0)
+    if "net_revenue" not in out.columns:
+        gross = out["total_price"] if "total_price" in out.columns else out["revenue"]
+        cancel = out["cancel_amount"] if "cancel_amount" in out.columns else 0
+        out["net_revenue"] = pd.to_numeric(gross, errors="coerce").fillna(0) - pd.to_numeric(cancel, errors="coerce").fillna(0)
+    out["revenue"] = out["net_revenue"]
     if "cvr" in out.columns:
         out["cvr"] = pd.to_numeric(out["cvr"], errors="coerce")
     else:
@@ -817,6 +833,7 @@ def _fetch_admin_daily_frame(start_date: date, end_date: date) -> Optional[pd.Da
                   SAFE_CAST(coupon_used AS FLOAT64) AS coupon_used,
                   SAFE_CAST(point_used AS FLOAT64) AS point_used,
                   SAFE_CAST(cancel_amount AS FLOAT64) AS cancel_amount,
+                  SAFE_CAST(COALESCE(total_price - cancel_amount, revenue) AS FLOAT64) AS net_revenue,
                   SAFE_CAST(cvr AS FLOAT64) AS cvr
                 FROM `{ADMIN_BQ_DAILY_TABLE}`
                 WHERE CAST(report_date AS DATE) BETWEEN @start_date AND @end_date
@@ -876,6 +893,7 @@ def _fetch_admin_daily_frame(start_date: date, end_date: date) -> Optional[pd.Da
               COALESCE(o.coupon_used, 0) AS coupon_used,
               COALESCE(o.point_used, 0) AS point_used,
               COALESCE(o.cancel_amount, 0) AS cancel_amount,
+              COALESCE(o.total_price, 0) - COALESCE(o.cancel_amount, 0) AS net_revenue,
               SAFE_DIVIDE(COALESCE(o.orders, 0), NULLIF(COALESCE(t.sessions, 0), 0)) AS cvr
             FROM traffic t
             FULL OUTER JOIN signups s ON t.report_date = s.report_date
@@ -910,7 +928,7 @@ def _admin_daily_snapshot(target_date: date) -> Optional[Dict[str, Any]]:
         "cvr": _safe_float(row.get("cvr")),
         "signups": _safe_int(row.get("signups")),
         "pv": _safe_int(row.get("pv")),
-        "source": "bigquery_admin_daily",
+        "source": "bigquery_admin_daily_erp",
         "updated": now_kst_label(),
         "logic_version": KPI_LOGIC_VERSION,
     }
@@ -946,7 +964,7 @@ def _build_daily_kpi_from_admin(reports_dir: Path) -> Optional[Dict[str, Any]]:
             "cvr_pp": _pp(cur.get("cvr"), yoy.get("cvr")),
         },
         "updated": now_kst_label(),
-        "source": "bigquery_admin_daily",
+        "source": "bigquery_admin_daily_erp",
         "logic_version": KPI_LOGIC_VERSION,
     }
 
@@ -1010,7 +1028,7 @@ def _build_weekly_kpi_from_admin(reports_dir: Path) -> Optional[Dict[str, Any]]:
             "cvr_pp": _pp(cur.get("cvr"), yoy.get("cvr")),
         },
         "updated": now_kst_label(),
-        "source": "bigquery_admin_weekly",
+        "source": "bigquery_admin_weekly_erp",
         "logic_version": KPI_LOGIC_VERSION,
     }
 
@@ -1799,8 +1817,8 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     daily_strip = section_shell(
         "dailyKpi",
         "DAILY SNAPSHOT",
-        "Daily KPI Summary",
-        "전일 핵심 퍼포먼스를 한 번에 비교할 수 있도록 카드 간 위계를 분리하고, 증감률은 즉시 눈에 들어오게 구성했습니다.",
+        "Daily KPI Summary (Admin ERP)",
+        "전일 핵심 퍼포먼스를 어드민 ERP 기준으로 집계해 비교하고, 증감률은 즉시 눈에 들어오게 구성했습니다. OWNED 영역만 GA 포털 기준을 유지합니다.",
         f'기준일 <b class="text-slate-900">{daily.get("date") or "-"}</b><br/>updated {daily.get("updated") or ""}',
         "#60a5fa",
         f'<div class="summary-kpi-grid summary-kpi-grid--five">{daily_tiles}</div>{trend_panel("daily", "Daily KPI Trend", "최근 일자 기준으로 카드 선택 KPI의 흐름을 보여줍니다.")}',
@@ -1816,8 +1834,8 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     weekly_strip = section_shell(
         "weeklyKpi",
         "WEEKLY TREND",
-        "Weekly KPI Summary (7D)",
-        "최근 7일 누적 흐름을 별도 톤으로 구분해 일간 카드와 헷갈리지 않도록 분리했습니다.",
+        "Weekly KPI Summary (7D · Admin ERP)",
+        "최근 7일 누적 흐름을 어드민 ERP 기준으로 집계해 일간 카드와 헷갈리지 않도록 분리했습니다. OWNED 영역만 GA 포털 기준을 유지합니다.",
         f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
         "#8b5cf6",
         f'<div class="summary-kpi-grid summary-kpi-grid--five">{weekly_tiles}</div>{trend_panel("weekly", "Weekly KPI Trend", "주간 누적 추이를 기준으로 선택 KPI를 비교합니다.")}',
