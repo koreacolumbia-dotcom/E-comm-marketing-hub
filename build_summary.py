@@ -866,7 +866,6 @@ def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
     for col in numeric_cols:
         out[col] = pd.to_numeric(out[col], errors="coerce")
 
-    session_col = _first_existing(list(out.columns), ["session", "sessions"])
     login_users_series = _pick_admin_login_users_series(out)
 
     for col in ("sessions", "pv", "signups", "orders", "total_price", "coupon_used", "point_used", "cancel_amount", "return_amount", "exchange_amount"):
@@ -874,20 +873,12 @@ def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
             out[col] = 0.0
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
 
-    if session_col:
-        out["sessions"] = pd.to_numeric(out[session_col], errors="coerce").fillna(0.0)
-    elif login_users_series is not None:
+    if login_users_series is not None:
         out["sessions"] = pd.to_numeric(login_users_series, errors="coerce").fillna(0.0)
 
-    out["session"] = out["sessions"]
     out["revenue"] = _compute_admin_erp_revenue_df(out).fillna(0.0)
-
-    cvr_col = _first_existing(list(out.columns), ["cvr", "conversion_rate", "conversionrate"])
-    if cvr_col:
-        out["cvr"] = pd.to_numeric(out[cvr_col], errors="coerce")
-        out["cvr"] = out["cvr"].fillna(
-            out.apply(lambda r: (float(r["orders"]) / float(r["sessions"])) if float(r["sessions"]) > 0 else 0.0, axis=1)
-        )
+    if "cvr" in out.columns:
+        out["cvr"] = pd.to_numeric(out["cvr"], errors="coerce")
     else:
         out["cvr"] = out.apply(lambda r: (float(r["orders"]) / float(r["sessions"])) if float(r["sessions"]) > 0 else 0.0, axis=1)
     out = out.dropna(subset=["report_date"]).sort_values("report_date").reset_index(drop=True)
@@ -1978,7 +1969,6 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "dailyKpi",
         "DAILY SNAPSHOT",
         "Daily KPI Summary",
-        "전일 핵심 퍼포먼스를 한 번에 비교할 수 있도록 카드 간 위계를 분리하고, 증감률은 즉시 눈에 들어오게 구성했습니다.",
         f'기준일 <b class="text-slate-900">{daily.get("date") or "-"}</b><br/>updated {daily.get("updated") or ""}',
         "#60a5fa",
         f'<div class="summary-kpi-grid summary-kpi-grid--five">{daily_tiles}</div>{trend_panel("daily", "Daily KPI Trend", "최근 일자 기준으로 카드 선택 KPI의 흐름을 보여줍니다.")}',
@@ -1995,7 +1985,6 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "weeklyKpi",
         "WEEKLY TREND",
         "Weekly KPI Summary (7D)",
-        "최근 7일 누적 흐름을 별도 톤으로 구분해 일간 카드와 헷갈리지 않도록 분리했습니다.",
         f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
         "#8b5cf6",
         f'<div class="summary-kpi-grid summary-kpi-grid--five">{weekly_tiles}</div>{trend_panel("weekly", "Weekly KPI Trend", "주간 누적 추이를 기준으로 선택 KPI를 비교합니다.")}',
@@ -2342,7 +2331,6 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         <div>
           <div class="section-eyebrow">CSK E-COMM SUMMARY</div>
           <h1 class="mt-3 text-3xl sm:text-5xl font-black tracking-[-0.04em] text-slate-950">오늘의 핵심 요약</h1>
-          <p class="mt-3 text-sm sm:text-base text-slate-600 max-w-3xl">Daily · Weekly · Owned YTD를 같은 스타일 안에서 명확히 다른 레이어로 분리해, 섹션 전환이 바로 인지되도록 재정렬했습니다.</p>
         </div>
         <div class="section-meta">
           generated <b class="text-slate-900">{now_kst_label()}</b><br/>
