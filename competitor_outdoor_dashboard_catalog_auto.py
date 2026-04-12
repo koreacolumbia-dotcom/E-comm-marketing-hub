@@ -763,12 +763,108 @@ def best_image_from_element(el) -> str:
     return best["url"]
 
 
+
+def is_bad_product_image_url(url: str) -> bool:
+    low = compact_text(url).lower()
+    if not low:
+        return True
+    bad_tokens = [
+        "wash", "care", "label", "laundry", "placeholder", "blank", "noimage", "loading",
+        "염소", "표백", "손세탁", "세탁", "케어"
+    ]
+    return any(t in low for t in bad_tokens)
+
+def best_listing_image_from_anchor(a, brand: str = "") -> str:
+    candidates = []
+    try:
+        imgs = a.find_elements(By.CSS_SELECTOR, "img")
+    except Exception:
+        imgs = []
+    for img in imgs[:12]:
+        try:
+            displayed = img.is_displayed()
+        except Exception:
+            displayed = True
+        alt = compact_text(img.get_attribute("alt") or "")
+        cls = compact_text(img.get_attribute("class") or "")
+        urls = []
+        for attr in ["src", "data-src", "data-lazy-src", "data-original", "currentSrc"]:
+            try:
+                val = compact_text(img.get_attribute(attr))
+            except Exception:
+                val = ""
+            if val and val.startswith("http"):
+                urls.append(val)
+        try:
+            srcset = compact_text(img.get_attribute("srcset"))
+        except Exception:
+            srcset = ""
+        if srcset:
+            for part in srcset.split(","):
+                u = part.strip().split(" ")[0].strip()
+                if u.startswith("http"):
+                    urls.append(u)
+        for u in urls:
+            low = u.lower()
+            score = 0
+            if displayed:
+                score += 30
+            if brand == "DISCOVERY":
+                if "static-resource.discovery-expedition.com" in low:
+                    score += 80
+                if "/thnail/" in low or "thnail" in low or "thumbnail" in low:
+                    score += 120
+            if brand == "COLUMBIA":
+                if "productimages" in low or "styleship" in low:
+                    score += 100
+            if is_bad_product_image_url(low):
+                score -= 300
+            if alt and any(t in alt for t in ["세탁", "손세탁", "표백", "케어", "라벨"]):
+                score -= 300
+            if cls and any(t in cls.lower() for t in ["thumb", "thumbnail", "goods", "product"]):
+                score += 20
+            candidates.append((score, u))
+    if not candidates:
+        return ""
+    candidates.sort(key=lambda x: (-x[0], x[1]))
+    return candidates[0][1]
+
+def extract_listing_name_from_anchor(a) -> str:
+    sels = [
+        "[class*='name']", "[class*='title']", "strong", "p", "span"
+    ]
+    vals = []
+    for css in sels:
+        try:
+            for el in a.find_elements(By.CSS_SELECTOR, css)[:10]:
+                txt = compact_text(el.text)
+                if txt and len(txt) <= 120:
+                    vals.append(txt)
+        except Exception:
+            pass
+    vals = [v for v in vals if not re.search(r'원$|\d{1,3}(?:,\d{3})', v)]
+    return max(vals, key=len) if vals else ""
+
+def extract_listing_price_from_anchor(a) -> str:
+    vals = []
+    sels = [".product-price", ".price", "[class*='price']", "strong", "p", "span"]
+    for css in sels:
+        try:
+            for el in a.find_elements(By.CSS_SELECTOR, css)[:12]:
+                txt = compact_text(el.text)
+                if txt and re.search(r'\d{1,3}(?:,\d{3})|\d{4,7}', txt):
+                    vals.append(txt)
+        except Exception:
+            pass
+    return choose_price_text(vals) if vals else ""
+
+
 def should_use_listing_image(brand: str, detail_image_url: str, listing_image_url: str) -> bool:
     listing = compact_text(listing_image_url)
-    if not listing:
+    if not listing or is_bad_product_image_url(listing):
         return False
     detail = compact_text(detail_image_url)
-    if not detail:
+    if not detail or is_bad_product_image_url(detail):
         return True
     d = detail.lower()
     l = listing.lower()
@@ -777,11 +873,11 @@ def should_use_listing_image(brand: str, detail_image_url: str, listing_image_ur
             return True
         if "/thnail/" in l and "/thnail/" not in d:
             return True
-    if any(x in d for x in ["wash", "care", "label", "placeholder", "blank", "noimage", "loading"]):
-        return True
-    if any(x in l for x in ["wash", "care", "label", "placeholder", "blank", "noimage", "loading"]):
-        return False
+    if brand == "COLUMBIA":
+        if "productimages" in l and "productimages" not in d:
+            return True
     return False
+
 
 
 def try_find_text(driver_or_el, selectors: List[str]) -> str:
@@ -2319,6 +2415,10 @@ class AutoCompetitorCrawler:
                         item.source_category_url = meta.get('source_category_url','')
                         if should_use_listing_image(cfg.brand, item.image_url, meta.get('image_url','')):
                             item.image_url = meta.get('image_url','')
+                        if not item.name and meta.get('listing_name'):
+                            item.name = meta.get('listing_name','')
+                        if not item.price_text and meta.get('listing_price_text'):
+                            item.price_text = meta.get('listing_price_text','')
                         raw_products.append(item)
                     else:
                         unresolved_urls.append(url)
@@ -2338,6 +2438,10 @@ class AutoCompetitorCrawler:
                     item.source_category_url = meta.get('source_category_url','')
                     if should_use_listing_image(cfg.brand, item.image_url, meta.get('image_url','')):
                         item.image_url = meta.get('image_url','')
+                    if not item.name and meta.get('listing_name'):
+                        item.name = meta.get('listing_name','')
+                    if not item.price_text and meta.get('listing_price_text'):
+                        item.price_text = meta.get('listing_price_text','')
                     raw_products.append(item)
             except Exception as e:
                 print(f"    [WARN] selenium fallback failed: {product_url} | {e}")
@@ -3244,7 +3348,7 @@ function renderProducts(){
             return `<article class="product-card p-4 surface-card" data-animate style="--index:${i+1}">
               <div class="relative z-10">
                 <div class="product-thumb">
-                  ${p.image_url ? `<img src="${p.image_url}" alt="${p.name||''}" class="h-full w-full object-contain bg-white" loading="lazy" onerror="this.closest('.product-thumb').innerHTML='<div class=\"flex h-full items-center justify-center text-xs font-black text-slate-400\">NO IMAGE</div>'" />` : `<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>`}
+                  ${p.image_url ? `<img src="${p.image_url}" alt="${p.name||''}" class="h-full w-full object-contain bg-white" loading="lazy" />` : `<div class="flex h-full items-center justify-center text-xs font-black text-slate-400">NO IMAGE</div>`}
                 </div>
                 <div class="mt-4 flex flex-wrap gap-2">
                   <span class="tag bg-slate-900 text-white">${p.brand||'-'}</span>
