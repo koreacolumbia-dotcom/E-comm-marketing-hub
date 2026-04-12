@@ -825,6 +825,32 @@ def _compute_admin_erp_revenue_df(df: pd.DataFrame) -> pd.Series:
     return (revenue - return_amount + exchange_amount).astype("float64")
 
 
+
+
+def _pick_admin_login_users_series(df: pd.DataFrame) -> Optional[pd.Series]:
+    if df is None or df.empty:
+        return None
+    preferred = [
+        "login_users",
+        "login_user_count",
+        "logged_in_users",
+        "logged_users",
+        "distinct_login_users",
+        "distinct_logged_in_users",
+        "member_login_users",
+        "member_logged_in_users",
+        "login_members",
+        "login_member_count",
+        "logged_members",
+        "logged_member_count",
+    ]
+    cols = {str(c).strip().lower(): str(c).strip() for c in df.columns}
+    for cand in preferred:
+        real = cols.get(cand.lower())
+        if real:
+            return pd.to_numeric(df[real], errors="coerce")
+    return None
+
 def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame(columns=["report_date", "sessions", "pv", "signups", "orders", "revenue", "cvr"])
@@ -839,13 +865,29 @@ def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
     numeric_cols = [c for c in out.columns if c != "report_date"]
     for col in numeric_cols:
         out[col] = pd.to_numeric(out[col], errors="coerce")
+
+    session_col = _first_existing(list(out.columns), ["session", "sessions"])
+    login_users_series = _pick_admin_login_users_series(out)
+
     for col in ("sessions", "pv", "signups", "orders", "total_price", "coupon_used", "point_used", "cancel_amount", "return_amount", "exchange_amount"):
         if col not in out.columns:
             out[col] = 0.0
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
+
+    if session_col:
+        out["sessions"] = pd.to_numeric(out[session_col], errors="coerce").fillna(0.0)
+    elif login_users_series is not None:
+        out["sessions"] = pd.to_numeric(login_users_series, errors="coerce").fillna(0.0)
+
+    out["session"] = out["sessions"]
     out["revenue"] = _compute_admin_erp_revenue_df(out).fillna(0.0)
-    if "cvr" in out.columns:
-        out["cvr"] = pd.to_numeric(out["cvr"], errors="coerce")
+
+    cvr_col = _first_existing(list(out.columns), ["cvr", "conversion_rate", "conversionrate"])
+    if cvr_col:
+        out["cvr"] = pd.to_numeric(out[cvr_col], errors="coerce")
+        out["cvr"] = out["cvr"].fillna(
+            out.apply(lambda r: (float(r["orders"]) / float(r["sessions"])) if float(r["sessions"]) > 0 else 0.0, axis=1)
+        )
     else:
         out["cvr"] = out.apply(lambda r: (float(r["orders"]) / float(r["sessions"])) if float(r["sessions"]) > 0 else 0.0, axis=1)
     out = out.dropna(subset=["report_date"]).sort_values("report_date").reset_index(drop=True)
@@ -915,10 +957,20 @@ def _fetch_admin_daily_frame(start_date: Optional[date] = None, end_date: Option
             WITH traffic AS (
               SELECT
                 CAST(StatisticsDate AS DATE) AS report_date,
-                SUM(COALESCE(CAST(StatisticsPV AS INT64), 0)) AS pv,
-                SUM(COALESCE(CAST(StatisticsSessions AS INT64), 0)) AS sessions
+                SUM(COALESCE(CAST(StatisticsPV AS INT64), 0)) AS pv
               FROM `{ADMIN_BQ_TRAFFIC_TABLE}`
               WHERE CAST(StatisticsDate AS DATE) BETWEEN @start_date AND @end_date
+              GROUP BY 1
+            ),
+            logins AS (
+              SELECT
+                CAST(MemberLogindate AS DATE) AS report_date,
+                COUNT(DISTINCT CASE
+                  WHEN MemberID IS NOT NULL AND TRIM(CAST(MemberID AS STRING)) != '' THEN CAST(MemberID AS STRING)
+                  ELSE NULL
+                END) AS login_users
+              FROM `{ADMIN_BQ_MEMBER_TABLE}`
+              WHERE CAST(MemberLogindate AS DATE) BETWEEN @start_date AND @end_date
               GROUP BY 1
             ),
             signups AS (
@@ -945,8 +997,9 @@ def _fetch_admin_daily_frame(start_date: Optional[date] = None, end_date: Option
               GROUP BY 1
             )
             SELECT
-              COALESCE(t.report_date, s.report_date, o.report_date) AS report_date,
-              COALESCE(t.sessions, 0) AS sessions,
+              COALESCE(t.report_date, l.report_date, s.report_date, o.report_date) AS report_date,
+              COALESCE(l.login_users, 0) AS sessions,
+              COALESCE(l.login_users, 0) AS login_users,
               COALESCE(t.pv, 0) AS pv,
               COALESCE(s.signups, 0) AS signups,
               COALESCE(o.orders, 0) AS orders,
@@ -957,10 +1010,11 @@ def _fetch_admin_daily_frame(start_date: Optional[date] = None, end_date: Option
               COALESCE(o.cancel_amount, 0) AS cancel_amount,
               COALESCE(o.return_amount, 0) AS return_amount,
               COALESCE(o.exchange_amount, 0) AS exchange_amount,
-              SAFE_DIVIDE(COALESCE(o.orders, 0), NULLIF(COALESCE(t.sessions, 0), 0)) AS cvr
+              SAFE_DIVIDE(COALESCE(o.orders, 0), NULLIF(COALESCE(l.login_users, 0), 0)) AS cvr
             FROM traffic t
-            FULL OUTER JOIN signups s ON t.report_date = s.report_date
-            FULL OUTER JOIN orders o ON COALESCE(t.report_date, s.report_date) = o.report_date
+            FULL OUTER JOIN logins l ON t.report_date = l.report_date
+            FULL OUTER JOIN signups s ON COALESCE(t.report_date, l.report_date) = s.report_date
+            FULL OUTER JOIN orders o ON COALESCE(t.report_date, l.report_date, s.report_date) = o.report_date
             ORDER BY report_date
         """
         job = client.query(
@@ -1914,7 +1968,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     w_yoy = weekly.get("yoy") or {}
 
     daily_tiles = "".join([
-        metric_tile("Sessions", fmt_int(daily.get("sessions")), "WoW", fmt_delta_ratio(d_wow.get("sessions")), tone_cls_from_delta(d_wow.get("sessions")), "YoY", fmt_delta_ratio(d_yoy.get("sessions")), tone_cls_from_delta(d_yoy.get("sessions")), "#60a5fa", "daily", "sessions", "Daily Sessions"),
+        metric_tile("Login Users", fmt_int(daily.get("sessions")), "WoW", fmt_delta_ratio(d_wow.get("sessions")), tone_cls_from_delta(d_wow.get("sessions")), "YoY", fmt_delta_ratio(d_yoy.get("sessions")), tone_cls_from_delta(d_yoy.get("sessions")), "#60a5fa", "daily", "sessions", "Daily Sessions"),
         metric_tile("Orders", fmt_int(daily.get("orders")), "WoW", fmt_delta_ratio(d_wow.get("orders")), tone_cls_from_delta(d_wow.get("orders")), "YoY", fmt_delta_ratio(d_yoy.get("orders")), tone_cls_from_delta(d_yoy.get("orders")), "#a78bfa", "daily", "orders", "Daily Orders"),
         metric_tile("Revenue", fmt_krw_symbol(daily.get("revenue")), "WoW", fmt_delta_ratio(d_wow.get("revenue")), tone_cls_from_delta(d_wow.get("revenue")), "YoY", fmt_delta_ratio(d_yoy.get("revenue")), tone_cls_from_delta(d_yoy.get("revenue")), "#22c55e", "daily", "revenue", "Daily Revenue"),
         metric_tile("CVR", fmt_cvr(daily.get("cvr")), "WoW", fmt_pp_from_fraction(d_wow.get("cvr_pp")), pp_tone_cls(d_wow.get("cvr_pp")), "YoY", fmt_pp_from_fraction(d_yoy.get("cvr_pp")), pp_tone_cls(d_yoy.get("cvr_pp")), "#f59e0b", "daily", "cvr", "Daily CVR"),
@@ -1931,7 +1985,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     )
 
     weekly_tiles = "".join([
-        metric_tile("Sessions", fmt_int(weekly.get("sessions")), "WoW", fmt_delta_ratio(w_wow.get("sessions")), tone_cls_from_delta(w_wow.get("sessions")), "YoY", fmt_delta_ratio(w_yoy.get("sessions")), tone_cls_from_delta(w_yoy.get("sessions")), "#38bdf8", "weekly", "sessions", "Weekly Sessions"),
+        metric_tile("Login Users", fmt_int(weekly.get("sessions")), "WoW", fmt_delta_ratio(w_wow.get("sessions")), tone_cls_from_delta(w_wow.get("sessions")), "YoY", fmt_delta_ratio(w_yoy.get("sessions")), tone_cls_from_delta(w_yoy.get("sessions")), "#38bdf8", "weekly", "sessions", "Weekly Sessions"),
         metric_tile("Orders", fmt_int(weekly.get("orders")), "WoW", fmt_delta_ratio(w_wow.get("orders")), tone_cls_from_delta(w_wow.get("orders")), "YoY", fmt_delta_ratio(w_yoy.get("orders")), tone_cls_from_delta(w_yoy.get("orders")), "#8b5cf6", "weekly", "orders", "Weekly Orders"),
         metric_tile("Revenue", fmt_krw_symbol(weekly.get("revenue")), "WoW", fmt_delta_ratio(w_wow.get("revenue")), tone_cls_from_delta(w_wow.get("revenue")), "YoY", fmt_delta_ratio(w_yoy.get("revenue")), tone_cls_from_delta(w_yoy.get("revenue")), "#10b981", "weekly", "revenue", "Weekly Revenue"),
         metric_tile("CVR", fmt_cvr(weekly.get("cvr")), "WoW", fmt_pp_from_fraction(w_wow.get("cvr_pp")), pp_tone_cls(w_wow.get("cvr_pp")), "YoY", fmt_pp_from_fraction(w_yoy.get("cvr_pp")), pp_tone_cls(w_yoy.get("cvr_pp")), "#f97316", "weekly", "cvr", "Weekly CVR"),
