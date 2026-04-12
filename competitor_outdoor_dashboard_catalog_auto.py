@@ -25,6 +25,11 @@ Notes
 
 from __future__ import annotations
 
+
+# === FORCE EXCEL PATH (USER REPO) ===
+EXCEL_CATEGORY_PATH = "카테고리_정리.xlsx"
+
+
 import os
 import re
 import json
@@ -473,6 +478,21 @@ def _build_category_master():
     return {"url_map": url_map, "token_map": token_map}
 
 CATEGORY_MASTER = _build_category_master()
+
+def _apply_category_master_seed_urls():
+    brand_urls = {}
+    for (brand, url), meta in CATEGORY_MASTER.get("url_map", {}).items():
+        if not url:
+            continue
+        brand_urls.setdefault(brand, []).append(url)
+    for cfg in BRAND_CONFIGS:
+        normalized = _normalize_brand_name(cfg.brand)
+        urls = [canonicalize_url(u) for u in brand_urls.get(normalized, []) if canonicalize_url(u)]
+        if urls:
+            cfg.seed_urls = unique_preserve_order(urls)
+
+_apply_category_master_seed_urls()
+
 
 
 # ===== URL CATEGORY HARD MAPPING (v8) =====
@@ -2025,6 +2045,12 @@ class AutoCompetitorCrawler:
         return any(term.lower() in combined for term in cfg.brand_terms if term)
 
     def discover_listing_urls(self, cfg: BrandConfig) -> List[str]:
+        explicit = [canonicalize_url(u) for u in (cfg.seed_urls or []) if canonicalize_url(u)]
+        explicit = [u for u in explicit if same_domain(u, cfg.domain)]
+        if explicit and not (len(explicit) == 1 and explicit[0].rstrip('/') in {f"https://{cfg.domain}", f"https://{cfg.domain}/"}):
+            print(f"  - using explicit PLP seeds: {len(explicit)}")
+            return unique_preserve_order(explicit)[:MAX_DISCOVERED_LISTING_URLS]
+
         discovered: List[str] = []
         seen: Set[str] = set()
         queue: List[Tuple[str, int]] = [(u, 0) for u in cfg.seed_urls]
@@ -2057,12 +2083,12 @@ class AutoCompetitorCrawler:
                     continue
                 if cfg.brand == "DISCOVERY" and any(x in link.lower() for x in ["style-pick", "discoverer-picks", "/brand/style-pick"]):
                     continue
-                if link in seen or any(link == q[0] for q in queue):
+                if depth + 1 > max_depth:
                     continue
-                if depth + 1 <= max_depth:
+                if link not in seen:
                     queue.append((link, depth + 1))
 
-        return discovered[:MAX_DISCOVERED_LISTING_URLS]
+        return unique_preserve_order(discovered)[:MAX_DISCOVERED_LISTING_URLS]
 
     def collect_product_urls_from_listing(self, listing_url: str, cfg: BrandConfig) -> List[dict]:
         product_urls: List[dict] = []
@@ -2085,8 +2111,6 @@ class AutoCompetitorCrawler:
             source_context = extract_columbia_listing_context(self.driver, listing_url) or listing_url
 
         master_item = resolve_master_category(cfg.brand, listing_url, source_context, source_context)
-        if master_item:
-            source_context = f"{source_context} {master_item}"
 
         self._scroll_to_end()
 
@@ -2142,7 +2166,7 @@ class AutoCompetitorCrawler:
                 seen_urls.add(href)
                 product_urls.append({
                     "url": href,
-                    "source_category": source_context,
+                    "source_category": (master_item or source_context),
                     "source_category_url": listing_url,
                     "image_url": best_image_from_element(a),
                 })
@@ -3224,6 +3248,8 @@ function compactNameJS(name, brand){ let t=(name||"").trim(); if((brand||"")==="
 function inferCategoryJS(name, description, sourceCategory="", sourceCategoryUrl="", itemCategory="", breadcrumbText=""){
   const fixed = String(itemCategory||"").trim();
   if(fixed && fixed!=="기타") return fixed;
+  const exact = String(sourceCategory||"").trim();
+  if(["자켓","팬츠","티셔츠","슈즈","백","베스트","후디","플리스","ACC","장갑"].includes(exact)) return exact;
   const src=((breadcrumbText||"")+" "+(sourceCategory||"")+" "+(sourceCategoryUrl||"")).toLowerCase();
   if(/신발|슈즈|스니커즈|트레일러닝|등산화|샌들|슬리퍼|shoe|shoes|boot|boots|sandal|konos|peakfreak|crestwood|omni-max|omni max|clog/.test(src)) return "슈즈";
   if(/가방|백팩|크로스|토트백|힙색|슬링백|bag|backpack|pack|sling/.test(src)) return "백";
