@@ -158,9 +158,9 @@ def load_ml_scores() -> pd.DataFrame:
           CAST(COALESCE(user_id, '') AS STRING) AS user_id_norm,
           CAST(COALESCE(crm_action_type, '') AS STRING) AS ml_action_type,
           CAST(COALESCE(priority_tier, '') AS STRING) AS ml_priority_tier,
-          SAFE_CAST(repurchase_30d_score AS FLOAT64) AS repurchase_30d_score,
-          SAFE_CAST(first_purchase_30d_score AS FLOAT64) AS first_purchase_30d_score,
-          SAFE_CAST(churn_60d_score AS FLOAT64) AS churn_60d_score,
+          SAFE_CAST(COALESCE(repurchase_30d_score, repurchase_45d_score) AS FLOAT64) AS repurchase_30d_score,
+          SAFE_CAST(COALESCE(first_purchase_30d_score, first_purchase_45d_score) AS FLOAT64) AS first_purchase_30d_score,
+          SAFE_CAST(COALESCE(churn_60d_score, churn_90d_score) AS FLOAT64) AS churn_60d_score,
           SAFE_CAST(ltv_score AS FLOAT64) AS ltv_score,
           CAST(COALESCE(next_best_category, '') AS STRING) AS next_best_category
         FROM `{table_name}`
