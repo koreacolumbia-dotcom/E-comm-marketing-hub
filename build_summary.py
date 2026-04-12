@@ -24,7 +24,7 @@ except Exception:
     bigquery = None
 
 KST = timezone(timedelta(hours=9))
-KPI_LOGIC_VERSION = "2026-04-12-admin-erp-summary-v2"
+KPI_LOGIC_VERSION = "2026-04-10-admin-bigquery-v1"
 
 
 def now_kst() -> datetime:
@@ -747,7 +747,7 @@ def _ensure_weekly_kpi_json(reports_dir: Path) -> Dict[str, Any]:
 ADMIN_BQ_ENABLE = os.getenv("SUMMARY_USE_ADMIN_BQ", "true").strip().lower() in {"1", "true", "yes", "y"}
 ADMIN_BQ_PROJECT = os.getenv(
     "SUMMARY_BQ_PROJECT",
-    os.getenv("DAILY_DIGEST_ADMIN_BQ_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "columbia-ga4")),
+    os.getenv("DAILY_DIGEST_ADMIN_BQ_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "")),
 ).strip()
 ADMIN_BQ_LOCATION = os.getenv(
     "SUMMARY_BQ_LOCATION",
@@ -755,20 +755,19 @@ ADMIN_BQ_LOCATION = os.getenv(
 ).strip()
 ADMIN_BQ_DAILY_TABLE = os.getenv(
     "SUMMARY_ADMIN_DAILY_TABLE",
-    os.getenv("DAILY_DIGEST_ADMIN_BQ_TABLE", f"{ADMIN_BQ_PROJECT}.crm_mart.member_funnel_admin_daily" if ADMIN_BQ_PROJECT else ""),
+    os.getenv("DAILY_DIGEST_ADMIN_BQ_TABLE", ""),
 ).strip()
 ADMIN_BQ_ORDER_TABLE = os.getenv("SUMMARY_BQ_ORDER_TABLE", "").strip()
 ADMIN_BQ_TRAFFIC_TABLE = os.getenv("SUMMARY_BQ_TRAFFIC_TABLE", "").strip()
 ADMIN_BQ_MEMBER_TABLE = os.getenv("SUMMARY_BQ_MEMBER_TABLE", "").strip()
+ADMIN_FORCE_ERP_ONLY = os.getenv("SUMMARY_FORCE_ADMIN_ERP_ONLY", "true").strip().lower() in {"1", "true", "yes", "y"}
 
-if ADMIN_BQ_DAILY_TABLE and ADMIN_BQ_PROJECT and "." not in ADMIN_BQ_DAILY_TABLE.split("`")[-1]:
-    ADMIN_BQ_DAILY_TABLE = f"{ADMIN_BQ_PROJECT}.{ADMIN_BQ_DAILY_TABLE}"
 if not ADMIN_BQ_ORDER_TABLE and ADMIN_BQ_PROJECT:
-    ADMIN_BQ_ORDER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_order_staging"
+    ADMIN_BQ_ORDER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_order"
 if not ADMIN_BQ_TRAFFIC_TABLE and ADMIN_BQ_PROJECT:
-    ADMIN_BQ_TRAFFIC_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_statistics_google_staging"
+    ADMIN_BQ_TRAFFIC_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_statistics_google"
 if not ADMIN_BQ_MEMBER_TABLE and ADMIN_BQ_PROJECT:
-    ADMIN_BQ_MEMBER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_member_staging"
+    ADMIN_BQ_MEMBER_TABLE = f"{ADMIN_BQ_PROJECT}.crm_raw.tb_member"
 
 
 def _admin_ready() -> bool:
@@ -787,6 +786,45 @@ def _admin_get_client():
     return bigquery.Client(project=ADMIN_BQ_PROJECT, location=ADMIN_BQ_LOCATION)
 
 
+def _first_existing(cols: List[str], candidates: List[str]) -> Optional[str]:
+    low = {str(c).strip().lower(): str(c) for c in cols}
+    for cand in candidates:
+        key = str(cand).strip().lower()
+        if key in low:
+            return low[key]
+    return None
+
+
+def _compute_admin_erp_revenue_df(df: pd.DataFrame) -> pd.Series:
+    if df is None or df.empty:
+        return pd.Series(dtype="float64")
+    cols = [str(c) for c in df.columns]
+    direct_col = _first_existing(cols, [
+        "erp_revenue", "erp_sales", "net_revenue", "net_sales", "sales_amount", "total_sales",
+        "gross_sales", "total_erp_revenue", "total_erp_sales", "revenue_erp", "actual_revenue",
+    ])
+    if direct_col:
+        return pd.to_numeric(df[direct_col], errors="coerce").fillna(0.0)
+
+    total_price_col = _first_existing(cols, ["total_price", "order_amount", "gross_order_amount", "sales_price", "gross_sales_amount"])
+    revenue_col = _first_existing(cols, ["revenue", "order_total_pay", "paid_amount"])
+    cancel_col = _first_existing(cols, ["cancel_amount", "cancel_price", "cancel_before_ship_amount", "pre_ship_cancel_amount"])
+    return_col = _first_existing(cols, ["return_amount", "return_price", "refund_after_ship_amount", "after_ship_return_amount", "post_ship_return_amount"])
+    exchange_col = _first_existing(cols, ["exchange_amount", "exchange_price", "exchange_sales", "exchange_sales_amount"])
+
+    total_price = pd.to_numeric(df[total_price_col], errors="coerce").fillna(0.0) if total_price_col else None
+    revenue = pd.to_numeric(df[revenue_col], errors="coerce").fillna(0.0) if revenue_col else pd.Series([0.0] * len(df), index=df.index, dtype="float64")
+    cancel_amount = pd.to_numeric(df[cancel_col], errors="coerce").fillna(0.0) if cancel_col else pd.Series([0.0] * len(df), index=df.index, dtype="float64")
+    return_amount = pd.to_numeric(df[return_col], errors="coerce").fillna(0.0) if return_col else pd.Series([0.0] * len(df), index=df.index, dtype="float64")
+    exchange_amount = pd.to_numeric(df[exchange_col], errors="coerce").fillna(0.0) if exchange_col else pd.Series([0.0] * len(df), index=df.index, dtype="float64")
+
+    if total_price is not None:
+        calc = total_price - cancel_amount - return_amount + exchange_amount
+        if float(calc.abs().sum()) > 0:
+            return calc.astype("float64")
+    return (revenue - return_amount + exchange_amount).astype("float64")
+
+
 def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame(columns=["report_date", "sessions", "pv", "signups", "orders", "revenue", "cvr"])
@@ -798,15 +836,14 @@ def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
         elif "StatisticsDate" in out.columns:
             out = out.rename(columns={"StatisticsDate": "report_date"})
     out["report_date"] = pd.to_datetime(out["report_date"], errors="coerce").dt.date
-    for col in ("sessions", "pv", "signups", "orders", "revenue", "total_price", "coupon_used", "point_used", "cancel_amount"):
+    numeric_cols = [c for c in out.columns if c != "report_date"]
+    for col in numeric_cols:
+        out[col] = pd.to_numeric(out[col], errors="coerce")
+    for col in ("sessions", "pv", "signups", "orders", "total_price", "coupon_used", "point_used", "cancel_amount", "return_amount", "exchange_amount"):
         if col not in out.columns:
-            out[col] = 0
-        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0)
-    if "net_revenue" not in out.columns:
-        gross = out["total_price"] if "total_price" in out.columns else out["revenue"]
-        cancel = out["cancel_amount"] if "cancel_amount" in out.columns else 0
-        out["net_revenue"] = pd.to_numeric(gross, errors="coerce").fillna(0) - pd.to_numeric(cancel, errors="coerce").fillna(0)
-    out["revenue"] = out["net_revenue"]
+            out[col] = 0.0
+        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
+    out["revenue"] = _compute_admin_erp_revenue_df(out).fillna(0.0)
     if "cvr" in out.columns:
         out["cvr"] = pd.to_numeric(out["cvr"], errors="coerce")
     else:
@@ -815,26 +852,49 @@ def _admin_standardize_df(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _fetch_admin_daily_frame(start_date: date, end_date: date) -> Optional[pd.DataFrame]:
+def _admin_get_latest_report_date() -> Optional[date]:
     if not _admin_ready():
         return None
     try:
         client = _admin_get_client()
         if ADMIN_BQ_DAILY_TABLE:
+            sql = f"SELECT MAX(CAST(report_date AS DATE)) AS max_report_date FROM `{ADMIN_BQ_DAILY_TABLE}`"
+        else:
             sql = f"""
-                SELECT
-                  CAST(report_date AS DATE) AS report_date,
-                  SAFE_CAST(sessions AS INT64) AS sessions,
-                  SAFE_CAST(pv AS INT64) AS pv,
-                  SAFE_CAST(signups AS INT64) AS signups,
-                  SAFE_CAST(orders AS INT64) AS orders,
-                  SAFE_CAST(revenue AS FLOAT64) AS revenue,
-                  SAFE_CAST(total_price AS FLOAT64) AS total_price,
-                  SAFE_CAST(coupon_used AS FLOAT64) AS coupon_used,
-                  SAFE_CAST(point_used AS FLOAT64) AS point_used,
-                  SAFE_CAST(cancel_amount AS FLOAT64) AS cancel_amount,
-                  SAFE_CAST(COALESCE(total_price - cancel_amount, revenue) AS FLOAT64) AS net_revenue,
-                  SAFE_CAST(cvr AS FLOAT64) AS cvr
+                WITH max_dates AS (
+                  SELECT MAX(CAST(StatisticsDate AS DATE)) AS d FROM `{ADMIN_BQ_TRAFFIC_TABLE}`
+                  UNION ALL
+                  SELECT MAX(CAST(MemberRegdate AS DATE)) AS d FROM `{ADMIN_BQ_MEMBER_TABLE}`
+                  UNION ALL
+                  SELECT MAX(CAST(OrderRegdate AS DATE)) AS d FROM `{ADMIN_BQ_ORDER_TABLE}`
+                )
+                SELECT MAX(d) AS max_report_date FROM max_dates
+            """
+        row = next(iter(client.query(sql, location=ADMIN_BQ_LOCATION).result()), None)
+        if row is None:
+            return None
+        v = row[0] if not isinstance(row, dict) else row.get("max_report_date")
+        ts = pd.to_datetime(v, errors="coerce")
+        return None if pd.isna(ts) else ts.date()
+    except Exception:
+        return None
+
+
+def _fetch_admin_daily_frame(start_date: Optional[date] = None, end_date: Optional[date] = None) -> Optional[pd.DataFrame]:
+    if not _admin_ready():
+        return None
+    latest_date = _admin_get_latest_report_date()
+    if latest_date is None:
+        return None
+    end_date = end_date or latest_date
+    start_date = start_date or end_date
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+    try:
+        client = _admin_get_client()
+        if ADMIN_BQ_DAILY_TABLE:
+            sql = f"""
+                SELECT *
                 FROM `{ADMIN_BQ_DAILY_TABLE}`
                 WHERE CAST(report_date AS DATE) BETWEEN @start_date AND @end_date
                 ORDER BY report_date
@@ -873,11 +933,13 @@ def _fetch_admin_daily_frame(start_date: date, end_date: date) -> Optional[pd.Da
               SELECT
                 CAST(OrderRegdate AS DATE) AS report_date,
                 COUNT(DISTINCT OrderNo) AS orders,
-                SUM(COALESCE(CAST(OrderTotalPay AS INT64), 0)) AS revenue,
-                SUM(COALESCE(CAST(OrderTotalPrice AS INT64), 0)) AS total_price,
-                SUM(COALESCE(CAST(OrderUseCouponPrice AS INT64), 0)) AS coupon_used,
-                SUM(COALESCE(CAST(OrderUsePoint AS INT64), 0)) AS point_used,
-                SUM(COALESCE(CAST(OrderCancelPrice AS INT64), 0)) AS cancel_amount
+                SUM(COALESCE(CAST(OrderTotalPay AS FLOAT64), 0)) AS revenue,
+                SUM(COALESCE(CAST(OrderTotalPrice AS FLOAT64), 0)) AS total_price,
+                SUM(COALESCE(CAST(OrderUseCouponPrice AS FLOAT64), 0)) AS coupon_used,
+                SUM(COALESCE(CAST(OrderUsePoint AS FLOAT64), 0)) AS point_used,
+                SUM(COALESCE(CAST(OrderCancelPrice AS FLOAT64), 0)) AS cancel_amount,
+                0.0 AS return_amount,
+                0.0 AS exchange_amount
               FROM `{ADMIN_BQ_ORDER_TABLE}`
               WHERE CAST(OrderRegdate AS DATE) BETWEEN @start_date AND @end_date
               GROUP BY 1
@@ -893,7 +955,8 @@ def _fetch_admin_daily_frame(start_date: date, end_date: date) -> Optional[pd.Da
               COALESCE(o.coupon_used, 0) AS coupon_used,
               COALESCE(o.point_used, 0) AS point_used,
               COALESCE(o.cancel_amount, 0) AS cancel_amount,
-              COALESCE(o.total_price, 0) - COALESCE(o.cancel_amount, 0) AS net_revenue,
+              COALESCE(o.return_amount, 0) AS return_amount,
+              COALESCE(o.exchange_amount, 0) AS exchange_amount,
               SAFE_DIVIDE(COALESCE(o.orders, 0), NULLIF(COALESCE(t.sessions, 0), 0)) AS cvr
             FROM traffic t
             FULL OUTER JOIN signups s ON t.report_date = s.report_date
@@ -915,32 +978,39 @@ def _fetch_admin_daily_frame(start_date: date, end_date: date) -> Optional[pd.Da
         return None
 
 
-def _admin_daily_snapshot(target_date: date) -> Optional[Dict[str, Any]]:
+def _admin_daily_snapshot(target_date: Optional[date] = None) -> Optional[Dict[str, Any]]:
+    target_date = target_date or _admin_get_latest_report_date()
+    if target_date is None:
+        return None
     df = _fetch_admin_daily_frame(target_date, target_date)
     if df is None or df.empty:
         return None
     row = df.iloc[-1]
+    actual_date = row.get("report_date") or target_date
+    actual_date_s = ymd(actual_date if isinstance(actual_date, date) else pd.to_datetime(actual_date).date())
     return {
-        "date": ymd(target_date),
+        "date": actual_date_s,
         "sessions": _safe_int(row.get("sessions")),
         "orders": _safe_int(row.get("orders")),
         "revenue": _safe_float(row.get("revenue")),
         "cvr": _safe_float(row.get("cvr")),
         "signups": _safe_int(row.get("signups")),
         "pv": _safe_int(row.get("pv")),
-        "source": "bigquery_admin_daily_erp",
+        "source": "bigquery_admin_daily_max_report_date",
         "updated": now_kst_label(),
         "logic_version": KPI_LOGIC_VERSION,
     }
 
 
 def _build_daily_kpi_from_admin(reports_dir: Path) -> Optional[Dict[str, Any]]:
-    target_date = kst_yesterday()
-    cur = _admin_daily_snapshot(target_date)
+    latest_date = _admin_get_latest_report_date()
+    if latest_date is None:
+        return None
+    cur = _admin_daily_snapshot(latest_date)
     if not cur:
         return None
-    wow = _admin_daily_snapshot(target_date - timedelta(days=7)) or {}
-    yoy = _admin_daily_snapshot(target_date - timedelta(days=364)) or {}
+    wow = _admin_daily_snapshot(latest_date - timedelta(days=7)) or {}
+    yoy = _admin_daily_snapshot(latest_date - timedelta(days=364)) or {}
     return {
         "date": cur.get("date"),
         "sessions": cur.get("sessions"),
@@ -964,8 +1034,8 @@ def _build_daily_kpi_from_admin(reports_dir: Path) -> Optional[Dict[str, Any]]:
             "cvr_pp": _pp(cur.get("cvr"), yoy.get("cvr")),
         },
         "updated": now_kst_label(),
-        "source": "bigquery_admin_daily_erp",
-        "logic_version": KPI_LOGIC_VERSION,
+        "source": "bigquery_admin_daily_max_report_date",
+        "logic_version": KPI_LOGIC_VERSION + "-erp-maxdate",
     }
 
 
@@ -976,9 +1046,14 @@ def _sum_admin_frame(df: pd.DataFrame, start_d: date, end_d: date) -> Dict[str, 
     signups = float(df["signups"].sum()) if (df is not None and not df.empty) else 0.0
     pv = float(df["pv"].sum()) if (df is not None and not df.empty) else 0.0
     cvr = (orders / sessions) if sessions > 0 else 0.0
+    actual_start = start_d
+    actual_end = end_d
+    if df is not None and not df.empty:
+        actual_start = min(df["report_date"])
+        actual_end = max(df["report_date"])
     return {
-        "start": ymd(start_d),
-        "end": ymd(end_d),
+        "start": ymd(actual_start),
+        "end": ymd(actual_end),
         "sessions": int(round(sessions)),
         "orders": int(round(orders)),
         "revenue": revenue,
@@ -989,7 +1064,9 @@ def _sum_admin_frame(df: pd.DataFrame, start_d: date, end_d: date) -> Dict[str, 
 
 
 def _build_weekly_kpi_from_admin(reports_dir: Path) -> Optional[Dict[str, Any]]:
-    end_d = kst_yesterday()
+    end_d = _admin_get_latest_report_date()
+    if end_d is None:
+        return None
     start_d = end_d - timedelta(days=6)
     prev_end = end_d - timedelta(days=7)
     prev_start = prev_end - timedelta(days=6)
@@ -1028,14 +1105,28 @@ def _build_weekly_kpi_from_admin(reports_dir: Path) -> Optional[Dict[str, Any]]:
             "cvr_pp": _pp(cur.get("cvr"), yoy.get("cvr")),
         },
         "updated": now_kst_label(),
-        "source": "bigquery_admin_weekly_erp",
-        "logic_version": KPI_LOGIC_VERSION,
+        "source": "bigquery_admin_weekly_max_report_date",
+        "logic_version": KPI_LOGIC_VERSION + "-erp-maxdate",
     }
 
 def build_daily_kpis(reports_dir: Path) -> Dict[str, Any]:
     admin = _build_daily_kpi_from_admin(reports_dir)
     if admin:
         return admin
+    if ADMIN_FORCE_ERP_ONLY:
+        return {
+            "date": None,
+            "sessions": None,
+            "orders": None,
+            "revenue": None,
+            "cvr": None,
+            "signups": None,
+            "wow": {},
+            "yoy": {},
+            "updated": now_kst_label(),
+            "source": "admin_erp_unavailable",
+            "logic_version": KPI_LOGIC_VERSION + "-erp-maxdate",
+        }
     return _ensure_daily_kpi_json(reports_dir)
 
 
@@ -1043,6 +1134,21 @@ def build_weekly_kpis(reports_dir: Path) -> Dict[str, Any]:
     admin = _build_weekly_kpi_from_admin(reports_dir)
     if admin:
         return admin
+    if ADMIN_FORCE_ERP_ONLY:
+        return {
+            "start": None,
+            "end": None,
+            "sessions": None,
+            "orders": None,
+            "revenue": None,
+            "cvr": None,
+            "signups": None,
+            "wow": {},
+            "yoy": {},
+            "updated": now_kst_label(),
+            "source": "admin_erp_unavailable",
+            "logic_version": KPI_LOGIC_VERSION + "-erp-maxdate",
+        }
     return _ensure_weekly_kpi_json(reports_dir)
 
 
@@ -1554,21 +1660,22 @@ def build_owned_ytd_yoy(reports_dir: Path) -> Dict[str, Any]:
 
 def build_daily_trend_series(reports_dir: Path, limit: int = 800) -> List[Dict[str, Any]]:
     if _admin_ready():
-        end_d = kst_yesterday()
-        start_d = end_d - timedelta(days=max(limit - 1, 0))
-        df = _fetch_admin_daily_frame(start_d, end_d)
-        if df is not None and not df.empty:
-            out: List[Dict[str, Any]] = []
-            for _, row in df.sort_values("report_date").iterrows():
-                out.append({
-                    "date": ymd(row["report_date"]),
-                    "sessions": float(_safe_float(row.get("sessions")) or 0.0),
-                    "orders": float(_safe_float(row.get("orders")) or 0.0),
-                    "revenue": float(_safe_float(row.get("revenue")) or 0.0),
-                    "cvr": float(_safe_float(row.get("cvr")) or 0.0),
-                    "signups": float(_safe_float(row.get("signups")) or 0.0),
-                })
-            return out[-limit:]
+        end_d = _admin_get_latest_report_date()
+        if end_d is not None:
+            start_d = end_d - timedelta(days=max(limit - 1, 0))
+            df = _fetch_admin_daily_frame(start_d, end_d)
+            if df is not None and not df.empty:
+                out: List[Dict[str, Any]] = []
+                for _, row in df.sort_values("report_date").iterrows():
+                    out.append({
+                        "date": ymd(row["report_date"]),
+                        "sessions": float(_safe_float(row.get("sessions")) or 0.0),
+                        "orders": float(_safe_float(row.get("orders")) or 0.0),
+                        "revenue": float(_safe_float(row.get("revenue")) or 0.0),
+                        "cvr": float(_safe_float(row.get("cvr")) or 0.0),
+                        "signups": float(_safe_float(row.get("signups")) or 0.0),
+                    })
+                return out[-limit:]
 
     files = list((reports_dir / "daily_digest" / "data" / "daily").glob("*.json"))
     files = [p for p in files if re.match(r"^\d{4}-\d{2}-\d{2}\.json$", p.name)]
@@ -1588,7 +1695,6 @@ def build_daily_trend_series(reports_dir: Path, limit: int = 800) -> List[Dict[s
             "signups": _safe_float(k.get("signups")) or 0.0,
         })
     return out
-
 
 def build_weekly_trend_series(reports_dir: Path, limit: int = 200) -> List[Dict[str, Any]]:
     daily_series = build_daily_trend_series(reports_dir, limit=1200)
@@ -1817,8 +1923,8 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     daily_strip = section_shell(
         "dailyKpi",
         "DAILY SNAPSHOT",
-        "Daily KPI Summary (Admin ERP)",
-        "전일 핵심 퍼포먼스를 어드민 ERP 기준으로 집계해 비교하고, 증감률은 즉시 눈에 들어오게 구성했습니다. OWNED 영역만 GA 포털 기준을 유지합니다.",
+        "Daily KPI Summary",
+        "전일 핵심 퍼포먼스를 한 번에 비교할 수 있도록 카드 간 위계를 분리하고, 증감률은 즉시 눈에 들어오게 구성했습니다.",
         f'기준일 <b class="text-slate-900">{daily.get("date") or "-"}</b><br/>updated {daily.get("updated") or ""}',
         "#60a5fa",
         f'<div class="summary-kpi-grid summary-kpi-grid--five">{daily_tiles}</div>{trend_panel("daily", "Daily KPI Trend", "최근 일자 기준으로 카드 선택 KPI의 흐름을 보여줍니다.")}',
@@ -1834,8 +1940,8 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
     weekly_strip = section_shell(
         "weeklyKpi",
         "WEEKLY TREND",
-        "Weekly KPI Summary (7D · Admin ERP)",
-        "최근 7일 누적 흐름을 어드민 ERP 기준으로 집계해 일간 카드와 헷갈리지 않도록 분리했습니다. OWNED 영역만 GA 포털 기준을 유지합니다.",
+        "Weekly KPI Summary (7D)",
+        "최근 7일 누적 흐름을 별도 톤으로 구분해 일간 카드와 헷갈리지 않도록 분리했습니다.",
         f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
         "#8b5cf6",
         f'<div class="summary-kpi-grid summary-kpi-grid--five">{weekly_tiles}</div>{trend_panel("weekly", "Weekly KPI Trend", "주간 누적 추이를 기준으로 선택 KPI를 비교합니다.")}',
