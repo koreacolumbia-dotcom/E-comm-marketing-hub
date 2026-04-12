@@ -434,16 +434,24 @@ def fetch_admin_daily_snapshot(target_date: dt.date) -> dict | None:
         buyers = _pick_value(row, "buyers", "구매자수", "구매회원")
         if buyers <= 0:
             buyers = orders
+        total_price = _pick_value(row, "total_price", "주문금액", "판매가", "ordertotalprice")
+        cancel_amount = _pick_value(row, "cancel_amount", "취소금액", "취소 금액", "ordercancelprice")
+        explicit_erp_revenue = _pick_value(row, "총매출금액", "ERP매출")
+        revenue_pay = _pick_value(row, "revenue", "매출금액", "sales", "total_pay")
+        erp_revenue = explicit_erp_revenue if explicit_erp_revenue > 0 else (total_price - cancel_amount if total_price > 0 else revenue_pay)
         snapshot = {
             "date": target_date.isoformat(),
-            "revenue": _pick_value(row, "revenue", "총매출금액", "ERP매출", "매출금액", "sales", "total_pay"),
+            "revenue": erp_revenue,
+            "erp_revenue": erp_revenue,
+            "total_price": total_price,
+            "cancel_amount": cancel_amount,
             "sessions": _pick_value(row, "sessions", "SESSION", "세션"),
             "signups": _pick_value(row, "signups", "가입자수", "가입자"),
             "buyers": buyers,
             "orders": orders,
-            "aov": _pick_value(row, "aov", "AOV", "객단가"),
+            "aov": (erp_revenue / orders) if orders else 0.0,
             "pv": _pick_value(row, "pv", "PV"),
-            "source": "admin_mssql",
+            "source": "admin_mssql_erp",
             "raw": {str(k): (None if pd.isna(v) else v) for k, v in row.items()},
         }
         return snapshot
@@ -498,6 +506,9 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict 
         orders = float(pd.to_numeric(row.get("orders", 0), errors="coerce") or 0)
         buyers = float(pd.to_numeric(row.get("buyers", 0), errors="coerce") or 0)
         revenue = float(pd.to_numeric(row.get("revenue", 0), errors="coerce") or 0)
+        total_price = float(pd.to_numeric(row.get("total_price", 0), errors="coerce") or 0)
+        cancel_amount = float(pd.to_numeric(row.get("cancel_amount", 0), errors="coerce") or 0)
+        erp_revenue = (total_price - cancel_amount) if total_price > 0 else revenue
         return {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
@@ -506,9 +517,12 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict 
             "signups": float(pd.to_numeric(row.get("signups", 0), errors="coerce") or 0),
             "orders": orders,
             "buyers": buyers if buyers > 0 else orders,
-            "revenue": revenue,
-            "aov": (revenue / orders) if orders else 0.0,
-            "source": "admin_bq_daily",
+            "revenue": erp_revenue,
+            "erp_revenue": erp_revenue,
+            "total_price": total_price,
+            "cancel_amount": cancel_amount,
+            "aov": (erp_revenue / orders) if orders else 0.0,
+            "source": "admin_bq_daily_erp",
             "raw": {str(k): (None if pd.isna(v) else v) for k, v in row.items()},
         }
     except Exception:
@@ -627,56 +641,12 @@ def avg_age(df: pd.DataFrame):
     s = pd.to_numeric(df.get("age_norm", pd.Series(dtype=float)), errors="coerce").dropna()
     return round(float(s.mean()),1) if not s.empty else 0
 
-def calc_product_revenue_df(df: pd.DataFrame) -> pd.DataFrame:
+
+def unique_person_count(df: pd.DataFrame) -> int:
     if df.empty:
-        out = df.copy()
-        out["product_revenue_calc"] = []
-        return out
-    out = df.copy()
-    if "item_revenue_norm" not in out.columns:
-        out["item_revenue_norm"] = 0.0
-    if "item_price_norm" not in out.columns:
-        out["item_price_norm"] = 0.0
-    if "item_quantity_norm" not in out.columns:
-        out["item_quantity_norm"] = 0.0
-    if "metric_revenue_norm" not in out.columns:
-        out["metric_revenue_norm"] = 0.0
-    if "revenue_norm" not in out.columns:
-        out["revenue_norm"] = 0.0
-    if "top_product_revenue" in out.columns:
-        out["top_product_revenue_norm"] = to_num(out["top_product_revenue"])
-    else:
-        out["top_product_revenue_norm"] = 0.0
-
-    qty = out["item_quantity_norm"].where(out["item_quantity_norm"] > 0, 1.0)
-    fallback_item_rev = (out["item_price_norm"] * qty).where(out["item_price_norm"] > 0, 0.0)
-    product_rev = out["item_revenue_norm"].where(out["item_revenue_norm"] > 0, fallback_item_rev)
-
-    has_item_level = bool(((out["item_revenue_norm"] > 0) | (out["item_price_norm"] > 0) | (out["item_quantity_norm"] > 0)).any())
-    if not has_item_level:
-        product_rev = out["top_product_revenue_norm"].where(out["top_product_revenue_norm"] > 0, out["metric_revenue_norm"])
-        product_rev = product_rev.where(product_rev > 0, out["revenue_norm"])
-
-    out["product_revenue_calc"] = pd.to_numeric(product_rev, errors="coerce").fillna(0)
-    return out
-
-def summarize_product_age(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return pd.DataFrame(columns=["purchase_product_name_norm", "product_avg_age"])
-    base = df.copy()
-    base = base[base["purchase_product_name_norm"] != ""].copy()
-    if base.empty:
-        return pd.DataFrame(columns=["purchase_product_name_norm", "product_avg_age"])
-    buyer_key = base["member_id_norm"].where(base["member_id_norm"] != "", base["user_id_norm"]).astype(str)
-    base["buyer_key_norm"] = buyer_key
-    base = base[base["buyer_key_norm"] != ""].copy()
-    if base.empty:
-        return pd.DataFrame(columns=["purchase_product_name_norm", "product_avg_age"])
-    dedup = base.sort_values([c for c in ["event_date_norm", "orders_norm", "metric_revenue_norm"] if c in base.columns], ascending=False).drop_duplicates(["purchase_product_name_norm", "buyer_key_norm"], keep="first")
-    ages = pd.to_numeric(dedup.get("age_norm", pd.Series(dtype=float)), errors="coerce")
-    dedup = dedup.assign(_age_num=ages)
-    agg = dedup.groupby("purchase_product_name_norm", dropna=False).agg(product_avg_age=("_age_num", lambda x: round(float(x.dropna().mean()), 1) if not x.dropna().empty else 0.0)).reset_index()
-    return agg
+        return 0
+    key = df.get("member_id_norm", pd.Series(dtype=str)).where(df.get("member_id_norm", pd.Series(dtype=str)) != "", df.get("user_id_norm", pd.Series(dtype=str)))
+    return int(pd.Series(key).replace("", pd.NA).dropna().nunique())
 
 
 def channel_names(df: pd.DataFrame):
@@ -691,7 +661,7 @@ def non_buyer_df(user_df: pd.DataFrame):
 
 
 def buyer_df(user_df: pd.DataFrame):
-    return user_df[(user_df["purchase_norm"] > 0) | (user_df["orders_norm"] > 0) | (user_df["revenue_norm"] > 0)].copy()
+    return user_df[(user_df["orders_norm"] > 0) | (user_df["revenue_norm"] > 0)].copy()
 
 
 def dedupe_user_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -752,22 +722,32 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             sdf_raw = source if ch == "ALL" else source[source["channel_group_norm"] == ch].copy()
             product_base_raw = (product_source_override if product_source_override is not None else sdf_raw)
             product_base_raw = product_base_raw if ch == "ALL" else product_base_raw[product_base_raw["channel_group_norm"] == ch].copy()
-            product_revenue_base = calc_product_revenue_df(product_base_raw if mode in {"buyer", "product", "total"} else sdf_raw)
-            revenue_base = product_revenue_base if mode in {"buyer", "product", "total"} else sdf
-            if mode in {"buyer", "product", "total"}:
-                revenue = float(revenue_base.get("product_revenue_calc", pd.Series(dtype=float)).sum())
-                if revenue <= 0:
-                    revenue = float(revenue_base["metric_revenue_norm"].sum()) if "metric_revenue_norm" in revenue_base.columns else float(revenue_base["revenue_norm"].sum()) if "revenue_norm" in revenue_base.columns else 0.0
+            revenue_base = sdf_raw if mode in {"buyer", "product", "total"} else sdf
+            if "revenue_norm" in revenue_base.columns and float(revenue_base["revenue_norm"].sum()) > 0:
+                revenue = float(revenue_base["revenue_norm"].sum())
+            elif "metric_revenue_norm" in revenue_base.columns:
+                revenue = float(revenue_base["metric_revenue_norm"].sum())
             else:
-                revenue = float(revenue_base["metric_revenue_norm"].sum()) if "metric_revenue_norm" in revenue_base.columns else float(revenue_base["revenue_norm"].sum()) if "revenue_norm" in revenue_base.columns else 0.0
+                revenue = 0.0
             orders = float(revenue_base["orders_norm"].sum()) if "orders_norm" in revenue_base.columns else 0.0
 
             products = pd.DataFrame()
             if not product_base_raw.empty:
-                pb = calc_product_revenue_df(product_base_raw[product_base_raw["purchase_product_name_norm"] != ""].copy())
+                pb = product_base_raw[product_base_raw["purchase_product_name_norm"] != ""].copy()
                 if not pb.empty:
+                    if "item_revenue_norm" not in pb.columns:
+                        pb["item_revenue_norm"] = 0.0
+                    if "item_price_norm" not in pb.columns:
+                        pb["item_price_norm"] = 0.0
+                    if "item_quantity_norm" not in pb.columns:
+                        pb["item_quantity_norm"] = 0.0
                     if "order_id_norm" not in pb.columns:
                         pb["order_id_norm"] = ""
+                    qty = pb["item_quantity_norm"].where(pb["item_quantity_norm"] > 0, 1.0)
+                    fallback_item_rev = (pb["item_price_norm"] * qty).where(pb["item_price_norm"] > 0, 0.0)
+                    pb["product_revenue_calc"] = pb["item_revenue_norm"].where(pb["item_revenue_norm"] > 0, fallback_item_rev)
+                    if float(pb["product_revenue_calc"].sum()) <= 0:
+                        pb["product_revenue_calc"] = pb["metric_revenue_norm"]
                     buyer_key = pb["member_id_norm"].where(pb["member_id_norm"] != "", pb["user_id_norm"])
                     pb["buyer_key_norm"] = buyer_key.astype(str)
                     pb["order_key_norm"] = pb["order_id_norm"].astype(str).str.strip()
@@ -783,22 +763,19 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                         products = products.merge(order_counts, on=["purchase_product_name_norm", "top_category_norm", "product_code_norm"], how="left")
                     else:
                         products["orders"] = grouped["orders_norm"].sum().values
-                    age_summary = summarize_product_age(pb)
-                    if not age_summary.empty:
-                        products = products.merge(age_summary, on="purchase_product_name_norm", how="left")
                     products = products.sort_values(["revenue", "buyers", "orders"], ascending=[False, False, False])
-            prod_cards = [{"product": clean_label(r.get("purchase_product_name_norm"), "미분류"), "category": clean_label(r.get("top_category_norm"), "미분류"), "buyers": int(r.get("buyers",0)), "orders": int(round(float(r.get("orders",0) or 0))), "revenue": float(r.get("revenue",0)), "image": normalize_image_url(r.get("image","") or ""), "avg_age": float(r.get("product_avg_age",0) or 0)} for _,r in products.head(8).iterrows()]
+            prod_cards = [{"product": clean_label(r.get("purchase_product_name_norm"), "미분류"), "category": clean_label(r.get("top_category_norm"), "미분류"), "buyers": int(r.get("buyers",0)), "orders": int(round(float(r.get("orders",0) or 0))), "revenue": float(r.get("revenue",0)), "image": normalize_image_url(r.get("image","") or "")} for _,r in products.head(8).iterrows()]
             if mode == "non_buyer":
                 rows = rows_from_df(sdf, {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","sessions_norm":"sessions","pageviews_norm":"pageviews","consent_norm":"consent"})
                 summary = {"members": int(sdf["member_id_norm"].replace("", pd.NA).nunique()), "sessions": int(sdf["sessions_norm"].sum()), "avg_age": avg_age(sdf), "top_channel": top_label(sdf, "channel_group_norm")}
                 extra = {"channel_dist": distribution(sdf, "channel_group_norm", 6)}
             elif mode == "buyer":
-                rows = rows_from_df(sdf.sort_values(["metric_revenue_norm","orders_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"purchase_product_name","orders_norm":"orders","metric_revenue_norm":"revenue","consent_norm":"consent"})
-                summary = {"buyers": int(max(sdf["member_id_norm"].replace("", pd.NA).nunique(), sdf["user_id_norm"].replace("", pd.NA).nunique())), "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm")}
+                rows = rows_from_df(sdf.sort_values(["revenue_norm","orders_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"purchase_product_name","age_norm":"age","orders_norm":"cum_orders","revenue_norm":"cum_revenue","consent_norm":"consent"})
+                summary = {"buyers": unique_person_count(sdf), "revenue": revenue, "orders": int(round(float(orders or 0))), "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm")}
                 extra = {"products": prod_cards}
             elif mode == "total":
-                rows = rows_from_df(sdf.sort_values(["metric_revenue_norm","orders_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"purchase_product_name","orders_norm":"orders","metric_revenue_norm":"revenue","consent_norm":"consent"})
-                summary = {"members": int(sdf["member_id_norm"].replace("", pd.NA).nunique()), "buyers": int(buyer_df(sdf)["member_id_norm"].replace("", pd.NA).nunique()), "revenue": revenue, "aov": revenue/orders if orders else 0.0, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm")}
+                rows = rows_from_df(sdf.sort_values(["revenue_norm","orders_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"purchase_product_name","age_norm":"age","orders_norm":"cum_orders","revenue_norm":"cum_revenue","consent_norm":"consent"})
+                summary = {"members": int(sdf["member_id_norm"].replace("", pd.NA).nunique()), "buyers": unique_person_count(buyer_df(sdf)), "revenue": revenue, "orders": int(round(float(orders or 0))), "aov": revenue/orders if orders else 0.0, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm")}
                 extra = {"category_dist": distribution(buyer_df(sdf), "top_category_norm", 8), "products": prod_cards}
             else:
                 rows = [{
@@ -810,9 +787,9 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                     "orders": int(round(float(r.get("orders", 0) or 0))),
                     "revenue": float(r.get("revenue", 0)),
                     "image": normalize_image_url(r.get("image", "") or ""),
-                    "avg_age": float(r.get("product_avg_age", 0) or 0),
+                    "top_age": clean_label(r.get("top_age"), "미확인"),
                 } for _, r in products.head(100).iterrows()]
-                summary = {"buyers": int(max(sdf["member_id_norm"].replace("", pd.NA).nunique(), sdf["user_id_norm"].replace("", pd.NA).nunique())), "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), "top_category": top_label(sdf, "top_category_norm")}
+                summary = {"buyers": int(max(sdf["member_id_norm"].replace("", pd.NA).nunique(), sdf["user_id_norm"].replace("", pd.NA).nunique())), "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm")}
                 extra = {"category_dist": distribution(sdf, "top_category_norm", 8), "products": prod_cards}
             out[ch] = {"summary": summary, "age_dist": distribution(sdf, "age_band_norm", 6), "gender_dist": distribution(sdf, "gender_norm", 3), "rows": rows, **extra}
         return {"channels": channel_names(source), "panels": out}
@@ -828,53 +805,28 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             f"주요 채널은 {top_label(latest, 'channel_group_norm')}, 매출 기여 상위 상품은 {top_label(latest[latest['metric_revenue_norm']>0], 'purchase_product_name_norm')}입니다.",
         ],
         "overview": {"sessions": int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(max(buy['member_id_norm'].replace('', pd.NA).nunique(), buy['user_id_norm'].replace('', pd.NA).nunique())), "members": int(user['member_id_norm'].replace('', pd.NA).nunique()), "non_buyers": int(nb['member_id_norm'].replace('', pd.NA).nunique()), "metric_source": "ga4_crm_mart"},
-        "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": (lambda: {
-            "cards": [
-                {
-                    "key": k,
-                    "label": SEGMENT_LABELS[k],
-                    "count": int(seg_df["member_id_norm"].replace("", pd.NA).nunique()),
-                    "top_channel": top_label(seg_df, "channel_group_norm"),
-                    "top_product": top_label(seg_df, "purchase_product_name_norm"),
-                    "top_message": top_label(seg_df, "recommended_message_norm", "GENERAL"),
-                    "download_key": k,
-                }
-                for k in SEGMENT_ORDER
-                for seg_df in [user[(user[f"is_{k}_norm"] == 1) & (user["consent_norm"] == 1)].copy()]
-                if f"is_{k}_norm" in user.columns and not seg_df.empty
-            ],
-            "rows": rows_from_df(
-                user[(user[[c for c in user.columns if c.startswith("is_") and c.endswith("_norm")]].sum(axis=1) > 0) & (user["consent_norm"] == 1)],
-                {"member_id_norm":"member_id","phone_norm":"phone","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product","recommended_message_norm":"recommended_message","consent_norm":"consent"}
-            ),
-            "rows_by_segment": {
-                k: rows_from_df(
-                    user[(user[f"is_{k}_norm"] == 1) & (user["consent_norm"] == 1)].copy(),
-                    {"member_id_norm":"member_id","phone_norm":"phone","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product","recommended_message_norm":"recommended_message","consent_norm":"consent"}
-                )
-                for k in SEGMENT_ORDER
-                if f"is_{k}_norm" in user.columns and not user[(user[f"is_{k}_norm"] == 1) & (user["consent_norm"] == 1)].empty
-            },
-            "active_segment": next((k for k in SEGMENT_ORDER if f"is_{k}_norm" in user.columns and not user[(user[f"is_{k}_norm"] == 1) & (user["consent_norm"] == 1)].empty), "all"),
-        })()},
+        "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": {"cards": [{"label": SEGMENT_LABELS[k], "count": int(user[user[f'is_{k}_norm'] == 1]['member_id_norm'].replace('', pd.NA).nunique()), "top_channel": top_label(user[user[f'is_{k}_norm'] == 1], 'channel_group_norm'), "top_product": top_label(user[user[f'is_{k}_norm'] == 1], 'purchase_product_name_norm'), "top_message": top_label(user[user[f'is_{k}_norm'] == 1], 'recommended_message_norm', 'GENERAL')} for k in SEGMENT_ORDER if f'is_{k}_norm' in user.columns and not user[user[f'is_{k}_norm'] == 1].empty], "rows": rows_from_df(user[(user[[c for c in user.columns if c.startswith('is_') and c.endswith('_norm')]].sum(axis=1) > 0)], {"member_id_norm":"member_id","phone_norm":"phone","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product","recommended_message_norm":"recommended_message","consent_norm":"consent"})}},
         "total_view": {"member_overview": channel_panels(members, 'total'), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"YTD {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
     }
     if admin_daily:
         _login_users = int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique())
         if _login_users <= 0:
             _login_users = int(df["sessions_norm"].sum())
+        _member_orders = int(round(float(buy["orders_norm"].sum()))) if "orders_norm" in buy.columns else 0
+        _member_revenue = float(buy["metric_revenue_norm"].sum()) if "metric_revenue_norm" in buy.columns else float(buy["revenue_norm"].sum()) if "revenue_norm" in buy.columns else 0.0
+        _member_buyers = int(max(buy["member_id_norm"].replace("", pd.NA).nunique(), buy["user_id_norm"].replace("", pd.NA).nunique()))
         bundle["overview"].update({
             "sessions": _login_users,
-            "orders": int(round(float(admin_daily.get("orders", 0) or 0))),
-            "revenue": float(admin_daily.get("revenue", 0) or 0),
+            "orders": _member_orders,
+            "revenue": _member_revenue,
             "signups": int(round(float(admin_daily.get("signups", 0) or 0))),
-            "buyers": int(max(buy["member_id_norm"].replace("", pd.NA).nunique(), buy["user_id_norm"].replace("", pd.NA).nunique())),
-            "metric_source": str(admin_daily.get("source", "admin_bq_daily")),
+            "buyers": _member_buyers,
+            "metric_source": "member_funnel_member_only",
         })
         bundle["latest_summary"] = [
             f"최근 선택 가능 일자 기준 최신 데이터는 {fmt_date(end_date)}입니다.",
-            f"선택 기간 로그인 유저 {fmt_int(bundle['overview'].get('sessions', 0))} / 가입 {fmt_int(admin_daily.get('signups', 0))} / 주문 {fmt_int(admin_daily.get('orders', 0))} / 매출 {fmt_money(admin_daily.get('revenue', 0))} 입니다.",
-            "상단 KPI는 운영 집계(BigQuery Admin Daily 우선, 필요 시 MSSQL fallback) 기준입니다.",
+            f"선택 기간 로그인 유저 {fmt_int(bundle['overview'].get('sessions', 0))} / 가입 {fmt_int(admin_daily.get('signups', 0))} / 주문 {fmt_int(_member_orders)} / 매출 {fmt_money(_member_revenue)} 입니다.",
+            "상단 KPI의 구매/주문/매출은 회원 기준 member_funnel_master, 가입은 운영 집계(BigQuery Admin Daily 우선) 기준입니다.",
         ]
     else:
         if period_key == "1d":
@@ -949,19 +901,7 @@ def export_excel_files(bundle: dict, period_key: str):
             p = DOWNLOAD_DIR / f'member_funnel_{period_key}_target_segments.xlsx'
             tgt[[c for c in ['member_id','phone','channel_group','campaign','preferred_product','recommended_message'] if c in tgt.columns]].to_excel(p, index=False)
             links['target'] = os.path.relpath(p, OUT_DIR).replace('\\','/')
-    segment_links = {}
-    for seg_key, seg_rows in (bundle.get('user_view', {}).get('target', {}).get('rows_by_segment', {}) or {}).items():
-        seg_df = pd.DataFrame(seg_rows)
-        if seg_df.empty or 'consent' not in seg_df.columns:
-            continue
-        seg_df = seg_df[seg_df['consent'].astype(int) == 1]
-        if seg_df.empty:
-            continue
-        p = DOWNLOAD_DIR / f'member_funnel_{period_key}_target_{seg_key}.xlsx'
-        seg_df[[c for c in ['member_id','phone','channel_group','campaign','preferred_product','recommended_message'] if c in seg_df.columns]].to_excel(p, index=False)
-        segment_links[seg_key] = os.path.relpath(p, OUT_DIR).replace('\\','/')
     bundle['downloads'] = links
-    bundle['downloads_by_segment'] = segment_links
 
 
 def render_page(bundle: dict, preset: dict) -> str:
@@ -1025,23 +965,22 @@ function esc2(s){return String(s ?? '').replace(/[&<>"']/g, m=>({'&':'&amp;','<'
 function bar(items){ if(!items||!items.length) return '<div class="kpi-sub">데이터가 없습니다.</div>'; const max=Math.max(...items.map(x=>Number(x.count||0)),1); return items.map(x=>`<div class="chart-row"><div class="chart-label">${esc2(x.label)}</div><div class="chart-track"><span class="chart-fill" style="width:${Math.max(4,(Number(x.count||0)/max)*100)}%"></span></div><div class="chart-metric">${num(x.count||0)}</div></div>`).join(''); }
 function donut(items){ if(!items||!items.length) return '<div class="kpi-sub">데이터가 없습니다.</div>'; const total=items.reduce((a,b)=>a+Number(b.count||0),0)||1; const a=Number(items[0]?.count||0), angle=(a/total)*360; return `<div class="donut-wrap"><div class="donut" style="background:conic-gradient(#2563eb 0deg ${angle}deg,#93c5fd ${angle}deg 360deg)"></div><div>${items.slice(0,2).map((x,i)=>`<div class="legend-item"><div><span class="legend-dot ${i===1?'alt':''}"></span>${esc2(x.label)}</div><div>${pct((Number(x.count||0)/total)*100)}</div></div>`).join('')}</div></div>`; }
 function groupSlug(s){return String(s||'group').toLowerCase().replace(/[^a-z0-9]+/g,'-')}
-function focusCards(items, wide=false){ if(!items||!items.length) return '<div class="kpi-sub">데이터가 없습니다.</div>'; return items.slice(0,4).map(x=>{ const img=x.image_url||x.image||''; const name=x.product_name||x.product||'미분류'; const avgAge=Number(x.avg_age||0); return `<div class="card"><div class="product-card"><div class="thumb ${img?'':'thumb-empty'}">${img?`<img class="thumb" src="${esc2(img)}" alt="">`:'NO IMG'}</div><div><div class="mini-title">${esc2(name)}</div><div class="stack-meta">${esc2(x.category||'미분류')} · Buyers ${num(x.buyers||0)} · Revenue ${money(x.revenue||0)}</div><div class="stack-meta">평균 연령 ${avgAge>0 ? avgAge.toFixed(1) : '-'}</div></div></div></div>` }).join(''); }
-function table(rows, cols, numCols=[], id=''){ if(!rows||!rows.length) return '<div class="kpi-sub">데이터가 없습니다.</div>'; const visible=12; const head=cols.map(([k,l])=>`<th class="${numCols.includes(k)?'num':''}">${esc2(l)}</th>`).join(''); const fmtCell=(k,v)=>{ if(!numCols.includes(k)) return esc2(v??''); if(k==='revenue') return money(v); if(k==='avg_age') { const n=Number(v||0); return n>0 ? n.toFixed(1) : '-'; } return num(v); }; const body=rows.map((r,i)=>`<tr class="${i>=visible?'extra-row is-hidden':''}">${cols.map(([k])=>`<td class="${numCols.includes(k)?'num':''}">${fmtCell(k,r[k])}</td>`).join('')}</tr>`).join(''); const tools=rows.length>visible?`<div class="table-tools"><div>Rows ${num(rows.length)}</div><button class="table-expand-btn" data-expand="${id}">전체보기</button></div>`:`<div class="table-tools"><div>Rows ${num(rows.length)}</div></div>`; return `${tools}<div class="table-wrap" id="${id}"><table class="data-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`; }
+function focusCards(items, wide=false){ if(!items||!items.length) return '<div class="kpi-sub">데이터가 없습니다.</div>'; return items.slice(0,4).map(x=>{ const img=x.image_url||x.image||''; const name=x.product_name||x.product||'미분류'; const topAge=x.top_age||'미확인'; return `<div class="card"><div class="product-card"><div class="thumb ${img?'':'thumb-empty'}">${img?`<img class="thumb" src="${esc2(img)}" alt="">`:'NO IMG'}</div><div><div class="mini-title">${esc2(name)}</div><div class="stack-meta">${esc2(x.category||'미분류')} · Buyers ${num(x.buyers||0)} · Revenue ${money(x.revenue||0)}</div><div class="stack-meta">주구매 연령 ${esc2(topAge)}</div></div></div></div>` }).join(''); }
+function table(rows, cols, numCols=[], id=''){ if(!rows||!rows.length) return '<div class="kpi-sub">데이터가 없습니다.</div>'; const visible=12; const head=cols.map(([k,l])=>`<th class="${numCols.includes(k)?'num':''}">${esc2(l)}</th>`).join(''); const body=rows.map((r,i)=>`<tr class="${i>=visible?'extra-row is-hidden':''}">${cols.map(([k])=>`<td class="${numCols.includes(k)?'num':''}">${numCols.includes(k)?(k==='revenue'?money(r[k]):num(r[k])):esc2(r[k]??'')}</td>`).join('')}</tr>`).join(''); const tools=rows.length>visible?`<div class="table-tools"><div>Rows ${num(rows.length)}</div><button class="table-expand-btn" data-expand="${id}">전체보기</button></div>`:`<div class="table-tools"><div>Rows ${num(rows.length)}</div></div>`; return `${tools}<div class="table-wrap" id="${id}"><table class="data-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`; }
 function subTabs(group, items){ return `<div class="subtabs">${items.map((x,i)=>`<button class="subtab-btn ${i===0?'active':''}" data-group="${group}" data-target="${groupSlug(group)}-${groupSlug(x.key)}">${esc2(x.label)}</button>`).join('')}</div>`; }
 function safePanelSet(section){ const channels=(section?.channels||[]); const panels=section?.panels||{}; return channels.map(ch=>({channel:ch, ...(panels[ch]||{summary:{},age_dist:[],gender_dist:[],rows:[],category_dist:[],channel_dist:[],products:[]})})); }
 function pickAllPanel(section){ return (section?.panels?.ALL) || (safePanelSet(section)[0]) || {summary:{},rows:[],channel_dist:[],category_dist:[],age_dist:[],gender_dist:[],products:[]}; }
 function renderNonBuyer(section){ const panel=pickAllPanel(section); const cards=`<div class="grid-4 nonbuyer-grid"><div class="card"><div class="kicker">Users</div><div class="kpi">${num(panel.summary?.members ?? panel.rows?.length ?? 0)}</div><div class="kpi-sub">구매 이력이 없는 로그인 유저</div></div><div class="card"><div class="kicker">Sessions</div><div class="kpi">${num(panel.summary?.sessions ?? 0)}</div><div class="kpi-sub">해당 세그먼트 총 세션</div></div><div class="card"><div class="kicker">Avg Age</div><div class="kpi">${panel.summary?.avg_age ? Number(panel.summary.avg_age).toFixed(1) : '-'}</div><div class="kpi-sub">평균 연령</div></div><div class="card"><div class="kicker">Top Channel</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(panel.summary?.top_channel || '미분류')}</div><div class="kpi-sub">주요 유입 채널</div></div></div>`; return `<section><div class="section-head"><div><div class="section-title">NON BUYER</div><h2>비구매 유저 진단</h2></div></div>${cards}<div class="grid-2"><div class="card"><div class="section-title">CHANNEL MIX</div>${bar(panel.channel_dist)}</div><div class="card"><div class="section-title">AGE MIX</div>${bar(panel.age_dist)}</div></div><div class="card">${table(panel.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['sessions','Sessions'],['pageviews','PV']],['sessions','pageviews'],'nb-table')}</div></section>`; }
-function renderBuyer(section){ const channels=safePanelSet(section); const tabs=subTabs('buyer', channels.map(x=>({key:x.channel,label:x.channel}))); const panels=channels.map((ch,i)=>{ const orders=ch.rows?.reduce((acc,r)=>acc+Number(r.orders||0),0) || 0; const aov=orders ? (Number(ch.summary?.revenue||0)/orders) : 0; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="buyer" data-panel-id="buyer-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? ch.rows?.length ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">Orders</div><div class="kpi">${num(orders)}</div></div><div class="card"><div class="kicker">Avg Age</div><div class="kpi">${ch.summary?.avg_age ? Number(ch.summary.avg_age).toFixed(1) : '-'}</div></div></div><div class="buyer-insight-grid"><div class="card span-2"><div class="section-title">AGE MIX</div>${bar(ch.age_dist)}</div><div class="card"><div class="section-title">GENDER MIX</div>${donut(ch.gender_dist)}</div><div class="card"><div class="section-title">AOV</div><div class="kpi">${money(aov)}</div><div class="kpi-sub">주문 기준 객단가</div></div><div class="card span-4"><div class="section-title">TOP PRODUCTS</div><div class="product-wide-grid">${focusCards(ch.products,true)}</div></div></div><div class="card">${table(ch.rows,[['member_id','Member ID'],['user_id','USER_ID'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['orders','Orders'],['revenue','Revenue']],['orders','revenue'],`buyer-${groupSlug(ch.channel)}`)}</div></div>` }).join(''); return `<section><div class="section-head"><div><div class="section-title">BUYER</div><h2>채널별 구매 유저</h2></div>${tabs}</div>${panels}</section>`; }
-function renderProduct(section){ const channels=safePanelSet(section); const tabs=subTabs('product', channels.map(x=>({key:x.channel,label:x.channel}))); const panels=channels.map((ch,i)=>{ const topCat=ch.summary?.top_category || (ch.category_dist||[])[0]?.label || '미분류'; const rows=(ch.rows||[]).map(r=>({channel_group:ch.channel, product_name:r.product||'', category:r.category||'', product_code:r.product_code||'', avg_age:r.avg_age||0, buyers:r.buyers||0, orders:r.orders||0, revenue:r.revenue||0})); return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="product" data-panel-id="product-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">Top Category</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(topCat)}</div></div><div class="card"><div class="kicker">Avg Age</div><div class="kpi">${ch.summary?.avg_age ? Number(ch.summary.avg_age).toFixed(1) : '-'}</div></div></div><div class="card"><div class="section-title">TOP PRODUCTS</div><div class="product-wide-grid">${focusCards(ch.products,true)}</div></div><div class="card">${table(rows,[['product_name','Product'],['category','Category'],['product_code','Product Code'],['avg_age','Avg Age'],['buyers','Buyers'],['orders','Orders'],['revenue','Revenue']],['avg_age','buyers','orders','revenue'],`product-${groupSlug(ch.channel)}`)}</div></div>` }).join(''); return `<section><div class="section-head"><div><div class="section-title">PRODUCT</div><h2>구매 상품 집중 분석</h2></div>${tabs}</div>${panels}</section>`; }
-function renderTarget(section){ const cards=(section?.cards||[]).map((seg,i)=>`<button type="button" class="card target-card ${i===0?'active':''}" data-target-segment="${esc2(seg.key||'all')}" style="text-align:left;cursor:pointer"><div class="kicker">${esc2(seg.label)}</div><div class="kpi">${num(seg.count)}</div><div class="kpi-sub">Top Channel ${esc2(seg.top_channel||'미분류')}</div><div class="kpi-sub" style="margin-top:8px">Top Msg ${esc2(seg.top_message||'GENERAL')}</div></button>`).join(''); const firstKey=section?.active_segment || section?.cards?.[0]?.key || 'all'; const segDownloads=(window.TARGET_DOWNLOADS||{}); const dl=firstKey && segDownloads[firstKey] ? `<a class="download-btn" id="target-segment-download" href="${esc2(segDownloads[firstKey])}">선택 세그먼트 Excel</a>` : `<span id="target-segment-download"></span>`; const rows=(section?.rows_by_segment?.[firstKey]) || section?.rows || []; return `<section><div class="section-head"><div><div class="section-title">TARGET</div><h2>CRM 액션 대상 세그먼트</h2></div><div class="download-row">${dl}</div></div><div class="grid-4">${cards || '<div class="kpi-sub">데이터가 없습니다.</div>'}</div><div class="card" id="target-table-wrap">${table(rows,[['member_id','Member ID'],['phone','Phone'],['channel_group','Channel'],['campaign','Campaign'],['preferred_product','관심 상품'],['recommended_message','메시지']],[],'target-table')}</div></section>`; }
-function renderTotal(section){ const channels=safePanelSet(section); const tabs=subTabs('total', channels.map(x=>({key:x.channel,label:x.channel}))); const periodStart=section?.date_range?.start||''; const periodEnd=section?.date_range?.end||''; const periodText=(periodStart&&periodEnd)?`데이터 기간 · ${periodStart} ~ ${periodEnd} (YTD 누적)`:'YTD 누적'; const panels=channels.map((ch,i)=>`<div class="channel-panel ${i===0?'active':''}" data-panel-group="total" data-panel-id="total-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Members</div><div class="kpi">${num(ch.summary?.members ?? 0)}</div></div><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(ch.summary?.top_product || '미분류')}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">AGE 비율</div>${bar(ch.age_dist)}</div><div class="card"><div class="section-title">GENDER 비율</div>${donut(ch.gender_dist)}</div><div class="card"><div class="section-title">CATEGORY 비율</div>${bar(ch.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(ch.products)}</div></div></div><div class="card">${table(ch.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['orders','Orders'],['revenue','Revenue']],['orders','revenue'],`tot-${groupSlug(ch.channel)}`)}</div></div>`).join(''); return `<section><div class="section-head"><div><div class="section-title">TOTAL MEMBER</div><h2>기존 회원 전체 분석</h2><div class="kpi-sub" style="margin-top:10px">${esc2(periodText)}</div></div>${tabs}</div>${panels}</section>`; }
+function renderBuyer(section){ const channels=safePanelSet(section); const tabs=subTabs('buyer', channels.map(x=>({key:x.channel,label:x.channel}))); const panels=channels.map((ch,i)=>{ const orders=Number(ch.summary?.orders ?? (ch.rows?.reduce((acc,r)=>acc+Number(r.cum_orders||0),0) || 0)); const aov=orders ? (Number(ch.summary?.revenue||0)/orders) : 0; return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="buyer" data-panel-id="buyer-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? ch.rows?.length ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">Orders</div><div class="kpi">${num(orders)}</div></div><div class="card"><div class="kicker">Avg Age</div><div class="kpi">${num(ch.summary?.avg_age ?? 0)}</div></div></div><div class="buyer-insight-grid"><div class="card span-2"><div class="section-title">AGE MIX</div>${bar(ch.age_dist)}</div><div class="card"><div class="section-title">GENDER MIX</div>${donut(ch.gender_dist)}</div><div class="card"><div class="section-title">AOV</div><div class="kpi">${money(aov)}</div><div class="kpi-sub">주문 기준 객단가</div></div><div class="card span-4"><div class="section-title">TOP PRODUCTS</div><div class="product-wide-grid">${focusCards(ch.products,true)}</div></div></div><div class="card">${table(ch.rows,[['member_id','Member ID'],['user_id','USER_ID'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['age','나이'],['cum_orders','누적구매 수'],['cum_revenue','누적구매 금액']],['age','cum_orders','cum_revenue'],`buyer-${groupSlug(ch.channel)}`)}</div></div>` }).join(''); return `<section><div class="section-head"><div><div class="section-title">BUYER</div><h2>채널별 구매 유저</h2></div>${tabs}</div>${panels}</section>`; }
+function renderProduct(section){ const channels=safePanelSet(section); const tabs=subTabs('product', channels.map(x=>({key:x.channel,label:x.channel}))); const panels=channels.map((ch,i)=>{ const topCat=(ch.category_dist||[])[0]?.label || '미분류'; const topProduct=ch.summary?.top_product || (ch.products||[])[0]?.product || '미분류'; const rows=(ch.rows||[]).map(r=>({channel_group:ch.channel, product_name:r.product||'', category:r.category||'', product_code:r.product_code||'', top_age:r.top_age||'미확인', buyers:r.buyers||0, orders:r.orders||0, revenue:r.revenue||0})); return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="product" data-panel-id="product-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">Top Category</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(topCat)}</div></div><div class="card"><div class="kicker">Top Product</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(topProduct)}</div></div></div><div class="card"><div class="section-title">TOP PRODUCTS</div><div class="product-wide-grid">${focusCards(ch.products,true)}</div></div><div class="card">${table(rows,[['product_name','Product'],['category','Category'],['product_code','Product Code'],['top_age','Top Age'],['buyers','Buyers'],['orders','Orders'],['revenue','Revenue']],['buyers','orders','revenue'],`product-${groupSlug(ch.channel)}`)}</div></div>` }).join(''); return `<section><div class="section-head"><div><div class="section-title">PRODUCT</div><h2>구매 상품 집중 분석</h2></div>${tabs}</div>${panels}</section>`; }
+function renderTarget(section){ const cards=(section?.cards||[]).map(seg=>`<div class="card"><div class="kicker">${esc2(seg.label)}</div><div class="kpi">${num(seg.count)}</div><div class="kpi-sub">Top Channel ${esc2(seg.top_channel||'미분류')}</div><div class="kpi-sub" style="margin-top:8px">Top Msg ${esc2(seg.top_message||'GENERAL')}</div></div>`).join(''); return `<section><div class="section-head"><div><div class="section-title">TARGET</div><h2>CRM 액션 대상 세그먼트</h2></div></div><div class="grid-4">${cards || '<div class="kpi-sub">데이터가 없습니다.</div>'}</div><div class="card">${table(section?.rows||[],[['member_id','Member ID'],['phone','Phone'],['channel_group','Channel'],['campaign','Campaign'],['preferred_product','관심 상품'],['recommended_message','메시지']],[],'target-table')}</div></section>`; }
+function renderTotal(section){ const channels=safePanelSet(section); const tabs=subTabs('total', channels.map(x=>({key:x.channel,label:x.channel}))); const periodStart=section?.date_range?.start||''; const periodEnd=section?.date_range?.end||''; const periodText=(periodStart&&periodEnd)?`데이터 기간 · ${periodStart} ~ ${periodEnd} (YTD 누적)`:'YTD 누적'; const panels=channels.map((ch,i)=>`<div class="channel-panel ${i===0?'active':''}" data-panel-group="total" data-panel-id="total-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Members</div><div class="kpi">${num(ch.summary?.members ?? 0)}</div></div><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">대표 구매 상품명</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(ch.summary?.top_product || '미분류')}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">AGE 비율</div>${bar(ch.age_dist)}</div><div class="card"><div class="section-title">GENDER 비율</div>${donut(ch.gender_dist)}</div><div class="card"><div class="section-title">CATEGORY 비율</div>${bar(ch.category_dist)}</div><div class="card"><div class="section-title">구매 상품명 Focus</div><div class="grid-2">${focusCards(ch.products)}</div></div></div><div class="card">${table(ch.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['purchase_product_name','구매 상품명'],['age','나이'],['cum_orders','누적구매 수'],['cum_revenue','누적구매 금액']],['age','cum_orders','cum_revenue'],`tot-${groupSlug(ch.channel)}`)}</div></div>`).join(''); return `<section><div class="section-head"><div><div class="section-title">TOTAL MEMBER</div><h2>기존 회원 전체 분석</h2><div class="kpi-sub" style="margin-top:10px">${esc2(periodText)}</div></div>${tabs}</div>${panels}</section>`; }
 function bindUi(){
   document.querySelectorAll('[data-main-target]').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('[data-main-target]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); document.getElementById(btn.dataset.mainTarget).classList.add('active'); }));
-  document.addEventListener('click', (e)=>{ const sub=e.target.closest('.subtab-btn'); if(sub){ const g=sub.dataset.group, t=sub.dataset.target; document.querySelectorAll(`.subtab-btn[data-group="${g}"]`).forEach(b=>b.classList.toggle('active', b===sub)); document.querySelectorAll(`.channel-panel[data-panel-group="${g}"]`).forEach(p=>{ const on=p.dataset.panelId===t; p.hidden=!on; p.classList.toggle('active', on); }); } const ex=e.target.closest('[data-expand]'); if(ex){ const table=document.getElementById(ex.dataset.expand); if(table){ table.querySelectorAll('.extra-row').forEach(r=>r.classList.toggle('is-hidden')); ex.textContent = ex.textContent==='전체보기' ? '접기' : '전체보기'; } } const seg=e.target.closest('[data-target-segment]'); if(seg && BUNDLE?.user_view?.target){ document.querySelectorAll('[data-target-segment]').forEach(x=>x.classList.toggle('active', x===seg)); const key=seg.dataset.targetSegment||'all'; const rows=(BUNDLE.user_view.target.rows_by_segment||{})[key] || BUNDLE.user_view.target.rows || []; const wrap=document.getElementById('target-table-wrap'); if(wrap){ wrap.innerHTML = table(rows,[['member_id','Member ID'],['phone','Phone'],['channel_group','Channel'],['campaign','Campaign'],['preferred_product','관심 상품'],['recommended_message','메시지']],[],'target-table'); } const dl=document.getElementById('target-segment-download'); if(dl && window.TARGET_DOWNLOADS){ const href=window.TARGET_DOWNLOADS[key]||''; if(href){ dl.setAttribute('href', href); dl.textContent='선택 세그먼트 Excel'; } else { dl.removeAttribute('href'); dl.textContent=''; } } } });
+  document.addEventListener('click', (e)=>{ const sub=e.target.closest('.subtab-btn'); if(sub){ const g=sub.dataset.group, t=sub.dataset.target; document.querySelectorAll(`.subtab-btn[data-group="${g}"]`).forEach(b=>b.classList.toggle('active', b===sub)); document.querySelectorAll(`.channel-panel[data-panel-group="${g}"]`).forEach(p=>{ const on=p.dataset.panelId===t; p.hidden=!on; p.classList.toggle('active', on); }); } const ex=e.target.closest('[data-expand]'); if(ex){ const table=document.getElementById(ex.dataset.expand); if(table){ table.querySelectorAll('.extra-row').forEach(r=>r.classList.toggle('is-hidden')); ex.textContent = ex.textContent==='전체보기' ? '접기' : '전체보기'; } } });
 }
 function init(bundle){
   BUNDLE = bundle;
-  window.TARGET_DOWNLOADS = bundle.downloads_by_segment || {};
   document.getElementById('user-sections').innerHTML = renderNonBuyer(BUNDLE.user_view.non_buyer) + renderBuyer(BUNDLE.user_view.buyer) + renderProduct(BUNDLE.user_view.product) + renderTarget(BUNDLE.user_view.target);
   document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview);
 }
@@ -1092,7 +1031,7 @@ async function tryFetchBundle(paths){
         .replace('__NON_BUYERS__', fmt_int(bundle['overview'].get('non_buyers', 0)))
         .replace('__LATEST_SUMMARY__', latest_summary)
         .replace('__DOWNLOADS__', download_html)
-        .replace('__METRIC_SOURCE__', 'BigQuery Admin Daily' if metric_source == 'admin_bq_daily' else ('MSSQL Admin Daily' if metric_source == 'admin_mssql' else ('ADMIN LOAD FAILED' if metric_source in {'admin_mssql_failed','admin_load_failed'} else 'GA4 + CRM Mart')))
+        .replace('__METRIC_SOURCE__', 'BigQuery Admin Daily · ERP Revenue' if metric_source == 'admin_erp_revenue' else ('BigQuery Admin Daily' if metric_source == 'admin_bq_daily_erp' else ('MSSQL Admin Daily' if metric_source in {'admin_mssql','admin_mssql_erp'} else ('ADMIN LOAD FAILED' if metric_source in {'admin_mssql_failed','admin_load_failed'} else 'GA4 + CRM Mart'))))
         .replace('__INLINE_BUNDLE__', json.dumps(bundle, ensure_ascii=False))
         .replace('__VIEW_FILE__', f"{preset['key']}_view.json")
     )
