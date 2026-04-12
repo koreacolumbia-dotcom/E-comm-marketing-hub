@@ -27,7 +27,7 @@ from __future__ import annotations
 
 
 # === FORCE EXCEL PATH (USER REPO) ===
-EXCEL_CATEGORY_PATH = "카테고리_정리.xlsx"
+EXCEL_CATEGORY_PATH = "카테고리 정리.xlsx"
 
 
 import os
@@ -404,8 +404,14 @@ def compact_text(value: Optional[str]) -> str:
 
 
 CATEGORY_MASTER_XLS_CANDIDATES = [
-    os.path.join("/mnt/data", "카테고리_정리(1).xlsx"),
-    os.path.join(os.getcwd(), "카테고리_정리(1).xlsx"),
+    os.path.join("/mnt/data", EXCEL_CATEGORY_PATH),
+    os.path.join("/mnt/data", "카테고리 정리.xlsx"),
+    os.path.join("/mnt/data", "카테고리_정리.xlsx"),
+    os.path.join("/mnt/data", "카테고리_정리(3).xlsx"),
+    os.path.join(os.getcwd(), EXCEL_CATEGORY_PATH),
+    os.path.join(os.getcwd(), "카테고리 정리.xlsx"),
+    os.path.join(os.getcwd(), "카테고리_정리.xlsx"),
+    os.path.join(os.getcwd(), "카테고리_정리(3).xlsx"),
 ]
 
 def _normalize_brand_name(brand: str) -> str:
@@ -420,28 +426,55 @@ def _normalize_category_leaf(v: str) -> str:
     t = safe_text(v)
     if not t:
         return ""
-    low = t.lower()
-    if any(x in low for x in ["트레일러닝", "등산화", "스니커즈", "샌들", "슬리퍼", "부츠", "레인 부츠", "신발", "슈즈"]):
-        return "슈즈"
-    if any(x in low for x in ["백팩", "크로스", "토트", "힙색", "슬링", "가방", "백"]):
-        return "백"
-    if any(x in low for x in ["볼캡", "버킷", "부니", "비니", "모자", "양말", "장갑", "스틱", "지갑", "용품", "acc", "기타"]):
-        return "ACC"
+    low = t.lower().replace(" ", "")
+
+    # Excel URL category name -> dashboard standard category
+    # Keep this rule-based and deterministic only. No product-text inference.
+    if any(x in low for x in ["등산화", "레인부츠", "레인부츠", "부츠", "샌들", "슬리퍼", "스니커즈", "운동화", "트레일러닝", "메리제인", "옴니맥스", "웨이브", "신발", "슈즈"]):
+        return "신발"
+    if any(x in low for x in ["백팩", "크로스", "토트백", "토트", "힙색", "슬링백", "슬링", "메신저백", "보조가방", "책가방", "가방", "백"]):
+        return "가방"
+    if any(x in low for x in ["볼캡", "버킷", "부니", "비니", "햇", "모자"]):
+        return "모자"
+    if any(x in low for x in ["장갑", "양말", "지갑", "스틱", "용품", "기타acc", "기타acc", "acc"]):
+        return "용품"
     if "플리스" in low:
         return "플리스"
-    if any(x in low for x in ["베스트"]):
+    if "베스트" in low:
         return "베스트"
-    if any(x in low for x in ["방수자켓", "바람막이", "경량패딩", "인터체인지", "자켓", "아우터", "아노락", "경량자켓"]):
-        return "자켓"
-    if any(x in low for x in ["라운드티", "반팔티", "긴팔티", "폴로티", "집업", "티셔츠", "상의", "셔츠", "맨투맨", "후드티", "트레이닝 상의", "래쉬가드 상의"]):
-        if "셔츠" in low and not any(x in low for x in ["티", "후드", "맨투맨", "폴로", "집업"]):
-            return "셔츠"
-        if "후드" in low or "맨투맨" in low:
-            return "후디"
+    if "셔츠" in low and not any(x in low for x in ["티셔츠", "워터티셔츠"]):
+        return "셔츠"
+    if any(x in low for x in ["맨투맨", "후드티", "후디"]):
+        return "후디"
+    if any(x in low for x in ["라운드티", "반팔티", "긴팔티", "워터티셔츠", "티셔츠", "카라티", "폴로티", "집업", "슬리브리스", "브라탑", "상의", "트레이닝반팔", "트레이닝상의", "래쉬가드상의", "우븐상의"]):
         return "티셔츠"
-    if any(x in low for x in ["카고", "조거", "긴바지", "반바지", "롱팬츠", "숏팬츠", "팬츠", "하의", "바지", "트레이닝 하의", "래쉬가드 하의"]):
+    if any(x in low for x in ["카고", "조거", "긴바지", "반바지", "롱팬츠", "숏팬츠", "팬츠", "하의", "바지", "레깅스", "트레이닝하의", "트레이닝반바지", "래쉬가드하의", "우븐하의", "스커트/원피스", "원피스/스커트"]):
         return "팬츠"
+    if any(x in low for x in ["방수자켓", "바람막이", "경량패딩", "슬림다운", "인터체인지", "자켓", "아우터", "아노락", "경량자켓", "패딩점퍼", "마운틴lt", "브릭"]):
+        return "자켓"
+    if any(x in low for x in ["다운", "패딩"]):
+        return "자켓"
+    if any(x in low for x in ["상하세트", "상하의세트", "비치웨어세트", "세트"]):
+        return "세트"
     return t
+
+
+def _normalize_master_url(url: str) -> str:
+    u = canonicalize_url(url)
+    if not u:
+        return ""
+    try:
+        parsed = urlparse(u)
+        path = (parsed.path or "").rstrip("/")
+        query_parts = []
+        if parsed.query:
+            for part in sorted(parsed.query.split("&")):
+                part = safe_text(part)
+                if part:
+                    query_parts.append(part)
+        return f"{parsed.netloc.lower()}{path}?{'&'.join(query_parts)}".rstrip("?")
+    except Exception:
+        return u
 
 def _build_category_master():
     df = None
@@ -453,29 +486,44 @@ def _build_category_master():
         except Exception:
             continue
     if df is None or df.empty:
-        return {"url_map": {}, "token_map": {}}
+        return {"url_map": {}, "normalized_url_map": {}, "token_map": {}}
+
     url_map = {}
+    normalized_url_map = {}
     token_map = {}
+
     for _, row in df.iterrows():
         brand = _normalize_brand_name(row.get("브랜드", ""))
-        url = canonicalize_url(str(row.get("URL", "")).strip())
+        raw_url = str(row.get("URL", "")).strip()
+        url = canonicalize_url(raw_url)
+        norm_url = _normalize_master_url(raw_url)
         c2 = safe_text(row.get("분류2", ""))
         c3 = safe_text(row.get("분류3", ""))
         path = safe_text(row.get("카테고리경로", ""))
-        final_item = _normalize_category_leaf(c3 or c2 or path)
+        path_leaf = safe_text(path.split(">")[-1] if path else "")
+        final_item = _normalize_category_leaf(path_leaf or c3 or c2 or path)
+        gender = ("키즈" if "키즈" in " ".join([c2, c3, path]) else "")
+
         if url and final_item:
-            url_map[(brand, url)] = {
+            meta = {
                 "item_category": final_item,
-                "gender": ("키즈" if "키즈" in " ".join([c2, c3, path]) else ""),
+                "gender": gender,
                 "path": path,
                 "c2": c2,
                 "c3": c3,
+                "url": url,
+                "normalized_url": norm_url,
             }
+            url_map[(brand, url)] = meta
+            if norm_url:
+                normalized_url_map[(brand, norm_url)] = meta
+
         for token in [c3, c2, path]:
             token = safe_text(token).lower()
             if token and final_item:
                 token_map[(brand, token)] = final_item
-    return {"url_map": url_map, "token_map": token_map}
+
+    return {"url_map": url_map, "normalized_url_map": normalized_url_map, "token_map": token_map}
 
 CATEGORY_MASTER = _build_category_master()
 
@@ -495,101 +543,45 @@ _apply_category_master_seed_urls()
 
 
 
-# ===== URL CATEGORY HARD MAPPING (v8) =====
-URL_CATEGORY_HARD_MAP = {
-    # COLUMBIA
-    "cno=251": "티셔츠",
-    "cno=201": "자켓",
-    "cno=204": "자켓",
-    "cno=219": "자켓",
-    "cno=213": "자켓",
-    "cno=225": "베스트",
-    "cno=371": "자켓",
-    "cno=301": "팬츠",
-    "cno=302": "팬츠",
-    "cno=401": "슈즈",
-    "cno=501": "백",
 
-    # DISCOVERY
-    "DXMB03": "슈즈",
-    "DXMB02B01B17": "자켓",
-    "DXMB02B01B10": "자켓",
-    "DXMB02B01B12": "자켓",
-    "DXMB02B01B15": "자켓",
-    "DXMB02B02": "팬츠",
-    "DXMB02B03": "티셔츠",
-    "DXMB05": "ACC",
-}
+# ===== EXCEL URL CATEGORY MAPPING ONLY =====
 
 def get_hard_category_from_url(url: str = "", brand: str = "") -> str:
-    u = safe_text(url)
-    if not u:
-        return ""
-    low = u.lower()
-    for key, val in URL_CATEGORY_HARD_MAP.items():
-        if key.lower() in low:
-            return val
-    # Columbia explicit cno fallback patterns
-    if "columbiakorea.co.kr" in low:
-        m = re.search(r"[?&]cno=(\d+)", low)
-        if m:
-            cno = m.group(1)
-            return URL_CATEGORY_HARD_MAP.get(f"cno={cno}", "")
-    # Discovery display code fallback
-    if "discovery-expedition.com" in low:
-        m = re.search(r"/display/([A-Z0-9]+)", u, flags=re.I)
-        if m:
-            code = m.group(1).upper()
-            for key, val in URL_CATEGORY_HARD_MAP.items():
-                if key.upper() in code:
-                    return val
     return ""
 
-
-
-def resolve_master_category(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", name: str = "", description: str = "") -> str:
+def _lookup_master_row_by_url(brand: str, *urls: str):
     b = _normalize_brand_name(brand)
+    normalized_map = CATEGORY_MASTER.get("normalized_url_map", {})
+    direct_map = CATEGORY_MASTER.get("url_map", {})
 
-    # 1) Hard URL mapping always wins
-    hard = get_hard_category_from_url(source_category_url, b)
-    if hard:
-        return hard
+    for raw_url in urls:
+        url = canonicalize_url(raw_url)
+        norm = _normalize_master_url(raw_url)
+        if url and (b, url) in direct_map:
+            return direct_map[(b, url)]
+        if norm and (b, norm) in normalized_map:
+            return normalized_map[(b, norm)]
 
-    # 2) Exact master URL mapping
-    key = canonicalize_url(source_category_url)
-    row = CATEGORY_MASTER["url_map"].get((b, key))
-    if row:
-        return row.get("item_category", "") or ""
-
-    # 3) Partial URL/token matching from master map
-    for (bb, url_key), meta in CATEGORY_MASTER["url_map"].items():
-        if bb == b and url_key and url_key in key:
-            return meta.get("item_category", "") or ""
-    for t in [source_category_url, source_category, breadcrumb_text]:
-        low = safe_text(t).lower()
-        if not low:
+    for raw_url in urls:
+        norm = _normalize_master_url(raw_url)
+        if not norm:
             continue
-        for (bb, token), item in CATEGORY_MASTER["token_map"].items():
-            if bb == b and token and token in low:
-                return item
+        for (bb, mapped_norm), meta in normalized_map.items():
+            if bb != b:
+                continue
+            if mapped_norm == norm or (mapped_norm and norm and (mapped_norm in norm or norm in mapped_norm)):
+                return meta
+    return None
 
-    # 4) Conservative product-name fallback only for obvious cases
-    merged = safe_text(f"{name} {description}").lower()
-    if b == "COLUMBIA":
-        if any(x in merged for x in ["konos", "peakfreak", "crestwood", "escape thrive", "omni-max", "outdry", "atr", "shoe", "sneaker", "boot", "clog"]):
-            return "슈즈"
-        if any(x in merged for x in ["tee", "t-shirt", "short sleeve", "long sleeve", "graphic tee", "crew", "jersey", "polo"]):
-            return "티셔츠"
-        if any(x in merged for x in ["pant", "pants", "cargo pant", "jogger", "shorts"]):
-            return "팬츠"
-        if any(x in merged for x in ["jacket", "windbreaker", "anorak", "parka", "shell"]):
-            return "자켓"
+def resolve_master_category(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", name: str = "", description: str = "", source_url: str = "", product_url: str = "") -> str:
+    row = _lookup_master_row_by_url(brand, source_category_url, source_url, product_url)
+    if row:
+        return safe_text(row.get("item_category", ""))
     return ""
 
 
-def resolve_master_gender(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", raw_gender: str = "", name: str = "", description: str = "") -> str:
-    b = _normalize_brand_name(brand)
-    row = CATEGORY_MASTER["url_map"].get((b, canonicalize_url(source_category_url)))
+def resolve_master_gender(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", raw_gender: str = "", name: str = "", description: str = "", source_url: str = "", product_url: str = "") -> str:
+    row = _lookup_master_row_by_url(brand, source_category_url, source_url, product_url)
     if row and row.get("gender"):
         return row["gender"]
     joined = " ".join([safe_text(source_category), safe_text(breadcrumb_text), safe_text(raw_gender), safe_text(name), safe_text(description)]).lower()
@@ -602,8 +594,6 @@ def resolve_master_gender(brand: str, source_category_url: str = "", source_cate
     if any(x in joined for x in ["공용", "unisex"]):
         return "공용"
     return ""
-
-
 
 def parse_price_to_int(text: str) -> Optional[int]:
     if not text:
@@ -1585,103 +1575,12 @@ def _discovery_category_tokens(text: str) -> List[str]:
     return hits
 
 
+
 def normalize_source_category(text: str) -> str:
-    t = safe_text(text)
-    if not t:
-        return ""
-    low = t.lower()
-
-    discovery_hits = _discovery_category_tokens(t)
-    if discovery_hits:
-        priority = ["슈즈", "자켓", "팬츠", "티셔츠", "후디", "플리스", "다운", "베스트", "백", "ACC"]
-        for item in priority:
-            if item in discovery_hits:
-                return item
-
-    explicit_pairs = [
-        ("슈즈", ["신발", "슈즈", "스니커즈", "트레일러닝", "등산화", "샌들", "슬리퍼", "레인 부츠", "omni-max", "omni max", "boot", "shoe"]),
-        ("백", ["가방", "백팩", "크로스", "토트백", "힙색", "슬링백", "숄더", "백"]),
-        ("장갑", ["장갑"]),
-        ("ACC", ["모자", "용품", "스틱", "양말", "지갑", "acc", "accessory"]),
-        ("베스트", ["베스트", "vest"]),
-        ("다운", ["다운", "패딩", "슬림다운"]),
-        ("플리스", ["플리스", "fleece", "boa", "보아"]),
-        ("후디", ["맨투맨", "후드티", "후디"]),
-        ("티셔츠", ["티셔츠", "라운드티", "폴로티", "반팔", "긴팔", "상의", "쿨링"]),
-        ("팬츠", ["하의", "긴바지", "카고/조거", "반바지", "팬츠", "바지"]),
-        ("자켓", ["아우터", "방수자켓", "바람막이", "경량패딩", "인터체인지", "자켓", "재킷", "아노락"]),
-    ]
-    for item, kws in explicit_pairs:
-        if any(kw.lower() in low for kw in kws):
-            return item
-
-    scores: Dict[str, int] = {}
-    for item, keys in _item_keyword_map().items():
-        score = 0
-        for k in keys:
-            kk = k.lower()
-            if kk in low:
-                score += 1
-                if re.search(rf'(^|[^a-z가-힣]){re.escape(kk)}([^a-z가-힣]|$)', low):
-                    score += 1
-        if score:
-            scores[item] = score
-    if not scores:
-        return ""
-    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
-
+    return ""
 
 def infer_item_category(name: str, description: str, source_category: str = "") -> str:
-    name_text = safe_text(name)
-    desc_text = safe_text(description)
-    source_text = safe_text(source_category)
-    name_blob = name_text.lower()
-    desc_blob = desc_text.lower()
-    src_blob = source_text.lower()
-    full_blob = " ".join(x for x in [name_blob, desc_blob, src_blob] if x)
-
-    src_item = normalize_source_category(source_text)
-    if src_item:
-        return src_item
-
-    tail_checks = [
-        ("슈즈", [r'\b(konos|peakfreak|crestwood|clog|sneaker|sneakers|shoe|shoes|boot|boots|sandals?|slides?)\b', r'\btrail\s+atr\b']),
-        ("티셔츠", [r'\bshort\s+sleeve\b', r'\blong\s+sleeve\b', r'\btee\b', r'\bt-shirt\b', r'\bjersey\b', r'\bcrewneck\b', r'\bround\s*tee\b']),
-        ("후디", [r'\bhoodie\b', r'\bhood\b', r'\bsweatshirt\b']),
-        ("플리스", [r'\bfleece\b', r'\bboa\b']),
-        ("베스트", [r'\bvest\b']),
-        ("셔츠", [r'\bshirt\b']),
-        ("팬츠", [r'\bcargo\s+pant\b', r'\bcargo\s+pants\b', r'\bjogger\b', r'\bpant\b', r'\bpants\b', r'\bshorts\b', r'\bshort\b', r'\bskort\b', r'\bchino\b']),
-        ("자켓", [r'\bwindbreaker\b', r'\banorak\b', r'\bjacket\b', r'\bparka\b', r'\bshell\b']),
-    ]
-    for item, patterns in tail_checks:
-        if any(re.search(p, name_blob) for p in patterns):
-            return item
-
-    scores: Dict[str, int] = {}
-    for item, keys in _item_keyword_map().items():
-        score = 0
-        for k in keys:
-            kk = k.lower()
-            if not kk:
-                continue
-            if kk in name_blob:
-                score += 6
-                if re.search(rf'(^|[^a-z가-힣]){re.escape(kk)}([^a-z가-힣]|$)', name_blob):
-                    score += 2
-            if kk in desc_blob:
-                score += 2
-        if score:
-            scores[item] = score
-
-    if scores:
-        return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
-
-    if any(x in full_blob for x in ["set", "세트", "kit", "키트", "워머", "양말", "sock", "socks", "belt", "벨트", "cap", "hat", "모자"]):
-        return "ACC"
-    if full_blob:
-        return normalize_source_category(full_blob) or "ACC"
-    return "ACC"
+    return ""
 
 def extract_raw_keywords(name: str, description: str) -> List[str]:
     text = f"{name} {description}"
@@ -1848,8 +1747,8 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     std_attrs = map_standard_attributes(raw_keywords, raw.name, raw.description)
     resolved_attrs = resolve_conflicts(std_attrs)
     dominant = select_dominant_attribute(resolved_attrs)
-    master_item = resolve_master_category(raw.brand, getattr(raw, "source_category_url", ""), getattr(raw, "source_category", ""), getattr(raw, "breadcrumb_text", ""), raw.name, raw.description)
-    inferred_item = master_item or infer_item_category(raw.name, raw.description, " ".join([getattr(raw, 'breadcrumb_text', ''), getattr(raw, 'source_category', ''), getattr(raw, 'source_category_url', ''), getattr(raw, 'source_url', ''), getattr(raw, 'product_url', '')]))
+    master_item = resolve_master_category(raw.brand, getattr(raw, "source_category_url", ""), getattr(raw, "source_category", ""), getattr(raw, "breadcrumb_text", ""), raw.name, raw.description, getattr(raw, "source_url", ""), getattr(raw, "product_url", ""))
+    inferred_item = master_item or ""
     grade = classify_grade(resolved_attrs, dominant)
     shell_type = classify_shell_type(resolved_attrs, raw.name, raw.description)
     price_band = classify_price_band(current_price)
@@ -1878,6 +1777,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
             getattr(raw, 'source_url', ''),
             getattr(raw, 'product_url', ''),
             getattr(raw, 'breadcrumb_text', ''),
+            brand=raw.brand,
         ),
         raw_keywords=raw_keywords,
         standard_attributes=resolved_attrs,
@@ -2593,29 +2493,19 @@ def _position_y_to_num(avg_price: Optional[float]) -> float:
 
 
 
-def resolve_item_category_value(name: str, description: str, item_category: str = "", source_category: str = "", source_category_url: str = "", source_url: str = "", product_url: str = "", breadcrumb_text: str = "") -> str:
-    # 1) URL 강제 매핑이 최우선
-    hard = get_hard_category_from_url(source_category_url or source_url or product_url)
-    if hard:
-        return hard
 
-    original_item = safe_text(item_category) or "기타"
-    inferred_item = infer_item_category(name or "", description or "", " ".join([breadcrumb_text or "", source_category or "", source_category_url or "", source_url or "", product_url or ""]))
-    source_candidates = [
-        normalize_source_category(breadcrumb_text or ""),
-        normalize_source_category(source_category or ""),
-        normalize_source_category(source_category_url or ""),
-        normalize_source_category(source_url or ""),
-        normalize_source_category(product_url or ""),
-    ]
-    source_item = next((x for x in source_candidates if x), "")
-
-    for candidate in [source_item, original_item, inferred_item]:
-        candidate = safe_text(candidate)
-        if candidate and candidate != "기타":
-            return candidate
-
-    return "ACC"
+def resolve_item_category_value(name: str, description: str, item_category: str = "", source_category: str = "", source_category_url: str = "", source_url: str = "", product_url: str = "", breadcrumb_text: str = "", brand: str = "") -> str:
+    master_item = resolve_master_category(
+        brand,
+        source_category_url=source_category_url,
+        source_category=source_category,
+        breadcrumb_text=breadcrumb_text,
+        name=name,
+        description=description,
+        source_url=source_url,
+        product_url=product_url,
+    )
+    return safe_text(master_item) or "기타"
 
 
 def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
@@ -2631,24 +2521,6 @@ def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
 
     for _, r in out.iterrows():
         original_item = safe_text(r.get("item_category", "") or "") or "기타"
-        item_rule = infer_item_category(
-            str(r.get("name", "") or ""),
-            str(r.get("description", "") or ""),
-            " ".join([
-                str(r.get("breadcrumb_text", "") or ""),
-                str(r.get("source_category", "") or ""),
-                str(r.get("source_category_url", "") or ""),
-                str(r.get("source_url", "") or ""),
-                str(r.get("product_url", "") or "")
-            ]),
-        )
-        crawler_item = next((x for x in [
-            normalize_source_category(str(r.get("breadcrumb_text", "") or "")),
-            normalize_source_category(str(r.get("source_category", "") or "")),
-            normalize_source_category(str(r.get("source_category_url", "") or "")),
-            normalize_source_category(str(r.get("source_url", "") or "")),
-            normalize_source_category(str(r.get("product_url", "") or "")),
-        ] if x), "")
         final_item = resolve_item_category_value(
             str(r.get("name", "") or ""),
             str(r.get("description", "") or ""),
@@ -2657,31 +2529,21 @@ def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
             str(r.get("source_category_url", "") or ""),
             str(r.get("source_url", "") or ""),
             str(r.get("product_url", "") or ""),
+            str(r.get("breadcrumb_text", "") or ""),
+            brand=str(r.get("brand", "") or ""),
         )
-
         original_items.append(original_item)
-        item_rules.append(item_rule)
-        crawler_items.append(crawler_item or "")
         resolved.append(final_item)
+        item_rules.append("")
+        crawler_items.append("")
+        recat_source.append("excel_url" if final_item != "기타" else "unmatched")
 
-        if final_item != original_item:
-            if item_rule and item_rule != "기타":
-                recat_source.append("ITEM RULE")
-            elif crawler_item:
-                recat_source.append("CRAWLED CATEGORY")
-            else:
-                recat_source.append("FALLBACK")
-        else:
-            recat_source.append("ORIGINAL")
-
-    out["item_category_original"] = original_items
+    out["item_original"] = original_items
     out["item_rule"] = item_rules
     out["crawler_item"] = crawler_items
     out["item_category"] = resolved
-    out["item_category_resolved"] = resolved
-    out["item_recat_source"] = recat_source
+    out["recat_source"] = recat_source
     return out
-
 
 def build_other_debug(df: pd.DataFrame) -> List[dict]:
     if df.empty:
