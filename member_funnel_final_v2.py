@@ -174,6 +174,18 @@ def fmt_date(v: Any) -> str:
     return s[:10]
 
 
+
+
+def fmt_age_value(v: Any) -> str:
+    try:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return "미확인"
+        val = float(v)
+        if pd.isna(val):
+            return "미확인"
+        return f"{round(val, 1)}세"
+    except Exception:
+        return "미확인"
 def clean_label(v: Any, fallback: str = "") -> str:
     if v is None or pd.isna(v):
         return fallback
