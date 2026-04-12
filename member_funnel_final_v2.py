@@ -693,7 +693,16 @@ def rows_from_df(df: pd.DataFrame, cols_map: dict[str,str]):
     cols = [c for c in cols_map.keys() if c in df.columns]
     if not cols:
         return []
-    out = df[cols].rename(columns={k:v for k,v in cols_map.items() if k in cols}).fillna("")
+    out = df[cols].rename(columns={k:v for k,v in cols_map.items() if k in cols}).copy()
+    for c in out.columns:
+        s = out[c]
+        if pd.api.types.is_datetime64_any_dtype(s) or str(s.dtype).lower() in {"date", "dbdate", "dbdatetime"}:
+            out[c] = pd.to_datetime(s, errors="coerce").dt.strftime("%Y-%m-%d").fillna("")
+        else:
+            try:
+                out[c] = s.where(~pd.isna(s), "")
+            except Exception:
+                out[c] = s.astype(object).where(~pd.isna(s), "")
     return out.to_dict(orient="records")
 
 
