@@ -1138,13 +1138,42 @@ jobs:
         continue-on-error: true
         env:
           UPDATED_KST: ${{ steps.set_time.outputs.kst }}
+          SUMMARY_USE_ADMIN_BQ: "true"
+          SUMMARY_BQ_PROJECT: columbia-ga4
+          SUMMARY_BQ_LOCATION: asia-northeast3
+          SUMMARY_ADMIN_DAILY_TABLE: columbia-ga4.crm_mart.member_funnel_admin_daily
+          DAILY_DIGEST_ADMIN_BQ_PROJECT: columbia-ga4
+          DAILY_DIGEST_ADMIN_BQ_LOCATION: asia-northeast3
+          DAILY_DIGEST_ADMIN_BQ_TABLE: crm_mart.member_funnel_admin_daily
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f "build_summary.py" ]; then echo "[WARN] build_summary.py not found in repo root. Skipping."; exit 0; fi
-          python -u build_summary.py || true
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[WARN] GOOGLE_SA_JSON_B64 missing -> skip summary admin BQ auth"
+          else
+            echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/summary_sa.json
+            export GOOGLE_APPLICATION_CREDENTIALS=/tmp/summary_sa.json
+          fi
+
+          SUMMARY_BUILDER=""
+          for cand in             build_summary_admin_erp_patched.py             build_summary.py
+          do
+            if [ -f "$cand" ]; then
+              SUMMARY_BUILDER="$cand"
+              break
+            fi
+          done
+
+          if [ -z "$SUMMARY_BUILDER" ]; then
+            echo "[WARN] Summary builder not found in repo root. Skipping."
+            exit 0
+          fi
+
+          echo "[INFO] Running Summary builder: $SUMMARY_BUILDER"
+          python -u "$SUMMARY_BUILDER" || true
           mkdir -p reports
-          echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
+          echo "{"build":"${UPDATED_KST}"}" > reports/meta.json
 
       - name: Commit & push report results (SAFE - keep *_view.json, remove oversized legacy files)
         if: ${{ always() }}
