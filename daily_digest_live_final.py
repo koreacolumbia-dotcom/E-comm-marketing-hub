@@ -340,14 +340,19 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         bq = bigquery.Client(project=ADMIN_BQ_PROJECT or None, location=ADMIN_BQ_LOCATION or None)
         sql = f"""
         SELECT
-          SUM(COALESCE(sessions, 0)) AS sessions,
+          SUM(COALESCE(session, sessions, 0)) AS sessions,
+          SUM(COALESCE(session, sessions, 0)) AS session,
           SUM(COALESCE(pv, 0)) AS pv,
           SUM(COALESCE(signups, 0)) AS signups,
           SUM(COALESCE(orders, 0)) AS orders,
           SUM(COALESCE(buyers, 0)) AS buyers,
           SUM(COALESCE(revenue, 0)) AS revenue,
           SUM(COALESCE(total_price, 0)) AS total_price,
-          SUM(COALESCE(cancel_amount, 0)) AS cancel_amount
+          SUM(COALESCE(cancel_amount, 0)) AS cancel_amount,
+          SAFE_DIVIDE(
+            SUM(COALESCE(orders, 0)),
+            NULLIF(SUM(COALESCE(session, sessions, 0)), 0)
+          ) AS cvr
         FROM `{table_name}`
         WHERE report_date BETWEEN @start_date AND @end_date
         """
@@ -367,10 +372,13 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         total_price = _num(row.get("total_price", 0))
         cancel_amount = _num(row.get("cancel_amount", 0))
         erp_revenue = (total_price - cancel_amount) if total_price > 0 else revenue
+        sessions = _num(row.get("session", row.get("sessions", 0)))
+        cvr = _num(row.get("cvr", 0))
         return {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
-            "sessions": _num(row.get("sessions", 0)),
+            "sessions": sessions,
+            "session": sessions,
             "pv": _num(row.get("pv", 0)),
             "signups": _num(row.get("signups", 0)),
             "orders": orders,
@@ -379,6 +387,7 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
             "erp_revenue": erp_revenue,
             "total_price": total_price,
             "cancel_amount": cancel_amount,
+            "cvr": cvr,
             "aov": (erp_revenue / orders) if orders else 0.0,
             "source": "admin_bq_daily_erp",
         }
