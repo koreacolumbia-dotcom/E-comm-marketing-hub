@@ -317,6 +317,55 @@ def _num(value: Any) -> float:
         return 0.0
 
 
+def _parse_bq_table_parts(table_name: str) -> tuple[str, str, str]:
+    t = str(table_name or "").strip().strip("`")
+    parts = [x for x in t.split(".") if x]
+    if len(parts) == 3:
+        return parts[0], parts[1], parts[2]
+    if len(parts) == 2 and ADMIN_BQ_PROJECT:
+        return ADMIN_BQ_PROJECT, parts[0], parts[1]
+    raise ValueError(f"Invalid BigQuery table name: {table_name}")
+
+
+def _admin_table_columns(bq: Any, table_name: str) -> set[str]:
+    project_id, dataset_id, table_id = _parse_bq_table_parts(table_name)
+    sql = f"""
+    SELECT LOWER(column_name) AS column_name
+    FROM `{project_id}.{dataset_id}.INFORMATION_SCHEMA.COLUMNS`
+    WHERE table_name = @table_name
+    """
+    cfg = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("table_name", "STRING", table_id),
+        ]
+    )
+    df = bq.query(sql, job_config=cfg, location=ADMIN_BQ_LOCATION).to_dataframe()
+    if df.empty:
+        return set()
+    return {str(v).strip().lower() for v in df["column_name"].tolist() if str(v).strip()}
+
+
+def _admin_login_sessions_expr(columns: set[str]) -> tuple[str, str]:
+    login_candidates = [
+        "login_users",
+        "login_user_count",
+        "login_user_cnt",
+        "login_count",
+        "login_cnt",
+        "logged_in_users",
+        "logged_in_user_count",
+        "member_login_users",
+        "member_login_count",
+        "logins",
+        "로그인수",
+        "로그인_수",
+    ]
+    for col in login_candidates:
+        if col.lower() in columns:
+            return f"SUM(COALESCE({col}, 0))", col
+    return "SUM(COALESCE(sessions, 0))", "sessions"
+
+
 def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
     table_name = _qualified_admin_bq_table(ADMIN_BQ_TABLE)
     empty = {
@@ -338,21 +387,18 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         return empty
     try:
         bq = bigquery.Client(project=ADMIN_BQ_PROJECT or None, location=ADMIN_BQ_LOCATION or None)
+        admin_cols = _admin_table_columns(bq, table_name)
+        sessions_expr, sessions_source_col = _admin_login_sessions_expr(admin_cols)
         sql = f"""
         SELECT
-          SUM(COALESCE(session, sessions, 0)) AS sessions,
-          SUM(COALESCE(session, sessions, 0)) AS session,
+          {sessions_expr} AS sessions,
           SUM(COALESCE(pv, 0)) AS pv,
           SUM(COALESCE(signups, 0)) AS signups,
           SUM(COALESCE(orders, 0)) AS orders,
           SUM(COALESCE(buyers, 0)) AS buyers,
           SUM(COALESCE(revenue, 0)) AS revenue,
           SUM(COALESCE(total_price, 0)) AS total_price,
-          SUM(COALESCE(cancel_amount, 0)) AS cancel_amount,
-          SAFE_DIVIDE(
-            SUM(COALESCE(orders, 0)),
-            NULLIF(SUM(COALESCE(session, sessions, 0)), 0)
-          ) AS cvr
+          SUM(COALESCE(cancel_amount, 0)) AS cancel_amount
         FROM `{table_name}`
         WHERE report_date BETWEEN @start_date AND @end_date
         """
@@ -372,13 +418,10 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         total_price = _num(row.get("total_price", 0))
         cancel_amount = _num(row.get("cancel_amount", 0))
         erp_revenue = (total_price - cancel_amount) if total_price > 0 else revenue
-        sessions = _num(row.get("session", row.get("sessions", 0)))
-        cvr = _num(row.get("cvr", 0))
         return {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
-            "sessions": sessions,
-            "session": sessions,
+            "sessions": _num(row.get("sessions", 0)),
             "pv": _num(row.get("pv", 0)),
             "signups": _num(row.get("signups", 0)),
             "orders": orders,
@@ -387,9 +430,8 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
             "erp_revenue": erp_revenue,
             "total_price": total_price,
             "cancel_amount": cancel_amount,
-            "cvr": cvr,
             "aov": (erp_revenue / orders) if orders else 0.0,
-            "source": "admin_bq_daily_erp",
+            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}",
         }
     except Exception as e:
         print(f"[WARN] fetch_admin_period_snapshot failed: {type(e).__name__}: {e}")
