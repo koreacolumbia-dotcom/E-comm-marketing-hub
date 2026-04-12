@@ -120,6 +120,9 @@ PLACEHOLDER_IMG = os.getenv("DAILY_DIGEST_PLACEHOLDER_IMG", "").strip()
 # BigQuery GA4 export wildcard table
 BQ_EVENTS_TABLE = os.getenv("DAILY_DIGEST_BQ_EVENTS_TABLE", "columbia-ga4.analytics_358593394.events_*").strip()
 BQ_LOCATION = os.getenv("DAILY_DIGEST_BQ_LOCATION", "asia-northeast3").strip()
+ADMIN_BQ_PROJECT = os.getenv("DAILY_DIGEST_ADMIN_BQ_PROJECT", os.getenv("BQ_PROJECT", "columbia-ga4")).strip()
+ADMIN_BQ_LOCATION = os.getenv("DAILY_DIGEST_ADMIN_BQ_LOCATION", BQ_LOCATION).strip()
+ADMIN_BQ_TABLE = os.getenv("DAILY_DIGEST_ADMIN_BQ_TABLE", "crm_mart.member_funnel_admin_daily").strip()
 
 SIGNUP_EVENT = os.getenv("DAILY_DIGEST_SIGNUP_EVENT", "sign_up")
 LOGIN_EVENT = os.getenv("DAILY_DIGEST_LOGIN_EVENT", "login")
@@ -291,6 +294,105 @@ def write_json(path: str, obj: dict) -> None:
     ensure_dir(os.path.dirname(path))
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
+
+
+def _qualified_admin_bq_table(table_name: str) -> str:
+    t = str(table_name or "").strip().strip("`")
+    if not t:
+        return ""
+    if t.count(".") == 2:
+        return t
+    if t.count(".") == 1 and ADMIN_BQ_PROJECT:
+        return f"{ADMIN_BQ_PROJECT}.{t}"
+    return t
+
+
+def _num(value: Any) -> float:
+    try:
+        v = pd.to_numeric(value, errors="coerce")
+        if pd.isna(v):
+            return 0.0
+        return float(v)
+    except Exception:
+        return 0.0
+
+
+def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
+    table_name = _qualified_admin_bq_table(ADMIN_BQ_TABLE)
+    empty = {
+        "date_start": start_date.isoformat(),
+        "date_end": end_date.isoformat(),
+        "sessions": 0.0,
+        "pv": 0.0,
+        "signups": 0.0,
+        "orders": 0.0,
+        "buyers": 0.0,
+        "revenue": 0.0,
+        "erp_revenue": 0.0,
+        "total_price": 0.0,
+        "cancel_amount": 0.0,
+        "aov": 0.0,
+        "source": "admin_load_failed",
+    }
+    if bigquery is None or not table_name:
+        return empty
+    try:
+        bq = bigquery.Client(project=ADMIN_BQ_PROJECT or None, location=ADMIN_BQ_LOCATION or None)
+        sql = f"""
+        SELECT
+          SUM(COALESCE(sessions, 0)) AS sessions,
+          SUM(COALESCE(pv, 0)) AS pv,
+          SUM(COALESCE(signups, 0)) AS signups,
+          SUM(COALESCE(orders, 0)) AS orders,
+          SUM(COALESCE(buyers, 0)) AS buyers,
+          SUM(COALESCE(revenue, 0)) AS revenue,
+          SUM(COALESCE(total_price, 0)) AS total_price,
+          SUM(COALESCE(cancel_amount, 0)) AS cancel_amount
+        FROM `{table_name}`
+        WHERE report_date BETWEEN @start_date AND @end_date
+        """
+        cfg = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
+                bigquery.ScalarQueryParameter("end_date", "DATE", end_date.isoformat()),
+            ]
+        )
+        df = bq.query(sql, job_config=cfg, location=ADMIN_BQ_LOCATION).to_dataframe()
+        if df.empty:
+            return empty
+        row = df.iloc[0].to_dict()
+        orders = _num(row.get("orders", 0))
+        buyers = _num(row.get("buyers", 0))
+        revenue = _num(row.get("revenue", 0))
+        total_price = _num(row.get("total_price", 0))
+        cancel_amount = _num(row.get("cancel_amount", 0))
+        erp_revenue = (total_price - cancel_amount) if total_price > 0 else revenue
+        return {
+            "date_start": start_date.isoformat(),
+            "date_end": end_date.isoformat(),
+            "sessions": _num(row.get("sessions", 0)),
+            "pv": _num(row.get("pv", 0)),
+            "signups": _num(row.get("signups", 0)),
+            "orders": orders,
+            "buyers": buyers if buyers > 0 else orders,
+            "revenue": erp_revenue,
+            "erp_revenue": erp_revenue,
+            "total_price": total_price,
+            "cancel_amount": cancel_amount,
+            "aov": (erp_revenue / orders) if orders else 0.0,
+            "source": "admin_bq_daily_erp",
+        }
+    except Exception as e:
+        print(f"[WARN] fetch_admin_period_snapshot failed: {type(e).__name__}: {e}")
+        return empty
+
+
+def build_admin_overall(w: DigestWindow) -> Dict[str, Dict[str, float]]:
+    return {
+        "current": fetch_admin_period_snapshot(w.cur_start, w.cur_end),
+        "prev": fetch_admin_period_snapshot(w.prev_start, w.prev_end),
+        "yoy": fetch_admin_period_snapshot(w.yoy_start, w.yoy_end),
+    }
 
 
 # =========================
@@ -2464,6 +2566,7 @@ def build_bundle(
     channel_detail_map: Dict[str, pd.DataFrame],
     paid_media_compare: pd.DataFrame,
     weather_forecast: Optional[dict] = None,
+    admin_overall: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> dict:
     cur = overall.get("current", {}) or {}
     sessions = float(cur.get("sessions", 0) or 0)
@@ -2483,6 +2586,8 @@ def build_bundle(
                 "revenue": float(getattr(r, "purchaseRevenue", 0) or 0),
             }
 
+    admin_overall = admin_overall or {"current": {}, "prev": {}, "yoy": {}}
+
     summary_payload = {
         "mode": w.mode,
         "end_date": ymd(w.end_date),
@@ -2497,6 +2602,15 @@ def build_bundle(
             "signups": float(signup_users.get("current", 0.0) or 0.0),
         },
         "channels": channels,
+        "admin_kpis": {
+            "sessions": float((admin_overall.get("current", {}) or {}).get("sessions", 0) or 0),
+            "orders": float((admin_overall.get("current", {}) or {}).get("orders", 0) or 0),
+            "buyers": float((admin_overall.get("current", {}) or {}).get("buyers", 0) or 0),
+            "revenue": float((admin_overall.get("current", {}) or {}).get("erp_revenue", (admin_overall.get("current", {}) or {}).get("revenue", 0)) or 0),
+            "signups": float((admin_overall.get("current", {}) or {}).get("signups", 0) or 0),
+            "aov": float((admin_overall.get("current", {}) or {}).get("aov", 0) or 0),
+            "source": str((admin_overall.get("current", {}) or {}).get("source", "admin_bq_daily_erp")),
+        },
         "built_at_kst": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -2517,6 +2631,7 @@ def build_bundle(
         **summary_payload,
         "meta": meta,
         "overall": overall,
+        "admin_overall": admin_overall,
         "signup_users": signup_users,
         "channel_snapshot": to_records(channel_snapshot),
         "paid_detail": to_records(paid_detail),
@@ -2542,6 +2657,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     w = build_window(end_date=end_date, mode=mode)
 
     overall = bundle.get("overall", {"current": {}, "prev": {}, "yoy": {}})
+    admin_overall = bundle.get("admin_overall", {"current": {}, "prev": {}, "yoy": {}})
     signup_users = bundle.get("signup_users", {"current": 0.0, "prev": 0.0, "yoy": 0.0})
 
     channel_snapshot = pd.DataFrame(bundle.get("channel_snapshot", []))
@@ -2598,6 +2714,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
     return {
         "w": w,
         "overall": overall,
+        "admin_overall": admin_overall,
         "signup_users": signup_users,
         "channel_snapshot": channel_snapshot,
         "paid_detail": paid_detail,
@@ -2622,6 +2739,7 @@ def render_page_html(
     logo_b64: str,
     w: DigestWindow,
     overall: Dict[str, Dict[str, float]],
+    admin_overall: Dict[str, Dict[str, float]],
     signup_users: Dict[str, float],
     channel_snapshot: pd.DataFrame,
     paid_detail: pd.DataFrame,
@@ -2660,18 +2778,51 @@ def render_page_html(
     su_delta = pct_change(su_cur, su_prev)
     su_yoy_delta = pct_change(su_cur, su_yoy)
 
+    adm_cur = admin_overall.get("current", {}) or {}
+    adm_prev = admin_overall.get("prev", {}) or {}
+    adm_yoy = admin_overall.get("yoy", {}) or {}
+
+    adm_sessions_cur = float(adm_cur.get("sessions", 0) or 0)
+    adm_sessions_prev = float(adm_prev.get("sessions", 0) or 0)
+    adm_sessions_yoy = float(adm_yoy.get("sessions", 0) or 0)
+    adm_orders_cur = float(adm_cur.get("orders", 0) or 0)
+    adm_orders_prev = float(adm_prev.get("orders", 0) or 0)
+    adm_orders_yoy = float(adm_yoy.get("orders", 0) or 0)
+    adm_buyers_cur = float(adm_cur.get("buyers", 0) or 0)
+    adm_buyers_prev = float(adm_prev.get("buyers", 0) or 0)
+    adm_buyers_yoy = float(adm_yoy.get("buyers", 0) or 0)
+    adm_revenue_cur = float(adm_cur.get("erp_revenue", adm_cur.get("revenue", 0)) or 0)
+    adm_revenue_prev = float(adm_prev.get("erp_revenue", adm_prev.get("revenue", 0)) or 0)
+    adm_revenue_yoy = float(adm_yoy.get("erp_revenue", adm_yoy.get("revenue", 0)) or 0)
+    adm_signups_cur = float(adm_cur.get("signups", 0) or 0)
+    adm_signups_prev = float(adm_prev.get("signups", 0) or 0)
+    adm_signups_yoy = float(adm_yoy.get("signups", 0) or 0)
+
     def esc(s: Any) -> str:
         return _html.escape(str(s or ""), quote=True)
 
     def delta_cls(v: float) -> str:
         return "text-blue-600" if v >= 0 else "text-orange-700"
 
-    def top_kpi_card(title: str, value: str, delta_main: str, delta_yoy_s: str, cls_main: str, cls_yoy: str) -> str:
+    def top_kpi_card(title: str, value: str, delta_main: str, delta_yoy_s: str, cls_main: str, cls_yoy: str, source_label: str = "GA") -> str:
         return f"""
         <div class="report-card kpi-card rounded-2xl border border-slate-200 bg-white/70 p-4">
-          <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">{esc(title)}</div>
+            <div class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black tracking-wide text-slate-600 uppercase">{esc(source_label)}</div>
+          </div>
           <div class="mt-1 text-xl font-black text-slate-900 kpi-value">{esc(value)}</div>
           <div class="mt-1 text-[11px] text-slate-500">{w.compare_label} <b class="{cls_main}">{esc(delta_main)}</b> · YoY <b class="{cls_yoy}">{esc(delta_yoy_s)}</b></div>
+        </div>
+        """
+
+    def kpi_group_title(label: str, sublabel: str) -> str:
+        return f"""
+        <div class="mt-6 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <div class="text-xs font-extrabold tracking-[0.22em] text-slate-500 uppercase">{esc(label)}</div>
+            <div class="mt-1 text-sm font-bold text-slate-500">{esc(sublabel)}</div>
+          </div>
         </div>
         """
 
@@ -3000,28 +3151,70 @@ def render_page_html(
           </div>
         </div>
         """
-        kpis_cards = "".join([
-            top_kpi_card("Sessions", fmt_int(cur["sessions"]),
-                         f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
-                         f"{'+' if s_yoy>=0 else ''}{fmt_pct(s_yoy,1)}",
-                         delta_cls(s_delta), delta_cls(s_yoy)),
-            top_kpi_card("Revenue", fmt_currency_krw(cur["purchaseRevenue"]),
-                         f"{'+' if r_delta>=0 else ''}{fmt_pct(r_delta,1)}",
-                         f"{'+' if r_yoy>=0 else ''}{fmt_pct(r_yoy,1)}",
-                         delta_cls(r_delta), delta_cls(r_yoy)),
-            top_kpi_card("Orders", fmt_int(cur["transactions"]),
-                         f"{'+' if o_delta>=0 else ''}{fmt_pct(o_delta,1)}",
-                         f"{'+' if o_yoy>=0 else ''}{fmt_pct(o_yoy,1)}",
-                         delta_cls(o_delta), delta_cls(o_yoy)),
-            top_kpi_card("CVR", f"{cur['cvr']*100:.2f}%",
-                         f"{'+' if c_pp>=0 else ''}{fmt_pp(c_pp,2)}",
-                         f"{'+' if c_yoy_pp>=0 else ''}{fmt_pp(c_yoy_pp,2)}",
-                         delta_cls(c_pp), delta_cls(c_yoy_pp)),
-            top_kpi_card("Sign-up Users", fmt_int(su_cur),
-                         f"{'+' if su_delta>=0 else ''}{fmt_pct(su_delta,1)}",
-                         f"{'+' if su_yoy_delta>=0 else ''}{fmt_pct(su_yoy_delta,1)}",
-                         delta_cls(su_delta), delta_cls(su_yoy_delta)),
-        ])
+
+    ga_kpis_cards = "".join([
+        top_kpi_card("Sessions", fmt_int(cur["sessions"]),
+                     f"{'+' if s_delta>=0 else ''}{fmt_pct(s_delta,1)}",
+                     f"{'+' if s_yoy>=0 else ''}{fmt_pct(s_yoy,1)}",
+                     delta_cls(s_delta), delta_cls(s_yoy), "GA"),
+        top_kpi_card("Revenue", fmt_currency_krw(cur["purchaseRevenue"]),
+                     f"{'+' if r_delta>=0 else ''}{fmt_pct(r_delta,1)}",
+                     f"{'+' if r_yoy>=0 else ''}{fmt_pct(r_yoy,1)}",
+                     delta_cls(r_delta), delta_cls(r_yoy), "GA"),
+        top_kpi_card("Orders", fmt_int(cur["transactions"]),
+                     f"{'+' if o_delta>=0 else ''}{fmt_pct(o_delta,1)}",
+                     f"{'+' if o_yoy>=0 else ''}{fmt_pct(o_yoy,1)}",
+                     delta_cls(o_delta), delta_cls(o_yoy), "GA"),
+        top_kpi_card("CVR", f"{cur['cvr']*100:.2f}%",
+                     f"{'+' if c_pp>=0 else ''}{fmt_pp(c_pp,2)}",
+                     f"{'+' if c_yoy_pp>=0 else ''}{fmt_pp(c_yoy_pp,2)}",
+                     delta_cls(c_pp), delta_cls(c_yoy_pp), "GA"),
+        top_kpi_card("Sign-up Users", fmt_int(su_cur),
+                     f"{'+' if su_delta>=0 else ''}{fmt_pct(su_delta,1)}",
+                     f"{'+' if su_yoy_delta>=0 else ''}{fmt_pct(su_yoy_delta,1)}",
+                     delta_cls(su_delta), delta_cls(su_yoy_delta), "GA"),
+    ])
+
+    adm_sessions_delta = pct_change(adm_sessions_cur, adm_sessions_prev)
+    adm_sessions_yoy_delta = pct_change(adm_sessions_cur, adm_sessions_yoy)
+    adm_orders_delta = pct_change(adm_orders_cur, adm_orders_prev)
+    adm_orders_yoy_delta = pct_change(adm_orders_cur, adm_orders_yoy)
+    adm_buyers_delta = pct_change(adm_buyers_cur, adm_buyers_prev)
+    adm_buyers_yoy_delta = pct_change(adm_buyers_cur, adm_buyers_yoy)
+    adm_revenue_delta = pct_change(adm_revenue_cur, adm_revenue_prev)
+    adm_revenue_yoy_delta = pct_change(adm_revenue_cur, adm_revenue_yoy)
+    adm_signups_delta = pct_change(adm_signups_cur, adm_signups_prev)
+    adm_signups_yoy_delta = pct_change(adm_signups_cur, adm_signups_yoy)
+
+    admin_kpis_cards = "".join([
+        top_kpi_card("Sessions", fmt_int(adm_sessions_cur),
+                     f"{'+' if adm_sessions_delta>=0 else ''}{fmt_pct(adm_sessions_delta,1)}",
+                     f"{'+' if adm_sessions_yoy_delta>=0 else ''}{fmt_pct(adm_sessions_yoy_delta,1)}",
+                     delta_cls(adm_sessions_delta), delta_cls(adm_sessions_yoy_delta), "ADMIN"),
+        top_kpi_card("Revenue", fmt_currency_krw(adm_revenue_cur),
+                     f"{'+' if adm_revenue_delta>=0 else ''}{fmt_pct(adm_revenue_delta,1)}",
+                     f"{'+' if adm_revenue_yoy_delta>=0 else ''}{fmt_pct(adm_revenue_yoy_delta,1)}",
+                     delta_cls(adm_revenue_delta), delta_cls(adm_revenue_yoy_delta), "ERP"),
+        top_kpi_card("Orders", fmt_int(adm_orders_cur),
+                     f"{'+' if adm_orders_delta>=0 else ''}{fmt_pct(adm_orders_delta,1)}",
+                     f"{'+' if adm_orders_yoy_delta>=0 else ''}{fmt_pct(adm_orders_yoy_delta,1)}",
+                     delta_cls(adm_orders_delta), delta_cls(adm_orders_yoy_delta), "ADMIN"),
+        top_kpi_card("Buyers", fmt_int(adm_buyers_cur),
+                     f"{'+' if adm_buyers_delta>=0 else ''}{fmt_pct(adm_buyers_delta,1)}",
+                     f"{'+' if adm_buyers_yoy_delta>=0 else ''}{fmt_pct(adm_buyers_yoy_delta,1)}",
+                     delta_cls(adm_buyers_delta), delta_cls(adm_buyers_yoy_delta), "ADMIN"),
+        top_kpi_card("Sign-up Users", fmt_int(adm_signups_cur),
+                     f"{'+' if adm_signups_delta>=0 else ''}{fmt_pct(adm_signups_delta,1)}",
+                     f"{'+' if adm_signups_yoy_delta>=0 else ''}{fmt_pct(adm_signups_yoy_delta,1)}",
+                     delta_cls(adm_signups_delta), delta_cls(adm_signups_yoy_delta), "ADMIN"),
+    ])
+
+    kpis_cards_html = (
+        kpi_group_title("GA KPI", "GA4 기준")
+        + f'<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">{ga_kpis_cards}</div>'
+        + kpi_group_title("ADMIN KPI", "ERP Revenue 기준 · member_funnel_admin_daily")
+        + f'<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">{admin_kpis_cards}</div>'
+    )
 
     trend_tabs = [
         ("7d", "7D", trend_svgs.get("7d", "")),
@@ -3221,9 +3414,7 @@ def render_page_html(
 
     {weather_section_html}
 
-    <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-5">
-      {kpis_cards}
-    </div>
+    {kpis_cards_html}
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -4226,6 +4417,7 @@ def build_one(
                 logo_b64=logo_b64,
                 w=rt["w"],
                 overall=rt["overall"],
+                admin_overall=rt.get("admin_overall", {"current": {}, "prev": {}, "yoy": {}}),
                 signup_users=rt["signup_users"],
                 channel_snapshot=rt["channel_snapshot"],
                 paid_detail=rt["paid_detail"],
@@ -4272,6 +4464,7 @@ def build_one(
     target_roas_map = load_target_roas_map(TARGET_ROAS_XLS_PATH)
     paid_media_compare = get_paid_media_comparison_table(client, w, target_roas_map)
     kpi_snapshot = get_kpi_snapshot_table_3way(client, w, overall)
+    admin_overall = build_admin_overall(w)
 
     trend_series = get_trend_view_series(client, w)
     trend_svgs = build_trend_svg_map(trend_series)
@@ -4302,6 +4495,7 @@ def build_one(
     bundle = build_bundle(
         w=w,
         overall=overall,
+        admin_overall=admin_overall,
         signup_users=signup_users,
         channel_snapshot=channel_snapshot,
         paid_detail=paid_detail,
