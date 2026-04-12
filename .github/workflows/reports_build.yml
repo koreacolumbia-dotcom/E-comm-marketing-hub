@@ -444,7 +444,7 @@ jobs:
               matplotlib
           fi
 
-          pip install openpyxl matplotlib pytrends google-cloud-bigquery google-cloud-bigquery-storage db-dtypes pyarrow selenium webdriver-manager
+          pip install openpyxl matplotlib pytrends google-cloud-bigquery google-cloud-bigquery-storage db-dtypes pyarrow selenium webdriver-manager lightgbm joblib
 
           if [ "${NEEDS_PLAYWRIGHT}" = "true" ]; then
             echo "[INFO] Browser-based crawler detected -> install Playwright Chromium"
@@ -963,6 +963,12 @@ jobs:
           MEMBER_FUNNEL_TARGET_TABLE: ${{ secrets.MEMBER_FUNNEL_TARGET_TABLE }}
           MEMBER_FUNNEL_PATCH_SQL: sql/member_funnel_master_channel_patch_final.sql
           MEMBER_FUNNEL_BQ_LOCATION: asia-northeast3
+          MEMBER_FUNNEL_RUN_ML: "true"
+          CRM_ML_BQ_DATASET: crm_mart
+          CRM_ML_BASE_TABLE: ${{ secrets.MEMBER_FUNNEL_BASE_TABLE }}
+          CRM_ML_TRAINING_TABLE: ${{ secrets.MEMBER_FUNNEL_PROJECT_ID }}.crm_mart.crm_ml_training_panel
+          CRM_ML_METRICS_TABLE: ${{ secrets.MEMBER_FUNNEL_PROJECT_ID }}.crm_mart.crm_ml_model_metrics
+          CRM_ML_SCORES_TABLE: ${{ secrets.MEMBER_FUNNEL_PROJECT_ID }}.crm_mart.crm_member_target_scores
         run: |
           set -euo pipefail
 
@@ -982,7 +988,7 @@ jobs:
           fi
 
           BUILDER=""
-          for cand in             member_funnel_final_viewjson_patched.py             member_funnel_final_full_patch_light_html_fetchfixed.py             member_funnel_final_full_patch_light_html.py             member_funnel_final_full_patch.py             member_funnel_final_v2_patched.py             member_funnel_final_v2.py
+          for cand in             member_funnel_final_v2_ml_ultimate_integrated.py             member_funnel_final_viewjson_patched.py             member_funnel_final_full_patch_light_html_fetchfixed.py             member_funnel_final_full_patch_light_html.py             member_funnel_final_full_patch.py             member_funnel_final_v2_patched.py             member_funnel_final_v2.py
           do
             if [ -f "$cand" ]; then
               BUILDER="$cand"
@@ -1031,6 +1037,13 @@ jobs:
             fi
           else
             echo "[WARN] ${MEMBER_FUNNEL_PATCH_SQL} not found -> skip channel patch"
+          fi
+
+          if [ "${MEMBER_FUNNEL_RUN_ML:-true}" = "true" ] && [ -f "crm_ml_ultimate_train_and_score.py" ]; then
+            echo "[INFO] Running CRM ML training + scoring before Member Funnel build"
+            python -u crm_ml_ultimate_train_and_score.py --mode train_and_score
+          else
+            echo "[WARN] CRM ML script missing or disabled -> skip ML train/score"
           fi
 
           echo "[INFO] Running Member Funnel builder: $BUILDER"
