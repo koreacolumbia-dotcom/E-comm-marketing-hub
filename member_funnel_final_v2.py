@@ -639,9 +639,25 @@ def calc_product_revenue_df(df: pd.DataFrame) -> pd.DataFrame:
         out["item_price_norm"] = 0.0
     if "item_quantity_norm" not in out.columns:
         out["item_quantity_norm"] = 0.0
+    if "metric_revenue_norm" not in out.columns:
+        out["metric_revenue_norm"] = 0.0
+    if "revenue_norm" not in out.columns:
+        out["revenue_norm"] = 0.0
+    if "top_product_revenue" in out.columns:
+        out["top_product_revenue_norm"] = to_num(out["top_product_revenue"])
+    else:
+        out["top_product_revenue_norm"] = 0.0
+
     qty = out["item_quantity_norm"].where(out["item_quantity_norm"] > 0, 1.0)
     fallback_item_rev = (out["item_price_norm"] * qty).where(out["item_price_norm"] > 0, 0.0)
-    out["product_revenue_calc"] = out["item_revenue_norm"].where(out["item_revenue_norm"] > 0, fallback_item_rev)
+    product_rev = out["item_revenue_norm"].where(out["item_revenue_norm"] > 0, fallback_item_rev)
+
+    has_item_level = bool(((out["item_revenue_norm"] > 0) | (out["item_price_norm"] > 0) | (out["item_quantity_norm"] > 0)).any())
+    if not has_item_level:
+        product_rev = out["top_product_revenue_norm"].where(out["top_product_revenue_norm"] > 0, out["metric_revenue_norm"])
+        product_rev = product_rev.where(product_rev > 0, out["revenue_norm"])
+
+    out["product_revenue_calc"] = pd.to_numeric(product_rev, errors="coerce").fillna(0)
     return out
 
 def summarize_product_age(df: pd.DataFrame) -> pd.DataFrame:
@@ -740,6 +756,8 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             revenue_base = product_revenue_base if mode in {"buyer", "product", "total"} else sdf
             if mode in {"buyer", "product", "total"}:
                 revenue = float(revenue_base.get("product_revenue_calc", pd.Series(dtype=float)).sum())
+                if revenue <= 0:
+                    revenue = float(revenue_base["metric_revenue_norm"].sum()) if "metric_revenue_norm" in revenue_base.columns else float(revenue_base["revenue_norm"].sum()) if "revenue_norm" in revenue_base.columns else 0.0
             else:
                 revenue = float(revenue_base["metric_revenue_norm"].sum()) if "metric_revenue_norm" in revenue_base.columns else float(revenue_base["revenue_norm"].sum()) if "revenue_norm" in revenue_base.columns else 0.0
             orders = float(revenue_base["orders_norm"].sum()) if "orders_norm" in revenue_base.columns else 0.0
