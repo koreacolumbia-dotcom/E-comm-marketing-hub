@@ -4521,6 +4521,7 @@ def build_one(
         logo_b64=logo_b64,
         w=w,
         overall=overall,
+        admin_overall=admin_overall,
         signup_users=signup_users,
         channel_snapshot=channel_snapshot,
         paid_detail=paid_detail,
