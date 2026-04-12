@@ -290,6 +290,36 @@ CAT_COLS = [
     "top_product_norm","top_category_norm",
 ]
 
+def ensure_feature_columns(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    for col in [
+        "age_norm","sessions_norm","pageviews_norm","product_view_norm","add_to_cart_norm","orders_norm","revenue_norm",
+        "aov_norm","member_point_norm","member_grade_norm","consent_norm","days_since_signup_norm",
+        "days_since_last_visit_norm","days_since_last_purchase_norm","is_repeat_buyer_norm","is_vip_norm","is_dormant_norm",
+        "is_non_buyer_norm",
+    ]:
+        if col not in out.columns:
+            out[col] = 0
+    for col in ["gender_norm","age_band_norm","channel_group_norm","first_source_norm","first_medium_norm","first_campaign_norm","top_product_norm","top_category_norm"]:
+        if col not in out.columns:
+            out[col] = "UNKNOWN"
+    # derived ratio features used by training/scoring
+    out["pv_per_session"] = pd.to_numeric(out.get("pageviews_norm", 0), errors="coerce").fillna(0) / (
+        pd.to_numeric(out.get("sessions_norm", 0), errors="coerce").fillna(0).clip(lower=1)
+    )
+    out["atc_per_pdp"] = pd.to_numeric(out.get("add_to_cart_norm", 0), errors="coerce").fillna(0) / (
+        pd.to_numeric(out.get("product_view_norm", 0), errors="coerce").fillna(0).clip(lower=1)
+    )
+    out["revenue_per_order"] = pd.to_numeric(out.get("revenue_norm", 0), errors="coerce").fillna(0) / (
+        pd.to_numeric(out.get("orders_norm", 0), errors="coerce").fillna(0).clip(lower=1)
+    )
+    for col in NUM_COLS:
+        out[col] = pd.to_numeric(out[col], errors="coerce")
+    for col in CAT_COLS:
+        out[col] = out[col].astype(str).replace({"nan":"UNKNOWN","None":"UNKNOWN"}).fillna("UNKNOWN")
+    return out
+
+
 def _build_preprocessor() -> ColumnTransformer:
     return ColumnTransformer(
         transformers=[
@@ -481,7 +511,7 @@ def assign_priority(row: pd.Series) -> str:
 
 def train_and_score() -> None:
     base = normalize_member_funnel(load_member_funnel())
-    panel = build_training_panel(base)
+    panel = ensure_feature_columns(build_training_panel(base))
 
     results: list[ModelResult] = []
     # repurchase model: past buyers only
@@ -505,7 +535,7 @@ def train_and_score() -> None:
     except Exception as e:
         print(f"[WARN] next_category_60d skipped: {e}", file=sys.stderr)
 
-    current = base.copy()
+    current = ensure_feature_columns(base.copy())
     X_current = current[NUM_COLS + CAT_COLS].copy()
 
     # default scores
