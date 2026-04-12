@@ -188,6 +188,124 @@ def normalize_member_funnel(df: pd.DataFrame) -> pd.DataFrame:
     out = out.drop_duplicates("entity_id", keep="first").reset_index(drop=True)
     return out
 
+
+# Stable feature schema used for both training and scoring.
+NUM_COLS = [
+    "age_norm",
+    "sessions_norm",
+    "pageviews_norm",
+    "product_view_norm",
+    "add_to_cart_norm",
+    "orders_norm",
+    "revenue_norm",
+    "aov_norm",
+    "member_point_norm",
+    "member_grade_norm",
+    "days_since_signup_norm",
+    "days_since_last_visit_norm",
+    "days_since_last_purchase_norm",
+    "pv_per_session",
+    "atc_per_pdp",
+    "revenue_per_order",
+    "orders_per_session",
+]
+CAT_COLS = [
+    "gender_norm",
+    "age_band_norm",
+    "channel_group_norm",
+    "first_source_norm",
+    "first_medium_norm",
+    "first_campaign_norm",
+    "top_product_norm",
+    "top_category_norm",
+]
+
+def ensure_feature_columns(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+
+    # base numeric safety
+    base_num_defaults = {
+        "age_norm": np.nan,
+        "sessions_norm": 0.0,
+        "pageviews_norm": 0.0,
+        "product_view_norm": 0.0,
+        "add_to_cart_norm": 0.0,
+        "orders_norm": 0.0,
+        "revenue_norm": 0.0,
+        "aov_norm": 0.0,
+        "member_point_norm": 0.0,
+        "member_grade_norm": 0.0,
+        "days_since_signup_norm": np.nan,
+        "days_since_last_visit_norm": np.nan,
+        "days_since_last_purchase_norm": np.nan,
+    }
+    for col, default in base_num_defaults.items():
+        if col not in out.columns:
+            out[col] = default
+        out[col] = pd.to_numeric(out[col], errors="coerce")
+
+    # categorical safety
+    cat_defaults = {
+        "gender_norm": "UNKNOWN",
+        "age_band_norm": "UNKNOWN",
+        "channel_group_norm": "Unknown",
+        "first_source_norm": "",
+        "first_medium_norm": "",
+        "first_campaign_norm": "",
+        "top_product_norm": "",
+        "top_category_norm": "미분류",
+    }
+    for col, default in cat_defaults.items():
+        if col not in out.columns:
+            out[col] = default
+        out[col] = out[col].astype(str).replace({"nan": default, "None": default}).fillna(default)
+
+    # derived ratios
+    sessions = pd.to_numeric(out["sessions_norm"], errors="coerce").fillna(0.0)
+    pv = pd.to_numeric(out["pageviews_norm"], errors="coerce").fillna(0.0)
+    pdp = pd.to_numeric(out["product_view_norm"], errors="coerce").fillna(0.0)
+    atc = pd.to_numeric(out["add_to_cart_norm"], errors="coerce").fillna(0.0)
+    orders = pd.to_numeric(out["orders_norm"], errors="coerce").fillna(0.0)
+    revenue = pd.to_numeric(out["revenue_norm"], errors="coerce").fillna(0.0)
+
+    out["pv_per_session"] = np.where(sessions > 0, pv / sessions, 0.0)
+    out["atc_per_pdp"] = np.where(pdp > 0, atc / pdp, 0.0)
+    out["revenue_per_order"] = np.where(orders > 0, revenue / orders, 0.0)
+    out["orders_per_session"] = np.where(sessions > 0, orders / sessions, 0.0)
+
+    for col in NUM_COLS:
+        if col not in out.columns:
+            out[col] = 0.0
+        out[col] = pd.to_numeric(out[col], errors="coerce").replace([np.inf, -np.inf], np.nan)
+
+    for col in CAT_COLS:
+        if col not in out.columns:
+            out[col] = ""
+        out[col] = out[col].astype(str).fillna("")
+
+    return out
+
+def _build_preprocessor() -> ColumnTransformer:
+    numeric_tf = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+        ]
+    )
+    categorical_tf = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+        ]
+    )
+    return ColumnTransformer(
+        transformers=[
+            ("num", numeric_tf, NUM_COLS),
+            ("cat", categorical_tf, CAT_COLS),
+        ],
+        remainder="drop",
+    )
+
+
 def _coerce_date(v: Any) -> dt.date | None:
     try:
         if v is None or pd.isna(v):
