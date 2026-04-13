@@ -428,6 +428,26 @@ CATEGORY_MASTER_XLS_CANDIDATES = [
     os.path.join(os.getcwd(), "카테고리_정리(3).xlsx"),
 ]
 
+def discover_category_master_candidates() -> List[str]:
+    candidates = list(CATEGORY_MASTER_XLS_CANDIDATES)
+    search_roots = [os.getcwd(), "/mnt/data"]
+    target_names = {
+        EXCEL_CATEGORY_PATH,
+        "카테고리 정리.xlsx",
+        "카테고리_정리.xlsx",
+        "카테고리_정리(1).xlsx",
+        "카테고리_정리(3).xlsx",
+    }
+    for root in search_roots:
+        try:
+            for dirpath, _, filenames in os.walk(root):
+                for filename in filenames:
+                    if filename in target_names:
+                        candidates.append(os.path.join(dirpath, filename))
+        except Exception:
+            continue
+    return unique_preserve_order(candidates)
+
 def _normalize_brand_name(brand: str) -> str:
     b = safe_text(brand).lower()
     if b in {"컬럼비아", "columbia"}:
@@ -692,27 +712,6 @@ def unique_preserve_order(items: Iterable[str]) -> List[str]:
             seen.add(item)
             result.append(item)
     return result
-
-
-def discover_category_master_candidates() -> List[str]:
-    candidates = list(CATEGORY_MASTER_XLS_CANDIDATES)
-    search_roots = [os.getcwd(), "/mnt/data"]
-    target_names = {
-        EXCEL_CATEGORY_PATH,
-        "카테고리 정리.xlsx",
-        "카테고리_정리.xlsx",
-        "카테고리_정리(1).xlsx",
-        "카테고리_정리(3).xlsx",
-    }
-    for root in search_roots:
-        try:
-            for dirpath, _, filenames in os.walk(root):
-                for filename in filenames:
-                    if filename in target_names:
-                        candidates.append(os.path.join(dirpath, filename))
-        except Exception:
-            continue
-    return unique_preserve_order(candidates)
 
 
 def first_nonempty(*values: str) -> str:
