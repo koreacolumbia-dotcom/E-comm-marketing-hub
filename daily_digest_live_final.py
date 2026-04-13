@@ -416,7 +416,7 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         revenue = _num(row.get("revenue", 0))
         total_price = _num(row.get("total_price", 0))
         cancel_amount = _num(row.get("cancel_amount", 0))
-        erp_revenue = (total_price - cancel_amount) if total_price > 0 else revenue
+        erp_revenue = revenue
         return {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
@@ -2873,9 +2873,10 @@ def render_page_html(
     adm_prev = admin_overall.get("prev", {}) or {}
     adm_yoy = admin_overall.get("yoy", {}) or {}
 
-    adm_sessions_cur = float(adm_cur.get("sessions", 0) or 0)
-    adm_sessions_prev = float(adm_prev.get("sessions", 0) or 0)
-    adm_sessions_yoy = float(adm_yoy.get("sessions", 0) or 0)
+    # Keep the ADMIN Sessions card aligned with the GA Sessions KPI as requested.
+    adm_sessions_cur = float(cur.get("sessions", 0) or 0)
+    adm_sessions_prev = float(prev.get("sessions", 0) or 0)
+    adm_sessions_yoy = float(yoy.get("sessions", 0) or 0)
     adm_orders_cur = float(adm_cur.get("orders", 0) or 0)
     adm_orders_prev = float(adm_prev.get("orders", 0) or 0)
     adm_orders_yoy = float(adm_yoy.get("orders", 0) or 0)
@@ -3303,7 +3304,7 @@ def render_page_html(
     kpis_cards_html = (
         kpi_group_title("GA KPI", "GA4 기준")
         + f'<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">{ga_kpis_cards}</div>'
-        + kpi_group_title("ADMIN KPI", "ERP Revenue 기준 · member_funnel_admin_daily")
+        + kpi_group_title("ADMIN KPI", "Sessions=GA 기준 · Revenue=ERP 기준 · member_funnel_admin_daily")
         + f'<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">{admin_kpis_cards}</div>'
     )
 
