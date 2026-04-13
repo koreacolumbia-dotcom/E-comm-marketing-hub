@@ -4491,7 +4491,7 @@ def build_one(
     overall = get_overall_kpis(client, w)
     signup_users = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
 
-    # Channel Snapshot: Looker CASE + Total forced from KPI.
+    # Channel Snapshot: always keep GA logic (Looker CASE + Total forced from GA KPI overall).
     channel_snapshot = get_channel_snapshot_3way(client, w, overall=overall)
 
     # Extract Paid AD totals from Channel Snapshot for Paid Detail alignment.
