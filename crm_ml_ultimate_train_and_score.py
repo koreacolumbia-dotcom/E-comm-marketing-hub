@@ -1,768 +1,634 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-crm_ml_ultimate_train_and_score_v6.py
+TOTAL VIEW 전용 회원 ML 파이프라인
+- member_id 기반
+- 기존 회원 CRM/주문 이력 중심
+- TOTAL VIEW에서 바로 활용 가능한 score table 생성
 
-Stable CRM ML pipeline for member funnel scoring.
-
-Goals:
-- Build a feature store from member_funnel_master (or equivalent base table)
-- Build stable labels with real-event preference and proxy fallback
-- Train calibrated models with LightGBM if available, sklearn fallback otherwise
-- Score current members and write outputs to BigQuery
-- Avoid hard failures when columns are missing or class balance is poor
-
-Outputs:
-- crm_ml_feature_store_daily
-- crm_ml_labels_daily
-- crm_ml_model_metrics
-- crm_member_target_scores
+Outputs (BigQuery):
+- crm_mart.crm_member_totalview_feature_store
+- crm_mart.crm_member_totalview_labels
+- crm_mart.crm_member_totalview_model_metrics
+- crm_mart.crm_member_totalview_scores
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import json
-import math
 import os
-import traceback
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Iterable
 
 import numpy as np
 import pandas as pd
 
 try:
     from google.cloud import bigquery  # type: ignore
-except Exception as e:  # pragma: no cover
-    raise RuntimeError("google-cloud-bigquery is required") from e
+except Exception:
+    bigquery = None
 
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
+from sklearn.metrics import roc_auc_score, average_precision_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 
 try:
-    from lightgbm import LGBMClassifier  # type: ignore
+    from lightgbm import LGBMClassifier, LGBMRegressor  # type: ignore
     HAS_LGBM = True
 except Exception:
     HAS_LGBM = False
 
-KST = dt.timezone(dt.timedelta(hours=9))
-TODAY = dt.datetime.now(KST).date()
 
-BQ_PROJECT = os.getenv("MEMBER_FUNNEL_PROJECT_ID", os.getenv("BQ_PROJECT", "")).strip()
-BQ_LOCATION = os.getenv("MEMBER_FUNNEL_BQ_LOCATION", os.getenv("BQ_LOCATION", "asia-northeast3")).strip()
-BASE_TABLE = os.getenv("MEMBER_FUNNEL_BASE_TABLE", "").strip()
-FEATURE_TABLE = os.getenv("CRM_ML_FEATURE_TABLE", f"{BQ_PROJECT}.crm_mart.crm_ml_feature_store_daily").strip()
-LABEL_TABLE = os.getenv("CRM_ML_LABEL_TABLE", f"{BQ_PROJECT}.crm_mart.crm_ml_labels_daily").strip()
-METRICS_TABLE = os.getenv("CRM_ML_METRICS_TABLE", f"{BQ_PROJECT}.crm_mart.crm_ml_model_metrics").strip()
-SCORES_TABLE = os.getenv("CRM_ML_SCORES_TABLE", f"{BQ_PROJECT}.crm_mart.crm_member_target_scores").strip()
+PROJECT_ID = os.getenv("MEMBER_FUNNEL_PROJECT_ID", os.getenv("CRM_ML_PROJECT_ID", "")).strip()
+BQ_LOCATION = os.getenv("MEMBER_FUNNEL_BQ_LOCATION", os.getenv("CRM_ML_BQ_LOCATION", "asia-northeast3")).strip()
 
-MODEL_VERSION = os.getenv("CRM_ML_MODEL_VERSION", "v6").strip()
-PRED_REPURCHASE_DAYS = int(os.getenv("CRM_ML_REPURCHASE_DAYS", "45"))
-PRED_FIRST_DAYS = int(os.getenv("CRM_ML_FIRST_PURCHASE_DAYS", "45"))
-PRED_CHURN_DAYS = int(os.getenv("CRM_ML_CHURN_DAYS", "90"))
-MIN_POSITIVES = int(os.getenv("CRM_ML_MIN_POSITIVES", "50"))
-MIN_NEGATIVES = int(os.getenv("CRM_ML_MIN_NEGATIVES", "50"))
-TRAIN_LOOKBACK_DAYS = int(os.getenv("CRM_ML_TRAIN_LOOKBACK_DAYS", "365"))
-DEBUG = os.getenv("CRM_ML_DEBUG", "false").lower() in {"1", "true", "yes", "y"}
+BASE_TABLE = os.getenv("CRM_ML_BASE_TABLE", os.getenv("MEMBER_FUNNEL_BASE_TABLE", "crm_mart.member_funnel_master")).strip()
+DATASET = os.getenv("CRM_ML_BQ_DATASET", "crm_mart").strip()
 
-if not BQ_PROJECT:
-    raise RuntimeError("MEMBER_FUNNEL_PROJECT_ID or BQ_PROJECT is required")
-if not BASE_TABLE:
-    raise RuntimeError("MEMBER_FUNNEL_BASE_TABLE is required")
+FEATURE_TABLE = os.getenv("CRM_MEMBER_TOTALVIEW_FEATURE_TABLE", f"{DATASET}.crm_member_totalview_feature_store").strip()
+LABEL_TABLE = os.getenv("CRM_MEMBER_TOTALVIEW_LABEL_TABLE", f"{DATASET}.crm_member_totalview_labels").strip()
+METRICS_TABLE = os.getenv("CRM_MEMBER_TOTALVIEW_METRICS_TABLE", f"{DATASET}.crm_member_totalview_model_metrics").strip()
+SCORES_TABLE = os.getenv("CRM_MEMBER_TOTALVIEW_SCORES_TABLE", f"{DATASET}.crm_member_totalview_scores").strip()
+
+REPURCHASE_DAYS = int(os.getenv("CRM_TOTALVIEW_REPURCHASE_DAYS", "60"))
+CHURN_DAYS = int(os.getenv("CRM_TOTALVIEW_CHURN_DAYS", "120"))
+LTV_HORIZON_DAYS = int(os.getenv("CRM_TOTALVIEW_LTV_HORIZON_DAYS", "180"))
+
+TOP_CATEGORY_MIN_COUNT = int(os.getenv("CRM_TOTALVIEW_TOP_CATEGORY_MIN_COUNT", "20"))
+MIN_TRAIN_ROWS = int(os.getenv("CRM_TOTALVIEW_MIN_TRAIN_ROWS", "300"))
+RANDOM_STATE = int(os.getenv("CRM_TOTALVIEW_RANDOM_STATE", "42"))
+
+
+def qname(name: str) -> str:
+    n = str(name or "").strip().strip("`")
+    if not n:
+        return n
+    if n.count(".") == 2:
+        return n
+    if n.count(".") == 1 and PROJECT_ID:
+        return f"{PROJECT_ID}.{n}"
+    return n
+
+
+def get_client():
+    if bigquery is None:
+        raise RuntimeError("google-cloud-bigquery is not installed")
+    return bigquery.Client(project=PROJECT_ID, location=BQ_LOCATION)
+
+
+def to_date(s: pd.Series) -> pd.Series:
+    return pd.to_datetime(s, errors="coerce").dt.date
+
+
+def num(s: pd.Series | Iterable[Any], default: float = 0.0) -> pd.Series:
+    return pd.to_numeric(s, errors="coerce").fillna(default)
+
+
+def safe_div(a: pd.Series, b: pd.Series) -> pd.Series:
+    a = num(a)
+    b = num(b)
+    return a / b.replace(0, np.nan)
+
+
+def season_flags(today: dt.date) -> dict[str, int]:
+    m = today.month
+    return {
+        "is_winter_season": int(m in [10, 11, 12, 1, 2]),
+        "is_summer_season": int(m in [5, 6, 7, 8]),
+    }
 
 
 @dataclass
 class ModelBundle:
     name: str
-    estimator: Any
-    feature_cols: List[str]
-    problem_type: str
-    classes_: Optional[List[Any]] = None
+    model: Any | None
+    metrics: dict[str, Any]
+    target_col: str
+    kind: str  # binary, multiclass, regression
 
 
-def log(msg: str) -> None:
-    print(msg, flush=True)
+NUM_COLS: list[str] = [
+    "age",
+    "days_since_signup",
+    "days_since_last_visit",
+    "days_since_last_purchase",
+    "total_sessions",
+    "total_pageviews",
+    "product_view_count",
+    "add_to_cart_count",
+    "order_count",
+    "total_revenue",
+    "aov",
+    "pv_per_session",
+    "atc_per_pdp",
+    "revenue_per_order",
+    "session_velocity_7_30",
+    "pdp_velocity_7_30",
+    "atc_velocity_7_30",
+    "purchase_gap_ratio",
+    "orders_per_30d",
+    "revenue_per_30d",
+    "recent_intent_score",
+    "category_focus_index",
+    "channel_concentration",
+    "discount_sensitivity",
+    "coupon_dependency",
+    "winter_intent_score",
+    "summer_intent_score",
+    "consent_score",
+]
+
+CAT_COLS: list[str] = [
+    "gender",
+    "channel_group",
+    "top_category",
+    "top_product",
+    "age_band",
+]
 
 
-def get_bq_client() -> bigquery.Client:
-    return bigquery.Client(project=BQ_PROJECT, location=BQ_LOCATION)
+def load_member_base() -> pd.DataFrame:
+    client = get_client()
+    sql = f"""
+    SELECT *
+    FROM `{qname(BASE_TABLE)}`
+    WHERE COALESCE(CAST(member_id AS STRING), '') != ''
+    """
+    df = client.query(sql, location=BQ_LOCATION).to_dataframe()
+    if df.empty:
+        return df
 
+    # normalize columns
+    low = {c.lower(): c for c in df.columns}
 
-def qname(table: str) -> str:
-    t = table.strip().strip("`")
-    if t.count(".") == 2:
-        return t
-    if t.count(".") == 1:
-        return f"{BQ_PROJECT}.{t}"
-    raise ValueError(f"Invalid table name: {table}")
+    def col(*names: str) -> str | None:
+        for n in names:
+            if n.lower() in low:
+                return low[n.lower()]
+        return None
 
+    out = pd.DataFrame()
+    out["member_id"] = df[col("member_id")] if col("member_id") else ""
+    out["user_id"] = df[col("user_id")] if col("user_id") else ""
+    out["signup_date"] = to_date(df[col("signup_date", "member_regdate", "member_reg_date")] if col("signup_date", "member_regdate", "member_reg_date") else pd.Series([None] * len(df)))
+    out["last_visit_date"] = to_date(df[col("event_date", "last_visit_date", "date")] if col("event_date", "last_visit_date", "date") else pd.Series([None] * len(df)))
+    out["last_order_date"] = to_date(df[col("last_order_date", "order_date")] if col("last_order_date", "order_date") else pd.Series([None] * len(df)))
 
-def to_date_series(s: pd.Series) -> pd.Series:
-    return pd.to_datetime(s, errors="coerce").dt.date
+    out["age"] = num(df[col("age")] if col("age") else pd.Series([np.nan] * len(df)), np.nan)
+    out["gender"] = (df[col("gender")] if col("gender") else "미확인").astype(str).replace({"M": "MALE", "F": "FEMALE", "1": "MALE", "2": "FEMALE"}).fillna("미확인")
+    out["age_band"] = pd.cut(out["age"], bins=[0, 19, 29, 39, 49, 59, 200], labels=["10s", "20s", "30s", "40s", "50s", "60+"]).astype(object).fillna("미확인")
 
+    out["channel_group"] = (df[col("channel_group", "channel_group_enhanced")] if col("channel_group", "channel_group_enhanced") else "Unknown").astype(str).fillna("Unknown")
+    out["top_category"] = (df[col("top_category", "preferred_category")] if col("top_category", "preferred_category") else "미분류").astype(str).fillna("미분류")
+    out["top_product"] = (df[col("purchase_product_name", "top_product_name", "top_product")] if col("purchase_product_name", "top_product_name", "top_product") else "미분류").astype(str).fillna("미분류")
 
-def first_existing(df: pd.DataFrame, names: Iterable[str]) -> Optional[str]:
-    cols = {c.lower(): c for c in df.columns}
-    for n in names:
-        if n.lower() in cols:
-            return cols[n.lower()]
-    return None
+    out["total_sessions"] = num(df[col("total_sessions", "sessions")] if col("total_sessions", "sessions") else 0)
+    out["total_pageviews"] = num(df[col("total_pageviews", "pageviews")] if col("total_pageviews", "pageviews") else 0)
+    out["product_view_count"] = num(df[col("product_view_count")] if col("product_view_count") else 0)
+    out["add_to_cart_count"] = num(df[col("add_to_cart_count")] if col("add_to_cart_count") else 0)
+    out["order_count"] = num(df[col("order_count", "orders")] if col("order_count", "orders") else 0)
+    out["total_revenue"] = num(df[col("total_revenue", "revenue")] if col("total_revenue", "revenue") else 0)
+    out["coupon_used_total"] = num(df[col("coupon_used", "coupon_used_total")] if col("coupon_used", "coupon_used_total") else 0)
+    out["cancel_amount_total"] = num(df[col("cancel_amount")] if col("cancel_amount") else 0)
 
+    # consent
+    is_mailing = num(df[col("is_mailing")] if col("is_mailing") else 0)
+    is_sms = num(df[col("is_sms")] if col("is_sms") else 0)
+    is_alimtalk = num(df[col("is_alimtalk")] if col("is_alimtalk") else 0)
+    out["consent_score"] = ((is_mailing > 0).astype(int) + (is_sms > 0).astype(int) + (is_alimtalk > 0).astype(int)) / 3.0
 
-def ensure_col(df: pd.DataFrame, name: str, default: Any) -> None:
-    if name not in df.columns:
-        df[name] = default
+    today = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).date()
+    out["snapshot_date"] = today
+    out["days_since_signup"] = (today - out["signup_date"]).apply(lambda x: x.days if pd.notna(x) else np.nan)
+    out["days_since_last_visit"] = (today - out["last_visit_date"]).apply(lambda x: x.days if pd.notna(x) else np.nan)
+    out["days_since_last_purchase"] = (today - out["last_order_date"]).apply(lambda x: x.days if pd.notna(x) else np.nan)
 
+    # derived
+    out["aov"] = safe_div(out["total_revenue"], out["order_count"]).replace([np.inf, -np.inf], np.nan).fillna(0)
+    out["pv_per_session"] = safe_div(out["total_pageviews"], out["total_sessions"]).replace([np.inf, -np.inf], np.nan).fillna(0)
+    out["atc_per_pdp"] = safe_div(out["add_to_cart_count"], out["product_view_count"]).replace([np.inf, -np.inf], np.nan).fillna(0)
+    out["revenue_per_order"] = safe_div(out["total_revenue"], out["order_count"]).replace([np.inf, -np.inf], np.nan).fillna(0)
 
-def num(series: pd.Series) -> pd.Series:
-    return pd.to_numeric(series, errors="coerce")
+    # v6-style proxy advanced features from available columns
+    # when true 7d/30d rolling cols are absent, use approximate proxies based on intent and recency
+    out["session_velocity_7_30"] = ((out["total_sessions"] * (30 / np.maximum(out["days_since_signup"].fillna(30).clip(lower=7), 7))) + 1) / ((out["total_sessions"] / 4.3) + 1)
+    out["pdp_velocity_7_30"] = ((out["product_view_count"] * (30 / np.maximum(out["days_since_last_visit"].fillna(30).clip(lower=7), 7))) + 1) / ((out["product_view_count"] / 4.3) + 1)
+    out["atc_velocity_7_30"] = ((out["add_to_cart_count"] * (30 / np.maximum(out["days_since_last_visit"].fillna(30).clip(lower=7), 7))) + 1) / ((out["add_to_cart_count"] / 4.3) + 1)
 
-
-def safe_div(a: pd.Series, b: pd.Series) -> pd.Series:
-    a = num(a).fillna(0)
-    b = num(b).fillna(0)
-    return a / b.replace(0, np.nan)
-
-
-def percentile_rank(s: pd.Series) -> pd.Series:
-    x = num(s).fillna(0)
-    return x.rank(method="average", pct=True)
-
-
-def normalize_base(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    out.columns = [str(c).strip() for c in out.columns]
-
-    aliases = {
-        "member_id": ["member_id", "memberid", "member_no", "memberno"],
-        "user_id": ["user_id", "userid"],
-        "age": ["age"],
-        "age_band": ["age_band"],
-        "gender": ["gender"],
-        "channel_group": ["channel_group", "channel_group_enhanced"],
-        "top_category": ["top_category_name", "top_category", "top_purchased_item_category"],
-        "top_product": ["top_product_name", "top_product", "top_purchased_item_name", "purchase_product_name"],
-        "sessions": ["total_sessions", "sessions"],
-        "pageviews": ["total_pageviews", "pageviews"],
-        "pdp": ["product_view_count", "pdp_views", "pdp_count"],
-        "atc": ["add_to_cart_count", "atc_count", "add_to_cart"],
-        "orders": ["order_count", "orders"],
-        "revenue": ["total_revenue", "revenue", "metric_revenue_norm"],
-        "aov": ["aov"],
-        "first_order_date": ["first_order_date"],
-        "last_order_date": ["last_order_date", "member_last_order_date_raw"],
-        "first_visit_date": ["first_visit_date", "signup_date", "member_reg_datetime"],
-        "last_visit_date": ["last_visit_date", "member_login_datetime"],
-        "signup_date": ["signup_date", "member_reg_datetime"],
-        "is_sms": ["is_sms"],
-        "is_mailing": ["is_mailing"],
-        "is_alimtalk": ["is_alimtalk"],
-        "member_point": ["member_point"],
-        "join_device": ["join_device"],
-        "first_source": ["first_source", "first_source_enhanced"],
-        "first_medium": ["first_medium", "first_medium_enhanced"],
-        "first_campaign": ["first_campaign", "first_campaign_enhanced"],
-        "latest_source": ["latest_source"],
-        "latest_medium": ["latest_medium"],
-        "latest_campaign": ["latest_campaign"],
-    }
-
-    for std, cands in aliases.items():
-        c = first_existing(out, cands)
-        if c and std not in out.columns:
-            out[std] = out[c]
-
-    for c in ["sessions", "pageviews", "pdp", "atc", "orders", "revenue", "aov", "age", "member_point"]:
-        ensure_col(out, c, 0)
-        out[c] = num(out[c]).fillna(0)
-
-    for c in ["member_id", "user_id", "age_band", "gender", "channel_group", "top_category", "top_product", "join_device",
-              "first_source", "first_medium", "first_campaign", "latest_source", "latest_medium", "latest_campaign"]:
-        ensure_col(out, c, "")
-        out[c] = out[c].astype(str).replace({"nan": "", "None": ""}).fillna("")
-
-    for c in ["first_order_date", "last_order_date", "first_visit_date", "last_visit_date", "signup_date"]:
-        ensure_col(out, c, pd.NaT)
-        out[c] = to_date_series(out[c])
-
-    key = out["member_id"].where(out["member_id"].astype(str).str.strip() != "", out["user_id"])
-    out["member_key"] = key.astype(str).str.strip()
-    out = out[out["member_key"] != ""].copy()
-
-    return out
-
-
-def add_advanced_features(df: pd.DataFrame, snapshot_date: dt.date) -> pd.DataFrame:
-    out = df.copy()
-    snap = pd.to_datetime(snapshot_date)
-
-    # Date-derived
-    for c in ["last_order_date", "last_visit_date", "signup_date", "first_order_date", "first_visit_date"]:
-        if c in out.columns:
-            out[c] = pd.to_datetime(out[c], errors="coerce")
-
-    out["days_since_last_purchase"] = (snap - out["last_order_date"]).dt.days
-    out["days_since_last_visit"] = (snap - out["last_visit_date"]).dt.days
-    out["days_since_signup"] = (snap - out["signup_date"]).dt.days
-    out["days_since_first_purchase"] = (snap - out["first_order_date"]).dt.days
-
-    # Basic safety
-    for c in ["days_since_last_purchase", "days_since_last_visit", "days_since_signup", "days_since_first_purchase"]:
-        out[c] = num(out[c]).fillna(9999)
-
-    # Core ratios
-    out["pv_per_session"] = safe_div(out["pageviews"], out["sessions"]).replace([np.inf, -np.inf], np.nan).fillna(0)
-    out["atc_per_pdp"] = safe_div(out["atc"], out["pdp"]).replace([np.inf, -np.inf], np.nan).fillna(0)
-    out["revenue_per_order"] = safe_div(out["revenue"], out["orders"]).replace([np.inf, -np.inf], np.nan).fillna(0)
-    out["orders_per_session"] = safe_div(out["orders"], out["sessions"]).replace([np.inf, -np.inf], np.nan).fillna(0)
-
-    # Approximate recent windows from current cumulative state when raw event windows are absent.
-    # Stable heuristics > missing columns in current mart.
-    out["recent_7d_sessions"] = np.where(out["days_since_last_visit"] <= 7, out["sessions"].clip(upper=out["sessions"].quantile(0.75)), 0)
-    out["recent_30d_sessions"] = np.where(out["days_since_last_visit"] <= 30, out["sessions"], out["sessions"] * 0.25)
-    out["recent_7d_pdp"] = np.where(out["days_since_last_visit"] <= 7, out["pdp"].clip(upper=out["pdp"].quantile(0.75)), 0)
-    out["recent_30d_pdp"] = np.where(out["days_since_last_visit"] <= 30, out["pdp"], out["pdp"] * 0.25)
-    out["recent_7d_atc"] = np.where(out["days_since_last_visit"] <= 7, out["atc"].clip(upper=out["atc"].quantile(0.75)), 0)
-    out["recent_30d_atc"] = np.where(out["days_since_last_visit"] <= 30, out["atc"], out["atc"] * 0.25)
-
-    out["session_velocity_7_30"] = safe_div(out["recent_7d_sessions"] + 1, (out["recent_30d_sessions"] / 4.3) + 1).fillna(0)
-    out["pdp_velocity_7_30"] = safe_div(out["recent_7d_pdp"] + 1, (out["recent_30d_pdp"] / 4.3) + 1).fillna(0)
-    out["atc_velocity_7_30"] = safe_div(out["recent_7d_atc"] + 1, (out["recent_30d_atc"] / 4.3) + 1).fillna(0)
-
-    # Frequency/recency dynamics
-    active_days = np.maximum(out["days_since_signup"], 1)
-    out["orders_per_30d"] = (out["orders"] / active_days) * 30
-    out["revenue_per_30d"] = (out["revenue"] / active_days) * 30
-    out["avg_purchase_gap_days"] = np.where(out["orders"] > 1, out["days_since_first_purchase"] / np.maximum(out["orders"] - 1, 1), out["days_since_last_purchase"])
-    out["purchase_gap_ratio"] = safe_div(out["days_since_last_purchase"] + 1, out["avg_purchase_gap_days"] + 1).fillna(0)
-
-    # Intent / focus proxies
+    avg_gap = np.where(out["order_count"] > 1, out["days_since_signup"] / np.maximum(out["order_count"], 1), np.nan)
+    out["purchase_gap_ratio"] = ((out["days_since_last_purchase"].fillna(999) + 1) / (pd.Series(avg_gap).fillna(out["days_since_last_purchase"].fillna(999) + 1) + 1)).replace([np.inf, -np.inf], np.nan).fillna(1.0)
+    out["orders_per_30d"] = safe_div(out["order_count"] * 30.0, out["days_since_signup"].clip(lower=30)).replace([np.inf, -np.inf], np.nan).fillna(0)
+    out["revenue_per_30d"] = safe_div(out["total_revenue"] * 30.0, out["days_since_signup"].clip(lower=30)).replace([np.inf, -np.inf], np.nan).fillna(0)
     out["recent_intent_score"] = (
-        percentile_rank(out["recent_7d_pdp"]) * 0.25 +
-        percentile_rank(out["recent_7d_atc"]) * 0.35 +
-        percentile_rank(out["atc_per_pdp"]) * 0.20 +
-        percentile_rank(1 / (out["days_since_last_visit"] + 1)) * 0.20
+        out["pv_per_session"] * 0.15
+        + out["product_view_count"] * 0.2
+        + out["add_to_cart_count"] * 0.45
+        + (1 / np.maximum(out["days_since_last_visit"].fillna(365), 1)) * 25.0
     )
-    out["category_focus_index"] = safe_div(out["pdp"] + 1, out["pageviews"] + 1).fillna(0)
-    out["channel_concentration"] = np.where(out["channel_group"].astype(str).str.strip() != "", 1.0, 0.0)
+    out["category_focus_index"] = safe_div(out["product_view_count"], out["total_pageviews"] + 1).fillna(0)
+    out["channel_concentration"] = 1.0  # one dominant channel per member in current mart snapshot
+    out["discount_sensitivity"] = safe_div(out["coupon_used_total"], out["total_revenue"] + 1).fillna(0)
+    out["coupon_dependency"] = safe_div(out["coupon_used_total"], out["total_revenue"] + 1).fillna(0)
 
-    # Discount sensitivity proxies from points/consent if no discount table available
-    out["coupon_dependency"] = percentile_rank(out["member_point"])
-    out["discount_sensitivity"] = (
-        percentile_rank(out["coupon_dependency"]) * 0.5 +
-        percentile_rank(out["atc_per_pdp"]) * 0.25 +
-        percentile_rank(out["purchase_gap_ratio"]) * 0.25
+    flags = season_flags(today)
+    outerwear_signal = out["top_category"].astype(str).str.contains("Outer|아우터|JACKET|FLEECE", case=False, na=False).astype(int)
+    footwear_signal = out["top_category"].astype(str).str.contains("Foot|슈즈|신발|BOOT|SHOE", case=False, na=False).astype(int)
+    out["winter_intent_score"] = outerwear_signal * flags["is_winter_season"] * (out["recent_intent_score"] + 1)
+    out["summer_intent_score"] = footwear_signal * flags["is_summer_season"] * (out["recent_intent_score"] + 1)
+
+    return out.drop_duplicates("member_id", keep="first")
+
+
+def top_decile_lift(y_true: pd.Series, y_score: pd.Series) -> float:
+    try:
+        d = pd.DataFrame({"y": y_true, "p": y_score}).dropna()
+        if d.empty or d["y"].nunique() < 2:
+            return 0.0
+        base = float(d["y"].mean())
+        if base <= 0:
+            return 0.0
+        top = d.sort_values("p", ascending=False).head(max(1, int(len(d) * 0.1)))
+        return float(top["y"].mean() / base)
+    except Exception:
+        return 0.0
+
+
+def make_labels(fs: pd.DataFrame) -> pd.DataFrame:
+    df = fs.copy()
+
+    # member_id 기반 TOTAL VIEW용 안정형 라벨
+    # real future labels가 현재 mart 단일 snapshot으로 어렵기 때문에
+    # "실제 CRM 운영에 쓸 수 있는 member-state label"로 설계
+    # 1) repurchase propensity proxy: 구매자 중 recency/frequency/intent 상위
+    buyers = df["order_count"] > 0
+    rep_base = pd.Series(False, index=df.index)
+    if buyers.any():
+        sub = df.loc[buyers].copy()
+        score = (
+            (sub["order_count"].rank(pct=True) * 0.35)
+            + ((1 - sub["days_since_last_purchase"].fillna(999).rank(pct=True)) * 0.35)
+            + (sub["recent_intent_score"].rank(pct=True) * 0.20)
+            + ((1 - sub["purchase_gap_ratio"].clip(upper=5).rank(pct=True)) * 0.10)
+        )
+        threshold = float(score.quantile(0.70))
+        rep_base.loc[sub.index] = score >= threshold
+    df["repurchase_score_label"] = rep_base.astype(int)
+
+    # 2) first purchase propensity proxy: 비구매자 중 intent/consent/recency 상위
+    non_buyers = df["order_count"] <= 0
+    fp_base = pd.Series(False, index=df.index)
+    if non_buyers.any():
+        sub = df.loc[non_buyers].copy()
+        score = (
+            (sub["recent_intent_score"].rank(pct=True) * 0.50)
+            + (sub["add_to_cart_count"].rank(pct=True) * 0.20)
+            + ((1 - sub["days_since_last_visit"].fillna(365).rank(pct=True)) * 0.20)
+            + (sub["consent_score"].rank(pct=True) * 0.10)
+        )
+        threshold = float(score.quantile(0.80))
+        fp_base.loc[sub.index] = score >= threshold
+    df["first_purchase_score_label"] = fp_base.astype(int)
+
+    # 3) churn risk: 기존 구매자 중 recency 악화 + intent 낮음
+    churn = pd.Series(False, index=df.index)
+    if buyers.any():
+        sub = df.loc[buyers].copy()
+        score = (
+            (sub["days_since_last_purchase"].fillna(999).rank(pct=True) * 0.50)
+            + (sub["purchase_gap_ratio"].rank(pct=True) * 0.25)
+            + ((1 - sub["recent_intent_score"].rank(pct=True)) * 0.15)
+            + ((1 - sub["session_velocity_7_30"].rank(pct=True)) * 0.10)
+        )
+        threshold = float(score.quantile(0.75))
+        churn.loc[sub.index] = score >= threshold
+    df["churn_risk_label"] = churn.astype(int)
+
+    # 4) ltv regression target proxy
+    df["ltv_target"] = (
+        df["total_revenue"] * 0.6
+        + (df["order_count"] * 50000)
+        + (df["aov"] * 0.4)
     )
 
-    # Seasonal intent (outerwear bias in FW, lightweight in SS)
-    month = snapshot_date.month
-    is_fw = month in {10, 11, 12, 1, 2}
-    is_ss = month in {4, 5, 6, 7, 8}
-    top_cat = out["top_category"].astype(str).str.lower()
-    out["winter_intent_score"] = np.where(is_fw, np.where(top_cat.str.contains("outer|jacket|down|fleece"), out["recent_intent_score"], 0), 0)
-    out["summer_intent_score"] = np.where(is_ss, np.where(top_cat.str.contains("foot|sandal|tee|shirt|short"), out["recent_intent_score"], 0), 0)
-
-    # Communication / consent
-    for c in ["is_sms", "is_mailing", "is_alimtalk"]:
-        ensure_col(out, c, 0)
-        out[c] = num(out[c]).fillna(0)
-    out["consent_score"] = ((out["is_sms"] > 0).astype(int) + (out["is_mailing"] > 0).astype(int) + (out["is_alimtalk"] > 0).astype(int)) / 3.0
-
-    # Stability cleanup
-    for c in out.columns:
-        if pd.api.types.is_numeric_dtype(out[c]):
-            out[c] = out[c].replace([np.inf, -np.inf], np.nan)
-
-    out["snapshot_date"] = snapshot_date
-    return out
-
-
-def build_feature_store(base: pd.DataFrame) -> pd.DataFrame:
-    snapshot_date = TODAY
-    features = add_advanced_features(base, snapshot_date=snapshot_date)
-    return features
-
-
-def build_labels(features: pd.DataFrame) -> pd.DataFrame:
-    """
-    Stable labels for current data reality.
-    Real future labels are not available in the current mart snapshot, so we use
-    a pragmatic hybrid:
-    - strong recency/frequency/intent-driven proxy labels
-    - quantile thresholds to guarantee class balance
-    This is intentionally robust for batch scoring in sparse CRM environments.
-    """
-    df = features.copy()
-
-    buyers = df["orders"] > 0
-    non_buyers = ~buyers
-
-    # Repurchase within 45d proxy for existing buyers
-    rep_signal = (
-        percentile_rank(df["orders_per_30d"]) * 0.25 +
-        percentile_rank(df["session_velocity_7_30"]) * 0.15 +
-        percentile_rank(df["pdp_velocity_7_30"]) * 0.15 +
-        percentile_rank(df["atc_velocity_7_30"]) * 0.15 +
-        percentile_rank(1 / (df["purchase_gap_ratio"] + 1e-6)) * 0.20 +
-        percentile_rank(1 / (df["days_since_last_purchase"] + 1)) * 0.10
-    )
-    rep_threshold = rep_signal[buyers].quantile(0.65) if buyers.any() else 1.0
-    df["repurchase_45d"] = np.where(buyers & (rep_signal >= rep_threshold), 1, 0)
-
-    # First purchase within 45d proxy for non-buyers
-    first_signal = (
-        percentile_rank(df["recent_intent_score"]) * 0.30 +
-        percentile_rank(df["atc_per_pdp"]) * 0.25 +
-        percentile_rank(df["session_velocity_7_30"]) * 0.15 +
-        percentile_rank(df["pdp_velocity_7_30"]) * 0.15 +
-        percentile_rank(df["consent_score"]) * 0.05 +
-        percentile_rank(1 / (df["days_since_last_visit"] + 1)) * 0.10
-    )
-    first_threshold = first_signal[non_buyers].quantile(0.80) if non_buyers.any() else 1.0
-    df["first_purchase_45d"] = np.where(non_buyers & (first_signal >= first_threshold), 1, 0)
-
-    # Churn within 90d proxy for buyers
-    churn_signal = (
-        percentile_rank(df["purchase_gap_ratio"]) * 0.30 +
-        percentile_rank(df["days_since_last_purchase"]) * 0.25 +
-        percentile_rank(1 / (df["session_velocity_7_30"] + 1e-6)) * 0.15 +
-        percentile_rank(1 / (df["pdp_velocity_7_30"] + 1e-6)) * 0.10 +
-        percentile_rank(1 / (df["atc_velocity_7_30"] + 1e-6)) * 0.10 +
-        percentile_rank(df["discount_sensitivity"]) * 0.10
-    )
-    churn_threshold = churn_signal[buyers].quantile(0.75) if buyers.any() else 1.0
-    df["churn_90d"] = np.where(buyers & (churn_signal >= churn_threshold), 1, 0)
-
-    # Next category target - collapse to top labels and fallback to own top_category
-    top_cats = df["top_category"].fillna("").astype(str).replace({"": "unknown"})
-    common = top_cats.value_counts().head(6).index.tolist()
-    df["next_category_target"] = np.where(top_cats.isin(common), top_cats, "other")
-
-    # Safety rebalance if a label is single-class
-    for col, mask in [
-        ("repurchase_45d", buyers),
-        ("first_purchase_45d", non_buyers),
-        ("churn_90d", buyers),
-    ]:
-        vc = df.loc[mask, col].value_counts().to_dict()
-        if set(vc.keys()) != {0, 1}:
-            signal = rep_signal if col == "repurchase_45d" else first_signal if col == "first_purchase_45d" else churn_signal
-            q = 0.7 if col != "first_purchase_45d" else 0.85
-            thr = signal[mask].quantile(q) if mask.any() else 1.0
-            df[col] = np.where(mask & (signal >= thr), 1, 0)
-            vc2 = df.loc[mask, col].value_counts().to_dict()
-            if DEBUG:
-                log(f"[DEBUG] relabeled {col}: {vc} -> {vc2}")
+    # 5) next category target: existing top_category but trimmed to trainable classes
+    vc = df["top_category"].fillna("미분류").astype(str).value_counts()
+    keep = set(vc[vc >= TOP_CATEGORY_MIN_COUNT].index.tolist())
+    df["next_category_target"] = df["top_category"].astype(str).where(df["top_category"].astype(str).isin(keep), "OTHER")
 
     return df
 
 
-NUM_COLS = [
-    "age", "sessions", "pageviews", "pdp", "atc", "orders", "revenue", "aov",
-    "days_since_last_purchase", "days_since_last_visit", "days_since_signup", "days_since_first_purchase",
-    "pv_per_session", "atc_per_pdp", "revenue_per_order", "orders_per_session",
-    "recent_7d_sessions", "recent_30d_sessions", "recent_7d_pdp", "recent_30d_pdp",
-    "recent_7d_atc", "recent_30d_atc", "session_velocity_7_30", "pdp_velocity_7_30",
-    "atc_velocity_7_30", "orders_per_30d", "revenue_per_30d", "avg_purchase_gap_days",
-    "purchase_gap_ratio", "recent_intent_score", "category_focus_index", "channel_concentration",
-    "coupon_dependency", "discount_sensitivity", "winter_intent_score", "summer_intent_score",
-    "consent_score", "member_point"
-]
-CAT_COLS = [
-    "age_band", "gender", "channel_group", "top_category", "top_product", "join_device",
-    "first_source", "first_medium", "first_campaign", "latest_source", "latest_medium", "latest_campaign"
-]
-
-
-def ensure_feature_columns(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    for c in NUM_COLS:
-        ensure_col(out, c, 0)
-        out[c] = num(out[c]).replace([np.inf, -np.inf], np.nan)
-    for c in CAT_COLS:
-        ensure_col(out, c, "")
-        out[c] = out[c].astype(str).replace({"nan": "", "None": ""}).fillna("")
-    return out
-
-
-def _build_preprocessor() -> ColumnTransformer:
-    num_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-    ])
-    cat_pipe = Pipeline([
+def build_preprocessor() -> ColumnTransformer:
+    num_pipe = Pipeline(steps=[("imputer", SimpleImputer(strategy="median"))])
+    cat_pipe = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+        ("ohe", OneHotEncoder(handle_unknown="ignore")),
     ])
-    return ColumnTransformer([
-        ("num", num_pipe, NUM_COLS),
-        ("cat", cat_pipe, CAT_COLS),
-    ], remainder="drop")
+    return ColumnTransformer(
+        transformers=[
+            ("num", num_pipe, NUM_COLS),
+            ("cat", cat_pipe, CAT_COLS),
+        ]
+    )
 
 
-def split_time(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    # Current mart is snapshot-based, so create pseudo time split by signup/visit recency.
-    work = df.copy()
-    work["split_key"] = num(work["days_since_last_visit"]).fillna(9999)
-    cutoff = work["split_key"].quantile(0.25)
-    valid = work[work["split_key"] <= cutoff].copy()
-    train = work[work["split_key"] > cutoff].copy()
-    if len(valid) < 500:
-        valid = work.sample(frac=0.2, random_state=42)
-        train = work.drop(valid.index)
-    return train, valid
-
-
-def class_balance_ok(y: pd.Series) -> Tuple[bool, Dict[Any, int]]:
-    vc = y.value_counts().to_dict()
-    pos = int(vc.get(1, 0))
-    neg = int(vc.get(0, 0))
-    return pos >= MIN_POSITIVES and neg >= MIN_NEGATIVES, vc
-
-
-def build_estimator_binary() -> Any:
+def make_binary_estimator():
     if HAS_LGBM:
         return LGBMClassifier(
-            n_estimators=400,
+            n_estimators=300,
             learning_rate=0.03,
             num_leaves=31,
-            max_depth=-1,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            random_state=RANDOM_STATE,
             class_weight="balanced",
-            verbosity=-1,
         )
     return HistGradientBoostingClassifier(
-        max_depth=6,
         learning_rate=0.05,
-        max_iter=250,
-        random_state=42,
+        max_depth=6,
+        max_iter=350,
+        random_state=RANDOM_STATE,
     )
 
 
-def build_estimator_multiclass() -> Any:
+def make_reg_estimator():
     if HAS_LGBM:
-        return LGBMClassifier(
-            objective="multiclass",
-            n_estimators=300,
-            learning_rate=0.05,
+        return LGBMRegressor(
+            n_estimators=350,
+            learning_rate=0.03,
             num_leaves=31,
-            random_state=42,
-            verbosity=-1,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            random_state=RANDOM_STATE,
         )
-    return RandomForestClassifier(
-        n_estimators=300,
-        random_state=42,
-        class_weight="balanced_subsample",
-        n_jobs=-1,
+    return HistGradientBoostingRegressor(
+        learning_rate=0.05,
+        max_depth=6,
+        max_iter=350,
+        random_state=RANDOM_STATE,
     )
 
 
-def fit_binary_model(name: str, df: pd.DataFrame, target_col: str) -> Tuple[Optional[ModelBundle], Dict[str, Any]]:
-    metrics: Dict[str, Any] = {"model_name": name, "model_version": MODEL_VERSION}
-    y = df[target_col].astype(int)
-    ok, vc = class_balance_ok(y)
-    if not ok:
-        metrics["status"] = "skipped"
-        metrics["reason"] = f"insufficient class balance {vc}"
-        return None, metrics
+def fit_binary(df: pd.DataFrame, target_col: str) -> ModelBundle:
+    data = df.dropna(subset=[target_col]).copy()
+    data = data[data[target_col].isin([0, 1])]
+    dist = data[target_col].value_counts().to_dict()
+    if len(data) < MIN_TRAIN_ROWS or len(dist) < 2 or min(dist.values()) < 30:
+        return ModelBundle(target_col, None, {"status": "skipped", "reason": f"insufficient class balance {dist}"}, target_col, "binary")
 
-    train, valid = split_time(df)
+    train, valid = train_test_split(
+        data, test_size=0.2, random_state=RANDOM_STATE, stratify=data[target_col]
+    )
+    if train.empty or valid.empty:
+        return ModelBundle(target_col, None, {"status": "skipped", "reason": "empty split"}, target_col, "binary")
+
+    pre = build_preprocessor()
+    X_train = train[NUM_COLS + CAT_COLS]
+    X_valid = valid[NUM_COLS + CAT_COLS]
     y_train = train[target_col].astype(int)
     y_valid = valid[target_col].astype(int)
 
-    pre = _build_preprocessor()
-    X_train = pre.fit_transform(ensure_feature_columns(train)[NUM_COLS + CAT_COLS])
-    X_valid = pre.transform(ensure_feature_columns(valid)[NUM_COLS + CAT_COLS])
+    estimator = make_binary_estimator()
+    model = Pipeline(steps=[("pre", pre), ("model", estimator)])
+    model.fit(X_train, y_train)
 
-    base = build_estimator_binary()
-    base.fit(X_train, y_train)
-
+    # optional calibration
+    calibrated = model
     try:
-        calibrator = CalibratedClassifierCV(base, method="sigmoid", cv="prefit")
-        calibrator.fit(X_valid, y_valid)
-        estimator = {"preprocessor": pre, "model": calibrator}
-        pred = calibrator.predict_proba(X_valid)[:, 1]
+        if len(np.unique(y_valid)) >= 2 and len(valid) >= 100:
+            Xt = model.named_steps["pre"].transform(X_train)
+            base = make_binary_estimator()
+            base.fit(Xt, y_train)
+            cal = CalibratedClassifierCV(base, method="sigmoid", cv="prefit")
+            cal.fit(model.named_steps["pre"].transform(X_valid), y_valid)
+            calibrated = Pipeline(steps=[("pre", model.named_steps["pre"]), ("model", cal)])
     except Exception:
-        estimator = {"preprocessor": pre, "model": base}
-        pred = base.predict_proba(X_valid)[:, 1] if hasattr(base, "predict_proba") else base.decision_function(X_valid)
-        pred = 1 / (1 + np.exp(-np.asarray(pred)))
+        calibrated = model
 
-    metrics.update({
+    p = calibrated.predict_proba(X_valid)[:, 1]
+    metrics = {
         "status": "ok",
-        "class_balance": vc,
-        "valid_auc": float(roc_auc_score(y_valid, pred)) if len(np.unique(y_valid)) > 1 else None,
-        "valid_pr_auc": float(average_precision_score(y_valid, pred)) if y_valid.sum() > 0 else None,
-        "brier": float(brier_score_loss(y_valid, pred)),
-        "top_decile_lift": compute_top_decile_lift(y_valid, pred),
-    })
-    return ModelBundle(name=name, estimator=estimator, feature_cols=NUM_COLS + CAT_COLS, problem_type="binary", classes_=[0, 1]), metrics
+        "rows_train": int(len(train)),
+        "rows_valid": int(len(valid)),
+        "positive_rate_train": float(y_train.mean()),
+        "positive_rate_valid": float(y_valid.mean()),
+        "roc_auc": float(roc_auc_score(y_valid, p)) if len(np.unique(y_valid)) >= 2 else None,
+        "pr_auc": float(average_precision_score(y_valid, p)) if len(np.unique(y_valid)) >= 2 else None,
+        "top_decile_lift": float(top_decile_lift(y_valid, p)),
+    }
+    return ModelBundle(target_col, calibrated, metrics, target_col, "binary")
 
 
-def fit_multiclass_model(name: str, df: pd.DataFrame, target_col: str) -> Tuple[Optional[ModelBundle], Dict[str, Any]]:
-    metrics: Dict[str, Any] = {"model_name": name, "model_version": MODEL_VERSION}
-    y = df[target_col].astype(str)
-    vc = y.value_counts().to_dict()
+def fit_multiclass(df: pd.DataFrame, target_col: str) -> ModelBundle:
+    data = df.dropna(subset=[target_col]).copy()
+    vc = data[target_col].astype(str).value_counts()
     if len(vc) < 2:
-        metrics["status"] = "skipped"
-        metrics["reason"] = "insufficient multiclass targets"
-        return None, metrics
+        return ModelBundle(target_col, None, {"status": "skipped", "reason": "insufficient multiclass targets"}, target_col, "multiclass")
 
-    train, valid = split_time(df)
+    # use multinomial logistic on preprocessed matrix for stability
+    train, valid = train_test_split(
+        data, test_size=0.2, random_state=RANDOM_STATE, stratify=data[target_col]
+    )
+    if train.empty or valid.empty:
+        return ModelBundle(target_col, None, {"status": "skipped", "reason": "empty split"}, target_col, "multiclass")
+
+    pre = build_preprocessor()
+    X_train = pre.fit_transform(train[NUM_COLS + CAT_COLS])
+    X_valid = pre.transform(valid[NUM_COLS + CAT_COLS])
     y_train = train[target_col].astype(str)
     y_valid = valid[target_col].astype(str)
 
-    pre = _build_preprocessor()
-    X_train = pre.fit_transform(ensure_feature_columns(train)[NUM_COLS + CAT_COLS])
-    X_valid = pre.transform(ensure_feature_columns(valid)[NUM_COLS + CAT_COLS])
+    clf = LogisticRegression(max_iter=1000, multi_class="auto")
+    clf.fit(X_train, y_train)
 
-    model = build_estimator_multiclass()
-    model.fit(X_train, y_train)
-    pred = model.predict(X_valid)
-    acc = float((pred == y_valid).mean())
+    class Wrapped:
+        def __init__(self, pre, clf):
+            self.pre = pre
+            self.clf = clf
+            self.classes_ = clf.classes_
+        def predict(self, X):
+            return self.clf.predict(self.pre.transform(X))
+        def predict_proba(self, X):
+            return self.clf.predict_proba(self.pre.transform(X))
 
-    metrics.update({
+    metrics = {
         "status": "ok",
-        "class_balance": vc,
-        "valid_accuracy": acc,
-    })
-    return ModelBundle(name=name, estimator={"preprocessor": pre, "model": model}, feature_cols=NUM_COLS + CAT_COLS, problem_type="multiclass", classes_=sorted(list(vc.keys()))), metrics
+        "rows_train": int(len(train)),
+        "rows_valid": int(len(valid)),
+        "n_classes": int(len(clf.classes_)),
+    }
+    return ModelBundle(target_col, Wrapped(pre, clf), metrics, target_col, "multiclass")
 
 
-def compute_top_decile_lift(y_true: Iterable[int], y_score: Iterable[float]) -> Optional[float]:
-    try:
-        yt = pd.Series(list(y_true)).astype(int)
-        ys = pd.Series(list(y_score)).astype(float)
-        base = yt.mean()
-        if base <= 0:
-            return None
-        cutoff = ys.quantile(0.9)
-        top = yt[ys >= cutoff].mean()
-        return float(top / base) if base > 0 else None
-    except Exception:
-        return None
+def fit_regression(df: pd.DataFrame, target_col: str) -> ModelBundle:
+    data = df.dropna(subset=[target_col]).copy()
+    if len(data) < MIN_TRAIN_ROWS:
+        return ModelBundle(target_col, None, {"status": "skipped", "reason": "insufficient regression rows"}, target_col, "regression")
+
+    train, valid = train_test_split(data, test_size=0.2, random_state=RANDOM_STATE)
+    pre = build_preprocessor()
+    reg = make_reg_estimator()
+    model = Pipeline(steps=[("pre", pre), ("model", reg)])
+    model.fit(train[NUM_COLS + CAT_COLS], train[target_col])
+
+    p = model.predict(valid[NUM_COLS + CAT_COLS])
+    mae = float(np.mean(np.abs(valid[target_col] - p))) if len(valid) else None
+    metrics = {
+        "status": "ok",
+        "rows_train": int(len(train)),
+        "rows_valid": int(len(valid)),
+        "mae": mae,
+    }
+    return ModelBundle(target_col, model, metrics, target_col, "regression")
 
 
-def score_binary(bundle: ModelBundle, df: pd.DataFrame) -> np.ndarray:
-    feat = ensure_feature_columns(df)[bundle.feature_cols]
-    pre = bundle.estimator["preprocessor"]
-    model = bundle.estimator["model"]
-    X = pre.transform(feat)
-    if hasattr(model, "predict_proba"):
-        return model.predict_proba(X)[:, 1]
-    pred = model.decision_function(X)
-    pred = np.asarray(pred)
-    return 1 / (1 + np.exp(-pred))
+def score_current(fs: pd.DataFrame, bundles: list[ModelBundle]) -> pd.DataFrame:
+    current = fs.copy()
+    for col, default in [
+        ("repurchase_score", 0.0),
+        ("first_purchase_score", 0.0),
+        ("churn_risk_score", 0.0),
+        ("ltv_score", 0.0),
+        ("next_best_category", ""),
+    ]:
+        if col not in current.columns:
+            current[col] = default
 
+    X = current[NUM_COLS + CAT_COLS].copy()
 
-def score_multiclass(bundle: ModelBundle, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
-    feat = ensure_feature_columns(df)[bundle.feature_cols]
-    pre = bundle.estimator["preprocessor"]
-    model = bundle.estimator["model"]
-    X = pre.transform(feat)
-    if hasattr(model, "predict_proba"):
-        proba = model.predict_proba(X)
-        idx = np.argmax(proba, axis=1)
-        preds = np.asarray(model.classes_)[idx]
-        conf = np.max(proba, axis=1)
-        return preds, conf
-    preds = model.predict(X)
-    return np.asarray(preds), np.ones(len(preds))
+    for bundle in bundles:
+        if bundle.model is None:
+            continue
+        if bundle.kind == "binary":
+            p = bundle.model.predict_proba(X)[:, 1]
+            if bundle.target_col == "repurchase_score_label":
+                current["repurchase_score"] = p
+            elif bundle.target_col == "first_purchase_score_label":
+                current["first_purchase_score"] = p
+            elif bundle.target_col == "churn_risk_label":
+                current["churn_risk_score"] = p
+        elif bundle.kind == "regression":
+            if bundle.target_col == "ltv_target":
+                current["ltv_score"] = bundle.model.predict(X)
+        elif bundle.kind == "multiclass":
+            if bundle.target_col == "next_category_target":
+                current["next_best_category"] = bundle.model.predict(X)
 
-
-def make_current_scores(base: pd.DataFrame, bundles: Dict[str, ModelBundle]) -> pd.DataFrame:
-    cur = build_feature_store(base)
-    cur = ensure_feature_columns(cur)
-
-    out = pd.DataFrame({
-        "member_key": cur["member_key"].astype(str),
-        "member_id": cur["member_id"].astype(str),
-        "user_id": cur["user_id"].astype(str),
-        "snapshot_date": pd.to_datetime(cur["snapshot_date"]).dt.strftime("%Y-%m-%d"),
-    })
-
-    if "repurchase_45d" in bundles:
-        out["repurchase_45d_score"] = score_binary(bundles["repurchase_45d"], cur)
+    # scaled LTV
+    ltv = num(current["ltv_score"])
+    if ltv.max() > ltv.min():
+        current["ltv_score"] = (ltv - ltv.min()) / (ltv.max() - ltv.min())
     else:
-        out["repurchase_45d_score"] = hybrid_score_repurchase(cur)
+        current["ltv_score"] = 0.0
 
-    if "first_purchase_45d" in bundles:
-        out["first_purchase_45d_score"] = score_binary(bundles["first_purchase_45d"], cur)
-    else:
-        out["first_purchase_45d_score"] = hybrid_score_first(cur)
+    # action type
+    action = np.full(len(current), "GENERAL", dtype=object)
+    action = np.where(current["churn_risk_score"] >= 0.75, "CHURN_PREVENTION", action)
+    action = np.where(current["repurchase_score"] >= 0.75, "RETENTION_REPURCHASE", action)
+    action = np.where((current["order_count"] <= 0) & (current["first_purchase_score"] >= 0.80), "FIRST_PURCHASE_NUDGE", action)
+    action = np.where((current["ltv_score"] >= 0.85) & (current["order_count"] >= 2), "VIP_UPSELL", action)
+    action = np.where((action == "GENERAL") & current["next_best_category"].astype(str).ne(""), "CATEGORY_CROSSSELL", action)
+    current["crm_action_type"] = action
 
-    if "churn_90d" in bundles:
-        out["churn_90d_score"] = score_binary(bundles["churn_90d"], cur)
-    else:
-        out["churn_90d_score"] = hybrid_score_churn(cur)
+    priority = np.full(len(current), "P3", dtype=object)
+    priority = np.where((current["ltv_score"] >= 0.8) | (current["repurchase_score"] >= 0.8), "P1", priority)
+    priority = np.where(((current["churn_risk_score"] >= 0.7) | (current["first_purchase_score"] >= 0.75)) & (priority != "P1"), "P2", priority)
+    current["priority_tier"] = priority
 
-    if "next_category_target" in bundles:
-        preds, conf = score_multiclass(bundles["next_category_target"], cur)
-        out["next_best_category"] = preds
-        out["next_category_confidence"] = conf
-    else:
-        out["next_best_category"] = cur["top_category"].replace({"": "other"})
-        out["next_category_confidence"] = 0.5
-
-    out["ltv_score"] = (
-        percentile_rank(cur["revenue"]) * 0.45 +
-        percentile_rank(cur["orders"]) * 0.25 +
-        percentile_rank(cur["aov"]) * 0.15 +
-        percentile_rank(1 / (cur["days_since_last_purchase"] + 1)) * 0.15
-    ).clip(0, 1)
-
-    out["discount_response_score"] = percentile_rank(cur["discount_sensitivity"]).clip(0, 1)
-    out["priority_tier"] = np.select(
+    current["predicted_member_stage"] = np.select(
         [
-            out["ltv_score"] >= 0.90,
-            out["ltv_score"] >= 0.75,
-            out["ltv_score"] >= 0.50,
+            current["order_count"] <= 0,
+            current["order_count"] == 1,
+            current["order_count"] >= 2,
+            current["ltv_score"] >= 0.85,
         ],
-        ["P1", "P2", "P3"],
-        default="P4",
+        ["PROSPECT", "ONE_TIME_BUYER", "REPEAT_BUYER", "VIP"],
+        default="GENERAL_MEMBER",
     )
-    out["crm_action_type"] = derive_action_type(out)
-    out["model_version"] = MODEL_VERSION
-    out["scored_at"] = dt.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
-    return out
+
+    return current
 
 
-def hybrid_score_repurchase(cur: pd.DataFrame) -> pd.Series:
-    s = (
-        percentile_rank(cur["orders_per_30d"]) * 0.25 +
-        percentile_rank(cur["session_velocity_7_30"]) * 0.15 +
-        percentile_rank(cur["atc_velocity_7_30"]) * 0.15 +
-        percentile_rank(cur["pdp_velocity_7_30"]) * 0.10 +
-        percentile_rank(1 / (cur["purchase_gap_ratio"] + 1e-6)) * 0.20 +
-        percentile_rank(1 / (cur["days_since_last_purchase"] + 1)) * 0.15
-    )
-    return s.clip(0, 1)
-
-
-def hybrid_score_first(cur: pd.DataFrame) -> pd.Series:
-    s = (
-        percentile_rank(cur["recent_intent_score"]) * 0.35 +
-        percentile_rank(cur["atc_per_pdp"]) * 0.20 +
-        percentile_rank(cur["session_velocity_7_30"]) * 0.15 +
-        percentile_rank(cur["pdp_velocity_7_30"]) * 0.15 +
-        percentile_rank(1 / (cur["days_since_last_visit"] + 1)) * 0.10 +
-        percentile_rank(cur["consent_score"]) * 0.05
-    )
-    return s.clip(0, 1)
-
-
-def hybrid_score_churn(cur: pd.DataFrame) -> pd.Series:
-    s = (
-        percentile_rank(cur["purchase_gap_ratio"]) * 0.35 +
-        percentile_rank(cur["days_since_last_purchase"]) * 0.25 +
-        percentile_rank(1 / (cur["session_velocity_7_30"] + 1e-6)) * 0.15 +
-        percentile_rank(1 / (cur["pdp_velocity_7_30"] + 1e-6)) * 0.10 +
-        percentile_rank(1 / (cur["atc_velocity_7_30"] + 1e-6)) * 0.10 +
-        percentile_rank(cur["discount_sensitivity"]) * 0.05
-    )
-    return s.clip(0, 1)
-
-
-def derive_action_type(scores: pd.DataFrame) -> pd.Series:
-    conditions = [
-        (scores["churn_90d_score"] >= 0.75) & (scores["ltv_score"] >= 0.75),
-        (scores["repurchase_45d_score"] >= 0.70) & (scores["ltv_score"] >= 0.60),
-        (scores["first_purchase_45d_score"] >= 0.70),
-        (scores["ltv_score"] >= 0.90) & (scores["churn_90d_score"] < 0.50),
-        (scores["discount_response_score"] >= 0.75),
-    ]
-    choices = [
-        "DORMANT_RECOVERY",
-        "REPURCHASE_PUSH",
-        "FIRST_PURCHASE_NUDGE",
-        "VIP_EXCLUSIVE",
-        "PROMO_RESPONSE",
-    ]
-    return pd.Series(np.select(conditions, choices, default="GENERAL"), index=scores.index)
-
-
-def fetch_base_table(client: bigquery.Client) -> pd.DataFrame:
-    sql = f"SELECT * FROM `{qname(BASE_TABLE)}`"
-    return client.query(sql, location=BQ_LOCATION).to_dataframe()
-
-
-def write_bq_df(client: bigquery.Client, table: str, df: pd.DataFrame) -> None:
-    table = qname(table)
-    clean = df.copy()
-    for c in clean.columns:
-        if pd.api.types.is_object_dtype(clean[c]):
-            clean[c] = clean[c].astype(str)
-    job = client.load_table_from_dataframe(clean, table, job_config=bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE"), location=BQ_LOCATION)
+def upload_dataframe(df: pd.DataFrame, table_name: str) -> None:
+    client = get_client()
+    full_name = qname(table_name)
+    df2 = df.copy()
+    for c in df2.columns:
+        if str(df2[c].dtype) == "object":
+            df2[c] = df2[c].astype(str)
+    job = client.load_table_from_dataframe(df2, full_name, location=BQ_LOCATION)
     job.result()
 
 
 def train_and_score() -> None:
-    client = get_bq_client()
-    base_raw = fetch_base_table(client)
-    base = normalize_base(base_raw)
+    fs = load_member_base()
+    if fs.empty:
+        print("[WARN] member base empty -> skip ML")
+        return
 
-    features = ensure_feature_columns(build_feature_store(base))
-    labels = build_labels(features)
+    labels = make_labels(fs)
 
-    bundles: Dict[str, ModelBundle] = {}
-    metrics_rows: List[Dict[str, Any]] = []
+    # upload feature / label store
+    upload_dataframe(fs, FEATURE_TABLE)
+    upload_dataframe(labels[["member_id", "repurchase_score_label", "first_purchase_score_label", "churn_risk_label", "ltv_target", "next_category_target"]], LABEL_TABLE)
 
-    for target in ["repurchase_45d", "first_purchase_45d", "churn_90d"]:
-        model, m = fit_binary_model(target, labels, target)
-        metrics_rows.append(m)
-        if model is not None:
-            bundles[target] = model
-        else:
-            log(f"[WARN] {target} skipped: {m.get('reason')}")
+    bundles = [
+        fit_binary(labels, "repurchase_score_label"),
+        fit_binary(labels, "first_purchase_score_label"),
+        fit_binary(labels, "churn_risk_label"),
+        fit_regression(labels, "ltv_target"),
+        fit_multiclass(labels, "next_category_target"),
+    ]
 
-    mc_model, mc_metrics = fit_multiclass_model("next_category_target", labels, "next_category_target")
-    metrics_rows.append(mc_metrics)
-    if mc_model is not None:
-        bundles["next_category_target"] = mc_model
-    else:
-        log(f"[WARN] next_category_target skipped: {mc_metrics.get('reason')}")
+    metrics_rows = []
+    run_at = dt.datetime.now(dt.timezone.utc).isoformat()
+    for b in bundles:
+        row = {
+            "model_name": b.target_col,
+            "model_version": "member_totalview_v1",
+            "evaluated_at": run_at,
+            "metrics_json": json.dumps(b.metrics, ensure_ascii=False),
+        }
+        metrics_rows.append(row)
+        if b.metrics.get("status") != "ok":
+            print(f"[WARN] {b.target_col} skipped: {b.metrics.get('reason')}")
+    if metrics_rows:
+        upload_dataframe(pd.DataFrame(metrics_rows), METRICS_TABLE)
 
-    scores = make_current_scores(base, bundles)
+    scored = score_current(fs, bundles)
+    out = scored[[
+        "member_id", "user_id", "age", "gender", "age_band",
+        "channel_group", "top_category", "top_product",
+        "order_count", "total_revenue", "aov",
+        "signup_date", "last_visit_date", "last_order_date",
+        "days_since_signup", "days_since_last_visit", "days_since_last_purchase",
+        "repurchase_score", "first_purchase_score", "churn_risk_score", "ltv_score",
+        "next_best_category", "crm_action_type", "priority_tier", "predicted_member_stage",
+    ]].copy()
+    upload_dataframe(out, SCORES_TABLE)
 
-    feature_out = features.copy()
-    feature_out["snapshot_date"] = pd.to_datetime(feature_out["snapshot_date"]).dt.strftime("%Y-%m-%d")
-    label_out = labels[["member_key", "snapshot_date", "repurchase_45d", "first_purchase_45d", "churn_90d", "next_category_target"]].copy()
-    label_out["snapshot_date"] = pd.to_datetime(label_out["snapshot_date"]).dt.strftime("%Y-%m-%d")
+    print(f"[INFO] feature store written: {qname(FEATURE_TABLE)} rows={len(fs)}")
+    print(f"[INFO] labels written: {qname(LABEL_TABLE)} rows={len(labels)}")
+    print(f"[INFO] metrics written: {qname(METRICS_TABLE)} rows={len(metrics_rows)}")
+    print(f"[INFO] scores written: {qname(SCORES_TABLE)} rows={len(out)}")
 
-    metrics_df = pd.DataFrame(metrics_rows)
-    metrics_df["evaluated_at"] = dt.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
-    metrics_df["metrics_json"] = metrics_df.apply(lambda r: json.dumps({k: (None if pd.isna(v) else v) for k, v in r.items() if k not in {"metrics_json"}}, ensure_ascii=False), axis=1)
 
-    write_bq_df(client, FEATURE_TABLE, feature_out)
-    write_bq_df(client, LABEL_TABLE, label_out)
-    write_bq_df(client, METRICS_TABLE, metrics_df)
-    write_bq_df(client, SCORES_TABLE, scores)
-
-    log(f"[INFO] feature store written: {qname(FEATURE_TABLE)} rows={len(feature_out)}")
-    log(f"[INFO] labels written: {qname(LABEL_TABLE)} rows={len(label_out)}")
-    log(f"[INFO] metrics written: {qname(METRICS_TABLE)} rows={len(metrics_df)}")
-    log(f"[INFO] scores written: {qname(SCORES_TABLE)} rows={len(scores)}")
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("--mode", default="train_and_score", choices=["train_and_score"])
+    return p.parse_args()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", default="train_and_score", choices=["train_and_score"])
-    args = parser.parse_args()
-    try:
-        if args.mode == "train_and_score":
-            train_and_score()
-    except Exception as e:
-        log(f"[ERROR] CRM ML pipeline failed: {e}")
-        if DEBUG:
-            traceback.print_exc()
-        raise
+    _ = parse_args()
+    train_and_score()
 
 
 if __name__ == "__main__":
