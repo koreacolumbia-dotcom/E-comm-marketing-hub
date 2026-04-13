@@ -415,6 +415,28 @@ def compact_text(value: Optional[str]) -> str:
     return safe_text(value).replace("\xa0", " ")
 
 
+def canonicalize_url(url: str) -> str:
+    if not url:
+        return ""
+    try:
+        parsed = urlparse(url.strip())
+        parsed = parsed._replace(fragment="")
+        return urlunparse(parsed)
+    except Exception:
+        return url.strip()
+
+
+def unique_preserve_order(items: Iterable[str]) -> List[str]:
+    seen = set()
+    result = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+
 CATEGORY_MASTER_XLS_CANDIDATES = [
     os.path.join("/mnt/data", EXCEL_CATEGORY_PATH),
     os.path.join("/mnt/data", "카테고리 정리.xlsx"),
