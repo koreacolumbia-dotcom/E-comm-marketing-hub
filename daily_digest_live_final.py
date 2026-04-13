@@ -139,13 +139,13 @@ YOY_DAILY_DATE_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_DAILY_DATE", "").strip()  
 YOY_WEEKLY_END_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_WEEKLY_END", "").strip()  # "YYYY-MM-DD"
 
 # Cost-saving: if HTML exists for same date, skip all queries and keep HTML as-is
-SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "false").strip().lower() in ("1", "true", "yes", "y")
+SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "true").strip().lower() in ("1", "true", "yes", "y")
 
 # Hub index write control
 SKIP_HUB_WRITE = os.getenv("DAILY_DIGEST_SKIP_HUB_WRITE", "true").strip().lower() in ("1", "true", "yes", "y")
 
 # Data cache (bundle JSON)
-USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "false").strip().lower() in ("1", "true", "yes", "y")
+USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
@@ -430,7 +430,7 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
             "total_price": total_price,
             "cancel_amount": cancel_amount,
             "aov": (erp_revenue / orders) if orders else 0.0,
-            "source": f"admin_bq_daily_erp_login_user:{sessions_source_col}",
+            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}",
         }
     except Exception as e:
         print(f"[WARN] fetch_admin_period_snapshot failed: {type(e).__name__}: {e}")
@@ -1119,6 +1119,18 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
     }
 
 
+def get_ga_unique_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, float]:
+    def get_one(start: dt.date, end: dt.date) -> float:
+        df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), [], ["totalUsers"])
+        return float(df.iloc[0]["totalUsers"]) if (not df.empty and "totalUsers" in df.columns) else 0.0
+
+    return {
+        "current": get_one(w.cur_start, w.cur_end),
+        "prev": get_one(w.prev_start, w.prev_end),
+        "yoy": get_one(w.yoy_start, w.yoy_end),
+    }
+
+
 # =========================
 # Looker CASE rules based on sample.rtf source/medium + campaign logic
 # =========================
@@ -1330,14 +1342,16 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 def get_channel_snapshot_3way(
     client: BetaAnalyticsDataClient,
     w: DigestWindow,
-    overall: Dict[str, Dict[str, float]],
+    overall_users: Dict[str, float],
 ) -> pd.DataFrame:
     """
     Build Channel Snapshot using the Looker CASE bucket logic.
-    The Total row is always forced from the authoritative overall KPI.
+    User metric is GA totalUsers by channel grouping, rendered as Unique Users.
+    The Total row is forced from the authoritative GA overall unique-users KPI.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName", "sessionDefaultChannelGroup"]
-    mets = ["sessions", "transactions", "purchaseRevenue"]
+    user_metric = "totalUsers"
+    mets = [user_metric, "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
@@ -1373,9 +1387,9 @@ def get_channel_snapshot_3way(
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame(columns=["bucket", f"sessions{suffix}", f"transactions{suffix}", f"revenue{suffix}"])
-        g = df.groupby("bucket", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
+        g = df.groupby("bucket", as_index=False)[[user_metric, "transactions", "purchaseRevenue"]].sum()
         g = g.rename(columns={
-            "sessions": f"sessions{suffix}",
+            user_metric: f"sessions{suffix}",
             "transactions": f"transactions{suffix}",
             "purchaseRevenue": f"revenue{suffix}",
         })
@@ -1387,9 +1401,10 @@ def get_channel_snapshot_3way(
 
     m = cur_b.merge(prev_b, on="bucket", how="outer").merge(yoy_b, on="bucket", how="outer").fillna(0.0)
 
-    oc = overall.get("current", {}) or {}
-    op = overall.get("prev", {}) or {}
-    oy = overall.get("yoy", {}) or {}
+    overall_users = overall_users or {}
+    ou_cur = float(overall_users.get("current", 0) or 0)
+    ou_prev = float(overall_users.get("prev", 0) or 0)
+    ou_yoy = float(overall_users.get("yoy", 0) or 0)
 
     canonical_buckets = list(CHANNEL_BUCKET_ORDER)
     numeric_cols = [
@@ -1437,17 +1452,17 @@ def get_channel_snapshot_3way(
 
     total = pd.DataFrame([{
         "bucket": "Total",
-        "sessions": float(oc.get("sessions", 0) or 0),
-        "transactions": float(oc.get("transactions", 0) or 0),
-        "purchaseRevenue": float(oc.get("purchaseRevenue", 0) or 0),
-        "session_dod": pct_change(float(oc.get("sessions", 0) or 0), float(op.get("sessions", 0) or 0)),
-        "session_yoy": pct_change(float(oc.get("sessions", 0) or 0), float(oy.get("sessions", 0) or 0)),
-        "orders_dod": pct_change(float(oc.get("transactions", 0) or 0), float(op.get("transactions", 0) or 0)),
-        "orders_yoy": pct_change(float(oc.get("transactions", 0) or 0), float(oy.get("transactions", 0) or 0)),
-        "revenue_dod": pct_change(float(oc.get("purchaseRevenue", 0) or 0), float(op.get("purchaseRevenue", 0) or 0)),
-        "revenue_yoy": pct_change(float(oc.get("purchaseRevenue", 0) or 0), float(oy.get("purchaseRevenue", 0) or 0)),
-        "rev_dod": pct_change(float(oc.get("sessions", 0) or 0), float(op.get("sessions", 0) or 0)),
-        "rev_yoy": pct_change(float(oc.get("sessions", 0) or 0), float(oy.get("sessions", 0) or 0)),
+        "sessions": ou_cur,
+        "transactions": float(out["transactions"].sum() if not out.empty else 0),
+        "purchaseRevenue": float(out["purchaseRevenue"].sum() if not out.empty else 0),
+        "session_dod": pct_change(ou_cur, ou_prev),
+        "session_yoy": pct_change(ou_cur, ou_yoy),
+        "orders_dod": pct_change(float(out["transactions"].sum() if not out.empty else 0), float(m["transactions_prev"].sum() if not m.empty else 0)),
+        "orders_yoy": pct_change(float(out["transactions"].sum() if not out.empty else 0), float(m["transactions_yoy"].sum() if not m.empty else 0)),
+        "revenue_dod": pct_change(float(out["purchaseRevenue"].sum() if not out.empty else 0), float(m["revenue_prev"].sum() if not m.empty else 0)),
+        "revenue_yoy": pct_change(float(out["purchaseRevenue"].sum() if not out.empty else 0), float(m["revenue_yoy"].sum() if not m.empty else 0)),
+        "rev_dod": pct_change(ou_cur, ou_prev),
+        "rev_yoy": pct_change(ou_cur, ou_yoy),
     }])
 
     out = pd.concat([out, total], ignore_index=True)
@@ -1470,7 +1485,8 @@ def get_paid_detail_3way(
     Provide switchable Session / Orders / Revenue deltas.
     """
     dims = ["sessionSourceMedium", "sessionCampaignName", "sessionDefaultChannelGroup"]
-    mets = ["sessions", "transactions", "purchaseRevenue"]
+    user_metric = "totalUsers"
+    mets = [user_metric, "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
@@ -1509,12 +1525,12 @@ def get_paid_detail_3way(
 
     def agg(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=["sub", "sessions", "transactions", "purchaseRevenue"])
-        return df.groupby("sub", as_index=False)[["sessions", "transactions", "purchaseRevenue"]].sum()
+            return pd.DataFrame(columns=["sub", user_metric, "transactions", "purchaseRevenue"])
+        return df.groupby("sub", as_index=False)[[user_metric, "transactions", "purchaseRevenue"]].sum()
 
-    cur_a = agg(cur).rename(columns={"sessions": "sessions_cur", "transactions": "orders_cur", "purchaseRevenue": "rev_cur"})
-    prev_a = agg(prev).rename(columns={"sessions": "sessions_prev", "transactions": "orders_prev", "purchaseRevenue": "rev_prev"})
-    yoy_a = agg(yoy).rename(columns={"sessions": "sessions_yoy", "transactions": "orders_yoy", "purchaseRevenue": "rev_yoy_base"})
+    cur_a = agg(cur).rename(columns={user_metric: "sessions_cur", "transactions": "orders_cur", "purchaseRevenue": "rev_cur"})
+    prev_a = agg(prev).rename(columns={user_metric: "sessions_prev", "transactions": "orders_prev", "purchaseRevenue": "rev_prev"})
+    yoy_a = agg(yoy).rename(columns={user_metric: "sessions_yoy", "transactions": "orders_yoy", "purchaseRevenue": "rev_yoy_base"})
     yoy_subs = set(yoy_a["sub"].astype(str).tolist()) if not yoy_a.empty else set()
 
     merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
@@ -2485,7 +2501,8 @@ def fetch_platform_spend_map(start: dt.date, end: dt.date) -> Dict[str, float]:
 
 def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow) -> Dict[str, pd.DataFrame]:
     dims = ["sessionSourceMedium", "sessionCampaignName"]
-    mets = ["sessions", "transactions", "purchaseRevenue"]
+    user_metric = "totalUsers"
+    mets = [user_metric, "transactions", "purchaseRevenue"]
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
         try:
             df = run_report(client, PROPERTY_ID, ymd(start), ymd(end), dims, mets, limit=250000)
@@ -2515,8 +2532,8 @@ def get_channel_detail_map_3way(client: BetaAnalyticsDataClient, w: DigestWindow
     def agg(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame(columns=['sub', f'sessions{suffix}', f'transactions{suffix}', f'revenue{suffix}'])
-        g = df.groupby('sub', as_index=False)[['sessions','transactions','purchaseRevenue']].sum()
-        return g.rename(columns={'sessions':f'sessions{suffix}','transactions':f'transactions{suffix}','purchaseRevenue':f'revenue{suffix}'})
+        g = df.groupby('sub', as_index=False)[[user_metric,'transactions','purchaseRevenue']].sum()
+        return g.rename(columns={user_metric:f'sessions{suffix}','transactions':f'transactions{suffix}','purchaseRevenue':f'revenue{suffix}'})
     out_map: Dict[str, pd.DataFrame] = {}
     for bucket in CHANNEL_BUCKET_ORDER:
         merged = agg(make_detail_key(cur, bucket),'_cur').merge(
@@ -2923,7 +2940,7 @@ def render_page_html(
     def metric_tabs_html(section: str) -> str:
         return (
             f"<div class='metric-switch' data-metric-switch='{section}'>"
-            f"<button type='button' class='metric-tab active' data-metric-tab='sessions'>Sessions</button>"
+            f"<button type='button' class='metric-tab active' data-metric-tab='sessions'>Unique Users</button>"
             f"<button type='button' class='metric-tab' data-metric-tab='orders'>Orders</button>"
             f"<button type='button' class='metric-tab' data-metric-tab='revenue'>Revenue</button>"
             f"</div>"
@@ -2992,18 +3009,18 @@ def render_page_html(
         actual_sessions = float(df["sessions"].sum()) if df is not None and (not df.empty) and ("sessions" in df.columns) else 0.0
         actual_revenue = float(df["purchaseRevenue"].sum()) if df is not None and (not df.empty) and ("purchaseRevenue" in df.columns) else 0.0
         diag_bits = [
-            f"<span class='rounded-full bg-slate-900/5 px-2 py-1 font-extrabold text-slate-600'>Visible Detail {fmt_int(actual_sessions)} sessions / {fmt_currency_krw(actual_revenue)}</span>"
+            f"<span class='rounded-full bg-slate-900/5 px-2 py-1 font-extrabold text-slate-600'>Visible Detail {fmt_int(actual_sessions)} users / {fmt_currency_krw(actual_revenue)}</span>"
         ]
         summary_row = summary_lookup.get(bucket)
         if summary_row is not None:
             summary_sessions = float(getattr(summary_row, "sessions", 0) or 0)
             summary_revenue = float(getattr(summary_row, "purchaseRevenue", 0) or 0)
             diag_bits.append(
-                f"<span class='rounded-full bg-slate-100 px-2 py-1 font-extrabold text-slate-600'>Snapshot Total {fmt_int(summary_sessions)} sessions / {fmt_currency_krw(summary_revenue)}</span>"
+                f"<span class='rounded-full bg-slate-100 px-2 py-1 font-extrabold text-slate-600'>Snapshot Total {fmt_int(summary_sessions)} users / {fmt_currency_krw(summary_revenue)}</span>"
             )
             if bucket == "Other":
                 diag_bits.append(
-                    f"<span class='rounded-full bg-orange-50 px-2 py-1 font-extrabold text-orange-700'>Residual {fmt_int(max(summary_sessions - actual_sessions, 0.0))} sessions / {fmt_currency_krw(max(summary_revenue - actual_revenue, 0.0))}</span>"
+                    f"<span class='rounded-full bg-orange-50 px-2 py-1 font-extrabold text-orange-700'>Residual {fmt_int(max(summary_sessions - actual_sessions, 0.0))} users / {fmt_currency_krw(max(summary_revenue - actual_revenue, 0.0))}</span>"
                 )
         channel_detail_payload[bucket] = {
             "title": f"{bucket} Detail",
@@ -3040,7 +3057,7 @@ def render_page_html(
             <thead class="text-xs text-slate-500">
               <tr>
                 <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Unique Users</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
@@ -3055,7 +3072,7 @@ def render_page_html(
             <thead class="text-xs text-slate-500">
               <tr>
                 <th class="px-2 py-2 text-left whitespace-nowrap">Source / Medium</th>
-                <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+                <th class="px-2 py-2 text-right whitespace-nowrap">Unique Users</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
                 <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
@@ -3261,7 +3278,7 @@ def render_page_html(
     adm_signups_yoy_delta = pct_change(adm_signups_cur, adm_signups_yoy)
 
     admin_kpis_cards = "".join([
-        top_kpi_card("Login User", fmt_int(adm_sessions_cur),
+        top_kpi_card("Sessions", fmt_int(adm_sessions_cur),
                      f"{'+' if adm_sessions_delta>=0 else ''}{fmt_pct(adm_sessions_delta,1)}",
                      f"{'+' if adm_sessions_yoy_delta>=0 else ''}{fmt_pct(adm_sessions_yoy_delta,1)}",
                      delta_cls(adm_sessions_delta), delta_cls(adm_sessions_yoy_delta), "ADMIN"),
@@ -3500,7 +3517,7 @@ def render_page_html(
         <thead class="text-xs text-slate-500">
           <tr>
             <th class="px-2 py-2 text-left whitespace-nowrap">Bucket</th>
-            <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+            <th class="px-2 py-2 text-right whitespace-nowrap">Unique Users</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
             <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
@@ -3523,7 +3540,7 @@ def render_page_html(
           <thead class="text-xs text-slate-500">
             <tr>
               <th class="px-2 py-2 text-left whitespace-nowrap">Sub</th>
-              <th class="px-2 py-2 text-right whitespace-nowrap">Sessions</th>
+              <th class="px-2 py-2 text-right whitespace-nowrap">Unique Users</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Orders</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">Revenue</th>
               <th class="px-2 py-2 text-right whitespace-nowrap">{w.compare_label}</th>
@@ -4513,9 +4530,10 @@ def build_one(
 
     overall = get_overall_kpis(client, w)
     signup_users = get_multi_event_users_3way(client, w, ["signup_complete", "signup"])
+    channel_unique_users = get_ga_unique_users_3way(client, w)
 
-    # Channel Snapshot: always keep GA logic (Looker CASE + Total forced from GA KPI overall).
-    channel_snapshot = get_channel_snapshot_3way(client, w, overall=overall)
+    # Channel Snapshot: GA unique users by channel bucket, with Total forced from overall GA unique users.
+    channel_snapshot = get_channel_snapshot_3way(client, w, overall_users=channel_unique_users)
 
     # Extract Paid AD totals from Channel Snapshot for Paid Detail alignment.
     paid_ad_totals = {
