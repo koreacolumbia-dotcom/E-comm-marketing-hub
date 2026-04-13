@@ -1201,6 +1201,139 @@ def strip_discovery_prefix(name: str) -> str:
     return compact_text(t)
 
 
+def normalize_product_name_for_dedupe(name: str, brand: str = "") -> str:
+    t = compact_text(name)
+    if brand == "DISCOVERY":
+        t = strip_discovery_prefix(t)
+    t = re.sub(r'\s+', ' ', t).strip().lower()
+    t = re.sub(r'[^a-z0-9가-힣]+', '', t)
+    return t
+
+
+def _discovery_bad_name(text: str) -> bool:
+    t = compact_text(text)
+    if not t:
+        return True
+    low = t.lower()
+    bad_tokens = [
+        '배송비', '추가혜택', '상품코드', '상품컬러', '사이즈 옵션', '총 결제금액',
+        '장바구니', '바로 구매', '매장 픽업하기', '무료배송', '무료반품', '리워드',
+        '마일리지', '상품 선택하기', 'review', '혜택', '결제', '구매'
+    ]
+    if any(tok in low for tok in [x.lower() for x in bad_tokens]):
+        return True
+    if re.search(r'\d{1,3}(?:,\d{3})\s*원', t):
+        return True
+    if re.fullmatch(r'[A-Z]{2,}\d+[A-Z0-9\-]*', t):
+        return True
+    return False
+
+
+def extract_product_name_from_jsonld(page_source: str) -> str:
+    if not page_source:
+        return ''
+    try:
+        soup = BeautifulSoup(page_source, 'html.parser')
+        scripts = soup.find_all('script', attrs={'type': re.compile('ld\+json', re.I)})
+        for script in scripts:
+            raw = script.string or script.get_text(' ', strip=True)
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                continue
+            queue = parsed if isinstance(parsed, list) else [parsed]
+            while queue:
+                node = queue.pop(0)
+                if isinstance(node, list):
+                    queue.extend(node)
+                    continue
+                if not isinstance(node, dict):
+                    continue
+                node_type = node.get('@type')
+                node_type = ' '.join(node_type) if isinstance(node_type, list) else str(node_type or '')
+                if 'Product' in node_type and safe_text(node.get('name')):
+                    return compact_text(node.get('name'))
+                for v in node.values():
+                    if isinstance(v, (dict, list)):
+                        queue.append(v)
+    except Exception:
+        return ''
+    return ''
+
+
+def extract_discovery_best_name(page_source: str, driver_title: str = '') -> str:
+    candidates = []
+    try:
+        soup = BeautifulSoup(page_source or '', 'html.parser')
+        meta_candidates = [
+            ('meta[property="og:title"]', 120),
+            ('meta[name="twitter:title"]', 115),
+            ('h1', 110),
+            ('main h1', 108),
+            ('h2', 90),
+            ('title', 70),
+        ]
+        for css, base in meta_candidates:
+            try:
+                nodes = soup.select(css)
+            except Exception:
+                nodes = []
+            for node in nodes[:5]:
+                txt = compact_text(node.get('content') if node.name == 'meta' else node.get_text(' ', strip=True))
+                if txt:
+                    candidates.append((base, txt))
+        jname = extract_product_name_from_jsonld(page_source)
+        if jname:
+            candidates.append((130, jname))
+    except Exception:
+        pass
+    if driver_title:
+        candidates.append((75, compact_text(driver_title)))
+
+    scored = []
+    for base, raw in candidates:
+        txt = strip_discovery_prefix(clean_product_text(raw))
+        if not txt or _discovery_bad_name(txt):
+            continue
+        score = base
+        if re.search(r'[가-힣]{2,}', txt):
+            score += 25
+        if 4 <= len(txt) <= 60:
+            score += 12
+        if any(x in txt.lower() for x in ['후드', '티셔츠', '자켓', '팬츠', '폴로', '반팔', '긴팔', '플리스']):
+            score += 10
+        if 'discovery expedition' in txt.lower() or '디스커버리 익스페디션' in txt.lower():
+            score -= 8
+        scored.append((score, txt))
+    if not scored:
+        return ''
+    scored.sort(key=lambda x: (-x[0], len(x[1])))
+    return scored[0][1]
+
+
+def infer_strong_name_category(name: str, description: str = '') -> str:
+    blob = compact_text(f'{name} {description}').lower()
+    if not blob:
+        return ''
+    if any(x in blob for x in ['backpack', 'rucksack', 'daypack', 'packable backpack', '백팩', '배낭', '가방', 'cross bag', 'tote bag', 'sling bag', 'hip sack', '힙색', '크로스백', '숄더백', '토트백']):
+        return '백'
+    if any(x in blob for x in ['konos', 'peakfreak', 'crestwood', 'shoe', 'shoes', 'sneaker', 'sneakers', 'trail atr', 'boot', 'boots', 'clog', '등산화', '신발', '슈즈', '샌들', '슬리퍼', 'outdry', 'omni-max', 'omni max']):
+        return '슈즈'
+    if any(x in blob for x in ['fleece', '플리스', 'boa', '보아', 'half snap fleece']):
+        return '플리스'
+    if any(x in blob for x in ['hoodie', '후디', '후드티', '맨투맨', 'sweatshirt']):
+        return '후디'
+    if any(x in blob for x in ['polo', '폴로', 'tee', 't-shirt', 't shirt', '반팔', '긴팔', '티셔츠', 'jersey']) and 'fleece' not in blob:
+        return '티셔츠'
+    if any(x in blob for x in ['pants', 'pant', 'jogger', 'cargo pant', 'cargo pants', 'shorts', 'short', 'skort', 'trouser', '치노', '팬츠', '바지', '조거', '카고']) and 'fleece' not in blob:
+        return '팬츠'
+    if any(x in blob for x in ['jacket', 'windbreaker', 'anorak', 'parka', 'shell', '자켓', '재킷', '바람막이', '아노락']):
+        return '자켓'
+    return ''
+
+
 def choose_price_text(values: List[str]) -> str:
     cleaned = [compact_text(v) for v in values if compact_text(v)]
     if not cleaned:
@@ -1657,14 +1790,14 @@ def normalize_source_category(text: str) -> str:
 
     discovery_hits = _discovery_category_tokens(t)
     if discovery_hits:
-        priority = ["슈즈", "자켓", "팬츠", "티셔츠", "후디", "플리스", "다운", "베스트", "백", "ACC"]
+        priority = ["백", "슈즈", "플리스", "자켓", "팬츠", "티셔츠", "후디", "다운", "베스트", "ACC"]
         for item in priority:
             if item in discovery_hits:
                 return item
 
     explicit_pairs = [
+        ("백", ["backpack", "rucksack", "daypack", "packable backpack", "가방", "백팩", "배낭", "크로스", "토트백", "힙색", "슬링백", "숄더", "백"]),
         ("슈즈", ["신발", "슈즈", "스니커즈", "트레일러닝", "등산화", "샌들", "슬리퍼", "레인 부츠", "omni-max", "omni max", "boot", "shoe"]),
-        ("백", ["가방", "백팩", "크로스", "토트백", "힙색", "슬링백", "숄더", "백"]),
         ("장갑", ["장갑"]),
         ("ACC", ["모자", "용품", "스틱", "양말", "지갑", "acc", "accessory"]),
         ("베스트", ["베스트", "vest"]),
@@ -1703,6 +1836,10 @@ def infer_item_category(name: str, description: str, source_category: str = "") 
     desc_blob = desc_text.lower()
     src_blob = source_text.lower()
     full_blob = " ".join(x for x in [name_blob, desc_blob, src_blob] if x)
+
+    strong_name_item = infer_strong_name_category(name_text, desc_text)
+    if strong_name_item:
+        return strong_name_item
 
     src_item = normalize_source_category(source_text)
     if src_item:
@@ -1763,14 +1900,34 @@ def extract_raw_keywords(name: str, description: str) -> List[str]:
 
 def map_standard_attributes(raw_keywords: List[str], name: str, description: str) -> List[str]:
     mapped = []
-    blob = f"{name} {description}"
+    blob = compact_text(f"{name} {description}")
+    low_blob = blob.lower()
+    shell_context = any(x in low_blob for x in [
+        'shell', '자켓', '재킷', '아우터', 'windbreaker', 'parka', 'anorak',
+        '방수', '발수', '투습', '심실링', 'omni-tech', 'gore-tex', 'futurelight', 'dryvent'
+    ])
+
     for raw in raw_keywords:
         std = BRAND_TERM_MAP.get(raw.upper()) or BRAND_TERM_MAP.get(raw)
-        if std:
-            mapped.append(std)
+        if not std:
+            continue
+        if std in {'2L', '2.5L', '3L'}:
+            continue
+        mapped.append(std)
+
     for raw, std in BRAND_TERM_MAP.items():
+        if std in {'2L', '2.5L', '3L'}:
+            continue
         if re.search(re.escape(raw), blob, flags=re.IGNORECASE):
             mapped.append(std)
+
+    if shell_context and re.search(r'(?<![A-Z0-9])3L(?![A-Z0-9])', blob, flags=re.I):
+        mapped.append('3L')
+    if shell_context and re.search(r'(?<![A-Z0-9])2\.5L(?![A-Z0-9])', blob, flags=re.I):
+        mapped.append('2.5L')
+    if shell_context and re.search(r'(?<![A-Z0-9])2L(?![A-Z0-9])', blob, flags=re.I):
+        mapped.append('2L')
+
     return unique_preserve_order(mapped)
 
 
@@ -2351,7 +2508,12 @@ class AutoCompetitorCrawler:
             desc_selectors = cfg.detail_desc_selectors or GENERIC_DESC_SELECTORS
             image_selectors = cfg.detail_image_selectors or GENERIC_IMAGE_SELECTORS
 
-            title = strip_discovery_prefix(clean_product_text(try_find_text(self.driver, name_selectors)))
+            try:
+                title = extract_discovery_best_name(self.driver.page_source or '', getattr(self.driver, 'title', '') or '')
+            except Exception:
+                title = ''
+            if not title:
+                title = strip_discovery_prefix(clean_product_text(try_find_text(self.driver, name_selectors)))
             if not title:
                 try:
                     title = strip_discovery_prefix(clean_product_text(self.driver.title))
@@ -2579,6 +2741,32 @@ class AutoCompetitorCrawler:
             if (not existing.description) and item.description:
                 existing.description = item.description
         raw_products = list(dedup.values())
+
+        name_dedup = {}
+        for item in raw_products:
+            key = (cfg.brand, normalize_product_name_for_dedupe(item.name, cfg.brand) or item.product_url)
+            existing = name_dedup.get(key)
+            if existing is None:
+                name_dedup[key] = item
+                continue
+            if len(compact_text(item.description)) > len(compact_text(existing.description)):
+                existing.description = item.description
+            if (not existing.image_url) and item.image_url:
+                existing.image_url = item.image_url
+            if should_use_listing_image(cfg.brand, existing.image_url, item.image_url):
+                existing.image_url = item.image_url
+            if (not existing.source_category) and item.source_category:
+                existing.source_category = item.source_category
+            if (not existing.source_category_url) and item.source_category_url:
+                existing.source_category_url = item.source_category_url
+            if (not existing.breadcrumb_text) and item.breadcrumb_text:
+                existing.breadcrumb_text = item.breadcrumb_text
+            if (not existing.price_text) and item.price_text:
+                existing.price_text = item.price_text
+            if (not existing.original_price_text) and item.original_price_text:
+                existing.original_price_text = item.original_price_text
+
+        raw_products = list(name_dedup.values())
 
         print(f"[CRAWL DONE] {cfg.brand} -> {len(raw_products)} products")
         return raw_products
@@ -3523,6 +3711,11 @@ def write_outputs(raw_products: List[ProductRaw], analyzed_products: List[Produc
 
     raw_df = pd.DataFrame([asdict(x) for x in raw_products])
     analyzed_df = products_to_dataframe(analyzed_products)
+    if not analyzed_df.empty:
+        analyzed_df["_dedupe_name"] = analyzed_df.apply(lambda r: normalize_product_name_for_dedupe(str(r.get("name", "") or ""), str(r.get("brand", "") or "")), axis=1)
+        analyzed_df["_desc_len"] = analyzed_df["description"].fillna("").astype(str).str.len()
+        analyzed_df = analyzed_df.sort_values(["brand", "_dedupe_name", "_desc_len", "current_price"], ascending=[True, True, False, True])
+        analyzed_df = analyzed_df.drop_duplicates(subset=["brand", "_dedupe_name"], keep="first").drop(columns=["_dedupe_name", "_desc_len"])
     analyzed_df = build_attribute_coverage_flags(analyzed_df)
     brand_summary_df = build_brand_summary(analyzed_df)
     keyword_df = discover_keywords(analyzed_products)
