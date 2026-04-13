@@ -139,13 +139,13 @@ YOY_DAILY_DATE_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_DAILY_DATE", "").strip()  
 YOY_WEEKLY_END_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_WEEKLY_END", "").strip()  # "YYYY-MM-DD"
 
 # Cost-saving: if HTML exists for same date, skip all queries and keep HTML as-is
-SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "true").strip().lower() in ("1", "true", "yes", "y")
+SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "false").strip().lower() in ("1", "true", "yes", "y")
 
 # Hub index write control
 SKIP_HUB_WRITE = os.getenv("DAILY_DIGEST_SKIP_HUB_WRITE", "true").strip().lower() in ("1", "true", "yes", "y")
 
 # Data cache (bundle JSON)
-USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
+USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "false").strip().lower() in ("1", "true", "yes", "y")
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
@@ -430,7 +430,7 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
             "total_price": total_price,
             "cancel_amount": cancel_amount,
             "aov": (erp_revenue / orders) if orders else 0.0,
-            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}",
+            "source": f"admin_bq_daily_erp_login_user:{sessions_source_col}",
         }
     except Exception as e:
         print(f"[WARN] fetch_admin_period_snapshot failed: {type(e).__name__}: {e}")
@@ -3261,7 +3261,7 @@ def render_page_html(
     adm_signups_yoy_delta = pct_change(adm_signups_cur, adm_signups_yoy)
 
     admin_kpis_cards = "".join([
-        top_kpi_card("Sessions", fmt_int(adm_sessions_cur),
+        top_kpi_card("Login User", fmt_int(adm_sessions_cur),
                      f"{'+' if adm_sessions_delta>=0 else ''}{fmt_pct(adm_sessions_delta,1)}",
                      f"{'+' if adm_sessions_yoy_delta>=0 else ''}{fmt_pct(adm_sessions_yoy_delta,1)}",
                      delta_cls(adm_sessions_delta), delta_cls(adm_sessions_yoy_delta), "ADMIN"),
