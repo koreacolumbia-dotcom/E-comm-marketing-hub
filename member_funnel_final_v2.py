@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import numpy as np
 
 try:
     import pyodbc  # type: ignore
@@ -116,7 +117,7 @@ SEGMENT_ORDER = ["non_buyer", "cart_abandon", "high_intent", "repeat_buyer", "do
 SEGMENT_LABELS = {"non_buyer":"Non Buyer","cart_abandon":"Cart Abandon","high_intent":"High Intent","repeat_buyer":"Repeat Buyer","dormant":"Dormant","vip":"VIP"}
 
 
-ML_SCORE_TABLE = os.getenv("MEMBER_FUNNEL_ML_SCORE_TABLE", os.getenv("CRM_MEMBER_TARGET_SCORE_TABLE", "crm_mart.crm_member_target_scores")).strip()
+ML_SCORE_TABLE = os.getenv("MEMBER_FUNNEL_ML_SCORE_TABLE", os.getenv("CRM_MEMBER_TOTALVIEW_SCORES_TABLE", os.getenv("CRM_MEMBER_TARGET_SCORE_TABLE", "crm_mart.crm_member_totalview_scores"))).strip()
 ML_SCORE_PROJECT = os.getenv("MEMBER_FUNNEL_ML_PROJECT_ID", PROJECT_ID).strip() if 'PROJECT_ID' in globals() else os.getenv("MEMBER_FUNNEL_ML_PROJECT_ID", "").strip()
 _ML_SCORES_CACHE: pd.DataFrame | None = None
 
@@ -137,6 +138,7 @@ def _safe_num(v: Any, default: float = 0.0) -> float:
     except Exception:
         return default
 
+
 def load_ml_scores() -> pd.DataFrame:
     global _ML_SCORES_CACHE
     if _ML_SCORES_CACHE is not None:
@@ -145,45 +147,72 @@ def load_ml_scores() -> pd.DataFrame:
     empty = pd.DataFrame(columns=[
         "member_id_norm","user_id_norm","ml_action_type","ml_priority_tier",
         "repurchase_30d_score","first_purchase_30d_score","churn_60d_score",
-        "ltv_score","next_best_category"
+        "ltv_score","next_best_category","predicted_member_stage"
     ])
     if not table_name or bigquery is None or not (PROJECT_ID or ML_SCORE_PROJECT):
         _ML_SCORES_CACHE = empty
         return empty.copy()
     try:
         client = get_bq_client()
-        sql = f"""
-        SELECT
-          CAST(COALESCE(member_id, '') AS STRING) AS member_id_norm,
-          CAST(COALESCE(user_id, '') AS STRING) AS user_id_norm,
-          CAST(COALESCE(crm_action_type, '') AS STRING) AS ml_action_type,
-          CAST(COALESCE(priority_tier, '') AS STRING) AS ml_priority_tier,
-          SAFE_CAST(COALESCE(repurchase_30d_score, repurchase_45d_score) AS FLOAT64) AS repurchase_30d_score,
-          SAFE_CAST(COALESCE(first_purchase_30d_score, first_purchase_45d_score) AS FLOAT64) AS first_purchase_30d_score,
-          SAFE_CAST(COALESCE(churn_60d_score, churn_90d_score) AS FLOAT64) AS churn_60d_score,
-          SAFE_CAST(ltv_score AS FLOAT64) AS ltv_score,
-          CAST(COALESCE(next_best_category, '') AS STRING) AS next_best_category
-        FROM `{table_name}`
-        """
-        df = client.query(sql, location=BQ_LOCATION).to_dataframe()
-        if df.empty:
+        sql = f"SELECT * FROM `{table_name}`"
+        raw = client.query(sql, location=BQ_LOCATION).to_dataframe()
+        if raw.empty:
             _ML_SCORES_CACHE = empty
             return empty.copy()
-        df["member_id_norm"] = df["member_id_norm"].astype(str).str.strip()
-        df["user_id_norm"] = df["user_id_norm"].astype(str).str.strip()
-        for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]:
-            if c not in df.columns:
-                df[c] = 0.0
-            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
-        for c in ["ml_action_type","ml_priority_tier","next_best_category"]:
-            if c not in df.columns:
-                df[c] = ""
-            df[c] = df[c].astype(str).replace({"nan": "", "None": ""}).fillna("")
-        _ML_SCORES_CACHE = df
-        return df.copy()
+
+        cols = {str(c).strip().lower(): c for c in raw.columns}
+        def pick(*names: str) -> str:
+            for n in names:
+                if n.lower() in cols:
+                    return str(cols[n.lower()])
+            return ""
+
+        out = pd.DataFrame()
+        member_col = pick("member_id", "member_id_norm")
+        user_col = pick("user_id", "user_id_norm")
+        out["member_id_norm"] = raw[member_col].astype(str).str.strip() if member_col else ""
+        out["user_id_norm"] = raw[user_col].astype(str).str.strip() if user_col else ""
+
+        action_col = pick("crm_action_type", "ml_action_type")
+        priority_col = pick("priority_tier", "ml_priority_tier")
+        rep_col = pick("repurchase_30d_score", "repurchase_45d_score", "repurchase_score")
+        first_col = pick("first_purchase_30d_score", "first_purchase_45d_score", "first_purchase_score")
+        churn_col = pick("churn_60d_score", "churn_90d_score", "churn_risk_score", "churn_score")
+        ltv_col = pick("ltv_score")
+        next_cat_col = pick("next_best_category")
+        stage_col = pick("predicted_member_stage")
+
+        out["ml_action_type"] = raw[action_col].astype(str).replace({"nan": "", "None": ""}).fillna("") if action_col else ""
+        out["ml_priority_tier"] = raw[priority_col].astype(str).replace({"nan": "", "None": ""}).fillna("") if priority_col else ""
+        out["repurchase_30d_score"] = pd.to_numeric(raw[rep_col], errors="coerce").fillna(0.0) if rep_col else 0.0
+        out["first_purchase_30d_score"] = pd.to_numeric(raw[first_col], errors="coerce").fillna(0.0) if first_col else 0.0
+        out["churn_60d_score"] = pd.to_numeric(raw[churn_col], errors="coerce").fillna(0.0) if churn_col else 0.0
+        out["ltv_score"] = pd.to_numeric(raw[ltv_col], errors="coerce").fillna(0.0) if ltv_col else 0.0
+        out["next_best_category"] = raw[next_cat_col].astype(str).replace({"nan": "", "None": ""}).fillna("") if next_cat_col else ""
+        out["predicted_member_stage"] = raw[stage_col].astype(str).replace({"nan": "", "None": ""}).fillna("") if stage_col else ""
+
+        # TOTAL VIEW 전용 score table은 행동기반 first_purchase가 비어도 member stage 기반 fallback이 가능하도록 보강
+        if (out["ml_action_type"].astype(str).str.strip() == "").all():
+            action = pd.Series(["GENERAL"] * len(out))
+            action = np.where(out["churn_60d_score"] >= 0.75, "CHURN_PREVENTION", action)
+            action = np.where(out["repurchase_30d_score"] >= 0.75, "RETENTION_REPURCHASE", action)
+            action = np.where((out["first_purchase_30d_score"] >= 0.80), "FIRST_PURCHASE_NUDGE", action)
+            action = np.where((out["ltv_score"] >= 0.85), "VIP_UPSELL", action)
+            action = np.where((pd.Series(action).astype(str) == "GENERAL") & (out["next_best_category"].astype(str).str.strip() != ""), "CATEGORY_CROSSSELL", action)
+            out["ml_action_type"] = pd.Series(action).astype(str)
+
+        if (out["ml_priority_tier"].astype(str).str.strip() == "").all():
+            priority = np.full(len(out), "P3", dtype=object)
+            priority = np.where((out["ltv_score"] >= 0.8) | (out["repurchase_30d_score"] >= 0.8), "P1", priority)
+            priority = np.where(((out["churn_60d_score"] >= 0.7) | (out["first_purchase_30d_score"] >= 0.75)) & (pd.Series(priority) != "P1"), "P2", priority)
+            out["ml_priority_tier"] = pd.Series(priority).astype(str)
+
+        _ML_SCORES_CACHE = out
+        return out.copy()
     except Exception:
         _ML_SCORES_CACHE = empty
         return empty.copy()
+
 
 def merge_ml_scores(user_df: pd.DataFrame, ml_scores: pd.DataFrame) -> pd.DataFrame:
     if user_df.empty or ml_scores.empty:
