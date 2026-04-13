@@ -116,7 +116,7 @@ SEGMENT_ORDER = ["non_buyer", "cart_abandon", "high_intent", "repeat_buyer", "do
 SEGMENT_LABELS = {"non_buyer":"Non Buyer","cart_abandon":"Cart Abandon","high_intent":"High Intent","repeat_buyer":"Repeat Buyer","dormant":"Dormant","vip":"VIP"}
 
 
-ML_SCORE_TABLE = os.getenv("MEMBER_FUNNEL_ML_SCORE_TABLE", os.getenv("CRM_MEMBER_TOTALVIEW_SCORES_TABLE", os.getenv("CRM_MEMBER_TARGET_SCORE_TABLE", "crm_mart.crm_member_totalview_scores"))).strip()
+ML_SCORE_TABLE = "crm_mart.crm_member_totalview_scores"
 ML_SCORE_PROJECT = os.getenv("MEMBER_FUNNEL_ML_PROJECT_ID", PROJECT_ID).strip() if 'PROJECT_ID' in globals() else os.getenv("MEMBER_FUNNEL_ML_PROJECT_ID", "").strip()
 _ML_SCORES_CACHE: pd.DataFrame | None = None
 
@@ -233,6 +233,15 @@ def _default_target_payload(user: pd.DataFrame) -> dict:
 
 def build_ml_target_payload(user: pd.DataFrame) -> dict:
     ml_scores = load_ml_scores()
+    try:
+        user["member_id_norm"] = user["member_id_norm"].astype(str).str.strip()
+        if not ml_scores.empty and "member_id_norm" in ml_scores.columns:
+            ml_scores["member_id_norm"] = ml_scores["member_id_norm"].astype(str).str.strip()
+            print(f"[DEBUG] user rows before ML merge={len(user)}")
+            print(f"[DEBUG] unique user member_id_norm={user['member_id_norm'].replace('', pd.NA).nunique()}")
+            print(f"[DEBUG] unique ml_scores member_id_norm={ml_scores['member_id_norm'].replace('', pd.NA).nunique()}")
+    except Exception as e:
+        print(f"[DEBUG] ML pre-merge debug failed: {e}")
     merged = merge_ml_scores(user, ml_scores)
     if ml_scores.empty or (merged["ml_action_type"].astype(str).str.strip() == "").all():
         return _default_target_payload(user)
@@ -840,6 +849,15 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
 
     user = build_user_rows(df_login)
     ml_scores = load_ml_scores()
+    try:
+        user["member_id_norm"] = user["member_id_norm"].astype(str).str.strip()
+        if not ml_scores.empty and "member_id_norm" in ml_scores.columns:
+            ml_scores["member_id_norm"] = ml_scores["member_id_norm"].astype(str).str.strip()
+            print(f"[DEBUG] user rows before ML merge={len(user)}")
+            print(f"[DEBUG] unique user member_id_norm={user['member_id_norm'].replace('', pd.NA).nunique()}")
+            print(f"[DEBUG] unique ml_scores member_id_norm={ml_scores['member_id_norm'].replace('', pd.NA).nunique()}")
+    except Exception as e:
+        print(f"[DEBUG] ML pre-merge debug failed: {e}")
     user = merge_ml_scores(user, ml_scores)
     nb = non_buyer_df(user)
 
