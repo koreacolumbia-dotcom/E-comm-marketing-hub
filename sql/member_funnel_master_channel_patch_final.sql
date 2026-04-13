@@ -1,3 +1,4 @@
+-- ERP revenue alignment note: channel classification patch unchanged; no revenue logic changes required here.
 -- member_funnel_master 채널 보강 패치 (enhanced 컬럼 유무 자동 감지 / 2-part, 3-part 테이블명 모두 지원)
 -- 목적:
 -- 1) source table에 *_enhanced 컬럼이 아직 없어도 실패하지 않도록 처리
