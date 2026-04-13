@@ -729,7 +729,8 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     out["item_revenue_norm"] = to_num(safe_series(out,["item_revenue","purchase_item_revenue","product_revenue","items_revenue"],0))
     out["revenue_norm"] = to_num(safe_series(out,["total_revenue","revenue"],0))
     out["ga_revenue_norm"] = to_num(safe_series(out,["ga_purchase_revenue","purchase_revenue","ga_revenue"],0))
-    out["metric_revenue_norm"] = out["ga_revenue_norm"].where(out["ga_revenue_norm"] > 0, out["revenue_norm"])
+    out["metric_revenue_norm"] = out["revenue_norm"]
+    out["erp_revenue_norm"] = out["revenue_norm"]
     out["signup_norm"] = to_num(safe_series(out,["signup_yn"],0))
     out["purchase_norm"] = to_num(safe_series(out,["purchase_yn"],0))
     out["pageviews_norm"] = to_num(safe_series(out,["total_pageviews","pageviews"],0))
@@ -766,7 +767,7 @@ def build_user_rows(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df.copy()
     key = df["user_id_norm"].where(df["user_id_norm"]!="", df["member_id_norm"])
-    sort_cols = [c for c in ["event_date_norm","revenue_norm","orders_norm","sessions_norm"] if c in df.columns]
+    sort_cols = [c for c in ["event_date_norm","metric_revenue_norm","revenue_norm","orders_norm","sessions_norm"] if c in df.columns]
     return df.assign(__k=key).sort_values(sort_cols, ascending=[False]*len(sort_cols)).drop_duplicates("__k", keep="first").drop(columns=["__k"])
 
 
@@ -801,7 +802,7 @@ def non_buyer_df(user_df: pd.DataFrame):
 
 
 def buyer_df(user_df: pd.DataFrame):
-    return user_df[(user_df["purchase_norm"] > 0) | (user_df["orders_norm"] > 0) | (user_df["revenue_norm"] > 0)].copy()
+    return user_df[(user_df["purchase_norm"] > 0) | (user_df["orders_norm"] > 0) | (user_df["metric_revenue_norm"] > 0)].copy()
 
 
 def dedupe_user_rows(df: pd.DataFrame) -> pd.DataFrame:
@@ -1224,7 +1225,7 @@ async function tryFetchBundle(paths){
         .replace('__NON_BUYERS__', fmt_int(bundle['overview'].get('non_buyers', 0)))
         .replace('__LATEST_SUMMARY__', latest_summary)
         .replace('__DOWNLOADS__', download_html)
-        .replace('__METRIC_SOURCE__', 'BigQuery Admin Daily' if metric_source == 'admin_bq_daily' else ('MSSQL Admin Daily' if metric_source == 'admin_mssql' else ('ADMIN LOAD FAILED' if metric_source in {'admin_mssql_failed','admin_load_failed'} else 'GA4 + CRM Mart')))
+        .replace('__METRIC_SOURCE__', 'BigQuery Admin Daily' if metric_source == 'admin_bq_daily' else ('MSSQL Admin Daily' if metric_source == 'admin_mssql' else ('ADMIN LOAD FAILED' if metric_source in {'admin_mssql_failed','admin_load_failed'} else 'ERP Revenue (CRM Mart)')))
         .replace('__INLINE_BUNDLE__', json.dumps(bundle, ensure_ascii=False))
         .replace('__VIEW_FILE__', f"{preset['key']}_view.json")
     )
