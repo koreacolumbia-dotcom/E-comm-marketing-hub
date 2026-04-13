@@ -168,7 +168,6 @@ CHANNEL_BUCKET_ORDER = [
     "Organic Traffic",
     "Official SNS",
     "Owned Channel",
-    "etc",
 ]
 
 TARGET_ROAS_XLS_PATH = os.getenv("DAILY_DIGEST_TARGET_ROAS_XLS_PATH", "target_roas.xlsx").strip()
@@ -1126,10 +1125,27 @@ def get_multi_event_users_3way(client: BetaAnalyticsDataClient, w: DigestWindow,
 def _rx(p: str):
     return re.compile(p, re.IGNORECASE)
 
-def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
+def map_default_channel_group_to_bucket(default_channel_group: str = "") -> str:
+    dcg = (default_channel_group or "").strip().lower()
+    if not dcg:
+        return ""
+    if dcg in {"email", "sms", "mobile push notifications"}:
+        return "Owned Channel"
+    if dcg in {"organic social"}:
+        return "Official SNS"
+    if dcg in {"paid search", "paid social", "display", "paid shopping"}:
+        return "Paid Ad"
+    if dcg in {"video", "organic video", "affiliates", "cross-network", "audio", "paid video"}:
+        return "Awareness"
+    if dcg in {"direct", "organic search", "organic shopping", "referral", "unassigned"}:
+        return "Organic Traffic"
+    return ""
+
+def classify_looker_channel(source_medium: str, campaign: str = "", default_channel_group: str = "") -> str:
     """
     Match the uploaded RTF CASE logic as closely as possible.
     Output buckets must stay identical to the RTF labels used in Channel Snapshot.
+    Final fallback uses GA sessionDefaultChannelGroup so sessions are classified without an ETC-style residual.
     """
     sm = (source_medium or "").strip()
     cp = (campaign or "").strip()
@@ -1254,12 +1270,10 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     if _rx(r"(?i).*(blind).*").search(sm):
         return "Paid Ad"
 
-    if _rx(r"(?i).*(cpc).*").search(sm):
+    if _rx(r"(?i).*(cpc|paid|banner|display|da).*").search(sm):
         return "Paid Ad"
     if _rx(r"(?i).*(organic).*").search(sm):
         return "Organic Traffic"
-    if _rx(r"(?i).*(banner|da).*").search(sm):
-        return "Paid Ad"
     if _rx(r"(?i).*(referral).*").search(sm):
         return "Organic Traffic"
     if _rx(r"(?i).*(shopping).*").search(sm):
@@ -1267,7 +1281,12 @@ def classify_looker_channel(source_medium: str, campaign: str = "") -> str:
     if _rx(r"(?i).*(social).*").search(sm):
         return "Organic Traffic"
 
-    return "etc"
+    mapped = map_default_channel_group_to_bucket(default_channel_group)
+    if mapped:
+        return mapped
+
+    # Last-resort no-residual fallback: keep sessions inside the GA-like bucket taxonomy.
+    return "Organic Traffic"
 
 
 def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
@@ -1302,7 +1321,7 @@ def classify_paid_detail(source_medium: str, campaign: str = "") -> str:
 
     base = sm.split("/")[0].strip()
     base = re.sub(r"\s+", " ", base)
-    return base or "other"
+    return base or "(not set)"
 
 
 # =========================
@@ -1317,7 +1336,7 @@ def get_channel_snapshot_3way(
     Build Channel Snapshot using the Looker CASE bucket logic.
     The Total row is always forced from the authoritative overall KPI.
     """
-    dims = ["sessionSourceMedium", "sessionCampaignName"]
+    dims = ["sessionSourceMedium", "sessionCampaignName", "sessionDefaultChannelGroup"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
@@ -1328,9 +1347,10 @@ def get_channel_snapshot_3way(
             df = df.copy()
             df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
             df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
+            df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("")
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"], r["sessionDefaultChannelGroup"]), axis=1)
             return df
         except Exception:
             dims2 = ["sessionSourceMedium"]
@@ -1340,9 +1360,10 @@ def get_channel_snapshot_3way(
             df = df.copy()
             df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
             df["sessionCampaignName"] = ""
+            df["sessionDefaultChannelGroup"] = ""
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], "", ""), axis=1)
             return df
 
     cur = fetch(w.cur_start, w.cur_end)
@@ -1448,7 +1469,7 @@ def get_paid_detail_3way(
     Keep Paid Detail Total aligned with Channel Snapshot Paid AD.
     Provide switchable Session / Orders / Revenue deltas.
     """
-    dims = ["sessionSourceMedium", "sessionCampaignName"]
+    dims = ["sessionSourceMedium", "sessionCampaignName", "sessionDefaultChannelGroup"]
     mets = ["sessions", "transactions", "purchaseRevenue"]
 
     def fetch(start: dt.date, end: dt.date) -> pd.DataFrame:
@@ -1459,9 +1480,10 @@ def get_paid_detail_3way(
             df = df.copy()
             df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
             df["sessionCampaignName"] = df["sessionCampaignName"].astype(str).fillna("")
+            df["sessionDefaultChannelGroup"] = df["sessionDefaultChannelGroup"].astype(str).fillna("")
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], r["sessionCampaignName"], r["sessionDefaultChannelGroup"]), axis=1)
             df = df[df["bucket"] == "Paid Ad"].copy()
             df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], r["sessionCampaignName"]), axis=1)
             return df
@@ -1473,9 +1495,10 @@ def get_paid_detail_3way(
             df = df.copy()
             df["sessionSourceMedium"] = df["sessionSourceMedium"].astype(str).fillna("")
             df["sessionCampaignName"] = ""
+            df["sessionDefaultChannelGroup"] = ""
             for c in mets:
                 df[c] = pd.to_numeric(df.get(c, 0), errors="coerce").fillna(0.0)
-            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], ""), axis=1)
+            df["bucket"] = df.apply(lambda r: classify_looker_channel(r["sessionSourceMedium"], "", ""), axis=1)
             df = df[df["bucket"] == "Paid Ad"].copy()
             df["sub"] = df.apply(lambda r: classify_paid_detail(r["sessionSourceMedium"], ""), axis=1)
             return df
@@ -1519,7 +1542,7 @@ def get_paid_detail_3way(
             }])], ignore_index=True)
 
     others = merged[~merged["sub"].isin(core)].copy()
-    others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False]).head(6)
+    others = others.sort_values(["sessions_cur", "rev_cur"], ascending=[False, False])
 
     ordered = pd.concat([
         merged[merged["sub"].isin(core)].assign(_ord=lambda d: d["sub"].apply(lambda x: core.index(x))).sort_values("_ord"),
@@ -4613,8 +4636,9 @@ def main():
     today_kst = dt.datetime.now(ZoneInfo("Asia/Seoul")).date()
     latest_end = today_kst - dt.timedelta(days=1)
 
-    dates = [latest_end - dt.timedelta(days=i) for i in range(max(1, DAYS_TO_BUILD))]
-    dates = [d for d in dates if d.year >= 2000]
+    # 운영 기준: 어제(KST) 일자만 갱신한다.
+    # DAYS_TO_BUILD 값이 크게 잡혀 있어도 main 실행 시에는 latest_end 1일치만 빌드한다.
+    dates = [latest_end]
 
     logo_b64 = load_logo_base64(LOGO_PATH)
     image_map = load_image_map_from_excel_urls(IMAGE_XLS_PATH)
@@ -4628,11 +4652,9 @@ def main():
     ensure_dir(os.path.join(DATA_DIR, "weekly"))
     ensure_dir(os.path.join(OUT_DIR, "cache", "pdp"))
 
-    yoy_dates: List[dt.date] = []
-    for d in dates:
-        yoy_dates.append(build_window(end_date=d, mode="daily").yoy_end)
-        yoy_dates.append(build_window(end_date=d, mode="weekly").yoy_end)
-    all_dates = sorted(set(dates + yoy_dates))
+    # 어제 일자 산출물만 갱신한다.
+    # YoY 비교값은 build_one 내부 조회로 충분하므로, YoY 기준일 파일을 별도로 생성하지 않는다.
+    all_dates = list(dates)
 
     for d in all_dates:
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
