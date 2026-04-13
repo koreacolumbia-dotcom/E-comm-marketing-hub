@@ -416,8 +416,16 @@ def compact_text(value: Optional[str]) -> str:
 
 
 CATEGORY_MASTER_XLS_CANDIDATES = [
+    os.path.join("/mnt/data", EXCEL_CATEGORY_PATH),
+    os.path.join("/mnt/data", "카테고리 정리.xlsx"),
+    os.path.join("/mnt/data", "카테고리_정리.xlsx"),
     os.path.join("/mnt/data", "카테고리_정리(1).xlsx"),
+    os.path.join("/mnt/data", "카테고리_정리(3).xlsx"),
+    os.path.join(os.getcwd(), EXCEL_CATEGORY_PATH),
+    os.path.join(os.getcwd(), "카테고리 정리.xlsx"),
+    os.path.join(os.getcwd(), "카테고리_정리.xlsx"),
     os.path.join(os.getcwd(), "카테고리_정리(1).xlsx"),
+    os.path.join(os.getcwd(), "카테고리_정리(3).xlsx"),
 ]
 
 def _normalize_brand_name(brand: str) -> str:
@@ -457,7 +465,7 @@ def _normalize_category_leaf(v: str) -> str:
 
 def _build_category_master():
     df = None
-    for p in CATEGORY_MASTER_XLS_CANDIDATES:
+    for p in discover_category_master_candidates():
         try:
             if os.path.exists(p):
                 df = pd.read_excel(p, header=2)
@@ -601,18 +609,19 @@ def resolve_master_category(brand: str, source_category_url: str = "", source_ca
 
 def resolve_master_gender(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", raw_gender: str = "", name: str = "", description: str = "") -> str:
     b = _normalize_brand_name(brand)
+    joined = " ".join([safe_text(name), safe_text(description), safe_text(source_category), safe_text(breadcrumb_text), safe_text(raw_gender)]).lower()
+    # Product text should override category-level gender when the item is explicitly unisex.
+    if any(x in joined for x in ["공용", "unisex"]):
+        return "공용"
     row = CATEGORY_MASTER["url_map"].get((b, canonicalize_url(source_category_url)))
     if row and row.get("gender"):
         return row["gender"]
-    joined = " ".join([safe_text(source_category), safe_text(breadcrumb_text), safe_text(raw_gender), safe_text(name), safe_text(description)]).lower()
     if any(x in joined for x in ["키즈", "kids", "junior", "youth", "boy", "girl"]):
         return "키즈"
     if any(x in joined for x in ["여성", "women", "woman", "womens"]):
         return "여성"
     if any(x in joined for x in ["남성", "men", "man", "mens"]):
         return "남성"
-    if any(x in joined for x in ["공용", "unisex"]):
-        return "공용"
     return ""
 
 
@@ -683,6 +692,27 @@ def unique_preserve_order(items: Iterable[str]) -> List[str]:
             seen.add(item)
             result.append(item)
     return result
+
+
+def discover_category_master_candidates() -> List[str]:
+    candidates = list(CATEGORY_MASTER_XLS_CANDIDATES)
+    search_roots = [os.getcwd(), "/mnt/data"]
+    target_names = {
+        EXCEL_CATEGORY_PATH,
+        "카테고리 정리.xlsx",
+        "카테고리_정리.xlsx",
+        "카테고리_정리(1).xlsx",
+        "카테고리_정리(3).xlsx",
+    }
+    for root in search_roots:
+        try:
+            for dirpath, _, filenames in os.walk(root):
+                for filename in filenames:
+                    if filename in target_names:
+                        candidates.append(os.path.join(dirpath, filename))
+        except Exception:
+            continue
+    return unique_preserve_order(candidates)
 
 
 def first_nonempty(*values: str) -> str:
@@ -802,7 +832,7 @@ def is_bad_product_image_url(url: str) -> bool:
         return True
     bad_tokens = [
         "wash", "care", "label", "laundry", "placeholder", "blank", "noimage", "loading",
-        "염소", "표백", "손세탁", "세탁", "케어"
+        "염소", "표백", "손세탁", "세탁", "케어", "symbol", "caution", "guide"
     ]
     return any(t in low for t in bad_tokens)
 
@@ -1384,14 +1414,14 @@ def infer_gender(name: str, description: str, raw_gender: str, brand: str = "", 
     if resolved:
         return resolved
     blob = f"{name} {description} {raw_gender}".lower()
+    if any(x in blob for x in ["공용", "유니섹스", "unisex"]):
+        return "공용"
     if any(x in blob for x in ["키즈", "kids", "kid", "junior", "juniors", "youth", "boy", "boys", "girl", "girls", "toddler", "infant", "children"]):
         return "키즈"
     if any(x in blob for x in ["여성", "우먼", "women", "womens", "woman", "(w)", " w "]):
         return "여성"
     if any(x in blob for x in ["남성", "맨즈", "men", "mens", "man", "(m)", " m "]):
         return "남성"
-    if any(x in blob for x in ["공용", "유니섹스", "unisex"]):
-        return "공용"
     return "공용"
 
 
@@ -1547,14 +1577,15 @@ def choose_driver_image_url(driver_or_el, selectors: List[str]) -> str:
             except Exception:
                 val = ""
             if val and not val.startswith("data:") and any(ext in val.lower() for ext in [".jpg", ".jpeg", ".png", ".webp"]):
-                return val
+                if not is_bad_product_image_url(val):
+                    return val
         try:
             srcset = compact_text(elem.get_attribute("srcset"))
         except Exception:
             srcset = ""
         if srcset:
             first = srcset.split(",")[0].strip().split(" ")[0].strip()
-            if first and not first.startswith("data:"):
+            if first and not first.startswith("data:") and not is_bad_product_image_url(first):
                 return first
         return ""
 
@@ -1563,7 +1594,7 @@ def choose_driver_image_url(driver_or_el, selectors: List[str]) -> str:
             elems = driver_or_el.find_elements(By.CSS_SELECTOR, css)
             for elem in elems:
                 val = _from_elem(elem)
-                if val:
+                if val and not is_bad_product_image_url(val):
                     return val
         except Exception:
             continue
@@ -1846,6 +1877,26 @@ def select_current_original_price(price_text: str, original_text: str) -> Tuple[
 
     return current_price, original_price
 
+def is_effectively_sold_out(raw: ProductRaw, current_price: Optional[int], original_price: Optional[int]) -> bool:
+    text = " ".join([
+        safe_text(getattr(raw, "sold_out_text", "")),
+        safe_text(getattr(raw, "name", "")),
+        safe_text(getattr(raw, "description", "")),
+    ]).lower()
+    if not text:
+        return False
+    negative_hits = ["일시품절", "재입고", "입고예정", "coming soon", "pre-order", "preorder"]
+    if any(x in text for x in negative_hits):
+        return False
+    strong_hits = ["전체품절", "품절입니다", "sold out", "out of stock", "재고없음"]
+    if any(x in text for x in strong_hits):
+        return True
+    # Generic class names alone should not mark the product sold out.
+    if safe_text(getattr(raw, "sold_out_text", "")) and (current_price is None and original_price is None):
+        return True
+    return False
+
+
 def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     raw.name = clean_product_text(raw.name)
     raw.description = clean_product_text(raw.description)
@@ -1862,6 +1913,18 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     dominant = select_dominant_attribute(resolved_attrs)
     master_item = resolve_master_category(raw.brand, getattr(raw, "source_category_url", ""), getattr(raw, "source_category", ""), getattr(raw, "breadcrumb_text", ""), raw.name, raw.description)
     inferred_item = master_item or infer_item_category(raw.name, raw.description, " ".join([getattr(raw, 'breadcrumb_text', ''), getattr(raw, 'source_category', ''), getattr(raw, 'source_category_url', ''), getattr(raw, 'source_url', ''), getattr(raw, 'product_url', '')]))
+    resolved_item_category = resolve_item_category_value(
+        raw.name,
+        raw.description,
+        getattr(raw, 'item_category', '') or master_item or inferred_item,
+        getattr(raw, 'source_category', ''),
+        getattr(raw, 'source_category_url', ''),
+        getattr(raw, 'source_url', ''),
+        getattr(raw, 'product_url', ''),
+        getattr(raw, 'breadcrumb_text', ''),
+        raw.brand,
+    )
+    sold_out = is_effectively_sold_out(raw, current_price, original_price)
     grade = classify_grade(resolved_attrs, dominant)
     shell_type = classify_shell_type(resolved_attrs, raw.name, raw.description)
     price_band = classify_price_band(current_price)
@@ -1878,19 +1941,10 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         current_price=current_price,
         original_price=original_price,
         discount_rate=(calc_discount_rate(current_price, original_price) if calc_discount_rate(current_price, original_price) is not None else extract_discount_rate_from_text(f"{raw.price_text} {raw.original_price_text} {raw.name} {raw.description}")),
-        sold_out=bool(safe_text(raw.sold_out_text)),
+        sold_out=sold_out,
         gender=infer_gender(raw.name, raw.description, raw.gender_text, raw.brand, getattr(raw, "source_category", ""), getattr(raw, "source_category_url", ""), getattr(raw, "breadcrumb_text", "")),
         season=infer_season(raw.name, raw.description, raw.season_text),
-        item_category=resolve_item_category_value(
-            raw.name,
-            raw.description,
-            getattr(raw, 'item_category', ''),
-            getattr(raw, 'source_category', ''),
-            getattr(raw, 'source_category_url', ''),
-            getattr(raw, 'source_url', ''),
-            getattr(raw, 'product_url', ''),
-            getattr(raw, 'breadcrumb_text', ''),
-        ),
+        item_category=resolved_item_category,
         raw_keywords=raw_keywords,
         standard_attributes=resolved_attrs,
         dominant_attribute=dominant,
@@ -2605,9 +2659,21 @@ def _position_y_to_num(avg_price: Optional[float]) -> float:
 
 
 
-def resolve_item_category_value(name: str, description: str, item_category: str = "", source_category: str = "", source_category_url: str = "", source_url: str = "", product_url: str = "", breadcrumb_text: str = "") -> str:
-    # 1) URL 강제 매핑이 최우선
-    hard = get_hard_category_from_url(source_category_url or source_url or product_url)
+def resolve_item_category_value(name: str, description: str, item_category: str = "", source_category: str = "", source_category_url: str = "", source_url: str = "", product_url: str = "", breadcrumb_text: str = "", brand: str = "") -> str:
+    # 1) Excel master mapping should win when the category URL matches.
+    master_item = resolve_master_category(
+        brand,
+        source_category_url or source_url or product_url,
+        source_category,
+        breadcrumb_text,
+        name,
+        description,
+    ) if brand else ""
+    if safe_text(master_item):
+        return safe_text(master_item)
+
+    # 2) Then fall back to hard URL mapping.
+    hard = get_hard_category_from_url(source_category_url or source_url or product_url, brand)
     if hard:
         return hard
 
@@ -2622,7 +2688,7 @@ def resolve_item_category_value(name: str, description: str, item_category: str 
     ]
     source_item = next((x for x in source_candidates if x), "")
 
-    for candidate in [source_item, original_item, inferred_item]:
+    for candidate in [original_item, source_item, inferred_item]:
         candidate = safe_text(candidate)
         if candidate and candidate != "기타":
             return candidate
@@ -2669,6 +2735,8 @@ def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
             str(r.get("source_category_url", "") or ""),
             str(r.get("source_url", "") or ""),
             str(r.get("product_url", "") or ""),
+            str(r.get("breadcrumb_text", "") or ""),
+            str(r.get("brand", "") or ""),
         )
 
         original_items.append(original_item)
