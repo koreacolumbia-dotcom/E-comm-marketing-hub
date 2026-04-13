@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import numpy as np
 
 try:
     import pyodbc  # type: ignore
@@ -117,7 +116,7 @@ SEGMENT_ORDER = ["non_buyer", "cart_abandon", "high_intent", "repeat_buyer", "do
 SEGMENT_LABELS = {"non_buyer":"Non Buyer","cart_abandon":"Cart Abandon","high_intent":"High Intent","repeat_buyer":"Repeat Buyer","dormant":"Dormant","vip":"VIP"}
 
 
-ML_SCORE_TABLE = os.getenv("MEMBER_FUNNEL_ML_SCORE_TABLE", os.getenv("CRM_MEMBER_TOTALVIEW_SCORES_TABLE", os.getenv("CRM_MEMBER_TARGET_SCORE_TABLE", "crm_mart.crm_member_totalview_scores"))).strip()
+ML_SCORE_TABLE = os.getenv("MEMBER_FUNNEL_ML_SCORE_TABLE", os.getenv("CRM_MEMBER_TARGET_SCORE_TABLE", "crm_mart.crm_member_target_scores")).strip()
 ML_SCORE_PROJECT = os.getenv("MEMBER_FUNNEL_ML_PROJECT_ID", PROJECT_ID).strip() if 'PROJECT_ID' in globals() else os.getenv("MEMBER_FUNNEL_ML_PROJECT_ID", "").strip()
 _ML_SCORES_CACHE: pd.DataFrame | None = None
 
@@ -138,7 +137,6 @@ def _safe_num(v: Any, default: float = 0.0) -> float:
     except Exception:
         return default
 
-
 def load_ml_scores() -> pd.DataFrame:
     global _ML_SCORES_CACHE
     if _ML_SCORES_CACHE is not None:
@@ -147,72 +145,45 @@ def load_ml_scores() -> pd.DataFrame:
     empty = pd.DataFrame(columns=[
         "member_id_norm","user_id_norm","ml_action_type","ml_priority_tier",
         "repurchase_30d_score","first_purchase_30d_score","churn_60d_score",
-        "ltv_score","next_best_category","predicted_member_stage"
+        "ltv_score","next_best_category"
     ])
     if not table_name or bigquery is None or not (PROJECT_ID or ML_SCORE_PROJECT):
         _ML_SCORES_CACHE = empty
         return empty.copy()
     try:
         client = get_bq_client()
-        sql = f"SELECT * FROM `{table_name}`"
-        raw = client.query(sql, location=BQ_LOCATION).to_dataframe()
-        if raw.empty:
+        sql = f"""
+        SELECT
+          CAST(COALESCE(member_id, '') AS STRING) AS member_id_norm,
+          CAST(COALESCE(user_id, '') AS STRING) AS user_id_norm,
+          CAST(COALESCE(crm_action_type, '') AS STRING) AS ml_action_type,
+          CAST(COALESCE(priority_tier, '') AS STRING) AS ml_priority_tier,
+          SAFE_CAST(repurchase_30d_score AS FLOAT64) AS repurchase_30d_score,
+          SAFE_CAST(first_purchase_30d_score AS FLOAT64) AS first_purchase_30d_score,
+          SAFE_CAST(churn_60d_score AS FLOAT64) AS churn_60d_score,
+          SAFE_CAST(ltv_score AS FLOAT64) AS ltv_score,
+          CAST(COALESCE(next_best_category, '') AS STRING) AS next_best_category
+        FROM `{table_name}`
+        """
+        df = client.query(sql, location=BQ_LOCATION).to_dataframe()
+        if df.empty:
             _ML_SCORES_CACHE = empty
             return empty.copy()
-
-        cols = {str(c).strip().lower(): c for c in raw.columns}
-        def pick(*names: str) -> str:
-            for n in names:
-                if n.lower() in cols:
-                    return str(cols[n.lower()])
-            return ""
-
-        out = pd.DataFrame()
-        member_col = pick("member_id", "member_id_norm")
-        user_col = pick("user_id", "user_id_norm")
-        out["member_id_norm"] = raw[member_col].astype(str).str.strip() if member_col else ""
-        out["user_id_norm"] = raw[user_col].astype(str).str.strip() if user_col else ""
-
-        action_col = pick("crm_action_type", "ml_action_type")
-        priority_col = pick("priority_tier", "ml_priority_tier")
-        rep_col = pick("repurchase_30d_score", "repurchase_45d_score", "repurchase_score")
-        first_col = pick("first_purchase_30d_score", "first_purchase_45d_score", "first_purchase_score")
-        churn_col = pick("churn_60d_score", "churn_90d_score", "churn_risk_score", "churn_score")
-        ltv_col = pick("ltv_score")
-        next_cat_col = pick("next_best_category")
-        stage_col = pick("predicted_member_stage")
-
-        out["ml_action_type"] = raw[action_col].astype(str).replace({"nan": "", "None": ""}).fillna("") if action_col else ""
-        out["ml_priority_tier"] = raw[priority_col].astype(str).replace({"nan": "", "None": ""}).fillna("") if priority_col else ""
-        out["repurchase_30d_score"] = pd.to_numeric(raw[rep_col], errors="coerce").fillna(0.0) if rep_col else 0.0
-        out["first_purchase_30d_score"] = pd.to_numeric(raw[first_col], errors="coerce").fillna(0.0) if first_col else 0.0
-        out["churn_60d_score"] = pd.to_numeric(raw[churn_col], errors="coerce").fillna(0.0) if churn_col else 0.0
-        out["ltv_score"] = pd.to_numeric(raw[ltv_col], errors="coerce").fillna(0.0) if ltv_col else 0.0
-        out["next_best_category"] = raw[next_cat_col].astype(str).replace({"nan": "", "None": ""}).fillna("") if next_cat_col else ""
-        out["predicted_member_stage"] = raw[stage_col].astype(str).replace({"nan": "", "None": ""}).fillna("") if stage_col else ""
-
-        # TOTAL VIEW 전용 score table은 행동기반 first_purchase가 비어도 member stage 기반 fallback이 가능하도록 보강
-        if (out["ml_action_type"].astype(str).str.strip() == "").all():
-            action = pd.Series(["GENERAL"] * len(out))
-            action = np.where(out["churn_60d_score"] >= 0.75, "CHURN_PREVENTION", action)
-            action = np.where(out["repurchase_30d_score"] >= 0.75, "RETENTION_REPURCHASE", action)
-            action = np.where((out["first_purchase_30d_score"] >= 0.80), "FIRST_PURCHASE_NUDGE", action)
-            action = np.where((out["ltv_score"] >= 0.85), "VIP_UPSELL", action)
-            action = np.where((pd.Series(action).astype(str) == "GENERAL") & (out["next_best_category"].astype(str).str.strip() != ""), "CATEGORY_CROSSSELL", action)
-            out["ml_action_type"] = pd.Series(action).astype(str)
-
-        if (out["ml_priority_tier"].astype(str).str.strip() == "").all():
-            priority = np.full(len(out), "P3", dtype=object)
-            priority = np.where((out["ltv_score"] >= 0.8) | (out["repurchase_30d_score"] >= 0.8), "P1", priority)
-            priority = np.where(((out["churn_60d_score"] >= 0.7) | (out["first_purchase_30d_score"] >= 0.75)) & (pd.Series(priority) != "P1"), "P2", priority)
-            out["ml_priority_tier"] = pd.Series(priority).astype(str)
-
-        _ML_SCORES_CACHE = out
-        return out.copy()
+        df["member_id_norm"] = df["member_id_norm"].astype(str).str.strip()
+        df["user_id_norm"] = df["user_id_norm"].astype(str).str.strip()
+        for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]:
+            if c not in df.columns:
+                df[c] = 0.0
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+        for c in ["ml_action_type","ml_priority_tier","next_best_category"]:
+            if c not in df.columns:
+                df[c] = ""
+            df[c] = df[c].astype(str).replace({"nan": "", "None": ""}).fillna("")
+        _ML_SCORES_CACHE = df
+        return df.copy()
     except Exception:
         _ML_SCORES_CACHE = empty
         return empty.copy()
-
 
 def merge_ml_scores(user_df: pd.DataFrame, ml_scores: pd.DataFrame) -> pd.DataFrame:
     if user_df.empty or ml_scores.empty:
@@ -395,6 +366,12 @@ def safe_series(df: pd.DataFrame, candidates: list[str], default: Any = None) ->
 
 def to_num(s: pd.Series) -> pd.Series:
     return pd.to_numeric(s, errors="coerce").fillna(0)
+
+
+def safe_numeric_series(df: pd.DataFrame, col: str, default: float = 0.0) -> pd.Series:
+    if col in df.columns:
+        return pd.to_numeric(df[col], errors="coerce").fillna(default)
+    return pd.Series([default] * len(df), index=df.index)
 
 
 def period_date_range(days: int):
@@ -922,9 +899,9 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                     pb["order_key_norm"] = pb["order_id_norm"].astype(str).str.strip()
                     order_has_id = (pb["order_key_norm"] != "").any()
                     grouped = pb.groupby(["purchase_product_name_norm", "top_category_norm", "product_code_norm"], dropna=False)
-                    pb["buyer_total_orders"] = pd.to_numeric(pb.get("orders_norm", 0), errors="coerce").fillna(0)
-                    pb["buyer_total_revenue"] = pd.to_numeric(pb.get("metric_revenue_norm", pb.get("revenue_norm", 0)), errors="coerce").fillna(0)
-                    pb["buyer_age_val"] = pd.to_numeric(pb.get("age_norm", 0), errors="coerce")
+                    pb["buyer_total_orders"] = safe_numeric_series(pb, "orders_norm", 0.0)
+                    pb["buyer_total_revenue"] = safe_numeric_series(pb, "metric_revenue_norm", 0.0).where(safe_numeric_series(pb, "metric_revenue_norm", 0.0) > 0, safe_numeric_series(pb, "revenue_norm", 0.0))
+                    pb["buyer_age_val"] = pd.to_numeric(safe_series(pb, ["age_norm"], 0), errors="coerce")
                     pb["is_repeat_buyer_flag"] = (pb["buyer_total_orders"] >= 2).astype(int)
                     pb["is_new_buyer_flag"] = (pb["buyer_total_orders"] <= 1).astype(int)
                     pb["gender_clean"] = pb.get("gender_norm", "미확인").astype(str)
@@ -971,8 +948,8 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             if mode == "non_buyer":
                 sdf_nb = sdf.copy()
                 sdf_nb["interest_product"] = safe_series(sdf_nb, ["top_viewed_item_name","top_purchased_item_name","purchase_product_name_norm"], "").map(lambda x: clean_label(x, "미분류"))
-                sdf_nb["product_view_count_norm"] = pd.to_numeric(sdf_nb.get("product_view_count_norm", 0), errors="coerce").fillna(0)
-                sdf_nb["add_to_cart_norm"] = pd.to_numeric(sdf_nb.get("add_to_cart_norm", 0), errors="coerce").fillna(0)
+                sdf_nb["product_view_count_norm"] = safe_numeric_series(sdf_nb, "product_view_count_norm", 0.0)
+                sdf_nb["add_to_cart_norm"] = safe_numeric_series(sdf_nb, "add_to_cart_norm", 0.0)
                 sdf_nb["drop_stage"] = sdf_nb.apply(lambda r: "Cart Abandon" if float(r.get("add_to_cart_norm",0) or 0) > 0 else ("PDP Drop" if float(r.get("product_view_count_norm",0) or 0) > 0 else ("Browse Drop" if float(r.get("pageviews_norm",0) or 0) > 0 else "Low Signal")), axis=1)
                 rows = rows_from_df(sdf_nb.sort_values(["add_to_cart_norm","product_view_count_norm","pageviews_norm","sessions_norm"], ascending=[False,False,False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","interest_product":"interest_product","drop_stage":"drop_stage","sessions_norm":"sessions","pageviews_norm":"pageviews","product_view_count_norm":"pdp_views","add_to_cart_norm":"atc","first_purchase_30d_score":"ml_first_purchase","churn_60d_score":"ml_churn","consent_norm":"consent"})
                 summary = {"members": int(sdf_nb["member_id_norm"].replace("", pd.NA).nunique()), "sessions": int(sdf_nb["sessions_norm"].sum()), "avg_age": avg_age(sdf_nb), "top_channel": top_label(sdf_nb, "channel_group_norm"), "pdp_users": int((sdf_nb["product_view_count_norm"] > 0).sum()), "cart_users": int((sdf_nb["add_to_cart_norm"] > 0).sum()), "cart_abandon": int((sdf_nb["add_to_cart_norm"] > 0).sum()), "high_intent": int(((sdf_nb["product_view_count_norm"] >= 3) | (sdf_nb["add_to_cart_norm"] > 0)).sum()), "avg_pv": float(pd.to_numeric(sdf_nb["pageviews_norm"], errors="coerce").fillna(0).mean()) if not sdf_nb.empty else 0.0, "avg_sessions": float(pd.to_numeric(sdf_nb["sessions_norm"], errors="coerce").fillna(0).mean()) if not sdf_nb.empty else 0.0}
@@ -981,8 +958,8 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                 extra = {"channel_dist": distribution(sdf_nb, "channel_group_norm", 6), "drop_stage_mix": distribution(sdf_nb, "drop_stage", 6), "top_interest_products": top_interest_rows}
             elif mode == "buyer":
                 buyer_count = int(sdf["member_id_norm"].replace("", pd.NA).where(sdf["member_id_norm"] != "", sdf["user_id_norm"]).replace("", pd.NA).nunique()) if not sdf.empty else 0
-                repeat_buyers = int((pd.to_numeric(sdf.get("orders_norm", 0), errors="coerce").fillna(0) >= 2).sum())
-                vip_buyers = int((pd.to_numeric(sdf.get("ltv_score", 0), errors="coerce").fillna(0) >= 0.8).sum()) if "ltv_score" in sdf.columns else 0
+                repeat_buyers = int((safe_numeric_series(sdf, "orders_norm", 0.0) >= 2).sum())
+                vip_buyers = int((safe_numeric_series(sdf, "ltv_score", 0.0) >= 0.8).sum()) if "ltv_score" in sdf.columns else 0
                 rows = rows_from_df(sdf.sort_values(["metric_revenue_norm","orders_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","age_norm":"age","channel_group_norm":"channel_group","campaign_display_norm":"campaign","top_category_norm":"top_category","purchase_product_name_norm":"purchase_product_name","orders_norm":"orders","metric_revenue_norm":"revenue","last_order_date_norm":"last_order_date","repurchase_30d_score":"ml_repurchase","churn_60d_score":"ml_churn","ltv_score":"ltv_score","consent_norm":"consent"})
                 summary = {"buyers": buyer_count, "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), "orders": int(round(orders)), "aov": revenue/orders if orders else 0.0, "repeat_buyers": repeat_buyers, "avg_orders_per_buyer": (orders / buyer_count) if buyer_count else 0.0, "avg_rev_per_buyer": (revenue / buyer_count) if buyer_count else 0.0, "vip_buyers": vip_buyers}
                 extra = {"products": prod_cards, "channel_dist": distribution(sdf, "channel_group_norm", 6)}
@@ -1008,7 +985,7 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                     "image": normalize_image_url(r.get("image", "") or ""),
                 } for _, r in products.head(100).iterrows()]
                 buyer_count = int(sdf["member_id_norm"].replace("", pd.NA).where(sdf["member_id_norm"] != "", sdf["user_id_norm"]).replace("", pd.NA).nunique()) if not sdf.empty else 0
-                summary = {"buyers": buyer_count, "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), "orders": int(round(orders)), "orders_per_buyer": (orders / buyer_count) if buyer_count else 0.0, "repeat_pct": float((pd.to_numeric(sdf.get("orders_norm", 0), errors="coerce").fillna(0) >= 2).mean() * 100.0) if not sdf.empty else 0.0, "new_pct": float((pd.to_numeric(sdf.get("orders_norm", 0), errors="coerce").fillna(0) <= 1).mean() * 100.0) if not sdf.empty else 0.0, "top_channel": top_label(sdf, "channel_group_norm"), "sku_count": int(len(products.index)), "aov": revenue/orders if orders else 0.0}
+                summary = {"buyers": buyer_count, "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), "orders": int(round(orders)), "orders_per_buyer": (orders / buyer_count) if buyer_count else 0.0, "repeat_pct": float((safe_numeric_series(sdf, "orders_norm", 0.0) >= 2).mean() * 100.0) if not sdf.empty else 0.0, "new_pct": float((safe_numeric_series(sdf, "orders_norm", 0.0) <= 1).mean() * 100.0) if not sdf.empty else 0.0, "top_channel": top_label(sdf, "channel_group_norm"), "sku_count": int(len(products.index)), "aov": revenue/orders if orders else 0.0}
                 extra = {"category_dist": distribution(sdf, "top_category_norm", 8), "products": prod_cards, "channel_dist": distribution(sdf, "channel_group_norm", 6), "buyer_type_mix": [{"label":"Repeat","count":int((pd.to_numeric(sdf.get('orders_norm',0), errors='coerce').fillna(0) >= 2).sum())},{"label":"New","count":int((pd.to_numeric(sdf.get('orders_norm',0), errors='coerce').fillna(0) <= 1).sum())}]}
             out[ch] = {"summary": summary, "age_dist": distribution(sdf, "age_band_norm", 6), "gender_dist": distribution(sdf, "gender_norm", 3), "rows": rows, **extra}
         return {"channels": channel_names(source), "panels": out}
