@@ -80,6 +80,7 @@ import json
 import base64
 import datetime as dt
 import re
+from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
@@ -4625,6 +4626,45 @@ def build_one(
 
 # =========================
 # Main
+
+def _list_existing_digest_dates(daily_dir: str, weekly_dir: str, data_dir: str, latest_end: dt.date) -> List[dt.date]:
+    found: set[dt.date] = set()
+    patterns = [
+        (Path(daily_dir), r"^(\d{4}-\d{2}-\d{2})\.html$"),
+        (Path(weekly_dir), r"^END_(\d{4}-\d{2}-\d{2})\.html$"),
+        (Path(data_dir) / "daily", r"^(\d{4}-\d{2}-\d{2})\.json$"),
+        (Path(data_dir) / "weekly", r"^END_(\d{4}-\d{2}-\d{2})\.json$"),
+    ]
+    for base, pattern in patterns:
+        if not base.exists():
+            continue
+        rx = re.compile(pattern)
+        for p in base.iterdir():
+            m = rx.match(p.name)
+            if not m:
+                continue
+            d = parse_yyyy_mm_dd(m.group(1))
+            if d and d <= latest_end:
+                found.add(d)
+    return sorted(found)
+
+
+def _build_dates_for_one_time_refresh(latest_end: dt.date, daily_dir: str, weekly_dir: str, data_dir: str) -> List[dt.date]:
+    explicit_start = parse_yyyy_mm_dd(os.getenv("DAILY_DIGEST_ONE_TIME_FULL_REFRESH_START", "").strip())
+    if explicit_start:
+        if explicit_start > latest_end:
+            explicit_start = latest_end
+        span = max(1, (latest_end - explicit_start).days + 1)
+        return [explicit_start + dt.timedelta(days=i) for i in range(span)]
+
+    existing = _list_existing_digest_dates(daily_dir, weekly_dir, data_dir, latest_end)
+    if existing:
+        return existing
+
+    days = max(1, int(os.getenv("DAILY_DIGEST_BUILD_DAYS", str(DAYS_TO_BUILD))))
+    start = latest_end - dt.timedelta(days=days - 1)
+    return [start + dt.timedelta(days=i) for i in range(days)]
+
 # =========================
 def main():
     if not PROPERTY_ID:
@@ -4643,32 +4683,40 @@ def main():
     today_kst = dt.datetime.now(ZoneInfo("Asia/Seoul")).date()
     latest_end = today_kst - dt.timedelta(days=1)
 
-    # 운영 기준: 어제(KST) 일자만 갱신한다.
-    # DAYS_TO_BUILD 값이 크게 잡혀 있어도 main 실행 시에는 latest_end 1일치만 빌드한다.
-    dates = [latest_end]
-
     logo_b64 = load_logo_base64(LOGO_PATH)
     image_map = load_image_map_from_excel_urls(IMAGE_XLS_PATH)
 
     ensure_dir(OUT_DIR)
     daily_dir = os.path.join(OUT_DIR, "daily")
     weekly_dir = os.path.join(OUT_DIR, "weekly")
+    cache_dir = os.path.join(OUT_DIR, "cache")
     ensure_dir(daily_dir)
     ensure_dir(weekly_dir)
     ensure_dir(os.path.join(DATA_DIR, "daily"))
     ensure_dir(os.path.join(DATA_DIR, "weekly"))
     ensure_dir(os.path.join(OUT_DIR, "cache", "pdp"))
+    ensure_dir(cache_dir)
 
-    # 어제 일자 산출물만 갱신한다.
-    # YoY 비교값은 build_one 내부 조회로 충분하므로, YoY 기준일 파일을 별도로 생성하지 않는다.
+    marker_path = os.getenv("DAILY_DIGEST_ONE_TIME_FULL_REFRESH_MARKER", os.path.join(cache_dir, ".one_time_full_refresh_done")).strip()
+    one_time_refresh_enabled = os.getenv("DAILY_DIGEST_ONE_TIME_FULL_REFRESH", "true").strip().lower() in ("1", "true", "yes", "y")
+    marker_exists = bool(marker_path) and os.path.exists(marker_path)
+
+    if one_time_refresh_enabled and not marker_exists:
+        dates = _build_dates_for_one_time_refresh(latest_end, daily_dir, weekly_dir, DATA_DIR)
+        one_time_full_refresh = True
+        print(f"[INFO] One-time full refresh mode: {ymd(dates[0])} ~ {ymd(dates[-1])} ({len(dates)} dates)")
+    else:
+        dates = [latest_end]
+        one_time_full_refresh = False
+        print(f"[INFO] Incremental mode: {ymd(latest_end)} only")
+
     all_dates = list(dates)
 
     for d in all_dates:
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
         out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
 
-        # Always rebuild the latest end date even if SKIP_IF_EXISTS is enabled.
-        force_rebuild = (d == latest_end)
+        force_rebuild = one_time_full_refresh or (d == latest_end)
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
             print(f"[SKIP] Exists (Daily): {out_daily}")
@@ -4685,6 +4733,11 @@ def main():
             with open(out_weekly, "w", encoding="utf-8") as f:
                 f.write(html_weekly)
             print(f"[OK] Wrote: {out_weekly} (force={force_rebuild})")
+
+    if one_time_full_refresh and marker_path:
+        Path(marker_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(marker_path).write_text(dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"), encoding="utf-8")
+        print(f"[OK] One-time full refresh marker written: {marker_path}")
 
     hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
