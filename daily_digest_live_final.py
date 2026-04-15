@@ -4946,21 +4946,20 @@ def main():
     ensure_dir(os.path.join(OUT_DIR, "cache", "pdp"))
     ensure_dir(cache_dir)
 
-    target_backfill_month = BACKFILL_MONTH or latest_end.strftime("%Y-%m")
-    missing_month_dates = _build_missing_daily_dates_for_month(target_backfill_month, latest_end, daily_dir, DATA_DIR)
-    dates = sorted(set(missing_month_dates + [latest_end]))
+    daily_window = build_window(latest_end, "daily")
+    yoy_target = daily_window.yoy_end
 
-    if missing_month_dates:
-        print(f"[INFO] Daily-only backfill mode: missing {target_backfill_month} dates -> "
-              f"{', '.join(ymd(d) for d in missing_month_dates)}")
-    else:
-        print(f"[INFO] Daily-only incremental mode: latest {ymd(latest_end)} only; no missing dates in {target_backfill_month}")
+    dates = sorted(set([latest_end, yoy_target]))
+    print(
+        f"[INFO] Daily-only targeted rebuild mode: latest={ymd(latest_end)}, yoy={ymd(yoy_target)} | "
+        "existing other daily/weekly outputs are kept as-is"
+    )
 
     all_dates = list(dates)
 
     for d in all_dates:
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
-        force_rebuild = (d == latest_end)
+        force_rebuild = d in {latest_end, yoy_target}
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
             print(f"[SKIP] Exists (Daily): {out_daily}")
@@ -4970,7 +4969,7 @@ def main():
                 f.write(html_daily)
             print(f"[OK] Wrote: {out_daily} (force={force_rebuild})")
 
-    # Daily-only patch: skip weekly generation and old broad historical rebuilds.
+    # Daily-only patch: rebuild only latest day and its YoY anchor; keep all existing outputs.
 
     hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
