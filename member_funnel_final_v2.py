@@ -816,8 +816,12 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     out["signup_norm"] = to_num(safe_series(out,["signup_yn"],0))
     out["purchase_norm"] = to_num(safe_series(out,["purchase_yn"],0))
     out["pageviews_norm"] = to_num(safe_series(out,["total_pageviews","pageviews"],0))
-    out["product_view_norm"] = to_num(safe_series(out,["product_view_count"],0))
-    out["add_to_cart_norm"] = to_num(safe_series(out,["add_to_cart_count"],0))
+    out["product_view_count_norm"] = to_num(safe_series(out,[
+        "product_view_count","product_views","pdp_views","view_item_count","view_item_users",
+        "product_detail_views","detail_view_count","item_view_count"
+    ],0))
+    out["product_view_norm"] = out["product_view_count_norm"]
+    out["add_to_cart_norm"] = to_num(safe_series(out,["add_to_cart_count","atc_count","cart_count","add_to_cart_users"],0))
     out["age_norm"] = to_num(safe_series(out,["age"],None))
     age_band = safe_series(out,["age_band"],"")
     derived = pd.cut(out["age_norm"], bins=[0,19,29,39,49,59,200], labels=["10s","20s","30s","40s","50s","60+"], right=True).astype(object)
