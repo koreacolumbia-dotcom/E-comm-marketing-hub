@@ -84,9 +84,10 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Any
 from zoneinfo import ZoneInfo
-from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.parse import urlencode, quote_plus
+from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
+from html import unescape as html_unescape
 
 import pandas as pd
 
@@ -113,6 +114,8 @@ LOGO_PATH = os.getenv("DAILY_DIGEST_LOGO_PATH", "pngwing.com.png")
 OUT_DIR = os.getenv("DAILY_DIGEST_OUT_DIR", os.path.join("reports", "daily_digest")).strip()
 DATA_DIR = os.getenv("DAILY_DIGEST_DATA_DIR", os.path.join(OUT_DIR, "data")).strip()
 DAYS_TO_BUILD = int(os.getenv("DAILY_DIGEST_BUILD_DAYS", "14"))
+DAILY_ONLY_MODE = os.getenv("DAILY_DIGEST_DAILY_ONLY_MODE", "true").strip().lower() in ("1", "true", "yes", "y")
+BACKFILL_MONTH = os.getenv("DAILY_DIGEST_BACKFILL_MONTH", "2026-04").strip()
 
 IMAGE_XLS_PATH = os.getenv("DAILY_DIGEST_IMAGE_XLS_PATH", "상품코드별 이미지.xlsx").strip()
 MISSING_SKU_OUT = os.getenv("DAILY_DIGEST_MISSING_SKU_OUT", "missing_image_skus.csv")
@@ -162,6 +165,22 @@ PAID_DETAIL_SOURCES = [
     "google",
     "instagram",
 ]
+
+POWERLINK_BRANDS = [
+    x.strip() for x in os.getenv(
+        "DAILY_DIGEST_POWERLINK_BRANDS",
+        "노스페이스,뉴발란스,아크테릭스,블랙야크,아이더,K2,디스커버리,밀레,파타고니아,네파",
+    ).split(",")
+    if x.strip()
+]
+POWERLINK_TIMEOUT_SEC = int(os.getenv("DAILY_DIGEST_POWERLINK_TIMEOUT_SEC", "12"))
+POWERLINK_MAX_TAGS = int(os.getenv("DAILY_DIGEST_POWERLINK_MAX_TAGS", "6"))
+POWERLINK_MAX_CARDS = int(os.getenv("DAILY_DIGEST_POWERLINK_MAX_CARDS", "4"))
+POWERLINK_CACHE_PATH = os.getenv(
+    "DAILY_DIGEST_POWERLINK_CACHE_PATH",
+    os.path.join(DATA_DIR, "brand_powerlink_snapshot.json"),
+).strip()
+POWERLINK_ENABLED = os.getenv("DAILY_DIGEST_POWERLINK_ENABLED", "true").strip().lower() in ("1", "true", "yes", "y")
 
 CHANNEL_BUCKET_ORDER = [
     "Awareness",
@@ -1008,6 +1027,146 @@ def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
     except Exception as e:
         print(f"[WARN] Failed to load Excel image map: {type(e).__name__}: {e}")
         return {}
+
+
+# =========================
+# Naver PowerLink / brand search helpers
+# =========================
+def _powerlink_clean_text(value: Any) -> str:
+    s = html_unescape(re.sub(r"<[^>]+>", " ", str(value or "")))
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _powerlink_dedupe_keep_order(values: List[str]) -> List[str]:
+    seen: set[str] = set()
+    out: List[str] = []
+    for v in values:
+        key = str(v or "").strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(str(v).strip())
+    return out
+
+
+def _extract_tag_candidates(html: str) -> List[str]:
+    tags = re.findall(r"#\s*[A-Za-z0-9가-힣][A-Za-z0-9가-힣_\- ]{0,30}", html or "")
+    cleaned = []
+    for tag in tags:
+        t = _powerlink_clean_text(tag).replace("# ", "#")
+        if len(t) >= 2:
+            cleaned.append(t)
+    return _powerlink_dedupe_keep_order(cleaned)[:POWERLINK_MAX_TAGS]
+
+
+def _extract_keyword_candidates(text: str) -> List[str]:
+    patterns = [
+        r"[가-힣A-Za-z0-9]+\s*(?:바람막이|방수\s*자켓|자켓|재킷|티셔츠|티|팬츠|바지|다운|패딩|후디|후드|베스트|신상|세일|할인|쿠폰|혜택)",
+        r"(?:신규\s*가입|회원가입)\s*(?:혜택|쿠폰|할인)",
+        r"(?:최대\s*\d+[만천백십]?원|\d+%\s*OFF|\d+%\s*쿠폰)",
+    ]
+    found: List[str] = []
+    for pat in patterns:
+        found.extend([_powerlink_clean_text(x) for x in re.findall(pat, text or "", flags=re.I)])
+    return _powerlink_dedupe_keep_order(found)[:POWERLINK_MAX_TAGS]
+
+
+def _extract_card_candidates(text: str) -> List[str]:
+    patterns = [
+        r"[가-힣A-Za-z0-9]+\s*신상",
+        r"신규\s*가입\s*혜택",
+        r"남성\s*[가-힣A-Za-z0-9]+",
+        r"여성\s*[가-힣A-Za-z0-9]+",
+        r"[가-힣A-Za-z0-9]+\s*(?:바람막이|방수\s*자켓|티셔츠|할인)",
+    ]
+    found: List[str] = []
+    for pat in patterns:
+        found.extend([_powerlink_clean_text(x) for x in re.findall(pat, text or "", flags=re.I)])
+    return _powerlink_dedupe_keep_order(found)[:POWERLINK_MAX_CARDS]
+
+
+def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_path: Optional[str] = None) -> List[dict]:
+    brands = [str(x).strip() for x in (brands or POWERLINK_BRANDS) if str(x).strip()]
+    cache_path = (cache_path or POWERLINK_CACHE_PATH or "").strip()
+    now_kst = dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S")
+
+    if not POWERLINK_ENABLED:
+        return [{
+            "brand": b,
+            "query": b,
+            "status": "disabled",
+            "status_label": "disabled",
+            "headline": "",
+            "main_copy": "",
+            "sub_copy": "",
+            "tags": [],
+            "cards": [],
+            "keyword_highlights": [],
+            "collected_at": now_kst,
+            "source": "powerlink_disabled",
+        } for b in brands]
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Cache-Control": "no-cache",
+    }
+    out: List[dict] = []
+    for brand in brands:
+        url = f"https://m.search.naver.com/search.naver?query={quote_plus(brand)}"
+        item = {
+            "brand": brand,
+            "query": brand,
+            "status": "ok",
+            "status_label": "수집 성공",
+            "headline": "",
+            "main_copy": "",
+            "sub_copy": "",
+            "tags": [],
+            "cards": [],
+            "keyword_highlights": [],
+            "collected_at": now_kst,
+            "source": url,
+        }
+        try:
+            req = Request(url, headers=headers)
+            with urlopen(req, timeout=POWERLINK_TIMEOUT_SEC) as resp:
+                raw = resp.read().decode("utf-8", errors="ignore")
+            text_only = _powerlink_clean_text(raw)
+            tags = _extract_tag_candidates(raw)
+            keywords = _extract_keyword_candidates(text_only)
+            cards = _extract_card_candidates(text_only)
+
+            headline_candidates = re.findall(r"(?:이벤트|혜택|쿠폰|할인).{0,80}", text_only, flags=re.I)
+            main_copy_candidates = re.findall(r"[가-힣A-Za-z0-9][가-힣A-Za-z0-9\s]{4,40}(?:모드|컬렉션|시즌|신상)", text_only)
+            sub_copy_candidates = re.findall(r"[A-Z][A-Z\s]{6,50}", text_only)
+
+            item["headline"] = _powerlink_dedupe_keep_order([_powerlink_clean_text(x) for x in headline_candidates[:3]])[:1][0] if headline_candidates else ""
+            item["main_copy"] = _powerlink_dedupe_keep_order([_powerlink_clean_text(x) for x in main_copy_candidates[:3]])[:1][0] if main_copy_candidates else ""
+            item["sub_copy"] = _powerlink_dedupe_keep_order([_powerlink_clean_text(x) for x in sub_copy_candidates[:3]])[:1][0] if sub_copy_candidates else ""
+            item["tags"] = tags
+            item["cards"] = cards
+            item["keyword_highlights"] = _powerlink_dedupe_keep_order(tags + keywords + cards)[:POWERLINK_MAX_TAGS]
+
+            if not item["headline"] and item["keyword_highlights"]:
+                item["headline"] = " / ".join(item["keyword_highlights"][:2])
+            if not (item["headline"] or item["main_copy"] or item["keyword_highlights"]):
+                item["status"] = "empty"
+                item["status_label"] = "문구 미검출"
+        except Exception as e:
+            item["status"] = "error"
+            item["status_label"] = f"수집 실패: {type(e).__name__}"
+            item["source"] = str(url)
+        out.append(item)
+
+    if cache_path:
+        try:
+            ensure_dir(os.path.dirname(cache_path))
+            write_json(cache_path, {"collected_at": now_kst, "brands": out})
+        except Exception as e:
+            print(f"[WARN] could not write powerlink cache: {type(e).__name__}: {e}")
+    return out
 
 
 # =========================
@@ -2649,6 +2808,7 @@ def build_bundle(
     paid_media_compare: pd.DataFrame,
     weather_forecast: Optional[dict] = None,
     admin_overall: Optional[Dict[str, Dict[str, float]]] = None,
+    brand_powerlink_status: Optional[List[dict]] = None,
 ) -> dict:
     cur = overall.get("current", {}) or {}
     sessions = float(cur.get("sessions", 0) or 0)
@@ -2730,6 +2890,7 @@ def build_bundle(
         "other_detail": to_records((channel_detail_map or {}).get("Other", pd.DataFrame())),
         "paid_media_compare": to_records(paid_media_compare),
         "weather_forecast": weather_forecast or {},
+        "brand_powerlink_status": brand_powerlink_status or [],
     }
 
 def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str]) -> dict:
@@ -2792,6 +2953,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
         channel_detail_map = {"Other": pd.DataFrame(bundle.get("other_detail", []))}
     paid_media_compare = pd.DataFrame(bundle.get("paid_media_compare", []))
     weather_forecast = bundle.get("weather_forecast", {}) or {}
+    brand_powerlink_status = bundle.get("brand_powerlink_status", []) or []
 
     return {
         "w": w,
@@ -2811,6 +2973,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
         "channel_detail_map": channel_detail_map,
         "paid_media_compare": paid_media_compare,
         "weather_forecast": weather_forecast,
+        "brand_powerlink_status": brand_powerlink_status,
     }
 
 
@@ -2836,6 +2999,7 @@ def render_page_html(
     channel_detail_map: Dict[str, pd.DataFrame],
     paid_media_compare: pd.DataFrame,
     weather_forecast: Optional[dict],
+    brand_powerlink_status: Optional[List[dict]],
     nav_links: Dict[str, str],
     bundle_rel_path: str,
 ) -> str:
@@ -3469,6 +3633,60 @@ def render_page_html(
 })();
 </script>"""
 
+
+    brand_powerlink_rows = []
+    for item in (brand_powerlink_status or []):
+        brand = esc(item.get("brand", ""))
+        status = esc(item.get("status_label", item.get("status", "")))
+        status_cls = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        if str(item.get("status", "")) == "error":
+            status_cls = "bg-rose-50 text-rose-700 border-rose-200"
+        elif str(item.get("status", "")) == "empty":
+            status_cls = "bg-amber-50 text-amber-700 border-amber-200"
+        highlights = item.get("keyword_highlights", []) or []
+        if not highlights:
+            highlights = item.get("tags", []) or item.get("cards", []) or []
+        chips = "".join([
+            f"<span class='inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700'>{esc(v)}</span>"
+            for v in highlights[:6]
+        ]) or "<span class='text-xs text-slate-400'>No keywords</span>"
+        copy_block = " · ".join([x for x in [item.get("headline", ""), item.get("main_copy", ""), item.get("sub_copy", "")] if str(x).strip()])
+        cards = item.get("cards", []) or []
+        card_labels = "".join([
+            f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600'>{esc(v)}</span>"
+            for v in cards[:4]
+        ])
+        source_url = esc(item.get("source", ""))
+        brand_powerlink_rows.append(f"""
+        <div class="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm font-black text-slate-900">{brand}</div>
+              <div class="mt-1 text-[11px] text-slate-500">{esc(item.get('collected_at', ''))}</div>
+            </div>
+            <div class="rounded-full border px-2.5 py-1 text-[11px] font-extrabold {status_cls}">{status}</div>
+          </div>
+          <div class="mt-3 text-sm font-semibold text-slate-700">{esc(copy_block) if copy_block else '<span class="text-slate-400">대표 문구 미검출</span>'}</div>
+          <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
+          <div class="mt-3 flex flex-wrap gap-2">{card_labels}</div>
+          <div class="mt-3 truncate text-[11px] text-slate-400">{source_url}</div>
+        </div>
+        """)
+    brand_powerlink_html = ""
+    if brand_powerlink_rows:
+        brand_powerlink_html = f"""
+        <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">브랜드별 파워링크 현황</div>
+              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준</div>
+            </div>
+            <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">{len(brand_powerlink_rows)} brands</div>
+          </div>
+          <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{''.join(brand_powerlink_rows)}</div>
+        </div>
+        """
+
     html = f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -3546,6 +3764,8 @@ def render_page_html(
         <button id="paidToggle" type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold text-slate-600 hover:bg-slate-50">Show more</button>
       </div>
     </div>
+
+    {brand_powerlink_html}
 
     <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
       <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Paid Budget / ROAS / CVR</div>
@@ -4515,6 +4735,7 @@ def build_one(
                 channel_detail_map=rt["channel_detail_map"],
                 paid_media_compare=rt["paid_media_compare"],
                 weather_forecast=rt.get("weather_forecast", {}),
+                brand_powerlink_status=rt.get("brand_powerlink_status", []),
                 nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
                 bundle_rel_path=bundle_rel,
             )
@@ -4573,6 +4794,7 @@ def build_one(
     category_pdp_trend, pdp_series = get_category_pdp_view_trend_bq(end_date=end_date)
     search = get_search_trends(client, end_date=end_date)
     weather_forecast = get_weekly_weather_forecast(end_date=end_date)
+    brand_powerlink_status = fetch_brand_powerlink_snapshot()
 
     bundle = build_bundle(
         w=w,
@@ -4593,6 +4815,7 @@ def build_one(
         channel_detail_map=channel_detail_map,
         paid_media_compare=paid_media_compare,
         weather_forecast=weather_forecast,
+        brand_powerlink_status=brand_powerlink_status,
     )
 
     if WRITE_DATA_CACHE:
@@ -4618,6 +4841,7 @@ def build_one(
         channel_detail_map=channel_detail_map,
         paid_media_compare=paid_media_compare,
         weather_forecast=weather_forecast,
+        brand_powerlink_status=brand_powerlink_status,
         nav_links={"hub": "../index.html", "daily_index": "../index.html", "weekly_index": "../index.html"},
         bundle_rel_path=bundle_rel,
     )
@@ -4665,6 +4889,31 @@ def _build_dates_for_one_time_refresh(latest_end: dt.date, daily_dir: str, weekl
     start = latest_end - dt.timedelta(days=days - 1)
     return [start + dt.timedelta(days=i) for i in range(days)]
 
+def _build_missing_daily_dates_for_month(target_month: str, latest_end: dt.date, daily_dir: str, data_dir: str) -> List[dt.date]:
+    month_str = str(target_month or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}", month_str):
+        month_str = latest_end.strftime("%Y-%m")
+
+    month_start = dt.datetime.strptime(month_str + "-01", "%Y-%m-%d").date()
+    if month_start > latest_end:
+        return []
+
+    if month_start.month == 12:
+        next_month = dt.date(month_start.year + 1, 1, 1)
+    else:
+        next_month = dt.date(month_start.year, month_start.month + 1, 1)
+    month_end = min(latest_end, next_month - dt.timedelta(days=1))
+
+    missing: List[dt.date] = []
+    span = (month_end - month_start).days + 1
+    for i in range(max(span, 0)):
+        d = month_start + dt.timedelta(days=i)
+        out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
+        data_daily = os.path.join(data_dir, "daily", f"{ymd(d)}.json")
+        if not (os.path.exists(out_daily) and os.path.exists(data_daily)):
+            missing.append(d)
+    return missing
+
 # =========================
 def main():
     if not PROPERTY_ID:
@@ -4697,26 +4946,21 @@ def main():
     ensure_dir(os.path.join(OUT_DIR, "cache", "pdp"))
     ensure_dir(cache_dir)
 
-    marker_path = os.getenv("DAILY_DIGEST_ONE_TIME_FULL_REFRESH_MARKER", os.path.join(cache_dir, ".one_time_full_refresh_done")).strip()
-    one_time_refresh_enabled = os.getenv("DAILY_DIGEST_ONE_TIME_FULL_REFRESH", "true").strip().lower() in ("1", "true", "yes", "y")
-    marker_exists = bool(marker_path) and os.path.exists(marker_path)
+    target_backfill_month = BACKFILL_MONTH or latest_end.strftime("%Y-%m")
+    missing_month_dates = _build_missing_daily_dates_for_month(target_backfill_month, latest_end, daily_dir, DATA_DIR)
+    dates = sorted(set(missing_month_dates + [latest_end]))
 
-    if one_time_refresh_enabled and not marker_exists:
-        dates = _build_dates_for_one_time_refresh(latest_end, daily_dir, weekly_dir, DATA_DIR)
-        one_time_full_refresh = True
-        print(f"[INFO] One-time full refresh mode: {ymd(dates[0])} ~ {ymd(dates[-1])} ({len(dates)} dates)")
+    if missing_month_dates:
+        print(f"[INFO] Daily-only backfill mode: missing {target_backfill_month} dates -> "
+              f"{', '.join(ymd(d) for d in missing_month_dates)}")
     else:
-        dates = [latest_end]
-        one_time_full_refresh = False
-        print(f"[INFO] Incremental mode: {ymd(latest_end)} only")
+        print(f"[INFO] Daily-only incremental mode: latest {ymd(latest_end)} only; no missing dates in {target_backfill_month}")
 
     all_dates = list(dates)
 
     for d in all_dates:
         out_daily = os.path.join(daily_dir, f"{ymd(d)}.html")
-        out_weekly = os.path.join(weekly_dir, f"END_{ymd(d)}.html")
-
-        force_rebuild = one_time_full_refresh or (d == latest_end)
+        force_rebuild = (d == latest_end)
 
         if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_daily):
             print(f"[SKIP] Exists (Daily): {out_daily}")
@@ -4726,18 +4970,7 @@ def main():
                 f.write(html_daily)
             print(f"[OK] Wrote: {out_daily} (force={force_rebuild})")
 
-        if (not force_rebuild) and SKIP_IF_EXISTS and os.path.exists(out_weekly):
-            print(f"[SKIP] Exists (Weekly): {out_weekly}")
-        else:
-            html_weekly, _bundle = build_one(client, end_date=d, mode="weekly", image_map=image_map, logo_b64=logo_b64)
-            with open(out_weekly, "w", encoding="utf-8") as f:
-                f.write(html_weekly)
-            print(f"[OK] Wrote: {out_weekly} (force={force_rebuild})")
-
-    if one_time_full_refresh and marker_path:
-        Path(marker_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(marker_path).write_text(dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"), encoding="utf-8")
-        print(f"[OK] One-time full refresh marker written: {marker_path}")
+    # Daily-only patch: skip weekly generation and old broad historical rebuilds.
 
     hub_path = os.path.join(OUT_DIR, "index.html")
     force_overwrite = os.getenv("DAILY_DIGEST_FORCE_HUB_OVERWRITE", "false").strip().lower() in ("1", "true", "yes", "y")
