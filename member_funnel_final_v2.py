@@ -193,9 +193,67 @@ def merge_ml_scores(user_df: pd.DataFrame, ml_scores: pd.DataFrame) -> pd.DataFr
     for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]:
         if c not in out.columns:
             out[c] = 0.0
-
     if out.empty or ml_scores.empty:
+        print(f"[DEBUG] ML merge skipped empty: user_rows={len(out)} ml_rows={len(ml_scores)}")
         return out
+
+    if "member_id_norm" not in out.columns:
+        out["member_id_norm"] = ""
+    if "user_id_norm" not in out.columns:
+        out["user_id_norm"] = ""
+
+    out["member_id_norm"] = out["member_id_norm"].astype(str).fillna("").str.strip()
+    out["user_id_norm"] = out["user_id_norm"].astype(str).fillna("").str.strip()
+
+    ml = ml_scores.copy()
+    for c in ["member_id_norm","user_id_norm"]:
+        if c not in ml.columns:
+            ml[c] = ""
+        ml[c] = ml[c].astype(str).fillna("").str.strip()
+
+    print(f"[DEBUG] ML merge user_rows={len(out)}")
+    print(f"[DEBUG] ML merge ml_rows={len(ml)}")
+    print(f"[DEBUG] unique user member_id_norm={out['member_id_norm'].replace('', pd.NA).nunique()}")
+    print(f"[DEBUG] unique user user_id_norm={out['user_id_norm'].replace('', pd.NA).nunique()}")
+    print(f"[DEBUG] unique ml member_id_norm={ml['member_id_norm'].replace('', pd.NA).nunique()}")
+    print(f"[DEBUG] member direct match rows={int(out['member_id_norm'].isin(set(ml['member_id_norm'])).sum())}")
+    print(f"[DEBUG] user fallback match rows={int(out['user_id_norm'].isin(set(ml['member_id_norm'])).sum())}")
+
+    value_cols = ["ml_action_type","ml_priority_tier","next_best_category","repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]
+
+    m1 = out.merge(
+        ml[["member_id_norm"] + value_cols].rename(columns={c: f"{c}__m1" for c in value_cols}),
+        on="member_id_norm",
+        how="left"
+    )
+    m2 = out.merge(
+        ml[["member_id_norm"] + value_cols].rename(columns={"member_id_norm":"user_id_norm", **{c: f"{c}__m2" for c in value_cols}}),
+        on="user_id_norm",
+        how="left"
+    )
+
+    for c in value_cols:
+        if c in ["ml_action_type","ml_priority_tier","next_best_category"]:
+            base = out[c].astype(str).fillna("")
+            v1 = m1[f"{c}__m1"].astype(str).fillna("") if f"{c}__m1" in m1.columns else ""
+            v2 = m2[f"{c}__m2"].astype(str).fillna("") if f"{c}__m2" in m2.columns else ""
+            out[c] = np.where(base != "", base, np.where(v1 != "", v1, np.where(v2 != "", v2, "")))
+        else:
+            base = pd.to_numeric(out[c], errors="coerce").fillna(0.0)
+            v1 = pd.to_numeric(m1[f"{c}__m1"], errors="coerce").fillna(0.0) if f"{c}__m1" in m1.columns else 0.0
+            v2 = pd.to_numeric(m2[f"{c}__m2"], errors="coerce").fillna(0.0) if f"{c}__m2" in m2.columns else 0.0
+            out[c] = np.where(base > 0, base, np.where(v1 > 0, v1, np.where(v2 > 0, v2, 0.0)))
+
+    print(f"[DEBUG] merged repurchase non-zero rows={int((pd.to_numeric(out['repurchase_30d_score'], errors='coerce').fillna(0) > 0).sum())}")
+    print(f"[DEBUG] merged first_purchase non-zero rows={int((pd.to_numeric(out['first_purchase_30d_score'], errors='coerce').fillna(0) > 0).sum())}")
+    print(f"[DEBUG] merged churn non-zero rows={int((pd.to_numeric(out['churn_60d_score'], errors='coerce').fillna(0) > 0).sum())}")
+    print(f"[DEBUG] merged ltv non-zero rows={int((pd.to_numeric(out['ltv_score'], errors='coerce').fillna(0) > 0).sum())}")
+
+    for c in ["ml_action_type","ml_priority_tier","next_best_category"]:
+        out[c] = out[c].astype(str).fillna("")
+    for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]:
+        out[c] = pd.to_numeric(out[c], errors="coerce").fillna(0.0)
+    return out
 
     if "member_id_norm" not in out.columns:
         out["member_id_norm"] = ""
