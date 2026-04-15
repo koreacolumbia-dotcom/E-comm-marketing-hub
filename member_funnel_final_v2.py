@@ -1599,3 +1599,48 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+def load_ml_scores():
+    try:
+        from google.cloud import bigquery
+        client = bigquery.Client(project="columbia-ga4")
+        sql = """
+        SELECT
+          CAST(member_id AS STRING) AS member_id,
+          TRIM(CAST(member_id AS STRING)) AS member_id_norm,
+          CAST('' AS STRING) AS user_id_norm,
+          SAFE_CAST(COALESCE(repurchase_score, repurchase_45d_score, repurchase_30d_score) AS FLOAT64) AS repurchase_30d_score,
+          SAFE_CAST(COALESCE(first_purchase_score, first_purchase_45d_score, first_purchase_30d_score) AS FLOAT64) AS first_purchase_30d_score,
+          SAFE_CAST(COALESCE(churn_risk_score, churn_90d_score, churn_60d_score) AS FLOAT64) AS churn_60d_score,
+          SAFE_CAST(ltv_score AS FLOAT64) AS ltv_score,
+          CAST(COALESCE(next_best_category, '') AS STRING) AS next_best_category,
+          CAST(COALESCE(crm_action_type, ml_action_type, '') AS STRING) AS ml_action_type,
+          CAST(COALESCE(priority_tier, ml_priority_tier, '') AS STRING) AS ml_priority_tier
+        FROM `columbia-ga4.crm_mart.crm_member_totalview_scores`
+        """
+        ml_scores = client.query(sql, location=BQ_LOCATION).to_dataframe()
+        print(f"[DEBUG] ML_SCORE_TABLE=columbia-ga4.crm_mart.crm_member_totalview_scores")
+        print(f"[DEBUG] ML rows loaded={len(ml_scores)}")
+        if ml_scores.empty:
+            return pd.DataFrame(columns=[
+                "member_id","member_id_norm","user_id_norm",
+                "repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score",
+                "next_best_category","ml_action_type","ml_priority_tier"
+            ])
+        for c in ["member_id","member_id_norm","user_id_norm","next_best_category","ml_action_type","ml_priority_tier"]:
+            if c not in ml_scores.columns:
+                ml_scores[c] = ""
+            ml_scores[c] = ml_scores[c].astype(str).fillna("").str.strip()
+        for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]:
+            if c not in ml_scores.columns:
+                ml_scores[c] = 0.0
+            ml_scores[c] = pd.to_numeric(ml_scores[c], errors="coerce").fillna(0.0)
+        return ml_scores
+    except Exception as e:
+        print(f"[WARN] load_ml_scores failed: {e}")
+        return pd.DataFrame(columns=[
+            "member_id","member_id_norm","user_id_norm",
+            "repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score",
+            "next_best_category","ml_action_type","ml_priority_tier"
+        ])
