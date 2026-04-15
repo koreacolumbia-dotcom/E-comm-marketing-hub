@@ -116,7 +116,7 @@ SEGMENT_ORDER = ["non_buyer", "cart_abandon", "high_intent", "repeat_buyer", "do
 SEGMENT_LABELS = {"non_buyer":"Non Buyer","cart_abandon":"Cart Abandon","high_intent":"High Intent","repeat_buyer":"Repeat Buyer","dormant":"Dormant","vip":"VIP"}
 
 
-ML_SCORE_TABLE = os.getenv("MEMBER_FUNNEL_ML_SCORE_TABLE", os.getenv("CRM_MEMBER_TOTALVIEW_SCORES_TABLE", os.getenv("CRM_MEMBER_TARGET_SCORE_TABLE", "crm_mart.crm_member_totalview_scores"))).strip()
+ML_SCORE_TABLE = "crm_mart.crm_member_totalview_scores"
 ML_SCORE_PROJECT = os.getenv("MEMBER_FUNNEL_ML_PROJECT_ID", PROJECT_ID).strip() if 'PROJECT_ID' in globals() else os.getenv("MEMBER_FUNNEL_ML_PROJECT_ID", "").strip()
 _ML_SCORES_CACHE: pd.DataFrame | None = None
 
@@ -186,12 +186,77 @@ def load_ml_scores() -> pd.DataFrame:
         return empty.copy()
 
 def merge_ml_scores(user_df: pd.DataFrame, ml_scores: pd.DataFrame) -> pd.DataFrame:
-    if user_df.empty or ml_scores.empty:
-        out = user_df.copy()
-        for c in ["ml_action_type","ml_priority_tier","repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score","next_best_category"]:
-            if c not in out.columns:
-                out[c] = "" if c in {"ml_action_type","ml_priority_tier","next_best_category"} else 0.0
+    out = user_df.copy()
+    for c in ["ml_action_type","ml_priority_tier","next_best_category"]:
+        if c not in out.columns:
+            out[c] = ""
+    for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]:
+        if c not in out.columns:
+            out[c] = 0.0
+
+    if out.empty or ml_scores.empty:
         return out
+
+    if "member_id_norm" not in out.columns:
+        out["member_id_norm"] = ""
+    if "user_id_norm" not in out.columns:
+        out["user_id_norm"] = ""
+
+    out["member_id_norm"] = out["member_id_norm"].astype(str).fillna("").str.strip()
+    out["user_id_norm"] = out["user_id_norm"].astype(str).fillna("").str.strip()
+
+    ml = ml_scores.copy()
+    for c in ["member_id_norm","user_id_norm"]:
+        if c not in ml.columns:
+            ml[c] = ""
+        ml[c] = ml[c].astype(str).fillna("").str.strip()
+
+    value_cols = ["ml_action_type","ml_priority_tier","next_best_category","repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]
+
+    # pass 1: member_id merge
+    out["__row_id__"] = range(len(out))
+    m1 = out.merge(
+        ml[["member_id_norm"] + value_cols].rename(columns={c: f"{c}__m1" for c in value_cols}),
+        on="member_id_norm",
+        how="left"
+    )
+
+    # pass 2: user_id merge (fallback only)
+    m2 = out.merge(
+        ml[["user_id_norm"] + value_cols].rename(columns={c: f"{c}__m2" for c in value_cols}),
+        on="user_id_norm",
+        how="left"
+    )
+
+    for c in value_cols:
+        c1 = f"{c}__m1"
+        c2 = f"{c}__m2"
+        if c in ["ml_action_type","ml_priority_tier","next_best_category"]:
+            base = out[c].astype(str).fillna("")
+            v1 = m1[c1].astype(str).fillna("") if c1 in m1.columns else ""
+            v2 = m2[c2].astype(str).fillna("") if c2 in m2.columns else ""
+            out[c] = np.where(base != "", base, np.where(v1 != "", v1, np.where(v2 != "", v2, "")))
+        else:
+            base = pd.to_numeric(out[c], errors="coerce").fillna(0.0)
+            v1 = pd.to_numeric(m1[c1], errors="coerce").fillna(0.0) if c1 in m1.columns else 0.0
+            v2 = pd.to_numeric(m2[c2], errors="coerce").fillna(0.0) if c2 in m2.columns else 0.0
+            out[c] = np.where(base > 0, base, np.where(v1 > 0, v1, np.where(v2 > 0, v2, 0.0)))
+
+    member_hits = int((pd.to_numeric(m1.get("repurchase_30d_score__m1", 0), errors="coerce").fillna(0) > 0).sum()) if "repurchase_30d_score__m1" in m1.columns else 0
+    user_hits = int((pd.to_numeric(m2.get("repurchase_30d_score__m2", 0), errors="coerce").fillna(0) > 0).sum()) if "repurchase_30d_score__m2" in m2.columns else 0
+    final_hits = int((pd.to_numeric(out.get("repurchase_30d_score", 0), errors="coerce").fillna(0) > 0).sum())
+
+    print(f"[DEBUG] ML merge user_rows={len(out)}")
+    print(f"[DEBUG] ML merge unique member keys={out['member_id_norm'].replace('', pd.NA).nunique()}")
+    print(f"[DEBUG] ML merge unique user keys={out['user_id_norm'].replace('', pd.NA).nunique()}")
+    print(f"[DEBUG] ML merge member-hit rows={member_hits}")
+    print(f"[DEBUG] ML merge user-hit rows={user_hits}")
+    print(f"[DEBUG] ML merge final repurchase-hit rows={final_hits}")
+    print(f"[DEBUG] ML merge final churn-hit rows={int((pd.to_numeric(out.get('churn_60d_score', 0), errors='coerce').fillna(0) > 0).sum())}")
+    print(f"[DEBUG] ML merge final ltv-hit rows={int((pd.to_numeric(out.get('ltv_score', 0), errors='coerce').fillna(0) > 0).sum())}")
+
+    out = out.drop(columns=["__row_id__"], errors="ignore")
+    return out
     out = user_df.copy()
     ml = ml_scores.copy()
     if "member_id_norm" not in out.columns:
@@ -927,7 +992,7 @@ def build_ml_insight(df: pd.DataFrame) -> dict:
 def build_purchase_pattern_insight(df: pd.DataFrame) -> dict:
     if df.empty:
         return {"summary": {"members": 0, "multi_item_buyers": 0, "multi_item_pct": 0.0, "multi_size_buyers": 0, "repeat_item_buyers": 0},
-                "multi_item_rows": [], "multi_size_rows": [], "repeat_item_rows": []}
+                "multi_item_rows": [], "multi_size_rows": [], "repeat_item_rows": [], "combo_rows": []}
 
     work = df.copy()
     for c in ["member_id_norm", "purchase_product_name_norm", "item_name_norm", "item_id_norm", "product_code_norm", "size_norm", "order_id_norm", "transaction_id_norm"]:
