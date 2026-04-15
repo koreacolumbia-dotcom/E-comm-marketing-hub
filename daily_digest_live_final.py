@@ -87,6 +87,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlencode, quote_plus
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
+from contextlib import suppress
 from html import unescape as html_unescape
 
 import pandas as pd
@@ -181,6 +182,14 @@ POWERLINK_CACHE_PATH = os.getenv(
     os.path.join(DATA_DIR, "brand_powerlink_snapshot.json"),
 ).strip()
 POWERLINK_ENABLED = os.getenv("DAILY_DIGEST_POWERLINK_ENABLED", "true").strip().lower() in ("1", "true", "yes", "y")
+POWERLINK_USE_PLAYWRIGHT = os.getenv("DAILY_DIGEST_POWERLINK_USE_PLAYWRIGHT", "true").strip().lower() in ("1", "true", "yes", "y")
+POWERLINK_SCREENSHOT_DIR = os.getenv(
+    "DAILY_DIGEST_POWERLINK_SCREENSHOT_DIR",
+    os.path.join(DATA_DIR, "powerlink_captures"),
+).strip()
+POWERLINK_WAIT_MS = int(os.getenv("DAILY_DIGEST_POWERLINK_WAIT_MS", "2500"))
+POWERLINK_VIEWPORT_WIDTH = int(os.getenv("DAILY_DIGEST_POWERLINK_VIEWPORT_WIDTH", "430"))
+POWERLINK_VIEWPORT_HEIGHT = int(os.getenv("DAILY_DIGEST_POWERLINK_VIEWPORT_HEIGHT", "2200"))
 
 CHANNEL_BUCKET_ORDER = [
     "Awareness",
@@ -1034,6 +1043,7 @@ def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
 # =========================
 def _powerlink_clean_text(value: Any) -> str:
     s = html_unescape(re.sub(r"<[^>]+>", " ", str(value or "")))
+    s = s.replace("\xa0", " ").replace("\u200b", " ")
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
@@ -1042,117 +1052,275 @@ def _powerlink_dedupe_keep_order(values: List[str]) -> List[str]:
     seen: set[str] = set()
     out: List[str] = []
     for v in values:
-        key = str(v or "").strip().lower()
-        if not key or key in seen:
+        raw = str(v or "").strip()
+        key = raw.lower()
+        if not raw or key in seen:
             continue
         seen.add(key)
-        out.append(str(v).strip())
+        out.append(raw)
     return out
 
 
-def _powerlink_strip_noise_text(value: Any) -> str:
-    s = _powerlink_clean_text(value)
+def _powerlink_sanitize_line(line: Any) -> str:
+    s = _powerlink_clean_text(line)
     if not s:
         return ""
     noise_patterns = [
-        r'https?://\S+',
-        r'window\.__[A-Z0-9_]+',
-        r'"?link"?\s*:\s*"[^"]*"',
-        r'eventNo=\d+',
-        r'utm_[a-z_]+=\S+',
-        r'\bREQUIRE\b',
-        r'\bundefined\b',
-        r'\bnull\b',
-        r'\btrue\b',
-        r'\bfalse\b',
-        r'\{[^{}]*\}',
-        r'\[[^\[\]]*\]',
+        r"https?://\S+",
+        r"(?:^|\s)REQUIRE(?:\s|$)",
+        r"window\.__[A-Z0-9_]+",
+        r'"link"\s*:\s*"[^"]+"',
+        r"eventNo=\d+",
+        r"utm_[a-z_]+=\S+",
+        r"#(?:ct|nx_option_form|mask\S*|clip\S*|[A-Fa-f0-9]{6,}|x3D|ffffff|00000008)\b",
     ]
     for pat in noise_patterns:
-        s = re.sub(pat, ' ', s, flags=re.I)
-    s = re.sub(r'\|\n|\t|\r', ' ', s)
-    s = re.sub(r'[,;|]+', ' ', s)
-    s = re.sub(r'\s+', ' ', s).strip(' -_:,')
-    return s
+        s = re.sub(pat, " ", s, flags=re.I)
+    s = re.sub(r"\s+", " ", s).strip(" -·|,/")
+    return s.strip()
 
 
-def _powerlink_is_noise_tag(tag: str) -> bool:
-    t = (tag or '').strip().lstrip('#').strip()
-    lo = t.lower()
-    if not lo:
-        return True
-    if lo in {'ct', 'nx_option_form', 'require', 'x3d'}:
-        return True
-    if lo.startswith(('nx_', 'mask', 'clip', 'svg', 'path', 'icon')):
-        return True
-    if re.fullmatch(r'[0-9a-f]{6,}', lo):
-        return True
-    if re.fullmatch(r'[a-z0-9_\-]{7,}', lo) and not re.search(r'[가-힣]', t):
-        return True
-    if re.fullmatch(r'[a-z]*\d+[a-z0-9_\-]*', lo) and not re.search(r'[가-힣]', t):
-        return True
-    return False
+_KEYWORD_LINE_RX = re.compile(
+    r"(신상|신규|NEW|BEST|베스트|랭킹|할인|쿠폰|혜택|세일|자켓|재킷|바람막이|티셔츠|후드|패딩|액티비티|Promotion|UP TO|OFF)",
+    re.I,
+)
 
 
-def _powerlink_is_meaningful_phrase(value: str, *, allow_hash: bool = False) -> bool:
-    s = _powerlink_strip_noise_text(value)
-    if not s:
-        return False
-    if not allow_hash:
-        s = s.lstrip('#').strip()
-    if len(s) < 2 or len(s) > 28:
-        return False
-    if re.search(r'https?://|utm_|eventNo=|window\.__|REQUIRE', s, flags=re.I):
-        return False
-    if re.fullmatch(r'[A-Z0-9_\-]{6,}', s):
-        return False
-    if not re.search(r'[가-힣A-Za-z]', s):
-        return False
-    return True
-
-
-def _extract_tag_candidates(html: str) -> List[str]:
-    tags = re.findall(r"#\s*[A-Za-z0-9가-힣][A-Za-z0-9가-힣_\- ]{0,30}", html or "")
-    cleaned = []
-    for tag in tags:
-        t = _powerlink_strip_noise_text(tag).replace('# ', '#')
-        if not t.startswith('#'):
-            t = '#' + t.lstrip('#')
-        if _powerlink_is_noise_tag(t) or not _powerlink_is_meaningful_phrase(t, allow_hash=True):
+def _powerlink_filter_candidate_lines(lines: List[str]) -> List[str]:
+    out: List[str] = []
+    for line in lines:
+        s = _powerlink_sanitize_line(line)
+        if not s:
             continue
-        cleaned.append(t)
-    return _powerlink_dedupe_keep_order(cleaned)[:POWERLINK_MAX_TAGS]
+        if len(s) < 2:
+            continue
+        if s.lower().startswith("https://m.search.naver.com"):
+            continue
+        if re.match(r"^#[A-Za-z0-9_\-]{1,40}$", s) and re.search(r"(?:ct|nx_|mask|clip)", s, re.I):
+            continue
+        out.append(s)
+    return _powerlink_dedupe_keep_order(out)
 
 
-def _extract_keyword_candidates(text: str) -> List[str]:
-    patterns = [
-        r"[가-힣A-Za-z0-9]+\s*(?:바람막이|방수\s*자켓|자켓|재킷|티셔츠|티|팬츠|바지|다운|패딩|후디|후드|베스트|경량\s*후드자켓|경량자켓|아노락|플리스)",
-        r"(?:남성|여성|키즈|아동)\s*(?:신상|추천|바람막이|자켓|티셔츠|베스트|로우컷|트레일러닝화)",
-        r"(?:신규\s*가입|회원가입)\s*(?:혜택|쿠폰|할인)",
-        r"(?:최대\s*\d+%|UP\s*TO\s*\d+%|\d+%\s*OFF|\d+%\s*쿠폰)",
-        r"(?:스프링세일|봄빛\s*무력화\s*모드|ENGINEERED FOR WHATEVER|DAYCAMP JACKET)",
-    ]
-    base = _powerlink_strip_noise_text(text)
-    found: List[str] = []
-    for pat in patterns:
-        found.extend([_powerlink_strip_noise_text(x) for x in re.findall(pat, base or '', flags=re.I)])
-    found = [x for x in found if _powerlink_is_meaningful_phrase(x)]
-    return _powerlink_dedupe_keep_order(found)[:POWERLINK_MAX_TAGS]
+def _extract_tag_candidates(text_or_lines: Any) -> List[str]:
+    values = text_or_lines if isinstance(text_or_lines, list) else re.split(r"[\n|]+", str(text_or_lines or ""))
+    tags: List[str] = []
+    for raw in values:
+        s = _powerlink_sanitize_line(raw)
+        if not s:
+            continue
+        if s.startswith("#"):
+            if 2 <= len(s) <= 30 and not re.search(r"(?:ct|nx_|mask|clip|x3D)$", s, re.I):
+                tags.append(s.replace("# ", "#"))
+            continue
+        if len(s) <= 16 and _KEYWORD_LINE_RX.search(s):
+            tags.append(s if s.startswith("#") else s)
+    return _powerlink_dedupe_keep_order(tags)[:POWERLINK_MAX_TAGS]
 
 
-def _extract_card_candidates(text: str) -> List[str]:
-    patterns = [
-        r"(?:남성|여성|키즈|아동)\s*(?:신상|바람막이|자켓|티셔츠|플리스|액티비티|트레일러닝화)",
-        r"(?:신규\s*가입\s*혜택|신상품|신상품|베스트랭킹|스프링세일|가정의\s*달\s*선물)",
-        r"(?:경량자켓|액티비티|베스트랭킹)",
-        r"(?:트레일러닝화|남성\s*신상|여성\s*신상)",
-    ]
-    base = _powerlink_strip_noise_text(text)
-    found: List[str] = []
-    for pat in patterns:
-        found.extend([_powerlink_strip_noise_text(x) for x in re.findall(pat, base or '', flags=re.I)])
-    found = [x for x in found if _powerlink_is_meaningful_phrase(x)]
-    return _powerlink_dedupe_keep_order(found)[:POWERLINK_MAX_CARDS]
+def _extract_card_candidates(text_or_lines: Any) -> List[str]:
+    values = text_or_lines if isinstance(text_or_lines, list) else re.split(r"[\n|]+", str(text_or_lines or ""))
+    cards: List[str] = []
+    for raw in values:
+        s = _powerlink_sanitize_line(raw)
+        if not s:
+            continue
+        if len(s) > 18:
+            continue
+        if re.search(r"(?:남성|여성|신규|신상|베스트|랭킹|세일|혜택|자켓|액티비티|선물)", s, re.I):
+            cards.append(s)
+    return _powerlink_dedupe_keep_order(cards)[:POWERLINK_MAX_CARDS]
+
+
+def _fallback_extract_powerlink_from_html(raw_html: str, brand: str, url: str, now_kst: str) -> dict:
+    text_only = _powerlink_clean_text(raw_html)
+    lines = _powerlink_filter_candidate_lines(re.split(r"(?<=[.!?])\s+|\n+", text_only))
+    tags = _extract_tag_candidates(lines)
+    cards = _extract_card_candidates(lines)
+    title_like = [x for x in lines if len(x) <= 40 and not x.startswith("#")]
+    item = {
+        "brand": brand,
+        "query": brand,
+        "status": "ok",
+        "status_label": "수집 성공",
+        "headline": title_like[0] if title_like else "",
+        "main_copy": title_like[1] if len(title_like) > 1 else "",
+        "sub_copy": title_like[2] if len(title_like) > 2 else "",
+        "tags": tags,
+        "cards": cards,
+        "keyword_highlights": _powerlink_dedupe_keep_order(tags + cards)[:POWERLINK_MAX_TAGS],
+        "collected_at": now_kst,
+        "source": url,
+        "capture_path": "",
+        "capture_method": "html_fallback",
+    }
+    if not (item["headline"] or item["main_copy"] or item["tags"] or item["cards"]):
+        item["status"] = "empty"
+        item["status_label"] = "문구 미검출"
+    return item
+
+
+_POWERLINK_BLOCK_FINDER_JS = r"""
+(brand) => {
+  const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const keywordRe = /(신상|신규|NEW|BEST|베스트|랭킹|할인|쿠폰|혜택|세일|자켓|재킷|바람막이|티셔츠|후드|패딩|액티비티|Promotion|UP TO|OFF)/i;
+  const isVisible = (el) => {
+    const st = window.getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    return st && st.display !== 'none' && st.visibility !== 'hidden' && r.width > 220 && r.height > 120;
+  };
+  const nodes = Array.from(document.querySelectorAll('section, article, div, li'));
+  let best = null;
+  let bestScore = -1;
+  for (const el of nodes) {
+    if (!isVisible(el)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 220 || r.height < 150 || r.height > 900) continue;
+    const text = norm(el.innerText || '');
+    if (!text || text.length < 20) continue;
+    const lineCount = text.split(/
++/).length;
+    const imgCount = el.querySelectorAll('img').length;
+    const kwHits = (text.match(new RegExp(keywordRe, 'ig')) || []).length;
+    const hashHits = (text.match(/#/g) || []).length;
+    const containsBrand = brand && text.toLowerCase().includes(String(brand).toLowerCase());
+    let score = 0;
+    score += Math.min(imgCount, 3) * 5;
+    score += Math.min(kwHits, 8) * 3;
+    score += Math.min(hashHits, 4) * 2;
+    score += Math.min(lineCount, 10);
+    if (containsBrand) score += 4;
+    if (imgCount >= 2 && kwHits >= 2) score += 8;
+    if (text.length > 350) score -= 4;
+    if (r.height > 700) score -= 4;
+    if (score > bestScore) { bestScore = score; best = el; }
+  }
+  if (!best) return null;
+  const r = best.getBoundingClientRect();
+  const lines = Array.from(best.querySelectorAll('*'))
+    .map((n) => norm(n.innerText || ''))
+    .filter(Boolean)
+    .filter((v, i, arr) => arr.indexOf(v) === i);
+  const images = Array.from(best.querySelectorAll('img')).map((img) => ({
+    src: img.currentSrc || img.src || '',
+    alt: norm(img.alt || ''),
+  })).filter((x) => x.src).slice(0, 6);
+  return {
+    lines,
+    text: text,
+    images,
+    rect: { x: Math.max(r.x, 0), y: Math.max(r.y, 0), width: Math.max(r.width, 1), height: Math.max(r.height, 1) },
+  };
+}
+"""
+
+
+def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: str, now_kst: str, capture_path: str = "") -> dict:
+    cleaned = _powerlink_filter_candidate_lines(lines)
+    tags = _extract_tag_candidates(cleaned)
+    cards = _extract_card_candidates(cleaned)
+    body_lines = [x for x in cleaned if x not in tags and x not in cards]
+    title_candidates = [x for x in body_lines if len(x) <= 44]
+    headline = title_candidates[0] if title_candidates else (cleaned[0] if cleaned else "")
+    main_copy = title_candidates[1] if len(title_candidates) > 1 else ""
+    sub_copy = title_candidates[2] if len(title_candidates) > 2 else ""
+    if headline and headline.lower() == brand.lower() and len(title_candidates) > 1:
+        headline = title_candidates[1]
+        main_copy = title_candidates[2] if len(title_candidates) > 2 else ""
+        sub_copy = title_candidates[3] if len(title_candidates) > 3 else ""
+    item = {
+        "brand": brand,
+        "query": brand,
+        "status": "ok",
+        "status_label": "수집 성공",
+        "headline": headline,
+        "main_copy": main_copy,
+        "sub_copy": sub_copy,
+        "tags": tags,
+        "cards": cards,
+        "keyword_highlights": _powerlink_dedupe_keep_order(tags + cards)[:POWERLINK_MAX_TAGS],
+        "collected_at": now_kst,
+        "source": url,
+        "capture_path": capture_path,
+        "capture_method": "playwright_element",
+    }
+    if not (item["headline"] or item["main_copy"] or item["tags"] or item["cards"]):
+        item["status"] = "empty"
+        item["status_label"] = "문구 미검출"
+    return item
+
+
+def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: str, now_kst: str) -> List[dict]:
+    from playwright.sync_api import sync_playwright
+
+    ensure_dir(POWERLINK_SCREENSHOT_DIR)
+    out: List[dict] = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(
+            viewport={"width": POWERLINK_VIEWPORT_WIDTH, "height": POWERLINK_VIEWPORT_HEIGHT},
+            user_agent=(
+                "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+            ),
+            is_mobile=True,
+            device_scale_factor=2,
+            locale="ko-KR",
+        )
+        for brand in brands:
+            url = f"https://m.search.naver.com/search.naver?query={quote_plus(brand)}"
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
+                with suppress(Exception):
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                with suppress(Exception):
+                    page.wait_for_timeout(POWERLINK_WAIT_MS)
+                data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
+                if not data or not data.get("lines"):
+                    raise RuntimeError("powerlink block not found")
+                safe_brand = re.sub(r"[^0-9A-Za-z가-힣_-]+", "_", brand)
+                shot_path = os.path.join(POWERLINK_SCREENSHOT_DIR, f"{safe_brand}.png")
+                page.screenshot(path=shot_path, clip=data["rect"])
+                item = _extract_powerlink_structured_from_lines(data.get("lines") or [], brand, url, now_kst, shot_path)
+                if not item.get("cards"):
+                    img_alts = [x.get("alt", "") for x in (data.get("images") or [])]
+                    item["cards"] = _extract_card_candidates(img_alts)
+                    item["keyword_highlights"] = _powerlink_dedupe_keep_order((item.get("tags") or []) + (item.get("cards") or []))[:POWERLINK_MAX_TAGS]
+                out.append(item)
+            except Exception as e:
+                fallback = {
+                    "brand": brand,
+                    "query": brand,
+                    "status": "error",
+                    "status_label": f"수집 실패: {type(e).__name__}",
+                    "headline": "",
+                    "main_copy": "",
+                    "sub_copy": "",
+                    "tags": [],
+                    "cards": [],
+                    "keyword_highlights": [],
+                    "collected_at": now_kst,
+                    "source": url,
+                    "capture_path": "",
+                    "capture_method": "playwright_element",
+                }
+                try:
+                    html = page.content()
+                    fb = _fallback_extract_powerlink_from_html(html, brand, url, now_kst)
+                    fb["status"] = "ok" if (fb.get("headline") or fb.get("tags") or fb.get("cards")) else fallback["status"]
+                    fb["status_label"] = "수집 성공" if fb["status"] == "ok" else fallback["status_label"]
+                    fb["capture_method"] = "playwright_html_fallback"
+                    out.append(fb)
+                except Exception:
+                    out.append(fallback)
+        browser.close()
+    if cache_path:
+        try:
+            ensure_dir(os.path.dirname(cache_path))
+            write_json(cache_path, {"collected_at": now_kst, "brands": out})
+        except Exception as e:
+            print(f"[WARN] could not write powerlink cache: {type(e).__name__}: {e}")
+    return out
 
 
 def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_path: Optional[str] = None) -> List[dict]:
@@ -1174,7 +1342,15 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
             "keyword_highlights": [],
             "collected_at": now_kst,
             "source": "powerlink_disabled",
+            "capture_path": "",
+            "capture_method": "disabled",
         } for b in brands]
+
+    if POWERLINK_USE_PLAYWRIGHT:
+        try:
+            return _fetch_brand_powerlink_snapshot_playwright(brands, cache_path, now_kst)
+        except Exception as e:
+            print(f"[WARN] PowerLink Playwright capture failed, fallback to HTML scraping: {type(e).__name__}: {e}")
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -1184,79 +1360,28 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
     out: List[dict] = []
     for brand in brands:
         url = f"https://m.search.naver.com/search.naver?query={quote_plus(brand)}"
-        item = {
-            "brand": brand,
-            "query": brand,
-            "status": "ok",
-            "status_label": "수집 성공",
-            "headline": "",
-            "main_copy": "",
-            "sub_copy": "",
-            "tags": [],
-            "cards": [],
-            "keyword_highlights": [],
-            "collected_at": now_kst,
-            "source": url,
-        }
         try:
             req = Request(url, headers=headers)
             with urlopen(req, timeout=POWERLINK_TIMEOUT_SEC) as resp:
                 raw = resp.read().decode("utf-8", errors="ignore")
-            text_only = _powerlink_strip_noise_text(raw)
-            tags = _extract_tag_candidates(raw)
-            keywords = _extract_keyword_candidates(text_only)
-            cards = _extract_card_candidates(text_only)
-
-            headline_patterns = [
-                r"(?:[A-Z][A-Z\s]{5,30})",
-                r"(?:[A-Za-z0-9]+\s+JACKET)",
-                r"(?:[가-힣A-Za-z0-9]+\s*무력화\s*모드)",
-            ]
-            main_copy_patterns = [
-                r"(?:지금\s*날씨에\s*필요한\s*[가-힣A-Za-z0-9\s]+)",
-                r"(?:예상\s*밖의\s*모든\s*순간을\s*준비하세요)",
-                r"(?:[가-힣A-Za-z0-9\s]{6,40}(?:시즌|컬렉션|모드))",
-            ]
-            sub_copy_patterns = [
-                r"(?:[가-힣A-Za-z0-9\s&]+PICK)",
-                r"(?:Promotion\s+Now\s+on)",
-                r"(?:ENGINEERED\s+FOR\s+WHATEVER)",
-            ]
-
-            headline_candidates: List[str] = []
-            main_copy_candidates: List[str] = []
-            sub_copy_candidates: List[str] = []
-            for pat in headline_patterns:
-                headline_candidates.extend([_powerlink_strip_noise_text(x) for x in re.findall(pat, text_only, flags=re.I)])
-            for pat in main_copy_patterns:
-                main_copy_candidates.extend([_powerlink_strip_noise_text(x) for x in re.findall(pat, text_only, flags=re.I)])
-            for pat in sub_copy_patterns:
-                sub_copy_candidates.extend([_powerlink_strip_noise_text(x) for x in re.findall(pat, text_only, flags=re.I)])
-
-            headline_candidates = [x for x in headline_candidates if _powerlink_is_meaningful_phrase(x)]
-            main_copy_candidates = [x for x in main_copy_candidates if _powerlink_is_meaningful_phrase(x)]
-            sub_copy_candidates = [x for x in sub_copy_candidates if _powerlink_is_meaningful_phrase(x)]
-
-            item["headline"] = _powerlink_dedupe_keep_order(headline_candidates[:5])[:1][0] if headline_candidates else ""
-            item["main_copy"] = _powerlink_dedupe_keep_order(main_copy_candidates[:5])[:1][0] if main_copy_candidates else ""
-            item["sub_copy"] = _powerlink_dedupe_keep_order(sub_copy_candidates[:5])[:1][0] if sub_copy_candidates else ""
-            item["tags"] = tags
-            item["cards"] = cards
-            item["keyword_highlights"] = _powerlink_dedupe_keep_order(tags + keywords)[:POWERLINK_MAX_TAGS]
-            item["source"] = ""
-
-            if not item["headline"] and item["keyword_highlights"]:
-                item["headline"] = " / ".join(item["keyword_highlights"][:2])
-            if not item["cards"]:
-                item["cards"] = _powerlink_dedupe_keep_order(keywords[:POWERLINK_MAX_CARDS])[:POWERLINK_MAX_CARDS]
-            if not (item["headline"] or item["main_copy"] or item["sub_copy"] or item["cards"] or item["keyword_highlights"]):
-                item["status"] = "empty"
-                item["status_label"] = "구조형 문구 미검출"
+            out.append(_fallback_extract_powerlink_from_html(raw, brand, url, now_kst))
         except Exception as e:
-            item["status"] = "error"
-            item["status_label"] = f"수집 실패: {type(e).__name__}"
-            item["source"] = str(url)
-        out.append(item)
+            out.append({
+                "brand": brand,
+                "query": brand,
+                "status": "error",
+                "status_label": f"수집 실패: {type(e).__name__}",
+                "headline": "",
+                "main_copy": "",
+                "sub_copy": "",
+                "tags": [],
+                "cards": [],
+                "keyword_highlights": [],
+                "collected_at": now_kst,
+                "source": url,
+                "capture_path": "",
+                "capture_method": "html_fallback",
+            })
 
     if cache_path:
         try:
@@ -3748,12 +3873,15 @@ def render_page_html(
             f"<span class='inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700'>{esc(v)}</span>"
             for v in highlights[:6]
         ]) or "<span class='text-xs text-slate-400'>No keywords</span>"
-        copy_block = " · ".join([x for x in [item.get("headline", ""), item.get("main_copy", ""), item.get("sub_copy", "")] if str(x).strip()])
+        copy_lines = [x for x in [item.get("headline", ""), item.get("main_copy", ""), item.get("sub_copy", "")] if str(x).strip()]
+        copy_block = "".join([f"<div>{esc(x)}</div>" for x in copy_lines]) if copy_lines else '<span class="text-slate-400">대표 문구 미검출</span>'
         cards = item.get("cards", []) or []
         card_labels = "".join([
             f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600'>{esc(v)}</span>"
             for v in cards[:4]
         ])
+        capture_path = str(item.get("capture_path", "") or "").strip()
+        capture_html = f"<div class='mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='{esc(capture_path)}' alt='{brand} powerlink capture' class='block h-auto w-full'/></div>" if capture_path else ""
         brand_powerlink_rows.append(f"""
         <div class="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
           <div class="flex items-start justify-between gap-3">
@@ -3763,7 +3891,8 @@ def render_page_html(
             </div>
             <div class="rounded-full border px-2.5 py-1 text-[11px] font-extrabold {status_cls}">{status}</div>
           </div>
-          <div class="mt-3 text-sm font-semibold text-slate-700">{esc(copy_block) if copy_block else '<span class="text-slate-400">대표 문구 미검출</span>'}</div>
+          {capture_html}
+          <div class="mt-3 space-y-1 text-sm font-semibold text-slate-700">{copy_block}</div>
           <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
           <div class="mt-3 flex flex-wrap gap-2">{card_labels}</div>
         </div>
