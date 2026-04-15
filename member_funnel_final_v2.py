@@ -194,14 +194,32 @@ def merge_ml_scores(user_df: pd.DataFrame, ml_scores: pd.DataFrame) -> pd.DataFr
         return out
     out = user_df.copy()
     ml = ml_scores.copy()
+    if "member_id_norm" not in out.columns:
+        out["member_id_norm"] = ""
+    if "user_id_norm" not in out.columns:
+        out["user_id_norm"] = ""
+    if "member_id_norm" not in ml.columns:
+        ml["member_id_norm"] = ""
+    if "user_id_norm" not in ml.columns:
+        ml["user_id_norm"] = ""
+    out["member_id_norm"] = out["member_id_norm"].astype(str).str.strip()
+    out["user_id_norm"] = out["user_id_norm"].astype(str).str.strip()
+    ml["member_id_norm"] = ml["member_id_norm"].astype(str).str.strip()
+    ml["user_id_norm"] = ml["user_id_norm"].astype(str).str.strip()
     ml["__ml_join_key"] = ml["member_id_norm"].where(ml["member_id_norm"] != "", ml["user_id_norm"])
+    ml = ml[ml["__ml_join_key"].astype(str).str.strip() != ""].copy()
     ml = ml.sort_values(["ltv_score","repurchase_30d_score","first_purchase_30d_score","churn_60d_score"], ascending=[False,False,False,False]).drop_duplicates("__ml_join_key", keep="first")
     out["__ml_join_key"] = out["member_id_norm"].where(out["member_id_norm"] != "", out["user_id_norm"])
+    print(f"[DEBUG] ML merge user_rows={len(out)} ml_rows={len(ml)}")
+    print(f"[DEBUG] ML merge user_unique={out['__ml_join_key'].replace('', pd.NA).nunique()} ml_unique={ml['__ml_join_key'].replace('', pd.NA).nunique()}")
     out = out.merge(
         ml[["__ml_join_key","ml_action_type","ml_priority_tier","repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score","next_best_category"]],
         on="__ml_join_key",
         how="left"
     ).drop(columns=["__ml_join_key"])
+    print(f"[DEBUG] ML merge hit repurchase={out['repurchase_30d_score'].notna().sum() if 'repurchase_30d_score' in out.columns else 0}")
+    print(f"[DEBUG] ML merge hit churn={out['churn_60d_score'].notna().sum() if 'churn_60d_score' in out.columns else 0}")
+    print(f"[DEBUG] ML merge hit ltv={out['ltv_score'].notna().sum() if 'ltv_score' in out.columns else 0}")
     for c in ["ml_action_type","ml_priority_tier","next_best_category"]:
         out[c] = out.get(c, "").fillna("").astype(str)
     for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]:
@@ -905,6 +923,84 @@ def build_ml_insight(df: pd.DataFrame) -> dict:
 
     return {"summary": summary, "segments": segments, "action_dist": action_dist, "rows": rows}
 
+
+def build_purchase_pattern_insight(df: pd.DataFrame) -> dict:
+    if df.empty:
+        return {"summary": {"members": 0, "multi_item_buyers": 0, "multi_item_pct": 0.0, "multi_size_buyers": 0, "repeat_item_buyers": 0},
+                "multi_item_rows": [], "multi_size_rows": [], "repeat_item_rows": []}
+
+    work = df.copy()
+    for c in ["member_id_norm", "purchase_product_name_norm", "item_name_norm", "item_id_norm", "product_code_norm", "size_norm", "order_id_norm", "transaction_id_norm"]:
+        if c not in work.columns:
+            work[c] = ""
+        work[c] = work[c].astype(str).fillna("").str.strip()
+
+    # derive order key and product key
+    order_key = work["order_id_norm"].where(work["order_id_norm"] != "", work["transaction_id_norm"])
+    if (order_key == "").all():
+        order_key = work["member_id_norm"] + "|" + work.get("order_date_norm", pd.Series([""] * len(work), index=work.index)).astype(str)
+    product_key = work["product_code_norm"].where(work["product_code_norm"] != "", work["item_id_norm"])
+    product_name = work["purchase_product_name_norm"].where(work["purchase_product_name_norm"] != "", work["item_name_norm"])
+
+    tmp = work.copy()
+    tmp["__order_key"] = order_key.astype(str).str.strip()
+    tmp["__product_key"] = product_key.astype(str).str.strip()
+    tmp["__product_name"] = product_name.astype(str).str.strip()
+    tmp = tmp[(tmp["member_id_norm"] != "") & (tmp["__order_key"] != "")].copy()
+
+    # multi-item in same order
+    mi = tmp.groupby(["member_id_norm", "__order_key"]).agg(
+        item_count=("__product_key", lambda s: int(pd.Series(s).replace("", pd.NA).dropna().nunique())),
+        product_names=("__product_name", lambda s: ", ".join(pd.Series(s).replace("", pd.NA).dropna().astype(str).unique()[:5]))
+    ).reset_index()
+    mi = mi[mi["item_count"] >= 2].sort_values(["item_count", "member_id_norm"], ascending=[False, True])
+    multi_item_buyers = int(mi["member_id_norm"].nunique())
+
+    # same item multiple sizes
+    ms = tmp.copy()
+    ms = ms[(ms["__product_key"] != "") & (ms["size_norm"] != "")]
+    ms = ms.groupby(["member_id_norm", "__product_key"]).agg(
+        size_count=("size_norm", lambda s: int(pd.Series(s).replace("", pd.NA).dropna().nunique())),
+        sizes=("size_norm", lambda s: ", ".join(pd.Series(s).replace("", pd.NA).dropna().astype(str).unique()[:6])),
+        product_name=("__product_name", "first")
+    ).reset_index()
+    ms = ms[ms["size_count"] >= 2].sort_values(["size_count", "member_id_norm"], ascending=[False, True])
+    multi_size_buyers = int(ms["member_id_norm"].nunique())
+
+    # same item repeat buyers
+    rp = tmp.copy()
+    rp = rp[rp["__product_key"] != ""]
+    rp = rp.groupby(["member_id_norm", "__product_key"]).agg(
+        buy_count=("__order_key", lambda s: int(pd.Series(s).replace("", pd.NA).dropna().nunique())),
+        product_name=("__product_name", "first")
+    ).reset_index()
+    rp = rp[rp["buy_count"] >= 2].sort_values(["buy_count", "member_id_norm"], ascending=[False, True])
+    repeat_item_buyers = int(rp["member_id_norm"].nunique())
+
+    total_buyers = int(tmp["member_id_norm"].replace("", pd.NA).nunique())
+    summary = {
+        "members": total_buyers,
+        "multi_item_buyers": multi_item_buyers,
+        "multi_item_pct": round((multi_item_buyers / total_buyers * 100.0), 1) if total_buyers else 0.0,
+        "multi_size_buyers": multi_size_buyers,
+        "repeat_item_buyers": repeat_item_buyers,
+    }
+
+    multi_item_rows = [
+        {"member_id": r["member_id_norm"], "order_key": r["__order_key"], "item_count": int(r["item_count"]), "products": r["product_names"]}
+        for _, r in mi.head(100).iterrows()
+    ]
+    multi_size_rows = [
+        {"member_id": r["member_id_norm"], "product_key": r["__product_key"], "product_name": r["product_name"], "size_count": int(r["size_count"]), "sizes": r["sizes"]}
+        for _, r in ms.head(100).iterrows()
+    ]
+    repeat_item_rows = [
+        {"member_id": r["member_id_norm"], "product_key": r["__product_key"], "product_name": r["product_name"], "buy_count": int(r["buy_count"])}
+        for _, r in rp.head(100).iterrows()
+    ]
+
+    return {"summary": summary, "multi_item_rows": multi_item_rows, "multi_size_rows": multi_size_rows, "repeat_item_rows": repeat_item_rows}
+
 def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, period_key: str, period_label: str):
     raw = normalize_dataframe(df)
 
@@ -1077,7 +1173,7 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
         ],
         "overview": {"sessions": int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(max(buy['member_id_norm'].replace('', pd.NA).nunique(), buy['user_id_norm'].replace('', pd.NA).nunique())), "members": int(user['member_id_norm'].replace('', pd.NA).nunique()), "non_buyers": int(nb['member_id_norm'].replace('', pd.NA).nunique()), "metric_source": "ga4_crm_mart"},
         "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": build_ml_target_payload(user)},
-        "total_view": {"member_overview": channel_panels(members, 'total'), "ml_insight": build_ml_insight(members), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"YTD {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
+        "total_view": {"member_overview": channel_panels(members, 'total'), "ml_insight": build_ml_insight(members), "purchase_pattern": build_purchase_pattern_insight(total_product_raw), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"YTD {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
     }
     if admin_daily:
         _login_users = int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique())
@@ -1243,6 +1339,29 @@ function renderBuyer(section){ const channels=safePanelSet(section); const tabs=
 function renderProduct(section){ const channels=safePanelSet(section); const tabs=subTabs('product', channels.map(x=>({key:x.channel,label:x.channel}))); const panels=channels.map((ch,i)=>{ const topCat=(ch.category_dist||[])[0]?.label || '미분류'; const topProduct=ch.summary?.top_product || (ch.products||[])[0]?.product || '미분류'; const rows=(ch.rows||[]).map(r=>({channel_group:ch.channel, product_name:r.product_name||r.product||'', category:r.category||'', product_code:r.product_code||'', avg_age:r.avg_age||'미확인', buyers:r.buyers||0, orders:r.orders||0, orders_per_buyer:r.orders_per_buyer||0, repeat_pct:r.repeat_pct||0, new_pct:r.new_pct||0, top_channel:r.top_channel||'', rev_share_pct:r.rev_share_pct||0, revenue:r.revenue||0})); return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="product" data-panel-id="product-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">Orders</div><div class="kpi">${num(ch.summary?.orders ?? 0)}</div></div><div class="card"><div class="kicker">AOV</div><div class="kpi">${money(ch.summary?.aov ?? 0)}</div></div><div class="card"><div class="kicker">Top Category</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(topCat)}</div></div><div class="card"><div class="kicker">Top Product</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(topProduct)}</div></div><div class="card"><div class="kicker">Repeat Buyer %</div><div class="kpi">${pct(ch.summary?.repeat_pct ?? 0)}</div></div><div class="card"><div class="kicker">New Buyer %</div><div class="kpi">${pct(ch.summary?.new_pct ?? 0)}</div></div><div class="card"><div class="kicker">Orders / Buyer</div><div class="kpi">${Number(ch.summary?.orders_per_buyer ?? 0).toFixed(2)}</div></div><div class="card"><div class="kicker">Top Channel</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(ch.summary?.top_channel || '미분류')}</div></div><div class="card"><div class="kicker">Avg Age</div><div class="kpi">${Number(ch.summary?.avg_age ?? 0).toFixed(1)}</div></div><div class="card"><div class="kicker">ML Repurchase</div><div class="kpi">${pct((ch.summary?.avg_repurchase_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">ML Churn</div><div class="kpi">${pct((ch.summary?.avg_churn_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">ML LTV</div><div class="kpi">${pct((ch.summary?.avg_ltv_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">SKU Count</div><div class="kpi">${num(ch.summary?.sku_count ?? 0)}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">CATEGORY SHARE</div>${bar(ch.category_dist)}</div><div class="card"><div class="section-title">CHANNEL REVENUE MIX</div>${bar(ch.channel_dist)}</div><div class="card"><div class="section-title">BUYER TYPE MIX</div>${bar(ch.buyer_type_mix)}</div><div class="card"><div class="section-title">TOP PRODUCTS</div><div class="product-wide-grid">${focusCards(ch.products,true)}</div></div></div><div class="card">${table(rows,[['product_name','Product'],['category','Category'],['product_code','Product Code'],['avg_age','주구매 연령'],['buyers','Buyers'],['orders','Orders'],['orders_per_buyer','Orders/Buyer'],['repeat_pct','Repeat %'],['new_pct','New %'],['top_channel','Top Channel'],['rev_share_pct','Rev Share %'],['revenue','Revenue']],['buyers','orders','orders_per_buyer','repeat_pct','new_pct','rev_share_pct','revenue'],`product-${groupSlug(ch.channel)}`)}</div></div>` }).join(''); return `<section><div class="section-head"><div><div class="section-title">PRODUCT</div><h2>구매 상품 집중 분석</h2></div>${tabs}</div>${panels}</section>`; }
 function renderTarget(section){ const cards=(section?.cards||[]).map(seg=>`<div class="card"><div class="kicker">${esc2(seg.label)}</div><div class="kpi">${num(seg.count)}</div><div class="kpi-sub">Top Channel ${esc2(seg.top_channel||'미분류')}</div><div class="kpi-sub" style="margin-top:8px">Top Msg ${esc2(seg.top_message||'GENERAL')}</div></div>`).join(''); return `<section><div class="section-head"><div><div class="section-title">TARGET</div><h2>CRM 액션 대상 세그먼트</h2></div></div><div class="grid-4">${cards || '<div class="kpi-sub">데이터가 없습니다.</div>'}</div><div class="card">${table(section?.rows||[],[['member_id','Member ID'],['phone','Phone'],['channel_group','Channel'],['campaign','Campaign'],['preferred_product','관심 상품'],['recommended_message','메시지']],[],'target-table')}</div></section>`; }
 
+
+function renderPurchasePattern(section){
+  const summary = section?.summary || {};
+  const cards = `<div class="grid-4">
+    <div class="card"><div class="kicker">Multi-item Buyers</div><div class="kpi">${num(summary.multi_item_buyers || 0)}</div><div class="kpi-sub">한 번에 2개 이상 상품 구매</div></div>
+    <div class="card"><div class="kicker">Multi-item %</div><div class="kpi">${pct(summary.multi_item_pct || 0)}</div><div class="kpi-sub">전체 구매자 대비 비중</div></div>
+    <div class="card"><div class="kicker">Multi-size Buyers</div><div class="kpi">${num(summary.multi_size_buyers || 0)}</div><div class="kpi-sub">동일 아이템 사이즈별 구매</div></div>
+    <div class="card"><div class="kicker">Repeat-item Buyers</div><div class="kpi">${num(summary.repeat_item_buyers || 0)}</div><div class="kpi-sub">동일 아이템 반복 구매</div></div>
+  </div>`;
+  const multiItem = table(section?.multi_item_rows||[], [['member_id','Member ID'],['order_key','Order Key'],['item_count','Item Count'],['products','Products']], ['item_count'], 'pattern-multi-item');
+  const multiSize = table(section?.multi_size_rows||[], [['member_id','Member ID'],['product_key','Product Key'],['product_name','Product Name'],['size_count','Size Count'],['sizes','Sizes']], ['size_count'], 'pattern-multi-size');
+  const repeatItem = table(section?.repeat_item_rows||[], [['member_id','Member ID'],['product_key','Product Key'],['product_name','Product Name'],['buy_count','Buy Count']], ['buy_count'], 'pattern-repeat-item');
+  return `<section>
+    <div class="section-head"><div><div class="section-title">PURCHASE PATTERN</div><h2>고객 구매 패턴 분석</h2></div></div>
+    ${cards}
+    <div class="grid-2" style="margin-top:18px">
+      <div class="card"><div class="section-title">한 번에 여러 상품 구매 고객</div>${multiItem}</div>
+      <div class="card"><div class="section-title">동일 아이템 사이즈별 구매 고객</div>${multiSize}</div>
+      <div class="card"><div class="section-title">동일 아이템 반복 구매 고객</div>${repeatItem}</div>
+    </div>
+  </section>`;
+}
+
 function renderMLInsight(section){
   const summary = section?.summary || {};
   const segCards = (section?.segments || []).map(seg => `
@@ -1280,7 +1399,7 @@ function bindUi(){
 function init(bundle){
   BUNDLE = bundle;
   document.getElementById('user-sections').innerHTML = renderNonBuyer(BUNDLE.user_view.non_buyer) + renderBuyer(BUNDLE.user_view.buyer) + renderProduct(BUNDLE.user_view.product) + renderTarget(BUNDLE.user_view.target);
-  document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview) + renderMLInsight(BUNDLE.total_view.ml_insight || {});
+  document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview) + renderMLInsight(BUNDLE.total_view.ml_insight || {}) + renderPurchasePattern(BUNDLE.total_view.purchase_pattern || {});
 }
 async function tryFetchBundle(paths){
   for(const bundlePath of paths){
