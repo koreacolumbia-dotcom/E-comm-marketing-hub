@@ -819,7 +819,7 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict 
 def get_bq_client():
     if bigquery is None:
         raise RuntimeError("google-cloud-bigquery is not installed")
-    return bigquery.Client(project=PROJECT_ID, location=BQ_LOCATION)
+    return bigquery.Client(project="columbia-ga4")
 
 
 def fetch_rows_from_bq() -> pd.DataFrame:
