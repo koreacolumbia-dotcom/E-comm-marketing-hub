@@ -22,43 +22,52 @@
     "signups": 111.0
   },
   "channels": {
-    "Organic": {
-      "sessions": 1205.0,
-      "orders": 28.0,
-      "revenue": 5944120.000684001
-    },
-    "Paid AD": {
-      "sessions": 3211.0,
-      "orders": 51.0,
-      "revenue": 4109940.004639
-    },
-    "Owned": {
-      "sessions": 325.0,
-      "orders": 9.0,
-      "revenue": 1006130.0011710001
-    },
     "Awareness": {
       "sessions": 1754.0,
       "orders": 0.0,
       "revenue": 0.0
     },
-    "SNS": {
+    "Paid Ad": {
+      "sessions": 3211.0,
+      "orders": 51.0,
+      "revenue": 4109940.004639
+    },
+    "Organic Traffic": {
+      "sessions": 1205.0,
+      "orders": 28.0,
+      "revenue": 5944120.000684001
+    },
+    "Official SNS": {
       "sessions": 152.0,
       "orders": 0.0,
       "revenue": 0.0
     },
-    "Other": {
-      "sessions": 67.0,
+    "Owned Channel": {
+      "sessions": 325.0,
+      "orders": 9.0,
+      "revenue": 1006130.0011710001
+    },
+    "etc": {
+      "sessions": 87.0,
       "orders": 0.0,
       "revenue": 0.0
     },
     "Total": {
       "sessions": 6714.0,
       "orders": 88.0,
-      "revenue": 11060190.006492
+      "revenue": 11060190.006494
     }
   },
-  "built_at_kst": "2026-03-25 18:41:20",
+  "admin_kpis": {
+    "sessions": 0.0,
+    "orders": 0.0,
+    "buyers": 0.0,
+    "revenue": 0.0,
+    "signups": 84.0,
+    "aov": 0.0,
+    "source": "admin_bq_daily_erp_login_users:sessions"
+  },
+  "built_at_kst": "2026-04-15 13:21:10",
   "meta": {
     "mode": "daily",
     "end_date": "2025-06-17",
@@ -91,6 +100,53 @@
       "cvr": 0.008172199927033929
     }
   },
+  "admin_overall": {
+    "current": {
+      "date_start": "2025-06-17",
+      "date_end": "2025-06-17",
+      "sessions": 0.0,
+      "pv": 0.0,
+      "signups": 84.0,
+      "orders": 0.0,
+      "buyers": 0.0,
+      "revenue": 0.0,
+      "erp_revenue": 0.0,
+      "total_price": 0.0,
+      "cancel_amount": 0.0,
+      "aov": 0.0,
+      "source": "admin_bq_daily_erp_login_users:sessions"
+    },
+    "prev": {
+      "date_start": "2025-06-10",
+      "date_end": "2025-06-10",
+      "sessions": 0.0,
+      "pv": 0.0,
+      "signups": 95.0,
+      "orders": 0.0,
+      "buyers": 0.0,
+      "revenue": 0.0,
+      "erp_revenue": 0.0,
+      "total_price": 0.0,
+      "cancel_amount": 0.0,
+      "aov": 0.0,
+      "source": "admin_bq_daily_erp_login_users:sessions"
+    },
+    "yoy": {
+      "date_start": "2024-06-18",
+      "date_end": "2024-06-18",
+      "sessions": 0.0,
+      "pv": 0.0,
+      "signups": 71.0,
+      "orders": 0.0,
+      "buyers": 0.0,
+      "revenue": 0.0,
+      "erp_revenue": 0.0,
+      "total_price": 0.0,
+      "cancel_amount": 0.0,
+      "aov": 0.0,
+      "source": "admin_bq_daily_erp_login_users:sessions"
+    }
+  },
   "signup_users": {
     "current": 111.0,
     "prev": 122.0,
@@ -98,65 +154,100 @@
   },
   "channel_snapshot": [
     {
-      "bucket": "Organic",
-      "sessions": 1205.0,
-      "transactions": 28.0,
-      "purchaseRevenue": 5944120.000684001,
-      "cvr": 0.023236514522821577,
-      "rev_dod": -0.13371675053918045,
-      "rev_yoy": -0.34153005464480873
-    },
-    {
-      "bucket": "Paid AD",
-      "sessions": 3211.0,
-      "transactions": 51.0,
-      "purchaseRevenue": 4109940.004639,
-      "cvr": 0.015882902522578637,
-      "rev_dod": -0.28117304678755317,
-      "rev_yoy": -0.09421720733427362
-    },
-    {
-      "bucket": "Owned",
-      "sessions": 325.0,
-      "transactions": 9.0,
-      "purchaseRevenue": 1006130.0011710001,
-      "cvr": 0.027692307692307693,
-      "rev_dod": -0.2809734513274336,
-      "rev_yoy": -0.5859872611464968
-    },
-    {
       "bucket": "Awareness",
       "sessions": 1754.0,
       "transactions": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.23372651813018785,
+      "session_yoy": -0.7634205557054222,
+      "orders_dod": -1.0,
+      "orders_yoy": -1.0,
+      "revenue_dod": -1.0,
+      "revenue_yoy": -1.0,
       "rev_dod": -0.23372651813018785,
-      "rev_yoy": -0.7633886415756104
+      "rev_yoy": -0.7634205557054222
     },
     {
-      "bucket": "SNS",
+      "bucket": "Paid Ad",
+      "sessions": 3211.0,
+      "transactions": 51.0,
+      "purchaseRevenue": 4109940.004639,
+      "session_dod": -0.28117304678755317,
+      "session_yoy": -0.09396162528216705,
+      "orders_dod": 0.0625,
+      "orders_yoy": 0.04081632653061224,
+      "revenue_dod": -0.04849064252437721,
+      "revenue_yoy": 0.04693975949257153,
+      "rev_dod": -0.28117304678755317,
+      "rev_yoy": -0.09396162528216705
+    },
+    {
+      "bucket": "Organic Traffic",
+      "sessions": 1205.0,
+      "transactions": 28.0,
+      "purchaseRevenue": 5944120.000684001,
+      "session_dod": -0.13371675053918045,
+      "session_yoy": -0.34153005464480873,
+      "orders_dod": 0.4,
+      "orders_yoy": -0.2,
+      "revenue_dod": 2.9881378163461574,
+      "revenue_yoy": 0.50556851319744,
+      "rev_dod": -0.13371675053918045,
+      "rev_yoy": -0.34153005464480873
+    },
+    {
+      "bucket": "Official SNS",
       "sessions": 152.0,
       "transactions": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.09523809523809523,
+      "session_yoy": 1.375,
+      "orders_dod": 0.0,
+      "orders_yoy": -1.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": -1.0,
       "rev_dod": -0.09523809523809523,
       "rev_yoy": 1.375
     },
     {
-      "bucket": "Other",
-      "sessions": 67.0,
+      "bucket": "Owned Channel",
+      "sessions": 325.0,
+      "transactions": 9.0,
+      "purchaseRevenue": 1006130.0011710001,
+      "session_dod": -0.2809734513274336,
+      "session_yoy": -0.5859872611464968,
+      "orders_dod": -0.1,
+      "orders_yoy": -0.64,
+      "revenue_dod": -0.13625788633640637,
+      "revenue_yoy": -0.6006073472610064,
+      "rev_dod": -0.2809734513274336,
+      "rev_yoy": -0.5859872611464968
+    },
+    {
+      "bucket": "etc",
+      "sessions": 87.0,
       "transactions": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
-      "rev_dod": -0.7744107744107744,
-      "rev_yoy": -0.014705882352941176
+      "session_dod": 0.04819277108433735,
+      "session_yoy": 0.1917808219178082,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
+      "rev_dod": 0.04819277108433735,
+      "rev_yoy": 0.1917808219178082
     },
     {
       "bucket": "Total",
       "sessions": 6714.0,
       "transactions": 88.0,
-      "purchaseRevenue": 11060190.006492,
-      "cvr": 0.013106940720881739,
+      "purchaseRevenue": 11060190.006494,
+      "session_dod": -0.2592674315975287,
+      "session_yoy": -0.5101058008026268,
+      "orders_dod": 0.1,
+      "orders_yoy": -0.21428571428571427,
+      "revenue_dod": 0.5567098543078567,
+      "revenue_yoy": -5400223.159082184,
       "rev_dod": -0.2592674315975287,
       "rev_yoy": -0.5101058008026268
     }
@@ -165,9 +256,14 @@
     {
       "sub_channel": "naver brand search",
       "sessions": 989.0,
-      "transactions": 30.0,
+      "orders": 30.0,
       "purchaseRevenue": 2669510.00372,
-      "cvr": 0.030333670374115267,
+      "session_dod": -0.006030150753768844,
+      "session_yoy": 0.18870192307692307,
+      "orders_dod": 0.07142857142857142,
+      "orders_yoy": 0.034482758620689655,
+      "revenue_dod": 0.07315259515550418,
+      "revenue_yoy": 0.14653421402632513,
       "dod": -0.006030150753768844,
       "yoy": 0.18870192307692307,
       "has_yoy": true
@@ -175,9 +271,14 @@
     {
       "sub_channel": "naver search",
       "sessions": 7.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.2222222222222222,
+      "session_yoy": -0.6111111111111112,
+      "orders_dod": 0.0,
+      "orders_yoy": -1.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": -1.0,
       "dod": -0.2222222222222222,
       "yoy": -0.6111111111111112,
       "has_yoy": true
@@ -185,9 +286,14 @@
     {
       "sub_channel": "criteo",
       "sessions": 828.0,
-      "transactions": 11.0,
+      "orders": 11.0,
       "purchaseRevenue": 627559.99952,
-      "cvr": 0.013285024154589372,
+      "session_dod": -0.0547945205479452,
+      "session_yoy": -0.4127659574468085,
+      "orders_dod": 0.375,
+      "orders_yoy": -0.08333333333333333,
+      "revenue_dod": 0.07383514802342496,
+      "revenue_yoy": -0.4348800981815702,
       "dod": -0.0547945205479452,
       "yoy": -0.4127659574468085,
       "has_yoy": true
@@ -195,9 +301,14 @@
     {
       "sub_channel": "meta",
       "sessions": 560.0,
-      "transactions": 3.0,
+      "orders": 3.0,
       "purchaseRevenue": 237239.999953,
-      "cvr": 0.005357142857142857,
+      "session_dod": -0.658952496954933,
+      "session_yoy": 0.5053763440860215,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": -0.22843762545691645,
+      "revenue_yoy": 0.3404147057427753,
       "dod": -0.658952496954933,
       "yoy": 0.5053763440860215,
       "has_yoy": true
@@ -205,9 +316,14 @@
     {
       "sub_channel": "google demand gen",
       "sessions": 0.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": 0.0,
+      "session_yoy": 0.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": 0.0,
       "yoy": 0.0,
       "has_yoy": false
@@ -215,9 +331,14 @@
     {
       "sub_channel": "google pmax",
       "sessions": 599.0,
-      "transactions": 6.0,
+      "orders": 6.0,
       "purchaseRevenue": 429850.000797,
-      "cvr": 0.01001669449081803,
+      "session_dod": -0.12809315866084425,
+      "session_yoy": 0.7565982404692082,
+      "orders_dod": 0.2,
+      "orders_yoy": 0.5,
+      "revenue_dod": 0.25284173462040305,
+      "revenue_yoy": 0.9577791905987373,
       "dod": -0.12809315866084425,
       "yoy": 0.7565982404692082,
       "has_yoy": true
@@ -225,9 +346,14 @@
     {
       "sub_channel": "google search",
       "sessions": 11.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.08333333333333333,
+      "session_yoy": -0.9605734767025089,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": -0.08333333333333333,
       "yoy": -0.9605734767025089,
       "has_yoy": true
@@ -235,9 +361,14 @@
     {
       "sub_channel": "google",
       "sessions": 0.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -1.0,
+      "session_yoy": -1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": -1.0,
       "yoy": -1.0,
       "has_yoy": true
@@ -245,9 +376,14 @@
     {
       "sub_channel": "instagram",
       "sessions": 78.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": 0.04,
+      "session_yoy": 1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": 0.04,
       "yoy": 1.0,
       "has_yoy": false
@@ -255,9 +391,14 @@
     {
       "sub_channel": "naver",
       "sessions": 133.0,
-      "transactions": 1.0,
+      "orders": 1.0,
       "purchaseRevenue": 145780.000649,
-      "cvr": 0.007518796992481203,
+      "session_dod": -0.10135135135135136,
+      "session_yoy": 1.0,
+      "orders_dod": -0.6666666666666666,
+      "orders_yoy": 1.0,
+      "revenue_dod": -0.7233041027410377,
+      "revenue_yoy": 1.0,
       "dod": -0.10135135135135136,
       "yoy": 1.0,
       "has_yoy": false
@@ -265,9 +406,14 @@
     {
       "sub_channel": "chatgpt.com",
       "sessions": 5.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": 1.5,
+      "session_yoy": 1.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": 1.5,
       "yoy": 1.0,
       "has_yoy": false
@@ -275,9 +421,14 @@
     {
       "sub_channel": "(data not available)",
       "sessions": 1.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -0.9473684210526315,
+      "session_yoy": 1.0,
+      "orders_dod": -1.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": -1.0,
+      "revenue_yoy": 0.0,
       "dod": -0.9473684210526315,
       "yoy": 1.0,
       "has_yoy": false
@@ -285,9 +436,14 @@
     {
       "sub_channel": "prod.danawa.com",
       "sessions": 0.0,
-      "transactions": 0.0,
+      "orders": 0.0,
       "purchaseRevenue": 0.0,
-      "cvr": 0.0,
+      "session_dod": -1.0,
+      "session_yoy": 0.0,
+      "orders_dod": 0.0,
+      "orders_yoy": 0.0,
+      "revenue_dod": 0.0,
+      "revenue_yoy": 0.0,
       "dod": -1.0,
       "yoy": 0.0,
       "has_yoy": false
@@ -295,11 +451,16 @@
     {
       "sub_channel": "Total",
       "sessions": 3211.0,
-      "transactions": 51.0,
+      "orders": 51.0,
       "purchaseRevenue": 4109940.004639,
-      "cvr": 0.015882902522578637,
+      "session_dod": -0.28117304678755317,
+      "session_yoy": -0.09396162528216705,
+      "orders_dod": 0.0625,
+      "orders_yoy": 112.04458598726112,
+      "revenue_dod": -0.048490642524377,
+      "revenue_yoy": 0.04693975949257153,
       "dod": -0.28117304678755317,
-      "yoy": -0.09421720733427362,
+      "yoy": -0.09396162528216705,
       "has_yoy": true
     }
   ],
@@ -674,87 +835,199 @@
     "rows": [
       {
         "itemCategory": "OUTER · Padding/Slim Down",
-        "views_d1": 12.0,
-        "views_avg7d": 13.0,
-        "ys": []
+        "views_d1": 6.0,
+        "views_avg7d": 8.285714285714286,
+        "ys": [
+          21.0,
+          7.0,
+          10.0,
+          5.0,
+          2.0,
+          7.0,
+          6.0
+        ]
       },
       {
         "itemCategory": "OUTER · Mid/Heavy Down",
         "views_d1": 2.0,
         "views_avg7d": 0.42857142857142855,
-        "ys": []
+        "ys": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.0
+        ]
       },
       {
         "itemCategory": "OUTER · Interchange",
         "views_d1": 0.0,
         "views_avg7d": 0.0,
-        "ys": []
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
       },
       {
         "itemCategory": "OUTER · Rain",
-        "views_d1": 312.0,
-        "views_avg7d": 391.7142857142857,
-        "ys": []
+        "views_d1": 224.0,
+        "views_avg7d": 283.42857142857144,
+        "ys": [
+          236.0,
+          219.0,
+          317.0,
+          337.0,
+          356.0,
+          295.0,
+          224.0
+        ]
       },
       {
         "itemCategory": "FLEECE · Fleece Pullover",
-        "views_d1": 4.0,
-        "views_avg7d": 3.4285714285714284,
-        "ys": []
+        "views_d1": 0.0,
+        "views_avg7d": 0.0,
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
       },
       {
         "itemCategory": "FLEECE · Jacket",
-        "views_d1": 3.0,
-        "views_avg7d": 2.142857142857143,
-        "ys": []
+        "views_d1": 0.0,
+        "views_avg7d": 0.0,
+        "ys": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
       },
       {
         "itemCategory": "TOPS · Fleece Top",
-        "views_d1": 0.0,
-        "views_avg7d": 0.0,
-        "ys": []
+        "views_d1": 4.0,
+        "views_avg7d": 6.0,
+        "ys": [
+          13.0,
+          4.0,
+          10.0,
+          2.0,
+          6.0,
+          3.0,
+          4.0
+        ]
       },
       {
         "itemCategory": "TOPS · Round T-shirt",
-        "views_d1": 1794.0,
-        "views_avg7d": 1926.2857142857142,
-        "ys": []
+        "views_d1": 1025.0,
+        "views_avg7d": 983.4285714285714,
+        "ys": [
+          921.0,
+          1074.0,
+          827.0,
+          929.0,
+          1046.0,
+          1062.0,
+          1025.0
+        ]
       },
       {
         "itemCategory": "TOPS · Polo/Zip Up",
-        "views_d1": 629.0,
-        "views_avg7d": 698.1428571428571,
-        "ys": []
+        "views_d1": 87.0,
+        "views_avg7d": 136.14285714285714,
+        "ys": [
+          170.0,
+          243.0,
+          88.0,
+          78.0,
+          178.0,
+          109.0,
+          87.0
+        ]
       },
       {
         "itemCategory": "PANTS · Pants",
-        "views_d1": 698.0,
-        "views_avg7d": 707.5714285714286,
-        "ys": []
+        "views_d1": 384.0,
+        "views_avg7d": 315.0,
+        "ys": [
+          257.0,
+          283.0,
+          304.0,
+          310.0,
+          310.0,
+          357.0,
+          384.0
+        ]
       },
       {
         "itemCategory": "FOOTWEAR · Boots",
-        "views_d1": 92.0,
-        "views_avg7d": 81.14285714285714,
-        "ys": []
+        "views_d1": 56.0,
+        "views_avg7d": 35.714285714285715,
+        "ys": [
+          22.0,
+          26.0,
+          37.0,
+          27.0,
+          38.0,
+          44.0,
+          56.0
+        ]
       },
       {
         "itemCategory": "FOOTWEAR · Omni-Max",
-        "views_d1": 70.0,
-        "views_avg7d": 91.14285714285714,
-        "ys": []
+        "views_d1": 620.0,
+        "views_avg7d": 665.5714285714286,
+        "ys": [
+          747.0,
+          754.0,
+          696.0,
+          545.0,
+          634.0,
+          663.0,
+          620.0
+        ]
       },
       {
         "itemCategory": "FOOTWEAR · Hiking",
-        "views_d1": 1205.0,
-        "views_avg7d": 1258.7142857142858,
-        "ys": []
+        "views_d1": 807.0,
+        "views_avg7d": 851.8571428571429,
+        "ys": [
+          1097.0,
+          982.0,
+          832.0,
+          632.0,
+          720.0,
+          893.0,
+          807.0
+        ]
       },
       {
         "itemCategory": "FOOTWEAR · Sneakers",
-        "views_d1": 695.0,
-        "views_avg7d": 1028.4285714285713,
-        "ys": []
+        "views_d1": 689.0,
+        "views_avg7d": 733.0,
+        "ys": [
+          1022.0,
+          629.0,
+          620.0,
+          691.0,
+          750.0,
+          730.0,
+          689.0
+        ]
       }
     ]
   },
@@ -852,6 +1125,804 @@
       "count": 4
     }
   ],
+  "channel_detail_map": {
+    "Awareness": [
+      {
+        "sub_channel": "meta_BD / banner_navy",
+        "sessions": 660.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.2841648590021692,
+        "session_yoy": 1.0,
+        "orders_dod": -1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.2841648590021692,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "meta_BD / video_geen",
+        "sessions": 388.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.79136690647482,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.79136690647482,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "meta_BD / video_blue",
+        "sessions": 361.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 16.19047619047619,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 16.19047619047619,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "meta_BD / banner_blue",
+        "sessions": 179.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 5.172413793103448,
+        "session_yoy": 1.0,
+        "orders_dod": -1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": 0.0,
+        "dod": 5.172413793103448,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "google / cpc",
+        "sessions": 97.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.020202020202020204,
+        "session_yoy": -0.9837520938023451,
+        "orders_dod": 0.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": -1.0,
+        "dod": -0.020202020202020204,
+        "yoy": -0.9837520938023451
+      },
+      {
+        "sub_channel": "meta_BD / video_blue_N",
+        "sessions": 54.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.8620689655172413,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.8620689655172413,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "youtube_BD / video_vvc_h",
+        "sessions": 6.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.0,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.0,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "youtube_BD / video_vvc_s",
+        "sessions": 6.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "KAKAOMOMENT_mkt / TERMINAL",
+        "sessions": 1.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.0,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.0,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "manplus_mkt / manplus_mkt_da_spw1",
+        "sessions": 1.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.0,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.0,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "meta_BD / video_navy",
+        "sessions": 1.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.9990157480314961,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.9990157480314961,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "manplus_mkt / manplus_mkt_da_btgs1",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": -1.0
+      }
+    ],
+    "Paid Ad": [
+      {
+        "sub_channel": "naver brand search",
+        "sessions": 989.0,
+        "orders": 30.0,
+        "purchaseRevenue": 2669510.00372,
+        "session_dod": -0.006030150753768844,
+        "session_yoy": 0.18870192307692307,
+        "orders_dod": 0.07142857142857142,
+        "orders_yoy": 0.034482758620689655,
+        "revenue_dod": 0.07315259515550418,
+        "revenue_yoy": 0.14653421402632513,
+        "dod": -0.006030150753768844,
+        "yoy": 0.18870192307692307
+      },
+      {
+        "sub_channel": "criteo",
+        "sessions": 828.0,
+        "orders": 11.0,
+        "purchaseRevenue": 627559.99952,
+        "session_dod": -0.0547945205479452,
+        "session_yoy": -0.4127659574468085,
+        "orders_dod": 0.375,
+        "orders_yoy": -0.08333333333333333,
+        "revenue_dod": 0.07383514802342496,
+        "revenue_yoy": -0.4348800981815702,
+        "dod": -0.0547945205479452,
+        "yoy": -0.4127659574468085
+      },
+      {
+        "sub_channel": "google pmax",
+        "sessions": 599.0,
+        "orders": 6.0,
+        "purchaseRevenue": 429850.000797,
+        "session_dod": -0.12809315866084425,
+        "session_yoy": 0.7565982404692082,
+        "orders_dod": 0.2,
+        "orders_yoy": 0.5,
+        "revenue_dod": 0.25284173462040305,
+        "revenue_yoy": 0.9577791905987373,
+        "dod": -0.12809315866084425,
+        "yoy": 0.7565982404692082
+      },
+      {
+        "sub_channel": "meta",
+        "sessions": 560.0,
+        "orders": 3.0,
+        "purchaseRevenue": 237239.999953,
+        "session_dod": -0.658952496954933,
+        "session_yoy": 0.5053763440860215,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -0.22843762545691645,
+        "revenue_yoy": 0.3404147057427753,
+        "dod": -0.658952496954933,
+        "yoy": 0.5053763440860215
+      },
+      {
+        "sub_channel": "naver",
+        "sessions": 133.0,
+        "orders": 1.0,
+        "purchaseRevenue": 145780.000649,
+        "session_dod": -0.10135135135135136,
+        "session_yoy": 1.0,
+        "orders_dod": -0.6666666666666666,
+        "orders_yoy": 1.0,
+        "revenue_dod": -0.7233041027410377,
+        "revenue_yoy": 1.0,
+        "dod": -0.10135135135135136,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "instagram",
+        "sessions": 78.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.04,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.04,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "google search",
+        "sessions": 11.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.08333333333333333,
+        "session_yoy": -0.9605734767025089,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.08333333333333333,
+        "yoy": -0.9605734767025089
+      },
+      {
+        "sub_channel": "naver search",
+        "sessions": 7.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.2222222222222222,
+        "session_yoy": -0.6111111111111112,
+        "orders_dod": 0.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": -1.0,
+        "dod": -0.2222222222222222,
+        "yoy": -0.6111111111111112
+      },
+      {
+        "sub_channel": "chatgpt.com",
+        "sessions": 5.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.5,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.5,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "(data not available)",
+        "sessions": 1.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.9473684210526315,
+        "session_yoy": 1.0,
+        "orders_dod": -1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.9473684210526315,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "google",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -1.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -1.0,
+        "yoy": -1.0
+      },
+      {
+        "sub_channel": "prod.danawa.com",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -1.0,
+        "session_yoy": 0.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -1.0,
+        "yoy": 0.0
+      }
+    ],
+    "Organic Traffic": [
+      {
+        "sub_channel": "(direct) / (none)",
+        "sessions": 479.0,
+        "orders": 8.0,
+        "purchaseRevenue": 438450.001711,
+        "session_dod": -0.2468553459119497,
+        "session_yoy": -0.2562111801242236,
+        "orders_dod": -0.2,
+        "orders_yoy": -0.2,
+        "revenue_dod": -0.3809389297338783,
+        "revenue_yoy": -0.5082766953793655,
+        "dod": -0.2468553459119497,
+        "yoy": -0.2562111801242236
+      },
+      {
+        "sub_channel": "google / organic",
+        "sessions": 170.0,
+        "orders": 2.0,
+        "purchaseRevenue": 169470.000031,
+        "session_dod": -0.0449438202247191,
+        "session_yoy": -0.017341040462427744,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.6474190909336685,
+        "revenue_yoy": 0.6804164478497414,
+        "dod": -0.0449438202247191,
+        "yoy": -0.017341040462427744
+      },
+      {
+        "sub_channel": "naver / organic",
+        "sessions": 168.0,
+        "orders": 2.0,
+        "purchaseRevenue": 85670.000172,
+        "session_dod": -0.25333333333333335,
+        "session_yoy": -0.7147707979626485,
+        "orders_dod": 0.0,
+        "orders_yoy": -0.8461538461538461,
+        "revenue_dod": -0.25133269805171743,
+        "revenue_yoy": -0.9432908141251716,
+        "dod": -0.25333333333333335,
+        "yoy": -0.7147707979626485
+      },
+      {
+        "sub_channel": "m.search.naver.com / referral",
+        "sessions": 165.0,
+        "orders": 4.0,
+        "purchaseRevenue": 313000.000093,
+        "session_dod": 1.5384615384615385,
+        "session_yoy": 1.0,
+        "orders_dod": 3.0,
+        "orders_yoy": 1.0,
+        "revenue_dod": 10.178571264613524,
+        "revenue_yoy": 1.0,
+        "dod": 1.5384615384615385,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "daum / organic",
+        "sessions": 74.0,
+        "orders": 4.0,
+        "purchaseRevenue": 363239.998774,
+        "session_dod": -0.24489795918367346,
+        "session_yoy": -0.26732673267326734,
+        "orders_dod": 0.3333333333333333,
+        "orders_yoy": 0.3333333333333333,
+        "revenue_dod": 0.07556555176349472,
+        "revenue_yoy": -0.24046504238793232,
+        "dod": -0.24489795918367346,
+        "yoy": -0.26732673267326734
+      },
+      {
+        "sub_channel": "bing / organic",
+        "sessions": 17.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.41379310344827586,
+        "session_yoy": -0.34615384615384615,
+        "orders_dod": -1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": -1.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.41379310344827586,
+        "yoy": -0.34615384615384615
+      },
+      {
+        "sub_channel": "m.search.daum.net / referral",
+        "sessions": 14.0,
+        "orders": 1.0,
+        "purchaseRevenue": 104670.000287,
+        "session_dod": -0.36363636363636365,
+        "session_yoy": 0.07692307692307693,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.10318297689098811,
+        "revenue_yoy": 0.03859892515719816,
+        "dod": -0.36363636363636365,
+        "yoy": 0.07692307692307693
+      },
+      {
+        "sub_channel": "msearch.shopping.naver.com / referral",
+        "sessions": 13.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.1666666666666667,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.1666666666666667,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "cr.shopping.naver.com / referral",
+        "sessions": 11.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.08333333333333333,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.08333333333333333,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "m.blog.naver.com / referral",
+        "sessions": 11.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.2222222222222222,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.2222222222222222,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "m.facebook.com / referral",
+        "sessions": 10.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 4.0,
+        "session_yoy": 0.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 4.0,
+        "yoy": 0.0
+      },
+      {
+        "sub_channel": "namu.wiki / referral",
+        "sessions": 9.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.125,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.125,
+        "yoy": 1.0
+      }
+    ],
+    "Official SNS": [
+      {
+        "sub_channel": "IGShopping / paid",
+        "sessions": 141.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.0472972972972973,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.0472972972972973,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "l.instagram.com / referral",
+        "sessions": 10.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -0.47368421052631576,
+        "session_yoy": -0.6875,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -0.47368421052631576,
+        "yoy": -0.6875
+      },
+      {
+        "sub_channel": "IGShopping / Social",
+        "sessions": 1.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -0.8571428571428571,
+        "orders_dod": 0.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": -1.0,
+        "dod": 0.0,
+        "yoy": -0.8571428571428571
+      },
+      {
+        "sub_channel": "instagram.com / referral",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": -1.0
+      }
+    ],
+    "Owned Channel": [
+      {
+        "sub_channel": "KAKAO_CH / KAKAO_CH",
+        "sessions": 109.0,
+        "orders": 3.0,
+        "purchaseRevenue": 302069.99939500005,
+        "session_dod": -0.684971098265896,
+        "session_yoy": -0.4784688995215311,
+        "orders_dod": -0.25,
+        "orders_yoy": -0.5,
+        "revenue_dod": -0.5531442774401335,
+        "revenue_yoy": -0.5632112444599006,
+        "dod": -0.684971098265896,
+        "yoy": -0.4784688995215311
+      },
+      {
+        "sub_channel": "KAKAO_alimtalk / KAKAO_alimtalk",
+        "sessions": 93.0,
+        "orders": 3.0,
+        "purchaseRevenue": 256510.001446,
+        "session_dod": 0.4307692307692308,
+        "session_yoy": -0.225,
+        "orders_dod": -0.5,
+        "orders_yoy": -0.7,
+        "revenue_dod": -0.4752894472477884,
+        "revenue_yoy": -0.7069461879856969,
+        "dod": 0.4307692307692308,
+        "yoy": -0.225
+      },
+      {
+        "sub_channel": "LMS_ECOM / LMS_ECOM",
+        "sessions": 71.0,
+        "orders": 2.0,
+        "purchaseRevenue": 340849.999974,
+        "session_dod": 3.176470588235294,
+        "session_yoy": -0.5266666666666666,
+        "orders_dod": 1.0,
+        "orders_yoy": 1.0,
+        "revenue_dod": 1.0,
+        "revenue_yoy": 4.319132373023626,
+        "dod": 3.176470588235294,
+        "yoy": -0.5266666666666666
+      },
+      {
+        "sub_channel": "EDM / EDM",
+        "sessions": 14.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.0,
+        "session_yoy": -0.9461538461538461,
+        "orders_dod": 0.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": -1.0,
+        "dod": 1.0,
+        "yoy": -0.9461538461538461
+      },
+      {
+        "sub_channel": "KAKAO_alimtalk / (not set)",
+        "sessions": 12.0,
+        "orders": 1.0,
+        "purchaseRevenue": 106700.000356,
+        "session_dod": 1.4,
+        "session_yoy": 0.0,
+        "orders_dod": 1.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 1.0,
+        "revenue_yoy": 0.5160556883102417,
+        "dod": 1.4,
+        "yoy": 0.0
+      },
+      {
+        "sub_channel": "KAKAO / KAKAO",
+        "sessions": 12.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.09090909090909091,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.09090909090909091,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "LMS_ECOM / (not set)",
+        "sessions": 5.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.6666666666666666,
+        "session_yoy": 0.6666666666666666,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.6666666666666666,
+        "yoy": 0.6666666666666666
+      },
+      {
+        "sub_channel": "kakao_coupon / kakao_coupon_welcom",
+        "sessions": 4.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.3333333333333333,
+        "session_yoy": -0.2,
+        "orders_dod": 0.0,
+        "orders_yoy": -1.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": -1.0,
+        "dod": 0.3333333333333333,
+        "yoy": -0.2
+      },
+      {
+        "sub_channel": "KAKAO_chatbot / KAKAO_chatbot",
+        "sessions": 2.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.0,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.0,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "DM / email",
+        "sessions": 1.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 1.0,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 1.0,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "ECOM / ECOM",
+        "sessions": 1.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": 1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": 1.0
+      },
+      {
+        "sub_channel": "KAKAO_CH / (not set)",
+        "sessions": 1.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -0.75,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": -0.75
+      }
+    ],
+    "etc": [
+      {
+        "sub_channel": "(not set)",
+        "sessions": 87.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.10126582278481013,
+        "session_yoy": 0.3181818181818182,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.10126582278481013,
+        "yoy": 0.3181818181818182
+      },
+      {
+        "sub_channel": "APP_ECOM / APP_ECOM",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": 0.0,
+        "session_yoy": -1.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": 0.0,
+        "yoy": -1.0
+      },
+      {
+        "sub_channel": "ECOM / (not set)",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -1.0,
+        "session_yoy": 0.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -1.0,
+        "yoy": 0.0
+      },
+      {
+        "sub_channel": "perplexity / (not set)",
+        "sessions": 0.0,
+        "orders": 0.0,
+        "purchaseRevenue": 0.0,
+        "session_dod": -1.0,
+        "session_yoy": 0.0,
+        "orders_dod": 0.0,
+        "orders_yoy": 0.0,
+        "revenue_dod": 0.0,
+        "revenue_yoy": 0.0,
+        "dod": -1.0,
+        "yoy": 0.0
+      }
+    ]
+  },
   "other_detail": [],
   "paid_media_compare": [
     {
@@ -859,44 +1930,107 @@
       "target_roas": 0.0,
       "budget": 0.0,
       "roas": 0.0,
-      "cvr": 0.030333670374115267,
-      "revenue": 2669510.00372,
-      "orders": 30.0,
-      "sessions": 989.0,
-      "is_top_level": false
+      "cvr": 0.030333670374115267
     },
     {
       "channel": "criteo",
       "target_roas": 0.0,
       "budget": 0.0,
       "roas": 0.0,
-      "cvr": 0.013285024154589372,
-      "revenue": 627559.99952,
-      "orders": 11.0,
-      "sessions": 828.0,
-      "is_top_level": false
-    },
-    {
-      "channel": "google pmax",
-      "target_roas": 0.0,
-      "budget": 0.0,
-      "roas": 0.0,
-      "cvr": 0.01001669449081803,
-      "revenue": 429850.000797,
-      "orders": 6.0,
-      "sessions": 599.0,
-      "is_top_level": false
+      "cvr": 0.013285024154589372
     },
     {
       "channel": "meta",
       "target_roas": 0.0,
       "budget": 0.0,
       "roas": 0.0,
-      "cvr": 0.005357142857142857,
-      "revenue": 237239.999953,
-      "orders": 3.0,
-      "sessions": 560.0,
-      "is_top_level": true
+      "cvr": 0.005357142857142857
+    },
+    {
+      "channel": "google pmax",
+      "target_roas": 0.0,
+      "budget": 0.0,
+      "roas": 0.0,
+      "cvr": 0.01001669449081803
+    },
+    {
+      "channel": "naver",
+      "target_roas": 0.0,
+      "budget": 0.0,
+      "roas": 0.0,
+      "cvr": 0.007518796992481203
     }
-  ]
+  ],
+  "weather_forecast": {
+    "location": "Seoul",
+    "status": "ok",
+    "source": "KMA API Hub",
+    "days": [
+      {
+        "date": "2025-06-18",
+        "label": "Wed",
+        "min_temp": null,
+        "max_temp": null,
+        "pop": null,
+        "weather": "-",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-06-19",
+        "label": "Thu",
+        "min_temp": null,
+        "max_temp": null,
+        "pop": null,
+        "weather": "-",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-06-20",
+        "label": "Fri",
+        "min_temp": null,
+        "max_temp": null,
+        "pop": null,
+        "weather": "-",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-06-21",
+        "label": "Sat",
+        "min_temp": 10.0,
+        "max_temp": 26.0,
+        "pop": 10,
+        "weather": "맑음",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-06-22",
+        "label": "Sun",
+        "min_temp": 11.0,
+        "max_temp": 21.0,
+        "pop": 20,
+        "weather": "구름많음",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-06-23",
+        "label": "Mon",
+        "min_temp": 10.0,
+        "max_temp": 23.0,
+        "pop": 20,
+        "weather": "구름많음",
+        "weather_emoji": "🌤️"
+      },
+      {
+        "date": "2025-06-24",
+        "label": "Tue",
+        "min_temp": 10.0,
+        "max_temp": 21.0,
+        "pop": 20,
+        "weather": "구름많음",
+        "weather_emoji": "🌤️"
+      }
+    ],
+    "generated_at": "2026-04-15 13:21:10",
+    "error": ""
+  }
 }
