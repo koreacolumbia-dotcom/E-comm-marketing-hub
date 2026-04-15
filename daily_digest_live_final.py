@@ -1515,12 +1515,12 @@ def get_paid_detail_3way(
 
     def agg(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
-            return pd.DataFrame(columns=["sub", user_metric, "transactions", "purchaseRevenue"])
+            return pd.DataFrame(columns=["sub", session_metric, "transactions", "purchaseRevenue"])
         return df.groupby("sub", as_index=False)[[session_metric, "transactions", "purchaseRevenue"]].sum()
 
-    cur_a = agg(cur).rename(columns={user_metric: "sessions_cur", "transactions": "orders_cur", "purchaseRevenue": "rev_cur"})
-    prev_a = agg(prev).rename(columns={user_metric: "sessions_prev", "transactions": "orders_prev", "purchaseRevenue": "rev_prev"})
-    yoy_a = agg(yoy).rename(columns={user_metric: "sessions_yoy", "transactions": "orders_yoy", "purchaseRevenue": "rev_yoy_base"})
+    cur_a = agg(cur).rename(columns={session_metric: "sessions_cur", "transactions": "orders_cur", "purchaseRevenue": "rev_cur"})
+    prev_a = agg(prev).rename(columns={session_metric: "sessions_prev", "transactions": "orders_prev", "purchaseRevenue": "rev_prev"})
+    yoy_a = agg(yoy).rename(columns={session_metric: "sessions_yoy", "transactions": "orders_yoy", "purchaseRevenue": "rev_yoy_base"})
     yoy_subs = set(yoy_a["sub"].astype(str).tolist()) if not yoy_a.empty else set()
 
     merged = cur_a.merge(prev_a, on="sub", how="outer").merge(yoy_a, on="sub", how="outer").fillna(0.0)
