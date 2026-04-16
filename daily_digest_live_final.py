@@ -172,7 +172,7 @@ PAID_DETAIL_SOURCES = [
 POWERLINK_BRANDS = [
     x.strip() for x in os.getenv(
         "DAILY_DIGEST_POWERLINK_BRANDS",
-        "노스페이스,뉴발란스,아크테릭스,블랙야크,아이더,K2,디스커버리,밀레,파타고니아,네파",
+        "컬럼비아,노스페이스,뉴발란스,아크테릭스,블랙야크,아이더,K2,디스커버리,밀레,네파",
     ).split(",")
     if x.strip()
 ]
