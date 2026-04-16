@@ -4169,31 +4169,31 @@ def render_page_html(
         if not highlights:
             highlights = item.get("tags", []) or item.get("cards", []) or []
         chips = "".join([
-            f"<span class='inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700'>{esc(v)}</span>"
-            for v in highlights[:6]
-        ]) or "<span class='text-xs text-slate-400'>No keywords</span>"
+            f"<span class='inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-700'>{esc(v)}</span>"
+            for v in highlights[:5]
+        ]) or "<span class='text-[11px] text-slate-400'>No keywords</span>"
         copy_lines = [x for x in [item.get("headline", ""), item.get("main_copy", ""), item.get("sub_copy", "")] if str(x).strip()]
-        copy_block = "".join([f"<div>{esc(x)}</div>" for x in copy_lines]) if copy_lines else '<span class="text-slate-400">대표 문구 미검출</span>'
+        copy_block = "".join([f"<div class='line-clamp-1'>{esc(x)}</div>" for x in copy_lines[:3]]) if copy_lines else '<span class="text-slate-400">대표 문구 미검출</span>'
         cards = item.get("cards", []) or []
         card_labels = "".join([
-            f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600'>{esc(v)}</span>"
-            for v in cards[:4]
+            f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600'>{esc(v)}</span>"
+            for v in cards[:3]
         ])
         capture_path = str(item.get("capture_path", "") or item.get("hero_image", "") or "").strip()
-        capture_html = f"<div class='mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='{esc(capture_path)}' alt='{brand} powerlink capture' class='block h-auto w-full'/></div>" if capture_path else ""
+        capture_html = f"<div class='mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='{esc(capture_path)}' alt='{brand} powerlink capture' class='block h-32 w-full object-cover'/></div>" if capture_path else ""
         brand_powerlink_rows.append(f"""
-        <div class="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-          <div class="flex items-start justify-between gap-3">
+        <div class="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
+          <div class="flex items-start justify-between gap-2">
             <div>
-              <div class="text-sm font-black text-slate-900">{brand}</div>
-              <div class="mt-1 text-[11px] text-slate-500">{esc(item.get('collected_at', ''))}</div>
+              <div class="text-[15px] font-black text-slate-900">{brand}</div>
+              <div class="mt-0.5 text-[10px] text-slate-500">{esc(item.get('collected_at', ''))}</div>
             </div>
-            <div class="rounded-full border px-2.5 py-1 text-[11px] font-extrabold {status_cls}">{status}</div>
+            <div class="rounded-full border px-2 py-0.5 text-[10px] font-extrabold {status_cls}">{status}</div>
           </div>
           {capture_html}
-          <div class="mt-3 space-y-1 text-sm font-semibold text-slate-700">{copy_block}</div>
-          <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
-          <div class="mt-3 flex flex-wrap gap-2">{card_labels}</div>
+          <div class="mt-2 space-y-0.5 text-[12px] font-semibold leading-5 text-slate-700">{copy_block}</div>
+          <div class="mt-2 flex flex-wrap gap-1.5">{chips}</div>
+          <div class="mt-2 flex flex-wrap gap-1.5">{card_labels}</div>
         </div>
         """)
     brand_powerlink_html = ""
@@ -4207,7 +4207,7 @@ def render_page_html(
             </div>
             <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">{len(brand_powerlink_rows)} brands</div>
           </div>
-          <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{''.join(brand_powerlink_rows)}</div>
+          <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{''.join(brand_powerlink_rows)}</div>
         </div>
         """
 
