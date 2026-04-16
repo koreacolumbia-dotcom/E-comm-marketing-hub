@@ -1046,6 +1046,7 @@ def load_image_map_from_excel_urls(xlsx_path: str) -> Dict[str, str]:
 def _powerlink_clean_text(value: Any) -> str:
     s = html_unescape(re.sub(r"<[^>]+>", " ", str(value or "")))
     s = s.replace("\xa0", " ").replace("\u200b", " ")
+    s = s.replace("\n", " ").replace("\r", " ").replace("\t", " ")
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
@@ -1168,15 +1169,46 @@ def _extract_card_candidates(text_or_lines: Any) -> List[str]:
 
 def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str, now_kst: str) -> dict:
     soup = BeautifulSoup(raw_html or "", "html.parser")
-    block = soup.select_one(".brand_block")
-    if not block:
-        for candidate in soup.select("div"):
-            cls = " ".join(candidate.get("class", []))
-            if "brand_block" in cls:
-                block = candidate
-                break
 
-    if not block:
+    brand_norm = re.sub(r"\s+", "", str(brand or "")).lower()
+    bad_text_rx = re.compile(
+        r"(네이버 로그인|로그인이 가능합니다|스토어 매니저님|고객센터 문의|게시물 좋아요|댓글로 비칸에|정답 작성|회원가입시|포인트 즉시 지급|최저가는|enuri|초등학생 선물부터|노트북 가방까지)",
+        re.I,
+    )
+
+    best_block = None
+    best_score = -10**9
+    for candidate in soup.select(".brand_block"):
+        text_blob = _powerlink_clean_text(candidate.get_text(" ", strip=True))
+        if not text_blob:
+            continue
+        score = 0
+        if candidate.select_one(".main_title"):
+            score += 20
+        if len(candidate.select(".main_desc p")) >= 1:
+            score += 12
+        if len(candidate.select(".link_button")) >= 2:
+            score += 12
+        if len(candidate.select(".product_item")) >= 2:
+            score += 16
+        if candidate.select_one(".thumb_area img"):
+            score += 8
+        ad_links = [a.get("href", "") for a in candidate.select("a[href]")]
+        if any("ader.naver.com" in href for href in ad_links):
+            score += 20
+        txt_norm = re.sub(r"\s+", "", text_blob).lower()
+        if brand_norm and brand_norm in txt_norm:
+            score += 8
+        if bad_text_rx.search(text_blob):
+            score -= 40
+        if _looks_like_powerlink_garbage(text_blob):
+            score -= 60
+        if score > best_score:
+            best_score = score
+            best_block = candidate
+
+    block = best_block
+    if not block or best_score < 25:
         return {
             "brand": brand,
             "query": brand,
@@ -1196,7 +1228,7 @@ def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str,
             "cards_detail": [],
         }
 
-    headline = _powerlink_clean_text((block.select_one(".main_title") or {}).get_text(" ", strip=True) if block.select_one(".main_title") else "")
+    headline = _powerlink_clean_text(block.select_one(".main_title").get_text(" ", strip=True) if block.select_one(".main_title") else "")
     desc_lines = [
         _powerlink_clean_text(p.get_text(" ", strip=True))
         for p in block.select(".main_desc p")
@@ -1211,7 +1243,7 @@ def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str,
     cards_detail = []
     cards = []
     for node in block.select(".product_item"):
-        name = _powerlink_clean_text((node.select_one(".product_name") or {}).get_text(" ", strip=True) if node.select_one(".product_name") else "")
+        name = _powerlink_clean_text(node.select_one(".product_name").get_text(" ", strip=True) if node.select_one(".product_name") else "")
         img = node.select_one("img")
         src = (img.get("src") or img.get("data-src") or "").strip() if img else ""
         alt = _powerlink_clean_text(img.get("alt", "") if img else "")
@@ -1226,27 +1258,28 @@ def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str,
     if hero_img:
         hero_image = (hero_img.get("src") or hero_img.get("data-src") or "").strip()
 
+    # strict structured parsing only
     main_copy = desc_lines[0] if len(desc_lines) > 0 else ""
     sub_copy = desc_lines[1] if len(desc_lines) > 1 else ""
-    valid_signal = bool(headline or tags or len(cards) >= 2 or hero_image)
+    valid_signal = bool(headline and (tags or len(cards) >= 2 or len(desc_lines) >= 1 or hero_image))
 
     item = {
         "brand": brand,
         "query": brand,
         "status": "ok" if valid_signal else "empty",
         "status_label": "수집 성공" if valid_signal else "파워링크 박스 미검출",
-        "headline": headline,
-        "main_copy": main_copy,
-        "sub_copy": sub_copy,
-        "tags": tags,
-        "cards": cards,
-        "keyword_highlights": _powerlink_dedupe_keep_order(tags + cards)[:POWERLINK_MAX_TAGS],
+        "headline": headline if valid_signal else "",
+        "main_copy": main_copy if valid_signal else "",
+        "sub_copy": sub_copy if valid_signal else "",
+        "tags": tags if valid_signal else [],
+        "cards": cards if valid_signal else [],
+        "keyword_highlights": _powerlink_dedupe_keep_order(tags + cards)[:POWERLINK_MAX_TAGS] if valid_signal else [],
         "collected_at": now_kst,
         "source": url,
-        "capture_path": hero_image,
+        "capture_path": hero_image if valid_signal else "",
         "capture_method": "html_structured",
-        "hero_image": hero_image,
-        "cards_detail": cards_detail,
+        "hero_image": hero_image if valid_signal else "",
+        "cards_detail": cards_detail if valid_signal else [],
     }
     return item
 
@@ -1609,11 +1642,6 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
                 item = _extract_powerlink_from_structured_html(raw, brand, url, now_kst)
                 if item.get("status") == "ok":
                     break
-                if item.get("status") != "ok":
-                    fallback_item = _fallback_extract_powerlink_from_html(raw, brand, url, now_kst)
-                    if fallback_item.get("status") == "ok":
-                        item = fallback_item
-                        break
             except Exception as e:
                 item = {
                     "brand": brand,
