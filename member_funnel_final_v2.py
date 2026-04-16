@@ -1586,7 +1586,9 @@ def load_ml_scores() -> pd.DataFrame:
             alias = alias or names[0]
             for n in names:
                 if has(n):
-                    return f"CAST(COALESCE({n}, '{default}') AS {cast}) AS {alias}" if cast == 'STRING' else f"SAFE_CAST(COALESCE({n}, {default}) AS {cast}) AS {alias}"
+                    if cast == 'STRING':
+                        return f"COALESCE(CAST({n} AS STRING), '{default}') AS {alias}"
+                    return f"COALESCE(SAFE_CAST({n} AS {cast}), {default}) AS {alias}"
             return f"CAST('' AS STRING) AS {alias}" if cast == 'STRING' else f"SAFE_CAST(0 AS {cast}) AS {alias}"
         sql = f"""
         SELECT
