@@ -497,6 +497,17 @@ def _normalize_gender_leaf(v: str) -> str:
         return "공용"
     return ""
 
+def canonicalize_url(url: str) -> str:
+    if not url:
+        return ""
+    try:
+        parsed = urlparse(url.strip())
+        parsed = parsed._replace(fragment="")
+        return urlunparse(parsed)
+    except Exception:
+        return url.strip()
+
+
 def _build_category_master():
     df = None
     for p in CATEGORY_MASTER_XLS_CANDIDATES:
@@ -605,17 +616,6 @@ def calc_discount_rate(current_price: Optional[int], original_price: Optional[in
     if current_price > original_price:
         return 0.0
     return round((1 - (current_price / original_price)) * 100, 1)
-
-
-def canonicalize_url(url: str) -> str:
-    if not url:
-        return ""
-    try:
-        parsed = urlparse(url.strip())
-        parsed = parsed._replace(fragment="")
-        return urlunparse(parsed)
-    except Exception:
-        return url.strip()
 
 
 def same_domain(url: str, domain: str) -> bool:
