@@ -570,6 +570,10 @@ _apply_category_master_seed_urls()
 
 
 
+def get_hard_category_from_url(url: str = "", brand: str = "") -> str:
+    """No-inference mode stub: hard URL category mapping disabled."""
+    return ""
+
 def resolve_master_category(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", name: str = "", description: str = "") -> str:
     b = _normalize_brand_name(brand)
     key = canonicalize_url(source_category_url)
@@ -2586,138 +2590,26 @@ def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_other_debug(df: pd.DataFrame) -> List[dict]:
+    """No-inference mode debug: surface only rows with blank item_category."""
     if df.empty:
         return []
     rows = []
     for _, r in df.iterrows():
-        original_item = safe_text(r.get("item_category_original", "") or r.get("item_category", "") or "") or "기타"
-        inferred_item = safe_text(r.get("item_rule", "") or "") or infer_item_category(
-            str(r.get("name", "") or ""),
-            str(r.get("description", "") or ""),
-            " ".join([
-                str(r.get("breadcrumb_text", "") or ""),
-                str(r.get("source_category", "") or ""),
-                str(r.get("source_category_url", "") or ""),
-                str(r.get("source_url", "") or ""),
-                str(r.get("product_url", "") or "")
-            ]),
-        )
-        source_item = safe_text(r.get("crawler_item", "") or "") or next((x for x in [
-            normalize_source_category(str(r.get("breadcrumb_text", "") or "")),
-            normalize_source_category(str(r.get("source_category", "") or "")),
-            normalize_source_category(str(r.get("source_category_url", "") or "")),
-            normalize_source_category(str(r.get("source_url", "") or "")),
-            normalize_source_category(str(r.get("product_url", "") or "")),
-        ] if x), "")
-        final_item = safe_text(r.get("item_category", "") or "") or resolve_item_category_value(
-            str(r.get("name", "") or ""),
-            str(r.get("description", "") or ""),
-            original_item,
-            str(r.get("source_category", "") or ""),
-            str(r.get("source_category_url", "") or ""),
-            str(r.get("source_url", "") or ""),
-            str(r.get("product_url", "") or ""),
-        )
-        dominant = str(r.get("dominant_attribute", "") or "")
-
-        reasons = []
-        if inferred_item and inferred_item != "기타":
-            reasons.append(f"item rule → {inferred_item}")
-        if source_item:
-            reasons.append(f"crawled category → {source_item}")
-        if not reasons:
-            reasons.append("name/description/category signal weak")
-
-        if final_item != "기타":
+        final_item = safe_text(r.get("item_category", "") or "")
+        if final_item:
             continue
-
         rows.append({
             "brand": str(r.get("brand", "") or ""),
             "gender": str(r.get("gender", "") or "공용"),
             "name": str(r.get("name", "") or ""),
-            "original_item": original_item,
-            "item_rule": inferred_item or "-",
-            "crawler_item": source_item or "-",
-            "item": final_item,
-            "dominant_attribute": dominant or "-",
-            "reason": " / ".join(reasons),
+            "original_item": safe_text(r.get("item_category_original", "") or ""),
+            "item_rule": "-",
+            "crawler_item": "-",
+            "item": final_item or "",
+            "dominant_attribute": str(r.get("dominant_attribute", "") or "") or "-",
+            "reason": "item_category missing from explicit crawl/excel mapping",
         })
-
     return rows[:400]
-
-
-def build_other_debug(df: pd.DataFrame) -> List[dict]:
-    if df.empty:
-        return []
-    rows = []
-    for _, r in df.iterrows():
-        original_item = safe_text(r.get("item_category_original", "") or r.get("item_category", "") or "") or "기타"
-        inferred_item = safe_text(r.get("item_rule", "") or "") or infer_item_category(
-            str(r.get("name", "") or ""),
-            str(r.get("description", "") or ""),
-            " ".join([
-                str(r.get("breadcrumb_text", "") or ""),
-                str(r.get("source_category", "") or ""),
-                str(r.get("source_category_url", "") or ""),
-                str(r.get("source_url", "") or ""),
-                str(r.get("product_url", "") or ""),
-            ]),
-        )
-        breadcrumb_item = normalize_source_category(str(r.get("breadcrumb_text", "") or ""))
-        source_item = safe_text(r.get("crawler_item", "") or "") or next((x for x in [
-            breadcrumb_item,
-            normalize_source_category(str(r.get("source_category", "") or "")),
-            normalize_source_category(str(r.get("source_category_url", "") or "")),
-            normalize_source_category(str(r.get("source_url", "") or "")),
-            normalize_source_category(str(r.get("product_url", "") or "")),
-        ] if x), "")
-        final_item = safe_text(r.get("item_category", "") or "") or resolve_item_category_value(
-            str(r.get("name", "") or ""),
-            str(r.get("description", "") or ""),
-            original_item,
-            str(r.get("source_category", "") or ""),
-            str(r.get("source_category_url", "") or ""),
-            str(r.get("source_url", "") or ""),
-            str(r.get("product_url", "") or ""),
-            str(r.get("breadcrumb_text", "") or ""),
-        )
-        dominant = str(r.get("dominant_attribute", "") or "")
-        reasons = []
-        if final_item == "기타":
-            reasons.append("item unresolved")
-        if dominant == "기타":
-            reasons.append("attribute unresolved")
-        if breadcrumb_item:
-            reasons.append(f"breadcrumb → {breadcrumb_item}")
-        if inferred_item and inferred_item != "기타":
-            reasons.append(f"item rule → {inferred_item}")
-        if source_item and source_item != breadcrumb_item:
-            reasons.append(f"crawled category → {source_item}")
-        if not reasons:
-            continue
-        gender = str(r.get("gender", "") or "공용")
-        name = str(r.get("name", "") or "")
-        if "공용" in name:
-            gender = "공용"
-        rows.append({
-            "brand": r.get("brand", ""),
-            "gender": gender or "공용",
-            "name": name,
-            "original_item": original_item,
-            "breadcrumb_text": str(r.get("breadcrumb_text", "") or ""),
-            "source_category": str(r.get("source_category", "") or ""),
-            "source_category_url": str(r.get("source_category_url", "") or ""),
-            "breadcrumb_text": str(r.get("breadcrumb_text", "") or ""),
-            "item_rule": inferred_item or "-",
-            "breadcrumb_item": breadcrumb_item or "-",
-            "crawler_item": source_item or "기타",
-            "item": final_item,
-            "dominant_attribute": dominant or "-",
-            "reason": " / ".join(unique_preserve_order(reasons)),
-        })
-    return rows
-
-
 
 def build_price_band_gender_table(df: pd.DataFrame) -> List[dict]:
     if df.empty:
@@ -2812,6 +2704,7 @@ def build_dashboard_payload(df: pd.DataFrame, brand_summary: pd.DataFrame, kw_df
             "other_debug": [],
         }
 
+    # No-inference mode: keep original item_category from crawl/excel only
     df = apply_item_reclassification(df)
     brand_summary = build_brand_summary(df)
 
