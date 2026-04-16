@@ -407,6 +407,9 @@ def score_current(fs, bundles):
         current["ltv_score"] = (ltv - ltv.min()) / (ltv.max() - ltv.min())
     else:
         current["ltv_score"] = 0.0
+    current["repurchase_30d_score"] = pd.to_numeric(current.get("repurchase_30d_score", current.get("repurchase_score", 0.0)), errors="coerce").fillna(pd.to_numeric(current.get("repurchase_score", 0.0), errors="coerce").fillna(0.0) if hasattr(pd.to_numeric(current.get("repurchase_score", 0.0), errors="coerce"), "fillna") else 0.0)
+    current["first_purchase_30d_score"] = pd.to_numeric(current.get("first_purchase_30d_score", current.get("first_purchase_score", 0.0)), errors="coerce").fillna(pd.to_numeric(current.get("first_purchase_score", 0.0), errors="coerce").fillna(0.0) if hasattr(pd.to_numeric(current.get("first_purchase_score", 0.0), errors="coerce"), "fillna") else 0.0)
+    current["churn_60d_score"] = pd.to_numeric(current.get("churn_60d_score", current.get("churn_risk_score", 0.0)), errors="coerce").fillna(pd.to_numeric(current.get("churn_risk_score", 0.0), errors="coerce").fillna(0.0) if hasattr(pd.to_numeric(current.get("churn_risk_score", 0.0), errors="coerce"), "fillna") else 0.0)
     action = np.full(len(current), "GENERAL", dtype=object)
     action = np.where(current["churn_risk_score"] >= 0.75, "CHURN_PREVENTION", action)
     action = np.where(current["repurchase_score"] >= 0.75, "RETENTION_REPURCHASE", action)
