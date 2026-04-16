@@ -446,7 +446,7 @@ def train_and_score():
     fs = load_member_base()
     if fs.empty:
         print("[WARN] member base empty -> write empty score table and skip ML")
-        upload_dataframe(pd.DataFrame(columns=["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","distinct_product_count","max_distinct_products_in_order","avg_distinct_products_per_order","multi_product_order_count","multi_product_customer_flag","multi_color_product_count","max_color_count","multi_color_flag","multi_size_product_count","max_size_count","multi_size_flag","repeat_item_product_count","max_repeat_item_orders","repeat_item_flag","top_multi_color_product_name","top_multi_size_product_name","top_repeat_product_name","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","first_purchase_score","churn_risk_score","ltv_score","next_best_category","crm_action_type","priority_tier","predicted_member_stage"]), SCORES_TABLE)
+        upload_dataframe(pd.DataFrame(columns=["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","distinct_product_count","max_distinct_products_in_order","avg_distinct_products_per_order","multi_product_order_count","multi_product_customer_flag","multi_color_product_count","max_color_count","multi_color_flag","multi_size_product_count","max_size_count","multi_size_flag","repeat_item_product_count","max_repeat_item_orders","repeat_item_flag","top_multi_color_product_name","top_multi_size_product_name","top_repeat_product_name","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","repurchase_30d_score","first_purchase_score","first_purchase_30d_score","churn_risk_score","churn_60d_score","ltv_score","next_best_category","crm_action_type","ml_action_type","priority_tier","ml_priority_tier","predicted_member_stage"]), SCORES_TABLE)
         return
     labels = make_labels(fs)
     upload_dataframe(fs, FEATURE_TABLE)
@@ -461,8 +461,21 @@ def train_and_score():
     upload_dataframe(pd.DataFrame(metrics_rows), METRICS_TABLE)
     scored = score_current(fs, bundles)
     out = scored[["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","distinct_product_count","max_distinct_products_in_order","avg_distinct_products_per_order","multi_product_order_count","multi_product_customer_flag","multi_color_product_count","max_color_count","multi_color_flag","multi_size_product_count","max_size_count","multi_size_flag","repeat_item_product_count","max_repeat_item_orders","repeat_item_flag","top_multi_color_product_name","top_multi_size_product_name","top_repeat_product_name","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","first_purchase_score","churn_risk_score","ltv_score","next_best_category","crm_action_type","priority_tier","predicted_member_stage"]].copy()
-    out["ml_action_type"] = out["crm_action_type"]
-    out["ml_priority_tier"] = out["priority_tier"]
+    if "repurchase_score" not in out.columns:
+        out["repurchase_score"] = 0.0
+    if "first_purchase_score" not in out.columns:
+        out["first_purchase_score"] = 0.0
+    if "churn_risk_score" not in out.columns:
+        out["churn_risk_score"] = 0.0
+    if "ltv_score" not in out.columns:
+        out["ltv_score"] = 0.0
+    out["repurchase_30d_score"] = pd.to_numeric(out.get("repurchase_30d_score", out["repurchase_score"]), errors="coerce").fillna(pd.to_numeric(out["repurchase_score"], errors="coerce").fillna(0.0))
+    out["first_purchase_30d_score"] = pd.to_numeric(out.get("first_purchase_30d_score", out["first_purchase_score"]), errors="coerce").fillna(pd.to_numeric(out["first_purchase_score"], errors="coerce").fillna(0.0))
+    out["churn_60d_score"] = pd.to_numeric(out.get("churn_60d_score", out["churn_risk_score"]), errors="coerce").fillna(pd.to_numeric(out["churn_risk_score"], errors="coerce").fillna(0.0))
+    out["ml_action_type"] = out.get("ml_action_type", out["crm_action_type"]).fillna(out["crm_action_type"])
+    out["ml_priority_tier"] = out.get("ml_priority_tier", out["priority_tier"]).fillna(out["priority_tier"])
+    print("[DEBUG] score output columns:", sorted(out.columns.tolist()))
+    print("[DEBUG] repurchase_30d_score non-zero rows=", int((pd.to_numeric(out["repurchase_30d_score"], errors="coerce").fillna(0) > 0).sum()))
     upload_dataframe(out, SCORES_TABLE)
     print(f"[INFO] feature store written: {qname(FEATURE_TABLE)} rows={len(fs)}")
     print(f"[INFO] labels written: {qname(LABEL_TABLE)} rows={len(labels)}")
@@ -481,7 +494,7 @@ def main():
     except Exception as e:
         print(f"[WARN] CRM MEMBER TOTALVIEW ML pipeline failed but will not hard-crash: {e}")
         try:
-            empty = pd.DataFrame(columns=["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","first_purchase_score","churn_risk_score","ltv_score","next_best_category","crm_action_type","priority_tier","predicted_member_stage"])
+            empty = pd.DataFrame(columns=["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","repurchase_30d_score","first_purchase_score","first_purchase_30d_score","churn_risk_score","churn_60d_score","ltv_score","next_best_category","crm_action_type","ml_action_type","priority_tier","ml_priority_tier","predicted_member_stage"])
             upload_dataframe(empty, SCORES_TABLE)
         except Exception as inner:
             print(f"[WARN] fallback empty score upload failed: {inner}")
