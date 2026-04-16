@@ -194,7 +194,7 @@ def merge_ml_scores(user_df: pd.DataFrame, ml_scores: pd.DataFrame) -> pd.DataFr
         if c not in out.columns:
             out[c] = 0.0
     if out.empty or ml_scores.empty:
-        print(f"[DEBUG] ML merge skipped empty: user_rows={len(out)} ml_rows={len(ml_scores)}")
+        print(f"[DEBUG] ML merge skipped empty: user_rows={len(out)} ml_rows={len(ml_scores)} (load_ml_scores returned empty)")
         return out
 
     if "member_id_norm" not in out.columns:
@@ -1644,3 +1644,47 @@ def load_ml_scores():
             "repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score",
             "next_best_category","ml_action_type","ml_priority_tier"
         ])
+
+
+def load_ml_scores():
+    from google.cloud import bigquery
+    client = bigquery.Client(project="columbia-ga4")
+    sql = """
+    SELECT
+      CAST(member_id AS STRING) AS member_id,
+      TRIM(CAST(member_id AS STRING)) AS member_id_norm,
+      CAST('' AS STRING) AS user_id_norm,
+      SAFE_CAST(COALESCE(repurchase_score, repurchase_45d_score, repurchase_30d_score) AS FLOAT64) AS repurchase_30d_score,
+      SAFE_CAST(COALESCE(first_purchase_score, first_purchase_45d_score, first_purchase_30d_score) AS FLOAT64) AS first_purchase_30d_score,
+      SAFE_CAST(COALESCE(churn_risk_score, churn_90d_score, churn_60d_score) AS FLOAT64) AS churn_60d_score,
+      SAFE_CAST(ltv_score AS FLOAT64) AS ltv_score,
+      CAST(COALESCE(next_best_category, '') AS STRING) AS next_best_category,
+      CAST(COALESCE(crm_action_type, ml_action_type, '') AS STRING) AS ml_action_type,
+      CAST(COALESCE(priority_tier, ml_priority_tier, '') AS STRING) AS ml_priority_tier
+    FROM `columbia-ga4.crm_mart.crm_member_totalview_scores`
+    """
+    print("[DEBUG] load_ml_scores start")
+    print(f"[DEBUG] ML_SCORE_TABLE={ML_SCORE_TABLE}")
+    print(f"[DEBUG] client.project={client.project}")
+    print(f"[DEBUG] BQ_LOCATION={BQ_LOCATION}")
+    job = client.query(sql, location=BQ_LOCATION)
+    ml_scores = job.to_dataframe()
+    print(f"[DEBUG] ML rows loaded={len(ml_scores)}")
+    print(f"[DEBUG] ML columns={list(ml_scores.columns)}")
+    if ml_scores.empty:
+        print("[DEBUG] load_ml_scores result is EMPTY")
+        return pd.DataFrame(columns=[
+            "member_id","member_id_norm","user_id_norm",
+            "repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score",
+            "next_best_category","ml_action_type","ml_priority_tier"
+        ])
+    for c in ["member_id","member_id_norm","user_id_norm","next_best_category","ml_action_type","ml_priority_tier"]:
+        if c not in ml_scores.columns:
+            ml_scores[c] = ""
+        ml_scores[c] = ml_scores[c].astype(str).fillna("").str.strip()
+    for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score"]:
+        if c not in ml_scores.columns:
+            ml_scores[c] = 0.0
+        ml_scores[c] = pd.to_numeric(ml_scores[c], errors="coerce").fillna(0.0)
+    print(f"[DEBUG] unique member_id_norm={ml_scores['member_id_norm'].replace('', pd.NA).nunique()}")
+    return ml_scores
