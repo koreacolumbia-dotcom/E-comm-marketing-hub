@@ -130,7 +130,7 @@ BQ_LOCATION = os.getenv("DAILY_DIGEST_BQ_LOCATION", "asia-northeast3").strip()
 ADMIN_BQ_PROJECT = os.getenv("DAILY_DIGEST_ADMIN_BQ_PROJECT", os.getenv("BQ_PROJECT", "columbia-ga4")).strip()
 ADMIN_BQ_LOCATION = os.getenv("DAILY_DIGEST_ADMIN_BQ_LOCATION", BQ_LOCATION).strip()
 ADMIN_BQ_TABLE = os.getenv("DAILY_DIGEST_ADMIN_BQ_TABLE", "crm_mart.member_funnel_admin_daily").strip()
-ORDER_PRODUCT_BQ_TABLE = os.getenv("DAILY_DIGEST_ORDER_PRODUCT_BQ_TABLE", "crm_mart.TB_OrderProduct").strip()
+ORDER_PRODUCT_BQ_TABLE = os.getenv("DAILY_DIGEST_ORDER_PRODUCT_BQ_TABLE", "crm_raw.tb_order_product_staging").strip()
 
 SIGNUP_EVENT = os.getenv("DAILY_DIGEST_SIGNUP_EVENT", "sign_up")
 LOGIN_EVENT = os.getenv("DAILY_DIGEST_LOGIN_EVENT", "login")
