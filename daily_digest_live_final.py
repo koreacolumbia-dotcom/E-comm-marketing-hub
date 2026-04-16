@@ -1195,88 +1195,91 @@ def _fallback_extract_powerlink_from_html(raw_html: str, brand: str, url: str, n
 _POWERLINK_BLOCK_FINDER_JS = r"""
 (brand) => {
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-  const brandNorm = norm(brand).toLowerCase().replace(/\s+/g, '');
-  const keywordRe = /(신상|신규|new arrivals|best|베스트|랭킹|할인|쿠폰|혜택|세일|자켓|재킷|바람막이|티셔츠|후드|패딩|액티비티|promotion|up to|off|가입|pick|mode|spring|summer|trail|여성|남성)/i;
-  const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
-  const chipLike = (s) => /^#?[A-Za-z0-9가-힣][A-Za-z0-9가-힣\s_\-+&]{1,24}$/.test(s || '');
-  const titleLike = (s) => !!s && s.length >= 5 && s.length <= 42 && /[A-Za-z가-힣]/.test(s);
-  const cardLike = (s) => !!s && s.length >= 2 && s.length <= 18 && /(신상|혜택|세일|랭킹|pick|자켓|바람막이|티셔츠|쿠폰|가입|여성|남성|트레일|액티비티|모드)/i.test(s);
-  const visible = (el) => {
-    const st = window.getComputedStyle(el);
-    const r = el.getBoundingClientRect();
-    return st && st.display !== 'none' && st.visibility !== 'hidden' && parseFloat(st.opacity || '1') > 0 && r.width > 220 && r.height > 120;
-  };
   const uniq = (arr) => arr.filter((v, i) => v && arr.indexOf(v) === i);
-  const allTextLines = (el) => uniq(Array.from(el.querySelectorAll('*'))
-    .map((n) => norm(n.innerText || ''))
-    .filter(Boolean)
-    .filter((v) => !badRe.test(v))
-    .filter((v) => v.length <= 80));
+  const brandNorm = norm(brand).toLowerCase().replace(/\s+/g, '');
+  const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
 
-  const nodes = Array.from(document.querySelectorAll('section, article, div, li'));
-  let best = null;
+  const explicitBlocks = Array.from(document.querySelectorAll('.brand_block, .brand_block.desktop_light.border_middle'));
+  const blocks = explicitBlocks.length ? explicitBlocks : Array.from(document.querySelectorAll('div')).filter((el) => el.className && String(el.className).includes('brand_block'));
+
+  let chosen = null;
   let bestScore = -1;
-  for (const el of nodes) {
-    if (!visible(el)) continue;
-    const r = el.getBoundingClientRect();
-    if (r.width < 220 || r.height < 150 || r.height > 900) continue;
+  for (const el of blocks) {
     const text = norm(el.innerText || '');
-    if (!text || text.length < 20 || badRe.test(text)) continue;
-
-    const lines = allTextLines(el);
-    const imgEls = Array.from(el.querySelectorAll('img')).filter((img) => {
-      const ir = img.getBoundingClientRect();
-      return ir.width >= 36 && ir.height >= 36;
-    });
-    const imgCount = imgEls.length;
-    if (imgCount < 2 || imgCount > 12) continue;
-
-    const chips = lines.filter((s) => chipLike(s) && (s.startsWith('#') || s.length <= 14)).slice(0, 12);
-    const cards = lines.filter((s) => cardLike(s)).slice(0, 12);
-    const titles = lines.filter((s) => titleLike(s)).slice(0, 8);
-    const kwHits = (text.match(new RegExp(keywordRe, 'ig')) || []).length;
-    const containsBrand = !!brandNorm && text.toLowerCase().replace(/\s+/g, '').includes(brandNorm);
-    const hasAdWord = /광고|ad/i.test(text);
+    if (!text || badRe.test(text)) continue;
+    const txtNorm = text.toLowerCase().replace(/\s+/g, '');
     let score = 0;
-    score += Math.min(imgCount, 6) * 5;
-    score += Math.min(chips.length, 6) * 3;
-    score += Math.min(cards.length, 6) * 4;
-    score += Math.min(titles.length, 4) * 2;
-    score += Math.min(kwHits, 8) * 3;
-    if (containsBrand) score += 8;
-    if (hasAdWord) score += 4;
-    if (imgCount >= 3) score += 6;
-    if (chips.length >= 2) score += 5;
-    if (cards.length >= 2) score += 8;
-    if (titles.length >= 2) score += 5;
-    if (text.length > 900) score -= 10;
-    if (r.height > 760) score -= 8;
-    if (score > bestScore) { bestScore = score; best = {el, rect:r, lines, images: imgEls.map((img) => ({src: img.currentSrc || img.src || '', alt: norm(img.alt || '')})).filter((x) => x.src).slice(0, 8)}; }
+    if (txtNorm.includes(brandNorm)) score += 8;
+    if (el.querySelector('.main_title')) score += 10;
+    if (el.querySelector('.main_desc')) score += 8;
+    if (el.querySelectorAll('.link_button').length >= 1) score += 8;
+    if (el.querySelectorAll('.product_item').length >= 2) score += 10;
+    if (el.querySelectorAll('img').length >= 2) score += 4;
+    if (score > bestScore) { bestScore = score; chosen = el; }
   }
-  if (!best || bestScore < 22) return null;
+
+  if (!chosen) return null;
+
+  const mainTitle = norm(chosen.querySelector('.main_title')?.textContent || '');
+  const descPs = Array.from(chosen.querySelectorAll('.main_desc p')).map((p) => norm(p.textContent || '')).filter(Boolean);
+  const tags = uniq(Array.from(chosen.querySelectorAll('.link_button')).map((a) => norm(a.textContent || '')).filter(Boolean));
+  const cards = Array.from(chosen.querySelectorAll('.product_item')).map((item) => {
+    const name = norm(item.querySelector('.product_name')?.textContent || '');
+    const img = item.querySelector('img');
+    const src = img ? (img.currentSrc || img.src || '') : '';
+    const alt = img ? norm(img.alt || '') : '';
+    return { name, image: src, alt };
+  }).filter((x) => x.name || x.image);
+  const heroImg = chosen.querySelector('.thumb_area img');
+  const hero = heroImg ? (heroImg.currentSrc || heroImg.src || '') : '';
+  const rect = chosen.getBoundingClientRect();
+
+  const lines = uniq([
+    norm(brand),
+    mainTitle,
+    ...descPs,
+    ...tags,
+    ...cards.map((x) => x.name),
+  ].filter(Boolean));
+
   return {
-    lines: best.lines,
+    lines,
+    headline: mainTitle,
+    desc_lines: descPs,
+    tags,
+    cards,
+    hero_image: hero,
     score: bestScore,
-    images: best.images,
-    rect: { x: Math.max(best.rect.x, 0), y: Math.max(best.rect.y, 0), width: Math.max(best.rect.width, 1), height: Math.max(best.rect.height, 1) },
+    rect: { x: Math.max(rect.x, 0), y: Math.max(rect.y, 0), width: Math.max(rect.width, 1), height: Math.max(rect.height, 1) },
   };
 }
 """
 
 
-def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: str, now_kst: str, capture_path: str = "") -> dict:
+def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: str, now_kst: str, capture_path: str = "", direct: Optional[dict] = None) -> dict:
+    direct = direct or {}
     cleaned = _powerlink_filter_candidate_lines(lines)
-    tags = _extract_tag_candidates(cleaned)
-    cards = _extract_card_candidates(cleaned)
-    body_lines = [x for x in cleaned if x not in tags and x not in cards and x.lower() != brand.lower()]
-    title_candidates = [x for x in body_lines if len(x) <= 44]
-    headline = title_candidates[0] if title_candidates else (cleaned[0] if cleaned else "")
-    main_copy = title_candidates[1] if len(title_candidates) > 1 else ""
-    sub_copy = title_candidates[2] if len(title_candidates) > 2 else ""
-    if headline and headline.lower() == brand.lower() and len(title_candidates) > 1:
-        headline = title_candidates[1]
-        main_copy = title_candidates[2] if len(title_candidates) > 2 else ""
-        sub_copy = title_candidates[3] if len(title_candidates) > 3 else ""
+    tags = [str(x).strip() for x in (direct.get("tags") or []) if str(x).strip()] or _extract_tag_candidates(cleaned)
+    direct_cards = direct.get("cards") or []
+    cards = [str((x or {}).get("name") or "").strip() for x in direct_cards if str((x or {}).get("name") or "").strip()] or _extract_card_candidates(cleaned)
+    headline = str(direct.get("headline") or "").strip()
+    desc_lines = [str(x).strip() for x in (direct.get("desc_lines") or []) if str(x).strip()]
+    main_copy = desc_lines[0] if len(desc_lines) > 0 else ""
+    sub_copy = desc_lines[1] if len(desc_lines) > 1 else ""
+    if not headline:
+        body_lines = [x for x in cleaned if x not in tags and x not in cards and x.lower() != brand.lower()]
+        title_candidates = [x for x in body_lines if len(x) <= 44]
+        headline = title_candidates[0] if title_candidates else (cleaned[0] if cleaned else "")
+        if not main_copy:
+            main_copy = title_candidates[1] if len(title_candidates) > 1 else ""
+        if not sub_copy:
+            sub_copy = title_candidates[2] if len(title_candidates) > 2 else ""
+        if headline and headline.lower() == brand.lower() and len(title_candidates) > 1:
+            headline = title_candidates[1]
+            if not main_copy:
+                main_copy = title_candidates[2] if len(title_candidates) > 2 else ""
+            if not sub_copy:
+                sub_copy = title_candidates[3] if len(title_candidates) > 3 else ""
     item = {
         "brand": brand,
         "query": brand,
@@ -1292,6 +1295,8 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
         "source": url,
         "capture_path": capture_path,
         "capture_method": "playwright_element",
+        "hero_image": str(direct.get("hero_image") or "").strip(),
+        "cards_detail": direct_cards,
     }
     valid_signal = bool(item["tags"] or len(item["cards"]) >= 2 or (item["headline"] and _KEYWORD_LINE_RX.search(item["headline"])) )
     if not valid_signal:
@@ -1410,7 +1415,7 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                             y = float(rect.get("y") or 0)
                             if width > 0 and height > 0:
                                 page.screenshot(path=shot_path, clip={"x": x, "y": y, "width": width, "height": height})
-                            item = _extract_powerlink_structured_from_lines(data.get("lines") or [], brand, url, now_kst, shot_path)
+                            item = _extract_powerlink_structured_from_lines(data.get("lines") or [], brand, url, now_kst, shot_path, direct=data)
                             if not item.get("cards"):
                                 img_alts = [x.get("alt", "") for x in (data.get("images") or [])]
                                 item["cards"] = _extract_card_candidates(img_alts)
