@@ -1052,17 +1052,24 @@ def build_purchase_journey_insight(df: pd.DataFrame) -> dict:
     for c in ['first_purchase_category_norm','second_purchase_category_norm','third_purchase_category_norm','first_purchase_product_name_journey_norm','second_purchase_product_name_norm','third_purchase_product_name_norm']:
         if c not in work.columns:
             work[c] = ''
+    if 'order_count_norm' not in work.columns:
+        work['order_count_norm'] = pd.to_numeric(safe_series(work, ['order_count_norm', 'orders_norm', 'order_count', 'orders'], 0), errors='coerce').fillna(0.0)
+    else:
+        work['order_count_norm'] = pd.to_numeric(work['order_count_norm'], errors='coerce').fillna(0.0)
     for c in ['days_1_to_2_norm','days_2_to_3_norm','days_3_to_4_norm','second_buyer_aov_norm','third_buyer_aov_norm']:
         if c not in work.columns:
             work[c] = 0.0
         work[c] = pd.to_numeric(work[c], errors='coerce').fillna(0.0)
 
+    second_product_valid = work['second_purchase_product_name_norm'].astype(str).str.strip()
+    second_product_valid = second_product_valid.where(~second_product_valid.isin(['', '미분류', 'UNKNOWN', 'nan', 'None']), '')
+
     journey = work[
-        (work['days_1_to_2_norm'] > 0) |
-        (work['second_purchase_product_name_norm'].astype(str).str.strip() != '')
+        (work['order_count_norm'] >= 2) &
+        ((work['days_1_to_2_norm'] > 0) | (second_product_valid != ''))
     ].copy()
 
-    rows_src = journey[journey['first_purchase_product_name_journey_norm'].astype(str).str.strip() != ''].copy()
+    rows_src = journey[(journey['first_purchase_product_name_journey_norm'].astype(str).str.strip() != '')].copy()
     rows = rows_from_df(rows_src.sort_values(['days_1_to_2_norm','days_2_to_3_norm'], ascending=[False,False]).head(300), {
         'member_id_norm':'member_id','user_id_norm':'user_id','channel_group_norm':'channel_group',
         'first_purchase_category_norm':'first_category','first_purchase_product_name_journey_norm':'first_product',
