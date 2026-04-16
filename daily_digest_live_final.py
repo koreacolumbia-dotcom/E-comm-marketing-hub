@@ -1220,7 +1220,7 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
     const lines = directTextLines(el);
     const kwHits = (text.match(new RegExp(keywordRe, 'ig')) || []).length;
     const hashHits = (text.match(/#/g) || []).length;
-    const containsBrand = brand && text.toLowerCase().includes(String(brand).toLowerCase());
+    const containsBrand = brand && text.toLowerCase().replace(/\s+/g,'').includes(String(brand).toLowerCase().replace(/\s+/g,''));
     const shortLineCount = lines.filter((x) => x.length >= 2 && x.length <= 18).length;
     let score = 0;
     score += Math.min(imgCount, 4) * 6;
@@ -1235,7 +1235,7 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
     if (r.height > 680) score -= 6;
     if (score > bestScore) { bestScore = score; best = el; }
   }
-  if (!best || bestScore < 22) return null;
+  if (!best || bestScore < 18) return null;
   const r = best.getBoundingClientRect();
   const lines = Array.from(best.querySelectorAll('*'))
     .map((n) => norm(n.innerText || ''))
@@ -1306,27 +1306,51 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
     out: List[dict] = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page(
+        context = browser.new_context(
             viewport={"width": POWERLINK_VIEWPORT_WIDTH, "height": POWERLINK_VIEWPORT_HEIGHT},
             user_agent=(
-                "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+                "Mozilla/5.0 (Linux; Android 10; SM-G973N) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
             ),
             is_mobile=True,
             device_scale_factor=2,
             locale="ko-KR",
+            color_scheme="light",
+            extra_http_headers={
+                "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+            },
         )
+        page = context.new_page()
         for brand in brands:
-            url = f"https://m.search.naver.com/search.naver?query={quote_plus(brand)}"
+            url = f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}"
             try:
                 page.goto(url, wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
                 with suppress(Exception):
+                    page.wait_for_timeout(2000)
+                with suppress(Exception):
+                    page.mouse.wheel(0, 1400)
+                    page.wait_for_timeout(1200)
+                with suppress(Exception):
+                    page.mouse.wheel(0, 1800)
+                    page.wait_for_timeout(1200)
+                with suppress(Exception):
                     page.wait_for_load_state("networkidle", timeout=5000)
                 with suppress(Exception):
-                    page.wait_for_timeout(POWERLINK_WAIT_MS)
+                    page.wait_for_timeout(max(POWERLINK_WAIT_MS, 2500))
+
                 data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
                 if not data or not data.get("lines"):
+                    with suppress(Exception):
+                        page.reload(wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
+                        page.wait_for_timeout(1800)
+                        page.mouse.wheel(0, 2200)
+                        page.wait_for_timeout(1500)
+                    data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
+                if not data or not data.get("lines"):
                     raise RuntimeError("powerlink block not found")
+
                 safe_brand = re.sub(r"[^0-9A-Za-z가-힣_-]+", "_", brand)
                 shot_path = os.path.join(POWERLINK_SCREENSHOT_DIR, f"{safe_brand}.png")
                 page.screenshot(path=shot_path, clip=data["rect"])
@@ -1356,6 +1380,7 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                     "capture_path": "",
                     "capture_method": f"playwright_element:{type(e).__name__}",
                 })
+        context.close()
         browser.close()
     if cache_path:
         try:
