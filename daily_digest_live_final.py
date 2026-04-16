@@ -91,6 +91,8 @@ from contextlib import suppress
 from html import unescape as html_unescape
 
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.auth import default as google_auth_default
@@ -1164,7 +1166,96 @@ def _extract_card_candidates(text_or_lines: Any) -> List[str]:
     return _powerlink_dedupe_keep_order(cards)[:POWERLINK_MAX_CARDS]
 
 
+def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str, now_kst: str) -> dict:
+    soup = BeautifulSoup(raw_html or "", "html.parser")
+    block = soup.select_one(".brand_block")
+    if not block:
+        for candidate in soup.select("div"):
+            cls = " ".join(candidate.get("class", []))
+            if "brand_block" in cls:
+                block = candidate
+                break
+
+    if not block:
+        return {
+            "brand": brand,
+            "query": brand,
+            "status": "empty",
+            "status_label": "파워링크 박스 미검출",
+            "headline": "",
+            "main_copy": "",
+            "sub_copy": "",
+            "tags": [],
+            "cards": [],
+            "keyword_highlights": [],
+            "collected_at": now_kst,
+            "source": url,
+            "capture_path": "",
+            "capture_method": "html_structured:not_found",
+            "hero_image": "",
+            "cards_detail": [],
+        }
+
+    headline = _powerlink_clean_text((block.select_one(".main_title") or {}).get_text(" ", strip=True) if block.select_one(".main_title") else "")
+    desc_lines = [
+        _powerlink_clean_text(p.get_text(" ", strip=True))
+        for p in block.select(".main_desc p")
+        if _powerlink_clean_text(p.get_text(" ", strip=True))
+    ]
+    tags = _powerlink_dedupe_keep_order([
+        _powerlink_clean_text(a.get_text(" ", strip=True))
+        for a in block.select(".link_button")
+        if _powerlink_clean_text(a.get_text(" ", strip=True))
+    ])[:POWERLINK_MAX_TAGS]
+
+    cards_detail = []
+    cards = []
+    for node in block.select(".product_item"):
+        name = _powerlink_clean_text((node.select_one(".product_name") or {}).get_text(" ", strip=True) if node.select_one(".product_name") else "")
+        img = node.select_one("img")
+        src = (img.get("src") or img.get("data-src") or "").strip() if img else ""
+        alt = _powerlink_clean_text(img.get("alt", "") if img else "")
+        if name or src:
+            cards_detail.append({"name": name, "image": src, "alt": alt})
+        if name:
+            cards.append(name)
+    cards = _powerlink_dedupe_keep_order(cards)[:POWERLINK_MAX_CARDS]
+
+    hero_img = block.select_one(".thumb_area img")
+    hero_image = ""
+    if hero_img:
+        hero_image = (hero_img.get("src") or hero_img.get("data-src") or "").strip()
+
+    main_copy = desc_lines[0] if len(desc_lines) > 0 else ""
+    sub_copy = desc_lines[1] if len(desc_lines) > 1 else ""
+    valid_signal = bool(headline or tags or len(cards) >= 2 or hero_image)
+
+    item = {
+        "brand": brand,
+        "query": brand,
+        "status": "ok" if valid_signal else "empty",
+        "status_label": "수집 성공" if valid_signal else "파워링크 박스 미검출",
+        "headline": headline,
+        "main_copy": main_copy,
+        "sub_copy": sub_copy,
+        "tags": tags,
+        "cards": cards,
+        "keyword_highlights": _powerlink_dedupe_keep_order(tags + cards)[:POWERLINK_MAX_TAGS],
+        "collected_at": now_kst,
+        "source": url,
+        "capture_path": hero_image,
+        "capture_method": "html_structured",
+        "hero_image": hero_image,
+        "cards_detail": cards_detail,
+    }
+    return item
+
+
 def _fallback_extract_powerlink_from_html(raw_html: str, brand: str, url: str, now_kst: str) -> dict:
+    structured = _extract_powerlink_from_structured_html(raw_html, brand, url, now_kst)
+    if structured.get("status") == "ok":
+        return structured
+
     text_only = _powerlink_clean_text(raw_html)
     lines = _powerlink_filter_candidate_lines(re.split(r"(?<=[.!?])\s+|\n+", text_only))
     tags = _extract_tag_candidates(lines)
@@ -1185,6 +1276,8 @@ def _fallback_extract_powerlink_from_html(raw_html: str, brand: str, url: str, n
         "source": url,
         "capture_path": "",
         "capture_method": "html_fallback",
+        "hero_image": "",
+        "cards_detail": [],
     }
     if not (item["headline"] or item["main_copy"] or item["tags"] or item["cards"]):
         item["status"] = "empty"
@@ -1491,33 +1584,61 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
             "source": "powerlink_disabled",
             "capture_path": "",
             "capture_method": "disabled",
+            "hero_image": "",
+            "cards_detail": [],
         } for b in brands]
-
-    if POWERLINK_USE_PLAYWRIGHT:
-        try:
-            return _fetch_brand_powerlink_snapshot_playwright(brands, cache_path, now_kst)
-        except Exception as e:
-            print(f"[WARN] PowerLink Playwright capture failed, fallback to HTML scraping: {type(e).__name__}: {e}")
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
         "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
         "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
     }
+
     out: List[dict] = []
     for brand in brands:
-        url = f"https://m.search.naver.com/search.naver?query={quote_plus(brand)}"
-        try:
-            req = Request(url, headers=headers)
-            with urlopen(req, timeout=POWERLINK_TIMEOUT_SEC) as resp:
-                raw = resp.read().decode("utf-8", errors="ignore")
-            out.append(_fallback_extract_powerlink_from_html(raw, brand, url, now_kst))
-        except Exception as e:
-            out.append({
+        urls = [
+            f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
+            f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}",
+        ]
+        item = None
+        for url in urls:
+            try:
+                resp = requests.get(url, headers=headers, timeout=max(10, POWERLINK_TIMEOUT_SEC))
+                raw = resp.text or ""
+                item = _extract_powerlink_from_structured_html(raw, brand, url, now_kst)
+                if item.get("status") == "ok":
+                    break
+                if item.get("status") != "ok":
+                    fallback_item = _fallback_extract_powerlink_from_html(raw, brand, url, now_kst)
+                    if fallback_item.get("status") == "ok":
+                        item = fallback_item
+                        break
+            except Exception as e:
+                item = {
+                    "brand": brand,
+                    "query": brand,
+                    "status": "error",
+                    "status_label": f"수집 실패: {type(e).__name__}",
+                    "headline": "",
+                    "main_copy": "",
+                    "sub_copy": "",
+                    "tags": [],
+                    "cards": [],
+                    "keyword_highlights": [],
+                    "collected_at": now_kst,
+                    "source": url,
+                    "capture_path": "",
+                    "capture_method": "requests_html_error",
+                    "hero_image": "",
+                    "cards_detail": [],
+                }
+        if item is None:
+            item = {
                 "brand": brand,
                 "query": brand,
-                "status": "error",
-                "status_label": f"수집 실패: {type(e).__name__}",
+                "status": "empty",
+                "status_label": "파워링크 박스 미검출",
                 "headline": "",
                 "main_copy": "",
                 "sub_copy": "",
@@ -1525,10 +1646,13 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
                 "cards": [],
                 "keyword_highlights": [],
                 "collected_at": now_kst,
-                "source": url,
+                "source": urls[0],
                 "capture_path": "",
-                "capture_method": "html_fallback",
-            })
+                "capture_method": "requests_html:not_found",
+                "hero_image": "",
+                "cards_detail": [],
+            }
+        out.append(item)
 
     if cache_path:
         try:
@@ -4027,7 +4151,7 @@ def render_page_html(
             f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600'>{esc(v)}</span>"
             for v in cards[:4]
         ])
-        capture_path = str(item.get("capture_path", "") or "").strip()
+        capture_path = str(item.get("capture_path", "") or item.get("hero_image", "") or "").strip()
         capture_html = f"<div class='mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='{esc(capture_path)}' alt='{brand} powerlink capture' class='block h-auto w-full'/></div>" if capture_path else ""
         brand_powerlink_rows.append(f"""
         <div class="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
