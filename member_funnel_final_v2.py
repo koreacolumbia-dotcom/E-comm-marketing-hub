@@ -1064,10 +1064,20 @@ def build_purchase_journey_insight(df: pd.DataFrame) -> dict:
     second_product_valid = work['second_purchase_product_name_norm'].astype(str).str.strip()
     second_product_valid = second_product_valid.where(~second_product_valid.isin(['', '미분류', 'UNKNOWN', 'nan', 'None']), '')
 
+    # PURCHASE JOURNEY는 전체 회원이 아니라 실제 2회 이상 구매 + 첫→둘째 구매간격이 확인되는 회원만 집계
+    # second_purchase_product_name 기본값 채움 때문에 전체 회원이 잡히는 문제를 막기 위해
+    # journey_users / 평균일수 계산의 기준은 days_1_to_2 유효값을 최우선으로 사용한다.
     journey = work[
         (work['order_count_norm'] >= 2) &
-        ((work['days_1_to_2_norm'] > 0) | (second_product_valid != ''))
+        (pd.to_numeric(work['days_1_to_2_norm'], errors='coerce').fillna(0) > 0)
     ].copy()
+
+    # rows 표시용으로만 second/third 상품명이 비어있지 않은 케이스를 우선 노출
+    if journey.empty:
+        journey = work[
+            (work['order_count_norm'] >= 2) &
+            (second_product_valid != '')
+        ].copy()
 
     rows_src = journey[(journey['first_purchase_product_name_journey_norm'].astype(str).str.strip() != '')].copy()
     rows = rows_from_df(rows_src.sort_values(['days_1_to_2_norm','days_2_to_3_norm'], ascending=[False,False]).head(300), {
