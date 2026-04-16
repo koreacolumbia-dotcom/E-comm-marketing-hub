@@ -2500,28 +2500,15 @@ def resolve_item_category_value(name: str, description: str, item_category: str 
     if exact in explicit_items:
         return exact
 
-    hard = get_hard_category_from_url(source_category_url or source_url or product_url)
-    if hard:
-        return hard
-
-    master = resolve_master_category("", source_category_url or source_url or product_url, source_category or "", breadcrumb_text or "", name or "", description or "")
-    if master:
-        return master
-
     original_item = safe_text(item_category)
     if original_item in explicit_items:
         return original_item
 
-    source_item = next((x for x in [
-        normalize_source_category(breadcrumb_text or ""),
-        normalize_source_category(source_category_url or ""),
-        normalize_source_category(source_url or ""),
-        normalize_source_category(product_url or ""),
-    ] if x), "")
-    if source_item:
-        return source_item
+    master = resolve_master_category("", source_category_url or source_url or product_url, source_category or "", breadcrumb_text or "", name or "", description or "")
+    if master in explicit_items:
+        return master
 
-    return "ACC"
+    return original_item or exact or ""
 
 
 def apply_item_reclassification(df: pd.DataFrame) -> pd.DataFrame:
