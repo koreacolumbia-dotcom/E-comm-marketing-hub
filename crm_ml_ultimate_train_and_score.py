@@ -413,7 +413,9 @@ def score_current(fs, bundles):
     action = np.where((current["ltv_score"] >= 0.85) & (current["order_count"] >= 2), "VIP_UPSELL", action)
     action = np.where((action == "GENERAL") & (current["repeat_item_flag"] >= 1) & (current["repurchase_score"] >= 0.60), "RETENTION_REPURCHASE", action)
     action = np.where((action == "GENERAL") & ((current["multi_color_flag"] >= 1) | (current["multi_size_flag"] >= 1) | (current["multi_product_customer_flag"] >= 1)) & current["next_best_category"].astype(str).ne(""), "CATEGORY_CROSSSELL", action)
+    action = np.where((action == "GENERAL") & (current["order_count"] >= 1) & (current["repurchase_30d_score"] >= 0.65) & (current["churn_60d_score"] < 0.55), "TARGET_BUYER", action)
     current["crm_action_type"] = action
+    current["ml_action_type"] = current["crm_action_type"]
     priority = np.full(len(current), "P3", dtype=object)
     priority = np.where((current["ltv_score"] >= 0.8) | (current["repurchase_score"] >= 0.8), "P1", priority)
     priority = np.where(((current["churn_risk_score"] >= 0.7) | (current["first_purchase_score"] >= 0.75)) & (priority != "P1"), "P2", priority)
@@ -430,8 +432,11 @@ def upload_dataframe(df, table_name):
     for c in df2.columns:
         if str(df2[c].dtype) == "object":
             df2[c] = df2[c].astype(str)
+    job_config = None
     try:
-        job = client.load_table_from_dataframe(df2, full_name, location=BQ_LOCATION)
+        if bigquery is not None:
+            job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
+        job = client.load_table_from_dataframe(df2, full_name, location=BQ_LOCATION, job_config=job_config)
         job.result()
     except Exception as e:
         print(f"[WARN] upload failed for {full_name}: {e}")
@@ -455,6 +460,8 @@ def train_and_score():
     upload_dataframe(pd.DataFrame(metrics_rows), METRICS_TABLE)
     scored = score_current(fs, bundles)
     out = scored[["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","distinct_product_count","max_distinct_products_in_order","avg_distinct_products_per_order","multi_product_order_count","multi_product_customer_flag","multi_color_product_count","max_color_count","multi_color_flag","multi_size_product_count","max_size_count","multi_size_flag","repeat_item_product_count","max_repeat_item_orders","repeat_item_flag","top_multi_color_product_name","top_multi_size_product_name","top_repeat_product_name","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","first_purchase_score","churn_risk_score","ltv_score","next_best_category","crm_action_type","priority_tier","predicted_member_stage"]].copy()
+    out["ml_action_type"] = out["crm_action_type"]
+    out["ml_priority_tier"] = out["priority_tier"]
     upload_dataframe(out, SCORES_TABLE)
     print(f"[INFO] feature store written: {qname(FEATURE_TABLE)} rows={len(fs)}")
     print(f"[INFO] labels written: {qname(LABEL_TABLE)} rows={len(labels)}")
