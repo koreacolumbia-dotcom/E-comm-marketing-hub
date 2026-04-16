@@ -1985,6 +1985,7 @@ def render_index_html(daily: Dict[str, Any], weekly: Dict[str, Any], owned_ytd: 
         "weeklyKpi",
         "WEEKLY TREND",
         "Weekly KPI Summary (7D)",
+        "주간 KPI를 7일 기준으로 요약하고, 아래 트렌드 패널에서 기간별 추이를 비교합니다.",
         f'기간 <b class="text-slate-900">{weekly.get("start") or "-"} ~ {weekly.get("end") or "-"}</b><br/>updated {weekly.get("updated") or ""}',
         "#8b5cf6",
         f'<div class="summary-kpi-grid summary-kpi-grid--five">{weekly_tiles}</div>{trend_panel("weekly", "Weekly KPI Trend", "주간 누적 추이를 기준으로 선택 KPI를 비교합니다.")}',
