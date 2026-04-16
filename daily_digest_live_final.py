@@ -1061,6 +1061,31 @@ def _powerlink_dedupe_keep_order(values: List[str]) -> List[str]:
     return out
 
 
+def _looks_like_powerlink_garbage(s: str) -> bool:
+    t = str(s or "").strip()
+    if not t:
+        return True
+    low = t.lower()
+    bad_patterns = [
+        r'설정이 초기화.*도움말',
+        r'help\s*확인',
+        r'""\s*:\s*"&"\+e',
+        r'u=d;?\}?if',
+        r'0:\(n\?',
+        r'function\s*\(',
+        r'javascript:',
+        r'__proto__',
+    ]
+    if any(re.search(p, t, re.I) for p in bad_patterns):
+        return True
+    sym_ratio = sum(1 for ch in t if not ch.isalnum() and ch not in "#%+&/ -") / max(len(t), 1)
+    if sym_ratio > 0.28:
+        return True
+    if re.search(r'[{};=]{2,}', t):
+        return True
+    return False
+
+
 def _powerlink_sanitize_line(line: Any) -> str:
     s = _powerlink_clean_text(line)
     if not s:
@@ -1077,7 +1102,10 @@ def _powerlink_sanitize_line(line: Any) -> str:
     for pat in noise_patterns:
         s = re.sub(pat, " ", s, flags=re.I)
     s = re.sub(r"\s+", " ", s).strip(" -·|,/")
-    return s.strip()
+    s = s.strip()
+    if _looks_like_powerlink_garbage(s):
+        return ""
+    return s
 
 
 _KEYWORD_LINE_RX = re.compile(
@@ -1094,9 +1122,13 @@ def _powerlink_filter_candidate_lines(lines: List[str]) -> List[str]:
             continue
         if len(s) < 2:
             continue
+        if len(s) > 90:
+            continue
         if s.lower().startswith("https://m.search.naver.com"):
             continue
         if re.match(r"^#[A-Za-z0-9_\-]{1,40}$", s) and re.search(r"(?:ct|nx_|mask|clip)", s, re.I):
+            continue
+        if _looks_like_powerlink_garbage(s):
             continue
         out.append(s)
     return _powerlink_dedupe_keep_order(out)
@@ -1163,50 +1195,60 @@ def _fallback_extract_powerlink_from_html(raw_html: str, brand: str, url: str, n
 _POWERLINK_BLOCK_FINDER_JS = r"""
 (brand) => {
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-  const keywordRe = /(신상|신규|NEW|BEST|베스트|랭킹|할인|쿠폰|혜택|세일|자켓|재킷|바람막이|티셔츠|후드|패딩|액티비티|Promotion|UP TO|OFF)/i;
+  const keywordRe = /(신상|신규|new arrivals|best|베스트|랭킹|할인|쿠폰|혜택|세일|자켓|재킷|바람막이|티셔츠|후드|패딩|액티비티|promotion|up to|off|가입)/i;
+  const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:)/i;
   const isVisible = (el) => {
     const st = window.getComputedStyle(el);
     const r = el.getBoundingClientRect();
-    return st && st.display !== 'none' && st.visibility !== 'hidden' && r.width > 220 && r.height > 120;
+    return st && st.display !== 'none' && st.visibility !== 'hidden' && r.width > 220 && r.height > 140;
   };
+  const directTextLines = (el) => Array.from(el.children || [])
+    .map((n) => norm(n.innerText || ''))
+    .filter(Boolean)
+    .filter((v, i, arr) => arr.indexOf(v) === i);
   const nodes = Array.from(document.querySelectorAll('section, article, div, li'));
   let best = null;
   let bestScore = -1;
   for (const el of nodes) {
     if (!isVisible(el)) continue;
     const r = el.getBoundingClientRect();
-    if (r.width < 220 || r.height < 150 || r.height > 900) continue;
+    if (r.width < 220 || r.height < 180 || r.height > 820) continue;
     const text = norm(el.innerText || '');
-    if (!text || text.length < 20) continue;
-    const lineCount = text.split(/
-+/).length;
+    if (!text || text.length < 24 || badRe.test(text)) continue;
     const imgCount = el.querySelectorAll('img').length;
+    if (imgCount < 2 || imgCount > 8) continue;
+    const lines = directTextLines(el);
     const kwHits = (text.match(new RegExp(keywordRe, 'ig')) || []).length;
     const hashHits = (text.match(/#/g) || []).length;
     const containsBrand = brand && text.toLowerCase().includes(String(brand).toLowerCase());
+    const shortLineCount = lines.filter((x) => x.length >= 2 && x.length <= 18).length;
     let score = 0;
-    score += Math.min(imgCount, 3) * 5;
-    score += Math.min(kwHits, 8) * 3;
+    score += Math.min(imgCount, 4) * 6;
+    score += Math.min(kwHits, 8) * 4;
     score += Math.min(hashHits, 4) * 2;
-    score += Math.min(lineCount, 10);
-    if (containsBrand) score += 4;
-    if (imgCount >= 2 && kwHits >= 2) score += 8;
-    if (text.length > 350) score -= 4;
-    if (r.height > 700) score -= 4;
+    score += Math.min(shortLineCount, 6) * 2;
+    if (containsBrand) score += 5;
+    if (imgCount >= 3) score += 6;
+    if (kwHits >= 2) score += 8;
+    if (lines.length >= 4 && lines.length <= 16) score += 4;
+    if (text.length > 420) score -= 8;
+    if (r.height > 680) score -= 6;
     if (score > bestScore) { bestScore = score; best = el; }
   }
-  if (!best) return null;
+  if (!best || bestScore < 22) return null;
   const r = best.getBoundingClientRect();
   const lines = Array.from(best.querySelectorAll('*'))
     .map((n) => norm(n.innerText || ''))
     .filter(Boolean)
-    .filter((v, i, arr) => arr.indexOf(v) === i);
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .filter((v) => !badRe.test(v));
   const images = Array.from(best.querySelectorAll('img')).map((img) => ({
     src: img.currentSrc || img.src || '',
     alt: norm(img.alt || ''),
   })).filter((x) => x.src).slice(0, 6);
   return {
     lines,
+    score: bestScore,
     text: text,
     images,
     rect: { x: Math.max(r.x, 0), y: Math.max(r.y, 0), width: Math.max(r.width, 1), height: Math.max(r.height, 1) },
@@ -1219,7 +1261,7 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
     cleaned = _powerlink_filter_candidate_lines(lines)
     tags = _extract_tag_candidates(cleaned)
     cards = _extract_card_candidates(cleaned)
-    body_lines = [x for x in cleaned if x not in tags and x not in cards]
+    body_lines = [x for x in cleaned if x not in tags and x not in cards and x.lower() != brand.lower()]
     title_candidates = [x for x in body_lines if len(x) <= 44]
     headline = title_candidates[0] if title_candidates else (cleaned[0] if cleaned else "")
     main_copy = title_candidates[1] if len(title_candidates) > 1 else ""
@@ -1244,9 +1286,16 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
         "capture_path": capture_path,
         "capture_method": "playwright_element",
     }
-    if not (item["headline"] or item["main_copy"] or item["tags"] or item["cards"]):
+    valid_signal = bool(item["tags"] or len(item["cards"]) >= 2 or (item["headline"] and _KEYWORD_LINE_RX.search(item["headline"])) )
+    if not valid_signal:
+        item["headline"] = ""
+        item["main_copy"] = ""
+        item["sub_copy"] = ""
+        item["tags"] = []
+        item["cards"] = []
+        item["keyword_highlights"] = []
         item["status"] = "empty"
-        item["status_label"] = "문구 미검출"
+        item["status_label"] = "파워링크 박스 미검출"
     return item
 
 
@@ -1286,13 +1335,16 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                     img_alts = [x.get("alt", "") for x in (data.get("images") or [])]
                     item["cards"] = _extract_card_candidates(img_alts)
                     item["keyword_highlights"] = _powerlink_dedupe_keep_order((item.get("tags") or []) + (item.get("cards") or []))[:POWERLINK_MAX_TAGS]
+                    if item.get("cards") and item.get("status") == "empty":
+                        item["status"] = "ok"
+                        item["status_label"] = "수집 성공"
                 out.append(item)
             except Exception as e:
-                fallback = {
+                out.append({
                     "brand": brand,
                     "query": brand,
-                    "status": "error",
-                    "status_label": f"수집 실패: {type(e).__name__}",
+                    "status": "empty",
+                    "status_label": "파워링크 박스 미검출",
                     "headline": "",
                     "main_copy": "",
                     "sub_copy": "",
@@ -1302,17 +1354,8 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                     "collected_at": now_kst,
                     "source": url,
                     "capture_path": "",
-                    "capture_method": "playwright_element",
-                }
-                try:
-                    html = page.content()
-                    fb = _fallback_extract_powerlink_from_html(html, brand, url, now_kst)
-                    fb["status"] = "ok" if (fb.get("headline") or fb.get("tags") or fb.get("cards")) else fallback["status"]
-                    fb["status_label"] = "수집 성공" if fb["status"] == "ok" else fallback["status_label"]
-                    fb["capture_method"] = "playwright_html_fallback"
-                    out.append(fb)
-                except Exception:
-                    out.append(fallback)
+                    "capture_method": f"playwright_element:{type(e).__name__}",
+                })
         browser.close()
     if cache_path:
         try:
