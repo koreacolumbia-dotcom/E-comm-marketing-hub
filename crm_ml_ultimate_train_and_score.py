@@ -116,8 +116,8 @@ class ModelBundle:
     target_col: str
     kind: str
 
-NUM_COLS = ["age","days_since_signup","days_since_last_visit","days_since_last_purchase","total_sessions","total_pageviews","product_view_count","add_to_cart_count","order_count","total_revenue","aov","pv_per_session","atc_per_pdp","revenue_per_order","session_velocity_7_30","pdp_velocity_7_30","atc_velocity_7_30","purchase_gap_ratio","orders_per_30d","revenue_per_30d","recent_intent_score","category_focus_index","channel_concentration","discount_sensitivity","coupon_dependency","winter_intent_score","summer_intent_score","consent_score"]
-CAT_COLS = ["gender","channel_group","top_category","top_product","age_band"]
+NUM_COLS = ["age","days_since_signup","days_since_last_visit","days_since_last_purchase","total_sessions","total_pageviews","product_view_count","add_to_cart_count","order_count","total_revenue","aov","pv_per_session","atc_per_pdp","revenue_per_order","session_velocity_7_30","pdp_velocity_7_30","atc_velocity_7_30","purchase_gap_ratio","orders_per_30d","revenue_per_30d","recent_intent_score","category_focus_index","channel_concentration","discount_sensitivity","coupon_dependency","winter_intent_score","summer_intent_score","consent_score","distinct_product_count","max_distinct_products_in_order","avg_distinct_products_per_order","multi_product_order_count","multi_product_customer_flag","multi_color_product_count","max_color_count","multi_color_flag","multi_size_product_count","max_size_count","multi_size_flag","repeat_item_product_count","max_repeat_item_orders","repeat_item_flag"]
+CAT_COLS = ["gender","channel_group","top_category","top_product","age_band","top_multi_color_product_name","top_multi_size_product_name","top_repeat_product_name"]
 
 def ensure_feature_columns(df):
     out = df.copy()
@@ -193,6 +193,23 @@ def load_member_base():
     footwear_signal = top_cat.str.contains("Foot|슈즈|신발|BOOT|SHOE", case=False, na=False).astype(int)
     out["winter_intent_score"] = outerwear_signal * flags["is_winter_season"] * (out["recent_intent_score"] + 1)
     out["summer_intent_score"] = footwear_signal * flags["is_summer_season"] * (out["recent_intent_score"] + 1)
+    out["distinct_product_count"] = safe_num(df, ["distinct_product_count"], default=0.0)
+    out["max_distinct_products_in_order"] = safe_num(df, ["max_distinct_products_in_order"], default=0.0)
+    out["avg_distinct_products_per_order"] = safe_num(df, ["avg_distinct_products_per_order"], default=0.0)
+    out["multi_product_order_count"] = safe_num(df, ["multi_product_order_count"], default=0.0)
+    out["multi_product_customer_flag"] = safe_num(df, ["multi_product_customer_flag"], default=0.0)
+    out["multi_color_product_count"] = safe_num(df, ["multi_color_product_count"], default=0.0)
+    out["max_color_count"] = safe_num(df, ["max_color_count"], default=0.0)
+    out["multi_color_flag"] = safe_num(df, ["multi_color_flag"], default=0.0)
+    out["multi_size_product_count"] = safe_num(df, ["multi_size_product_count"], default=0.0)
+    out["max_size_count"] = safe_num(df, ["max_size_count"], default=0.0)
+    out["multi_size_flag"] = safe_num(df, ["multi_size_flag"], default=0.0)
+    out["repeat_item_product_count"] = safe_num(df, ["repeat_item_product_count"], default=0.0)
+    out["max_repeat_item_orders"] = safe_num(df, ["max_repeat_item_orders"], default=0.0)
+    out["repeat_item_flag"] = safe_num(df, ["repeat_item_flag"], default=0.0)
+    out["top_multi_color_product_name"] = safe_str(df, ["top_multi_color_product_name"], default="미분류")
+    out["top_multi_size_product_name"] = safe_str(df, ["top_multi_size_product_name"], default="미분류")
+    out["top_repeat_product_name"] = safe_str(df, ["top_repeat_product_name"], default="미분류")
     return ensure_feature_columns(out).drop_duplicates("member_id", keep="first")
 
 def top_decile_lift(y_true, y_score):
@@ -231,22 +248,22 @@ def make_labels(fs):
     rep_labels = pd.Series(0, index=df.index, dtype=int)
     if buyers.any():
         sub = df.loc[buyers].copy()
-        rep_score = sub["order_count"].rank(pct=True) * 0.35 + (1 - sub["days_since_last_purchase"].fillna(999).rank(pct=True)) * 0.35 + sub["recent_intent_score"].rank(pct=True) * 0.20 + (1 - sub["purchase_gap_ratio"].clip(upper=5).rank(pct=True)) * 0.10
+        rep_score = sub["order_count"].rank(pct=True) * 0.28 + (1 - sub["days_since_last_purchase"].fillna(999).rank(pct=True)) * 0.28 + sub["recent_intent_score"].rank(pct=True) * 0.18 + (1 - sub["purchase_gap_ratio"].clip(upper=5).rank(pct=True)) * 0.08 + sub["repeat_item_flag"].rank(pct=True) * 0.08 + sub["multi_color_flag"].rank(pct=True) * 0.05 + sub["multi_size_flag"].rank(pct=True) * 0.05
         rep_labels.loc[sub.index] = _quantile_binary(rep_score, 0.70).astype(int)
     df["repurchase_score_label"] = rep_labels
     fp_labels = pd.Series(0, index=df.index, dtype=int)
     if non_buyers.any():
         sub = df.loc[non_buyers].copy()
-        fp_score = sub["recent_intent_score"].rank(pct=True) * 0.50 + sub["add_to_cart_count"].rank(pct=True) * 0.20 + (1 - sub["days_since_last_visit"].fillna(365).rank(pct=True)) * 0.20 + sub["consent_score"].rank(pct=True) * 0.10
+        fp_score = sub["recent_intent_score"].rank(pct=True) * 0.42 + sub["add_to_cart_count"].rank(pct=True) * 0.18 + (1 - sub["days_since_last_visit"].fillna(365).rank(pct=True)) * 0.15 + sub["consent_score"].rank(pct=True) * 0.10 + sub["max_distinct_products_in_order"].rank(pct=True) * 0.10 + sub["multi_product_customer_flag"].rank(pct=True) * 0.05
         fp_labels.loc[sub.index] = _quantile_binary(fp_score, 0.80).astype(int)
     df["first_purchase_score_label"] = fp_labels
     churn_labels = pd.Series(0, index=df.index, dtype=int)
     if buyers.any():
         sub = df.loc[buyers].copy()
-        churn_score = sub["days_since_last_purchase"].fillna(999).rank(pct=True) * 0.50 + sub["purchase_gap_ratio"].rank(pct=True) * 0.25 + (1 - sub["recent_intent_score"].rank(pct=True)) * 0.15 + (1 - sub["session_velocity_7_30"].rank(pct=True)) * 0.10
+        churn_score = sub["days_since_last_purchase"].fillna(999).rank(pct=True) * 0.44 + sub["purchase_gap_ratio"].rank(pct=True) * 0.22 + (1 - sub["recent_intent_score"].rank(pct=True)) * 0.14 + (1 - sub["session_velocity_7_30"].rank(pct=True)) * 0.08 + (1 - sub["repeat_item_flag"].rank(pct=True)) * 0.06 + (1 - sub["multi_color_flag"].rank(pct=True)) * 0.06
         churn_labels.loc[sub.index] = _quantile_binary(churn_score, 0.75).astype(int)
     df["churn_risk_label"] = churn_labels
-    df["ltv_target"] = df["total_revenue"] * 0.6 + (df["order_count"] * 50000) + (df["aov"] * 0.4)
+    df["ltv_target"] = df["total_revenue"] * 0.50 + (df["order_count"] * 50000) + (df["aov"] * 0.25) + (df["distinct_product_count"] * 12000) + (df["repeat_item_flag"] * 25000) + (df["multi_color_flag"] * 15000) + (df["multi_size_flag"] * 12000)
     vc = df["top_category"].fillna("미분류").astype(str).value_counts()
     keep = set(vc[vc >= TOP_CATEGORY_MIN_COUNT].index.tolist())
     df["next_category_target"] = df["top_category"].astype(str).where(df["top_category"].astype(str).isin(keep), "OTHER")
@@ -394,7 +411,8 @@ def score_current(fs, bundles):
     action = np.where(current["repurchase_score"] >= 0.75, "RETENTION_REPURCHASE", action)
     action = np.where((current["order_count"] <= 0) & (current["first_purchase_score"] >= 0.80), "FIRST_PURCHASE_NUDGE", action)
     action = np.where((current["ltv_score"] >= 0.85) & (current["order_count"] >= 2), "VIP_UPSELL", action)
-    action = np.where((action == "GENERAL") & current["next_best_category"].astype(str).ne(""), "CATEGORY_CROSSSELL", action)
+    action = np.where((action == "GENERAL") & (current["repeat_item_flag"] >= 1) & (current["repurchase_score"] >= 0.60), "RETENTION_REPURCHASE", action)
+    action = np.where((action == "GENERAL") & ((current["multi_color_flag"] >= 1) | (current["multi_size_flag"] >= 1) | (current["multi_product_customer_flag"] >= 1)) & current["next_best_category"].astype(str).ne(""), "CATEGORY_CROSSSELL", action)
     current["crm_action_type"] = action
     priority = np.full(len(current), "P3", dtype=object)
     priority = np.where((current["ltv_score"] >= 0.8) | (current["repurchase_score"] >= 0.8), "P1", priority)
@@ -422,7 +440,7 @@ def train_and_score():
     fs = load_member_base()
     if fs.empty:
         print("[WARN] member base empty -> write empty score table and skip ML")
-        upload_dataframe(pd.DataFrame(columns=["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","first_purchase_score","churn_risk_score","ltv_score","next_best_category","crm_action_type","priority_tier","predicted_member_stage"]), SCORES_TABLE)
+        upload_dataframe(pd.DataFrame(columns=["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","distinct_product_count","max_distinct_products_in_order","avg_distinct_products_per_order","multi_product_order_count","multi_product_customer_flag","multi_color_product_count","max_color_count","multi_color_flag","multi_size_product_count","max_size_count","multi_size_flag","repeat_item_product_count","max_repeat_item_orders","repeat_item_flag","top_multi_color_product_name","top_multi_size_product_name","top_repeat_product_name","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","first_purchase_score","churn_risk_score","ltv_score","next_best_category","crm_action_type","priority_tier","predicted_member_stage"]), SCORES_TABLE)
         return
     labels = make_labels(fs)
     upload_dataframe(fs, FEATURE_TABLE)
@@ -436,7 +454,7 @@ def train_and_score():
             print(f"[WARN] {b.target_col} skipped: {b.metrics.get('reason')}")
     upload_dataframe(pd.DataFrame(metrics_rows), METRICS_TABLE)
     scored = score_current(fs, bundles)
-    out = scored[["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","first_purchase_score","churn_risk_score","ltv_score","next_best_category","crm_action_type","priority_tier","predicted_member_stage"]].copy()
+    out = scored[["member_id","user_id","age","gender","age_band","channel_group","top_category","top_product","order_count","total_revenue","aov","distinct_product_count","max_distinct_products_in_order","avg_distinct_products_per_order","multi_product_order_count","multi_product_customer_flag","multi_color_product_count","max_color_count","multi_color_flag","multi_size_product_count","max_size_count","multi_size_flag","repeat_item_product_count","max_repeat_item_orders","repeat_item_flag","top_multi_color_product_name","top_multi_size_product_name","top_repeat_product_name","signup_date","last_visit_date","last_order_date","days_since_signup","days_since_last_visit","days_since_last_purchase","repurchase_score","first_purchase_score","churn_risk_score","ltv_score","next_best_category","crm_action_type","priority_tier","predicted_member_stage"]].copy()
     upload_dataframe(out, SCORES_TABLE)
     print(f"[INFO] feature store written: {qname(FEATURE_TABLE)} rows={len(fs)}")
     print(f"[INFO] labels written: {qname(LABEL_TABLE)} rows={len(labels)}")
