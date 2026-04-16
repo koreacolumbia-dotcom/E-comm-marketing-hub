@@ -866,6 +866,35 @@ def build_ml_insight(df: pd.DataFrame) -> dict:
     return {"summary": summary, "segments": segments, "action_dist": action_dist, "rows": rows}
 
 
+
+def _ml_summary_fields(df: pd.DataFrame) -> dict[str, Any]:
+    if df is None or df.empty:
+        return {
+            "avg_repurchase_score": 0.0,
+            "avg_first_purchase_score": 0.0,
+            "avg_churn_score": 0.0,
+            "avg_ltv_score": 0.0,
+            "high_ltv_pct": 0.0,
+            "top_action": "GENERAL",
+        }
+    work = df.copy()
+    for c in ["repurchase_30d_score", "first_purchase_30d_score", "churn_60d_score", "ltv_score"]:
+        if c not in work.columns:
+            work[c] = 0.0
+        work[c] = pd.to_numeric(work[c], errors="coerce").fillna(0.0)
+    if "ml_action_type" not in work.columns:
+        work["ml_action_type"] = "GENERAL"
+    work["ml_action_type"] = work["ml_action_type"].astype(str).replace({"": "GENERAL"}).fillna("GENERAL")
+    return {
+        "avg_repurchase_score": round(float(work["repurchase_30d_score"].mean()), 4),
+        "avg_first_purchase_score": round(float(work["first_purchase_30d_score"].mean()), 4),
+        "avg_churn_score": round(float(work["churn_60d_score"].mean()), 4),
+        "avg_ltv_score": round(float(work["ltv_score"].mean()), 4),
+        "high_ltv_pct": round(float((work["ltv_score"] >= 0.8).mean() * 100.0), 1),
+        "top_action": top_label(work, "ml_action_type", "GENERAL"),
+    }
+
+
 def build_purchase_pattern_insight(df: pd.DataFrame) -> dict:
     if df.empty:
         return {
@@ -1027,30 +1056,40 @@ def build_purchase_journey_insight(df: pd.DataFrame) -> dict:
         if c not in work.columns:
             work[c] = 0.0
         work[c] = pd.to_numeric(work[c], errors='coerce').fillna(0.0)
-    rows = rows_from_df(work[work['first_purchase_product_name_journey_norm'].astype(str).str.strip() != ''].sort_values(['days_1_to_2_norm','days_2_to_3_norm'], ascending=[False,False]).head(300), {
+
+    journey = work[
+        (work['days_1_to_2_norm'] > 0) |
+        (work['second_purchase_product_name_norm'].astype(str).str.strip() != '')
+    ].copy()
+
+    rows_src = journey[journey['first_purchase_product_name_journey_norm'].astype(str).str.strip() != ''].copy()
+    rows = rows_from_df(rows_src.sort_values(['days_1_to_2_norm','days_2_to_3_norm'], ascending=[False,False]).head(300), {
         'member_id_norm':'member_id','user_id_norm':'user_id','channel_group_norm':'channel_group',
         'first_purchase_category_norm':'first_category','first_purchase_product_name_journey_norm':'first_product',
         'second_purchase_category_norm':'second_category','second_purchase_product_name_norm':'second_product',
         'third_purchase_category_norm':'third_category','third_purchase_product_name_norm':'third_product',
         'days_1_to_2_norm':'days_1_to_2','days_2_to_3_norm':'days_2_to_3','days_3_to_4_norm':'days_3_to_4'
     })
-    ids = work[work['user_id_norm'].astype(str).str.strip() != ''].copy()
+
+    ids = journey[journey['user_id_norm'].astype(str).str.strip() != ''].copy()
     channel_rows = []
     if not ids.empty:
         grp = ids.groupby('channel_group_norm', dropna=False).agg(
             users=('user_id_norm','nunique'),
-            avg_days_1_to_2=('days_1_to_2_norm','mean'),
-            avg_days_2_to_3=('days_2_to_3_norm','mean'),
-            avg_days_3_to_4=('days_3_to_4_norm','mean')
-        ).reset_index()
+            avg_days_1_to_2=('days_1_to_2_norm', lambda s: pd.to_numeric(s, errors='coerce').replace(0, np.nan).mean()),
+            avg_days_2_to_3=('days_2_to_3_norm', lambda s: pd.to_numeric(s, errors='coerce').replace(0, np.nan).mean()),
+            avg_days_3_to_4=('days_3_to_4_norm', lambda s: pd.to_numeric(s, errors='coerce').replace(0, np.nan).mean())
+        ).reset_index().fillna(0)
         channel_rows = grp.rename(columns={'channel_group_norm':'channel'}).to_dict(orient='records')
+
+    base = journey if not journey.empty else work.iloc[0:0].copy()
     summary = {
-        'journey_users': int(work['member_id_norm'].replace('', pd.NA).nunique()),
-        'avg_days_1_to_2': round(float(work.loc[work['days_1_to_2_norm'] > 0, 'days_1_to_2_norm'].mean() or 0), 1),
-        'avg_days_2_to_3': round(float(work.loc[work['days_2_to_3_norm'] > 0, 'days_2_to_3_norm'].mean() or 0), 1),
-        'avg_days_3_to_4': round(float(work.loc[work['days_3_to_4_norm'] > 0, 'days_3_to_4_norm'].mean() or 0), 1),
-        'second_buyer_aov': round(float(work.loc[work['second_buyer_aov_norm'] > 0, 'second_buyer_aov_norm'].mean() or 0), 1),
-        'third_buyer_aov': round(float(work.loc[work['third_buyer_aov_norm'] > 0, 'third_buyer_aov_norm'].mean() or 0), 1),
+        'journey_users': int(base['member_id_norm'].replace('', pd.NA).nunique()),
+        'avg_days_1_to_2': round(float(base.loc[base['days_1_to_2_norm'] > 0, 'days_1_to_2_norm'].mean() or 0), 1),
+        'avg_days_2_to_3': round(float(base.loc[base['days_2_to_3_norm'] > 0, 'days_2_to_3_norm'].mean() or 0), 1),
+        'avg_days_3_to_4': round(float(base.loc[base['days_3_to_4_norm'] > 0, 'days_3_to_4_norm'].mean() or 0), 1),
+        'second_buyer_aov': round(float(base.loc[base['second_buyer_aov_norm'] > 0, 'second_buyer_aov_norm'].mean() or 0), 1),
+        'third_buyer_aov': round(float(base.loc[base['third_buyer_aov_norm'] > 0, 'third_buyer_aov_norm'].mean() or 0), 1),
     }
     return {'summary': summary, 'rows': rows, 'channel_rows': channel_rows}
 
@@ -1201,7 +1240,7 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                 sdf_nb["add_to_cart_norm"] = safe_numeric_series(sdf_nb, "add_to_cart_norm", 0.0)
                 sdf_nb["drop_stage"] = sdf_nb.apply(lambda r: "Cart Abandon" if float(r.get("add_to_cart_norm",0) or 0) > 0 else ("PDP Drop" if float(r.get("product_view_count_norm",0) or 0) > 0 else ("Browse Drop" if float(r.get("pageviews_norm",0) or 0) > 0 else "Low Signal")), axis=1)
                 rows = rows_from_df(sdf_nb.sort_values(["add_to_cart_norm","product_view_count_norm","pageviews_norm","sessions_norm"], ascending=[False,False,False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","interest_product":"interest_product","drop_stage":"drop_stage","sessions_norm":"sessions","pageviews_norm":"pageviews","product_view_count_norm":"pdp_views","add_to_cart_norm":"atc","first_purchase_30d_score":"ml_first_purchase","churn_60d_score":"ml_churn","consent_norm":"consent"})
-                summary = {"members": int(sdf_nb["member_id_norm"].replace("", pd.NA).nunique()), "sessions": int(sdf_nb["sessions_norm"].sum()), "avg_age": avg_age(sdf_nb), "top_channel": top_label(sdf_nb, "channel_group_norm"), "pdp_users": int((sdf_nb["product_view_count_norm"] > 0).sum()), "cart_users": int((sdf_nb["add_to_cart_norm"] > 0).sum()), "cart_abandon": int((sdf_nb["add_to_cart_norm"] > 0).sum()), "high_intent": int(((sdf_nb["product_view_count_norm"] >= 3) | (sdf_nb["add_to_cart_norm"] > 0)).sum()), "avg_pv": float(pd.to_numeric(sdf_nb["pageviews_norm"], errors="coerce").fillna(0).mean()) if not sdf_nb.empty else 0.0, "avg_sessions": float(pd.to_numeric(sdf_nb["sessions_norm"], errors="coerce").fillna(0).mean()) if not sdf_nb.empty else 0.0}
+                summary = {"members": int(sdf_nb["member_id_norm"].replace("", pd.NA).nunique()), "sessions": int(sdf_nb["sessions_norm"].sum()), "avg_age": avg_age(sdf_nb), "top_channel": top_label(sdf_nb, "channel_group_norm"), "pdp_users": int((sdf_nb["product_view_count_norm"] > 0).sum()), "cart_users": int((sdf_nb["add_to_cart_norm"] > 0).sum()), "cart_abandon": int((sdf_nb["add_to_cart_norm"] > 0).sum()), "high_intent": int(((sdf_nb["product_view_count_norm"] >= 3) | (sdf_nb["add_to_cart_norm"] > 0)).sum()), "avg_pv": float(pd.to_numeric(sdf_nb["pageviews_norm"], errors="coerce").fillna(0).mean()) if not sdf_nb.empty else 0.0, "avg_sessions": float(pd.to_numeric(sdf_nb["sessions_norm"], errors="coerce").fillna(0).mean()) if not sdf_nb.empty else 0.0, **_ml_summary_fields(sdf_nb)}
                 top_interest = (sdf_nb[sdf_nb["interest_product"] != "미분류"]["interest_product"].value_counts().head(8))
                 top_interest_rows = [{"product": str(k), "buyers": int(v), "revenue": 0, "category": "Interest", "image": ""} for k,v in top_interest.items()]
                 extra = {"channel_dist": distribution(sdf_nb, "channel_group_norm", 6), "drop_stage_mix": distribution(sdf_nb, "drop_stage", 6), "top_interest_products": top_interest_rows}
@@ -1210,11 +1249,11 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                 repeat_buyers = int((safe_numeric_series(sdf, "orders_norm", 0.0) >= 2).sum())
                 vip_buyers = int((safe_numeric_series(sdf, "ltv_score", 0.0) >= 0.8).sum()) if "ltv_score" in sdf.columns else 0
                 rows = rows_from_df(sdf.sort_values(["metric_revenue_norm","orders_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","age_norm":"age","channel_group_norm":"channel_group","campaign_display_norm":"campaign","first_source":"first_source","first_medium":"first_medium","first_campaign":"first_campaign","latest_source":"latest_source","latest_medium":"latest_medium","latest_campaign":"latest_campaign","top_category_norm":"top_category","purchase_product_name_norm":"purchase_product_name","orders_norm":"orders","metric_revenue_norm":"revenue","last_order_date_norm":"last_order_date","days_1_to_2_norm":"days_1_to_2","days_2_to_3_norm":"days_2_to_3","days_3_to_4_norm":"days_3_to_4","repurchase_30d_score":"ml_repurchase","churn_60d_score":"ml_churn","ltv_score":"ltv_score","consent_norm":"consent"})
-                summary = {"buyers": buyer_count, "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), "orders": int(round(orders)), "aov": revenue/orders if orders else 0.0, "repeat_buyers": repeat_buyers, "avg_orders_per_buyer": (orders / buyer_count) if buyer_count else 0.0, "avg_rev_per_buyer": (revenue / buyer_count) if buyer_count else 0.0, "vip_buyers": vip_buyers, "target_buyers": int((safe_numeric_series(sdf, "repurchase_30d_score", 0.0) >= 0.65).sum())}
+                summary = {"buyers": buyer_count, "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), "orders": int(round(orders)), "aov": revenue/orders if orders else 0.0, "repeat_buyers": repeat_buyers, "avg_orders_per_buyer": (orders / buyer_count) if buyer_count else 0.0, "avg_rev_per_buyer": (revenue / buyer_count) if buyer_count else 0.0, "vip_buyers": vip_buyers, "target_buyers": int((safe_numeric_series(sdf, "repurchase_30d_score", 0.0) >= 0.65).sum()), **_ml_summary_fields(sdf)}
                 extra = {"products": prod_cards, "channel_dist": distribution(sdf, "channel_group_norm", 6), "paid_detail_dist": distribution(sdf.assign(paid_detail_norm=derive_paid_detail_label(sdf)), "paid_detail_norm", 8)}
             elif mode == "total":
                 rows = rows_from_df(sdf.sort_values(["metric_revenue_norm","orders_norm"], ascending=[False,False]), {"member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group","campaign_display_norm":"campaign","purchase_product_name_norm":"purchase_product_name","orders_norm":"orders","metric_revenue_norm":"revenue","consent_norm":"consent"})
-                summary = {"members": int(sdf["member_id_norm"].replace("", pd.NA).nunique()), "buyers": int(buyer_df(sdf)["member_id_norm"].replace("", pd.NA).nunique()), "revenue": revenue, "aov": revenue/orders if orders else 0.0, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm")}
+                summary = {"members": int(sdf["member_id_norm"].replace("", pd.NA).nunique()), "buyers": int(buyer_df(sdf)["member_id_norm"].replace("", pd.NA).nunique()), "revenue": revenue, "aov": revenue/orders if orders else 0.0, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), **_ml_summary_fields(sdf)}
                 extra = {"category_dist": distribution(buyer_df(sdf), "top_category_norm", 8), "products": prod_cards, "top_related_products": build_top_related_products(sdf_raw)}
             else:
                 rows = [{
@@ -1234,7 +1273,7 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
                     "image": normalize_image_url(r.get("image", "") or ""),
                 } for _, r in products.head(100).iterrows()]
                 buyer_count = int(sdf["member_id_norm"].replace("", pd.NA).where(sdf["member_id_norm"] != "", sdf["user_id_norm"]).replace("", pd.NA).nunique()) if not sdf.empty else 0
-                summary = {"buyers": buyer_count, "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), "orders": int(round(orders)), "orders_per_buyer": (orders / buyer_count) if buyer_count else 0.0, "repeat_pct": float((safe_numeric_series(sdf, "orders_norm", 0.0) >= 2).mean() * 100.0) if not sdf.empty else 0.0, "new_pct": float((safe_numeric_series(sdf, "orders_norm", 0.0) <= 1).mean() * 100.0) if not sdf.empty else 0.0, "top_channel": top_label(sdf, "channel_group_norm"), "sku_count": int(len(products.index)), "aov": revenue/orders if orders else 0.0}
+                summary = {"buyers": buyer_count, "revenue": revenue, "avg_age": avg_age(sdf), "top_product": top_label(sdf, "purchase_product_name_norm"), "orders": int(round(orders)), "orders_per_buyer": (orders / buyer_count) if buyer_count else 0.0, "repeat_pct": float((safe_numeric_series(sdf, "orders_norm", 0.0) >= 2).mean() * 100.0) if not sdf.empty else 0.0, "new_pct": float((safe_numeric_series(sdf, "orders_norm", 0.0) <= 1).mean() * 100.0) if not sdf.empty else 0.0, "top_channel": top_label(sdf, "channel_group_norm"), "sku_count": int(len(products.index)), "aov": revenue/orders if orders else 0.0, **_ml_summary_fields(sdf)}
                 extra = {"category_dist": distribution(sdf, "top_category_norm", 8), "products": prod_cards, "top_related_products": build_top_related_products(sdf_raw), "channel_dist": distribution(sdf, "channel_group_norm", 6), "buyer_type_mix": [{"label":"Repeat","count":int((safe_numeric_series(sdf, 'orders_norm', 0.0) >= 2).sum())},{"label":"New","count":int((safe_numeric_series(sdf, 'orders_norm', 0.0) <= 1).sum())}]}
             out[ch] = {"summary": summary, "age_dist": distribution(sdf, "age_band_norm", 6), "gender_dist": distribution(sdf, "gender_norm", 3), "rows": rows, **extra}
         return {"channels": channel_names(source), "panels": out}
