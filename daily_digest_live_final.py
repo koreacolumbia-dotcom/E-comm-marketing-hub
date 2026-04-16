@@ -1195,63 +1195,70 @@ def _fallback_extract_powerlink_from_html(raw_html: str, brand: str, url: str, n
 _POWERLINK_BLOCK_FINDER_JS = r"""
 (brand) => {
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-  const keywordRe = /(신상|신규|new arrivals|best|베스트|랭킹|할인|쿠폰|혜택|세일|자켓|재킷|바람막이|티셔츠|후드|패딩|액티비티|promotion|up to|off|가입)/i;
-  const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:)/i;
-  const isVisible = (el) => {
+  const brandNorm = norm(brand).toLowerCase().replace(/\s+/g, '');
+  const keywordRe = /(신상|신규|new arrivals|best|베스트|랭킹|할인|쿠폰|혜택|세일|자켓|재킷|바람막이|티셔츠|후드|패딩|액티비티|promotion|up to|off|가입|pick|mode|spring|summer|trail|여성|남성)/i;
+  const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
+  const chipLike = (s) => /^#?[A-Za-z0-9가-힣][A-Za-z0-9가-힣\s_\-+&]{1,24}$/.test(s || '');
+  const titleLike = (s) => !!s && s.length >= 5 && s.length <= 42 && /[A-Za-z가-힣]/.test(s);
+  const cardLike = (s) => !!s && s.length >= 2 && s.length <= 18 && /(신상|혜택|세일|랭킹|pick|자켓|바람막이|티셔츠|쿠폰|가입|여성|남성|트레일|액티비티|모드)/i.test(s);
+  const visible = (el) => {
     const st = window.getComputedStyle(el);
     const r = el.getBoundingClientRect();
-    return st && st.display !== 'none' && st.visibility !== 'hidden' && r.width > 220 && r.height > 140;
+    return st && st.display !== 'none' && st.visibility !== 'hidden' && parseFloat(st.opacity || '1') > 0 && r.width > 220 && r.height > 120;
   };
-  const directTextLines = (el) => Array.from(el.children || [])
+  const uniq = (arr) => arr.filter((v, i) => v && arr.indexOf(v) === i);
+  const allTextLines = (el) => uniq(Array.from(el.querySelectorAll('*'))
     .map((n) => norm(n.innerText || ''))
     .filter(Boolean)
-    .filter((v, i, arr) => arr.indexOf(v) === i);
+    .filter((v) => !badRe.test(v))
+    .filter((v) => v.length <= 80));
+
   const nodes = Array.from(document.querySelectorAll('section, article, div, li'));
   let best = null;
   let bestScore = -1;
   for (const el of nodes) {
-    if (!isVisible(el)) continue;
+    if (!visible(el)) continue;
     const r = el.getBoundingClientRect();
-    if (r.width < 220 || r.height < 180 || r.height > 820) continue;
+    if (r.width < 220 || r.height < 150 || r.height > 900) continue;
     const text = norm(el.innerText || '');
-    if (!text || text.length < 24 || badRe.test(text)) continue;
-    const imgCount = el.querySelectorAll('img').length;
-    if (imgCount < 2 || imgCount > 8) continue;
-    const lines = directTextLines(el);
+    if (!text || text.length < 20 || badRe.test(text)) continue;
+
+    const lines = allTextLines(el);
+    const imgEls = Array.from(el.querySelectorAll('img')).filter((img) => {
+      const ir = img.getBoundingClientRect();
+      return ir.width >= 36 && ir.height >= 36;
+    });
+    const imgCount = imgEls.length;
+    if (imgCount < 2 || imgCount > 12) continue;
+
+    const chips = lines.filter((s) => chipLike(s) && (s.startsWith('#') || s.length <= 14)).slice(0, 12);
+    const cards = lines.filter((s) => cardLike(s)).slice(0, 12);
+    const titles = lines.filter((s) => titleLike(s)).slice(0, 8);
     const kwHits = (text.match(new RegExp(keywordRe, 'ig')) || []).length;
-    const hashHits = (text.match(/#/g) || []).length;
-    const containsBrand = brand && text.toLowerCase().replace(/\s+/g,'').includes(String(brand).toLowerCase().replace(/\s+/g,''));
-    const shortLineCount = lines.filter((x) => x.length >= 2 && x.length <= 18).length;
+    const containsBrand = !!brandNorm && text.toLowerCase().replace(/\s+/g, '').includes(brandNorm);
+    const hasAdWord = /광고|ad/i.test(text);
     let score = 0;
-    score += Math.min(imgCount, 4) * 6;
-    score += Math.min(kwHits, 8) * 4;
-    score += Math.min(hashHits, 4) * 2;
-    score += Math.min(shortLineCount, 6) * 2;
-    if (containsBrand) score += 5;
+    score += Math.min(imgCount, 6) * 5;
+    score += Math.min(chips.length, 6) * 3;
+    score += Math.min(cards.length, 6) * 4;
+    score += Math.min(titles.length, 4) * 2;
+    score += Math.min(kwHits, 8) * 3;
+    if (containsBrand) score += 8;
+    if (hasAdWord) score += 4;
     if (imgCount >= 3) score += 6;
-    if (kwHits >= 2) score += 8;
-    if (lines.length >= 4 && lines.length <= 16) score += 4;
-    if (text.length > 420) score -= 8;
-    if (r.height > 680) score -= 6;
-    if (score > bestScore) { bestScore = score; best = el; }
+    if (chips.length >= 2) score += 5;
+    if (cards.length >= 2) score += 8;
+    if (titles.length >= 2) score += 5;
+    if (text.length > 900) score -= 10;
+    if (r.height > 760) score -= 8;
+    if (score > bestScore) { bestScore = score; best = {el, rect:r, lines, images: imgEls.map((img) => ({src: img.currentSrc || img.src || '', alt: norm(img.alt || '')})).filter((x) => x.src).slice(0, 8)}; }
   }
-  if (!best || bestScore < 18) return null;
-  const r = best.getBoundingClientRect();
-  const lines = Array.from(best.querySelectorAll('*'))
-    .map((n) => norm(n.innerText || ''))
-    .filter(Boolean)
-    .filter((v, i, arr) => arr.indexOf(v) === i)
-    .filter((v) => !badRe.test(v));
-  const images = Array.from(best.querySelectorAll('img')).map((img) => ({
-    src: img.currentSrc || img.src || '',
-    alt: norm(img.alt || ''),
-  })).filter((x) => x.src).slice(0, 6);
+  if (!best || bestScore < 22) return null;
   return {
-    lines,
+    lines: best.lines,
     score: bestScore,
-    text: text,
-    images,
-    rect: { x: Math.max(r.x, 0), y: Math.max(r.y, 0), width: Math.max(r.width, 1), height: Math.max(r.height, 1) },
+    images: best.images,
+    rect: { x: Math.max(best.rect.x, 0), y: Math.max(best.rect.y, 0), width: Math.max(best.rect.width, 1), height: Math.max(best.rect.height, 1) },
   };
 }
 """
@@ -1304,67 +1311,134 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
 
     ensure_dir(POWERLINK_SCREENSHOT_DIR)
     out: List[dict] = []
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
-            viewport={"width": POWERLINK_VIEWPORT_WIDTH, "height": POWERLINK_VIEWPORT_HEIGHT},
-            user_agent=(
-                "Mozilla/5.0 (Linux; Android 10; SM-G973N) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-            ),
-            is_mobile=True,
-            device_scale_factor=2,
-            locale="ko-KR",
-            color_scheme="light",
-            extra_http_headers={
-                "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache",
+
+    strategies = [
+        {
+            "name": "mobile",
+            "launch": {"headless": True},
+            "context": {
+                "viewport": {"width": POWERLINK_VIEWPORT_WIDTH, "height": POWERLINK_VIEWPORT_HEIGHT},
+                "user_agent": (
+                    "Mozilla/5.0 (Linux; Android 13; SM-S918N) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+                ),
+                "is_mobile": True,
+                "device_scale_factor": 2,
+                "locale": "ko-KR",
+                "color_scheme": "light",
+                "extra_http_headers": {
+                    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
             },
-        )
-        page = context.new_page()
+            "urls": lambda brand: [
+                f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}",
+                f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
+            ],
+        },
+        {
+            "name": "desktop",
+            "launch": {"headless": True},
+            "context": {
+                "viewport": {"width": 1440, "height": 1600},
+                "user_agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+                ),
+                "locale": "ko-KR",
+                "color_scheme": "light",
+                "extra_http_headers": {
+                    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
+            },
+            "urls": lambda brand: [
+                f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
+                f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}",
+            ],
+        },
+    ]
+
+    with sync_playwright() as p:
         for brand in brands:
-            url = f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}"
-            try:
-                page.goto(url, wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
-                with suppress(Exception):
-                    page.wait_for_timeout(2000)
-                with suppress(Exception):
-                    page.mouse.wheel(0, 1400)
-                    page.wait_for_timeout(1200)
-                with suppress(Exception):
-                    page.mouse.wheel(0, 1800)
-                    page.wait_for_timeout(1200)
-                with suppress(Exception):
-                    page.wait_for_load_state("networkidle", timeout=5000)
-                with suppress(Exception):
-                    page.wait_for_timeout(max(POWERLINK_WAIT_MS, 2500))
+            item = None
+            last_err = None
+            for strategy in strategies:
+                browser = None
+                context = None
+                page = None
+                try:
+                    browser = p.chromium.launch(**strategy["launch"])
+                    context = browser.new_context(**strategy["context"])
+                    page = context.new_page()
+                    page.set_default_timeout(max(30000, POWERLINK_TIMEOUT_SEC * 1000))
 
-                data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
-                if not data or not data.get("lines"):
+                    for url in strategy["urls"](brand):
+                        try:
+                            page.goto(url, wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
+                            with suppress(Exception):
+                                page.wait_for_timeout(2200)
+                            for dy in (1200, 1800, 2200):
+                                with suppress(Exception):
+                                    page.mouse.wheel(0, dy)
+                                    page.wait_for_timeout(1200)
+                            with suppress(Exception):
+                                page.wait_for_load_state("networkidle", timeout=6000)
+                            with suppress(Exception):
+                                page.wait_for_timeout(max(POWERLINK_WAIT_MS, 2500))
+
+                            data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
+                            if not data or not data.get("lines"):
+                                with suppress(Exception):
+                                    page.reload(wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
+                                    page.wait_for_timeout(1800)
+                                    for dy in (1400, 2200):
+                                        page.mouse.wheel(0, dy)
+                                        page.wait_for_timeout(1000)
+                                data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
+                            if not data or not data.get("lines"):
+                                continue
+
+                            safe_brand = re.sub(r"[^0-9A-Za-z가-힣_-]+", "_", brand)
+                            shot_path = os.path.join(POWERLINK_SCREENSHOT_DIR, f"{safe_brand}.png")
+                            rect = data.get("rect") or {}
+                            width = float(rect.get("width") or 0)
+                            height = float(rect.get("height") or 0)
+                            x = float(rect.get("x") or 0)
+                            y = float(rect.get("y") or 0)
+                            if width > 0 and height > 0:
+                                page.screenshot(path=shot_path, clip={"x": x, "y": y, "width": width, "height": height})
+                            item = _extract_powerlink_structured_from_lines(data.get("lines") or [], brand, url, now_kst, shot_path)
+                            if not item.get("cards"):
+                                img_alts = [x.get("alt", "") for x in (data.get("images") or [])]
+                                item["cards"] = _extract_card_candidates(img_alts)
+                                item["keyword_highlights"] = _powerlink_dedupe_keep_order((item.get("tags") or []) + (item.get("cards") or []))[:POWERLINK_MAX_TAGS]
+                                if item.get("cards") and item.get("status") == "empty":
+                                    item["status"] = "ok"
+                                    item["status_label"] = "수집 성공"
+                            item["capture_method"] = f"playwright_element:{strategy['name']}"
+                            break
+                        except Exception as e:
+                            last_err = e
+                            continue
+                    if item:
+                        break
+                except Exception as e:
+                    last_err = e
+                finally:
                     with suppress(Exception):
-                        page.reload(wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
-                        page.wait_for_timeout(1800)
-                        page.mouse.wheel(0, 2200)
-                        page.wait_for_timeout(1500)
-                    data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
-                if not data or not data.get("lines"):
-                    raise RuntimeError("powerlink block not found")
-
-                safe_brand = re.sub(r"[^0-9A-Za-z가-힣_-]+", "_", brand)
-                shot_path = os.path.join(POWERLINK_SCREENSHOT_DIR, f"{safe_brand}.png")
-                page.screenshot(path=shot_path, clip=data["rect"])
-                item = _extract_powerlink_structured_from_lines(data.get("lines") or [], brand, url, now_kst, shot_path)
-                if not item.get("cards"):
-                    img_alts = [x.get("alt", "") for x in (data.get("images") or [])]
-                    item["cards"] = _extract_card_candidates(img_alts)
-                    item["keyword_highlights"] = _powerlink_dedupe_keep_order((item.get("tags") or []) + (item.get("cards") or []))[:POWERLINK_MAX_TAGS]
-                    if item.get("cards") and item.get("status") == "empty":
-                        item["status"] = "ok"
-                        item["status_label"] = "수집 성공"
-                out.append(item)
-            except Exception as e:
-                out.append({
+                        if page:
+                            page.close()
+                    with suppress(Exception):
+                        if context:
+                            context.close()
+                    with suppress(Exception):
+                        if browser:
+                            browser.close()
+            if item is None:
+                item = {
                     "brand": brand,
                     "query": brand,
                     "status": "empty",
@@ -1376,12 +1450,12 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                     "cards": [],
                     "keyword_highlights": [],
                     "collected_at": now_kst,
-                    "source": url,
+                    "source": f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
                     "capture_path": "",
-                    "capture_method": f"playwright_element:{type(e).__name__}",
-                })
-        context.close()
-        browser.close()
+                    "capture_method": f"playwright_element:{type(last_err).__name__ if last_err else 'not_found'}",
+                }
+            out.append(item)
+
     if cache_path:
         try:
             ensure_dir(os.path.dirname(cache_path))
