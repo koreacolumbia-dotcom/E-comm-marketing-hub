@@ -507,6 +507,15 @@ def canonicalize_url(url: str) -> str:
     except Exception:
         return url.strip()
 
+def unique_preserve_order(items: Iterable[str]) -> List[str]:
+    seen = set()
+    result = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
 
 def _build_category_master():
     df = None
@@ -624,15 +633,6 @@ def same_domain(url: str, domain: str) -> bool:
     except Exception:
         return False
 
-
-def unique_preserve_order(items: Iterable[str]) -> List[str]:
-    seen = set()
-    result = []
-    for item in items:
-        if item not in seen:
-            seen.add(item)
-            result.append(item)
-    return result
 
 
 def first_nonempty(*values: str) -> str:
