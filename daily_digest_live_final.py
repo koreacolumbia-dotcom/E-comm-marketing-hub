@@ -4169,7 +4169,7 @@ def render_page_html(
         if not highlights:
             highlights = item.get("tags", []) or item.get("cards", []) or []
         chips = "".join([
-            f"<span class='inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-bold text-sky-700'>{esc(v)}</span>"
+            f"<span class='inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-bold leading-none text-sky-700'>{esc(v)}</span>"
             for v in highlights[:4]
         ]) or "<span class='text-[10px] text-slate-400'>No keywords</span>"
         copy_lines = [x for x in [item.get("headline", ""), item.get("main_copy", ""), item.get("sub_copy", "")] if str(x).strip()]
@@ -4178,9 +4178,9 @@ def render_page_html(
         desc_html = "".join([f"<div class='line-clamp-1'>{esc(x)}</div>" for x in desc_lines])
         hero_image = str(item.get("capture_path", "") or item.get("hero_image", "") or "").strip()
         hero_html = (
-            f"<div class='h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 sm:h-24 sm:w-24'><img src='{esc(hero_image)}' alt='{brand} hero' class='h-full w-full object-cover'/></div>"
+            f"<div class='h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 sm:h-16 sm:w-16'><img src='{esc(hero_image)}' alt='{brand} hero' class='h-full w-full object-cover'/></div>"
             if hero_image else
-            "<div class='flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-[10px] font-semibold text-slate-400 sm:h-24 sm:w-24'>No image</div>"
+            "<div class='flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[9px] font-semibold text-slate-400 sm:h-16 sm:w-16'>No image</div>"
         )
         cards_detail = item.get("cards_detail", []) or []
         card_tiles = []
@@ -4188,14 +4188,14 @@ def render_page_html(
             cname = esc(card.get("name", ""))
             cimg = str(card.get("image", "") or "").strip()
             cimg_html = (
-                f"<div class='overflow-hidden rounded-xl border border-slate-200 bg-slate-50 aspect-[1.4/1]'><img src='{esc(cimg)}' alt='{cname or brand}' class='h-full w-full object-cover'/></div>"
+                f"<div class='h-[68px] w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:h-[74px]'><img src='{esc(cimg)}' alt='{cname or brand}' class='h-full w-full object-cover'/></div>"
                 if cimg else
-                "<div class='flex aspect-[1.4/1] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[9px] text-slate-400'>No image</div>"
+                "<div class='flex h-[68px] w-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-[8px] text-slate-400 sm:h-[74px]'>No image</div>"
             )
             card_tiles.append(
-                f"<div class='min-w-0'>{cimg_html}<div class='mt-1 line-clamp-1 text-center text-[9px] font-semibold text-slate-700'>{cname}</div></div>"
+                f"<div class='w-[96px] shrink-0 sm:w-[108px]'>{cimg_html}<div class='mt-1 line-clamp-1 text-center text-[9px] font-semibold leading-tight text-slate-700'>{cname}</div></div>"
             )
-        card_tiles_html = f"<div class='mt-2 grid grid-cols-3 gap-1.5'>{''.join(card_tiles)}</div>" if card_tiles else ""
+        card_tiles_html = f"<div class='mt-2 flex gap-2 overflow-x-auto pb-1'>{''.join(card_tiles)}</div>" if card_tiles else ""
         brand_powerlink_rows.append(f"""
         <div class="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-2">
@@ -4205,10 +4205,10 @@ def render_page_html(
             </div>
             <div class="rounded-full border px-2 py-0.5 text-[10px] font-extrabold {status_cls}">{status}</div>
           </div>
-          <div class="mt-3 flex gap-3">
+          <div class="mt-3 flex items-start gap-3">
             {hero_html}
             <div class="min-w-0 flex-1">
-              <div class="line-clamp-2 text-[12px] font-black leading-4 text-[#1d4ed8]">{title_line}</div>
+              <div class="line-clamp-1 text-[12px] font-black leading-4 text-[#1d4ed8]">{title_line}</div>
               <div class="mt-1 space-y-0.5 text-[10px] font-semibold leading-4 text-slate-700">{desc_html}</div>
               <div class="mt-2 flex flex-wrap gap-1">{chips}</div>
             </div>
@@ -4227,7 +4227,7 @@ def render_page_html(
             </div>
             <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">{len(brand_powerlink_rows)} brands</div>
           </div>
-          <div class="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">{''.join(brand_powerlink_rows)}</div>
+          <div class="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3 2xl:grid-cols-4">{''.join(brand_powerlink_rows)}</div>
         </div>
         """
     html = f"""<!doctype html>
