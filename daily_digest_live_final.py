@@ -130,6 +130,7 @@ BQ_LOCATION = os.getenv("DAILY_DIGEST_BQ_LOCATION", "asia-northeast3").strip()
 ADMIN_BQ_PROJECT = os.getenv("DAILY_DIGEST_ADMIN_BQ_PROJECT", os.getenv("BQ_PROJECT", "columbia-ga4")).strip()
 ADMIN_BQ_LOCATION = os.getenv("DAILY_DIGEST_ADMIN_BQ_LOCATION", BQ_LOCATION).strip()
 ADMIN_BQ_TABLE = os.getenv("DAILY_DIGEST_ADMIN_BQ_TABLE", "crm_mart.member_funnel_admin_daily").strip()
+ORDER_PRODUCT_BQ_TABLE = os.getenv("DAILY_DIGEST_ORDER_PRODUCT_BQ_TABLE", "crm_mart.TB_OrderProduct").strip()
 
 SIGNUP_EVENT = os.getenv("DAILY_DIGEST_SIGNUP_EVENT", "sign_up")
 LOGIN_EVENT = os.getenv("DAILY_DIGEST_LOGIN_EVENT", "login")
@@ -397,6 +398,136 @@ def _admin_login_sessions_expr(columns: set[str]) -> tuple[str, str]:
     return "SUM(COALESCE(sessions, 0))", "sessions"
 
 
+def _pick_first_existing_column(columns: set[str], candidates: list[str]) -> str:
+    lowered = {str(c).strip().lower(): c for c in columns}
+    for cand in candidates:
+        if cand.lower() in lowered:
+            return lowered[cand.lower()]
+    return ""
+
+def _order_product_schema(bq: Any, table_name: str) -> dict:
+    cols = _admin_table_columns(bq, table_name)
+    date_col = _pick_first_existing_column(cols, [
+        "report_date", "order_date", "order_dt", "created_date", "created_at",
+        "reg_date", "reg_dt", "pay_date", "payment_date", "OrderDate"
+    ])
+    sku_col = _pick_first_existing_column(cols, [
+        "itemId", "item_id", "productcode", "product_code", "sku", "sku_code",
+        "erpcode", "erp_code", "productid", "product_id", "goodsno", "goods_no"
+    ])
+    name_col = _pick_first_existing_column(cols, [
+        "itemName", "item_name", "productname", "product_name", "goodsname", "goods_name", "name"
+    ])
+    qty_col = _pick_first_existing_column(cols, ["ProductQuantity", "productquantity", "qty", "quantity"])
+    revenue_col = _pick_first_existing_column(cols, ["ErpPrice", "erpprice", "revenue", "sales", "amount"])
+    return {
+        "columns": cols,
+        "date_col": date_col,
+        "sku_col": sku_col,
+        "name_col": name_col,
+        "qty_col": qty_col,
+        "revenue_col": revenue_col,
+    }
+
+def fetch_order_product_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
+    table_name = _qualified_admin_bq_table(ORDER_PRODUCT_BQ_TABLE)
+    empty = {
+        "date_start": start_date.isoformat(),
+        "date_end": end_date.isoformat(),
+        "qty": 0.0,
+        "revenue": 0.0,
+        "source": "order_product_load_failed",
+    }
+    if bigquery is None or not table_name:
+        return empty
+    try:
+        bq = bigquery.Client(project=ADMIN_BQ_PROJECT or None, location=ADMIN_BQ_LOCATION or None)
+        schema = _order_product_schema(bq, table_name)
+        date_col = schema["date_col"]
+        qty_col = schema["qty_col"]
+        revenue_col = schema["revenue_col"]
+        if not (date_col and qty_col and revenue_col):
+            return empty
+        sql = f"""
+        SELECT
+          SUM(COALESCE({qty_col}, 0)) AS qty,
+          SUM(COALESCE({revenue_col}, 0)) AS revenue
+        FROM `{table_name}`
+        WHERE DATE({date_col}) BETWEEN @start_date AND @end_date
+        """
+        cfg = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
+                bigquery.ScalarQueryParameter("end_date", "DATE", end_date.isoformat()),
+            ]
+        )
+        df = bq.query(sql, job_config=cfg, location=ADMIN_BQ_LOCATION).to_dataframe()
+        if df.empty:
+            return empty
+        row = df.iloc[0].to_dict()
+        return {
+            "date_start": start_date.isoformat(),
+            "date_end": end_date.isoformat(),
+            "qty": _num(row.get("qty", 0)),
+            "revenue": _num(row.get("revenue", 0)),
+            "source": f"order_product:{table_name}",
+        }
+    except Exception as e:
+        print(f"[WARN] fetch_order_product_period_snapshot failed: {type(e).__name__}: {e}")
+        return empty
+
+def _get_item_order_product_best_effort(start: dt.date, end: dt.date, skus: Optional[List[str]] = None, limit: int = 10000) -> pd.DataFrame:
+    table_name = _qualified_admin_bq_table(ORDER_PRODUCT_BQ_TABLE)
+    if bigquery is None or not table_name:
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "revenue"])
+    try:
+        bq = bigquery.Client(project=ADMIN_BQ_PROJECT or None, location=ADMIN_BQ_LOCATION or None)
+        schema = _order_product_schema(bq, table_name)
+        date_col = schema["date_col"]
+        sku_col = schema["sku_col"]
+        name_col = schema["name_col"]
+        qty_col = schema["qty_col"]
+        revenue_col = schema["revenue_col"]
+        if not (date_col and sku_col and qty_col and revenue_col):
+            return pd.DataFrame(columns=["itemId", "itemName", "qty", "revenue"])
+        filters = [f"DATE({date_col}) BETWEEN @start_date AND @end_date"]
+        params = [
+            bigquery.ScalarQueryParameter("start_date", "DATE", start.isoformat()),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end.isoformat()),
+            bigquery.ScalarQueryParameter("limit", "INT64", int(limit)),
+        ]
+        sku_list = [str(x).strip() for x in (skus or []) if str(x).strip()]
+        if sku_list:
+            filters.append(f"CAST({sku_col} AS STRING) IN UNNEST(@sku_list)")
+            params.append(bigquery.ArrayQueryParameter("sku_list", "STRING", sku_list))
+        name_expr = f"ANY_VALUE(CAST({name_col} AS STRING))" if name_col else "CAST('' AS STRING)"
+        sql = f"""
+        SELECT
+          CAST({sku_col} AS STRING) AS itemId,
+          {name_expr} AS itemName,
+          SUM(COALESCE({qty_col}, 0)) AS qty,
+          SUM(COALESCE({revenue_col}, 0)) AS revenue
+        FROM `{table_name}`
+        WHERE {' AND '.join(filters)}
+        GROUP BY 1
+        ORDER BY qty DESC, revenue DESC
+        LIMIT @limit
+        """
+        cfg = bigquery.QueryJobConfig(query_parameters=params)
+        df = bq.query(sql, job_config=cfg, location=ADMIN_BQ_LOCATION).to_dataframe()
+        if df.empty:
+            return pd.DataFrame(columns=["itemId", "itemName", "qty", "revenue"])
+        df["itemId"] = df["itemId"].astype(str).str.strip()
+        if "itemName" not in df.columns:
+            df["itemName"] = ""
+        df["itemName"] = df["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+        df["qty"] = pd.to_numeric(df["qty"], errors="coerce").fillna(0.0)
+        df["revenue"] = pd.to_numeric(df["revenue"], errors="coerce").fillna(0.0)
+        return df[["itemId", "itemName", "qty", "revenue"]]
+    except Exception as e:
+        print(f"[WARN] _get_item_order_product_best_effort failed: {type(e).__name__}: {e}")
+        return pd.DataFrame(columns=["itemId", "itemName", "qty", "revenue"])
+
 def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
     table_name = _qualified_admin_bq_table(ADMIN_BQ_TABLE)
     empty = {
@@ -448,7 +579,9 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         revenue = _num(row.get("revenue", 0))
         total_price = _num(row.get("total_price", 0))
         cancel_amount = _num(row.get("cancel_amount", 0))
-        erp_revenue = revenue
+        order_product = fetch_order_product_period_snapshot(start_date, end_date)
+        erp_revenue = _num(order_product.get("revenue", revenue))
+        qty = _num(order_product.get("qty", 0))
         return {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
@@ -457,12 +590,13 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
             "signups": _num(row.get("signups", 0)),
             "orders": orders,
             "buyers": buyers if buyers > 0 else orders,
+            "qty": qty,
             "revenue": erp_revenue,
             "erp_revenue": erp_revenue,
             "total_price": total_price,
             "cancel_amount": cancel_amount,
             "aov": (erp_revenue / orders) if orders else 0.0,
-            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}",
+            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}|{order_product.get('source', '')}",
         }
     except Exception as e:
         print(f"[WARN] fetch_admin_period_snapshot failed: {type(e).__name__}: {e}")
@@ -2519,17 +2653,20 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
     start = w.cur_end if w.mode == "daily" else w.cur_start
     end = w.cur_end
 
-    order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="itemsPurchased"), desc=True)]
-    cand = run_report(
-        client, PROPERTY_ID,
-        ymd(start), ymd(end),
-        ["itemId", "itemName"], ["itemsPurchased"],
-        order_bys=order, limit=50
-    )
+    cand = _get_item_order_product_best_effort(start, end, limit=50)
     if cand.empty:
-        return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
-
-    cand["itemsPurchased"] = pd.to_numeric(cand["itemsPurchased"], errors="coerce").fillna(0.0)
+        order = [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="itemsPurchased"), desc=True)]
+        cand = run_report(
+            client, PROPERTY_ID,
+            ymd(start), ymd(end),
+            ["itemId", "itemName"], ["itemsPurchased"],
+            order_bys=order, limit=50
+        )
+        if cand.empty:
+            return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
+        cand["qty"] = pd.to_numeric(cand["itemsPurchased"], errors="coerce").fillna(0.0)
+    else:
+        cand["qty"] = pd.to_numeric(cand["qty"], errors="coerce").fillna(0.0)
     cand["itemId"] = cand["itemId"].map(normalize_sku_key)
     cand["itemName"] = cand["itemName"].astype(str).fillna("").map(lambda x: x.strip())
     cand = cand[~cand["itemName"].map(is_not_set)]
@@ -2537,10 +2674,10 @@ def get_best_sellers_with_trends(client: BetaAnalyticsDataClient, w: DigestWindo
         return pd.DataFrame(columns=["itemId","itemName","qty","views","trend_svg","image_url"]), {"x": [], "items": []}
 
     cand["image_url"] = cand["itemId"].map(lambda s: image_map.get(normalize_sku_key(s), ""))
-    with_img = cand[cand["image_url"].astype(str).str.strip() != ""].copy().sort_values("itemsPurchased", ascending=False)
-    no_img = cand[cand["image_url"].astype(str).str.strip() == ""].copy().sort_values("itemsPurchased", ascending=False)
+    with_img = cand[cand["image_url"].astype(str).str.strip() != ""].copy().sort_values("qty", ascending=False)
+    no_img = cand[cand["image_url"].astype(str).str.strip() == ""].copy().sort_values("qty", ascending=False)
     top = pd.concat([with_img.head(5), no_img.head(max(0, 5 - len(with_img.head(5))))], ignore_index=True).head(5).copy()
-    top["qty"] = top["itemsPurchased"]
+    top["qty"] = pd.to_numeric(top.get("qty"), errors="coerce").fillna(0.0)
     skus = [str(s).strip() for s in top["itemId"].tolist() if str(s).strip()]
 
     # Fetch views for the Best Sellers cards.
@@ -2641,6 +2778,9 @@ def _get_item_revenue_best_effort(
     end: dt.date,
     limit: int = 10000,
 ) -> pd.DataFrame:
+    order_product_df = _get_item_order_product_best_effort(start, end, limit=limit)
+    if not order_product_df.empty:
+        return order_product_df[["itemId", "itemName", "revenue"]]
     for metric_name in ("itemRevenue",):
         try:
             df = run_report(
@@ -2673,28 +2813,39 @@ def get_rising_products(
     cur_start, cur_end = (w.cur_end, w.cur_end) if w.mode == "daily" else (w.cur_start, w.cur_end)
     prev_start, prev_end = (w.prev_end, w.prev_end) if w.mode == "daily" else (w.prev_start, w.prev_end)
 
-    d1_qty = run_report(client, PROPERTY_ID, ymd(cur_start), ymd(cur_end), ["itemId", "itemName"], ["itemsPurchased"], limit=10000)
-    d0_qty = run_report(client, PROPERTY_ID, ymd(prev_start), ymd(prev_end), ["itemId"], ["itemsPurchased"], limit=10000)
+    d1_qty = _get_item_order_product_best_effort(cur_start, cur_end, limit=10000)
+    d0_qty = _get_item_order_product_best_effort(prev_start, prev_end, limit=10000)
 
     if d1_qty.empty:
-        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
-
-    d1_qty["itemsPurchased"] = pd.to_numeric(d1_qty["itemsPurchased"], errors="coerce").fillna(0.0)
-    d1_qty["itemId"] = d1_qty["itemId"].astype(str).str.strip()
-    d1_qty["itemName"] = d1_qty["itemName"].astype(str).fillna("").map(lambda x: x.strip())
-    d1_qty = d1_qty[~d1_qty["itemName"].map(is_not_set)]
-    if d1_qty.empty:
-        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
-
-    if not d0_qty.empty:
-        d0_qty["itemsPurchased"] = pd.to_numeric(d0_qty["itemsPurchased"], errors="coerce").fillna(0.0)
-        d0_qty["itemId"] = d0_qty["itemId"].astype(str).str.strip()
+        d1_qty = run_report(client, PROPERTY_ID, ymd(cur_start), ymd(cur_end), ["itemId", "itemName"], ["itemsPurchased"], limit=10000)
+        d0_qty = run_report(client, PROPERTY_ID, ymd(prev_start), ymd(prev_end), ["itemId"], ["itemsPurchased"], limit=10000)
+        if d1_qty.empty:
+            return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
+        d1_qty["qty"] = pd.to_numeric(d1_qty["itemsPurchased"], errors="coerce").fillna(0.0)
+        d1_qty["itemId"] = d1_qty["itemId"].astype(str).str.strip()
+        d1_qty["itemName"] = d1_qty["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+        d1_qty = d1_qty[~d1_qty["itemName"].map(is_not_set)]
+        if d1_qty.empty:
+            return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
+        if not d0_qty.empty:
+            d0_qty["qty"] = pd.to_numeric(d0_qty["itemsPurchased"], errors="coerce").fillna(0.0)
+            d0_qty["itemId"] = d0_qty["itemId"].astype(str).str.strip()
+        else:
+            d0_qty = pd.DataFrame(columns=["itemId", "qty"])
     else:
-        d0_qty = pd.DataFrame(columns=["itemId", "itemsPurchased"])
+        d1_qty["qty"] = pd.to_numeric(d1_qty["qty"], errors="coerce").fillna(0.0)
+        d1_qty["itemId"] = d1_qty["itemId"].astype(str).str.strip()
+        d1_qty["itemName"] = d1_qty["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+        d1_qty = d1_qty[~d1_qty["itemName"].map(is_not_set)]
+        if not d0_qty.empty:
+            d0_qty["qty"] = pd.to_numeric(d0_qty["qty"], errors="coerce").fillna(0.0)
+            d0_qty["itemId"] = d0_qty["itemId"].astype(str).str.strip()
+        else:
+            d0_qty = pd.DataFrame(columns=["itemId", "qty"])
 
-    qty_m = d1_qty.merge(d0_qty, on="itemId", how="left", suffixes=("_cur", "_prev")).fillna(0.0)
-    qty_m["qty"] = qty_m["itemsPurchased_cur"]
-    qty_m["qty_prev"] = qty_m["itemsPurchased_prev"]
+    qty_m = d1_qty.merge(d0_qty[["itemId", "qty"]], on="itemId", how="left", suffixes=("_cur", "_prev")).fillna(0.0)
+    qty_m["qty"] = qty_m["qty_cur"]
+    qty_m["qty_prev"] = qty_m["qty_prev"]
     qty_m["qty_delta"] = qty_m["qty"] - qty_m["qty_prev"]
 
     # Exclude best sellers and keep only prev > 0 with positive delta.
@@ -2728,13 +2879,13 @@ def get_rising_products(
 
     if RISING_BASIS == "views":
         m["delta"] = m["views_delta"]
-        m["delta_label"] = "Views ?"
+        m["delta_label"] = "Views Δ"
     elif RISING_BASIS == "revenue":
         m["delta"] = m["revenue_delta"]
-        m["delta_label"] = "Revenue ?"
+        m["delta_label"] = "Revenue Δ"
     else:
         m["delta"] = m["qty_delta"]
-        m["delta_label"] = "Qty ?"
+        m["delta_label"] = "Qty Δ"
 
     m = m.sort_values("delta", ascending=False).head(top_n).copy()
     m["image_url"] = ""  # Filled later by attach_image_urls().
