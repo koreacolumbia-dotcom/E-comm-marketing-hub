@@ -27,7 +27,7 @@ from __future__ import annotations
 
 
 # === FORCE EXCEL PATH (USER REPO) ===
-EXCEL_CATEGORY_PATH = "카테고리_정리.xlsx"
+EXCEL_CATEGORY_PATH = "카테고리_정리.xlsx"  # base name only; suffixes like (3) are auto-ignored
 
 
 import os
@@ -420,10 +420,33 @@ def compact_text(value: Optional[str]) -> str:
     return safe_text(value).replace("\xa0", " ")
 
 
-CATEGORY_MASTER_XLS_CANDIDATES = [
-    os.path.join("/mnt/data", "카테고리_정리(1).xlsx"),
-    os.path.join(os.getcwd(), "카테고리_정리(1).xlsx"),
-]
+def _build_excel_path_candidates(base_name: str) -> List[str]:
+    base_name = safe_text(base_name) or "카테고리_정리.xlsx"
+    stem, ext = os.path.splitext(base_name)
+    ext = ext or ".xlsx"
+    candidates: List[str] = []
+
+    def _add(path: str):
+        path = safe_text(path)
+        if path and path not in candidates:
+            candidates.append(path)
+
+    for root in ["/mnt/data", os.getcwd()]:
+        _add(os.path.join(root, f"{stem}{ext}"))
+        for n in range(1, 10):
+            _add(os.path.join(root, f"{stem} ({n}){ext}"))
+            _add(os.path.join(root, f"{stem}({n}){ext}"))
+
+    try:
+        import glob
+        for root in ["/mnt/data", os.getcwd()]:
+            for p in sorted(glob.glob(os.path.join(root, f"{stem}*{ext}"))):
+                _add(p)
+    except Exception:
+        pass
+    return candidates
+
+CATEGORY_MASTER_XLS_CANDIDATES = _build_excel_path_candidates(EXCEL_CATEGORY_PATH)
 
 def _normalize_brand_name(brand: str) -> str:
     b = safe_text(brand).lower()
@@ -460,6 +483,20 @@ def _normalize_category_leaf(v: str) -> str:
         return "팬츠"
     return t
 
+
+
+def _normalize_gender_leaf(v: str) -> str:
+    low = safe_text(v).lower()
+    if any(x in low for x in ["키즈", "kids", "kid", "junior", "youth", "boy", "girl"]):
+        return "키즈"
+    if any(x in low for x in ["여성", "women", "woman", "womens", "lady", "ladies"]):
+        return "여성"
+    if any(x in low for x in ["남성", "men", "man", "mens"]):
+        return "남성"
+    if any(x in low for x in ["공용", "unisex"]):
+        return "공용"
+    return ""
+
 def _build_category_master():
     df = None
     for p in CATEGORY_MASTER_XLS_CANDIDATES:
@@ -483,8 +520,9 @@ def _build_category_master():
         if url and final_item:
             url_map[(brand, url)] = {
                 "item_category": final_item,
-                "gender": ("키즈" if "키즈" in " ".join([c2, c3, path]) else ""),
+                "gender": _normalize_gender_leaf(row.get("분류1", "") or path),
                 "path": path,
+                "c1": safe_text(row.get("분류1", "")),
                 "c2": c2,
                 "c3": c3,
             }
@@ -512,114 +550,21 @@ _apply_category_master_seed_urls()
 
 
 
-# ===== URL CATEGORY HARD MAPPING (v8) =====
-URL_CATEGORY_HARD_MAP = {
-    # COLUMBIA
-    "cno=251": "티셔츠",
-    "cno=201": "자켓",
-    "cno=204": "자켓",
-    "cno=219": "자켓",
-    "cno=213": "자켓",
-    "cno=225": "베스트",
-    "cno=371": "자켓",
-    "cno=301": "팬츠",
-    "cno=302": "팬츠",
-    "cno=401": "슈즈",
-    "cno=501": "백",
-
-    # DISCOVERY
-    "DXMB03": "슈즈",
-    "DXMB02B01B17": "자켓",
-    "DXMB02B01B10": "자켓",
-    "DXMB02B01B12": "자켓",
-    "DXMB02B01B15": "자켓",
-    "DXMB02B02": "팬츠",
-    "DXMB02B03": "티셔츠",
-    "DXMB05": "ACC",
-}
-
-def get_hard_category_from_url(url: str = "", brand: str = "") -> str:
-    u = safe_text(url)
-    if not u:
-        return ""
-    low = u.lower()
-    for key, val in URL_CATEGORY_HARD_MAP.items():
-        if key.lower() in low:
-            return val
-    # Columbia explicit cno fallback patterns
-    if "columbiakorea.co.kr" in low:
-        m = re.search(r"[?&]cno=(\d+)", low)
-        if m:
-            cno = m.group(1)
-            return URL_CATEGORY_HARD_MAP.get(f"cno={cno}", "")
-    # Discovery display code fallback
-    if "discovery-expedition.com" in low:
-        m = re.search(r"/display/([A-Z0-9]+)", u, flags=re.I)
-        if m:
-            code = m.group(1).upper()
-            for key, val in URL_CATEGORY_HARD_MAP.items():
-                if key.upper() in code:
-                    return val
-    return ""
-
-
-
 def resolve_master_category(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", name: str = "", description: str = "") -> str:
     b = _normalize_brand_name(brand)
-
-    # 1) Hard URL mapping always wins
-    hard = get_hard_category_from_url(source_category_url, b)
-    if hard:
-        return hard
-
-    # 2) Exact master URL mapping
     key = canonicalize_url(source_category_url)
     row = CATEGORY_MASTER["url_map"].get((b, key))
     if row:
         return row.get("item_category", "") or ""
-
-    # 3) Partial URL/token matching from master map
-    for (bb, url_key), meta in CATEGORY_MASTER["url_map"].items():
-        if bb == b and url_key and url_key in key:
-            return meta.get("item_category", "") or ""
-    for t in [source_category_url, source_category, breadcrumb_text]:
-        low = safe_text(t).lower()
-        if not low:
-            continue
-        for (bb, token), item in CATEGORY_MASTER["token_map"].items():
-            if bb == b and token and token in low:
-                return item
-
-    # 4) Conservative product-name fallback only for obvious cases
-    merged = safe_text(f"{name} {description}").lower()
-    if b == "COLUMBIA":
-        if any(x in merged for x in ["konos", "peakfreak", "crestwood", "escape thrive", "omni-max", "outdry", "atr", "shoe", "sneaker", "boot", "clog"]):
-            return "슈즈"
-        if any(x in merged for x in ["tee", "t-shirt", "short sleeve", "long sleeve", "graphic tee", "crew", "jersey", "polo"]):
-            return "티셔츠"
-        if any(x in merged for x in ["pant", "pants", "cargo pant", "jogger", "shorts"]):
-            return "팬츠"
-        if any(x in merged for x in ["jacket", "windbreaker", "anorak", "parka", "shell"]):
-            return "자켓"
-    return ""
+    return normalize_source_category(source_category)
 
 
 def resolve_master_gender(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", raw_gender: str = "", name: str = "", description: str = "") -> str:
     b = _normalize_brand_name(brand)
     row = CATEGORY_MASTER["url_map"].get((b, canonicalize_url(source_category_url)))
-    if row and row.get("gender"):
-        return row["gender"]
-    joined = " ".join([safe_text(source_category), safe_text(breadcrumb_text), safe_text(raw_gender), safe_text(name), safe_text(description)]).lower()
-    if any(x in joined for x in ["키즈", "kids", "junior", "youth", "boy", "girl"]):
-        return "키즈"
-    if any(x in joined for x in ["여성", "women", "woman", "womens"]):
-        return "여성"
-    if any(x in joined for x in ["남성", "men", "man", "mens"]):
-        return "남성"
-    if any(x in joined for x in ["공용", "unisex"]):
-        return "공용"
-    return ""
-
+    if row:
+        return row.get("gender", "") or ""
+    return _normalize_gender_leaf(raw_gender)
 
 
 def parse_price_to_int(text: str) -> Optional[int]:
@@ -1385,37 +1330,10 @@ def extract_discovery_price_bundle(driver) -> Tuple[str, str, str]:
 
 
 def infer_gender(name: str, description: str, raw_gender: str, brand: str = "", source_category: str = "", source_category_url: str = "", breadcrumb_text: str = "") -> str:
-    resolved = resolve_master_gender(brand, source_category_url, source_category, breadcrumb_text, raw_gender, name, description)
-    if resolved:
-        return resolved
-    blob = f"{name} {description} {raw_gender}".lower()
-    if any(x in blob for x in ["키즈", "kids", "kid", "junior", "juniors", "youth", "boy", "boys", "girl", "girls", "toddler", "infant", "children"]):
-        return "키즈"
-    if any(x in blob for x in ["여성", "우먼", "women", "womens", "woman", "(w)", " w "]):
-        return "여성"
-    if any(x in blob for x in ["남성", "맨즈", "men", "mens", "man", "(m)", " m "]):
-        return "남성"
-    if any(x in blob for x in ["공용", "유니섹스", "unisex"]):
-        return "공용"
-    return "공용"
-
+    return resolve_master_gender(brand, source_category_url, source_category, breadcrumb_text, raw_gender, name, description) or _normalize_gender_leaf(raw_gender)
 
 def infer_season(name: str, description: str, raw_season: str) -> str:
-    blob = f"{name} {description} {raw_season}".lower()
-    if any(x in blob for x in ["spring", "봄"]):
-        return "봄"
-    if any(x in blob for x in ["summer", "여름", "썸머"]):
-        return "여름"
-    if any(x in blob for x in ["fall", "autumn", "가을"]):
-        return "가을"
-    if any(x in blob for x in ["winter", "겨울"]):
-        return "겨울"
-    return safe_text(raw_season) or "미분류"
-
-
-
-
-
+    return safe_text(raw_season)
 
 def _contains_any(text: str, keywords: List[str]) -> bool:
     t = safe_text(text).lower()
@@ -1662,56 +1580,7 @@ def normalize_source_category(text: str) -> str:
 
 
 def infer_item_category(name: str, description: str, source_category: str = "") -> str:
-    name_text = safe_text(name)
-    desc_text = safe_text(description)
-    source_text = safe_text(source_category)
-    name_blob = name_text.lower()
-    desc_blob = desc_text.lower()
-    src_blob = source_text.lower()
-    full_blob = " ".join(x for x in [name_blob, desc_blob, src_blob] if x)
-
-    src_item = normalize_source_category(source_text)
-    if src_item:
-        return src_item
-
-    tail_checks = [
-        ("슈즈", [r'\b(konos|peakfreak|crestwood|clog|sneaker|sneakers|shoe|shoes|boot|boots|sandals?|slides?)\b', r'\btrail\s+atr\b']),
-        ("티셔츠", [r'\bshort\s+sleeve\b', r'\blong\s+sleeve\b', r'\btee\b', r'\bt-shirt\b', r'\bjersey\b', r'\bcrewneck\b', r'\bround\s*tee\b']),
-        ("후디", [r'\bhoodie\b', r'\bhood\b', r'\bsweatshirt\b']),
-        ("플리스", [r'\bfleece\b', r'\bboa\b']),
-        ("베스트", [r'\bvest\b']),
-        ("셔츠", [r'\bshirt\b']),
-        ("팬츠", [r'\bcargo\s+pant\b', r'\bcargo\s+pants\b', r'\bjogger\b', r'\bpant\b', r'\bpants\b', r'\bshorts\b', r'\bshort\b', r'\bskort\b', r'\bchino\b']),
-        ("자켓", [r'\bwindbreaker\b', r'\banorak\b', r'\bjacket\b', r'\bparka\b', r'\bshell\b']),
-    ]
-    for item, patterns in tail_checks:
-        if any(re.search(p, name_blob) for p in patterns):
-            return item
-
-    scores: Dict[str, int] = {}
-    for item, keys in _item_keyword_map().items():
-        score = 0
-        for k in keys:
-            kk = k.lower()
-            if not kk:
-                continue
-            if kk in name_blob:
-                score += 6
-                if re.search(rf'(^|[^a-z가-힣]){re.escape(kk)}([^a-z가-힣]|$)', name_blob):
-                    score += 2
-            if kk in desc_blob:
-                score += 2
-        if score:
-            scores[item] = score
-
-    if scores:
-        return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
-
-    if any(x in full_blob for x in ["set", "세트", "kit", "키트", "워머", "양말", "sock", "socks", "belt", "벨트", "cap", "hat", "모자"]):
-        return "ACC"
-    if full_blob:
-        return normalize_source_category(full_blob) or "ACC"
-    return "ACC"
+    return normalize_source_category(source_category)
 
 def extract_raw_keywords(name: str, description: str) -> List[str]:
     text = f"{name} {description}"
@@ -1882,12 +1751,9 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     if original_price is None and current_price is not None:
         original_price = current_price
 
-    raw_keywords = extract_raw_keywords(raw.name, raw.description)
-    std_attrs = map_standard_attributes(raw_keywords, raw.name, raw.description)
-    resolved_attrs = resolve_conflicts(std_attrs)
-    dominant = select_dominant_attribute(resolved_attrs)
+    explicit_items = {"자켓", "팬츠", "티셔츠", "슈즈", "백", "베스트", "후디", "플리스", "ACC", "장갑", "셔츠", "다운"}
+    explicit_genders = {"여성", "남성", "공용", "키즈"}
 
-    explicit_items = {"자켓","팬츠","티셔츠","슈즈","백","베스트","후디","플리스","ACC","장갑","셔츠","다운"}
     plp_item = safe_text(getattr(raw, "plp_item_category", ""))
     source_item = safe_text(getattr(raw, "source_category", ""))
     master_item = resolve_master_category(raw.brand, getattr(raw, "source_category_url", ""), source_item, getattr(raw, "breadcrumb_text", ""), raw.name, raw.description)
@@ -1897,23 +1763,16 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         if candidate in explicit_items:
             final_item = candidate
             break
-    if not final_item:
-        final_item = infer_item_category(raw.name, raw.description, " ".join([getattr(raw, 'breadcrumb_text', ''), source_item, getattr(raw, 'source_category_url', '')])) or "ACC"
 
-    explicit_genders = {"여성","남성","공용","키즈"}
     plp_gender = safe_text(getattr(raw, "plp_gender", ""))
-    if plp_gender in explicit_genders:
-        final_gender = plp_gender
-    else:
-        final_gender = infer_gender(raw.name, raw.description, raw.gender_text, raw.brand, source_item, getattr(raw, "source_category_url", ""), getattr(raw, "breadcrumb_text", ""))
-        if final_gender not in explicit_genders:
-            final_gender = "공용"
+    master_gender = resolve_master_gender(raw.brand, getattr(raw, "source_category_url", ""), source_item, getattr(raw, "breadcrumb_text", ""), raw.gender_text, raw.name, raw.description)
+    final_gender = ""
+    for candidate in [plp_gender, safe_text(raw.gender_text), master_gender]:
+        if candidate in explicit_genders:
+            final_gender = candidate
+            break
 
-    grade = classify_grade(resolved_attrs, dominant)
-    shell_type = classify_shell_type(resolved_attrs, raw.name, raw.description)
-    price_band = classify_price_band(current_price)
-    pos_y = classify_positioning_y(current_price)
-    pos_x = classify_positioning_x(resolved_attrs, dominant, shell_type)
+    final_season = safe_text(raw.season_text)
 
     return ProductAnalyzed(
         brand=("DISCOVERY" if raw.brand == "DISCOVERY" else raw.brand),
@@ -1924,20 +1783,20 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
         image_url=raw.image_url,
         current_price=current_price,
         original_price=original_price,
-        discount_rate=(calc_discount_rate(current_price, original_price) if calc_discount_rate(current_price, original_price) is not None else extract_discount_rate_from_text(f"{raw.price_text} {raw.original_price_text} {raw.name} {raw.description}")),
+        discount_rate=calc_discount_rate(current_price, original_price),
         sold_out=bool(safe_text(raw.sold_out_text)),
         gender=final_gender,
-        season=infer_season(raw.name, raw.description, raw.season_text),
+        season=final_season,
         item_category=final_item,
-        raw_keywords=raw_keywords,
-        standard_attributes=resolved_attrs,
-        dominant_attribute=dominant,
-        grade=grade,
-        shell_type=shell_type,
-        price_band=price_band,
-        positioning_y=pos_y,
-        positioning_x=pos_x,
-        attribute_coverage_flag="OK",
+        raw_keywords=[],
+        standard_attributes=[],
+        dominant_attribute="",
+        grade="",
+        shell_type="",
+        price_band=classify_price_band(current_price),
+        positioning_y="",
+        positioning_x="",
+        attribute_coverage_flag="",
         source_category=source_item,
         source_category_url=raw.source_category_url,
         breadcrumb_text=getattr(raw, "breadcrumb_text", ""),
