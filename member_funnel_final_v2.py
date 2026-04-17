@@ -888,20 +888,26 @@ def _minmax01(s: pd.Series) -> pd.Series:
         return pd.Series([0.0] * len(x), index=x.index, dtype=float)
     return ((x - mn) / (mx - mn)).clip(lower=0.0, upper=1.0)
 
-def _safe_quantile(s: pd.Series, q: float, default: float = 0.0) -> float:
-    x = pd.to_numeric(s, errors="coerce").dropna()
-    if x.empty:
-        return default
+def _safe_quantile(s: pd.Series | Any, q: float, default: float = 0.0) -> float:
+    try:
+        x = pd.to_numeric(s, errors="coerce")
+        if not isinstance(x, pd.Series):
+            x = pd.Series(x)
+        x = x.replace([np.inf, -np.inf], np.nan).dropna()
+        if x.empty:
+            return float(default)
+        val = x.quantile(q)
+        if pd.isna(val):
+            return float(default)
+        return float(val)
+    except Exception:
+        return float(default)
 
 
 def _series_from_frame(df: pd.DataFrame, col: str, default: Any = 0.0) -> pd.Series:
     if col in df.columns:
-        return pd.to_numeric(df[col], errors="coerce").fillna(default)
+        return pd.to_numeric(df[col], errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(default)
     return pd.Series([default] * len(df), index=df.index, dtype=float)
-    try:
-        return float(x.quantile(q))
-    except Exception:
-        return default
 
 def _analysis_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     work = df.copy()
@@ -1023,10 +1029,15 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
     tenure = _series_from_frame(out, "tenure_days_calc", 0.0)
     sessions = _series_from_frame(out, "sessions_norm", 0.0)
 
-    y_repeat = ((orders >= 2) | ((orders >= 1) & (revenue >= _safe_quantile(revenue[revenue > 0], 0.60, 0.0)))).astype(int)
+    repeat_rev_threshold = _safe_quantile(revenue[revenue > 0], 0.60, 0.0)
+    churn_recency_threshold = max(45.0, _safe_quantile(recency[orders >= 1], 0.70, 45.0))
+    ltv_revenue_threshold = _safe_quantile(revenue[revenue > 0], 0.80, 0.0)
+    ltv_orders_threshold = max(2.0, _safe_quantile(orders, 0.85, 2.0))
+
+    y_repeat = ((orders >= 2) | ((orders >= 1) & (revenue >= repeat_rev_threshold))).astype(int)
     y_first = ((orders <= 1) & ((add_to_cart > 0) | (pdp >= 3) | (sessions >= 2))).astype(int)
-    y_churn = (((orders >= 1) & (recency >= max(45.0, _safe_quantile(recency[orders >= 1], 0.70, 45.0)))) | ((orders <= 0) & (tenure >= 30) & (add_to_cart > 0))).astype(int)
-    y_ltv = ((revenue >= _safe_quantile(revenue[revenue > 0], 0.80, 0.0)) | (orders >= max(2.0, _safe_quantile(orders, 0.85, 2.0)))).astype(int)
+    y_churn = (((orders >= 1) & (recency >= churn_recency_threshold)) | ((orders <= 0) & (tenure >= 30) & (add_to_cart > 0))).astype(int)
+    y_ltv = ((revenue >= ltv_revenue_threshold) | (orders >= ltv_orders_threshold)).astype(int)
 
     rep_prob, rep_imp = _fit_driver_model(X, y_repeat)
     first_prob, first_imp = _fit_driver_model(X, y_first)
