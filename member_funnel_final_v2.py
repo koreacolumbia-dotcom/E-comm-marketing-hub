@@ -560,25 +560,63 @@ def _qualified_bq_table(table_name: str) -> str:
     return t
 
 def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict | None:
-    table_name = _qualified_bq_table(ADMIN_BQ_TABLE)
-    if not table_name:
-        return None
+    """Fetch period totals directly from raw BQ tables so dashboard matches query-first validation."""
     try:
         client = get_bq_client()
-        sql = f"""
+        sql = """
+        WITH traffic AS (
+          SELECT
+            SUM(COALESCE(StatisticsSessions, 0)) AS sessions,
+            SUM(COALESCE(StatisticsPV, 0)) AS pv
+          FROM `columbia-ga4.crm_raw.tb_statistics_google_staging`
+          WHERE DATE(StatisticsDate) BETWEEN @start_date AND @end_date
+        ),
+        signups AS (
+          SELECT
+            COUNT(*) AS signups
+          FROM `columbia-ga4.crm_raw.tb_member_staging`
+          WHERE DATE(MemberRegdate) BETWEEN @start_date AND @end_date
+        ),
+        order_rev AS (
+          SELECT
+            CAST(OrderNo AS STRING) AS order_no,
+            CAST(MemberID AS STRING) AS member_id,
+            DATE(COALESCE(OrderProductRegdate, OrderRegdate)) AS dt,
+            SUM(COALESCE(ErpPrice, 0)) AS order_revenue
+          FROM `columbia-ga4.crm_raw.tb_order_product_staging`
+          WHERE COALESCE(OrderRefundStatus, 0) = 0
+            AND DATE(COALESCE(OrderProductRegdate, OrderRegdate)) BETWEEN @start_date AND @end_date
+          GROUP BY 1,2,3
+        ),
+        orders AS (
+          SELECT
+            COUNT(DISTINCT order_no) AS orders,
+            COUNT(DISTINCT CASE WHEN member_id IS NOT NULL AND TRIM(member_id) != '' THEN member_id END) AS buyers,
+            SUM(COALESCE(order_revenue, 0)) AS revenue
+          FROM order_rev
+        ),
+        mileage AS (
+          SELECT
+            SUM(COALESCE(OrderProductUseMileage, 0)) AS point_used
+          FROM `columbia-ga4.crm_raw.tb_order_product_staging`
+          WHERE COALESCE(OrderRefundStatus, 0) = 0
+            AND DATE(COALESCE(OrderProductRegdate, OrderRegdate)) BETWEEN @start_date AND @end_date
+        )
         SELECT
-          SUM(COALESCE(sessions, 0)) AS sessions,
-          SUM(COALESCE(pv, 0)) AS pv,
-          SUM(COALESCE(signups, 0)) AS signups,
-          SUM(COALESCE(orders, 0)) AS orders,
-          SUM(COALESCE(buyers, 0)) AS buyers,
-          SUM(COALESCE(revenue, 0)) AS revenue,
-          SUM(COALESCE(total_price, 0)) AS total_price,
-          SUM(COALESCE(coupon_used, 0)) AS coupon_used,
-          SUM(COALESCE(point_used, 0)) AS point_used,
-          SUM(COALESCE(cancel_amount, 0)) AS cancel_amount
-        FROM `{table_name}`
-        WHERE report_date BETWEEN @start_date AND @end_date
+          COALESCE(t.sessions, 0) AS sessions,
+          COALESCE(t.pv, 0) AS pv,
+          COALESCE(s.signups, 0) AS signups,
+          COALESCE(o.orders, 0) AS orders,
+          COALESCE(o.buyers, 0) AS buyers,
+          COALESCE(o.revenue, 0) AS revenue,
+          COALESCE(o.revenue, 0) AS total_price,
+          CAST(0 AS FLOAT64) AS coupon_used,
+          COALESCE(m.point_used, 0) AS point_used,
+          CAST(0 AS FLOAT64) AS cancel_amount
+        FROM traffic t
+        CROSS JOIN signups s
+        CROSS JOIN orders o
+        CROSS JOIN mileage m
         """
         cfg = bigquery.QueryJobConfig(
             query_parameters=[
@@ -603,10 +641,11 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict 
             "buyers": buyers if buyers > 0 else orders,
             "revenue": revenue,
             "aov": (revenue / orders) if orders else 0.0,
-            "source": "admin_bq_daily",
+            "source": "raw_order_product_erp",
             "raw": {str(k): (None if pd.isna(v) else v) for k, v in row.items()},
         }
-    except Exception:
+    except Exception as e:
+        print(f'[WARN] fetch_admin_period_snapshot failed: {e}')
         return None
 
 def get_bq_client():
@@ -621,43 +660,62 @@ def fetch_rows_from_bq() -> pd.DataFrame:
 
 
 def fetch_purchase_journey_summary_bq(start_date: dt.date, end_date: dt.date) -> dict[str, float]:
-    """Return purchase journey summary using raw BQ tables directly, matching query-first logic."""
+    """Return purchase journey summary directly from raw BQ tables with minimal transformation.
+
+    Repurchase cadence intentionally ignores dashboard period filters and follows the user's
+    validation query semantics: full raw order history, member-level first->second / second->third / third->fourth order gaps.
+    AOV uses raw ERP revenue aggregated at order level from tb_order_product_staging.
+    """
     if bigquery is None:
         return {}
     try:
         client = get_bq_client()
         sql = """
-        WITH order_base AS (
+        WITH ordered AS (
           SELECT
             CAST(MemberID AS STRING) AS member_id,
+            DATETIME(OrderRegdate) AS order_dt,
             CAST(OrderNo AS STRING) AS order_no,
-            DATETIME(OrderRegdate) AS order_dt
+            ROW_NUMBER() OVER (
+              PARTITION BY CAST(MemberID AS STRING)
+              ORDER BY DATETIME(OrderRegdate), CAST(OrderNo AS STRING)
+            ) AS rn
           FROM `columbia-ga4.crm_raw.tb_order_staging`
           WHERE MemberID IS NOT NULL
             AND TRIM(CAST(MemberID AS STRING)) != ''
-            AND DATE(OrderRegdate) BETWEEN @start_date AND @end_date
+            AND OrderRegdate IS NOT NULL
         ),
-        ordered AS (
-          SELECT
-            member_id,
-            order_no,
-            order_dt,
-            ROW_NUMBER() OVER (PARTITION BY member_id ORDER BY order_dt, order_no) AS rn
-          FROM order_base
-        ),
-        diff AS (
+        diff12 AS (
           SELECT
             a.member_id,
-            DATETIME_DIFF(b.order_dt, a.order_dt, DAY) AS days_1_to_2,
-            DATETIME_DIFF(c.order_dt, b.order_dt, DAY) AS days_2_to_3,
-            DATETIME_DIFF(d.order_dt, c.order_dt, DAY) AS days_3_to_4
+            DATETIME_DIFF(b.order_dt, a.order_dt, DAY) AS days_1_to_2
           FROM ordered a
-          LEFT JOIN ordered b ON a.member_id = b.member_id AND b.rn = 2
-          LEFT JOIN ordered c ON a.member_id = c.member_id AND c.rn = 3
-          LEFT JOIN ordered d ON a.member_id = d.member_id AND d.rn = 4
-          WHERE a.rn = 1
+          JOIN ordered b
+            ON a.member_id = b.member_id
+           AND a.rn = 1
+           AND b.rn = 2
         ),
-        order_revenue AS (
+        diff23 AS (
+          SELECT
+            a.member_id,
+            DATETIME_DIFF(b.order_dt, a.order_dt, DAY) AS days_2_to_3
+          FROM ordered a
+          JOIN ordered b
+            ON a.member_id = b.member_id
+           AND a.rn = 2
+           AND b.rn = 3
+        ),
+        diff34 AS (
+          SELECT
+            a.member_id,
+            DATETIME_DIFF(b.order_dt, a.order_dt, DAY) AS days_3_to_4
+          FROM ordered a
+          JOIN ordered b
+            ON a.member_id = b.member_id
+           AND a.rn = 3
+           AND b.rn = 4
+        ),
+        order_rev AS (
           SELECT
             CAST(MemberID AS STRING) AS member_id,
             CAST(OrderNo AS STRING) AS order_no,
@@ -667,33 +725,36 @@ def fetch_purchase_journey_summary_bq(start_date: dt.date, end_date: dt.date) ->
           WHERE MemberID IS NOT NULL
             AND TRIM(CAST(MemberID AS STRING)) != ''
             AND COALESCE(OrderRefundStatus, 0) = 0
-            AND DATE(COALESCE(OrderProductRegdate, OrderRegdate)) BETWEEN @start_date AND @end_date
           GROUP BY 1,2,3
         ),
         ranked_rev AS (
           SELECT
             member_id,
             order_no,
+            order_dt,
             order_revenue,
-            ROW_NUMBER() OVER (PARTITION BY member_id ORDER BY order_dt, order_no) AS rn
-          FROM order_revenue
+            ROW_NUMBER() OVER (
+              PARTITION BY member_id
+              ORDER BY order_dt, order_no
+            ) AS rn
+          FROM order_rev
+        ),
+        aov_agg AS (
+          SELECT
+            AVG(CASE WHEN rn = 2 THEN order_revenue END) AS second_buyer_aov,
+            AVG(CASE WHEN rn = 3 THEN order_revenue END) AS third_buyer_aov
+          FROM ranked_rev
         )
         SELECT
-          COUNTIF(days_1_to_2 IS NOT NULL) AS journey_users,
-          AVG(CAST(days_1_to_2 AS FLOAT64)) AS avg_days_1_to_2,
-          AVG(CAST(days_2_to_3 AS FLOAT64)) AS avg_days_2_to_3,
-          AVG(CAST(days_3_to_4 AS FLOAT64)) AS avg_days_3_to_4,
-          AVG(CASE WHEN rr.rn = 2 THEN rr.order_revenue END) AS second_buyer_aov,
-          AVG(CASE WHEN rr.rn = 3 THEN rr.order_revenue END) AS third_buyer_aov
-        FROM diff
-        LEFT JOIN ranked_rev rr
-          ON diff.member_id = rr.member_id
+          (SELECT COUNT(*) FROM diff12) AS journey_users,
+          (SELECT AVG(CAST(days_1_to_2 AS FLOAT64)) FROM diff12) AS avg_days_1_to_2,
+          (SELECT AVG(CAST(days_2_to_3 AS FLOAT64)) FROM diff23) AS avg_days_2_to_3,
+          (SELECT AVG(CAST(days_3_to_4 AS FLOAT64)) FROM diff34) AS avg_days_3_to_4,
+          second_buyer_aov,
+          third_buyer_aov
+        FROM aov_agg
         """
-        cfg = bigquery.QueryJobConfig(query_parameters=[
-            bigquery.ScalarQueryParameter('start_date', 'DATE', start_date.isoformat()),
-            bigquery.ScalarQueryParameter('end_date', 'DATE', end_date.isoformat()),
-        ])
-        df = client.query(sql, job_config=cfg, location=BQ_LOCATION).to_dataframe()
+        df = client.query(sql, location=BQ_LOCATION).to_dataframe()
         if df.empty:
             return {}
         row = df.iloc[0].to_dict()
