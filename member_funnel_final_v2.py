@@ -171,51 +171,6 @@ def _default_target_payload(user: pd.DataFrame) -> dict:
         )
     }
 
-
-def build_analysis_target_payload(user: pd.DataFrame) -> dict:
-    work = _compute_driver_scores_from_frame(user.copy())
-    if work.empty:
-        return {"cards": [], "rows": []}
-    if "consent_norm" in work.columns:
-        base = work[work["consent_norm"].astype(float) >= 1].copy()
-        if base.empty:
-            base = work.copy()
-    else:
-        base = work.copy()
-    score_cols = ["repurchase_30d_score", "first_purchase_30d_score", "churn_60d_score", "ltv_score"]
-    base["driver_score"] = base[score_cols].max(axis=1)
-    action_map = [
-        ("RETENTION_REPURCHASE", "Repeat Purchase Drivers"),
-        ("CHURN_PREVENTION", "Churn Risk Drivers"),
-        ("FIRST_PURCHASE_NUDGE", "First Buy Drivers"),
-        ("VIP_UPSELL", "High Value Drivers"),
-        ("CATEGORY_CROSSSELL", "Cross Sell Drivers"),
-        ("GENERAL", "General Opportunity"),
-    ]
-    cards = []
-    for action, label in action_map:
-        sdf = base[base["ml_action_type"].astype(str) == action].copy()
-        if sdf.empty:
-            continue
-        cards.append({
-            "label": label,
-            "count": int(sdf["member_id_norm"].replace('', pd.NA).where(sdf["member_id_norm"].astype(str) != '', sdf.get("user_id_norm", '')).replace('', pd.NA).nunique()),
-            "top_channel": top_label(sdf, "channel_group_norm", "미분류"),
-            "top_product": top_label(sdf, "purchase_product_name_norm", "미분류"),
-            "top_message": f"{action} · driver:{top_label(sdf, 'dominant_driver', 'general_signal')}",
-        })
-    rows = rows_from_df(
-        base.sort_values(["driver_score", "ltv_score", "repurchase_30d_score"], ascending=[False, False, False]),
-        {
-            "member_id_norm":"member_id","user_id_norm":"user_id","phone_norm":"phone","channel_group_norm":"channel_group",
-            "campaign_display_norm":"campaign","purchase_product_name_norm":"product","top_category_norm":"top_category",
-            "dominant_driver":"dominant_driver","ml_action_type":"recommended_action","ml_priority_tier":"priority_tier",
-            "repurchase_30d_score":"repurchase_score","first_purchase_30d_score":"first_buy_score",
-            "churn_60d_score":"churn_score","ltv_score":"ltv_score","next_best_category":"next_best_category","consent_norm":"consent"
-        }
-    )
-    return {"cards": cards, "rows": rows}
-
 def build_ml_target_payload(user: pd.DataFrame) -> dict:
     ml_scores = load_ml_scores()
     merged = merge_ml_scores(user, ml_scores)
@@ -937,6 +892,12 @@ def _safe_quantile(s: pd.Series, q: float, default: float = 0.0) -> float:
     x = pd.to_numeric(s, errors="coerce").dropna()
     if x.empty:
         return default
+
+
+def _series_from_frame(df: pd.DataFrame, col: str, default: Any = 0.0) -> pd.Series:
+    if col in df.columns:
+        return pd.to_numeric(df[col], errors="coerce").fillna(default)
+    return pd.Series([default] * len(df), index=df.index, dtype=float)
     try:
         return float(x.quantile(q))
     except Exception:
@@ -1051,15 +1012,19 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
 
     X, feature_cols = _analysis_features(out)
 
-    orders = pd.to_numeric(out.get("orders_norm", 0), errors="coerce").fillna(0)
-    revenue = pd.to_numeric(out.get("metric_revenue_norm", out.get("revenue_norm", 0)), errors="coerce").fillna(0)
-    recency = pd.to_numeric(out.get("recency_days_calc", 365), errors="coerce").fillna(365)
-    add_to_cart = pd.to_numeric(out.get("add_to_cart_norm", 0), errors="coerce").fillna(0)
-    pdp = pd.to_numeric(out.get("product_view_count_norm", 0), errors="coerce").fillna(0)
-    tenure = pd.to_numeric(out.get("tenure_days_calc", 0), errors="coerce").fillna(0)
+    orders = _series_from_frame(out, "orders_norm", 0.0)
+    if "metric_revenue_norm" in out.columns:
+        revenue = _series_from_frame(out, "metric_revenue_norm", 0.0)
+    else:
+        revenue = _series_from_frame(out, "revenue_norm", 0.0)
+    recency = _series_from_frame(out, "recency_days_calc", 365.0)
+    add_to_cart = _series_from_frame(out, "add_to_cart_norm", 0.0)
+    pdp = _series_from_frame(out, "product_view_count_norm", 0.0)
+    tenure = _series_from_frame(out, "tenure_days_calc", 0.0)
+    sessions = _series_from_frame(out, "sessions_norm", 0.0)
 
     y_repeat = ((orders >= 2) | ((orders >= 1) & (revenue >= _safe_quantile(revenue[revenue > 0], 0.60, 0.0)))).astype(int)
-    y_first = ((orders <= 1) & ((add_to_cart > 0) | (pdp >= 3) | (pd.to_numeric(out.get("sessions_norm", 0), errors="coerce").fillna(0) >= 2))).astype(int)
+    y_first = ((orders <= 1) & ((add_to_cart > 0) | (pdp >= 3) | (sessions >= 2))).astype(int)
     y_churn = (((orders >= 1) & (recency >= max(45.0, _safe_quantile(recency[orders >= 1], 0.70, 45.0)))) | ((orders <= 0) & (tenure >= 30) & (add_to_cart > 0))).astype(int)
     y_ltv = ((revenue >= _safe_quantile(revenue[revenue > 0], 0.80, 0.0)) | (orders >= max(2.0, _safe_quantile(orders, 0.85, 2.0)))).astype(int)
 
@@ -1071,7 +1036,7 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
     # blend model score with robust business signal to avoid unstable small-sample fits
     rep_signal = (0.40 * _minmax01(orders) + 0.35 * (1.0 - _minmax01(recency)) + 0.25 * _minmax01(revenue)).clip(0, 1)
     first_signal = (0.45 * _minmax01(add_to_cart) + 0.35 * _minmax01(pdp) + 0.20 * (1.0 - _minmax01(orders))).clip(0, 1)
-    churn_signal = (0.50 * _minmax01(recency) + 0.20 * (1.0 - _minmax01(pd.to_numeric(out.get("sessions_norm", 0), errors="coerce").fillna(0))) + 0.30 * (1.0 - _minmax01(orders))).clip(0, 1)
+    churn_signal = (0.50 * _minmax01(recency) + 0.20 * (1.0 - _minmax01(sessions)) + 0.30 * (1.0 - _minmax01(orders))).clip(0, 1)
     ltv_signal = (0.55 * _minmax01(revenue) + 0.30 * _minmax01(orders) + 0.15 * (1.0 - _minmax01(recency))).clip(0, 1)
 
     out["repurchase_30d_score"] = _clip01(0.55 * rep_prob + 0.45 * rep_signal)
@@ -1095,10 +1060,11 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
 
     if "top_category_norm" not in out.columns:
         out["top_category_norm"] = ""
+    product_name_series = out["purchase_product_name_norm"].astype(str) if "purchase_product_name_norm" in out.columns else pd.Series([""] * len(out), index=out.index, dtype=object)
     out["next_best_category"] = np.where(
         out["top_category_norm"].astype(str).str.strip() != "",
         out["top_category_norm"].astype(str),
-        np.where(out.get("purchase_product_name_norm", pd.Series([""] * len(out), index=out.index)).astype(str).str.contains("SHOE|BOOT|OUTDRY|CLOG", case=False, na=False), "Footwear", "General")
+        np.where(product_name_series.str.contains("SHOE|BOOT|OUTDRY|CLOG", case=False, na=False), "Footwear", "General")
     )
 
     out["ml_action_type"] = [
@@ -1121,6 +1087,7 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
         "top_ltv": top_ltv,
     }
     return out
+
 
 def build_deep_driver_insight(df: pd.DataFrame) -> dict:
     work = _compute_driver_scores_from_frame(df)
@@ -1258,112 +1225,6 @@ def build_ml_insight(df: pd.DataFrame) -> dict:
 
     return {"summary": summary, "segments": segments, "action_dist": action_dist, "rows": rows}
 
-
-
-def build_funnel_diagnostics(user_df: pd.DataFrame, nb_df: pd.DataFrame, buy_df: pd.DataFrame) -> dict:
-    def _nunique_actor(df: pd.DataFrame) -> int:
-        if df is None or df.empty:
-            return 0
-        member = df.get("member_id_norm", pd.Series([""] * len(df), index=df.index)).astype(str)
-        user = df.get("user_id_norm", pd.Series([""] * len(df), index=df.index)).astype(str)
-        key = member.where(member.str.strip() != "", user)
-        return int(key.replace("", pd.NA).nunique())
-
-    work = user_df.copy() if user_df is not None else pd.DataFrame()
-    if work.empty:
-        return {"summary": {"login_users": 0, "pdp_users": 0, "cart_users": 0, "buyers": 0, "cart_to_buy_rate": 0.0, "pdp_to_cart_rate": 0.0}, "steps": [], "drop_reasons": []}
-
-    sessions = pd.to_numeric(work.get("sessions_norm", 0), errors="coerce").fillna(0)
-    pdp = pd.to_numeric(work.get("product_view_count_norm", 0), errors="coerce").fillna(0)
-    cart = pd.to_numeric(work.get("add_to_cart_norm", 0), errors="coerce").fillna(0)
-    login_users = _nunique_actor(work[sessions > 0])
-    pdp_users = _nunique_actor(work[pdp > 0])
-    cart_users = _nunique_actor(work[cart > 0])
-    buyers = _nunique_actor(buy_df)
-    steps = [{"label":"Login","count":login_users},{"label":"PDP","count":pdp_users},{"label":"Cart","count":cart_users},{"label":"Buyer","count":buyers}]
-    drops = [
-        {"label":"Login→PDP Drop","count":max(login_users-pdp_users,0),"share_pct":round(max(login_users-pdp_users,0)/login_users*100,1) if login_users else 0.0},
-        {"label":"PDP→Cart Drop","count":max(pdp_users-cart_users,0),"share_pct":round(max(pdp_users-cart_users,0)/pdp_users*100,1) if pdp_users else 0.0},
-        {"label":"Cart→Buy Drop","count":max(cart_users-buyers,0),"share_pct":round(max(cart_users-buyers,0)/cart_users*100,1) if cart_users else 0.0},
-    ]
-    return {"summary":{"login_users":login_users,"pdp_users":pdp_users,"cart_users":cart_users,"buyers":buyers,"pdp_to_cart_rate":round(cart_users/pdp_users*100,1) if pdp_users else 0.0,"cart_to_buy_rate":round(buyers/cart_users*100,1) if cart_users else 0.0},"steps":steps,"drop_reasons":drops}
-
-
-def build_segment_comparison(df: pd.DataFrame) -> dict:
-    work = df.copy() if df is not None else pd.DataFrame()
-    if work.empty:
-        return {"cards": [], "rows": []}
-    for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score","orders_norm","metric_revenue_norm","sessions_norm","add_to_cart_norm"]:
-        if c not in work.columns:
-            work[c] = 0.0
-        work[c] = pd.to_numeric(work[c], errors="coerce").fillna(0.0)
-    if "ml_action_type" not in work.columns:
-        work["ml_action_type"] = "GENERAL"
-    rows, cards = [], []
-    for action, sdf in work.groupby(work["ml_action_type"].astype(str).replace({"":"GENERAL"})):
-        member = sdf.get("member_id_norm", pd.Series([""] * len(sdf), index=sdf.index)).astype(str)
-        user = sdf.get("user_id_norm", pd.Series([""] * len(sdf), index=sdf.index)).astype(str)
-        members = int(member.where(member.str.strip() != "", user).replace("", pd.NA).nunique())
-        row = {
-            "segment": action,
-            "members": members,
-            "avg_repurchase": round(float(sdf["repurchase_30d_score"].mean()) * 100.0, 1),
-            "avg_first_buy": round(float(sdf["first_purchase_30d_score"].mean()) * 100.0, 1),
-            "avg_churn": round(float(sdf["churn_60d_score"].mean()) * 100.0, 1),
-            "avg_ltv": round(float(sdf["ltv_score"].mean()) * 100.0, 1),
-            "avg_orders": round(float(sdf["orders_norm"].mean()), 2),
-            "avg_revenue": round(float(sdf["metric_revenue_norm"].mean()), 0),
-            "avg_sessions": round(float(sdf["sessions_norm"].mean()), 1),
-            "avg_atc": round(float(sdf["add_to_cart_norm"].mean()), 1),
-            "top_channel": top_label(sdf, "channel_group_norm", "미분류"),
-            "top_category": top_label(sdf, "top_category_norm", "미분류"),
-        }
-        rows.append(row)
-        cards.append({"label": action.replace("_", " ").title(), "count": members, "top_channel": row["top_channel"], "top_product": top_label(sdf, "purchase_product_name_norm", "미분류"), "top_message": f"Rev {fmt_money(row['avg_revenue'])} · Churn {row['avg_churn']}%"})
-    rows = sorted(rows, key=lambda x: x["members"], reverse=True)[:10]
-    cards = sorted(cards, key=lambda x: x["count"], reverse=True)[:8]
-    return {"cards": cards, "rows": rows}
-
-
-def build_product_affinity_transition(df: pd.DataFrame) -> dict:
-    work = df.copy() if df is not None else pd.DataFrame()
-    if work.empty:
-        return {"pair_rows": [], "transition_rows": [], "summary": {"pair_count": 0, "transition_count": 0, "top_pair": "-", "top_transition": "-"}}
-    for c in ["order_id_norm","transaction_id_norm","member_id_norm","purchase_product_name_norm","top_category_norm","order_date_norm"]:
-        if c not in work.columns:
-            work[c] = ""
-    work["__order_key"] = work["order_id_norm"].astype(str).where(work["order_id_norm"].astype(str).str.strip() != "", work["transaction_id_norm"].astype(str))
-    work = work[(work["__order_key"].astype(str).str.strip() != "") & (work["purchase_product_name_norm"].astype(str).str.strip() != "")].copy()
-    pair_rows = []
-    if not work.empty:
-        from collections import Counter
-        order_products = work.groupby("__order_key")["purchase_product_name_norm"].apply(lambda s: sorted(set([str(x).strip() for x in s if str(x).strip()])))
-        total_orders = int(order_products.shape[0])
-        pair_counter, item_counter = Counter(), Counter()
-        for items in order_products.tolist():
-            for i in items:
-                item_counter[i] += 1
-            for i in range(len(items)):
-                for j in range(i+1, len(items)):
-                    pair_counter[(items[i], items[j])] += 1
-        for (a,b), cnt in pair_counter.most_common(20):
-            support = (cnt / total_orders) if total_orders else 0.0
-            conf = (cnt / item_counter[a]) if item_counter[a] else 0.0
-            lift = conf / ((item_counter[b] / total_orders) if total_orders and item_counter[b] else 1.0) if total_orders else 0.0
-            pair_rows.append({"base_product": a, "paired_product": b, "orders": cnt, "support_pct": round(support*100,2), "confidence_pct": round(conf*100,2), "lift": round(lift,3)})
-    transition_rows = []
-    trans = work[(work["member_id_norm"].astype(str).str.strip() != "") & (work["top_category_norm"].astype(str).str.strip() != "")].copy()
-    if not trans.empty:
-        trans["__dt"] = pd.to_datetime(trans["order_date_norm"], errors="coerce")
-        first_orders = trans.sort_values(["member_id_norm","__dt","__order_key"]).groupby(["member_id_norm","__order_key"], as_index=False).agg(order_date=("__dt","min"), category=("top_category_norm", lambda s: next((str(x) for x in s if str(x).strip()), "미분류")))
-        first_orders = first_orders.sort_values(["member_id_norm","order_date","__order_key"])
-        first_orders["next_category"] = first_orders.groupby("member_id_norm")["category"].shift(-1)
-        t = first_orders[(first_orders["category"].astype(str).str.strip() != "") & (first_orders["next_category"].astype(str).str.strip() != "")]
-        if not t.empty:
-            grp = t.groupby(["category","next_category"]).size().reset_index(name="members").sort_values("members", ascending=False).head(20)
-            total = int(grp["members"].sum()) if not grp.empty else 0
-            transition_rows = [{"from_category": r["category"], "to_category": r["next_category"], "members": int(r["members"]), "share_pct": round((float(r["members"]) / total * 100.0), 2) if total else 0.0} for _, r in grp.iterrows()]
-    return {"pair_rows": pair_rows, "transition_rows": transition_rows, "summary": {"pair_count": len(pair_rows), "transition_count": len(transition_rows), "top_pair": f"{pair_rows[0]['base_product']} → {pair_rows[0]['paired_product']}" if pair_rows else "-", "top_transition": f"{transition_rows[0]['from_category']} → {transition_rows[0]['to_category']}" if transition_rows else "-"}}
 
 
 def _ml_summary_fields(df: pd.DataFrame) -> dict[str, Any]:
@@ -1819,8 +1680,8 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             f"주요 채널은 {top_label(latest, 'channel_group_norm')}, 매출 기여 상위 상품은 {top_label(latest[latest['metric_revenue_norm']>0], 'purchase_product_name_norm')}입니다.",
         ],
         "overview": {"sessions": int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(max(buy['member_id_norm'].replace('', pd.NA).nunique(), buy['user_id_norm'].replace('', pd.NA).nunique())), "members": int(members['member_id_norm'].replace('', pd.NA).nunique()), "non_buyers": int(members[(pd.to_numeric(members.get('orders_norm',0), errors='coerce').fillna(0) <= 0)]['member_id_norm'].replace('', pd.NA).nunique()) if not members.empty else 0, "metric_source": "ga4_crm_mart"},
-        "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": build_analysis_target_payload(user), "signup_30d": build_signup_30d_insight(user)},
-        "total_view": {"member_overview": channel_panels(members, 'total', product_source_override=total_product_raw), "ml_insight": build_ml_insight(members), "purchase_pattern": build_purchase_pattern_insight(total_product_raw), "purchase_journey": build_purchase_journey_insight(members, total_start_date, end_date), "funnel_diagnostics": build_funnel_diagnostics(user, nb, buy), "segment_compare": build_segment_comparison(members), "product_affinity": build_product_affinity_transition(total_product_raw), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"ALL MEMBER {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
+        "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": build_ml_target_payload(user), "signup_30d": build_signup_30d_insight(user)},
+        "total_view": {"member_overview": channel_panels(members, 'total', product_source_override=total_product_raw), "ml_insight": build_ml_insight(members), "purchase_pattern": build_purchase_pattern_insight(total_product_raw), "purchase_journey": build_purchase_journey_insight(members, total_start_date, end_date), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"ALL MEMBER {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
     }
     if admin_daily:
         _login_users = int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique())
@@ -1956,8 +1817,6 @@ def render_page(bundle: dict, preset: dict) -> str:
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media (max-width:1380px){.hero-grid{grid-template-columns:1fr}.hero-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}.buyer-insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.product-wide-grid{grid-template-columns:1fr}.span-2,.span-4{grid-column:auto}}
 @media (max-width:960px){.page{padding:16px 14px 72px}.hero{padding:20px}.hero-kpis,.grid-4,.grid-3,.grid-2,.buyer-insight-grid,.product-wide-grid{grid-template-columns:1fr}.toolbar,.section-head{flex-direction:column;align-items:flex-start}.section-head h2{font-size:24px}.hero-copy h1{font-size:36px}.summary-card,.card{padding:20px}.chart-row{grid-template-columns:84px 1fr 56px}.donut-wrap{grid-template-columns:1fr}.donut{margin:0 auto}.span-2,.span-4{grid-column:auto}}
-
-.funnel-wrap{display:flex;flex-direction:column;gap:12px}.funnel-step{display:flex;align-items:center;gap:10px}.funnel-label{width:84px;font-size:12px;font-weight:700;color:#475569}.funnel-bar{background:linear-gradient(90deg,#1d4ed8,#60a5fa);color:#fff;border-radius:999px;padding:10px 14px;font-size:13px;font-weight:700;min-width:72px}.funnel-arrow{color:#94a3b8;font-weight:800}
 </style>
 </head>
 <body>
@@ -1965,7 +1824,7 @@ def render_page(bundle: dict, preset: dict) -> str:
 <section class="hero"><div class="hero-grid"><div class="hero-copy"><div class="eyebrow">Community Signal Style · CRM Funnel</div><h1>Member Funnel Dashboard</h1><p>External Signal 대시보드의 톤을 거의 그대로 가져오되, 회원 행동 데이터와 CRM 액션 타깃을 한 화면에서 더 넓고 선명하게 읽히도록 재구성했습니다. USER VIEW는 USER_ID 대표행 기준 액션 분석, TOTAL VIEW는 기존 회원 전체 분석입니다.</p><div class="hero-meta">__PERIOD_NAV__</div></div><div class="hero-kpis"><div class="hero-stat"><div class="label">Login Users</div><div class="value">__SESSIONS__</div></div><div class="hero-stat"><div class="label">__COUNT_LABEL__</div><div class="value">__BUYERS__</div></div><div class="hero-stat"><div class="label">__REVENUE_LABEL__</div><div class="value">__REVENUE__</div></div><div class="hero-stat"><div class="label">Non Buyers</div><div class="value">__NON_BUYERS__</div></div></div></div></section>
 <div class="toolbar"><div class="tabs"><button class="tab-btn active" data-main-target="user-view">USER VIEW</button><button class="tab-btn" data-main-target="total-view">TOTAL VIEW</button></div></div>
 <div class="summary-card"><div class="section-title">이번 구간 핵심 요약</div><ul>__LATEST_SUMMARY__</ul><div class="kpi-sub" style="margin-top:14px">상단 KPI Source · __METRIC_SOURCE__</div></div>
-<section class="panel active" id="user-view"><div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · Driver Analysis View</h2></div><div class="download-row">__DOWNLOADS__</div></div><div id="user-sections"></div></section>
+<section class="panel active" id="user-view"><div class="section-head"><div><div class="section-title">USER VIEW</div><h2>행동 데이터 · CRM 액션 뷰</h2></div><div class="download-row">__DOWNLOADS__</div></div><div id="user-sections"></div></section>
 <section class="panel" id="total-view"><div class="section-head"><div><div class="section-title">TOTAL VIEW</div><h2>기존 회원 전체 분석</h2></div></div><div id="total-sections"></div></section>
 </div>
 <script>
@@ -1983,116 +1842,9 @@ function table(rows, cols, numCols=[], id=''){ if(!rows||!rows.length) return '<
 function subTabs(group, items){ return `<div class="subtabs">${items.map((x,i)=>`<button class="subtab-btn ${i===0?'active':''}" data-group="${group}" data-target="${groupSlug(group)}-${groupSlug(x.key)}">${esc2(x.label)}</button>`).join('')}</div>`; }
 function safePanelSet(section){ const channels=(section?.channels||[]); const panels=section?.panels||{}; return channels.map(ch=>({channel:ch, ...(panels[ch]||{summary:{},age_dist:[],gender_dist:[],rows:[],category_dist:[],channel_dist:[],products:[]})})); }
 function pickAllPanel(section){ return (section?.panels?.ALL) || (safePanelSet(section)[0]) || {summary:{},rows:[],channel_dist:[],category_dist:[],age_dist:[],gender_dist:[],products:[]}; }
-function renderNonBuyer(section){ const panel=pickAllPanel(section); const cards=`<div class="grid-4 nonbuyer-grid"><div class="card"><div class="kicker">Users</div><div class="kpi">${num(panel.summary?.members ?? panel.rows?.length ?? 0)}</div><div class="kpi-sub">구매 이력이 없는 로그인 유저</div></div><div class="card"><div class="kicker">Sessions</div><div class="kpi">${num(panel.summary?.sessions ?? 0)}</div><div class="kpi-sub">해당 세그먼트 총 세션</div></div><div class="card"><div class="kicker">PDP Users</div><div class="kpi">${num(panel.summary?.pdp_users ?? 0)}</div><div class="kpi-sub">상품상세 조회 유저</div></div><div class="card"><div class="kicker">Cart Users</div><div class="kpi">${num(panel.summary?.cart_users ?? 0)}</div><div class="kpi-sub">장바구니 진입 유저</div></div><div class="card"><div class="kicker">Cart Abandon</div><div class="kpi">${num(panel.summary?.cart_abandon ?? 0)}</div><div class="kpi-sub">장바구니 이탈 유저</div></div><div class="card"><div class="kicker">High Intent</div><div class="kpi">${num(panel.summary?.high_intent ?? 0)}</div><div class="kpi-sub">PDP/ATC 기준 고의도</div></div><div class="card"><div class="kicker">Avg PV</div><div class="kpi">${Number(panel.summary?.avg_pv ?? 0).toFixed(1)}</div><div class="kpi-sub">유저당 평균 PV</div></div><div class="card"><div class="kicker">Driver First Buy</div><div class="kpi">${pct((panel.summary?.avg_first_purchase_score ?? 0)*100)}</div><div class="kpi-sub">평균 첫구매 확률</div></div><div class="card"><div class="kicker">Driver Churn</div><div class="kpi">${pct((panel.summary?.avg_churn_score ?? 0)*100)}</div><div class="kpi-sub">평균 이탈 위험</div></div><div class="card"><div class="kicker">Top Channel</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(panel.summary?.top_channel || '미분류')}</div><div class="kpi-sub">주요 유입 채널</div></div></div>`; return `<section><div class="section-head"><div><div class="section-title">NON BUYER</div><h2>비구매 유저 진단</h2></div></div>${cards}<div class="grid-2"><div class="card"><div class="section-title">CHANNEL MIX</div>${bar(panel.channel_dist)}</div><div class="card"><div class="section-title">AGE MIX</div>${bar(panel.age_dist)}</div><div class="card"><div class="section-title">DROP STAGE MIX</div>${bar(panel.drop_stage_mix)}</div><div class="card"><div class="section-title">TOP INTEREST PRODUCTS</div><div class="grid-2">${focusCards(panel.top_interest_products)}</div></div></div><div class="card">${table(panel.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['interest_product','관심 상품'],['drop_stage','Drop Stage'],['sessions','Sessions'],['pageviews','PV'],['pdp_views','PDP'],['atc','ATC'],['ml_first_purchase','1st Buy Score'],['ml_churn','Churn']],['sessions','pageviews','pdp_views','atc','ml_first_purchase','ml_churn'],'nb-table')}</div></section>`; }
+function renderNonBuyer(section){ const panel=pickAllPanel(section); const cards=`<div class="grid-4 nonbuyer-grid"><div class="card"><div class="kicker">Users</div><div class="kpi">${num(panel.summary?.members ?? panel.rows?.length ?? 0)}</div><div class="kpi-sub">구매 이력이 없는 로그인 유저</div></div><div class="card"><div class="kicker">Sessions</div><div class="kpi">${num(panel.summary?.sessions ?? 0)}</div><div class="kpi-sub">해당 세그먼트 총 세션</div></div><div class="card"><div class="kicker">PDP Users</div><div class="kpi">${num(panel.summary?.pdp_users ?? 0)}</div><div class="kpi-sub">상품상세 조회 유저</div></div><div class="card"><div class="kicker">Cart Users</div><div class="kpi">${num(panel.summary?.cart_users ?? 0)}</div><div class="kpi-sub">장바구니 진입 유저</div></div><div class="card"><div class="kicker">Cart Abandon</div><div class="kpi">${num(panel.summary?.cart_abandon ?? 0)}</div><div class="kpi-sub">장바구니 이탈 유저</div></div><div class="card"><div class="kicker">High Intent</div><div class="kpi">${num(panel.summary?.high_intent ?? 0)}</div><div class="kpi-sub">PDP/ATC 기준 고의도</div></div><div class="card"><div class="kicker">Avg PV</div><div class="kpi">${Number(panel.summary?.avg_pv ?? 0).toFixed(1)}</div><div class="kpi-sub">유저당 평균 PV</div></div><div class="card"><div class="kicker">ML First Buy</div><div class="kpi">${pct((panel.summary?.avg_first_purchase_score ?? 0)*100)}</div><div class="kpi-sub">평균 첫구매 확률</div></div><div class="card"><div class="kicker">Driver Churn</div><div class="kpi">${pct((panel.summary?.avg_churn_score ?? 0)*100)}</div><div class="kpi-sub">평균 이탈 위험</div></div><div class="card"><div class="kicker">Top Channel</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(panel.summary?.top_channel || '미분류')}</div><div class="kpi-sub">주요 유입 채널</div></div></div>`; return `<section><div class="section-head"><div><div class="section-title">NON BUYER</div><h2>비구매 유저 진단</h2></div></div>${cards}<div class="grid-2"><div class="card"><div class="section-title">CHANNEL MIX</div>${bar(panel.channel_dist)}</div><div class="card"><div class="section-title">AGE MIX</div>${bar(panel.age_dist)}</div><div class="card"><div class="section-title">DROP STAGE MIX</div>${bar(panel.drop_stage_mix)}</div><div class="card"><div class="section-title">TOP INTEREST PRODUCTS</div><div class="grid-2">${focusCards(panel.top_interest_products)}</div></div></div><div class="card">${table(panel.rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['interest_product','관심 상품'],['drop_stage','Drop Stage'],['sessions','Sessions'],['pageviews','PV'],['pdp_views','PDP'],['atc','ATC'],['ml_first_purchase','1st Buy Score'],['ml_churn','Churn']],['sessions','pageviews','pdp_views','atc','ml_first_purchase','ml_churn'],'nb-table')}</div></section>`; }
 function renderBuyer(section){ const channels=safePanelSet(section); const tabs=subTabs('buyer', channels.map(x=>({key:x.channel,label:x.channel}))); const panels=channels.map((ch,i)=>{ const orders=Number(ch.summary?.orders ?? (ch.rows?.reduce((acc,r)=>acc+Number(r.orders||0),0) || 0)); const aov=Number(ch.summary?.aov ?? (orders ? (Number(ch.summary?.revenue||0)/orders) : 0)); return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="buyer" data-panel-id="buyer-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? ch.rows?.length ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">Orders</div><div class="kpi">${num(orders)}</div></div><div class="card"><div class="kicker">AOV</div><div class="kpi">${money(aov)}</div></div><div class="card"><div class="kicker">Repeat Buyers</div><div class="kpi">${num(ch.summary?.repeat_buyers ?? 0)}</div></div><div class="card"><div class="kicker">Avg Orders / Buyer</div><div class="kpi">${Number(ch.summary?.avg_orders_per_buyer ?? 0).toFixed(2)}</div></div><div class="card"><div class="kicker">Avg Rev / Buyer</div><div class="kpi">${money(ch.summary?.avg_rev_per_buyer ?? 0)}</div></div><div class="card"><div class="kicker">Driver Repurchase</div><div class="kpi">${pct((ch.summary?.avg_repurchase_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">Driver Churn</div><div class="kpi">${pct((ch.summary?.avg_churn_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">Driver LTV</div><div class="kpi">${pct((ch.summary?.avg_ltv_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">Top Product</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(ch.summary?.top_product || '미분류')}</div></div></div><div class="buyer-insight-grid"><div class="card span-2"><div class="section-title">AGE MIX</div>${bar(ch.age_dist)}</div><div class="card"><div class="section-title">GENDER MIX</div>${donut(ch.gender_dist)}</div><div class="card"><div class="section-title">CHANNEL MIX</div>${bar(ch.channel_dist)}</div><div class="card span-4"><div class="section-title">TOP PRODUCTS</div><div class="product-wide-grid">${focusCards(ch.products,true)}</div></div><div class="card span-4"><div class="section-title">TOP RELATED PRODUCTS</div><div class="grid-2">${focusCards((ch.top_related_products||[]).map(x=>({product:x.product,buyers:x.buyers,revenue:0,category:'Related'})))}</div></div></div><div class="card">${table(ch.rows,[['member_id','Member ID'],['user_id','USER_ID'],['age','Age'],['campaign','Campaign'],['top_category','Top Category'],['purchase_product_name','구매 상품명'],['orders','Orders'],['revenue','Revenue'],['last_order_date','Last Order'],['ml_repurchase','Repurchase'],['ml_churn','Churn'],['ltv_score','LTV']],['age','orders','revenue','ml_repurchase','ml_churn','ltv_score'],`buyer-${groupSlug(ch.channel)}`)}</div></div>` }).join(''); return `<section><div class="section-head"><div><div class="section-title">BUYER</div><h2>채널별 구매 유저</h2></div>${tabs}</div>${panels}</section>`; }
 function renderProduct(section){ const channels=safePanelSet(section); const tabs=subTabs('product', channels.map(x=>({key:x.channel,label:x.channel}))); const panels=channels.map((ch,i)=>{ const topCat=(ch.category_dist||[])[0]?.label || '미분류'; const topProduct=ch.summary?.top_product || (ch.products||[])[0]?.product || '미분류'; const rows=(ch.rows||[]).map(r=>({channel_group:ch.channel, product_name:r.product_name||r.product||'', category:r.category||'', product_code:r.product_code||'', avg_age:r.avg_age||'미확인', buyers:r.buyers||0, orders:r.orders||0, orders_per_buyer:r.orders_per_buyer||0, repeat_pct:r.repeat_pct||0, new_pct:r.new_pct||0, top_channel:r.top_channel||'', rev_share_pct:r.rev_share_pct||0, revenue:r.revenue||0})); return `<div class="channel-panel ${i===0?'active':''}" data-panel-group="product" data-panel-id="product-${groupSlug(ch.channel)}" ${i===0?'':'hidden'}><div class="grid-4"><div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(ch.summary?.buyers ?? 0)}</div></div><div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(ch.summary?.revenue ?? 0)}</div></div><div class="card"><div class="kicker">Orders</div><div class="kpi">${num(ch.summary?.orders ?? 0)}</div></div><div class="card"><div class="kicker">AOV</div><div class="kpi">${money(ch.summary?.aov ?? 0)}</div></div><div class="card"><div class="kicker">Top Category</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(topCat)}</div></div><div class="card"><div class="kicker">Top Product</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(topProduct)}</div></div><div class="card"><div class="kicker">Repeat Buyer %</div><div class="kpi">${pct(ch.summary?.repeat_pct ?? 0)}</div></div><div class="card"><div class="kicker">New Buyer %</div><div class="kpi">${pct(ch.summary?.new_pct ?? 0)}</div></div><div class="card"><div class="kicker">Orders / Buyer</div><div class="kpi">${Number(ch.summary?.orders_per_buyer ?? 0).toFixed(2)}</div></div><div class="card"><div class="kicker">Top Channel</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(ch.summary?.top_channel || '미분류')}</div></div><div class="card"><div class="kicker">Avg Age</div><div class="kpi">${Number(ch.summary?.avg_age ?? 0).toFixed(1)}</div></div><div class="card"><div class="kicker">Driver Repurchase</div><div class="kpi">${pct((ch.summary?.avg_repurchase_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">Driver Churn</div><div class="kpi">${pct((ch.summary?.avg_churn_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">Driver LTV</div><div class="kpi">${pct((ch.summary?.avg_ltv_score ?? 0)*100)}</div></div><div class="card"><div class="kicker">SKU Count</div><div class="kpi">${num(ch.summary?.sku_count ?? 0)}</div></div></div><div class="grid-2"><div class="card"><div class="section-title">CATEGORY SHARE</div>${bar(ch.category_dist)}</div><div class="card"><div class="section-title">CHANNEL REVENUE MIX</div>${bar(ch.channel_dist)}</div><div class="card"><div class="section-title">BUYER TYPE MIX</div>${bar(ch.buyer_type_mix)}</div><div class="card"><div class="section-title">TOP PRODUCTS</div><div class="product-wide-grid">${focusCards(ch.products,true)}</div></div></div><div class="card">${table(rows,[['product_name','Product'],['category','Category'],['product_code','Product Code'],['avg_age','주구매 연령'],['buyers','Buyers'],['orders','Orders'],['orders_per_buyer','Orders/Buyer'],['repeat_pct','Repeat %'],['new_pct','New %'],['top_channel','Top Channel'],['rev_share_pct','Rev Share %'],['revenue','Revenue']],['buyers','orders','orders_per_buyer','repeat_pct','new_pct','rev_share_pct','revenue'],`product-${groupSlug(ch.channel)}`)}</div></div>` }).join(''); return `<section><div class="section-head"><div><div class="section-title">PRODUCT</div><h2>구매 상품 집중 분석</h2></div>${tabs}</div>${panels}</section>`; }
-
-
-function renderTotal(section){
-  const panel = pickAllPanel(section);
-  const s = panel.summary || {};
-  return `<section><div class="section-head"><div><div class="section-title">TOTAL OVERVIEW</div><h2>전체 회원 베이스 KPI</h2></div></div>
-    <div class="grid-4">
-      <div class="card"><div class="kicker">Members</div><div class="kpi">${num(s.members||0)}</div></div>
-      <div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(s.buyers||0)}</div></div>
-      <div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(s.revenue||0)}</div></div>
-      <div class="card"><div class="kicker">AOV</div><div class="kpi">${money(s.aov||0)}</div></div>
-      <div class="card"><div class="kicker">Repeat Buyers</div><div class="kpi">${num(s.repeat_buyers||0)}</div></div>
-      <div class="card"><div class="kicker">Avg Orders / Buyer</div><div class="kpi">${Number(s.avg_orders_per_buyer||0).toFixed(2)}</div></div>
-      <div class="card"><div class="kicker">Driver Repurchase</div><div class="kpi">${pct((s.avg_repurchase_score||0)*100)}</div></div>
-      <div class="card"><div class="kicker">Driver Churn</div><div class="kpi">${pct((s.avg_churn_score||0)*100)}</div></div>
-    </div>
-    <div class="grid-2">
-      <div class="card"><div class="section-title">CHANNEL MIX</div>${bar(panel.channel_dist||[])}</div>
-      <div class="card"><div class="section-title">CATEGORY MIX</div>${bar(panel.category_dist||[])}</div>
-      <div class="card"><div class="section-title">AGE MIX</div>${bar(panel.age_dist||[])}</div>
-      <div class="card"><div class="section-title">GENDER MIX</div>${donut(panel.gender_dist||[])}</div>
-    </div>
-    <div class="card">${table(panel.rows||[],[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['top_category','Top Category'],['purchase_product_name','Top Product'],['orders','Orders'],['revenue','Revenue'],['last_order_date','Last Order'],['ml_repurchase','Repurchase'],['ml_churn','Churn'],['ltv_score','LTV']],['orders','revenue','ml_repurchase','ml_churn','ltv_score'],'total-overview-table')}</div>
-  </section>`;
-}
-function renderTarget(section){
-  const cards = section?.cards || [];
-  const rows = section?.rows || [];
-  const cardHtml = cards.length ? `<div class="grid-4">${cards.map(c=>`<div class="card"><div class="kicker">${esc2(c.label||'Segment')}</div><div class="kpi">${num(c.count||0)}</div><div class="kpi-sub">Top Channel · ${esc2(c.top_channel||'미분류')}</div><div class="kpi-sub">Top Product · ${esc2(c.top_product||'미분류')}</div><div class="kpi-sub">${esc2(c.top_message||'')}</div></div>`).join('')}</div>` : '<div class="card"><div class="kpi-sub">데이터가 없습니다.</div></div>';
-  return `<section><div class="section-head"><div><div class="section-title">TARGET</div><h2>Driver Segment Targeting</h2></div></div>${cardHtml}<div class="card">${table(rows,[['member_id','Member ID'],['user_id','USER_ID'],['phone','Phone'],['channel_group','Channel'],['campaign','Campaign'],['product','Product'],['top_category','Top Category'],['dominant_driver','Dominant Driver'],['recommended_action','Action'],['priority_tier','Priority'],['repurchase_score','Repurchase'],['first_buy_score','First Buy'],['churn_score','Churn'],['ltv_score','LTV'],['next_best_category','Next Best Category'],['consent','Consent']],['repurchase_score','first_buy_score','churn_score','ltv_score','consent'], 'target-driver-table')}</div></section>`;
-}
-function renderMLInsight(section){
-  const s = section?.summary || {};
-  const segments = section?.segments || [];
-  const actions = section?.action_dist || [];
-  const rows = section?.rows || [];
-  const segHtml = segments.length ? `<div class="grid-4">${segments.map(x=>`<div class="card"><div class="kicker">${esc2(x.label||'Segment')}</div><div class="kpi">${num(x.count||0)}</div><div class="kpi-sub">Avg Score ${pct(x.avg_score||0)}</div><div class="kpi-sub">Top Channel · ${esc2(x.top_channel||'미분류')}</div><div class="kpi-sub">Top Product · ${esc2(x.top_product||'미분류')}</div><div class="kpi-sub">${esc2(x.recommended_action||'')}</div></div>`).join('')}</div>` : '';
-  return `<section><div class="section-head"><div><div class="section-title">DRIVER INSIGHT</div><h2>딥 드라이버 분석</h2></div></div>
-    <div class="grid-4">
-      <div class="card"><div class="kicker">Members</div><div class="kpi">${num(s.members||0)}</div></div>
-      <div class="card"><div class="kicker">Avg Repurchase</div><div class="kpi">${pct((s.avg_repurchase_score||0)*100)}</div></div>
-      <div class="card"><div class="kicker">Avg Churn</div><div class="kpi">${pct((s.avg_churn_score||0)*100)}</div></div>
-      <div class="card"><div class="kicker">High LTV %</div><div class="kpi">${pct(s.high_ltv_pct||0)}</div></div>
-    </div>
-    ${segHtml}
-    <div class="grid-2"><div class="card"><div class="section-title">ACTION DISTRIBUTION</div>${bar(actions)}</div><div class="card"><div class="section-title">TOP ACTION</div><div class="kpi">${esc2(s.top_action||'GENERAL')}</div><div class="kpi-sub">가장 우세한 드라이버 액션</div></div></div>
-    <div class="card">${table(rows,[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['campaign','Campaign'],['product','Product'],['dominant_driver','Dominant Driver'],['repurchase_score','Repurchase'],['first_buy_score','First Buy'],['churn_score','Churn'],['ltv_score','LTV'],['recommended_action','Action'],['next_best_category','Next Best Category']],['repurchase_score','first_buy_score','churn_score','ltv_score'],'driver-insight-table')}</div>
-  </section>`;
-}
-function renderPurchasePattern(section){
-  const s = section?.summary || {};
-  return `<section><div class="section-head"><div><div class="section-title">PURCHASE PATTERN</div><h2>상품/옵션 반복 구매 패턴</h2></div></div>
-    <div class="grid-4">
-      <div class="card"><div class="kicker">Members</div><div class="kpi">${num(s.members||0)}</div></div>
-      <div class="card"><div class="kicker">Multi Item Buyers</div><div class="kpi">${num(s.multi_item_buyers||0)}</div><div class="kpi-sub">${pct(s.multi_item_pct||0)}</div></div>
-      <div class="card"><div class="kicker">Multi Color Buyers</div><div class="kpi">${num(s.multi_color_buyers||0)}</div></div>
-      <div class="card"><div class="kicker">Multi Size Buyers</div><div class="kpi">${num(s.multi_size_buyers||0)}</div></div>
-      <div class="card"><div class="kicker">Repeat Item Buyers</div><div class="kpi">${num(s.repeat_item_buyers||0)}</div></div>
-    </div>
-    <div class="grid-2">
-      <div class="card"><div class="section-title">MULTI ITEM</div>${table(section?.multi_item_rows||[],[['member_id','Member ID'],['top_product','Top Product'],['distinct_products','Distinct Products'],['max_products_in_order','Max / Order'],['avg_products_per_order','Avg / Order'],['orders','Orders']],['distinct_products','max_products_in_order','avg_products_per_order','orders'],'pattern-multi-item')}</div>
-      <div class="card"><div class="section-title">MULTI COLOR</div>${table(section?.multi_color_rows||[],[['member_id','Member ID'],['top_product','Top Product'],['color_products','Products'],['max_colors','Max Colors'],['orders','Orders']],['color_products','max_colors','orders'],'pattern-multi-color')}</div>
-      <div class="card"><div class="section-title">MULTI SIZE</div>${table(section?.multi_size_rows||[],[['member_id','Member ID'],['top_product','Top Product'],['size_products','Products'],['max_sizes','Max Sizes'],['orders','Orders']],['size_products','max_sizes','orders'],'pattern-multi-size')}</div>
-      <div class="card"><div class="section-title">REPEAT ITEM</div>${table(section?.repeat_item_rows||[],[['member_id','Member ID'],['top_product','Top Product'],['repeat_products','Repeat Products'],['max_repeat_orders','Max Repeat Orders'],['orders','Orders']],['repeat_products','max_repeat_orders','orders'],'pattern-repeat-item')}</div>
-    </div>
-  </section>`;
-}
-
-function renderFunnelDiagnostics(section){
-  const s = section?.summary || {};
-  const steps = section?.steps || [];
-  const max = Math.max(...steps.map(x=>Number(x.count||0)),1);
-  const funnelHtml = steps.length ? `<div class="funnel-wrap">${steps.map((x,i)=>`<div class="funnel-step"><div class="funnel-label">${esc2(x.label)}</div><div class="funnel-bar" style="width:${Math.max(18,(Number(x.count||0)/max)*100)}%">${num(x.count||0)}</div>${i<steps.length-1?'<div class="funnel-arrow">→</div>':''}</div>`).join('')}</div>` : '<div class="kpi-sub">데이터가 없습니다.</div>';
-  return `<section><div class="section-head"><div><div class="section-title">FUNNEL DIAGNOSTICS</div><h2>로그인→상품상세→장바구니→구매 전환</h2></div></div>
-    <div class="grid-4">
-      <div class="card"><div class="kicker">Login Users</div><div class="kpi">${num(s.login_users||0)}</div></div>
-      <div class="card"><div class="kicker">PDP Users</div><div class="kpi">${num(s.pdp_users||0)}</div></div>
-      <div class="card"><div class="kicker">Cart Users</div><div class="kpi">${num(s.cart_users||0)}</div></div>
-      <div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(s.buyers||0)}</div></div>
-      <div class="card"><div class="kicker">PDP→Cart</div><div class="kpi">${pct(s.pdp_to_cart_rate||0)}</div></div>
-      <div class="card"><div class="kicker">Cart→Buy</div><div class="kpi">${pct(s.cart_to_buy_rate||0)}</div></div>
-    </div>
-    <div class="grid-2"><div class="card"><div class="section-title">FUNNEL FLOW</div>${funnelHtml}</div><div class="card"><div class="section-title">DROP REASONS</div>${bar(section?.drop_reasons||[])}</div></div>
-  </section>`;
-}
-function renderSegmentCompare(section){
-  const cards = section?.cards || [];
-  const rows = section?.rows || [];
-  const cardHtml = cards.length ? `<div class="grid-4">${cards.map(c=>`<div class="card"><div class="kicker">${esc2(c.label||'Segment')}</div><div class="kpi">${num(c.count||0)}</div><div class="kpi-sub">${esc2(c.top_message||'')}</div><div class="kpi-sub">Top Channel · ${esc2(c.top_channel||'미분류')}</div><div class="kpi-sub">Top Product · ${esc2(c.top_product||'미분류')}</div></div>`).join('')}</div>` : '';
-  return `<section><div class="section-head"><div><div class="section-title">SEGMENT COMPARISON</div><h2>세그먼트별 성과 비교</h2></div></div>${cardHtml}<div class="card">${table(rows,[['segment','Segment'],['members','Members'],['avg_repurchase','Repurchase'],['avg_first_buy','First Buy'],['avg_churn','Churn'],['avg_ltv','LTV'],['avg_orders','Avg Orders'],['avg_revenue','Avg Revenue'],['avg_sessions','Avg Sessions'],['avg_atc','Avg ATC'],['top_channel','Top Channel'],['top_category','Top Category']],['members','avg_repurchase','avg_first_buy','avg_churn','avg_ltv','avg_orders','avg_revenue','avg_sessions','avg_atc'],'segment-compare-table')}</div></section>`;
-}
-function renderProductAffinity(section){
-  const s = section?.summary || {};
-  return `<section><div class="section-head"><div><div class="section-title">PRODUCT AFFINITY</div><h2>같이 구매한 상품과 카테고리 전이</h2></div></div>
-    <div class="grid-4">
-      <div class="card"><div class="kicker">Affinity Pairs</div><div class="kpi">${num(s.pair_count||0)}</div></div>
-      <div class="card"><div class="kicker">Category Transitions</div><div class="kpi">${num(s.transition_count||0)}</div></div>
-      <div class="card"><div class="kicker">Top Pair</div><div class="kpi" style="font-size:20px;line-height:1.25;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(s.top_pair||'-')}</div></div>
-      <div class="card"><div class="kicker">Top Transition</div><div class="kpi" style="font-size:20px;line-height:1.25;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(s.top_transition||'-')}</div></div>
-    </div>
-    <div class="grid-2">
-      <div class="card"><div class="section-title">TOP PRODUCT PAIRS</div>${table(section?.pair_rows||[],[['base_product','Base Product'],['paired_product','Paired Product'],['orders','Orders'],['support_pct','Support %'],['confidence_pct','Confidence %'],['lift','Lift']],['orders','support_pct','confidence_pct','lift'],'product-affinity-pairs')}</div>
-      <div class="card"><div class="section-title">CATEGORY TRANSITIONS</div>${table(section?.transition_rows||[],[['from_category','From'],['to_category','To'],['members','Members'],['share_pct','Share %']],['members','share_pct'],'product-affinity-transitions')}</div>
-    </div>
-  </section>`;
-}
-
 
 function renderSignup30(section){ const s=section?.summary||{}; return `<section><div class="section-head"><div><div class="section-title">SIGNUP 30D</div><h2>가입 후 30일 이내 전환 / 이탈</h2></div></div><div class="grid-4"><div class="card"><div class="kicker">30D Signups</div><div class="kpi">${num(s.signups_30d||0)}</div></div><div class="card"><div class="kicker">1st Purchase ≤30D</div><div class="kpi">${num(s.first_purchase_within_30d||0)} <span class="sub">(${pct(s.first_purchase_within_30d_pct||0)})</span></div></div><div class="card"><div class="kicker">No Purchase ≤30D</div><div class="kpi">${num(s.signup_30d_no_purchase||0)} <span class="sub">(${pct(s.signup_30d_no_purchase_pct||0)})</span></div></div><div class="card"><div class="kicker">Touchable</div><div class="kpi">${num(s.touchable_users||0)} <span class="sub">(${pct(s.touchable_users_pct||0)})</span></div></div></div><div class="grid-2"><div class="card"><div class="section-title">CHANNEL MIX</div>${bar(section?.channel_dist||[])}</div><div class="card"><div class="section-title">PAID DETAIL MIX</div>${bar(section?.paid_detail_dist||[])}</div></div><div class="card">${table(section?.rows||[],[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['paid_detail','Paid Detail'],['campaign','Campaign'],['days_since_signup','Days Since Signup'],['first_purchase_within_30d','1st Purchase<=30D'],['signup_30d_no_purchase','No Purchase<=30D'],['touchable','Touchable'],['purchase_product_name','Purchase Product']],['days_since_signup'],'signup30-table')}</div></section>`; }
 function renderPurchaseJourney(section){
@@ -2112,7 +1864,7 @@ function bindUi(){
 function init(bundle){
   BUNDLE = bundle;
   document.getElementById('user-sections').innerHTML = renderNonBuyer(BUNDLE.user_view.non_buyer) + renderSignup30(BUNDLE.user_view.signup_30d || {}) + renderBuyer(BUNDLE.user_view.buyer) + renderProduct(BUNDLE.user_view.product) + renderTarget(BUNDLE.user_view.target);
-  document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview) + renderFunnelDiagnostics(BUNDLE.total_view.funnel_diagnostics || {}) + renderSegmentCompare(BUNDLE.total_view.segment_compare || {}) + renderMLInsight(BUNDLE.total_view.ml_insight || {}) + renderPurchasePattern(BUNDLE.total_view.purchase_pattern || {}) + renderProductAffinity(BUNDLE.total_view.product_affinity || {}) + renderPurchaseJourney(BUNDLE.total_view.purchase_journey || {});
+  document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview) + renderPurchaseJourney(BUNDLE.total_view.purchase_journey || {}) + renderMLInsight(BUNDLE.total_view.ml_insight || {}) + renderPurchasePattern(BUNDLE.total_view.purchase_pattern || {});
 }
 async function tryFetchBundle(paths){
   for(const bundlePath of paths){
