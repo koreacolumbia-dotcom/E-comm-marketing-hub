@@ -184,6 +184,10 @@ POWERLINK_CACHE_PATH = os.getenv(
     "DAILY_DIGEST_POWERLINK_CACHE_PATH",
     os.path.join(DATA_DIR, "brand_powerlink_snapshot.json"),
 ).strip()
+POWERLINK_HISTORY_PATH = os.getenv(
+    "DAILY_DIGEST_POWERLINK_HISTORY_PATH",
+    os.path.join(DATA_DIR, "brandsearch_history.json"),
+).strip()
 POWERLINK_ENABLED = os.getenv("DAILY_DIGEST_POWERLINK_ENABLED", "true").strip().lower() in ("1", "true", "yes", "y")
 POWERLINK_USE_PLAYWRIGHT = os.getenv("DAILY_DIGEST_POWERLINK_USE_PLAYWRIGHT", "true").strip().lower() in ("1", "true", "yes", "y")
 POWERLINK_SCREENSHOT_DIR = os.getenv(
@@ -1348,7 +1352,7 @@ def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str,
             "brand": brand,
             "query": brand,
             "status": "empty",
-            "status_label": "파워링크 박스 미검출",
+            "status_label": "브랜드검색 박스 미검출",
             "headline": "",
             "main_copy": "",
             "sub_copy": "",
@@ -1402,7 +1406,7 @@ def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str,
         "brand": brand,
         "query": brand,
         "status": "ok" if valid_signal else "empty",
-        "status_label": "수집 성공" if valid_signal else "파워링크 박스 미검출",
+        "status_label": "수집 성공" if valid_signal else "브랜드검색 박스 미검출",
         "headline": headline if valid_signal else "",
         "main_copy": main_copy if valid_signal else "",
         "sub_copy": sub_copy if valid_signal else "",
@@ -1568,7 +1572,7 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
         item["cards"] = []
         item["keyword_highlights"] = []
         item["status"] = "empty"
-        item["status_label"] = "파워링크 박스 미검출"
+        item["status_label"] = "브랜드검색 박스 미검출"
     return item
 
 
@@ -1708,7 +1712,7 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                     "brand": brand,
                     "query": brand,
                     "status": "empty",
-                    "status_label": "파워링크 박스 미검출",
+                    "status_label": "브랜드검색 박스 미검출",
                     "headline": "",
                     "main_copy": "",
                     "sub_copy": "",
@@ -1728,8 +1732,65 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
             write_json(cache_path, {"collected_at": now_kst, "brands": out})
         except Exception as e:
             print(f"[WARN] could not write powerlink cache: {type(e).__name__}: {e}")
+    try:
+        update_brandsearch_history_cache(out, dt.datetime.now(ZoneInfo("Asia/Seoul")).date())
+    except Exception as e:
+        print(f"[WARN] could not update brandsearch history cache: {type(e).__name__}: {e}")
     return out
 
+
+
+def _brandsearch_variant_signature(item: dict) -> str:
+    sig = _brandsearch_compare_signature(item)
+    return json.dumps(sig, ensure_ascii=False, sort_keys=True)
+
+
+def update_brandsearch_history_cache(items: Optional[List[dict]], run_date: dt.date) -> dict:
+    path = (POWERLINK_HISTORY_PATH or "").strip()
+    if not path:
+        return {}
+    history = read_json(path) or {}
+    by_date = history.get("by_date", {}) if isinstance(history, dict) else {}
+    date_key = ymd(run_date)
+    day_bucket = by_date.get(date_key, {}) if isinstance(by_date, dict) else {}
+
+    for item in (items or []):
+        brand = str((item or {}).get("brand", "")).strip()
+        if not brand:
+            continue
+        variants = day_bucket.get(brand, [])
+        if not isinstance(variants, list):
+            variants = []
+        sig = _brandsearch_variant_signature(item)
+        if not any(_brandsearch_variant_signature(v) == sig for v in variants):
+            variants.append(dict(item))
+        day_bucket[brand] = variants[:5]
+
+    by_date[date_key] = day_bucket
+    history = {"by_date": by_date, "updated_at": dt.datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S")}
+    write_json(path, history)
+    return history
+
+
+def get_brandsearch_variants_for_date(target_date: dt.date) -> dict:
+    path = (POWERLINK_HISTORY_PATH or "").strip()
+    history = read_json(path) or {}
+    by_date = history.get("by_date", {}) if isinstance(history, dict) else {}
+    return by_date.get(ymd(target_date), {}) if isinstance(by_date, dict) else {}
+
+
+def _brandsearch_ab_changed_parts(variants: list[dict]) -> list[str]:
+    if not variants or len(variants) < 2:
+        return []
+    base = variants[0]
+    parts = []
+    seen = set()
+    for other in variants[1:]:
+        for p in _brandsearch_changed_parts(other, base):
+            if p not in seen:
+                seen.add(p)
+                parts.append(p)
+    return parts
 
 def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_path: Optional[str] = None) -> List[dict]:
     brands = [str(x).strip() for x in (brands or POWERLINK_BRANDS) if str(x).strip()]
@@ -1801,7 +1862,7 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
                 "brand": brand,
                 "query": brand,
                 "status": "empty",
-                "status_label": "파워링크 박스 미검출",
+                "status_label": "브랜드검색 박스 미검출",
                 "headline": "",
                 "main_copy": "",
                 "sub_copy": "",
@@ -1823,6 +1884,10 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
             write_json(cache_path, {"collected_at": now_kst, "brands": out})
         except Exception as e:
             print(f"[WARN] could not write powerlink cache: {type(e).__name__}: {e}")
+    try:
+        update_brandsearch_history_cache(out, dt.datetime.now(ZoneInfo("Asia/Seoul")).date())
+    except Exception as e:
+        print(f"[WARN] could not update brandsearch history cache: {type(e).__name__}: {e}")
     return out
 
 
@@ -3567,6 +3632,73 @@ def build_bundle(
         "brand_powerlink_status": brand_powerlink_status or [],
     }
 
+
+def _brandsearch_compare_signature(item: dict) -> dict:
+    tags = [str(x).strip() for x in (item.get("tags", []) or item.get("keyword_highlights", []) or []) if str(x).strip()]
+    cards = []
+    for c in (item.get("cards_detail", []) or []):
+        name = str((c or {}).get("name", "")).strip()
+        if name:
+            cards.append(name)
+    if not cards:
+        cards = [str(x).strip() for x in (item.get("cards", []) or []) if str(x).strip()]
+    return {
+        "headline": str(item.get("headline", "")).strip(),
+        "main_copy": str(item.get("main_copy", "")).strip(),
+        "sub_copy": str(item.get("sub_copy", "")).strip(),
+        "tags": tags[:6],
+        "cards": cards[:4],
+        "hero_image": str(item.get("hero_image", "") or item.get("capture_path", "") or "").strip(),
+    }
+
+
+def _brandsearch_changed_parts(current: dict, prev: dict) -> list[str]:
+    cur = _brandsearch_compare_signature(current)
+    old = _brandsearch_compare_signature(prev)
+    parts = []
+    if cur["headline"] != old["headline"]:
+        parts.append("대표문구")
+    if cur["main_copy"] != old["main_copy"] or cur["sub_copy"] != old["sub_copy"]:
+        parts.append("서브카피")
+    if cur["tags"] != old["tags"]:
+        parts.append("태그")
+    if cur["cards"] != old["cards"]:
+        parts.append("하단 카드")
+    if cur["hero_image"] != old["hero_image"]:
+        parts.append("대표 이미지")
+    return parts
+
+
+def enrich_brandsearch_status_with_prev_day(statuses: Optional[List[dict]], end_date: dt.date) -> List[dict]:
+    current_items = [dict(x or {}) for x in (statuses or [])]
+    prev_bpath = bundle_path("daily", end_date - dt.timedelta(days=1))
+    prev_bundle = read_json(prev_bpath) or {}
+    prev_items = prev_bundle.get("brand_powerlink_status", []) or []
+    prev_map = {str((x or {}).get("brand", "")).strip(): dict(x or {}) for x in prev_items if str((x or {}).get("brand", "")).strip()}
+
+    same_day_variants_map = get_brandsearch_variants_for_date(end_date)
+
+    out = []
+    for item in current_items:
+        brand = str(item.get("brand", "")).strip()
+        prev = prev_map.get(brand)
+        changed_parts = _brandsearch_changed_parts(item, prev) if prev else []
+        is_changed = bool(changed_parts)
+        variants = same_day_variants_map.get(brand, []) if isinstance(same_day_variants_map, dict) else []
+        variants = [dict(v or {}) for v in variants if isinstance(v, dict)]
+        ab_flag = len(variants) >= 2
+        ab_changed_parts = _brandsearch_ab_changed_parts(variants)
+
+        item["change_flag"] = is_changed
+        item["change_label"] = "변동" if is_changed else ""
+        item["changed_parts"] = changed_parts
+        item["ab_flag"] = ab_flag
+        item["ab_label"] = "A/B" if ab_flag else ""
+        item["ab_variant_count"] = len(variants)
+        item["ab_changed_parts"] = ab_changed_parts
+        out.append(item)
+    return out
+
 def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str]) -> dict:
     m = bundle.get("meta", {})
     mode = (m.get("mode") or "daily").lower()
@@ -3627,7 +3759,7 @@ def rebuild_runtime_objects_from_bundle(bundle: dict, image_map: Dict[str, str])
         channel_detail_map = {"Other": pd.DataFrame(bundle.get("other_detail", []))}
     paid_media_compare = pd.DataFrame(bundle.get("paid_media_compare", []))
     weather_forecast = bundle.get("weather_forecast", {}) or {}
-    brand_powerlink_status = bundle.get("brand_powerlink_status", []) or []
+    brand_powerlink_status = enrich_brandsearch_status_with_prev_day(bundle.get("brand_powerlink_status", []) or [], end_date=end_date)
 
     return {
         "w": w,
@@ -4345,11 +4477,34 @@ def render_page_html(
             )
         card_tiles_html = f"<div class='mt-3 grid grid-cols-3 gap-2'>{''.join(card_tiles)}</div>" if card_tiles else ""
 
+        badge_list = []
+        if item.get("ab_flag"):
+            badge_list.append("<div class='rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700'>A/B</div>")
+        if item.get("change_flag"):
+            badge_list.append("<div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div>")
+        badges_html = f"<div class='flex items-center gap-1.5'>{''.join(badge_list)}</div>" if badge_list else ""
+
+        changed_parts = [str(x).strip() for x in (item.get("changed_parts", []) or []) if str(x).strip()]
+        changed_parts_html = ""
+        if changed_parts:
+            changed_parts_html = f"<div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: {esc(' · '.join(changed_parts[:3]))}</div>"
+
+        ab_changed_parts = [str(x).strip() for x in (item.get("ab_changed_parts", []) or []) if str(x).strip()]
+        ab_changed_parts_html = ""
+        if item.get("ab_flag"):
+            ab_label = f"A/B {int(item.get('ab_variant_count', 0) or 0)}안"
+            if ab_changed_parts:
+                ab_label += " · " + " · ".join(ab_changed_parts[:3])
+            ab_changed_parts_html = f"<div class='mt-1 text-[10px] font-semibold text-violet-700'>{esc(ab_label)}</div>"
+
         brand_powerlink_rows.append(f"""
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
-          <div>
-            <div class="text-[15px] font-black tracking-tight text-slate-900">{brand}</div>
-            <div class="mt-1 text-[11px] text-slate-400">{esc(item.get('collected_at', ''))}</div>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-[15px] font-black tracking-tight text-slate-900">{brand}</div>
+              <div class="mt-1 text-[11px] text-slate-400">{esc(item.get('collected_at', ''))}</div>
+            </div>
+            {badges_html}
           </div>
           <div class="mt-3 flex items-start gap-4">
             {hero_html}
@@ -4357,6 +4512,8 @@ def render_page_html(
               <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">{title_line}</div>
               <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700">{desc_html}</div>
               <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
+              {changed_parts_html}
+              {ab_changed_parts_html}
             </div>
           </div>
           {card_tiles_html}
@@ -4368,8 +4525,8 @@ def render_page_html(
         <div class="report-card mt-6 rounded-2xl border border-slate-200 bg-white/70 p-4">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">브랜드별 파워링크 현황</div>
-              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준</div>
+              <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">브랜드검색 현황</div>
+              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B 표시</div>
             </div>
             <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">{len(brand_powerlink_rows)} brands</div>
           </div>
@@ -5483,7 +5640,7 @@ def build_one(
     category_pdp_trend, pdp_series = get_category_pdp_view_trend_bq(end_date=end_date)
     search = get_search_trends(client, end_date=end_date)
     weather_forecast = get_weekly_weather_forecast(end_date=end_date)
-    brand_powerlink_status = fetch_brand_powerlink_snapshot()
+    brand_powerlink_status = enrich_brandsearch_status_with_prev_day(fetch_brand_powerlink_snapshot(), end_date=end_date)
 
     bundle = build_bundle(
         w=w,
@@ -5637,10 +5794,11 @@ def main():
 
     daily_window = build_window(latest_end, "daily")
     yoy_target = daily_window.yoy_end
+    prev_day = latest_end - dt.timedelta(days=1)
 
-    dates = sorted(set([latest_end, yoy_target]))
+    dates = sorted(set([prev_day, latest_end, yoy_target]))
     print(
-        f"[INFO] Daily-only targeted rebuild mode: latest={ymd(latest_end)}, yoy={ymd(yoy_target)} | "
+        f"[INFO] Daily-only targeted rebuild mode: prev={ymd(prev_day)}, latest={ymd(latest_end)}, yoy={ymd(yoy_target)} | "
         "existing other daily/weekly outputs are kept as-is"
     )
 
