@@ -211,6 +211,64 @@ def build_ml_target_payload(user: pd.DataFrame) -> dict:
     return {"cards": cards, "rows": rows}
 
 
+def build_analysis_target_payload(user: pd.DataFrame) -> dict:
+    work = user.copy()
+    if work.empty:
+        return {"cards": [{"label": "General Drivers", "count": 0, "top_channel": "미분류", "top_product": "미분류", "top_message": "GENERAL"}], "rows": []}
+
+    if "ml_action_type" not in work.columns or (work["ml_action_type"].astype(str).str.strip() == "").all():
+        work = _compute_driver_scores_from_frame(work)
+    if "driver_segment_label" not in work.columns:
+        work["driver_segment_label"] = "General Drivers"
+    work["driver_segment_label"] = work["driver_segment_label"].astype(str).replace({"": "General Drivers", "nan": "General Drivers"}).fillna("General Drivers")
+    if "recommended_message_norm" not in work.columns:
+        work["recommended_message_norm"] = work.get("ml_action_type", pd.Series(["GENERAL"] * len(work), index=work.index)).astype(str)
+    else:
+        base_msg = work["recommended_message_norm"].astype(str)
+        act = work.get("ml_action_type", pd.Series(["GENERAL"] * len(work), index=work.index)).astype(str)
+        work["recommended_message_norm"] = np.where(base_msg.str.strip() != "", base_msg, act)
+
+    if "consent_norm" not in work.columns:
+        work["consent_norm"] = 0
+    score_cols = [c for c in ["ltv_score", "repurchase_30d_score", "first_purchase_30d_score", "churn_60d_score"] if c in work.columns]
+    if score_cols:
+        work["driver_score"] = pd.to_numeric(work[score_cols], errors="coerce").max(axis=1)
+        work = work.sort_values(score_cols + ["orders_norm", "metric_revenue_norm"], ascending=[False]*len(score_cols) + [False, False], na_position="last")
+    else:
+        work["driver_score"] = 0.0
+
+    cards = []
+    for label, sdf in work.groupby("driver_segment_label", dropna=False):
+        sdf = sdf.copy()
+        if sdf.empty:
+            continue
+        member_base = sdf["member_id_norm"] if "member_id_norm" in sdf.columns else pd.Series([""] * len(sdf), index=sdf.index)
+        user_base = sdf["user_id_norm"] if "user_id_norm" in sdf.columns else pd.Series([""] * len(sdf), index=sdf.index)
+        uniq = member_base.where(member_base.astype(str).str.strip() != "", user_base).replace("", pd.NA).nunique()
+        cards.append({
+            "label": str(label) or "General Drivers",
+            "count": int(uniq),
+            "top_channel": top_label(sdf, "channel_group_norm", "미분류"),
+            "top_product": top_label(sdf, "purchase_product_name_norm", "미분류"),
+            "top_message": top_label(sdf, "ml_action_type", "GENERAL"),
+        })
+    cards = sorted(cards, key=lambda x: (-x.get("count", 0), x.get("label", "")))
+    if not cards:
+        cards = [{"label": "General Drivers", "count": int(len(work.index)), "top_channel": top_label(work, "channel_group_norm", "미분류"), "top_product": top_label(work, "purchase_product_name_norm", "미분류"), "top_message": top_label(work, "ml_action_type", "GENERAL")}]
+
+    rows = rows_from_df(
+        work.head(max(UI_MAX_TARGET_ROWS, 300)),
+        {
+            "member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group",
+            "campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product",
+            "driver_segment_label":"driver_segment","ml_action_type":"recommended_message",
+            "repurchase_30d_score":"repurchase_score","first_purchase_30d_score":"first_buy_score",
+            "churn_60d_score":"churn_score","ltv_score":"ltv_score","consent_norm":"consent"
+        }
+    )
+    return {"cards": cards, "rows": rows}
+
+
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
@@ -888,26 +946,28 @@ def _minmax01(s: pd.Series) -> pd.Series:
         return pd.Series([0.0] * len(x), index=x.index, dtype=float)
     return ((x - mn) / (mx - mn)).clip(lower=0.0, upper=1.0)
 
-def _safe_quantile(s: pd.Series | Any, q: float, default: float = 0.0) -> float:
+def _series_from_frame(df: pd.DataFrame, col: str, default: float | str = 0.0) -> pd.Series:
+    if col in df.columns:
+        s = df[col]
+    else:
+        s = pd.Series([default] * len(df), index=df.index)
+    return s
+
+def _safe_quantile(s: Any, q: float, default: float = 0.0) -> float:
     try:
-        x = pd.to_numeric(s, errors="coerce")
-        if not isinstance(x, pd.Series):
-            x = pd.Series(x)
-        x = x.replace([np.inf, -np.inf], np.nan).dropna()
+        if s is None:
+            return float(default)
+        if not isinstance(s, pd.Series):
+            s = pd.Series(s)
+        x = pd.to_numeric(s, errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
         if x.empty:
             return float(default)
         val = x.quantile(q)
-        if pd.isna(val):
+        if pd.isna(val) or val is None:
             return float(default)
         return float(val)
     except Exception:
         return float(default)
-
-
-def _series_from_frame(df: pd.DataFrame, col: str, default: Any = 0.0) -> pd.Series:
-    if col in df.columns:
-        return pd.to_numeric(df[col], errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(default)
-    return pd.Series([default] * len(df), index=df.index, dtype=float)
 
 def _analysis_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     work = df.copy()
@@ -1018,16 +1078,15 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
 
     X, feature_cols = _analysis_features(out)
 
-    orders = _series_from_frame(out, "orders_norm", 0.0)
-    if "metric_revenue_norm" in out.columns:
-        revenue = _series_from_frame(out, "metric_revenue_norm", 0.0)
-    else:
-        revenue = _series_from_frame(out, "revenue_norm", 0.0)
-    recency = _series_from_frame(out, "recency_days_calc", 365.0)
-    add_to_cart = _series_from_frame(out, "add_to_cart_norm", 0.0)
-    pdp = _series_from_frame(out, "product_view_count_norm", 0.0)
-    tenure = _series_from_frame(out, "tenure_days_calc", 0.0)
-    sessions = _series_from_frame(out, "sessions_norm", 0.0)
+    orders = pd.to_numeric(_series_from_frame(out, "orders_norm", 0.0), errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    metric_rev = pd.to_numeric(_series_from_frame(out, "metric_revenue_norm", 0.0), errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    revenue_raw = pd.to_numeric(_series_from_frame(out, "revenue_norm", 0.0), errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    revenue = metric_rev.where(metric_rev > 0, revenue_raw).fillna(0.0)
+    recency = pd.to_numeric(_series_from_frame(out, "recency_days_calc", 365.0), errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(365.0)
+    add_to_cart = pd.to_numeric(_series_from_frame(out, "add_to_cart_norm", 0.0), errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    pdp = pd.to_numeric(_series_from_frame(out, "product_view_count_norm", 0.0), errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    tenure = pd.to_numeric(_series_from_frame(out, "tenure_days_calc", 0.0), errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    sessions = pd.to_numeric(_series_from_frame(out, "sessions_norm", 0.0), errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
     repeat_rev_threshold = _safe_quantile(revenue[revenue > 0], 0.60, 0.0)
     churn_recency_threshold = max(45.0, _safe_quantile(recency[orders >= 1], 0.70, 45.0))
@@ -1071,11 +1130,10 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
 
     if "top_category_norm" not in out.columns:
         out["top_category_norm"] = ""
-    product_name_series = out["purchase_product_name_norm"].astype(str) if "purchase_product_name_norm" in out.columns else pd.Series([""] * len(out), index=out.index, dtype=object)
     out["next_best_category"] = np.where(
         out["top_category_norm"].astype(str).str.strip() != "",
         out["top_category_norm"].astype(str),
-        np.where(product_name_series.str.contains("SHOE|BOOT|OUTDRY|CLOG", case=False, na=False), "Footwear", "General")
+        np.where(out.get("purchase_product_name_norm", pd.Series([""] * len(out), index=out.index)).astype(str).str.contains("SHOE|BOOT|OUTDRY|CLOG", case=False, na=False), "Footwear", "General")
     )
 
     out["ml_action_type"] = [
@@ -1086,6 +1144,23 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
         _priority_tier_from_scores(float(r), float(c), float(l))
         for r, c, l in zip(out["repurchase_30d_score"], out["churn_60d_score"], out["ltv_score"])
     ]
+    out["driver_segment_label"] = np.select(
+        [
+            out["ml_action_type"].eq("VIP_UPSELL"),
+            out["ml_action_type"].eq("CHURN_PREVENTION"),
+            out["ml_action_type"].eq("RETENTION_REPURCHASE"),
+            out["ml_action_type"].eq("FIRST_PURCHASE_NUDGE"),
+            out["ml_action_type"].eq("CATEGORY_CROSSSELL"),
+        ],
+        [
+            "High Value Drivers",
+            "Churn Risk Drivers",
+            "Repeat Purchase Drivers",
+            "First Buy Drivers",
+            "Category Cross-sell Drivers",
+        ],
+        default="General Drivers",
+    )
 
     out.attrs["driver_importance"] = {
         "repeat": rep_imp.head(12).to_dict(),
@@ -1098,7 +1173,6 @@ def _compute_driver_scores_from_frame(user_df: pd.DataFrame) -> pd.DataFrame:
         "top_ltv": top_ltv,
     }
     return out
-
 
 def build_deep_driver_insight(df: pd.DataFrame) -> dict:
     work = _compute_driver_scores_from_frame(df)
@@ -1691,7 +1765,7 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
             f"주요 채널은 {top_label(latest, 'channel_group_norm')}, 매출 기여 상위 상품은 {top_label(latest[latest['metric_revenue_norm']>0], 'purchase_product_name_norm')}입니다.",
         ],
         "overview": {"sessions": int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(max(buy['member_id_norm'].replace('', pd.NA).nunique(), buy['user_id_norm'].replace('', pd.NA).nunique())), "members": int(members['member_id_norm'].replace('', pd.NA).nunique()), "non_buyers": int(members[(pd.to_numeric(members.get('orders_norm',0), errors='coerce').fillna(0) <= 0)]['member_id_norm'].replace('', pd.NA).nunique()) if not members.empty else 0, "metric_source": "ga4_crm_mart"},
-        "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": build_ml_target_payload(user), "signup_30d": build_signup_30d_insight(user)},
+        "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": build_analysis_target_payload(user), "signup_30d": build_signup_30d_insight(user)},
         "total_view": {"member_overview": channel_panels(members, 'total', product_source_override=total_product_raw), "ml_insight": build_ml_insight(members), "purchase_pattern": build_purchase_pattern_insight(total_product_raw), "purchase_journey": build_purchase_journey_insight(members, total_start_date, end_date), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"ALL MEMBER {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
     }
     if admin_daily:
