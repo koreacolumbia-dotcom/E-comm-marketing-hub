@@ -2,9 +2,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Competitor Outdoor Product Intelligence Dashboard (final patched v5)
+Competitor Outdoor Product Intelligence Dashboard (final patched v6)
 - Single-file crawler + analyzer + dashboard builder
-- Auto-discovery friendly: works without manual document.querySelector debugging
+- Excel-driven category crawl: category URLs come from 카테고리_정리.xlsx
+- No category/gender inference fallback: use Excel mapping as source of truth
 - Brand-aware URL filtering + detail-link fallback + generic selector fallback
 - Outputs:
   reports/competitor_intel/raw_products.csv
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 # === FORCE EXCEL PATH (USER REPO) ===
 EXCEL_CATEGORY_PATH = "카테고리_정리.xlsx"  # base name only; suffixes like (3) are auto-ignored
+STRICT_EXCEL_CATEGORY_MODE = True
 
 
 import os
@@ -571,8 +573,12 @@ _apply_category_master_seed_urls()
 
 
 def get_hard_category_from_url(url: str = "", brand: str = "") -> str:
-    """No-inference mode stub: hard URL category mapping disabled."""
+    b = _normalize_brand_name(brand)
+    row = CATEGORY_MASTER["url_map"].get((b, canonicalize_url(url)))
+    if row:
+        return row.get("item_category", "") or ""
     return ""
+
 
 def resolve_master_category(brand: str, source_category_url: str = "", source_category: str = "", breadcrumb_text: str = "", name: str = "", description: str = "") -> str:
     b = _normalize_brand_name(brand)
@@ -580,6 +586,8 @@ def resolve_master_category(brand: str, source_category_url: str = "", source_ca
     row = CATEGORY_MASTER["url_map"].get((b, key))
     if row:
         return row.get("item_category", "") or ""
+    if STRICT_EXCEL_CATEGORY_MODE:
+        return ""
     return normalize_source_category(source_category)
 
 
@@ -588,6 +596,8 @@ def resolve_master_gender(brand: str, source_category_url: str = "", source_cate
     row = CATEGORY_MASTER["url_map"].get((b, canonicalize_url(source_category_url)))
     if row:
         return row.get("gender", "") or ""
+    if STRICT_EXCEL_CATEGORY_MODE:
+        return ""
     return _normalize_gender_leaf(raw_gender)
 
 
@@ -1334,7 +1344,7 @@ def extract_discovery_price_bundle(driver) -> Tuple[str, str, str]:
 
 
 def infer_gender(name: str, description: str, raw_gender: str, brand: str = "", source_category: str = "", source_category_url: str = "", breadcrumb_text: str = "") -> str:
-    return resolve_master_gender(brand, source_category_url, source_category, breadcrumb_text, raw_gender, name, description) or _normalize_gender_leaf(raw_gender)
+    return resolve_master_gender(brand, source_category_url, source_category, breadcrumb_text, raw_gender, name, description)
 
 def infer_season(name: str, description: str, raw_season: str) -> str:
     return safe_text(raw_season)
@@ -1584,6 +1594,8 @@ def normalize_source_category(text: str) -> str:
 
 
 def infer_item_category(name: str, description: str, source_category: str = "") -> str:
+    if STRICT_EXCEL_CATEGORY_MODE:
+        return safe_text(source_category)
     return normalize_source_category(source_category)
 
 def extract_raw_keywords(name: str, description: str) -> List[str]:
@@ -1763,7 +1775,7 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     master_item = resolve_master_category(raw.brand, getattr(raw, "source_category_url", ""), source_item, getattr(raw, "breadcrumb_text", ""), raw.name, raw.description)
 
     final_item = ""
-    for candidate in [plp_item, source_item, master_item]:
+    for candidate in [master_item, source_item, plp_item]:
         if candidate in explicit_items:
             final_item = candidate
             break
@@ -1771,10 +1783,16 @@ def analyze_product(raw: ProductRaw) -> ProductAnalyzed:
     plp_gender = safe_text(getattr(raw, "plp_gender", ""))
     master_gender = resolve_master_gender(raw.brand, getattr(raw, "source_category_url", ""), source_item, getattr(raw, "breadcrumb_text", ""), raw.gender_text, raw.name, raw.description)
     final_gender = ""
-    for candidate in [plp_gender, safe_text(raw.gender_text), master_gender]:
+    for candidate in [master_gender, plp_gender, safe_text(raw.gender_text)]:
         if candidate in explicit_genders:
             final_gender = candidate
             break
+
+    if STRICT_EXCEL_CATEGORY_MODE:
+        if final_item not in explicit_items:
+            final_item = ""
+        if final_gender not in explicit_genders:
+            final_gender = ""
 
     final_season = safe_text(raw.season_text)
 
@@ -1959,6 +1977,9 @@ class AutoCompetitorCrawler:
     def discover_listing_urls(self, cfg: BrandConfig) -> List[str]:
         explicit = [canonicalize_url(u) for u in (cfg.seed_urls or []) if canonicalize_url(u)]
         explicit = [u for u in explicit if same_domain(u, cfg.domain)]
+        if STRICT_EXCEL_CATEGORY_MODE:
+            print(f"  - using Excel PLP seeds only: {len(explicit)}")
+            return unique_preserve_order(explicit)[:MAX_DISCOVERED_LISTING_URLS]
         if explicit and not (len(explicit) == 1 and explicit[0].rstrip('/') in {f"https://{cfg.domain}", f"https://{cfg.domain}/"}):
             print(f"  - using explicit PLP seeds: {len(explicit)}")
             return unique_preserve_order(explicit)[:MAX_DISCOVERED_LISTING_URLS]
@@ -2022,8 +2043,12 @@ class AutoCompetitorCrawler:
         elif cfg.brand == "COLUMBIA":
             source_context = extract_columbia_listing_context(self.driver, listing_url) or listing_url
 
-        master_item = resolve_master_category(cfg.brand, listing_url, source_context, source_context) or normalize_source_category(source_context)
-        plp_gender = resolve_master_gender(cfg.brand, listing_url, source_context, source_context, "", "", "") or extract_plp_gender(cfg.brand, listing_url, source_context)
+        master_item = resolve_master_category(cfg.brand, listing_url, source_context, source_context)
+        plp_gender = resolve_master_gender(cfg.brand, listing_url, source_context, source_context, "", "", "")
+        if (not master_item) and not STRICT_EXCEL_CATEGORY_MODE:
+            master_item = normalize_source_category(source_context)
+        if (not plp_gender) and not STRICT_EXCEL_CATEGORY_MODE:
+            plp_gender = extract_plp_gender(cfg.brand, listing_url, source_context)
 
         self._scroll_to_end()
 
@@ -2310,6 +2335,19 @@ class AutoCompetitorCrawler:
                 product_urls.extend(urls)
             except Exception as e:
                 print(f"    [WARN] listing failed: {e}")
+
+        dedup_meta = {}
+        for meta in product_urls:
+            key = canonicalize_url(meta.get("url", ""))
+            if not key:
+                continue
+            if key not in dedup_meta:
+                dedup_meta[key] = meta
+                continue
+            for fld in ["source_category", "source_category_url", "plp_item_category", "plp_gender", "image_url", "listing_name", "listing_price_text"]:
+                if not dedup_meta[key].get(fld) and meta.get(fld):
+                    dedup_meta[key][fld] = meta.get(fld)
+        product_urls = list(dedup_meta.values())
 
         if len(product_urls) > cfg.max_products:
             product_urls = product_urls[:cfg.max_products]
@@ -2881,7 +2919,7 @@ def render_dashboard(payload: dict) -> str:
         <p class="mt-4 max-w-4xl text-sm font-semibold leading-7 text-white/80 md:text-base">
           Community Signal Dashboard의 다크 히어로, 깊은 그라데이션, 모션 리듬을 그대로 가져오고,
           상품 카드/차트/테이블 전체를 같은 UX 톤으로 재구성했습니다. 상품명 품목어·크롤러 카테고리·브레드크럼을 함께 반영해
-          최종 item을 결정합니다.
+          엑셀 카테고리 URL을 source of truth로 사용해 item/gender를 결정합니다.
         </p>
         <div class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div class="premium-kpi rounded-3xl p-4"><div class="text-xs font-black text-white/60">브랜드 수</div><div class="mt-2 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em]" id="hero-brand-count">-</div><div class="mt-1 text-xs font-bold text-white/60">크롤링 완료 브랜드</div></div>
