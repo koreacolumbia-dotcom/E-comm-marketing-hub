@@ -1260,6 +1260,112 @@ def build_ml_insight(df: pd.DataFrame) -> dict:
 
 
 
+def build_funnel_diagnostics(user_df: pd.DataFrame, nb_df: pd.DataFrame, buy_df: pd.DataFrame) -> dict:
+    def _nunique_actor(df: pd.DataFrame) -> int:
+        if df is None or df.empty:
+            return 0
+        member = df.get("member_id_norm", pd.Series([""] * len(df), index=df.index)).astype(str)
+        user = df.get("user_id_norm", pd.Series([""] * len(df), index=df.index)).astype(str)
+        key = member.where(member.str.strip() != "", user)
+        return int(key.replace("", pd.NA).nunique())
+
+    work = user_df.copy() if user_df is not None else pd.DataFrame()
+    if work.empty:
+        return {"summary": {"login_users": 0, "pdp_users": 0, "cart_users": 0, "buyers": 0, "cart_to_buy_rate": 0.0, "pdp_to_cart_rate": 0.0}, "steps": [], "drop_reasons": []}
+
+    sessions = pd.to_numeric(work.get("sessions_norm", 0), errors="coerce").fillna(0)
+    pdp = pd.to_numeric(work.get("product_view_count_norm", 0), errors="coerce").fillna(0)
+    cart = pd.to_numeric(work.get("add_to_cart_norm", 0), errors="coerce").fillna(0)
+    login_users = _nunique_actor(work[sessions > 0])
+    pdp_users = _nunique_actor(work[pdp > 0])
+    cart_users = _nunique_actor(work[cart > 0])
+    buyers = _nunique_actor(buy_df)
+    steps = [{"label":"Login","count":login_users},{"label":"PDP","count":pdp_users},{"label":"Cart","count":cart_users},{"label":"Buyer","count":buyers}]
+    drops = [
+        {"label":"Login→PDP Drop","count":max(login_users-pdp_users,0),"share_pct":round(max(login_users-pdp_users,0)/login_users*100,1) if login_users else 0.0},
+        {"label":"PDP→Cart Drop","count":max(pdp_users-cart_users,0),"share_pct":round(max(pdp_users-cart_users,0)/pdp_users*100,1) if pdp_users else 0.0},
+        {"label":"Cart→Buy Drop","count":max(cart_users-buyers,0),"share_pct":round(max(cart_users-buyers,0)/cart_users*100,1) if cart_users else 0.0},
+    ]
+    return {"summary":{"login_users":login_users,"pdp_users":pdp_users,"cart_users":cart_users,"buyers":buyers,"pdp_to_cart_rate":round(cart_users/pdp_users*100,1) if pdp_users else 0.0,"cart_to_buy_rate":round(buyers/cart_users*100,1) if cart_users else 0.0},"steps":steps,"drop_reasons":drops}
+
+
+def build_segment_comparison(df: pd.DataFrame) -> dict:
+    work = df.copy() if df is not None else pd.DataFrame()
+    if work.empty:
+        return {"cards": [], "rows": []}
+    for c in ["repurchase_30d_score","first_purchase_30d_score","churn_60d_score","ltv_score","orders_norm","metric_revenue_norm","sessions_norm","add_to_cart_norm"]:
+        if c not in work.columns:
+            work[c] = 0.0
+        work[c] = pd.to_numeric(work[c], errors="coerce").fillna(0.0)
+    if "ml_action_type" not in work.columns:
+        work["ml_action_type"] = "GENERAL"
+    rows, cards = [], []
+    for action, sdf in work.groupby(work["ml_action_type"].astype(str).replace({"":"GENERAL"})):
+        member = sdf.get("member_id_norm", pd.Series([""] * len(sdf), index=sdf.index)).astype(str)
+        user = sdf.get("user_id_norm", pd.Series([""] * len(sdf), index=sdf.index)).astype(str)
+        members = int(member.where(member.str.strip() != "", user).replace("", pd.NA).nunique())
+        row = {
+            "segment": action,
+            "members": members,
+            "avg_repurchase": round(float(sdf["repurchase_30d_score"].mean()) * 100.0, 1),
+            "avg_first_buy": round(float(sdf["first_purchase_30d_score"].mean()) * 100.0, 1),
+            "avg_churn": round(float(sdf["churn_60d_score"].mean()) * 100.0, 1),
+            "avg_ltv": round(float(sdf["ltv_score"].mean()) * 100.0, 1),
+            "avg_orders": round(float(sdf["orders_norm"].mean()), 2),
+            "avg_revenue": round(float(sdf["metric_revenue_norm"].mean()), 0),
+            "avg_sessions": round(float(sdf["sessions_norm"].mean()), 1),
+            "avg_atc": round(float(sdf["add_to_cart_norm"].mean()), 1),
+            "top_channel": top_label(sdf, "channel_group_norm", "미분류"),
+            "top_category": top_label(sdf, "top_category_norm", "미분류"),
+        }
+        rows.append(row)
+        cards.append({"label": action.replace("_", " ").title(), "count": members, "top_channel": row["top_channel"], "top_product": top_label(sdf, "purchase_product_name_norm", "미분류"), "top_message": f"Rev {fmt_money(row['avg_revenue'])} · Churn {row['avg_churn']}%"})
+    rows = sorted(rows, key=lambda x: x["members"], reverse=True)[:10]
+    cards = sorted(cards, key=lambda x: x["count"], reverse=True)[:8]
+    return {"cards": cards, "rows": rows}
+
+
+def build_product_affinity_transition(df: pd.DataFrame) -> dict:
+    work = df.copy() if df is not None else pd.DataFrame()
+    if work.empty:
+        return {"pair_rows": [], "transition_rows": [], "summary": {"pair_count": 0, "transition_count": 0, "top_pair": "-", "top_transition": "-"}}
+    for c in ["order_id_norm","transaction_id_norm","member_id_norm","purchase_product_name_norm","top_category_norm","order_date_norm"]:
+        if c not in work.columns:
+            work[c] = ""
+    work["__order_key"] = work["order_id_norm"].astype(str).where(work["order_id_norm"].astype(str).str.strip() != "", work["transaction_id_norm"].astype(str))
+    work = work[(work["__order_key"].astype(str).str.strip() != "") & (work["purchase_product_name_norm"].astype(str).str.strip() != "")].copy()
+    pair_rows = []
+    if not work.empty:
+        from collections import Counter
+        order_products = work.groupby("__order_key")["purchase_product_name_norm"].apply(lambda s: sorted(set([str(x).strip() for x in s if str(x).strip()])))
+        total_orders = int(order_products.shape[0])
+        pair_counter, item_counter = Counter(), Counter()
+        for items in order_products.tolist():
+            for i in items:
+                item_counter[i] += 1
+            for i in range(len(items)):
+                for j in range(i+1, len(items)):
+                    pair_counter[(items[i], items[j])] += 1
+        for (a,b), cnt in pair_counter.most_common(20):
+            support = (cnt / total_orders) if total_orders else 0.0
+            conf = (cnt / item_counter[a]) if item_counter[a] else 0.0
+            lift = conf / ((item_counter[b] / total_orders) if total_orders and item_counter[b] else 1.0) if total_orders else 0.0
+            pair_rows.append({"base_product": a, "paired_product": b, "orders": cnt, "support_pct": round(support*100,2), "confidence_pct": round(conf*100,2), "lift": round(lift,3)})
+    transition_rows = []
+    trans = work[(work["member_id_norm"].astype(str).str.strip() != "") & (work["top_category_norm"].astype(str).str.strip() != "")].copy()
+    if not trans.empty:
+        trans["__dt"] = pd.to_datetime(trans["order_date_norm"], errors="coerce")
+        first_orders = trans.sort_values(["member_id_norm","__dt","__order_key"]).groupby(["member_id_norm","__order_key"], as_index=False).agg(order_date=("__dt","min"), category=("top_category_norm", lambda s: next((str(x) for x in s if str(x).strip()), "미분류")))
+        first_orders = first_orders.sort_values(["member_id_norm","order_date","__order_key"])
+        first_orders["next_category"] = first_orders.groupby("member_id_norm")["category"].shift(-1)
+        t = first_orders[(first_orders["category"].astype(str).str.strip() != "") & (first_orders["next_category"].astype(str).str.strip() != "")]
+        if not t.empty:
+            grp = t.groupby(["category","next_category"]).size().reset_index(name="members").sort_values("members", ascending=False).head(20)
+            total = int(grp["members"].sum()) if not grp.empty else 0
+            transition_rows = [{"from_category": r["category"], "to_category": r["next_category"], "members": int(r["members"]), "share_pct": round((float(r["members"]) / total * 100.0), 2) if total else 0.0} for _, r in grp.iterrows()]
+    return {"pair_rows": pair_rows, "transition_rows": transition_rows, "summary": {"pair_count": len(pair_rows), "transition_count": len(transition_rows), "top_pair": f"{pair_rows[0]['base_product']} → {pair_rows[0]['paired_product']}" if pair_rows else "-", "top_transition": f"{transition_rows[0]['from_category']} → {transition_rows[0]['to_category']}" if transition_rows else "-"}}
+
+
 def _ml_summary_fields(df: pd.DataFrame) -> dict[str, Any]:
     if df is None or df.empty:
         return {
@@ -1714,7 +1820,7 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
         ],
         "overview": {"sessions": int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(max(buy['member_id_norm'].replace('', pd.NA).nunique(), buy['user_id_norm'].replace('', pd.NA).nunique())), "members": int(members['member_id_norm'].replace('', pd.NA).nunique()), "non_buyers": int(members[(pd.to_numeric(members.get('orders_norm',0), errors='coerce').fillna(0) <= 0)]['member_id_norm'].replace('', pd.NA).nunique()) if not members.empty else 0, "metric_source": "ga4_crm_mart"},
         "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": build_analysis_target_payload(user), "signup_30d": build_signup_30d_insight(user)},
-        "total_view": {"member_overview": channel_panels(members, 'total', product_source_override=total_product_raw), "ml_insight": build_ml_insight(members), "purchase_pattern": build_purchase_pattern_insight(total_product_raw), "purchase_journey": build_purchase_journey_insight(members, total_start_date, end_date), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"ALL MEMBER {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
+        "total_view": {"member_overview": channel_panels(members, 'total', product_source_override=total_product_raw), "ml_insight": build_ml_insight(members), "purchase_pattern": build_purchase_pattern_insight(total_product_raw), "purchase_journey": build_purchase_journey_insight(members, total_start_date, end_date), "funnel_diagnostics": build_funnel_diagnostics(user, nb, buy), "segment_compare": build_segment_comparison(members), "product_affinity": build_product_affinity_transition(total_product_raw), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"ALL MEMBER {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
     }
     if admin_daily:
         _login_users = int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique())
@@ -1850,6 +1956,8 @@ def render_page(bundle: dict, preset: dict) -> str:
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media (max-width:1380px){.hero-grid{grid-template-columns:1fr}.hero-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}.buyer-insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.product-wide-grid{grid-template-columns:1fr}.span-2,.span-4{grid-column:auto}}
 @media (max-width:960px){.page{padding:16px 14px 72px}.hero{padding:20px}.hero-kpis,.grid-4,.grid-3,.grid-2,.buyer-insight-grid,.product-wide-grid{grid-template-columns:1fr}.toolbar,.section-head{flex-direction:column;align-items:flex-start}.section-head h2{font-size:24px}.hero-copy h1{font-size:36px}.summary-card,.card{padding:20px}.chart-row{grid-template-columns:84px 1fr 56px}.donut-wrap{grid-template-columns:1fr}.donut{margin:0 auto}.span-2,.span-4{grid-column:auto}}
+
+.funnel-wrap{display:flex;flex-direction:column;gap:12px}.funnel-step{display:flex;align-items:center;gap:10px}.funnel-label{width:84px;font-size:12px;font-weight:700;color:#475569}.funnel-bar{background:linear-gradient(90deg,#1d4ed8,#60a5fa);color:#fff;border-radius:999px;padding:10px 14px;font-size:13px;font-weight:700;min-width:72px}.funnel-arrow{color:#94a3b8;font-weight:800}
 </style>
 </head>
 <body>
@@ -1946,6 +2054,46 @@ function renderPurchasePattern(section){
   </section>`;
 }
 
+function renderFunnelDiagnostics(section){
+  const s = section?.summary || {};
+  const steps = section?.steps || [];
+  const max = Math.max(...steps.map(x=>Number(x.count||0)),1);
+  const funnelHtml = steps.length ? `<div class="funnel-wrap">${steps.map((x,i)=>`<div class="funnel-step"><div class="funnel-label">${esc2(x.label)}</div><div class="funnel-bar" style="width:${Math.max(18,(Number(x.count||0)/max)*100)}%">${num(x.count||0)}</div>${i<steps.length-1?'<div class="funnel-arrow">→</div>':''}</div>`).join('')}</div>` : '<div class="kpi-sub">데이터가 없습니다.</div>';
+  return `<section><div class="section-head"><div><div class="section-title">FUNNEL DIAGNOSTICS</div><h2>로그인→상품상세→장바구니→구매 전환</h2></div></div>
+    <div class="grid-4">
+      <div class="card"><div class="kicker">Login Users</div><div class="kpi">${num(s.login_users||0)}</div></div>
+      <div class="card"><div class="kicker">PDP Users</div><div class="kpi">${num(s.pdp_users||0)}</div></div>
+      <div class="card"><div class="kicker">Cart Users</div><div class="kpi">${num(s.cart_users||0)}</div></div>
+      <div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(s.buyers||0)}</div></div>
+      <div class="card"><div class="kicker">PDP→Cart</div><div class="kpi">${pct(s.pdp_to_cart_rate||0)}</div></div>
+      <div class="card"><div class="kicker">Cart→Buy</div><div class="kpi">${pct(s.cart_to_buy_rate||0)}</div></div>
+    </div>
+    <div class="grid-2"><div class="card"><div class="section-title">FUNNEL FLOW</div>${funnelHtml}</div><div class="card"><div class="section-title">DROP REASONS</div>${bar(section?.drop_reasons||[])}</div></div>
+  </section>`;
+}
+function renderSegmentCompare(section){
+  const cards = section?.cards || [];
+  const rows = section?.rows || [];
+  const cardHtml = cards.length ? `<div class="grid-4">${cards.map(c=>`<div class="card"><div class="kicker">${esc2(c.label||'Segment')}</div><div class="kpi">${num(c.count||0)}</div><div class="kpi-sub">${esc2(c.top_message||'')}</div><div class="kpi-sub">Top Channel · ${esc2(c.top_channel||'미분류')}</div><div class="kpi-sub">Top Product · ${esc2(c.top_product||'미분류')}</div></div>`).join('')}</div>` : '';
+  return `<section><div class="section-head"><div><div class="section-title">SEGMENT COMPARISON</div><h2>세그먼트별 성과 비교</h2></div></div>${cardHtml}<div class="card">${table(rows,[['segment','Segment'],['members','Members'],['avg_repurchase','Repurchase'],['avg_first_buy','First Buy'],['avg_churn','Churn'],['avg_ltv','LTV'],['avg_orders','Avg Orders'],['avg_revenue','Avg Revenue'],['avg_sessions','Avg Sessions'],['avg_atc','Avg ATC'],['top_channel','Top Channel'],['top_category','Top Category']],['members','avg_repurchase','avg_first_buy','avg_churn','avg_ltv','avg_orders','avg_revenue','avg_sessions','avg_atc'],'segment-compare-table')}</div></section>`;
+}
+function renderProductAffinity(section){
+  const s = section?.summary || {};
+  return `<section><div class="section-head"><div><div class="section-title">PRODUCT AFFINITY</div><h2>같이 구매한 상품과 카테고리 전이</h2></div></div>
+    <div class="grid-4">
+      <div class="card"><div class="kicker">Affinity Pairs</div><div class="kpi">${num(s.pair_count||0)}</div></div>
+      <div class="card"><div class="kicker">Category Transitions</div><div class="kpi">${num(s.transition_count||0)}</div></div>
+      <div class="card"><div class="kicker">Top Pair</div><div class="kpi" style="font-size:20px;line-height:1.25;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(s.top_pair||'-')}</div></div>
+      <div class="card"><div class="kicker">Top Transition</div><div class="kpi" style="font-size:20px;line-height:1.25;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(s.top_transition||'-')}</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="section-title">TOP PRODUCT PAIRS</div>${table(section?.pair_rows||[],[['base_product','Base Product'],['paired_product','Paired Product'],['orders','Orders'],['support_pct','Support %'],['confidence_pct','Confidence %'],['lift','Lift']],['orders','support_pct','confidence_pct','lift'],'product-affinity-pairs')}</div>
+      <div class="card"><div class="section-title">CATEGORY TRANSITIONS</div>${table(section?.transition_rows||[],[['from_category','From'],['to_category','To'],['members','Members'],['share_pct','Share %']],['members','share_pct'],'product-affinity-transitions')}</div>
+    </div>
+  </section>`;
+}
+
+
 function renderSignup30(section){ const s=section?.summary||{}; return `<section><div class="section-head"><div><div class="section-title">SIGNUP 30D</div><h2>가입 후 30일 이내 전환 / 이탈</h2></div></div><div class="grid-4"><div class="card"><div class="kicker">30D Signups</div><div class="kpi">${num(s.signups_30d||0)}</div></div><div class="card"><div class="kicker">1st Purchase ≤30D</div><div class="kpi">${num(s.first_purchase_within_30d||0)} <span class="sub">(${pct(s.first_purchase_within_30d_pct||0)})</span></div></div><div class="card"><div class="kicker">No Purchase ≤30D</div><div class="kpi">${num(s.signup_30d_no_purchase||0)} <span class="sub">(${pct(s.signup_30d_no_purchase_pct||0)})</span></div></div><div class="card"><div class="kicker">Touchable</div><div class="kpi">${num(s.touchable_users||0)} <span class="sub">(${pct(s.touchable_users_pct||0)})</span></div></div></div><div class="grid-2"><div class="card"><div class="section-title">CHANNEL MIX</div>${bar(section?.channel_dist||[])}</div><div class="card"><div class="section-title">PAID DETAIL MIX</div>${bar(section?.paid_detail_dist||[])}</div></div><div class="card">${table(section?.rows||[],[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['paid_detail','Paid Detail'],['campaign','Campaign'],['days_since_signup','Days Since Signup'],['first_purchase_within_30d','1st Purchase<=30D'],['signup_30d_no_purchase','No Purchase<=30D'],['touchable','Touchable'],['purchase_product_name','Purchase Product']],['days_since_signup'],'signup30-table')}</div></section>`; }
 function renderPurchaseJourney(section){
   const s=section?.summary||{};
@@ -1964,7 +2112,7 @@ function bindUi(){
 function init(bundle){
   BUNDLE = bundle;
   document.getElementById('user-sections').innerHTML = renderNonBuyer(BUNDLE.user_view.non_buyer) + renderSignup30(BUNDLE.user_view.signup_30d || {}) + renderBuyer(BUNDLE.user_view.buyer) + renderProduct(BUNDLE.user_view.product) + renderTarget(BUNDLE.user_view.target);
-  document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview) + renderPurchaseJourney(BUNDLE.total_view.purchase_journey || {}) + renderMLInsight(BUNDLE.total_view.ml_insight || {}) + renderPurchasePattern(BUNDLE.total_view.purchase_pattern || {});
+  document.getElementById('total-sections').innerHTML = renderTotal(BUNDLE.total_view.member_overview) + renderFunnelDiagnostics(BUNDLE.total_view.funnel_diagnostics || {}) + renderSegmentCompare(BUNDLE.total_view.segment_compare || {}) + renderMLInsight(BUNDLE.total_view.ml_insight || {}) + renderPurchasePattern(BUNDLE.total_view.purchase_pattern || {}) + renderProductAffinity(BUNDLE.total_view.product_affinity || {}) + renderPurchaseJourney(BUNDLE.total_view.purchase_journey || {});
 }
 async function tryFetchBundle(paths){
   for(const bundlePath of paths){
