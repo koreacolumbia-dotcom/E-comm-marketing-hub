@@ -100,7 +100,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 OUT_DIR = os.path.join("reports", "competitor_intel")
 HEADLESS = os.getenv("HEADLESS", "1").strip().lower() not in {"0", "false", "no"}
 MAX_PRODUCTS_PER_BRAND = int(os.getenv("MAX_PRODUCTS_PER_BRAND", "0"))  # 0 or less = unlimited
-MAX_DISCOVERED_LISTING_URLS = int(os.getenv("MAX_DISCOVERED_LISTING_URLS", "120"))
+MAX_DISCOVERED_LISTING_URLS = int(os.getenv("MAX_DISCOVERED_LISTING_URLS", "800"))
 SCROLL_PAUSE_SEC = float(os.getenv("SCROLL_PAUSE_SEC", "1.0"))
 DEFAULT_WAIT_SEC = int(os.getenv("DEFAULT_WAIT_SEC", "18"))
 SCREENSHOT_ON_ERROR = os.getenv("SCREENSHOT_ON_ERROR", "1").strip().lower() in {"1", "true", "yes"}
