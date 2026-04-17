@@ -31,13 +31,6 @@ REPORT_PATCH_CSS = """
     @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
     @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
-  .brandsearch-tabs input[type=radio]{display:none}
-  .brandsearch-tab-label{display:inline-flex;align-items:center;justify-content:center;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;color:#475569;cursor:pointer}
-  .brandsearch-tabs .panel{display:none}
-  .brandsearch-tabs .tab-a:checked + label{background:#0f172a;color:#fff;border-color:#0f172a}
-  .brandsearch-tabs .tab-b:checked + label{background:#0f172a;color:#fff;border-color:#0f172a}
-  .brandsearch-tabs .tab-a:checked ~ .brandsearch-panels .panel-a{display:block}
-  .brandsearch-tabs .tab-b:checked ~ .brandsearch-panels .panel-b{display:block}
   </style>
 """
 
@@ -3696,14 +3689,33 @@ def enrich_brandsearch_status_with_prev_day(statuses: Optional[List[dict]], end_
         ab_flag = len(variants) >= 2
         ab_changed_parts = _brandsearch_ab_changed_parts(variants)
 
-        item["change_flag"] = is_changed
-        item["change_label"] = "변동" if is_changed else ""
+        prev_day_variants_map = get_brandsearch_variants_for_date(end_date - dt.timedelta(days=1))
+        prev_variants = prev_day_variants_map.get(brand, []) if isinstance(prev_day_variants_map, dict) else []
+        prev_variants = [dict(v or {}) for v in prev_variants if isinstance(v, dict)]
+
+        winner_flag = False
+        winner_label = ""
+        winner_parts = []
+        if (not ab_flag) and len(prev_variants) >= 2:
+            cur_sig = _brandsearch_variant_signature(item)
+            prev_sigs = [_brandsearch_variant_signature(v) for v in prev_variants[:2]]
+            if cur_sig in prev_sigs:
+                winner_flag = True
+                slot = "A안" if prev_sigs.index(cur_sig) == 0 else "B안"
+                winner_label = f"{slot} 유지"
+                winner_parts = _brandsearch_changed_parts(item, prev_variants[0 if slot == "A안" else 1])
+
+        item["change_flag"] = False if ab_flag else is_changed
+        item["change_label"] = "변동" if (False if ab_flag else is_changed) else ""
         item["changed_parts"] = changed_parts
         item["ab_flag"] = ab_flag
         item["ab_label"] = "A/B" if ab_flag else ""
         item["ab_variant_count"] = len(variants)
         item["ab_changed_parts"] = ab_changed_parts
-        item["ab_variants"] = variants[:5]
+        item["ab_variants"] = variants[:2]
+        item["winner_flag"] = winner_flag
+        item["winner_label"] = winner_label
+        item["winner_parts"] = winner_parts
         out.append(item)
     return out
 
@@ -4448,90 +4460,55 @@ def render_page_html(
 </script>"""
 
 
-
     brand_powerlink_rows = []
-    for idx, item in enumerate((brand_powerlink_status or []), start=1):
+    for item in (brand_powerlink_status or []):
         brand = esc(item.get("brand", ""))
+        highlights = item.get("keyword_highlights", []) or []
+        if not highlights:
+            highlights = item.get("tags", []) or item.get("cards", []) or []
+        chips = "".join([
+            f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>{esc(v)}</span>"
+            for v in highlights[:4]
+        ])
+        copy_lines = [x for x in [item.get("headline", ""), item.get("main_copy", ""), item.get("sub_copy", "")] if str(x).strip()]
+        title_line = esc(copy_lines[0]) if copy_lines else "대표 문구 미검출"
+        desc_lines = copy_lines[1:3]
+        desc_html = "".join([f"<div class='truncate'>{esc(x)}</div>" for x in desc_lines])
+
         hero_image = str(item.get("capture_path", "") or item.get("hero_image", "") or "").strip()
-        base_cards_detail = item.get("cards_detail", []) or []
+        hero_html = (
+            f"<div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='{esc(hero_image)}' alt='{brand} hero' class='h-full w-full object-cover'/></div>"
+            if hero_image else
+            "<div class='flex h-[98px] w-[98px] shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-[9px] font-semibold text-slate-400'>No image</div>"
+        )
 
-        def _render_brandsearch_variant(variant_item: dict, label: str) -> str:
-            variant_highlights = variant_item.get("keyword_highlights", []) or []
-            if not variant_highlights:
-                variant_highlights = variant_item.get("tags", []) or variant_item.get("cards", []) or []
-            chips = "".join([
-                f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>{esc(v)}</span>"
-                for v in variant_highlights[:4]
-            ])
-
-            copy_lines = [x for x in [variant_item.get("headline", ""), variant_item.get("main_copy", ""), variant_item.get("sub_copy", "")] if str(x).strip()]
-            title_line = esc(copy_lines[0]) if copy_lines else "대표 문구 미검출"
-            desc_lines = copy_lines[1:3]
-            desc_html = "".join([f"<div class='truncate'>{esc(x)}</div>" for x in desc_lines])
-
-            variant_hero_image = str(variant_item.get("capture_path", "") or variant_item.get("hero_image", "") or hero_image).strip()
-            hero_html = (
-                f"<div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='{esc(variant_hero_image)}' alt='{brand} hero' class='h-full w-full object-cover'/></div>"
-                if variant_hero_image else
-                "<div class='flex h-[98px] w-[98px] shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-[9px] font-semibold text-slate-400'>No image</div>"
+        cards_detail = item.get("cards_detail", []) or []
+        card_tiles = []
+        for card in cards_detail[:3]:
+            cname = esc(card.get("name", ""))
+            cimg = str(card.get("image", "") or "").strip()
+            cimg_html = (
+                f"<div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='{esc(cimg)}' alt='{cname or brand}' class='h-full w-full object-cover'/></div>"
+                if cimg else
+                "<div class='flex h-[74px] w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[8px] text-slate-400'>No image</div>"
             )
-
-            variant_cards_detail = variant_item.get("cards_detail", []) or base_cards_detail
-            card_tiles = []
-            for card in variant_cards_detail[:3]:
-                cname = esc((card or {}).get("name", ""))
-                cimg = str((card or {}).get("image", "") or "").strip()
-                cimg_html = (
-                    f"<div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='{esc(cimg)}' alt='{cname or brand}' class='h-full w-full object-cover'/></div>"
-                    if cimg else
-                    "<div class='flex h-[74px] w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[8px] text-slate-400'>No image</div>"
-                )
-                card_tiles.append(
-                    f"<div class='min-w-0 flex-1'>{cimg_html}<div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>{cname}</div></div>"
-                )
-            card_tiles_html = f"<div class='mt-3 grid grid-cols-3 gap-2'>{''.join(card_tiles)}</div>" if card_tiles else ""
-
-            return f"""
-            <div class="mt-3 flex items-start gap-4">
-              {hero_html}
-              <div class="min-w-0 flex-1 pt-0.5">
-                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">{title_line}</div>
-                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700">{desc_html}</div>
-                <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
-                <div class="mt-2 text-[10px] font-semibold text-slate-400">{label}</div>
-              </div>
-            </div>
-            {card_tiles_html}
-            """
-
-        variants = [dict(item)]
-        for v in (item.get("ab_variants", []) or []):
-            if not isinstance(v, dict):
-                continue
-            cur_sig = json.dumps(_brandsearch_compare_signature(item), ensure_ascii=False, sort_keys=True)
-            v_sig = json.dumps(_brandsearch_compare_signature(v), ensure_ascii=False, sort_keys=True)
-            if v_sig != cur_sig:
-                variants.append(dict(v))
-        dedup = []
-        seen = set()
-        for v in variants:
-            sig = json.dumps(_brandsearch_compare_signature(v), ensure_ascii=False, sort_keys=True)
-            if sig in seen:
-                continue
-            seen.add(sig)
-            dedup.append(v)
-        variants = dedup[:2]
+            card_tiles.append(
+                f"<div class='min-w-0 flex-1'>{cimg_html}<div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>{cname}</div></div>"
+            )
+        card_tiles_html = f"<div class='mt-3 grid grid-cols-3 gap-2'>{''.join(card_tiles)}</div>" if card_tiles else ""
 
         badge_list = []
         if item.get("ab_flag"):
             badge_list.append("<div class='rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700'>A/B</div>")
-        if item.get("change_flag"):
-            badge_list.append("<div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div>")
+        elif item.get("winner_flag"):
+            badge_list.append("<div class='rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700'>승자</div>")
+        elif item.get("change_flag"):
+            badge_list.append("<div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변경</div>")
         badges_html = f"<div class='flex items-center gap-1.5'>{''.join(badge_list)}</div>" if badge_list else ""
 
         changed_parts = [str(x).strip() for x in (item.get("changed_parts", []) or []) if str(x).strip()]
         changed_parts_html = ""
-        if changed_parts:
+        if item.get("change_flag") and changed_parts:
             changed_parts_html = f"<div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: {esc(' · '.join(changed_parts[:3]))}</div>"
 
         ab_changed_parts = [str(x).strip() for x in (item.get("ab_changed_parts", []) or []) if str(x).strip()]
@@ -4542,23 +4519,13 @@ def render_page_html(
                 ab_label += " · " + " · ".join(ab_changed_parts[:3])
             ab_changed_parts_html = f"<div class='mt-1 text-[10px] font-semibold text-violet-700'>{esc(ab_label)}</div>"
 
-        if len(variants) >= 2:
-            content_html = f"""
-            <div class="brandsearch-tabs">
-              <div class="mt-2 flex items-center justify-end gap-1">
-                <input class="tab-a" type="radio" name="brandsearch-tab-{idx}" id="brandsearch-tab-{idx}-a" checked>
-                <label class="brandsearch-tab-label" for="brandsearch-tab-{idx}-a">A안</label>
-                <input class="tab-b" type="radio" name="brandsearch-tab-{idx}" id="brandsearch-tab-{idx}-b">
-                <label class="brandsearch-tab-label" for="brandsearch-tab-{idx}-b">B안</label>
-              </div>
-              <div class="brandsearch-panels">
-                <div class="panel panel-a">{_render_brandsearch_variant(variants[0], "A안")}</div>
-                <div class="panel panel-b">{_render_brandsearch_variant(variants[1], "B안")}</div>
-              </div>
-            </div>
-            """
-        else:
-            content_html = _render_brandsearch_variant(variants[0], "A안")
+        winner_parts = [str(x).strip() for x in (item.get("winner_parts", []) or []) if str(x).strip()]
+        winner_html = ""
+        if item.get("winner_flag"):
+            winner_label = str(item.get("winner_label", "")).strip() or "A/B 승자 유지"
+            if winner_parts:
+                winner_label += " · " + " · ".join(winner_parts[:2])
+            winner_html = f"<div class='mt-1 text-[10px] font-semibold text-emerald-700'>전일 A/B → 오늘 {esc(winner_label)}</div>"
 
         brand_powerlink_rows.append(f"""
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
@@ -4569,12 +4536,20 @@ def render_page_html(
             </div>
             {badges_html}
           </div>
-          {changed_parts_html}
-          {ab_changed_parts_html}
-          {content_html}
+          <div class="mt-3 flex items-start gap-4">
+            {hero_html}
+            <div class="min-w-0 flex-1 pt-0.5">
+              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">{title_line}</div>
+              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700">{desc_html}</div>
+              <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
+              {changed_parts_html}
+              {ab_changed_parts_html}
+              {winner_html}
+            </div>
+          </div>
+          {card_tiles_html}
         </div>
         """)
-
     brand_powerlink_html = ""
     if brand_powerlink_rows:
         brand_powerlink_html = f"""
@@ -4582,14 +4557,13 @@ def render_page_html(
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">브랜드검색 현황</div>
-              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B 탭 표시</div>
+              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B / 다음날 승자 추적</div>
             </div>
             <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">{len(brand_powerlink_rows)} brands</div>
           </div>
           <div class="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-4">{''.join(brand_powerlink_rows)}</div>
         </div>
         """
-
     html = f"""<!doctype html>
 <html lang="ko">
 <head>
