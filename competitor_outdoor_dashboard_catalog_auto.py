@@ -100,7 +100,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 OUT_DIR = os.path.join("reports", "competitor_intel")
 HEADLESS = os.getenv("HEADLESS", "1").strip().lower() not in {"0", "false", "no"}
 MAX_PRODUCTS_PER_BRAND = int(os.getenv("MAX_PRODUCTS_PER_BRAND", "0"))  # 0 or less = unlimited
-MAX_DISCOVERED_LISTING_URLS = int(os.getenv("MAX_DISCOVERED_LISTING_URLS", "800"))
+MAX_DISCOVERED_LISTING_URLS = int(os.getenv("MAX_DISCOVERED_LISTING_URLS", "120"))
 SCROLL_PAUSE_SEC = float(os.getenv("SCROLL_PAUSE_SEC", "1.0"))
 DEFAULT_WAIT_SEC = int(os.getenv("DEFAULT_WAIT_SEC", "18"))
 SCREENSHOT_ON_ERROR = os.getenv("SCREENSHOT_ON_ERROR", "1").strip().lower() in {"1", "true", "yes"}
@@ -108,6 +108,9 @@ TODAY_STR = datetime.now().strftime("%Y-%m-%d %H:%M")
 REQUESTS_TIMEOUT = int(os.getenv("REQUESTS_TIMEOUT", "20"))
 DETAIL_WORKERS = int(os.getenv("DETAIL_WORKERS", "6"))
 REQUEST_HEADERS = {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36","Accept-Language":"ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"}
+CHECKPOINT_EVERY = int(os.getenv("CHECKPOINT_EVERY", "100"))
+RESUME_ENABLED = os.getenv("RESUME_ENABLED", "1").strip().lower() in {"1", "true", "yes"}
+BRAND_FILTER = {x.strip().upper() for x in os.getenv("BRAND_FILTER", "").split(",") if x.strip()}
 
 
 @dataclass
@@ -2325,6 +2328,11 @@ class AutoCompetitorCrawler:
 
     def crawl_brand(self, cfg: BrandConfig) -> List[ProductRaw]:
         print(f"\n[CRAWL START] {cfg.brand} :: seeds={len(cfg.seed_urls)}")
+        resumed_products = load_checkpoint_products(cfg.brand)
+        resumed_done_urls = {canonicalize_url(x.product_url) for x in resumed_products if canonicalize_url(x.product_url)}
+        if resumed_products:
+            print(f"  - resume checkpoint detected: {len(resumed_products)} products already saved")
+
         listings = self.discover_listing_urls(cfg)
         product_urls: List[dict] = []
 
@@ -2341,6 +2349,7 @@ class AutoCompetitorCrawler:
             key = canonicalize_url(meta.get("url", ""))
             if not key:
                 continue
+            meta["url"] = key
             if key not in dedup_meta:
                 dedup_meta[key] = meta
                 continue
@@ -2349,16 +2358,52 @@ class AutoCompetitorCrawler:
                     dedup_meta[key][fld] = meta.get(fld)
         product_urls = list(dedup_meta.values())
 
+        total_discovered = len(product_urls)
+        if resumed_done_urls:
+            product_urls = [m for m in product_urls if canonicalize_url(m.get("url", "")) not in resumed_done_urls]
+            print(f"  - discovered product urls: {total_discovered} | remaining after resume-skip: {len(product_urls)}")
+        else:
+            print(f"  - discovered product urls: {total_discovered}")
+
         if cfg.max_products and cfg.max_products > 0 and len(product_urls) > cfg.max_products:
             product_urls = product_urls[:cfg.max_products]
-            print(f"  - discovered product urls: {len(product_urls)} (capped)")
-        else:
-            print(f"  - discovered product urls: {len(product_urls)}")
+            print(f"  - remaining product urls capped by config: {len(product_urls)}")
 
-        raw_products: List[ProductRaw] = []
+        raw_products: List[ProductRaw] = list(resumed_products)
         unresolved_urls: List[str] = []
+        new_buffer: List[ProductRaw] = []
 
-        # Fast path: requests-first in parallel
+        def _finalize_item(item: ProductRaw, meta: dict) -> ProductRaw:
+            item.source_category = meta.get('source_category','')
+            item.source_category_url = meta.get('source_category_url','')
+            item.plp_item_category = meta.get('plp_item_category','')
+            item.plp_gender = meta.get('plp_gender','')
+            item.listing_name = meta.get('listing_name','')
+            item.listing_price_text = meta.get('listing_price_text','')
+            item.listing_image_url = meta.get('image_url','')
+            if should_use_listing_image(cfg.brand, item.image_url, meta.get('image_url','')):
+                item.image_url = meta.get('image_url','')
+            if not item.name and meta.get('listing_name'):
+                item.name = meta.get('listing_name','')
+            if not item.price_text and meta.get('listing_price_text'):
+                item.price_text = meta.get('listing_price_text','')
+            return item
+
+        def _flush_checkpoint(force: bool = False) -> None:
+            nonlocal new_buffer
+            if not new_buffer:
+                return
+            if force or len(new_buffer) >= max(1, CHECKPOINT_EVERY):
+                append_checkpoint_products(cfg.brand, new_buffer)
+                write_checkpoint_status(cfg.brand, {
+                    "brand": cfg.brand,
+                    "saved_products": len(raw_products),
+                    "remaining_product_urls": len(product_urls),
+                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                })
+                print(f"    [SAVE] {cfg.brand} checkpoint +{len(new_buffer)} | total saved {len(raw_products)}")
+                new_buffer = []
+
         with ThreadPoolExecutor(max_workers=max(1, DETAIL_WORKERS)) as ex:
             futures = {ex.submit(self.crawl_product_detail_requests, meta['url'], meta.get('source_category_url',''), cfg): meta for meta in product_urls}
             done_count = 0
@@ -2369,20 +2414,10 @@ class AutoCompetitorCrawler:
                 try:
                     item = fut.result()
                     if item and item.name:
-                        item.source_category = meta.get('source_category','')
-                        item.source_category_url = meta.get('source_category_url','')
-                        item.plp_item_category = meta.get('plp_item_category','')
-                        item.plp_gender = meta.get('plp_gender','')
-                        item.listing_name = meta.get('listing_name','')
-                        item.listing_price_text = meta.get('listing_price_text','')
-                        item.listing_image_url = meta.get('image_url','')
-                        if should_use_listing_image(cfg.brand, item.image_url, meta.get('image_url','')):
-                            item.image_url = meta.get('image_url','')
-                        if not item.name and meta.get('listing_name'):
-                            item.name = meta.get('listing_name','')
-                        if not item.price_text and meta.get('listing_price_text'):
-                            item.price_text = meta.get('listing_price_text','')
+                        item = _finalize_item(item, meta)
                         raw_products.append(item)
+                        new_buffer.append(item)
+                        _flush_checkpoint()
                     else:
                         unresolved_urls.append(url)
                 except Exception:
@@ -2390,33 +2425,32 @@ class AutoCompetitorCrawler:
                 if done_count % 20 == 0:
                     print(f"    [OK] {cfg.brand} requests pass {done_count}/{len(product_urls)} | valid {len(raw_products)}")
 
-        # Accurate fallback: selenium only for unresolved URLs
         unresolved_meta = [m for m in product_urls if m['url'] in unresolved_urls]
         for idx, meta in enumerate(unresolved_meta, start=1):
             product_url = meta['url']
             try:
                 item = self.crawl_product_detail(product_url, meta.get('source_category_url',''), cfg)
                 if item and item.name:
-                    item.source_category = meta.get('source_category','')
-                    item.source_category_url = meta.get('source_category_url','')
-                    if should_use_listing_image(cfg.brand, item.image_url, meta.get('image_url','')):
-                        item.image_url = meta.get('image_url','')
-                    if not item.name and meta.get('listing_name'):
-                        item.name = meta.get('listing_name','')
-                    if not item.price_text and meta.get('listing_price_text'):
-                        item.price_text = meta.get('listing_price_text','')
+                    item = _finalize_item(item, meta)
                     raw_products.append(item)
+                    new_buffer.append(item)
+                    _flush_checkpoint()
             except Exception as e:
                 print(f"    [WARN] selenium fallback failed: {product_url} | {e}")
             if idx % 20 == 0:
                 print(f"    [OK] {cfg.brand} selenium fallback {idx}/{len(unresolved_urls)} | valid {len(raw_products)}")
 
-        # dedupe by product_url
+        _flush_checkpoint(force=True)
+
         dedup = {}
         for item in raw_products:
-            existing = dedup.get(item.product_url)
+            key = canonicalize_url(item.product_url)
+            if not key:
+                continue
+            existing = dedup.get(key)
             if existing is None:
-                dedup[item.product_url] = item
+                item.product_url = key
+                dedup[key] = item
                 continue
             if (not existing.image_url) and item.image_url:
                 existing.image_url = item.image_url
@@ -2431,6 +2465,15 @@ class AutoCompetitorCrawler:
             if (not existing.description) and item.description:
                 existing.description = item.description
         raw_products = list(dedup.values())
+
+        if raw_products:
+            pd.DataFrame([asdict(x) for x in raw_products]).to_csv(checkpoint_brand_raw_path(cfg.brand), index=False, encoding="utf-8-sig")
+        write_checkpoint_status(cfg.brand, {
+            "brand": cfg.brand,
+            "saved_products": len(raw_products),
+            "completed": True,
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        })
 
         print(f"[CRAWL DONE] {cfg.brand} -> {len(raw_products)} products")
         return raw_products
@@ -3244,6 +3287,62 @@ document.addEventListener('DOMContentLoaded', init);
     return template.replace("__DATA_JSON__", data_json).replace("__GENERATED_AT__", generated_at)
 
 # ============================================================
+# 8. CHECKPOINTS
+# ============================================================
+def checkpoint_brand_slug(brand: str) -> str:
+    return slugify(_normalize_brand_name(brand) or brand)
+
+
+def checkpoint_brand_raw_path(brand: str) -> str:
+    return os.path.join(OUT_DIR, f"checkpoint_{checkpoint_brand_slug(brand)}_raw_products.csv")
+
+
+def checkpoint_brand_status_path(brand: str) -> str:
+    return os.path.join(OUT_DIR, f"checkpoint_{checkpoint_brand_slug(brand)}_status.json")
+
+
+def load_checkpoint_products(brand: str) -> List[ProductRaw]:
+    path = checkpoint_brand_raw_path(brand)
+    if not RESUME_ENABLED or not os.path.exists(path):
+        return []
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        return []
+    items: List[ProductRaw] = []
+    for row in df.fillna("").to_dict(orient="records"):
+        payload = {k: row.get(k, "") for k in ProductRaw.__dataclass_fields__.keys()}
+        items.append(ProductRaw(**payload))
+    return items
+
+
+def append_checkpoint_products(brand: str, items: List[ProductRaw]) -> None:
+    if not items:
+        return
+    ensure_dir(OUT_DIR)
+    path = checkpoint_brand_raw_path(brand)
+    df = pd.DataFrame([asdict(x) for x in items])
+    header = not os.path.exists(path) or os.path.getsize(path) == 0
+    df.to_csv(path, mode="a", header=header, index=False, encoding="utf-8-sig")
+
+
+def write_checkpoint_status(brand: str, status: Dict) -> None:
+    ensure_dir(OUT_DIR)
+    path = checkpoint_brand_status_path(brand)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(json_safe(status), f, ensure_ascii=False, indent=2)
+
+
+def remove_checkpoint_files(brand: str) -> None:
+    for path in [checkpoint_brand_raw_path(brand), checkpoint_brand_status_path(brand)]:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+
+
+# ============================================================
 # 8. OUTPUTS
 # ============================================================
 def write_outputs(raw_products: List[ProductRaw], analyzed_products: List[ProductAnalyzed]) -> None:
@@ -3296,12 +3395,16 @@ def main() -> None:
     ensure_dir(OUT_DIR)
     validate_configs(BRAND_CONFIGS)
 
+    selected_configs = [cfg for cfg in BRAND_CONFIGS if not BRAND_FILTER or _normalize_brand_name(cfg.brand) in BRAND_FILTER or safe_text(cfg.brand).upper() in BRAND_FILTER]
+    if not selected_configs:
+        raise ValueError(f"No brands matched BRAND_FILTER={sorted(BRAND_FILTER)}")
+
     crawler = AutoCompetitorCrawler(headless=HEADLESS)
     raw_products: List[ProductRaw] = []
     analyzed_products: List[ProductAnalyzed] = []
 
     try:
-        for cfg in BRAND_CONFIGS:
+        for cfg in selected_configs:
             brand_items = crawler.crawl_brand(cfg)
             raw_products.extend(brand_items)
         analyzed_products = [analyze_product(p) for p in raw_products]
