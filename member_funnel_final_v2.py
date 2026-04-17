@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+87p777#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 import datetime as dt
@@ -232,8 +232,18 @@ def build_analysis_target_payload(user: pd.DataFrame) -> dict:
         work["consent_norm"] = 0
     score_cols = [c for c in ["ltv_score", "repurchase_30d_score", "first_purchase_30d_score", "churn_60d_score"] if c in work.columns]
     if score_cols:
-        work["driver_score"] = pd.to_numeric(work[score_cols], errors="coerce").max(axis=1)
-        work = work.sort_values(score_cols + ["orders_norm", "metric_revenue_norm"], ascending=[False]*len(score_cols) + [False, False], na_position="last")
+        work["driver_score"] = (
+            work[score_cols]
+            .apply(pd.to_numeric, errors="coerce")
+            .fillna(0.0)
+            .max(axis=1)
+        )
+        sort_tail = [c for c in ["orders_norm", "metric_revenue_norm"] if c in work.columns]
+        work = work.sort_values(
+            score_cols + sort_tail,
+            ascending=[False] * (len(score_cols) + len(sort_tail)),
+            na_position="last"
+        )
     else:
         work["driver_score"] = 0.0
 
