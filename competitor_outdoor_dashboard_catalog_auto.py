@@ -99,7 +99,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 # ============================================================
 OUT_DIR = os.path.join("reports", "competitor_intel")
 HEADLESS = os.getenv("HEADLESS", "1").strip().lower() not in {"0", "false", "no"}
-MAX_PRODUCTS_PER_BRAND = int(os.getenv("MAX_PRODUCTS_PER_BRAND", "400"))
+MAX_PRODUCTS_PER_BRAND = int(os.getenv("MAX_PRODUCTS_PER_BRAND", "0"))  # 0 or less = unlimited
 MAX_DISCOVERED_LISTING_URLS = int(os.getenv("MAX_DISCOVERED_LISTING_URLS", "120"))
 SCROLL_PAUSE_SEC = float(os.getenv("SCROLL_PAUSE_SEC", "1.0"))
 DEFAULT_WAIT_SEC = int(os.getenv("DEFAULT_WAIT_SEC", "18"))
@@ -2349,10 +2349,11 @@ class AutoCompetitorCrawler:
                     dedup_meta[key][fld] = meta.get(fld)
         product_urls = list(dedup_meta.values())
 
-        if len(product_urls) > cfg.max_products:
+        if cfg.max_products and cfg.max_products > 0 and len(product_urls) > cfg.max_products:
             product_urls = product_urls[:cfg.max_products]
-
-        print(f"  - discovered product urls: {len(product_urls)}")
+            print(f"  - discovered product urls: {len(product_urls)} (capped)")
+        else:
+            print(f"  - discovered product urls: {len(product_urls)}")
 
         raw_products: List[ProductRaw] = []
         unresolved_urls: List[str] = []
