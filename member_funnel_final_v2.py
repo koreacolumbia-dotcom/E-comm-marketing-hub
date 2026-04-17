@@ -660,101 +660,100 @@ def fetch_rows_from_bq() -> pd.DataFrame:
 
 
 def fetch_purchase_journey_summary_bq(start_date: dt.date, end_date: dt.date) -> dict[str, float]:
-    """Return purchase journey summary directly from raw BQ tables with minimal transformation.
+    """Return purchase journey summary directly from MSSQL raw orders so the dashboard matches the user's validation query semantics exactly.
 
-    Repurchase cadence intentionally ignores dashboard period filters and follows the user's
-    validation query semantics: full raw order history, member-level first->second / second->third / third->fourth order gaps.
-    AOV uses raw ERP revenue aggregated at order level from tb_order_product_staging.
+    Repurchase cadence intentionally follows full TB_Order history with no dashboard period filter,
+    matching the user's SQL in SSMS. AOV uses TB_OrderProduct ERP revenue aggregated per order,
+    then averages the 2nd and 3rd purchase order values.
     """
-    if bigquery is None:
-        return {}
+    conn = None
     try:
-        client = get_bq_client()
+        conn = get_mssql_connection()
         sql = """
         WITH ordered AS (
-          SELECT
-            CAST(MemberID AS STRING) AS member_id,
-            DATETIME(OrderRegdate) AS order_dt,
-            CAST(OrderNo AS STRING) AS order_no,
-            ROW_NUMBER() OVER (
-              PARTITION BY CAST(MemberID AS STRING)
-              ORDER BY DATETIME(OrderRegdate), CAST(OrderNo AS STRING)
-            ) AS rn
-          FROM `columbia-ga4.crm_raw.tb_order_staging`
-          WHERE MemberID IS NOT NULL
-            AND TRIM(CAST(MemberID AS STRING)) != ''
-            AND OrderRegdate IS NOT NULL
+            SELECT
+                CAST(MemberID AS VARCHAR(255)) AS MemberID,
+                CAST(OrderNo AS VARCHAR(255)) AS OrderNo,
+                CAST(OrderRegdate AS DATETIME) AS OrderRegdate,
+                ROW_NUMBER() OVER (
+                    PARTITION BY CAST(MemberID AS VARCHAR(255))
+                    ORDER BY CAST(OrderRegdate AS DATETIME), CAST(OrderNo AS VARCHAR(255))
+                ) AS rn
+            FROM dbo.TB_Order
+            WHERE MemberID IS NOT NULL
+              AND LTRIM(RTRIM(CAST(MemberID AS VARCHAR(255)))) <> ''
+              AND OrderRegdate IS NOT NULL
         ),
         diff12 AS (
-          SELECT
-            a.member_id,
-            DATETIME_DIFF(b.order_dt, a.order_dt, DAY) AS days_1_to_2
-          FROM ordered a
-          JOIN ordered b
-            ON a.member_id = b.member_id
-           AND a.rn = 1
-           AND b.rn = 2
+            SELECT
+                a.MemberID,
+                DATEDIFF(day, a.OrderRegdate, b.OrderRegdate) AS days_1_to_2
+            FROM ordered a
+            JOIN ordered b
+              ON a.MemberID = b.MemberID
+             AND a.rn = 1
+             AND b.rn = 2
         ),
         diff23 AS (
-          SELECT
-            a.member_id,
-            DATETIME_DIFF(b.order_dt, a.order_dt, DAY) AS days_2_to_3
-          FROM ordered a
-          JOIN ordered b
-            ON a.member_id = b.member_id
-           AND a.rn = 2
-           AND b.rn = 3
+            SELECT
+                a.MemberID,
+                DATEDIFF(day, a.OrderRegdate, b.OrderRegdate) AS days_2_to_3
+            FROM ordered a
+            JOIN ordered b
+              ON a.MemberID = b.MemberID
+             AND a.rn = 2
+             AND b.rn = 3
         ),
         diff34 AS (
-          SELECT
-            a.member_id,
-            DATETIME_DIFF(b.order_dt, a.order_dt, DAY) AS days_3_to_4
-          FROM ordered a
-          JOIN ordered b
-            ON a.member_id = b.member_id
-           AND a.rn = 3
-           AND b.rn = 4
+            SELECT
+                a.MemberID,
+                DATEDIFF(day, a.OrderRegdate, b.OrderRegdate) AS days_3_to_4
+            FROM ordered a
+            JOIN ordered b
+              ON a.MemberID = b.MemberID
+             AND a.rn = 3
+             AND b.rn = 4
         ),
         order_rev AS (
-          SELECT
-            CAST(MemberID AS STRING) AS member_id,
-            CAST(OrderNo AS STRING) AS order_no,
-            DATETIME(COALESCE(OrderProductRegdate, OrderRegdate)) AS order_dt,
-            SUM(COALESCE(ErpPrice, 0)) AS order_revenue
-          FROM `columbia-ga4.crm_raw.tb_order_product_staging`
-          WHERE MemberID IS NOT NULL
-            AND TRIM(CAST(MemberID AS STRING)) != ''
-            AND COALESCE(OrderRefundStatus, 0) = 0
-          GROUP BY 1,2,3
+            SELECT
+                CAST(o.MemberID AS VARCHAR(255)) AS MemberID,
+                CAST(o.OrderNo AS VARCHAR(255)) AS OrderNo,
+                CAST(o.OrderRegdate AS DATETIME) AS OrderRegdate,
+                SUM(COALESCE(op.ErpPrice, 0)) AS order_revenue
+            FROM dbo.TB_Order o
+            INNER JOIN dbo.TB_OrderProduct op
+                ON o.OrderNo = op.OrderNo
+            WHERE o.MemberID IS NOT NULL
+              AND LTRIM(RTRIM(CAST(o.MemberID AS VARCHAR(255)))) <> ''
+              AND o.OrderRegdate IS NOT NULL
+              AND COALESCE(op.OrderRefundStatus, 0) = 0
+            GROUP BY
+                CAST(o.MemberID AS VARCHAR(255)),
+                CAST(o.OrderNo AS VARCHAR(255)),
+                CAST(o.OrderRegdate AS DATETIME)
         ),
         ranked_rev AS (
-          SELECT
-            member_id,
-            order_no,
-            order_dt,
-            order_revenue,
-            ROW_NUMBER() OVER (
-              PARTITION BY member_id
-              ORDER BY order_dt, order_no
-            ) AS rn
-          FROM order_rev
-        ),
-        aov_agg AS (
-          SELECT
-            AVG(CASE WHEN rn = 2 THEN order_revenue END) AS second_buyer_aov,
-            AVG(CASE WHEN rn = 3 THEN order_revenue END) AS third_buyer_aov
-          FROM ranked_rev
+            SELECT
+                MemberID,
+                OrderNo,
+                OrderRegdate,
+                order_revenue,
+                ROW_NUMBER() OVER (
+                    PARTITION BY MemberID
+                    ORDER BY OrderRegdate, OrderNo
+                ) AS rn
+            FROM order_rev
         )
         SELECT
-          (SELECT COUNT(*) FROM diff12) AS journey_users,
-          (SELECT AVG(CAST(days_1_to_2 AS FLOAT64)) FROM diff12) AS avg_days_1_to_2,
-          (SELECT AVG(CAST(days_2_to_3 AS FLOAT64)) FROM diff23) AS avg_days_2_to_3,
-          (SELECT AVG(CAST(days_3_to_4 AS FLOAT64)) FROM diff34) AS avg_days_3_to_4,
-          second_buyer_aov,
-          third_buyer_aov
-        FROM aov_agg
+            (SELECT COUNT(*) FROM diff12) AS journey_users,
+            (SELECT AVG(CAST(days_1_to_2 AS FLOAT)) FROM diff12) AS avg_days_1_to_2,
+            (SELECT AVG(CAST(days_2_to_3 AS FLOAT)) FROM diff23) AS avg_days_2_to_3,
+            (SELECT AVG(CAST(days_3_to_4 AS FLOAT)) FROM diff34) AS avg_days_3_to_4,
+            (SELECT AVG(CAST(order_revenue AS FLOAT)) FROM ranked_rev WHERE rn = 2) AS second_buyer_aov,
+            (SELECT AVG(CAST(order_revenue AS FLOAT)) FROM ranked_rev WHERE rn = 3) AS third_buyer_aov
+        ;
         """
-        df = client.query(sql, location=BQ_LOCATION).to_dataframe()
+        df = pd.read_sql(sql, conn)
         if df.empty:
             return {}
         row = df.iloc[0].to_dict()
@@ -769,6 +768,12 @@ def fetch_purchase_journey_summary_bq(start_date: dt.date, end_date: dt.date) ->
     except Exception as e:
         print(f'[WARN] fetch_purchase_journey_summary_bq failed: {e}')
         return {}
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _sample_json_for_period(base_path: str, key: str) -> Path | None:
