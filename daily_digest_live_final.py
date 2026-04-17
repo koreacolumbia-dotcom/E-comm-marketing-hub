@@ -31,6 +31,13 @@ REPORT_PATCH_CSS = """
     @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
     @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
+  .brandsearch-tabs input[type=radio]{display:none}
+  .brandsearch-tab-label{display:inline-flex;align-items:center;justify-content:center;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;color:#475569;cursor:pointer}
+  .brandsearch-tabs .panel{display:none}
+  .brandsearch-tabs .tab-a:checked + label{background:#0f172a;color:#fff;border-color:#0f172a}
+  .brandsearch-tabs .tab-b:checked + label{background:#0f172a;color:#fff;border-color:#0f172a}
+  .brandsearch-tabs .tab-a:checked ~ .brandsearch-panels .panel-a{display:block}
+  .brandsearch-tabs .tab-b:checked ~ .brandsearch-panels .panel-b{display:block}
   </style>
 """
 
@@ -446,13 +453,18 @@ def fetch_order_product_period_snapshot(start_date: dt.date, end_date: dt.date) 
         return empty
     try:
         bq = bigquery.Client(project=ADMIN_BQ_PROJECT or None, location=ADMIN_BQ_LOCATION or None)
+        schema = _order_product_schema(bq, table_name)
+        date_col = schema["date_col"]
+        qty_col = schema["qty_col"]
+        revenue_col = schema["revenue_col"]
+        if not (date_col and qty_col and revenue_col):
+            return empty
         sql = f"""
         SELECT
-          SUM(COALESCE(ProductQuantity, 0)) AS qty,
-          SUM(COALESCE(ErpPrice, 0)) AS revenue
+          SUM(COALESCE({qty_col}, 0)) AS qty,
+          SUM(COALESCE({revenue_col}, 0)) AS revenue
         FROM `{table_name}`
-        WHERE ErpDate IS NOT NULL
-          AND DATE(ErpDate) BETWEEN @start_date AND @end_date
+        WHERE DATE({date_col}) BETWEEN @start_date AND @end_date
         """
         cfg = bigquery.QueryJobConfig(
             query_parameters=[
@@ -469,7 +481,7 @@ def fetch_order_product_period_snapshot(start_date: dt.date, end_date: dt.date) 
             "date_end": end_date.isoformat(),
             "qty": _num(row.get("qty", 0)),
             "revenue": _num(row.get("revenue", 0)),
-            "source": f"order_product_erpdate:{table_name}",
+            "source": f"order_product:{table_name}",
         }
     except Exception as e:
         print(f"[WARN] fetch_order_product_period_snapshot failed: {type(e).__name__}: {e}")
@@ -578,9 +590,8 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         revenue = _num(row.get("revenue", 0))
         total_price = _num(row.get("total_price", 0))
         cancel_amount = _num(row.get("cancel_amount", 0))
-        order_product = fetch_order_product_period_snapshot(start_date, end_date)
-        qty = _num(order_product.get("qty", row.get("quantity", row.get("qty", 0))))
-        erp_revenue = _num(order_product.get("revenue", revenue))
+        qty = _num(row.get("quantity", row.get("qty", 0)))
+        erp_revenue = revenue
         return {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
@@ -595,7 +606,7 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
             "total_price": total_price,
             "cancel_amount": cancel_amount,
             "aov": (erp_revenue / orders) if orders else 0.0,
-            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}|{order_product.get('source', '')}",
+            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}",
         }
     except Exception as e:
         print(f"[WARN] fetch_admin_period_snapshot failed: {type(e).__name__}: {e}")
@@ -608,7 +619,7 @@ def build_admin_overall(w: DigestWindow) -> Dict[str, Dict[str, float]]:
         "prev": fetch_admin_period_snapshot(w.prev_start, w.prev_end),
         "yoy": fetch_admin_period_snapshot(w.yoy_start, w.yoy_end),
     }
-    print("[DEBUG] admin_overall current(from admin_daily + order_product_erpdate):", out.get("current", {}))
+    print("[DEBUG] admin_overall current:", out.get("current", {}))
     return out
 
 
@@ -3692,6 +3703,7 @@ def enrich_brandsearch_status_with_prev_day(statuses: Optional[List[dict]], end_
         item["ab_label"] = "A/B" if ab_flag else ""
         item["ab_variant_count"] = len(variants)
         item["ab_changed_parts"] = ab_changed_parts
+        item["ab_variants"] = variants[:5]
         out.append(item)
     return out
 
@@ -4436,42 +4448,79 @@ def render_page_html(
 </script>"""
 
 
+
     brand_powerlink_rows = []
-    for item in (brand_powerlink_status or []):
+    for idx, item in enumerate((brand_powerlink_status or []), start=1):
         brand = esc(item.get("brand", ""))
-        highlights = item.get("keyword_highlights", []) or []
-        if not highlights:
-            highlights = item.get("tags", []) or item.get("cards", []) or []
-        chips = "".join([
-            f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>{esc(v)}</span>"
-            for v in highlights[:4]
-        ])
-        copy_lines = [x for x in [item.get("headline", ""), item.get("main_copy", ""), item.get("sub_copy", "")] if str(x).strip()]
-        title_line = esc(copy_lines[0]) if copy_lines else "대표 문구 미검출"
-        desc_lines = copy_lines[1:3]
-        desc_html = "".join([f"<div class='truncate'>{esc(x)}</div>" for x in desc_lines])
-
         hero_image = str(item.get("capture_path", "") or item.get("hero_image", "") or "").strip()
-        hero_html = (
-            f"<div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='{esc(hero_image)}' alt='{brand} hero' class='h-full w-full object-cover'/></div>"
-            if hero_image else
-            "<div class='flex h-[98px] w-[98px] shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-[9px] font-semibold text-slate-400'>No image</div>"
-        )
+        base_cards_detail = item.get("cards_detail", []) or []
 
-        cards_detail = item.get("cards_detail", []) or []
-        card_tiles = []
-        for card in cards_detail[:3]:
-            cname = esc(card.get("name", ""))
-            cimg = str(card.get("image", "") or "").strip()
-            cimg_html = (
-                f"<div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='{esc(cimg)}' alt='{cname or brand}' class='h-full w-full object-cover'/></div>"
-                if cimg else
-                "<div class='flex h-[74px] w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[8px] text-slate-400'>No image</div>"
+        def _render_brandsearch_variant(variant_item: dict, label: str) -> str:
+            variant_highlights = variant_item.get("keyword_highlights", []) or []
+            if not variant_highlights:
+                variant_highlights = variant_item.get("tags", []) or variant_item.get("cards", []) or []
+            chips = "".join([
+                f"<span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>{esc(v)}</span>"
+                for v in variant_highlights[:4]
+            ])
+
+            copy_lines = [x for x in [variant_item.get("headline", ""), variant_item.get("main_copy", ""), variant_item.get("sub_copy", "")] if str(x).strip()]
+            title_line = esc(copy_lines[0]) if copy_lines else "대표 문구 미검출"
+            desc_lines = copy_lines[1:3]
+            desc_html = "".join([f"<div class='truncate'>{esc(x)}</div>" for x in desc_lines])
+
+            variant_hero_image = str(variant_item.get("capture_path", "") or variant_item.get("hero_image", "") or hero_image).strip()
+            hero_html = (
+                f"<div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='{esc(variant_hero_image)}' alt='{brand} hero' class='h-full w-full object-cover'/></div>"
+                if variant_hero_image else
+                "<div class='flex h-[98px] w-[98px] shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-[9px] font-semibold text-slate-400'>No image</div>"
             )
-            card_tiles.append(
-                f"<div class='min-w-0 flex-1'>{cimg_html}<div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>{cname}</div></div>"
-            )
-        card_tiles_html = f"<div class='mt-3 grid grid-cols-3 gap-2'>{''.join(card_tiles)}</div>" if card_tiles else ""
+
+            variant_cards_detail = variant_item.get("cards_detail", []) or base_cards_detail
+            card_tiles = []
+            for card in variant_cards_detail[:3]:
+                cname = esc((card or {}).get("name", ""))
+                cimg = str((card or {}).get("image", "") or "").strip()
+                cimg_html = (
+                    f"<div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='{esc(cimg)}' alt='{cname or brand}' class='h-full w-full object-cover'/></div>"
+                    if cimg else
+                    "<div class='flex h-[74px] w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[8px] text-slate-400'>No image</div>"
+                )
+                card_tiles.append(
+                    f"<div class='min-w-0 flex-1'>{cimg_html}<div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>{cname}</div></div>"
+                )
+            card_tiles_html = f"<div class='mt-3 grid grid-cols-3 gap-2'>{''.join(card_tiles)}</div>" if card_tiles else ""
+
+            return f"""
+            <div class="mt-3 flex items-start gap-4">
+              {hero_html}
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">{title_line}</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700">{desc_html}</div>
+                <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">{label}</div>
+              </div>
+            </div>
+            {card_tiles_html}
+            """
+
+        variants = [dict(item)]
+        for v in (item.get("ab_variants", []) or []):
+            if not isinstance(v, dict):
+                continue
+            cur_sig = json.dumps(_brandsearch_compare_signature(item), ensure_ascii=False, sort_keys=True)
+            v_sig = json.dumps(_brandsearch_compare_signature(v), ensure_ascii=False, sort_keys=True)
+            if v_sig != cur_sig:
+                variants.append(dict(v))
+        dedup = []
+        seen = set()
+        for v in variants:
+            sig = json.dumps(_brandsearch_compare_signature(v), ensure_ascii=False, sort_keys=True)
+            if sig in seen:
+                continue
+            seen.add(sig)
+            dedup.append(v)
+        variants = dedup[:2]
 
         badge_list = []
         if item.get("ab_flag"):
@@ -4493,6 +4542,24 @@ def render_page_html(
                 ab_label += " · " + " · ".join(ab_changed_parts[:3])
             ab_changed_parts_html = f"<div class='mt-1 text-[10px] font-semibold text-violet-700'>{esc(ab_label)}</div>"
 
+        if len(variants) >= 2:
+            content_html = f"""
+            <div class="brandsearch-tabs">
+              <div class="mt-2 flex items-center justify-end gap-1">
+                <input class="tab-a" type="radio" name="brandsearch-tab-{idx}" id="brandsearch-tab-{idx}-a" checked>
+                <label class="brandsearch-tab-label" for="brandsearch-tab-{idx}-a">A안</label>
+                <input class="tab-b" type="radio" name="brandsearch-tab-{idx}" id="brandsearch-tab-{idx}-b">
+                <label class="brandsearch-tab-label" for="brandsearch-tab-{idx}-b">B안</label>
+              </div>
+              <div class="brandsearch-panels">
+                <div class="panel panel-a">{_render_brandsearch_variant(variants[0], "A안")}</div>
+                <div class="panel panel-b">{_render_brandsearch_variant(variants[1], "B안")}</div>
+              </div>
+            </div>
+            """
+        else:
+            content_html = _render_brandsearch_variant(variants[0], "A안")
+
         brand_powerlink_rows.append(f"""
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
@@ -4502,19 +4569,12 @@ def render_page_html(
             </div>
             {badges_html}
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            {hero_html}
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">{title_line}</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700">{desc_html}</div>
-              <div class="mt-3 flex flex-wrap gap-2">{chips}</div>
-              {changed_parts_html}
-              {ab_changed_parts_html}
-            </div>
-          </div>
-          {card_tiles_html}
+          {changed_parts_html}
+          {ab_changed_parts_html}
+          {content_html}
         </div>
         """)
+
     brand_powerlink_html = ""
     if brand_powerlink_rows:
         brand_powerlink_html = f"""
@@ -4522,13 +4582,14 @@ def render_page_html(
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">브랜드검색 현황</div>
-              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B 표시</div>
+              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B 탭 표시</div>
             </div>
             <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">{len(brand_powerlink_rows)} brands</div>
           </div>
           <div class="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-4">{''.join(brand_powerlink_rows)}</div>
         </div>
         """
+
     html = f"""<!doctype html>
 <html lang="ko">
 <head>
