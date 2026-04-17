@@ -218,9 +218,37 @@ def build_analysis_target_payload(user: pd.DataFrame) -> dict:
 
     if "ml_action_type" not in work.columns or (work["ml_action_type"].astype(str).str.strip() == "").all():
         work = _compute_driver_scores_from_frame(work)
+
+    # fallback from CRM ML score outputs -> driver UI expected columns
+    fallback_pairs = {
+        "driver_repurchase_score": "repurchase_30d_score",
+        "driver_first_buy_score": "first_purchase_30d_score",
+        "driver_churn_score": "churn_60d_score",
+        "driver_ltv_score": "ltv_score",
+        "driver_non_buyer_intent_score": None,
+    }
+    for driver_col, base_col in fallback_pairs.items():
+        if driver_col not in work.columns:
+            if base_col and base_col in work.columns:
+                work[driver_col] = pd.to_numeric(work[base_col], errors="coerce").fillna(0.0)
+            else:
+                work[driver_col] = 0.0
+
     if "driver_segment_label" not in work.columns:
-        work["driver_segment_label"] = "General Drivers"
+        if "ml_action_type" in work.columns:
+            action_map = {
+                "RETENTION_REPURCHASE": "Repeat Purchase Drivers",
+                "FIRST_PURCHASE_NUDGE": "First Buy Drivers",
+                "CHURN_PREVENTION": "Churn Risk Drivers",
+                "VIP_UPSELL": "High Value Drivers",
+                "CATEGORY_CROSSSELL": "Cross Sell Drivers",
+                "GENERAL": "General Drivers",
+            }
+            work["driver_segment_label"] = work["ml_action_type"].astype(str).map(action_map).fillna("General Drivers")
+        else:
+            work["driver_segment_label"] = "General Drivers"
     work["driver_segment_label"] = work["driver_segment_label"].astype(str).replace({"": "General Drivers", "nan": "General Drivers"}).fillna("General Drivers")
+
     if "recommended_message_norm" not in work.columns:
         work["recommended_message_norm"] = work.get("ml_action_type", pd.Series(["GENERAL"] * len(work), index=work.index)).astype(str)
     else:
@@ -230,7 +258,19 @@ def build_analysis_target_payload(user: pd.DataFrame) -> dict:
 
     if "consent_norm" not in work.columns:
         work["consent_norm"] = 0
-    score_cols = [c for c in ["ltv_score", "repurchase_30d_score", "first_purchase_30d_score", "churn_60d_score"] if c in work.columns]
+
+    score_cols = [c for c in [
+        "driver_ltv_score",
+        "driver_repurchase_score",
+        "driver_first_buy_score",
+        "driver_churn_score",
+        "driver_non_buyer_intent_score",
+        "ltv_score",
+        "repurchase_30d_score",
+        "first_purchase_30d_score",
+        "churn_60d_score",
+    ] if c in work.columns]
+
     if score_cols:
         work["driver_score"] = (
             work[score_cols]
@@ -238,10 +278,10 @@ def build_analysis_target_payload(user: pd.DataFrame) -> dict:
             .fillna(0.0)
             .max(axis=1)
         )
-        sort_tail = [c for c in ["orders_norm", "metric_revenue_norm"] if c in work.columns]
+        sort_tail = [c for c in ["orders_norm", "metric_revenue_norm", "sessions_norm", "add_to_cart_norm"] if c in work.columns]
         work = work.sort_values(
-            score_cols + sort_tail,
-            ascending=[False] * (len(score_cols) + len(sort_tail)),
+            ["driver_score"] + sort_tail,
+            ascending=[False] * (1 + len(sort_tail)),
             na_position="last"
         )
     else:
@@ -264,16 +304,26 @@ def build_analysis_target_payload(user: pd.DataFrame) -> dict:
         })
     cards = sorted(cards, key=lambda x: (-x.get("count", 0), x.get("label", "")))
     if not cards:
-        cards = [{"label": "General Drivers", "count": int(len(work.index)), "top_channel": top_label(work, "channel_group_norm", "미분류"), "top_product": top_label(work, "purchase_product_name_norm", "미분류"), "top_message": top_label(work, "ml_action_type", "GENERAL")}]
+        cards = [{
+            "label": "General Drivers",
+            "count": int(len(work.index)),
+            "top_channel": top_label(work, "channel_group_norm", "미분류"),
+            "top_product": top_label(work, "purchase_product_name_norm", "미분류"),
+            "top_message": top_label(work, "ml_action_type", "GENERAL")
+        }]
+
+    row_source = work.head(max(UI_MAX_TARGET_ROWS, 300)).copy()
+    if row_source.empty:
+        row_source = work.head(100).copy()
 
     rows = rows_from_df(
-        work.head(max(UI_MAX_TARGET_ROWS, 300)),
+        row_source,
         {
             "member_id_norm":"member_id","phone_norm":"phone","user_id_norm":"user_id","channel_group_norm":"channel_group",
             "campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product",
             "driver_segment_label":"driver_segment","ml_action_type":"recommended_message",
-            "repurchase_30d_score":"repurchase_score","first_purchase_30d_score":"first_buy_score",
-            "churn_60d_score":"churn_score","ltv_score":"ltv_score","consent_norm":"consent"
+            "driver_repurchase_score":"repurchase_score","driver_first_buy_score":"first_buy_score",
+            "driver_churn_score":"churn_score","driver_ltv_score":"ltv_score","consent_norm":"consent"
         }
     )
     return {"cards": cards, "rows": rows}
