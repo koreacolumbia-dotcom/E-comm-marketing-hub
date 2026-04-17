@@ -446,18 +446,13 @@ def fetch_order_product_period_snapshot(start_date: dt.date, end_date: dt.date) 
         return empty
     try:
         bq = bigquery.Client(project=ADMIN_BQ_PROJECT or None, location=ADMIN_BQ_LOCATION or None)
-        schema = _order_product_schema(bq, table_name)
-        date_col = schema["date_col"]
-        qty_col = schema["qty_col"]
-        revenue_col = schema["revenue_col"]
-        if not (date_col and qty_col and revenue_col):
-            return empty
         sql = f"""
         SELECT
-          SUM(COALESCE({qty_col}, 0)) AS qty,
-          SUM(COALESCE({revenue_col}, 0)) AS revenue
+          SUM(COALESCE(ProductQuantity, 0)) AS qty,
+          SUM(COALESCE(ErpPrice, 0)) AS revenue
         FROM `{table_name}`
-        WHERE DATE({date_col}) BETWEEN @start_date AND @end_date
+        WHERE ErpDate IS NOT NULL
+          AND DATE(ErpDate) BETWEEN @start_date AND @end_date
         """
         cfg = bigquery.QueryJobConfig(
             query_parameters=[
@@ -474,7 +469,7 @@ def fetch_order_product_period_snapshot(start_date: dt.date, end_date: dt.date) 
             "date_end": end_date.isoformat(),
             "qty": _num(row.get("qty", 0)),
             "revenue": _num(row.get("revenue", 0)),
-            "source": f"order_product:{table_name}",
+            "source": f"order_product_erpdate:{table_name}",
         }
     except Exception as e:
         print(f"[WARN] fetch_order_product_period_snapshot failed: {type(e).__name__}: {e}")
@@ -583,8 +578,9 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         revenue = _num(row.get("revenue", 0))
         total_price = _num(row.get("total_price", 0))
         cancel_amount = _num(row.get("cancel_amount", 0))
-        qty = _num(row.get("quantity", row.get("qty", 0)))
-        erp_revenue = revenue
+        order_product = fetch_order_product_period_snapshot(start_date, end_date)
+        qty = _num(order_product.get("qty", row.get("quantity", row.get("qty", 0))))
+        erp_revenue = _num(order_product.get("revenue", revenue))
         return {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
@@ -599,7 +595,7 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
             "total_price": total_price,
             "cancel_amount": cancel_amount,
             "aov": (erp_revenue / orders) if orders else 0.0,
-            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}",
+            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}|{order_product.get('source', '')}",
         }
     except Exception as e:
         print(f"[WARN] fetch_admin_period_snapshot failed: {type(e).__name__}: {e}")
@@ -612,7 +608,7 @@ def build_admin_overall(w: DigestWindow) -> Dict[str, Dict[str, float]]:
         "prev": fetch_admin_period_snapshot(w.prev_start, w.prev_end),
         "yoy": fetch_admin_period_snapshot(w.yoy_start, w.yoy_end),
     }
-    print("[DEBUG] admin_overall current:", out.get("current", {}))
+    print("[DEBUG] admin_overall current(from admin_daily + order_product_erpdate):", out.get("current", {}))
     return out
 
 
