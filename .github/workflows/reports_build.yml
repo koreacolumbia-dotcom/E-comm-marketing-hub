@@ -417,18 +417,17 @@ jobs:
           cache-dependency-path: |
             requirements.txt
 
-      - name: Install ODBC system packages
+
+      - name: Install ODBC driver for MSSQL
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y curl gnupg2 ca-certificates apt-transport-https unixodbc unixodbc-dev
-          if ! command -v sqlcmd >/dev/null 2>&1 && [ ! -e /opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.so ]; then
-            curl https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-            echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | sudo tee /etc/apt/sources.list.d/microsoft-prod.list > /dev/null
-            sudo apt-get update
-            sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
-          fi
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc             | gpg --dearmor             | sudo tee /usr/share/keyrings/microsoft-prod.gpg > /dev/null
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main"             | sudo tee /etc/apt/sources.list.d/microsoft-prod.list > /dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
 
       - name: Install dependencies
         shell: bash
@@ -454,8 +453,7 @@ jobs:
               requests \
               playwright \
               openpyxl \
-              matplotlib \
-              pyodbc
+              matplotlib
           fi
 
           pip install openpyxl matplotlib pytrends google-cloud-bigquery google-cloud-bigquery-storage db-dtypes pyarrow selenium webdriver-manager lightgbm joblib pyodbc
