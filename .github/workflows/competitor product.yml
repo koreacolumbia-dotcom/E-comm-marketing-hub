@@ -21,10 +21,19 @@ permissions:
 jobs:
   run_competitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: [COLUMBIA, DISCOVERY]
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       HEADLESS: "1"
-      MAX_PRODUCTS_PER_SITE: "600"
+      MAX_PRODUCTS_PER_BRAND: "0"
+      CHECKPOINT_EVERY: "100"
+      BRAND_FILTER: ${{ matrix.brand }}
+      RUN_BUDGET: "170m"
+      SCRIPT_PATH: "competitor_outdoor_dashboard_catalog_auto.py"
 
     steps:
       - name: Checkout repo
@@ -76,14 +85,44 @@ jobs:
           set -euo pipefail
           mkdir -p reports/competitor_intel
 
-      - name: Run Competitor Product dashboard
+      - name: Show workspace before run
         shell: bash
         run: |
           set -euo pipefail
-          test -f competitor_outdoor_dashboard_catalog_auto.py || { echo "[ERROR] competitor_outdoor_dashboard_catalog_auto.py not found"; exit 1; }
-          python -u competitor_outdoor_dashboard_catalog_auto.py
-          test -f reports/competitor_intel/dashboard.html || { echo "[ERROR] reports/competitor_intel/dashboard.html missing"; exit 1; }
+          echo "PWD=$(pwd)"
+          echo "GITHUB_WORKSPACE=${GITHUB_WORKSPACE:-}"
+          find reports -maxdepth 3 -type f | sort || true
+
+      - name: Run competitor crawler for ${{ matrix.brand }} with checkpoint budget
+        id: crawl
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$SCRIPT_PATH" || { echo "[ERROR] $SCRIPT_PATH not found"; exit 1; }
+
+          status=0
+          timeout --signal=TERM "$RUN_BUDGET" python -u "$SCRIPT_PATH" || status=$?
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" = "0" ]; then
+            echo "[OK] crawler finished for $BRAND_FILTER"
+          elif [ "$status" = "124" ] || [ "$status" = "143" ]; then
+            echo "[WARN] crawler reached budget for $BRAND_FILTER; checkpoints should remain and will be committed"
+          else
+            echo "[ERROR] crawler failed for $BRAND_FILTER with status=$status"
+            exit "$status"
+          fi
+
+      - name: Inspect competitor outputs in workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== reports/competitor_intel ==="
           ls -la reports/competitor_intel || true
+          echo "=== checkpoint files ==="
+          find reports/competitor_intel -maxdepth 1 -type f | sort || true
 
       - name: Commit & push report results
         if: ${{ always() }}
@@ -114,7 +153,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Competitor product auto update" || true
+          git commit -m "Competitor product checkpoint update (${BRAND_FILTER})" || true
 
           for i in 1 2 3; do
             echo "[INFO] push attempt $i/3"
@@ -128,3 +167,12 @@ jobs:
 
           echo "[ERROR] failed to push after retries"
           exit 1
+
+      - name: Upload competitor crawl outputs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: competitor_intel_${{ matrix.brand }}_${{ github.run_id }}
+          path: |
+            reports/competitor_intel/**
+          if-no-files-found: warn
