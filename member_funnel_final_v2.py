@@ -211,6 +211,7 @@ def build_ml_target_payload(user: pd.DataFrame) -> dict:
     return {"cards": cards, "rows": rows}
 
 
+
 def build_analysis_target_payload(user: pd.DataFrame) -> dict:
     work = user.copy()
     if work.empty:
@@ -219,77 +220,67 @@ def build_analysis_target_payload(user: pd.DataFrame) -> dict:
     if "ml_action_type" not in work.columns or (work["ml_action_type"].astype(str).str.strip() == "").all():
         work = _compute_driver_scores_from_frame(work)
 
-    # fallback from CRM ML score outputs -> driver UI expected columns
     fallback_pairs = {
         "driver_repurchase_score": "repurchase_30d_score",
         "driver_first_buy_score": "first_purchase_30d_score",
         "driver_churn_score": "churn_60d_score",
         "driver_ltv_score": "ltv_score",
-        "driver_non_buyer_intent_score": None,
     }
     for driver_col, base_col in fallback_pairs.items():
         if driver_col not in work.columns:
-            if base_col and base_col in work.columns:
+            if base_col in work.columns:
                 work[driver_col] = pd.to_numeric(work[base_col], errors="coerce").fillna(0.0)
             else:
                 work[driver_col] = 0.0
 
+    if "driver_non_buyer_intent_score" not in work.columns:
+        if "add_to_cart_norm" in work.columns:
+            work["driver_non_buyer_intent_score"] = _minmax01(pd.to_numeric(work["add_to_cart_norm"], errors="coerce").fillna(0))
+        else:
+            work["driver_non_buyer_intent_score"] = 0.0
+
     if "driver_segment_label" not in work.columns:
+        action_map = {
+            "RETENTION_REPURCHASE": "Repeat Purchase Drivers",
+            "FIRST_PURCHASE_NUDGE": "First Buy Drivers",
+            "CHURN_PREVENTION": "Churn Risk Drivers",
+            "VIP_UPSELL": "High Value Drivers",
+            "CATEGORY_CROSSSELL": "Cross Sell Drivers",
+            "GENERAL": "General Drivers",
+        }
         if "ml_action_type" in work.columns:
-            action_map = {
-                "RETENTION_REPURCHASE": "Repeat Purchase Drivers",
-                "FIRST_PURCHASE_NUDGE": "First Buy Drivers",
-                "CHURN_PREVENTION": "Churn Risk Drivers",
-                "VIP_UPSELL": "High Value Drivers",
-                "CATEGORY_CROSSSELL": "Cross Sell Drivers",
-                "GENERAL": "General Drivers",
-            }
             work["driver_segment_label"] = work["ml_action_type"].astype(str).map(action_map).fillna("General Drivers")
         else:
             work["driver_segment_label"] = "General Drivers"
     work["driver_segment_label"] = work["driver_segment_label"].astype(str).replace({"": "General Drivers", "nan": "General Drivers"}).fillna("General Drivers")
 
     if "recommended_message_norm" not in work.columns:
-        work["recommended_message_norm"] = work.get("ml_action_type", pd.Series(["GENERAL"] * len(work), index=work.index)).astype(str)
-    else:
-        base_msg = work["recommended_message_norm"].astype(str)
-        act = work.get("ml_action_type", pd.Series(["GENERAL"] * len(work), index=work.index)).astype(str)
-        work["recommended_message_norm"] = np.where(base_msg.str.strip() != "", base_msg, act)
+        if "ml_action_type" in work.columns:
+            work["recommended_message_norm"] = work["ml_action_type"].astype(str).replace({"": "GENERAL"}).fillna("GENERAL")
+        else:
+            work["recommended_message_norm"] = "GENERAL"
 
     if "consent_norm" not in work.columns:
         work["consent_norm"] = 0
 
     score_cols = [c for c in [
-        "driver_ltv_score",
         "driver_repurchase_score",
         "driver_first_buy_score",
         "driver_churn_score",
+        "driver_ltv_score",
         "driver_non_buyer_intent_score",
-        "ltv_score",
-        "repurchase_30d_score",
-        "first_purchase_30d_score",
-        "churn_60d_score",
     ] if c in work.columns]
 
     if score_cols:
-        work["driver_score"] = (
-            work[score_cols]
-            .apply(pd.to_numeric, errors="coerce")
-            .fillna(0.0)
-            .max(axis=1)
-        )
-        sort_tail = [c for c in ["orders_norm", "metric_revenue_norm", "sessions_norm", "add_to_cart_norm"] if c in work.columns]
-        work = work.sort_values(
-            ["driver_score"] + sort_tail,
-            ascending=[False] * (1 + len(sort_tail)),
-            na_position="last"
-        )
+        work["driver_score"] = work[score_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).max(axis=1)
     else:
         work["driver_score"] = 0.0
 
+    sort_cols = ["driver_score"] + [c for c in ["orders_norm", "metric_revenue_norm", "sessions_norm", "add_to_cart_norm"] if c in work.columns]
+    work = work.sort_values(sort_cols, ascending=[False] * len(sort_cols), na_position="last")
+
     cards = []
     for label, sdf in work.groupby("driver_segment_label", dropna=False):
-        sdf = sdf.copy()
         if sdf.empty:
             continue
         member_base = sdf["member_id_norm"] if "member_id_norm" in sdf.columns else pd.Series([""] * len(sdf), index=sdf.index)
@@ -313,9 +304,6 @@ def build_analysis_target_payload(user: pd.DataFrame) -> dict:
         }]
 
     row_source = work.head(max(UI_MAX_TARGET_ROWS, 300)).copy()
-    if row_source.empty:
-        row_source = work.head(100).copy()
-
     rows = rows_from_df(
         row_source,
         {
@@ -323,7 +311,7 @@ def build_analysis_target_payload(user: pd.DataFrame) -> dict:
             "campaign_display_norm":"campaign","purchase_product_name_norm":"preferred_product",
             "driver_segment_label":"driver_segment","ml_action_type":"recommended_message",
             "driver_repurchase_score":"repurchase_score","driver_first_buy_score":"first_buy_score",
-            "driver_churn_score":"churn_score","driver_ltv_score":"ltv_score","consent_norm":"consent"
+            "driver_churn_score":"churn_score","driver_ltv_score":"ltv_score","driver_non_buyer_intent_score":"intent_score","consent_norm":"consent"
         }
     )
     return {"cards": cards, "rows": rows}
@@ -2002,6 +1990,90 @@ function renderPurchaseJourney(section){
     <div class="card"><div class="kicker">3rd Purchase Top Product</div><div class="kpi" style="font-size:22px;line-height:1.2;font-family:'Pretendard','Noto Sans KR',sans-serif">${esc2(s.third_purchase_top_product||'-')}</div><div class="kpi-sub">Orders ${num(s.third_purchase_top_product_count||0)}</div></div>
   </div>`;
   return `<section><div class="section-head"><div><div class="section-title">PURCHASE JOURNEY</div><h2>첫구매→재구매 전환 흐름</h2></div></div><div class="grid-4"><div class="card"><div class="kicker">Journey Users</div><div class="kpi">${num(s.journey_users||0)}</div></div><div class="card"><div class="kicker">Days 1→2</div><div class="kpi">${Number(s.avg_days_1_to_2||0).toFixed(1)}</div></div><div class="card"><div class="kicker">Days 2→3</div><div class="kpi">${Number(s.avg_days_2_to_3||0).toFixed(1)}</div></div><div class="card"><div class="kicker">Days 3→4</div><div class="kpi">${Number(s.avg_days_3_to_4||0).toFixed(1)}</div></div><div class="card"><div class="kicker">2nd Buyer AOV</div><div class="kpi">${money(s.second_buyer_aov||0)}</div></div><div class="card"><div class="kicker">3rd Buyer AOV</div><div class="kpi">${money(s.third_buyer_aov||0)}</div></div></div>${catCards}<div class="card">${table(section?.rows||[],[['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],['first_category','1st Category'],['first_product','1st Product'],['second_category','2nd Category'],['second_product','2nd Product'],['third_category','3rd Category'],['third_product','3rd Product'],['days_1_to_2','Days 1→2'],['days_2_to_3','Days 2→3'],['days_3_to_4','Days 3→4']],['days_1_to_2','days_2_to_3','days_3_to_4'],'journey-table')}</div><div class="card">${table(section?.channel_rows||[],[['channel','Channel'],['users','Users'],['avg_days_1_to_2','Avg Days 1→2'],['avg_days_2_to_3','Avg Days 2→3'],['avg_days_3_to_4','Avg Days 3→4']],['users','avg_days_1_to_2','avg_days_2_to_3','avg_days_3_to_4'],'journey-channel-table')}</div></section>`; }
+
+function renderTarget(section){
+  const cards = Array.isArray(section?.cards) ? section.cards : [];
+  const rows = Array.isArray(section?.rows) ? section.rows : [];
+  const cardHtml = cards.length ? `<div class="grid-4">${cards.map(c=>`
+    <div class="card">
+      <div class="kicker">${esc2(c.label||'General Drivers')}</div>
+      <div class="kpi">${num(c.count||0)}</div>
+      <div class="kpi-sub">Top channel · ${esc2(c.top_channel||'미분류')}</div>
+      <div class="kpi-sub">Top product · ${esc2(c.top_product||'미분류')}</div>
+      <div class="kpi-sub">Action · ${esc2(c.top_message||'GENERAL')}</div>
+    </div>`).join('')}</div>` : `<div class="card"><div class="empty-state">No target cards available.</div></div>`;
+  const tableHtml = `<div class="card">${table(rows,[
+    ['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],
+    ['campaign','Campaign'],['preferred_product','Preferred Product'],
+    ['driver_segment','Driver Segment'],['recommended_message','Action'],
+    ['repurchase_score','Repurchase'],['first_buy_score','First Buy'],
+    ['churn_score','Churn'],['ltv_score','LTV'],['intent_score','Intent'],['consent','Consent']
+  ],['repurchase_score','first_buy_score','churn_score','ltv_score','intent_score','consent'],'target-table')}</div>`;
+  return `<section><div class="section-head"><div><div class="section-title">TARGET</div><h2>Driver Segment Targeting</h2></div></div>${cardHtml}${tableHtml}</section>`;
+}
+function renderTotal(section){
+  const channels = safePanelSet(section);
+  const panel = pickAllPanel(section);
+  const cards = `<div class="grid-4">
+    <div class="card"><div class="kicker">Members</div><div class="kpi">${num(panel.summary?.members ?? panel.rows?.length ?? 0)}</div></div>
+    <div class="card"><div class="kicker">Buyers</div><div class="kpi">${num(panel.summary?.buyers ?? 0)}</div></div>
+    <div class="card"><div class="kicker">Revenue</div><div class="kpi">${money(panel.summary?.revenue ?? 0)}</div></div>
+    <div class="card"><div class="kicker">AOV</div><div class="kpi">${money(panel.summary?.aov ?? 0)}</div></div>
+  </div>`;
+  return `<section><div class="section-head"><div><div class="section-title">TOTAL VIEW</div><h2>기존 회원 전체 분석</h2></div></div>${cards}
+    <div class="grid-2">
+      <div class="card"><div class="section-title">CHANNEL MIX</div>${bar(panel.channel_dist||[])}</div>
+      <div class="card"><div class="section-title">AGE MIX</div>${bar(panel.age_dist||[])}</div>
+    </div>
+    <div class="card">${table(panel.rows||[],[
+      ['member_id','Member ID'],['channel_group','Channel'],['top_category','Top Category'],
+      ['purchase_product_name','Top Product'],['orders','Orders'],['revenue','Revenue']
+    ],['orders','revenue'],'total-table')}</div>
+  </section>`;
+}
+function renderMLInsight(section){
+  const s = section?.summary || {};
+  const segs = Array.isArray(section?.segments) ? section.segments : [];
+  const rows = Array.isArray(section?.rows) ? section.rows : [];
+  const cards = `<div class="grid-4">
+    <div class="card"><div class="kicker">Members</div><div class="kpi">${num(s.members||0)}</div></div>
+    <div class="card"><div class="kicker">Avg Repurchase</div><div class="kpi">${pct((s.avg_repurchase_score||0)*100)}</div></div>
+    <div class="card"><div class="kicker">Avg Churn</div><div class="kpi">${pct((s.avg_churn_score||0)*100)}</div></div>
+    <div class="card"><div class="kicker">High LTV %</div><div class="kpi">${pct(s.high_ltv_pct||0)}</div></div>
+  </div>`;
+  const segCards = segs.length ? `<div class="grid-4">${segs.map(x=>`
+    <div class="card">
+      <div class="kicker">${esc2(x.label||'-')}</div>
+      <div class="kpi">${num(x.count||0)}</div>
+      <div class="kpi-sub">Avg score · ${pct(x.avg_score||0)}</div>
+      <div class="kpi-sub">Top channel · ${esc2(x.top_channel||'미분류')}</div>
+      <div class="kpi-sub">Action · ${esc2(x.recommended_action||'GENERAL')}</div>
+    </div>`).join('')}</div>` : '';
+  return `<section><div class="section-head"><div><div class="section-title">DRIVER INSIGHT</div><h2>딥 드라이버 분석</h2></div></div>${cards}${segCards}
+    <div class="card">${table(rows,[
+      ['member_id','Member ID'],['user_id','USER_ID'],['channel_group','Channel'],
+      ['product','Product'],['dominant_driver','Dominant Driver'],
+      ['repurchase_score','Repurchase'],['first_buy_score','First Buy'],
+      ['churn_score','Churn'],['ltv_score','LTV'],['recommended_action','Action']
+    ],['repurchase_score','first_buy_score','churn_score','ltv_score'],'ml-insight-table')}</div>
+  </section>`;
+}
+function renderPurchasePattern(section){
+  const s = section?.summary || {};
+  return `<section><div class="section-head"><div><div class="section-title">PURCHASE PATTERN</div><h2>구매 패턴 분석</h2></div></div>
+    <div class="grid-4">
+      <div class="card"><div class="kicker">Members</div><div class="kpi">${num(s.members||0)}</div></div>
+      <div class="card"><div class="kicker">Multi Item Buyers</div><div class="kpi">${num(s.multi_item_buyers||0)}</div></div>
+      <div class="card"><div class="kicker">Multi Item %</div><div class="kpi">${pct(s.multi_item_pct||0)}</div></div>
+      <div class="card"><div class="kicker">Repeat Item Buyers</div><div class="kpi">${num(s.repeat_item_buyers||0)}</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">${table(section?.multi_item_rows||[],[['member_id','Member ID'],['top_product','Top Product'],['distinct_product_count','Distinct Products']],['distinct_product_count'],'pattern-multi-item')}</div>
+      <div class="card">${table(section?.repeat_item_rows||[],[['member_id','Member ID'],['top_repeat_product_name','Repeat Product'],['max_repeat_item_orders','Repeat Orders']],['max_repeat_item_orders'],'pattern-repeat-item')}</div>
+    </div>
+  </section>`;
+}
+
 function bindUi(){
   document.querySelectorAll('[data-main-target]').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('[data-main-target]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active')); document.getElementById(btn.dataset.mainTarget).classList.add('active'); }));
   document.addEventListener('click', (e)=>{ const sub=e.target.closest('.subtab-btn'); if(sub){ const g=sub.dataset.group, t=sub.dataset.target; document.querySelectorAll(`.subtab-btn[data-group="${g}"]`).forEach(b=>b.classList.toggle('active', b===sub)); document.querySelectorAll(`.channel-panel[data-panel-group="${g}"]`).forEach(p=>{ const on=p.dataset.panelId===t; p.hidden=!on; p.classList.toggle('active', on); }); } const ex=e.target.closest('[data-expand]'); if(ex){ const table=document.getElementById(ex.dataset.expand); if(table){ table.querySelectorAll('.extra-row').forEach(r=>r.classList.toggle('is-hidden')); ex.textContent = ex.textContent==='전체보기' ? '접기' : '전체보기'; } } });
