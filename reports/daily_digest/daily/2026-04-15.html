@@ -53,6 +53,13 @@
     @keyframes metricSwap{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes numberPop{0%{opacity:.2;transform:translateY(12px) scale(.96)}60%{opacity:1;transform:translateY(-2px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
     @keyframes shineSweep{0%{transform:translateX(-160%) rotate(14deg)}100%{transform:translateX(320%) rotate(14deg)}}
+  .brandsearch-tabs input[type=radio]{display:none}
+  .brandsearch-tab-label{display:inline-flex;align-items:center;justify-content:center;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;color:#475569;cursor:pointer}
+  .brandsearch-tabs .panel{display:none}
+  .brandsearch-tabs .tab-a:checked + label{background:#0f172a;color:#fff;border-color:#0f172a}
+  .brandsearch-tabs .tab-b:checked + label{background:#0f172a;color:#fff;border-color:#0f172a}
+  .brandsearch-tabs .tab-a:checked ~ .brandsearch-panels .panel-a{display:block}
+  .brandsearch-tabs .tab-b:checked ~ .brandsearch-panels .panel-b{display:block}
   </style>
 
 </head>
@@ -98,7 +105,7 @@
               <div class="mt-1 text-xl font-black text-slate-900">Seoul · Upcoming 7 Days</div>
               <div class="mt-1 text-sm text-slate-500">Top summary card for weekly weather planning</div>
             </div>
-            <div class='text-xs text-amber-600'>short_forecast_failed: TimeoutError: The read operation timed out | mid_forecast_failed: URL error: [Errno 104] Connection reset by peer</div>
+            <div class='text-xs text-slate-400'>Source: KMA API Hub · Updated 2026-04-17 15:56:01</div>
           </div>
           <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
             
@@ -112,50 +119,50 @@
         
         <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Fri</div>
-          <div class="mt-2 text-2xl leading-none">🌤️</div>
-          <div class="mt-2 text-sm font-black text-slate-900">-</div>
-          <div class="mt-1 text-xs font-bold text-slate-600">-</div>
-          <div class="mt-1 text-[11px] text-slate-400">POP -</div>
+          <div class="mt-2 text-2xl leading-none">☁️</div>
+          <div class="mt-2 text-sm font-black text-slate-900">Overcast</div>
+          <div class="mt-1 text-xs font-bold text-slate-600">14° / 20°</div>
+          <div class="mt-1 text-[11px] text-slate-400">POP 30%</div>
         </div>
         
         <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Sat</div>
-          <div class="mt-2 text-2xl leading-none">🌤️</div>
-          <div class="mt-2 text-sm font-black text-slate-900">-</div>
-          <div class="mt-1 text-xs font-bold text-slate-600">-</div>
-          <div class="mt-1 text-[11px] text-slate-400">POP -</div>
+          <div class="mt-2 text-2xl leading-none">☀️</div>
+          <div class="mt-2 text-sm font-black text-slate-900">Sunny</div>
+          <div class="mt-1 text-xs font-bold text-slate-600">10° / 27°</div>
+          <div class="mt-1 text-[11px] text-slate-400">POP 0%</div>
         </div>
         
         <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Sun</div>
           <div class="mt-2 text-2xl leading-none">🌤️</div>
-          <div class="mt-2 text-sm font-black text-slate-900">-</div>
-          <div class="mt-1 text-xs font-bold text-slate-600">-</div>
-          <div class="mt-1 text-[11px] text-slate-400">POP -</div>
+          <div class="mt-2 text-sm font-black text-slate-900">맑음</div>
+          <div class="mt-1 text-xs font-bold text-slate-600">6° / 20°</div>
+          <div class="mt-1 text-[11px] text-slate-400">POP 10%</div>
         </div>
         
         <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Mon</div>
           <div class="mt-2 text-2xl leading-none">🌤️</div>
-          <div class="mt-2 text-sm font-black text-slate-900">-</div>
-          <div class="mt-1 text-xs font-bold text-slate-600">-</div>
-          <div class="mt-1 text-[11px] text-slate-400">POP -</div>
+          <div class="mt-2 text-sm font-black text-slate-900">구름많음</div>
+          <div class="mt-1 text-xs font-bold text-slate-600">8° / 22°</div>
+          <div class="mt-1 text-[11px] text-slate-400">POP 20%</div>
         </div>
         
         <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Tue</div>
           <div class="mt-2 text-2xl leading-none">🌤️</div>
-          <div class="mt-2 text-sm font-black text-slate-900">-</div>
-          <div class="mt-1 text-xs font-bold text-slate-600">-</div>
-          <div class="mt-1 text-[11px] text-slate-400">POP -</div>
+          <div class="mt-2 text-sm font-black text-slate-900">구름많음</div>
+          <div class="mt-1 text-xs font-bold text-slate-600">9° / 21°</div>
+          <div class="mt-1 text-[11px] text-slate-400">POP 20%</div>
         </div>
         
         <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
           <div class="text-[11px] font-extrabold tracking-widest text-slate-500 uppercase">Wed</div>
           <div class="mt-2 text-2xl leading-none">🌤️</div>
-          <div class="mt-2 text-sm font-black text-slate-900">-</div>
-          <div class="mt-1 text-xs font-bold text-slate-600">-</div>
-          <div class="mt-1 text-[11px] text-slate-400">POP -</div>
+          <div class="mt-2 text-sm font-black text-slate-900">구름많음</div>
+          <div class="mt-1 text-xs font-bold text-slate-600">9° / 22°</div>
+          <div class="mt-1 text-[11px] text-slate-400">POP 20%</div>
         </div>
         
           </div>
@@ -372,7 +379,7 @@
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">브랜드검색 현황</div>
-              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B 표시</div>
+              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B 탭 표시</div>
             </div>
             <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">10 brands</div>
           </div>
@@ -381,210 +388,240 @@
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">컬럼비아</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260415_241%2F1776236731924a26rp_PNG%2F69df38bb1fb91cb04ac4316e.png&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='컬럼비아 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">가벼운 계절, 경량 바람막이</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>지금 날씨에 필요한</div><div class='truncate'>경량 아이템을 만나보세요.</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>#New Arrivals</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>#BEST</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>#방수 자켓</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성 신상</span></div>
-              
-              
+          
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260415_241%2F1776236731924a26rp_PNG%2F69df38bb1fb91cb04ac4316e.png&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='컬럼비아 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">가벼운 계절, 경량 바람막이</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>지금 날씨에 필요한</div><div class='truncate'>경량 아이템을 만나보세요.</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>#New Arrivals</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>#BEST</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>#방수 자켓</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성 신상</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260416_234%2F1776300572068vBBHc_PNG%2F69e0321c2b97fc5ac320baea.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='남성 신상' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>남성 신상</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260304_160%2F1772607011236k4cG0_PNG%2F69a7d62358a5df811e289d46.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='여성 신상' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>여성 신상</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260415_44%2F1776238137490FGaJn_PNG%2F69df3e3995600a3b9f1750e7.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='봄 시즌 오프' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>봄 시즌 오프</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260416_234%2F1776300572068vBBHc_PNG%2F69e0321c2b97fc5ac320baea.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='남성 신상' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>남성 신상</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260304_160%2F1772607011236k4cG0_PNG%2F69a7d62358a5df811e289d46.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='여성 신상' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>여성 신상</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260415_44%2F1776238137490FGaJn_PNG%2F69df3e3995600a3b9f1750e7.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='봄 시즌 오프' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>봄 시즌 오프</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">노스페이스</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260413_234%2F1776064737585l6UJg_JPEG%2F69dc98e1755f056a9ca5e0e3.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='노스페이스 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">트레일 러닝화의 기준, 벡티브</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>자연과 속도 사이,</div><div class='truncate'>벡티브 시리즈가 완성한 트레일 러닝화</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>경량자켓</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>신상품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>베스트랭킹</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>액티비티</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260413_234%2F1776064737585l6UJg_JPEG%2F69dc98e1755f056a9ca5e0e3.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='노스페이스 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">트레일 러닝화의 기준, 벡티브</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>자연과 속도 사이,</div><div class='truncate'>벡티브 시리즈가 완성한 트레일 러닝화</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>경량자켓</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>신상품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>베스트랭킹</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>액티비티</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260408_173%2F1775639937294oWXTs_JPEG%2F69d61d81d4754776a32591fb.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='데이캠프 시리즈' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>데이캠프 시리즈</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260413_195%2F1776064737569yrIEu_JPEG%2F69dc98e1755f056a9ca5e0e2.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='가정의달 선물' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>가정의달 선물</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260410_170%2F1775796065862g1PPh_JPEG%2F69d87f6115f52d4a30189407.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='스프링세일' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>스프링세일</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260408_173%2F1775639937294oWXTs_JPEG%2F69d61d81d4754776a32591fb.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='데이캠프 시리즈' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>데이캠프 시리즈</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260413_195%2F1776064737569yrIEu_JPEG%2F69dc98e1755f056a9ca5e0e2.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='가정의달 선물' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>가정의달 선물</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260410_170%2F1775796065862g1PPh_JPEG%2F69d87f6115f52d4a30189407.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='스프링세일' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>스프링세일</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">뉴발란스</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260312_180%2F1773303703006zdDLP_JPEG%2F69b27796256ba7e17e803c98.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='뉴발란스 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">뉴발란스 740 어반 뉴트럴 팩</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>Y2K 레트로 감성의 스포티한 실루엣</div><div class='truncate'>뉴발란스 740 26SS 신규 컬러 출시</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>740</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>530</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>1906</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>BEST</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260312_180%2F1773303703006zdDLP_JPEG%2F69b27796256ba7e17e803c98.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='뉴발란스 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">뉴발란스 740 어반 뉴트럴 팩</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>Y2K 레트로 감성의 스포티한 실루엣</div><div class='truncate'>뉴발란스 740 26SS 신규 컬러 출시</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>740</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>530</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>1906</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>BEST</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260318_242%2F1773817984154QnAwo_JPEG%2F69ba5080256ba7e17e8418d0.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='BEST' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>BEST</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260312_129%2F1773303702996NMkyl_JPEG%2F69b27796256ba7e17e803c97.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='NEW' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>NEW</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260414_38%2F1776165314058hn388_JPEG%2F69de21c20b9ffcb9a9538b36.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='선착순 결제혜택' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>선착순 결제혜택</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260318_242%2F1773817984154QnAwo_JPEG%2F69ba5080256ba7e17e8418d0.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='BEST' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>BEST</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260312_129%2F1773303702996NMkyl_JPEG%2F69b27796256ba7e17e803c97.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='NEW' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>NEW</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260414_38%2F1776165314058hn388_JPEG%2F69de21c20b9ffcb9a9538b36.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='선착순 결제혜택' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>선착순 결제혜택</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">아크테릭스</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260408_101%2F1775610666648Vg3uv_JPEG%2F69d5ab2a5e9f51649cf796c7.jpeg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='아크테릭스 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">NEW ARRIVALS</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>새롭게 입고된 26SS 시즌</div><div class='truncate'>신상품을 지금 바로 만나보세요.</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>트레일러닝 키트</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>매장찾기</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>베일런스컬렉션</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성 신상품</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260408_101%2F1775610666648Vg3uv_JPEG%2F69d5ab2a5e9f51649cf796c7.jpeg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='아크테릭스 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">NEW ARRIVALS</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>새롭게 입고된 26SS 시즌</div><div class='truncate'>신상품을 지금 바로 만나보세요.</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>트레일러닝 키트</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>매장찾기</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>베일런스컬렉션</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성 신상품</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260408_207%2F1775610666651dgJPP_JPEG%2F69d5ab2a5e9f51649cf796c6.jpeg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='여성 신상품' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>여성 신상품</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260408_177%2F1775610666650A4qLI_JPEG%2F69d5ab2a5e9f51649cf796c8.jpeg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='남성 신상품' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>남성 신상품</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260317_177%2F17737291522182nuoP_JPEG%2F69b8f58065cc34f0a186a3dc.jpeg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='가방' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>가방</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260408_207%2F1775610666651dgJPP_JPEG%2F69d5ab2a5e9f51649cf796c6.jpeg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='여성 신상품' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>여성 신상품</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260408_177%2F1775610666650A4qLI_JPEG%2F69d5ab2a5e9f51649cf796c8.jpeg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='남성 신상품' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>남성 신상품</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260317_177%2F17737291522182nuoP_JPEG%2F69b8f58065cc34f0a186a3dc.jpeg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='가방' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>가방</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">블랙야크</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_104%2F1775098382362sqTHu_PNG%2F69cdda0e1cc71a81d826e540.png&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='블랙야크 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">블랙야크 TRAIL X</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>트레일 위에서의 모든 활동을 위한</div><div class='truncate'>히말라얀 오리지널 블랙야크</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>신상품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성 의류</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성 의류</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>페이백 이벤트</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_102%2F1775098347267VjXhJ_PNG%2F69cdd9ea2f1dc756634608c6.png&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='블랙야크 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">AWC NTX JACKET</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>쾌적함. 그리고 15K 초고투습의</div><div class='truncate'>압도적 퍼포먼스</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>신상품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성 의류</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성 의류</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>페이백 이벤트</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_78%2F1775098347259Fjduw_PNG%2F69cdd9eb2f1dc756634608c7.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='히말라얀' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>히말라얀</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_138%2F1775098382275fVHQE_PNG%2F69cdda0e1cc71a81d826e53d.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='AWC 자켓' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>AWC 자켓</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_203%2F1775098347259TkFuI_PNG%2F69cdd9ea2f1dc756634608c4.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='단 10일간' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>단 10일간</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_78%2F1775098347259Fjduw_PNG%2F69cdd9eb2f1dc756634608c7.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='히말라얀' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>히말라얀</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_247%2F1775098347261B1dJU_PNG%2F69cdd9ea2f1dc756634608c5.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='TRAIL-X' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>TRAIL-X</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_203%2F1775098347259TkFuI_PNG%2F69cdd9ea2f1dc756634608c4.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='단 10일간' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>단 10일간</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">아이더</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260323_202%2F1774233071456NlyFe_PNG%2F69c0a5efb2a6b8c419b27a4d.png&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='아이더 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">시어 경량자켓</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>초경량 소재로 가볍게</div><div class='truncate'>자일리톨 파우더로 상쾌하게</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성 신제품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성 신제품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>트레킹화</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>플렉션하이킹화</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260323_202%2F1774233071456NlyFe_PNG%2F69c0a5efb2a6b8c419b27a4d.png&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='아이더 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">시어 경량자켓</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>초경량 소재로 가볍게</div><div class='truncate'>자일리톨 파우더로 상쾌하게</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성 신제품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성 신제품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>트레킹화</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>플렉션하이킹화</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260211_23%2F1770772787736JG3DA_PNG%2F698bd9337275f841e5abceb5.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='플렉션하이킹화' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>플렉션하이킹화</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260325_117%2F1774429732452Vqy7h_PNG%2F69c3a62477226430d0920c56.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='바람막이' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>바람막이</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260403_22%2F17751787226011KodY_PNG%2F69cf13e22f1dc7566346a7e4.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='가방' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>가방</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260211_23%2F1770772787736JG3DA_PNG%2F698bd9337275f841e5abceb5.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='플렉션하이킹화' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>플렉션하이킹화</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260325_117%2F1774429732452Vqy7h_PNG%2F69c3a62477226430d0920c56.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='바람막이' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>바람막이</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260403_22%2F17751787226011KodY_PNG%2F69cf13e22f1dc7566346a7e4.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='가방' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>가방</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">K2</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260312_295%2F1773296912498LEbgv_PNG%2F69b25d102e78b6a0c37c2405.png&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='K2 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">K2 멀티플라이</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>탁월한 쿠셔닝과 탄성 복원력</div><div class='truncate'>K2가 만든 신개념 멀티로드화</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>등산화</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>바람막이</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>자켓</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>트레킹화</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260312_173%2F1773296266659IJOSo_PNG%2F69b25a8a2e78b6a0c37c1f6a.png&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='K2 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">K2 플라이하이크 스카이</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>K2 하이브리드 핏으로</div><div class='truncate'>어떤 길도 편안하고 쾌적하게</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>등산화</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>바람막이</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>자켓</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>트레킹화</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260304_166%2F1772591595258tALic_PNG%2F69a799eb58a5df811e283fbd.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='멀티플라이' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>멀티플라이</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260309_228%2F1773041185137OngoT_PNG%2F69ae762126e79849e4547760.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='플라이하이크' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>플라이하이크</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260330_88%2F1774851216790flI5o_JPEG%2F69ca1490438ef06a75386035.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='슈퍼썬' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>슈퍼썬</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260309_228%2F1773041185137OngoT_PNG%2F69ae762126e79849e4547760.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='플라이하이크' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>플라이하이크</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260304_166%2F1772591595258tALic_PNG%2F69a799eb58a5df811e283fbd.png&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='멀티플라이' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>멀티플라이</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260330_88%2F1774851216790flI5o_JPEG%2F69ca1490438ef06a75386035.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='슈퍼썬' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>슈퍼썬</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">디스커버리</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_108%2F1775105457997woQXB_JPEG%2F69cdf5b1b7dc74fc62ac6f38.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='디스커버리 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">디스커버리 공식 온라인 스토어</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>26SS SPRING COLLECTION</div><div class='truncate'>with Byeon Wooseok</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>바람막이</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>트레이닝</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>운동화</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>메리제인 슈즈</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_108%2F1775105457997woQXB_JPEG%2F69cdf5b1b7dc74fc62ac6f38.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='디스커버리 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">디스커버리 공식 온라인 스토어</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>26SS SPRING COLLECTION</div><div class='truncate'>with Byeon Wooseok</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>바람막이</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>트레이닝</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>운동화</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>메리제인 슈즈</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_99%2F1775105292161N109n_JPEG%2F69cdf50c2f1dc756634616c9.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='운동화' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>운동화</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260414_126%2F1776152567579Eo0lv_JPEG%2F69ddeff7ecc845e67b40faef.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='메리제인 슈즈' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>메리제인 슈즈</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260414_83%2F1776152567580mg9mn_JPEG%2F69ddeff7ecc845e67b40faf0.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='반팔티' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>반팔티</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260402_99%2F1775105292161N109n_JPEG%2F69cdf50c2f1dc756634616c9.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='운동화' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>운동화</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260414_126%2F1776152567579Eo0lv_JPEG%2F69ddeff7ecc845e67b40faef.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='메리제인 슈즈' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>메리제인 슈즈</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260414_83%2F1776152567580mg9mn_JPEG%2F69ddeff7ecc845e67b40faf0.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='반팔티' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>반팔티</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">밀레</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260401_258%2F17750104126344UsmC_JPEG%2F69cc826c881c4b7e61e110d1.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='밀레 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">밀레 공식 온라인 스토어</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>더 가벼운 하이킹을 위한 선택</div><div class='truncate'>레이와 함께한 패스트하이킹라인을 만나보세요</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>신상품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>OUTLET</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260401_258%2F17750104126344UsmC_JPEG%2F69cc826c881c4b7e61e110d1.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='밀레 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">밀레 공식 온라인 스토어</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>더 가벼운 하이킹을 위한 선택</div><div class='truncate'>레이와 함께한 패스트하이킹라인을 만나보세요</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>신상품</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>OUTLET</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260401_211%2F1775010412635s4xW6_JPEG%2F69cc826c881c4b7e61e110d0.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='트레일런' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>트레일런</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260401_214%2F1775010412635sWL9t_JPEG%2F69cc826c881c4b7e61e110cf.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='드라이나믹' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>드라이나믹</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260401_177%2F1775010412630fTBi0_JPEG%2F69cc826c881c4b7e61e110d2.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='DYNEEMA' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>DYNEEMA</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260401_211%2F1775010412635s4xW6_JPEG%2F69cc826c881c4b7e61e110d0.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='트레일런' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>트레일런</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260401_214%2F1775010412635sWL9t_JPEG%2F69cc826c881c4b7e61e110cf.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='드라이나믹' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>드라이나믹</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260401_177%2F1775010412630fTBi0_JPEG%2F69cc826c881c4b7e61e110d2.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='DYNEEMA' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>DYNEEMA</div></div></div>
+            
         </div>
         
         <div class="rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[15px] font-black tracking-tight text-slate-900">네파</div>
-              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 13:17:20</div>
+              <div class="mt-1 text-[11px] text-slate-400">2026-04-17 15:56:01</div>
             </div>
             <div class='flex items-center gap-1.5'><div class='rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700'>변동</div></div>
           </div>
-          <div class="mt-3 flex items-start gap-4">
-            <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260331_212%2F1774935100588UMKgW_JPEG%2F69cb5c3c283721200102f6da.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='네파 hero' class='h-full w-full object-cover'/></div>
-            <div class="min-w-0 flex-1 pt-0.5">
-              <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">NEPA 휘슬라이저 MAX</div>
-              <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>쿠셔닝폼으로 미세피로를 즉시 삭제하는</div><div class='truncate'>휘슬라이저 맥스</div></div>
-              <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>등산화</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>매장안내</span></div>
-              <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
-              
+          <div class='mt-2 text-[10px] font-semibold text-amber-700'>전일 대비 변경: 대표문구 · 서브카피 · 태그</div>
+          
+          
+            <div class="mt-3 flex items-start gap-4">
+              <div class='h-[98px] w-[98px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260331_212%2F1774935100588UMKgW_JPEG%2F69cb5c3c283721200102f6da.jpg&amp;type=o&amp;size=472x472&amp;ttype=input&amp;autoRotate=true' alt='네파 hero' class='h-full w-full object-cover'/></div>
+              <div class="min-w-0 flex-1 pt-0.5">
+                <div class="truncate text-[13px] font-black leading-5 text-[#2457d6]">NEPA 휘슬라이저 MAX</div>
+                <div class="mt-1 space-y-0 text-[11px] font-medium leading-4 text-slate-700"><div class='truncate'>쿠셔닝폼으로 미세피로를 즉시 삭제하는</div><div class='truncate'>휘슬라이저 맥스</div></div>
+                <div class="mt-3 flex flex-wrap gap-2"><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>여성</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>남성</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>등산화</span><span class='inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium leading-none text-[#2457d6]'>매장안내</span></div>
+                <div class="mt-2 text-[10px] font-semibold text-slate-400">A안</div>
+              </div>
             </div>
-          </div>
-          <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260331_252%2F1774934632692tXQ4g_JPEG%2F69cb5a685e9f51649cf1f801.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='모노메쉬 자켓' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>모노메쉬 자켓</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260331_21%2F1774934632694cqB65_JPEG%2F69cb5a685e9f51649cf1f800.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='에어그리드 자켓' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>에어그리드 자켓</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260407_71%2F1775521549585YqbN4_JPEG%2F69d44f0d1cc71a81d8293452.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='신규가입 쿠폰' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>신규가입 쿠폰</div></div></div>
+            <div class='mt-3 grid grid-cols-3 gap-2'><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260331_252%2F1774934632692tXQ4g_JPEG%2F69cb5a685e9f51649cf1f801.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='모노메쉬 자켓' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>모노메쉬 자켓</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260331_21%2F1774934632694cqB65_JPEG%2F69cb5a685e9f51649cf1f800.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='에어그리드 자켓' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>에어그리드 자켓</div></div><div class='min-w-0 flex-1'><div class='h-[74px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50'><img src='https://search.pstatic.net/common/?src=https%3A%2F%2Fditto-phinf.pstatic.net%2F20260407_71%2F1775521549585YqbN4_JPEG%2F69d44f0d1cc71a81d8293452.jpg&amp;type=o&amp;size=232x152&amp;ttype=input&amp;autoRotate=true' alt='신규가입 쿠폰' class='h-full w-full object-cover'/></div><div class='mt-1 truncate text-center text-[10px] font-medium leading-tight text-slate-700'>신규가입 쿠폰</div></div></div>
+            
         </div>
         </div>
         </div>
@@ -855,9 +892,9 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,44.3 71.7,44.3 107.3,44.3 143.0,44.3 178.7,13.7 214.3,44.3 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,44.3 107.3,44.3 143.0,44.3 178.7,13.7 214.3,44.3 250.0,44.3"/>
-      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <polygon points="36.0,48.0 36.0,44.3 71.7,44.3 107.3,44.3 143.0,44.3 178.7,44.3 214.3,44.3 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,44.3 71.7,44.3 107.3,44.3 143.0,44.3 178.7,44.3 214.3,44.3 250.0,44.3"/>
+      <circle cx='36.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
       <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>0</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/15</text>
     </svg>
@@ -897,9 +934,9 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,13.7 71.7,24.7 107.3,35.7 143.0,34.5 178.7,31.2 214.3,37.0 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,13.7 71.7,24.7 107.3,35.7 143.0,34.5 178.7,31.2 214.3,37.0 250.0,44.3"/>
-      <circle cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='24.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='35.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='34.5' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='31.2' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='37.0' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <polygon points="36.0,48.0 36.0,13.7 71.7,24.7 107.3,35.7 143.0,34.5 178.7,30.8 214.3,37.0 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,13.7 71.7,24.7 107.3,35.7 143.0,34.5 178.7,30.8 214.3,37.0 250.0,44.3"/>
+      <circle cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='24.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='35.7' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='34.5' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='30.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='37.0' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
       <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>109</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>72</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>34</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/15</text>
     </svg>
@@ -909,7 +946,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Round T-shirt</div>
-                <div class="text-xs text-slate-500">D1 870 · 7D Avg 901</div>
+                <div class="text-xs text-slate-500">D1 982 · 7D Avg 1,011</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -918,10 +955,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,15.5 71.7,14.8 107.3,44.3 143.0,30.7 178.7,32.3 214.3,13.7 250.0,29.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,15.5 71.7,14.8 107.3,44.3 143.0,30.7 178.7,32.3 214.3,13.7 250.0,29.6"/>
-      <circle cx='36.0' cy='15.5' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='14.8' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='30.7' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='32.3' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='29.6' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1002</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>875</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>748</text>
+      <polygon points="36.0,48.0 36.0,13.7 71.7,16.5 107.3,44.3 143.0,35.0 178.7,31.1 214.3,23.5 250.0,31.1 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,13.7 71.7,16.5 107.3,44.3 143.0,35.0 178.7,31.1 214.3,23.5 250.0,31.1"/>
+      <circle cx='36.0' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='16.5' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='35.0' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='31.1' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='23.5' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='31.1' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1142</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1001</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>860</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/15</text>
     </svg>
     </div>
@@ -930,7 +967,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">TOPS · Polo/Zip Up</div>
-                <div class="text-xs text-slate-500">D1 319 · 7D Avg 296</div>
+                <div class="text-xs text-slate-500">D1 311 · 7D Avg 286</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -939,10 +976,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,20.0 71.7,20.7 107.3,44.3 143.0,41.0 178.7,13.7 214.3,36.9 250.0,19.6 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,20.0 71.7,20.7 107.3,44.3 143.0,41.0 178.7,13.7 214.3,36.9 250.0,19.6"/>
-      <circle cx='36.0' cy='20.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='20.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='41.0' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='36.9' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='19.6' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>335</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>294</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>252</text>
+      <polygon points="36.0,48.0 36.0,16.0 71.7,16.9 107.3,44.3 143.0,42.0 178.7,13.7 214.3,31.3 250.0,13.7 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,16.0 71.7,16.9 107.3,44.3 143.0,42.0 178.7,13.7 214.3,31.3 250.0,13.7"/>
+      <circle cx='36.0' cy='16.0' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='16.9' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='44.3' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='42.0' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='31.3' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='13.7' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>311</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>278</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>245</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/15</text>
     </svg>
     </div>
@@ -951,7 +988,7 @@
             <div class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">PANTS · Pants</div>
-                <div class="text-xs text-slate-500">D1 1,166 · 7D Avg 1,434</div>
+                <div class="text-xs text-slate-500">D1 1,177 · 7D Avg 1,446</div>
               </div>
               <div class="shrink-0">
     <svg width="260" height="70" viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -960,10 +997,10 @@
       <line x1='36' y1='10' x2='36' y2='48' stroke='#cbd5e1' stroke-width='1'/>
       <line x1='36' y1='48' x2='250' y2='48' stroke='#cbd5e1' stroke-width='1'/>
     
-      <polygon points="36.0,48.0 36.0,21.2 71.7,13.7 107.3,39.5 143.0,39.6 178.7,37.0 214.3,42.5 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
-      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,21.2 71.7,13.7 107.3,39.5 143.0,39.6 178.7,37.0 214.3,42.5 250.0,44.3"/>
-      <circle cx='36.0' cy='21.2' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='39.5' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='39.6' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='37.0' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='42.5' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
-      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1960</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1563</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1166</text>
+      <polygon points="36.0,48.0 36.0,21.3 71.7,13.7 107.3,39.5 143.0,39.4 178.7,36.8 214.3,42.8 250.0,44.3 250.0,48.0" fill="#0f766e" opacity="0.08"></polygon>
+      <polyline fill="none" stroke="#0f766e" stroke-width="2.4" points="36.0,21.3 71.7,13.7 107.3,39.5 143.0,39.4 178.7,36.8 214.3,42.8 250.0,44.3"/>
+      <circle cx='36.0' cy='21.3' r='2.8' fill='#0f766e'/><circle cx='71.7' cy='13.7' r='2.8' fill='#0f766e'/><circle cx='107.3' cy='39.5' r='2.8' fill='#0f766e'/><circle cx='143.0' cy='39.4' r='2.8' fill='#0f766e'/><circle cx='178.7' cy='36.8' r='2.8' fill='#0f766e'/><circle cx='214.3' cy='42.8' r='2.8' fill='#0f766e'/><circle cx='250.0' cy='44.3' r='2.8' fill='#0f766e'/>
+      <text x='29' y='13.0' text-anchor='end' font-size='9' fill='#6b7280'>1972</text><text x='29' y='32.0' text-anchor='end' font-size='9' fill='#6b7280'>1574</text><text x='29' y='51.0' text-anchor='end' font-size='9' fill='#6b7280'>1177</text>
       <text x='36.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/09</text><text x='143.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/12</text><text x='250.0' y='65' text-anchor='middle' font-size='9' fill='#6b7280'>04/15</text>
     </svg>
     </div>
