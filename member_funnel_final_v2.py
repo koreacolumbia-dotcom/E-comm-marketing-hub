@@ -34,6 +34,7 @@ PROJECT_ID = os.getenv("MEMBER_FUNNEL_PROJECT_ID", "").strip()
 BQ_LOCATION = os.getenv("MEMBER_FUNNEL_BQ_LOCATION", "asia-northeast3").strip()
 BASE_TABLE = os.getenv("MEMBER_FUNNEL_BASE_TABLE", "crm_mart.member_funnel_master").strip()
 ADMIN_BQ_TABLE = os.getenv("MEMBER_FUNNEL_ADMIN_BQ_TABLE", "crm_mart.member_funnel_admin_daily").strip()
+PURCHASE_JOURNEY_BQ_TABLE = os.getenv("MEMBER_FUNNEL_PURCHASE_JOURNEY_BQ_TABLE", "crm_mart.member_funnel_purchase_journey_summary").strip()
 IMAGE_XLS_PATH = os.getenv("MEMBER_FUNNEL_IMAGE_XLS_PATH", os.getenv("IMAGE_XLS_PATH", "")).strip()
 IMAGE_BASE_URL = os.getenv("MEMBER_FUNNEL_IMAGE_BASE_URL", "https://www.columbiasportswear.co.kr").strip().rstrip("/")
 IMAGE_XLS_CANDIDATES = [
@@ -660,102 +661,13 @@ def fetch_rows_from_bq() -> pd.DataFrame:
 
 
 def fetch_purchase_journey_summary_bq(start_date: dt.date, end_date: dt.date) -> dict[str, float]:
-    """Return purchase journey summary directly from MSSQL raw orders so the dashboard matches the user's validation query semantics exactly.
-
-    Repurchase cadence intentionally follows full TB_Order history with no dashboard period filter,
-    matching the user's SQL in SSMS. AOV uses TB_OrderProduct ERP revenue aggregated per order,
-    then averages the 2nd and 3rd purchase order values.
-    """
-    conn = None
+    """Read purchase journey summary precomputed by local sync from BigQuery."""
     try:
-        conn = get_mssql_connection()
-        sql = """
-        WITH ordered AS (
-            SELECT
-                CAST(MemberID AS VARCHAR(255)) AS MemberID,
-                CAST(OrderNo AS VARCHAR(255)) AS OrderNo,
-                CAST(OrderRegdate AS DATETIME) AS OrderRegdate,
-                ROW_NUMBER() OVER (
-                    PARTITION BY CAST(MemberID AS VARCHAR(255))
-                    ORDER BY CAST(OrderRegdate AS DATETIME), CAST(OrderNo AS VARCHAR(255))
-                ) AS rn
-            FROM dbo.TB_Order
-            WHERE MemberID IS NOT NULL
-              AND LTRIM(RTRIM(CAST(MemberID AS VARCHAR(255)))) <> ''
-              AND OrderRegdate IS NOT NULL
-        ),
-        diff12 AS (
-            SELECT
-                a.MemberID,
-                DATEDIFF(day, a.OrderRegdate, b.OrderRegdate) AS days_1_to_2
-            FROM ordered a
-            JOIN ordered b
-              ON a.MemberID = b.MemberID
-             AND a.rn = 1
-             AND b.rn = 2
-        ),
-        diff23 AS (
-            SELECT
-                a.MemberID,
-                DATEDIFF(day, a.OrderRegdate, b.OrderRegdate) AS days_2_to_3
-            FROM ordered a
-            JOIN ordered b
-              ON a.MemberID = b.MemberID
-             AND a.rn = 2
-             AND b.rn = 3
-        ),
-        diff34 AS (
-            SELECT
-                a.MemberID,
-                DATEDIFF(day, a.OrderRegdate, b.OrderRegdate) AS days_3_to_4
-            FROM ordered a
-            JOIN ordered b
-              ON a.MemberID = b.MemberID
-             AND a.rn = 3
-             AND b.rn = 4
-        ),
-        order_rev AS (
-            SELECT
-                CAST(o.MemberID AS VARCHAR(255)) AS MemberID,
-                CAST(o.OrderNo AS VARCHAR(255)) AS OrderNo,
-                CAST(o.OrderRegdate AS DATETIME) AS OrderRegdate,
-                SUM(COALESCE(op.ErpPrice, 0)) AS order_revenue
-            FROM dbo.TB_Order o
-            INNER JOIN dbo.TB_OrderProduct op
-                ON o.OrderNo = op.OrderNo
-            WHERE o.MemberID IS NOT NULL
-              AND LTRIM(RTRIM(CAST(o.MemberID AS VARCHAR(255)))) <> ''
-              AND o.OrderRegdate IS NOT NULL
-              AND COALESCE(op.OrderRefundStatus, 0) = 0
-            GROUP BY
-                CAST(o.MemberID AS VARCHAR(255)),
-                CAST(o.OrderNo AS VARCHAR(255)),
-                CAST(o.OrderRegdate AS DATETIME)
-        ),
-        ranked_rev AS (
-            SELECT
-                MemberID,
-                OrderNo,
-                OrderRegdate,
-                order_revenue,
-                ROW_NUMBER() OVER (
-                    PARTITION BY MemberID
-                    ORDER BY OrderRegdate, OrderNo
-                ) AS rn
-            FROM order_rev
-        )
-        SELECT
-            (SELECT COUNT(*) FROM diff12) AS journey_users,
-            (SELECT AVG(CAST(days_1_to_2 AS FLOAT)) FROM diff12) AS avg_days_1_to_2,
-            (SELECT AVG(CAST(days_2_to_3 AS FLOAT)) FROM diff23) AS avg_days_2_to_3,
-            (SELECT AVG(CAST(days_3_to_4 AS FLOAT)) FROM diff34) AS avg_days_3_to_4,
-            (SELECT AVG(CAST(order_revenue AS FLOAT)) FROM ranked_rev WHERE rn = 2) AS second_buyer_aov,
-            (SELECT AVG(CAST(order_revenue AS FLOAT)) FROM ranked_rev WHERE rn = 3) AS third_buyer_aov
-        ;
-        """
-        df = pd.read_sql(sql, conn)
+        client = get_bq_client()
+        sql = f"SELECT * FROM `{PURCHASE_JOURNEY_BQ_TABLE}` ORDER BY updated_at DESC LIMIT 1"
+        df = client.query(sql, location=BQ_LOCATION).to_dataframe()
         if df.empty:
-            return {}
+            raise RuntimeError(f"No rows found in {PURCHASE_JOURNEY_BQ_TABLE}")
         row = df.iloc[0].to_dict()
         return {
             'journey_users': int(pd.to_numeric(row.get('journey_users', 0), errors='coerce') or 0),
@@ -764,16 +676,15 @@ def fetch_purchase_journey_summary_bq(start_date: dt.date, end_date: dt.date) ->
             'avg_days_3_to_4': round(float(pd.to_numeric(row.get('avg_days_3_to_4', 0), errors='coerce') or 0), 1),
             'second_buyer_aov': round(float(pd.to_numeric(row.get('second_buyer_aov', 0), errors='coerce') or 0), 1),
             'third_buyer_aov': round(float(pd.to_numeric(row.get('third_buyer_aov', 0), errors='coerce') or 0), 1),
+            'min_days_1_to_2': round(float(pd.to_numeric(row.get('min_days_1_to_2', 0), errors='coerce') or 0), 1),
+            'max_days_1_to_2': round(float(pd.to_numeric(row.get('max_days_1_to_2', 0), errors='coerce') or 0), 1),
+            'under_3d': int(pd.to_numeric(row.get('under_3d', 0), errors='coerce') or 0),
+            'under_7d': int(pd.to_numeric(row.get('under_7d', 0), errors='coerce') or 0),
+            'under_30d': int(pd.to_numeric(row.get('under_30d', 0), errors='coerce') or 0),
         }
     except Exception as e:
         print(f'[WARN] fetch_purchase_journey_summary_bq failed: {e}')
         return {}
-    finally:
-        if conn is not None:
-            try:
-                conn.close()
-            except Exception:
-                pass
 
 
 def _sample_json_for_period(base_path: str, key: str) -> Path | None:
