@@ -188,6 +188,7 @@ POWERLINK_HISTORY_PATH = os.getenv(
     "DAILY_DIGEST_POWERLINK_HISTORY_PATH",
     os.path.join(DATA_DIR, "brandsearch_history.json"),
 ).strip()
+BRANDSEARCH_FORCE_AB = os.getenv("DAILY_DIGEST_BRANDSEARCH_FORCE_AB", "true").strip().lower() in ("1", "true", "yes", "y")
 POWERLINK_ENABLED = os.getenv("DAILY_DIGEST_POWERLINK_ENABLED", "true").strip().lower() in ("1", "true", "yes", "y")
 POWERLINK_USE_PLAYWRIGHT = os.getenv("DAILY_DIGEST_POWERLINK_USE_PLAYWRIGHT", "true").strip().lower() in ("1", "true", "yes", "y")
 POWERLINK_SCREENSHOT_DIR = os.getenv(
@@ -3693,10 +3694,14 @@ def enrich_brandsearch_status_with_prev_day(statuses: Optional[List[dict]], end_
         prev_variants = prev_day_variants_map.get(brand, []) if isinstance(prev_day_variants_map, dict) else []
         prev_variants = [dict(v or {}) for v in prev_variants if isinstance(v, dict)]
 
+        raw_variants = [dict(v or {}) for v in variants if isinstance(v, dict)]
+        force_ab_flag = BRANDSEARCH_FORCE_AB and (len(raw_variants) >= 2)
+        effective_ab_flag = ab_flag or force_ab_flag
+
         winner_flag = False
         winner_label = ""
         winner_parts = []
-        if (not ab_flag) and len(prev_variants) >= 2:
+        if (not effective_ab_flag) and len(prev_variants) >= 2:
             cur_sig = _brandsearch_variant_signature(item)
             prev_sigs = [_brandsearch_variant_signature(v) for v in prev_variants[:2]]
             if cur_sig in prev_sigs:
@@ -3705,14 +3710,14 @@ def enrich_brandsearch_status_with_prev_day(statuses: Optional[List[dict]], end_
                 winner_label = f"{slot} 유지"
                 winner_parts = _brandsearch_changed_parts(item, prev_variants[0 if slot == "A안" else 1])
 
-        item["change_flag"] = False if ab_flag else is_changed
-        item["change_label"] = "변동" if (False if ab_flag else is_changed) else ""
+        item["change_flag"] = False if effective_ab_flag else is_changed
+        item["change_label"] = "변경" if (False if effective_ab_flag else is_changed) else ""
         item["changed_parts"] = changed_parts
-        item["ab_flag"] = ab_flag
-        item["ab_label"] = "A/B" if ab_flag else ""
-        item["ab_variant_count"] = len(variants)
+        item["ab_flag"] = effective_ab_flag
+        item["ab_label"] = "A/B" if effective_ab_flag else ""
+        item["ab_variant_count"] = len(raw_variants) if force_ab_flag else len(variants)
         item["ab_changed_parts"] = ab_changed_parts
-        item["ab_variants"] = variants[:2]
+        item["ab_variants"] = raw_variants[:2] if force_ab_flag else variants[:2]
         item["winner_flag"] = winner_flag
         item["winner_label"] = winner_label
         item["winner_parts"] = winner_parts
@@ -4557,7 +4562,7 @@ def render_page_html(
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">브랜드검색 현황</div>
-              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B / 다음날 승자 추적</div>
+              <div class="mt-1 text-sm text-slate-500">주요 문구, 태그, 카테고리 키워드 기준 · 전일 대비 변경 / 동일일자 A/B / 다음날 승자 추적 (동일일 2회 이상 수집 시 A/B 강제 가능)</div>
             </div>
             <div class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">{len(brand_powerlink_rows)} brands</div>
           </div>
