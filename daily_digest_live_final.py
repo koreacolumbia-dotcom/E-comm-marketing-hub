@@ -130,7 +130,7 @@ BQ_LOCATION = os.getenv("DAILY_DIGEST_BQ_LOCATION", "asia-northeast3").strip()
 ADMIN_BQ_PROJECT = os.getenv("DAILY_DIGEST_ADMIN_BQ_PROJECT", os.getenv("BQ_PROJECT", "columbia-ga4")).strip()
 ADMIN_BQ_LOCATION = os.getenv("DAILY_DIGEST_ADMIN_BQ_LOCATION", BQ_LOCATION).strip()
 ADMIN_BQ_TABLE = os.getenv("DAILY_DIGEST_ADMIN_BQ_TABLE", "crm_mart.member_funnel_admin_daily").strip()
-ORDER_PRODUCT_BQ_TABLE = os.getenv("DAILY_DIGEST_ORDER_PRODUCT_BQ_TABLE", "crm_mart.TB_OrderProduct").strip()
+ORDER_PRODUCT_BQ_TABLE = os.getenv("DAILY_DIGEST_ORDER_PRODUCT_BQ_TABLE", "crm_raw.tb_order_product_staging").strip()
 
 SIGNUP_EVENT = os.getenv("DAILY_DIGEST_SIGNUP_EVENT", "sign_up")
 LOGIN_EVENT = os.getenv("DAILY_DIGEST_LOGIN_EVENT", "login")
@@ -579,9 +579,8 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
         revenue = _num(row.get("revenue", 0))
         total_price = _num(row.get("total_price", 0))
         cancel_amount = _num(row.get("cancel_amount", 0))
-        order_product = fetch_order_product_period_snapshot(start_date, end_date)
-        erp_revenue = _num(order_product.get("revenue", revenue))
-        qty = _num(order_product.get("qty", 0))
+        qty = _num(row.get("quantity", row.get("qty", 0)))
+        erp_revenue = revenue
         return {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
@@ -596,7 +595,7 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
             "total_price": total_price,
             "cancel_amount": cancel_amount,
             "aov": (erp_revenue / orders) if orders else 0.0,
-            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}|{order_product.get('source', '')}",
+            "source": f"admin_bq_daily_erp_login_users:{sessions_source_col}",
         }
     except Exception as e:
         print(f"[WARN] fetch_admin_period_snapshot failed: {type(e).__name__}: {e}")
@@ -3523,7 +3522,7 @@ def build_bundle(
             "sessions": float((admin_overall.get("current", {}) or {}).get("sessions", 0) or 0),
             "orders": float((admin_overall.get("current", {}) or {}).get("orders", 0) or 0),
             "buyers": float((admin_overall.get("current", {}) or {}).get("buyers", 0) or 0),
-            "revenue": float((admin_overall.get("current", {}) or {}).get("erp_revenue", (admin_overall.get("current", {}) or {}).get("revenue", 0)) or 0),
+            "revenue": float((admin_overall.get("current", {}) or {}).get("revenue", 0) or 0),
             "signups": float((admin_overall.get("current", {}) or {}).get("signups", 0) or 0),
             "aov": float((admin_overall.get("current", {}) or {}).get("aov", 0) or 0),
             "source": str((admin_overall.get("current", {}) or {}).get("source", "admin_bq_daily_erp")),
@@ -3713,9 +3712,9 @@ def render_page_html(
     adm_buyers_cur = float(adm_cur.get("buyers", 0) or 0)
     adm_buyers_prev = float(adm_prev.get("buyers", 0) or 0)
     adm_buyers_yoy = float(adm_yoy.get("buyers", 0) or 0)
-    adm_revenue_cur = float(adm_cur.get("erp_revenue", adm_cur.get("revenue", 0)) or 0)
-    adm_revenue_prev = float(adm_prev.get("erp_revenue", adm_prev.get("revenue", 0)) or 0)
-    adm_revenue_yoy = float(adm_yoy.get("erp_revenue", adm_yoy.get("revenue", 0)) or 0)
+    adm_revenue_cur = float(adm_cur.get("revenue", 0) or 0)
+    adm_revenue_prev = float(adm_prev.get("revenue", 0) or 0)
+    adm_revenue_yoy = float(adm_yoy.get("revenue", 0) or 0)
     adm_signups_cur = float(adm_cur.get("signups", 0) or 0)
     adm_signups_prev = float(adm_prev.get("signups", 0) or 0)
     adm_signups_yoy = float(adm_yoy.get("signups", 0) or 0)
