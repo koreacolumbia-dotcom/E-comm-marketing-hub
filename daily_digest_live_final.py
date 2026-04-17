@@ -130,7 +130,7 @@ BQ_LOCATION = os.getenv("DAILY_DIGEST_BQ_LOCATION", "asia-northeast3").strip()
 ADMIN_BQ_PROJECT = os.getenv("DAILY_DIGEST_ADMIN_BQ_PROJECT", os.getenv("BQ_PROJECT", "columbia-ga4")).strip()
 ADMIN_BQ_LOCATION = os.getenv("DAILY_DIGEST_ADMIN_BQ_LOCATION", BQ_LOCATION).strip()
 ADMIN_BQ_TABLE = os.getenv("DAILY_DIGEST_ADMIN_BQ_TABLE", "crm_mart.member_funnel_admin_daily").strip()
-ORDER_PRODUCT_BQ_TABLE = os.getenv("DAILY_DIGEST_ORDER_PRODUCT_BQ_TABLE", "crm_raw.tb_order_product_staging").strip()
+ORDER_PRODUCT_BQ_TABLE = os.getenv("DAILY_DIGEST_ORDER_PRODUCT_BQ_TABLE", "crm_mart.TB_OrderProduct").strip()
 
 SIGNUP_EVENT = os.getenv("DAILY_DIGEST_SIGNUP_EVENT", "sign_up")
 LOGIN_EVENT = os.getenv("DAILY_DIGEST_LOGIN_EVENT", "login")
@@ -147,13 +147,13 @@ YOY_DAILY_DATE_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_DAILY_DATE", "").strip()  
 YOY_WEEKLY_END_OVERRIDE = os.getenv("DAILY_DIGEST_YOY_WEEKLY_END", "").strip()  # "YYYY-MM-DD"
 
 # Cost-saving: if HTML exists for same date, skip all queries and keep HTML as-is
-SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "true").strip().lower() in ("1", "true", "yes", "y")
+SKIP_IF_EXISTS = os.getenv("DAILY_DIGEST_SKIP_IF_EXISTS", "false").strip().lower() in ("1", "true", "yes", "y")
 
 # Hub index write control
 SKIP_HUB_WRITE = os.getenv("DAILY_DIGEST_SKIP_HUB_WRITE", "true").strip().lower() in ("1", "true", "yes", "y")
 
 # Data cache (bundle JSON)
-USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
+USE_DATA_CACHE = os.getenv("DAILY_DIGEST_USE_DATA_CACHE", "false").strip().lower() in ("1", "true", "yes", "y")
 WRITE_DATA_CACHE = os.getenv("DAILY_DIGEST_WRITE_DATA_CACHE", "true").strip().lower() in ("1", "true", "yes", "y")
 CACHE_PDP = os.getenv("DAILY_DIGEST_CACHE_PDP", "true").strip().lower() in ("1", "true", "yes", "y")
 
@@ -409,7 +409,7 @@ def _order_product_schema(bq: Any, table_name: str) -> dict:
     cols = _admin_table_columns(bq, table_name)
     date_col = _pick_first_existing_column(cols, [
         "report_date", "order_date", "order_dt", "created_date", "created_at",
-        "reg_date", "reg_dt", "pay_date", "payment_date", "payment_dt", "pay_dt", "sales_date", "sale_date", "ord_date", "orderdatetime", "OrderDate"
+        "reg_date", "reg_dt", "pay_date", "payment_date", "OrderDate"
     ])
     sku_col = _pick_first_existing_column(cols, [
         "itemId", "item_id", "productcode", "product_code", "sku", "sku_code",
@@ -446,12 +446,11 @@ def fetch_order_product_period_snapshot(start_date: dt.date, end_date: dt.date) 
         date_col = schema["date_col"]
         qty_col = schema["qty_col"]
         revenue_col = schema["revenue_col"]
-        if not (date_col and revenue_col):
+        if not (date_col and qty_col and revenue_col):
             return empty
-        qty_sql = f"SUM(COALESCE({qty_col}, 0)) AS qty," if qty_col else "CAST(0 AS NUMERIC) AS qty,"
         sql = f"""
         SELECT
-          {qty_sql}
+          SUM(COALESCE({qty_col}, 0)) AS qty,
           SUM(COALESCE({revenue_col}, 0)) AS revenue
         FROM `{table_name}`
         WHERE DATE({date_col}) BETWEEN @start_date AND @end_date
@@ -471,62 +470,11 @@ def fetch_order_product_period_snapshot(start_date: dt.date, end_date: dt.date) 
             "date_end": end_date.isoformat(),
             "qty": _num(row.get("qty", 0)),
             "revenue": _num(row.get("revenue", 0)),
-            "source": f"order_product_erpprice:{table_name}",
+            "source": f"order_product:{table_name}",
         }
     except Exception as e:
         print(f"[WARN] fetch_order_product_period_snapshot failed: {type(e).__name__}: {e}")
         return empty
-
-def _get_item_order_product_revenue_best_effort(start: dt.date, end: dt.date, skus: Optional[List[str]] = None, limit: int = 10000) -> pd.DataFrame:
-    table_name = _qualified_admin_bq_table(ORDER_PRODUCT_BQ_TABLE)
-    if bigquery is None or not table_name:
-        return pd.DataFrame(columns=["itemId", "itemName", "revenue"])
-    try:
-        bq = bigquery.Client(project=ADMIN_BQ_PROJECT or None, location=ADMIN_BQ_LOCATION or None)
-        schema = _order_product_schema(bq, table_name)
-        date_col = schema["date_col"]
-        sku_col = schema["sku_col"]
-        name_col = schema["name_col"]
-        revenue_col = schema["revenue_col"]
-        if not (date_col and sku_col and revenue_col):
-            return pd.DataFrame(columns=["itemId", "itemName", "revenue"])
-
-        filters = [f"DATE({date_col}) BETWEEN @start_date AND @end_date"]
-        params = [
-            bigquery.ScalarQueryParameter("start_date", "DATE", start.isoformat()),
-            bigquery.ScalarQueryParameter("end_date", "DATE", end.isoformat()),
-            bigquery.ScalarQueryParameter("limit", "INT64", int(limit)),
-        ]
-        sku_list = [str(x).strip() for x in (skus or []) if str(x).strip()]
-        if sku_list:
-            filters.append(f"CAST({sku_col} AS STRING) IN UNNEST(@sku_list)")
-            params.append(bigquery.ArrayQueryParameter("sku_list", "STRING", sku_list))
-
-        name_expr = f"ANY_VALUE(CAST({name_col} AS STRING))" if name_col else "CAST('' AS STRING)"
-        sql = f"""
-        SELECT
-          CAST({sku_col} AS STRING) AS itemId,
-          {name_expr} AS itemName,
-          SUM(COALESCE({revenue_col}, 0)) AS revenue
-        FROM `{table_name}`
-        WHERE {' AND '.join(filters)}
-        GROUP BY 1
-        ORDER BY revenue DESC
-        LIMIT @limit
-        """
-        cfg = bigquery.QueryJobConfig(query_parameters=params)
-        df = bq.query(sql, job_config=cfg, location=ADMIN_BQ_LOCATION).to_dataframe()
-        if df.empty:
-            return pd.DataFrame(columns=["itemId", "itemName", "revenue"])
-        df["itemId"] = df["itemId"].astype(str).str.strip()
-        if "itemName" not in df.columns:
-            df["itemName"] = ""
-        df["itemName"] = df["itemName"].astype(str).fillna("").map(lambda x: x.strip())
-        df["revenue"] = pd.to_numeric(df["revenue"], errors="coerce").fillna(0.0)
-        return df[["itemId", "itemName", "revenue"]]
-    except Exception as e:
-        print(f"[WARN] _get_item_order_product_revenue_best_effort failed: {type(e).__name__}: {e}")
-        return pd.DataFrame(columns=["itemId", "itemName", "revenue"])
 
 def _get_item_order_product_best_effort(start: dt.date, end: dt.date, skus: Optional[List[str]] = None, limit: int = 10000) -> pd.DataFrame:
     table_name = _qualified_admin_bq_table(ORDER_PRODUCT_BQ_TABLE)
@@ -656,11 +604,13 @@ def fetch_admin_period_snapshot(start_date: dt.date, end_date: dt.date) -> dict:
 
 
 def build_admin_overall(w: DigestWindow) -> Dict[str, Dict[str, float]]:
-    return {
+    out = {
         "current": fetch_admin_period_snapshot(w.cur_start, w.cur_end),
         "prev": fetch_admin_period_snapshot(w.prev_start, w.prev_end),
         "yoy": fetch_admin_period_snapshot(w.yoy_start, w.yoy_end),
     }
+    print("[DEBUG] admin_overall current:", out.get("current", {}))
+    return out
 
 
 # =========================
@@ -2830,7 +2780,7 @@ def _get_item_revenue_best_effort(
     end: dt.date,
     limit: int = 10000,
 ) -> pd.DataFrame:
-    order_product_df = _get_item_order_product_revenue_best_effort(start, end, limit=limit)
+    order_product_df = _get_item_order_product_best_effort(start, end, limit=limit)
     if not order_product_df.empty:
         return order_product_df[["itemId", "itemName", "revenue"]]
     for metric_name in ("itemRevenue",):
