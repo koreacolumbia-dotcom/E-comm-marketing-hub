@@ -620,6 +620,96 @@ def fetch_rows_from_bq() -> pd.DataFrame:
     return client.query(f"SELECT * FROM `{BASE_TABLE}`", location=BQ_LOCATION).to_dataframe()
 
 
+def fetch_purchase_journey_summary_bq(start_date: dt.date, end_date: dt.date) -> dict[str, float]:
+    """Return purchase journey summary using raw BQ tables directly, matching query-first logic."""
+    if bigquery is None:
+        return {}
+    try:
+        client = get_bq_client()
+        sql = """
+        WITH order_base AS (
+          SELECT
+            CAST(MemberID AS STRING) AS member_id,
+            CAST(OrderNo AS STRING) AS order_no,
+            DATETIME(OrderRegdate) AS order_dt
+          FROM `columbia-ga4.crm_raw.tb_order_staging`
+          WHERE MemberID IS NOT NULL
+            AND TRIM(CAST(MemberID AS STRING)) != ''
+            AND DATE(OrderRegdate) BETWEEN @start_date AND @end_date
+        ),
+        ordered AS (
+          SELECT
+            member_id,
+            order_no,
+            order_dt,
+            ROW_NUMBER() OVER (PARTITION BY member_id ORDER BY order_dt, order_no) AS rn
+          FROM order_base
+        ),
+        diff AS (
+          SELECT
+            a.member_id,
+            DATETIME_DIFF(b.order_dt, a.order_dt, DAY) AS days_1_to_2,
+            DATETIME_DIFF(c.order_dt, b.order_dt, DAY) AS days_2_to_3,
+            DATETIME_DIFF(d.order_dt, c.order_dt, DAY) AS days_3_to_4
+          FROM ordered a
+          LEFT JOIN ordered b ON a.member_id = b.member_id AND b.rn = 2
+          LEFT JOIN ordered c ON a.member_id = c.member_id AND c.rn = 3
+          LEFT JOIN ordered d ON a.member_id = d.member_id AND d.rn = 4
+          WHERE a.rn = 1
+        ),
+        order_revenue AS (
+          SELECT
+            CAST(MemberID AS STRING) AS member_id,
+            CAST(OrderNo AS STRING) AS order_no,
+            DATETIME(COALESCE(OrderProductRegdate, OrderRegdate)) AS order_dt,
+            SUM(COALESCE(ErpPrice, 0)) AS order_revenue
+          FROM `columbia-ga4.crm_raw.tb_order_product_staging`
+          WHERE MemberID IS NOT NULL
+            AND TRIM(CAST(MemberID AS STRING)) != ''
+            AND COALESCE(OrderRefundStatus, 0) = 0
+            AND DATE(COALESCE(OrderProductRegdate, OrderRegdate)) BETWEEN @start_date AND @end_date
+          GROUP BY 1,2,3
+        ),
+        ranked_rev AS (
+          SELECT
+            member_id,
+            order_no,
+            order_revenue,
+            ROW_NUMBER() OVER (PARTITION BY member_id ORDER BY order_dt, order_no) AS rn
+          FROM order_revenue
+        )
+        SELECT
+          COUNTIF(days_1_to_2 IS NOT NULL) AS journey_users,
+          AVG(CAST(days_1_to_2 AS FLOAT64)) AS avg_days_1_to_2,
+          AVG(CAST(days_2_to_3 AS FLOAT64)) AS avg_days_2_to_3,
+          AVG(CAST(days_3_to_4 AS FLOAT64)) AS avg_days_3_to_4,
+          AVG(CASE WHEN rr.rn = 2 THEN rr.order_revenue END) AS second_buyer_aov,
+          AVG(CASE WHEN rr.rn = 3 THEN rr.order_revenue END) AS third_buyer_aov
+        FROM diff
+        LEFT JOIN ranked_rev rr
+          ON diff.member_id = rr.member_id
+        """
+        cfg = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter('start_date', 'DATE', start_date.isoformat()),
+            bigquery.ScalarQueryParameter('end_date', 'DATE', end_date.isoformat()),
+        ])
+        df = client.query(sql, job_config=cfg, location=BQ_LOCATION).to_dataframe()
+        if df.empty:
+            return {}
+        row = df.iloc[0].to_dict()
+        return {
+            'journey_users': int(pd.to_numeric(row.get('journey_users', 0), errors='coerce') or 0),
+            'avg_days_1_to_2': round(float(pd.to_numeric(row.get('avg_days_1_to_2', 0), errors='coerce') or 0), 1),
+            'avg_days_2_to_3': round(float(pd.to_numeric(row.get('avg_days_2_to_3', 0), errors='coerce') or 0), 1),
+            'avg_days_3_to_4': round(float(pd.to_numeric(row.get('avg_days_3_to_4', 0), errors='coerce') or 0), 1),
+            'second_buyer_aov': round(float(pd.to_numeric(row.get('second_buyer_aov', 0), errors='coerce') or 0), 1),
+            'third_buyer_aov': round(float(pd.to_numeric(row.get('third_buyer_aov', 0), errors='coerce') or 0), 1),
+        }
+    except Exception as e:
+        print(f'[WARN] fetch_purchase_journey_summary_bq failed: {e}')
+        return {}
+
+
 def _sample_json_for_period(base_path: str, key: str) -> Path | None:
     if not base_path:
         return None
@@ -1045,7 +1135,7 @@ def build_top_related_products(df: pd.DataFrame, top_n: int = 8) -> list[dict[st
     vc = rel['purchase_product_name_norm'].value_counts().head(top_n)
     return [{'product': str(k), 'buyers': int(v), 'base_product': top_product} for k,v in vc.items()]
 
-def build_purchase_journey_insight(df: pd.DataFrame) -> dict:
+def build_purchase_journey_insight(df: pd.DataFrame, start_date: dt.date | None = None, end_date: dt.date | None = None) -> dict:
     if df.empty:
         return {'summary': {}, 'rows': [], 'channel_rows': []}
     work = dedupe_user_rows(df.copy())
@@ -1108,6 +1198,10 @@ def build_purchase_journey_insight(df: pd.DataFrame) -> dict:
         'second_buyer_aov': round(float(base.loc[base['second_buyer_aov_norm'] > 0, 'second_buyer_aov_norm'].mean() or 0), 1),
         'third_buyer_aov': round(float(base.loc[base['third_buyer_aov_norm'] > 0, 'third_buyer_aov_norm'].mean() or 0), 1),
     }
+    if start_date is not None and end_date is not None:
+        direct_summary = fetch_purchase_journey_summary_bq(start_date, end_date)
+        if direct_summary:
+            summary.update(direct_summary)
     return {'summary': summary, 'rows': rows, 'channel_rows': channel_rows}
 
 def build_signup_30d_insight(df: pd.DataFrame) -> dict:
@@ -1307,7 +1401,7 @@ def build_bundle(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, perio
         ],
         "overview": {"sessions": int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique()), "orders": int(df['orders_norm'].sum()), "revenue": float(df['metric_revenue_norm'].sum()), "signups": int(df['signup_norm'].sum()), "buyers": int(max(buy['member_id_norm'].replace('', pd.NA).nunique(), buy['user_id_norm'].replace('', pd.NA).nunique())), "members": int(members['member_id_norm'].replace('', pd.NA).nunique()), "non_buyers": int(members[(pd.to_numeric(members.get('orders_norm',0), errors='coerce').fillna(0) <= 0)]['member_id_norm'].replace('', pd.NA).nunique()) if not members.empty else 0, "metric_source": "ga4_crm_mart"},
         "user_view": {"non_buyer": channel_panels(nb, 'non_buyer'), "buyer": channel_panels(buy, 'buyer'), "product": channel_panels(buy, 'product'), "target": build_ml_target_payload(user), "signup_30d": build_signup_30d_insight(user)},
-        "total_view": {"member_overview": channel_panels(members, 'total', product_source_override=total_product_raw), "ml_insight": build_ml_insight(members), "purchase_pattern": build_purchase_pattern_insight(total_product_raw), "purchase_journey": build_purchase_journey_insight(members), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"ALL MEMBER {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
+        "total_view": {"member_overview": channel_panels(members, 'total', product_source_override=total_product_raw), "ml_insight": build_ml_insight(members), "purchase_pattern": build_purchase_pattern_insight(total_product_raw), "purchase_journey": build_purchase_journey_insight(members, total_start_date, end_date), "date_range": {"start": total_start_date.isoformat(), "end": end_date.isoformat()}, "period_label": f"ALL MEMBER {total_start_date.isoformat()} ~ {end_date.isoformat()}"},
     }
     if admin_daily:
         _login_users = int(user[(user["sessions_norm"] > 0) & ((user["user_id_norm"] != "") | (user["member_id_norm"] != ""))]["member_id_norm"].replace("", pd.NA).nunique())
