@@ -162,17 +162,72 @@ BRAND_CONFIGS: List[BrandConfig] = [
         detail_desc_selectors=["[class*=product][class*=desc]", "[class*=detail][class*=desc]", "[class*=detail][class*=info]", "[class*=summary]"],
         detail_image_selectors=["[class*=detail] img", "[class*=product] img", ".swiper-slide img", "img"],
     ),
-    # Disabled for now
-    # BrandConfig(... THE_NORTH_FACE ...),
-    # BrandConfig(... K2 ...),
-    # BrandConfig(... KOLON_SPORT ...),
-    # BrandConfig(... EIDER ...),
-    # BrandConfig(... NEPA ...),
-    # BrandConfig(... BLACKYAK ...),
-    # BrandConfig(... MILLET ...),
-    # BrandConfig(... SNOWPEAK_APPAREL ...),
-    # BrandConfig(... PATAGONIA ...),
-    # BrandConfig(... SALOMON ...),
+    BrandConfig(
+        brand="THE_NORTH_FACE",
+        seed_urls=["https://www.thenorthfacekorea.co.kr/"],
+        domain="www.thenorthfacekorea.co.kr",
+        brand_terms=["노스페이스", "the north face", "tnf"],
+        product_url_keywords=["/product/", "/p/", "/goods/", "productNo=", "goodsNo="],
+        listing_url_keywords=["/category/", "/mens", "/womens", "/kids", "/whitelabel", "/equipment", "/shoes"],
+        deny_url_keywords=["/event/", "/my/", "/customer/", "/discover", "/about"],
+        category_hints=["자켓", "팬츠", "슈즈", "티셔츠", "플리스", "다운"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="BLACKYAK",
+        seed_urls=["https://www.blackyak.com/"],
+        domain="www.blackyak.com",
+        brand_terms=["블랙야크", "blackyak"],
+        product_url_keywords=["/goods/", "/product/", "goodsNo=", "product_no="],
+        listing_url_keywords=["/display/", "/category/", "cate_no=", "filterCategory"],
+        deny_url_keywords=["/event/", "/brand/", "/magazine", "/login", "/join"],
+        category_hints=["아우터", "상의", "하의", "신발", "용품"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="ARCTERYX",
+        seed_urls=["https://arcteryx.co.kr/"],
+        domain="arcteryx.co.kr",
+        brand_terms=["아크테릭스", "arc'teryx", "arcteryx"],
+        product_url_keywords=["/products/", "/product/", "sku=", "style="],
+        listing_url_keywords=["/products/category/", "/category/", "/footwear"],
+        deny_url_keywords=["/discover", "/veilance", "pf.kakao.com", "/event", "/about"],
+        category_hints=["자켓", "팬츠", "슈즈", "티셔츠", "플리스"],
+        detail_mode="selenium_only",
+    ),
+    BrandConfig(
+        brand="NEW_BALANCE",
+        seed_urls=["https://www.nbkorea.com/"],
+        domain="www.nbkorea.com",
+        brand_terms=["뉴발란스", "new balance", "nb"],
+        product_url_keywords=["productDetail.action", "/product/", "styleCode=", "goodsNo="],
+        listing_url_keywords=["productList.action", "/category/", "cateGrpCd="],
+        deny_url_keywords=["/event/", "/launching/", "/special/", "/brand/", "/my/"],
+        category_hints=["자켓", "팬츠", "슈즈", "티셔츠"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="MILLET",
+        seed_urls=["https://www.millet.co.kr/"],
+        domain="www.millet.co.kr",
+        brand_terms=["밀레", "millet"],
+        product_url_keywords=["/goods/", "goodsNo=", "goodsno=", "/product/"],
+        listing_url_keywords=["/goods/goods_list.php", "/category/", "cateCd="],
+        deny_url_keywords=["/event/", "/board/", "/service/", "/brand/"],
+        category_hints=["자켓", "팬츠", "슈즈", "티셔츠", "용품"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="NEPA",
+        seed_urls=["https://www.nplus.co.kr/"],
+        domain="www.nplus.co.kr",
+        brand_terms=["네파", "nepa", "nplus"],
+        product_url_keywords=["/shop/shopdetail.html", "/product/", "branduid="],
+        listing_url_keywords=["/shop/shopbrand.html", "/category/", "xcode="],
+        deny_url_keywords=["/event/", "/board/", "/brand/", "/member/"],
+        category_hints=["자켓", "팬츠", "슈즈", "티셔츠", "용품"],
+        detail_mode="hybrid",
+    ),
 ]
 
 GENERIC_PRODUCT_URL_KEYWORDS = [
@@ -455,10 +510,18 @@ CATEGORY_MASTER_XLS_CANDIDATES = _build_excel_path_candidates(EXCEL_CATEGORY_PAT
 
 def _normalize_brand_name(brand: str) -> str:
     b = safe_text(brand).lower()
-    if b in {"컬럼비아", "columbia"}:
-        return "COLUMBIA"
-    if b in {"디스커버리", "discovery"}:
-        return "DISCOVERY"
+    mapping = {
+        "컬럼비아": "COLUMBIA", "columbia": "COLUMBIA",
+        "디스커버리": "DISCOVERY", "discovery": "DISCOVERY",
+        "노스페이스": "THE_NORTH_FACE", "the north face": "THE_NORTH_FACE", "tnf": "THE_NORTH_FACE",
+        "블랙야크": "BLACKYAK", "blackyak": "BLACKYAK",
+        "아크테릭스": "ARCTERYX", "arc'teryx": "ARCTERYX", "arcteryx": "ARCTERYX",
+        "뉴발란스": "NEW_BALANCE", "new balance": "NEW_BALANCE", "new_balance": "NEW_BALANCE", "nb": "NEW_BALANCE",
+        "밀레": "MILLET", "millet": "MILLET",
+        "네파": "NEPA", "nplus": "NEPA", "nepa": "NEPA",
+    }
+    if b in mapping:
+        return mapping[b]
     return safe_text(brand).upper()
 
 def _normalize_category_leaf(v: str) -> str:
