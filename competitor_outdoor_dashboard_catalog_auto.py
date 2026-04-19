@@ -166,10 +166,10 @@ BRAND_CONFIGS: List[BrandConfig] = [
         brand="THE_NORTH_FACE",
         seed_urls=["https://www.thenorthfacekorea.co.kr/"],
         domain="www.thenorthfacekorea.co.kr",
-        brand_terms=["노스페이스", "northface", "the north face", "tnf"],
-        product_url_keywords=["/product/", "/p/", "goodsNo=", "productNo=", "product/"],
-        listing_url_keywords=["/category/", "/mens", "/womens", "/kids", "/whitelabel", "/equipment", "/shoes"],
-        deny_url_keywords=["login", "join", "benefit", "event", "notice", "about", "review", "campaign", "magazine"],
+        brand_terms=["northface", "노스페이스", "tnf", "thenorthface"],
+        product_url_keywords=["/product/"],
+        listing_url_keywords=["/category/"],
+        deny_url_keywords=["login", "join", "event", "notice", "magazine", "about", "store"],
         force_allow_url_keywords=["/product/"],
         detail_mode="hybrid",
     ),
@@ -177,54 +177,54 @@ BRAND_CONFIGS: List[BrandConfig] = [
         brand="BLACKYAK",
         seed_urls=["https://www.byn.kr/"],
         domain="www.byn.kr",
-        brand_terms=["블랙야크", "blackyak"],
-        product_url_keywords=["goodsNo=", "goodsno=", "product", "/shop/goods/"],
-        listing_url_keywords=["big_section.php", "middle_section.php", "small_section.php"],
-        deny_url_keywords=["login", "join", "event", "notice", "benefit", "brand"],
+        brand_terms=["blackyak", "블랙야크"],
+        product_url_keywords=["goods_view.php", "goodsNo=", "/product/"],
+        listing_url_keywords=["big_section.php", "small_section.php", "/shop/"],
+        force_allow_url_keywords=["goods_view.php"],
         detail_mode="hybrid",
     ),
     BrandConfig(
         brand="NEW_BALANCE",
         seed_urls=["https://www.nbkorea.com/"],
         domain="www.nbkorea.com",
-        brand_terms=["뉴발란스", "new balance", "nb"],
-        product_url_keywords=["productDetail.action", "productDetail", "goodsNo=", "styleCode=", "styleNo="],
-        listing_url_keywords=["productList.action", "cateGrpCode=", "cIdx=", "brand=nk"],
-        deny_url_keywords=["login", "join", "event", "notice", "collection", "launch", "brand"],
+        brand_terms=["new balance", "뉴발란스", "nb"],
+        product_url_keywords=["productDetail.action", "styleCode=", "/product/productDetail.action"],
+        listing_url_keywords=["productList.action", "featuredList.action", "cateGrpCode=", "cIdx="],
+        deny_url_keywords=["login", "join", "event", "notice", "brand", "collection"],
+        force_allow_url_keywords=["productDetail.action", "styleCode="],
         detail_mode="hybrid",
     ),
     BrandConfig(
         brand="MILLET",
         seed_urls=["https://www.millet.co.kr/"],
         domain="www.millet.co.kr",
-        brand_terms=["밀레", "millet"],
-        product_url_keywords=["goods_view.php", "goodsNo=", "goodsno=", "/goods/"],
+        brand_terms=["millet", "밀레"],
+        product_url_keywords=["goods_view.php", "goodsNo=", "/product/"],
         listing_url_keywords=["goods_list.php", "cateCd="],
-        deny_url_keywords=["login", "join", "event", "notice", "benefit", "brand"],
+        force_allow_url_keywords=["goods_view.php"],
         detail_mode="hybrid",
     ),
     BrandConfig(
         brand="ARCTERYX",
         seed_urls=["https://arcteryx.co.kr/"],
         domain="arcteryx.co.kr",
-        brand_terms=["아크테릭스", "arcteryx", "arc'teryx"],
-        product_url_keywords=["/products/", "/product/", "sku=", "style="],
+        brand_terms=["arcteryx", "아크테릭스"],
+        product_url_keywords=["/product/", "/products/"],
         listing_url_keywords=["/products/category/"],
-        deny_url_keywords=["login", "join", "event", "notice", "discover", "veilance", "outlet"],
+        force_allow_url_keywords=["/product/", "/products/"],
         detail_mode="hybrid",
     ),
     BrandConfig(
         brand="NEPA",
         seed_urls=["https://www.nplus.co.kr/"],
         domain="www.nplus.co.kr",
-        brand_terms=["네파", "nepa", "nplus"],
-        product_url_keywords=["goodsNo=", "branduid=", "/shop/shopdetail.html", "/product/"],
-        listing_url_keywords=["shopbrand.html", "xcode=", "mcode=", "scode="],
-        deny_url_keywords=["login", "join", "event", "notice", "benefit", "brand"],
+        brand_terms=["nepa", "네파", "nplus"],
+        product_url_keywords=["goods_view.php", "goodsNo=", "/product/"],
+        listing_url_keywords=["shopbrand.html", "xcode=", "mcode="],
+        force_allow_url_keywords=["goods_view.php"],
         detail_mode="hybrid",
     ),
 ]
-
 
 GENERIC_PRODUCT_URL_KEYWORDS = [
     "product-detail", "/product/", "/products/", "/goods/", "/p/", "goodsNo=", "productNo=", "sku=", "style="
@@ -506,7 +506,7 @@ CATEGORY_MASTER_XLS_CANDIDATES = _build_excel_path_candidates(EXCEL_CATEGORY_PAT
 
 def _normalize_brand_name(brand: str) -> str:
     b = safe_text(brand).lower()
-    if b in {"컬럼비아", "columbia", "콜롬비아"}:
+    if b in {"컬럼비아", "columbia"}:
         return "COLUMBIA"
     if b in {"디스커버리", "discovery"}:
         return "DISCOVERY"
@@ -1227,38 +1227,6 @@ def choose_first_good_text(values: List[str], brand: str = "") -> str:
         if good:
             return sorted(good, key=len, reverse=True)[0]
     return sorted(cleaned, key=len, reverse=True)[0]
-
-
-def extract_absolute_product_links_from_html(page_source: str, base_url: str, cfg: BrandConfig) -> List[str]:
-    if not page_source:
-        return []
-    found: List[str] = []
-    patterns: List[str] = []
-    if cfg.brand == "THE_NORTH_FACE":
-        patterns += [
-            r"[\"'](/product/[A-Z0-9]+(?:\?[^\"']*)?)[\"']",
-            r"https://www\.thenorthfacekorea\.co\.kr/product/[A-Z0-9]+(?:\?[^\"'\s>]*)?",
-        ]
-    elif cfg.brand == "NEW_BALANCE":
-        patterns += [
-            r"[\"'](/product/productDetail\.action\?[^\"']+)[\"']",
-            r"https://www\.nbkorea\.com/product/productDetail\.action\?[^\"'\s>]+",
-        ]
-    elif cfg.brand == "BLACKYAK":
-        patterns += [
-            r"[\"'](/shop/goods/goods_view\.php\?[^\"']+)[\"']",
-            r"https://www\.byn\.kr/shop/goods/goods_view\.php\?[^\"'\s>]+",
-        ]
-    for pat in patterns:
-        try:
-            matches = re.findall(pat, page_source, flags=re.I)
-        except Exception:
-            matches = []
-        for m in matches:
-            href = canonicalize_url(urljoin(base_url, m if isinstance(m, str) else m[0]))
-            if href and href not in found:
-                found.append(href)
-    return found
 
 def text_contains_brand(text: str, brand_terms: List[str]) -> bool:
     low = (text or "").lower()
@@ -2067,6 +2035,8 @@ class AutoCompetitorCrawler:
         return any(x.lower() in low for x in keys)
 
     def _passes_brand_filter(self, url: str, cfg: BrandConfig, text_blob: str = "") -> bool:
+        if same_domain(url, cfg.domain):
+            return True
         if not cfg.brand_terms:
             return True
         combined = f"{url} {text_blob}".lower()
@@ -2156,12 +2126,22 @@ class AutoCompetitorCrawler:
         elif cfg.brand == "COLUMBIA":
             selectors = ["a[href*='product/view']", "a[href*='gdno=']", "a[href*='product_no=']", "a[href*='/shop/goods']"]
         elif cfg.brand == "THE_NORTH_FACE":
-            selectors = ["a[href*='/product/']", "[data-href*='/product/']", "a[data-product-url*='/product/']"]
+            selectors = [
+                "a[href^='/product/']",
+                "a[href*='/product/']",
+                ".product-url[href^='/product/']",
+                ".text-link[href^='/product/']",
+                "a.swatch[href^='/product/']",
+            ]
         elif cfg.brand == "NEW_BALANCE":
-            selectors = ["a[href*='productDetail.action']", "a[href*='styleCode=']", "[data-href*='productDetail.action']"]
-        elif cfg.brand == "BLACKYAK":
-            selectors = ["a[href*='goods_view.php']", "a[href*='goodsNo=']", "[data-href*='goods_view.php']"]
-        selectors += ["a[href*='product-detail']", "a[href*='/product/detail']", "a[href*='/product/view']", "a[href*='product_no=']", "a[href*='gdno=']", "a[href*='/shop/goods']", "a[href*='/product/']", "a[href*='productDetail.action']", "a[href*='goods_view.php']"]
+            selectors = [
+                "a[href*='/product/productDetail.action']",
+                "a[id='selDetail']",
+                "a[data-style][data-color]",
+                "#prodList a[data-style][data-color]",
+                ".pro_area a[data-style][data-color]",
+            ]
+        selectors += ["a[href*='product-detail']", "a[href*='/product/detail']", "a[href*='/product/view']", "a[href*='product_no=']", "a[href*='gdno=']", "a[href*='/shop/goods']", "a[href^='/product/']", "a[href*='/product/']", "a[href*='/product/productDetail.action']"]
 
         seen_urls = set()
         for css in selectors:
@@ -2171,6 +2151,13 @@ class AutoCompetitorCrawler:
                 continue
             for a in anchors:
                 href = canonicalize_url(get_attr_from_element(a, "href"))
+                if cfg.brand == "NEW_BALANCE" and (not href or href.endswith('#') or href.lower().startswith('javascript')):
+                    style = compact_text(get_attr_from_element(a, "data-style"))
+                    color = compact_text(get_attr_from_element(a, "data-color"))
+                    if style and color:
+                        href = canonicalize_url(f"https://{cfg.domain}/product/productDetail.action?styleCode={style}&colCode={color}&cIdx=")
+                if href and href.startswith('/'):
+                    href = canonicalize_url(urljoin(f"https://{cfg.domain}", href))
                 if not href or not same_domain(href, cfg.domain):
                     continue
                 if self._is_deny_url(href, cfg) or not self._is_product_url(href, cfg) or not self._passes_brand_filter(href, cfg):
@@ -2209,29 +2196,48 @@ class AutoCompetitorCrawler:
                     "listing_price_text": "",
                 })
 
-        if not product_urls:
-            try:
-                html_text = self.driver.page_source or ""
-            except Exception:
-                html_text = ""
-            for href in extract_absolute_product_links_from_html(html_text, listing_url, cfg):
-                if not same_domain(href, cfg.domain):
-                    continue
-                if self._is_deny_url(href, cfg) or not self._is_product_url(href, cfg):
-                    continue
-                if href in seen_urls:
-                    continue
-                seen_urls.add(href)
-                product_urls.append({
-                    "url": href,
-                    "source_category": master_item or "",
-                    "source_category_url": listing_url,
-                    "plp_item_category": master_item or "",
-                    "plp_gender": plp_gender or "",
-                    "image_url": "",
-                    "listing_name": "",
-                    "listing_price_text": "",
-                })
+        try:
+            page_source = self.driver.page_source or ""
+        except Exception:
+            page_source = ""
+
+        def _append_fallback(href: str):
+            href = canonicalize_url(href)
+            if href.startswith('/'):
+                href = canonicalize_url(urljoin(f"https://{cfg.domain}", href))
+            if not href or not same_domain(href, cfg.domain):
+                return
+            if self._is_deny_url(href, cfg) or not self._is_product_url(href, cfg) or not self._passes_brand_filter(href, cfg):
+                return
+            if href in seen_urls:
+                return
+            seen_urls.add(href)
+            product_urls.append({
+                "url": href,
+                "source_category": master_item or "",
+                "source_category_url": listing_url,
+                "plp_item_category": master_item or "",
+                "plp_gender": plp_gender or "",
+                "image_url": "",
+                "listing_name": "",
+                "listing_price_text": "",
+            })
+
+        if page_source:
+            if cfg.brand == "THE_NORTH_FACE":
+                for m in re.findall(r'href=["\'](/product/[A-Z0-9]+)["\']', page_source, flags=re.I):
+                    _append_fallback(m)
+                for m in re.findall(r'data-product-url=["\'](/product/[A-Z0-9]+)["\']', page_source, flags=re.I):
+                    _append_fallback(m)
+            if cfg.brand == "NEW_BALANCE":
+                for style, color in re.findall(r'data-style=["\']([A-Z0-9]+)["\'][^>]*data-color=["\']([A-Z0-9]+)["\']', page_source, flags=re.I|re.S):
+                    _append_fallback(f"https://{cfg.domain}/product/productDetail.action?styleCode={style}&colCode={color}&cIdx=")
+                for style, color in re.findall(r'fncSwiperImgClick\(["\']([A-Z0-9]+)\|([A-Z0-9]+)["\']', page_source, flags=re.I):
+                    _append_fallback(f"https://{cfg.domain}/product/productDetail.action?styleCode={style}&colCode={color}&cIdx=")
+                for style, color in re.findall(r'location\.href\s*=\s*["\']/product/productDetail\.action\?styleCode=([A-Z0-9]+)&colCode=([A-Z0-9]+)', page_source, flags=re.I):
+                    _append_fallback(f"https://{cfg.domain}/product/productDetail.action?styleCode={style}&colCode={color}&cIdx=")
+                for href in re.findall(r'href=["\'](/product/productDetail\.action\?[^"\']+)["\']', page_source, flags=re.I):
+                    _append_fallback(href)
 
         return product_urls
 
