@@ -167,9 +167,10 @@ BRAND_CONFIGS: List[BrandConfig] = [
         seed_urls=["https://www.thenorthfacekorea.co.kr/"],
         domain="www.thenorthfacekorea.co.kr",
         brand_terms=["노스페이스", "northface", "the north face", "tnf"],
-        product_url_keywords=["/product/", "/p/", "goodsNo=", "productNo="],
+        product_url_keywords=["/product/", "/p/", "goodsNo=", "productNo=", "product/"],
         listing_url_keywords=["/category/", "/mens", "/womens", "/kids", "/whitelabel", "/equipment", "/shoes"],
         deny_url_keywords=["login", "join", "benefit", "event", "notice", "about", "review", "campaign", "magazine"],
+        force_allow_url_keywords=["/product/"],
         detail_mode="hybrid",
     ),
     BrandConfig(
@@ -1227,6 +1228,38 @@ def choose_first_good_text(values: List[str], brand: str = "") -> str:
             return sorted(good, key=len, reverse=True)[0]
     return sorted(cleaned, key=len, reverse=True)[0]
 
+
+def extract_absolute_product_links_from_html(page_source: str, base_url: str, cfg: BrandConfig) -> List[str]:
+    if not page_source:
+        return []
+    found: List[str] = []
+    patterns: List[str] = []
+    if cfg.brand == "THE_NORTH_FACE":
+        patterns += [
+            r"[\"'](/product/[A-Z0-9]+(?:\?[^\"']*)?)[\"']",
+            r"https://www\.thenorthfacekorea\.co\.kr/product/[A-Z0-9]+(?:\?[^\"'\s>]*)?",
+        ]
+    elif cfg.brand == "NEW_BALANCE":
+        patterns += [
+            r"[\"'](/product/productDetail\.action\?[^\"']+)[\"']",
+            r"https://www\.nbkorea\.com/product/productDetail\.action\?[^\"'\s>]+",
+        ]
+    elif cfg.brand == "BLACKYAK":
+        patterns += [
+            r"[\"'](/shop/goods/goods_view\.php\?[^\"']+)[\"']",
+            r"https://www\.byn\.kr/shop/goods/goods_view\.php\?[^\"'\s>]+",
+        ]
+    for pat in patterns:
+        try:
+            matches = re.findall(pat, page_source, flags=re.I)
+        except Exception:
+            matches = []
+        for m in matches:
+            href = canonicalize_url(urljoin(base_url, m if isinstance(m, str) else m[0]))
+            if href and href not in found:
+                found.append(href)
+    return found
+
 def text_contains_brand(text: str, brand_terms: List[str]) -> bool:
     low = (text or "").lower()
     return any(term.lower() in low for term in brand_terms if term)
@@ -2122,7 +2155,13 @@ class AutoCompetitorCrawler:
             selectors = ["a[href*='product-detail']", ".MuiGrid-root a[href*='product-detail']", "a[href*='/product-detail/']"]
         elif cfg.brand == "COLUMBIA":
             selectors = ["a[href*='product/view']", "a[href*='gdno=']", "a[href*='product_no=']", "a[href*='/shop/goods']"]
-        selectors += ["a[href*='product-detail']", "a[href*='/product/detail']", "a[href*='/product/view']", "a[href*='product_no=']", "a[href*='gdno=']", "a[href*='/shop/goods']"]
+        elif cfg.brand == "THE_NORTH_FACE":
+            selectors = ["a[href*='/product/']", "[data-href*='/product/']", "a[data-product-url*='/product/']"]
+        elif cfg.brand == "NEW_BALANCE":
+            selectors = ["a[href*='productDetail.action']", "a[href*='styleCode=']", "[data-href*='productDetail.action']"]
+        elif cfg.brand == "BLACKYAK":
+            selectors = ["a[href*='goods_view.php']", "a[href*='goodsNo=']", "[data-href*='goods_view.php']"]
+        selectors += ["a[href*='product-detail']", "a[href*='/product/detail']", "a[href*='/product/view']", "a[href*='product_no=']", "a[href*='gdno=']", "a[href*='/shop/goods']", "a[href*='/product/']", "a[href*='productDetail.action']", "a[href*='goods_view.php']"]
 
         seen_urls = set()
         for css in selectors:
@@ -2155,6 +2194,30 @@ class AutoCompetitorCrawler:
                 if not same_domain(href, cfg.domain):
                     continue
                 if self._is_deny_url(href, cfg) or not self._is_product_url(href, cfg) or not self._passes_brand_filter(href, cfg):
+                    continue
+                if href in seen_urls:
+                    continue
+                seen_urls.add(href)
+                product_urls.append({
+                    "url": href,
+                    "source_category": master_item or "",
+                    "source_category_url": listing_url,
+                    "plp_item_category": master_item or "",
+                    "plp_gender": plp_gender or "",
+                    "image_url": "",
+                    "listing_name": "",
+                    "listing_price_text": "",
+                })
+
+        if not product_urls:
+            try:
+                html_text = self.driver.page_source or ""
+            except Exception:
+                html_text = ""
+            for href in extract_absolute_product_links_from_html(html_text, listing_url, cfg):
+                if not same_domain(href, cfg.domain):
+                    continue
+                if self._is_deny_url(href, cfg) or not self._is_product_url(href, cfg):
                     continue
                 if href in seen_urls:
                     continue
