@@ -162,18 +162,68 @@ BRAND_CONFIGS: List[BrandConfig] = [
         detail_desc_selectors=["[class*=product][class*=desc]", "[class*=detail][class*=desc]", "[class*=detail][class*=info]", "[class*=summary]"],
         detail_image_selectors=["[class*=detail] img", "[class*=product] img", ".swiper-slide img", "img"],
     ),
-    # Disabled for now
-    # BrandConfig(... THE_NORTH_FACE ...),
-    # BrandConfig(... K2 ...),
-    # BrandConfig(... KOLON_SPORT ...),
-    # BrandConfig(... EIDER ...),
-    # BrandConfig(... NEPA ...),
-    # BrandConfig(... BLACKYAK ...),
-    # BrandConfig(... MILLET ...),
-    # BrandConfig(... SNOWPEAK_APPAREL ...),
-    # BrandConfig(... PATAGONIA ...),
-    # BrandConfig(... SALOMON ...),
+    BrandConfig(
+        brand="THE_NORTH_FACE",
+        seed_urls=["https://www.thenorthfacekorea.co.kr/"],
+        domain="www.thenorthfacekorea.co.kr",
+        brand_terms=["노스페이스", "northface", "the north face", "tnf"],
+        product_url_keywords=["/product/", "/p/", "goodsNo=", "productNo="],
+        listing_url_keywords=["/category/", "/mens", "/womens", "/kids", "/whitelabel", "/equipment", "/shoes"],
+        deny_url_keywords=["login", "join", "benefit", "event", "notice", "about", "review", "campaign", "magazine"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="BLACKYAK",
+        seed_urls=["https://www.byn.kr/"],
+        domain="www.byn.kr",
+        brand_terms=["블랙야크", "blackyak"],
+        product_url_keywords=["goodsNo=", "goodsno=", "product", "/shop/goods/"],
+        listing_url_keywords=["big_section.php", "middle_section.php", "small_section.php"],
+        deny_url_keywords=["login", "join", "event", "notice", "benefit", "brand"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="NEW_BALANCE",
+        seed_urls=["https://www.nbkorea.com/"],
+        domain="www.nbkorea.com",
+        brand_terms=["뉴발란스", "new balance", "nb"],
+        product_url_keywords=["productDetail.action", "productDetail", "goodsNo=", "styleCode=", "styleNo="],
+        listing_url_keywords=["productList.action", "cateGrpCode=", "cIdx=", "brand=nk"],
+        deny_url_keywords=["login", "join", "event", "notice", "collection", "launch", "brand"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="MILLET",
+        seed_urls=["https://www.millet.co.kr/"],
+        domain="www.millet.co.kr",
+        brand_terms=["밀레", "millet"],
+        product_url_keywords=["goods_view.php", "goodsNo=", "goodsno=", "/goods/"],
+        listing_url_keywords=["goods_list.php", "cateCd="],
+        deny_url_keywords=["login", "join", "event", "notice", "benefit", "brand"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="ARCTERYX",
+        seed_urls=["https://arcteryx.co.kr/"],
+        domain="arcteryx.co.kr",
+        brand_terms=["아크테릭스", "arcteryx", "arc'teryx"],
+        product_url_keywords=["/products/", "/product/", "sku=", "style="],
+        listing_url_keywords=["/products/category/"],
+        deny_url_keywords=["login", "join", "event", "notice", "discover", "veilance", "outlet"],
+        detail_mode="hybrid",
+    ),
+    BrandConfig(
+        brand="NEPA",
+        seed_urls=["https://www.nplus.co.kr/"],
+        domain="www.nplus.co.kr",
+        brand_terms=["네파", "nepa", "nplus"],
+        product_url_keywords=["goodsNo=", "branduid=", "/shop/shopdetail.html", "/product/"],
+        listing_url_keywords=["shopbrand.html", "xcode=", "mcode=", "scode="],
+        deny_url_keywords=["login", "join", "event", "notice", "benefit", "brand"],
+        detail_mode="hybrid",
+    ),
 ]
+
 
 GENERIC_PRODUCT_URL_KEYWORDS = [
     "product-detail", "/product/", "/products/", "/goods/", "/p/", "goodsNo=", "productNo=", "sku=", "style="
@@ -454,61 +504,24 @@ def _build_excel_path_candidates(base_name: str) -> List[str]:
 CATEGORY_MASTER_XLS_CANDIDATES = _build_excel_path_candidates(EXCEL_CATEGORY_PATH)
 
 def _normalize_brand_name(brand: str) -> str:
-    b = safe_text(brand).strip().lower()
-
-    mapping = {
-        "컬럼비아": "COLUMBIA",
-        "columbia": "COLUMBIA",
-
-        "디스커버리": "DISCOVERY",
-        "discovery": "DISCOVERY",
-
-        "노스페이스": "THE_NORTH_FACE",
-        "the north face": "THE_NORTH_FACE",
-        "thenorthface": "THE_NORTH_FACE",
-        "tnf": "THE_NORTH_FACE",
-
-        "블랙야크": "BLACKYAK",
-        "blackyak": "BLACKYAK",
-
-        "아크테릭스": "ARCTERYX",
-        "arc'teryx": "ARCTERYX",
-        "arcteryx": "ARCTERYX",
-
-        "뉴발란스": "NEW_BALANCE",
-        "new balance": "NEW_BALANCE",
-        "newbalance": "NEW_BALANCE",
-        "nb": "NEW_BALANCE",
-
-        "밀레": "MILLET",
-        "millet": "MILLET",
-
-        "네파": "NEPA",
-        "nplus": "NEPA",
-        "nepa": "NEPA",
-
-        "아이더": "EIDER",
-        "eider": "EIDER",
-
-        "케이투": "K2",
-        "k2": "K2",
-
-        "코오롱스포츠": "KOLON_SPORT",
-        "kolon sport": "KOLON_SPORT",
-        "kolonsport": "KOLON_SPORT",
-
-        "스노우피크": "SNOWPEAK_APPAREL",
-        "snowpeak": "SNOWPEAK_APPAREL",
-        "snow peak": "SNOWPEAK_APPAREL",
-
-        "살로몬": "SALOMON",
-        "salomon": "SALOMON",
-
-        "파타고니아": "PATAGONIA",
-        "patagonia": "PATAGONIA",
-    }
-
-    return mapping.get(b, safe_text(brand).upper())
+    b = safe_text(brand).lower()
+    if b in {"컬럼비아", "columbia", "콜롬비아"}:
+        return "COLUMBIA"
+    if b in {"디스커버리", "discovery"}:
+        return "DISCOVERY"
+    if b in {"노스페이스", "the north face", "thenorthface", "tnf"}:
+        return "THE_NORTH_FACE"
+    if b in {"블랙야크", "blackyak"}:
+        return "BLACKYAK"
+    if b in {"뉴발란스", "new balance", "newbalance", "nb"}:
+        return "NEW_BALANCE"
+    if b in {"밀레", "millet"}:
+        return "MILLET"
+    if b in {"아크테릭스", "arc'teryx", "arcteryx"}:
+        return "ARCTERYX"
+    if b in {"네파", "nepa", "nplus"}:
+        return "NEPA"
+    return safe_text(brand).upper()
 
 def _normalize_category_leaf(v: str) -> str:
     t = safe_text(v)
