@@ -1606,6 +1606,57 @@ def build_repurchase_deep_insight(product_df: pd.DataFrame, member_df: pd.DataFr
         }
     )
 
+    speed_rows = m[(m["orders_norm"] >= 2) & (m["days_1_to_2_norm"] > 0)].copy()
+    speed_segments = []
+    channel_speed_rows = []
+    if not speed_rows.empty:
+        speed_rows["buyer_key_norm"] = speed_rows["member_id_norm"].where(speed_rows["member_id_norm"].astype(str).str.strip() != "", speed_rows.get("user_id_norm", "")).astype(str).str.strip()
+        speed_rows = speed_rows[speed_rows["buyer_key_norm"] != ""].copy()
+        speed_rows["repurchase_speed_segment"] = np.select(
+            [
+                speed_rows["days_1_to_2_norm"] <= 3,
+                speed_rows["days_1_to_2_norm"] <= 7,
+                speed_rows["days_1_to_2_norm"] <= 30,
+                speed_rows["days_1_to_2_norm"] > 30,
+            ],
+            ["Fast Repeater", "Warm Repeater", "Slow Repeater", "Dormant Repeater"],
+            default="Unknown",
+        )
+        for label in ["Fast Repeater", "Warm Repeater", "Slow Repeater", "Dormant Repeater"]:
+            sdf = speed_rows[speed_rows["repurchase_speed_segment"] == label].copy()
+            if sdf.empty:
+                continue
+            buyers = int(sdf["buyer_key_norm"].replace("", pd.NA).dropna().nunique())
+            orders = float(pd.to_numeric(sdf["orders_norm"], errors="coerce").fillna(0).sum())
+            revenue = float(pd.to_numeric(sdf["metric_revenue_norm"], errors="coerce").fillna(0).sum())
+            speed_segments.append({
+                "segment": label,
+                "buyers": buyers,
+                "avg_days": round(float(pd.to_numeric(sdf["days_1_to_2_norm"], errors="coerce").replace(0, np.nan).mean() or 0), 1),
+                "aov": round(revenue / orders, 1) if orders else 0.0,
+                "revenue": revenue,
+                "top_channel": top_label(sdf, "channel_group_norm"),
+                "top_category": top_label(sdf, "second_purchase_category_norm"),
+                "top_product": top_label(sdf, "second_purchase_product_name_norm"),
+            })
+
+        ch = speed_rows.groupby("channel_group_norm", dropna=False).agg(
+            buyers=("buyer_key_norm", lambda s: int(pd.Series(s).replace("", pd.NA).dropna().nunique())),
+            avg_days_1_to_2=("days_1_to_2_norm", lambda s: float(pd.to_numeric(s, errors="coerce").replace(0, np.nan).mean() or 0)),
+            avg_days_2_to_3=("days_2_to_3_norm", lambda s: float(pd.to_numeric(s, errors="coerce").replace(0, np.nan).mean() or 0)),
+            revenue=("metric_revenue_norm", "sum"),
+        ).reset_index().sort_values(["buyers", "revenue"], ascending=[False, False])
+        channel_speed_rows = [
+            {
+                "channel_group": str(r["channel_group_norm"] or "미분류"),
+                "buyers": int(r["buyers"]),
+                "avg_days_1_to_2": round(float(r["avg_days_1_to_2"] or 0), 1),
+                "avg_days_2_to_3": round(float(r["avg_days_2_to_3"] or 0), 1),
+                "revenue": float(r["revenue"] or 0),
+            }
+            for _, r in ch.head(12).iterrows()
+        ]
+
     summary = {
         "repeat_buyers": int(rep["buyer_key_norm"].replace("", pd.NA).dropna().nunique()) if not rep.empty else 0,
         "top_repeat_product": top_repeat_products[0]["label"] if top_repeat_products else "-",
@@ -1616,6 +1667,10 @@ def build_repurchase_deep_insight(product_df: pd.DataFrame, member_df: pd.DataFr
         "top_transition_users": first_to_second_category[0]["users"] if first_to_second_category else 0,
         "avg_days_1_to_2": round(float(m.loc[m["days_1_to_2_norm"] > 0, "days_1_to_2_norm"].mean() or 0), 1) if not m.empty else 0.0,
         "avg_days_2_to_3": round(float(m.loc[m["days_2_to_3_norm"] > 0, "days_2_to_3_norm"].mean() or 0), 1) if not m.empty else 0.0,
+        "fast_repeat_buyers": next((x["buyers"] for x in speed_segments if x["segment"] == "Fast Repeater"), 0),
+        "warm_repeat_buyers": next((x["buyers"] for x in speed_segments if x["segment"] == "Warm Repeater"), 0),
+        "slow_repeat_buyers": next((x["buyers"] for x in speed_segments if x["segment"] == "Slow Repeater"), 0),
+        "dormant_repeat_buyers": next((x["buyers"] for x in speed_segments if x["segment"] == "Dormant Repeater"), 0),
     }
 
     return {
@@ -1625,6 +1680,8 @@ def build_repurchase_deep_insight(product_df: pd.DataFrame, member_df: pd.DataFr
         "first_to_second_category": first_to_second_category,
         "second_to_third_category": second_to_third_category,
         "first_to_second_product": first_to_second_product,
+        "speed_segments": speed_segments,
+        "channel_speed_rows": channel_speed_rows,
         "member_rows": member_rows,
     }
 
@@ -2215,21 +2272,36 @@ function renderRepurchaseDeep(section){
   const fsCat = section?.first_to_second_category || [];
   const stCat = section?.second_to_third_category || [];
   const fsProd = section?.first_to_second_product || [];
-  const transitionRows = fsCat.map((r, idx)=>({
+  const speedSegments = section?.speed_segments || [];
+  const channelSpeedRows = section?.channel_speed_rows || [];
+  const transitionRows = fsCat.map((r)=>({
     stage:'1st→2nd',
     from_label:r.from_label,to_label:r.to_label,users:r.users,revenue:r.revenue,avg_gap:r.avg_gap
   })).concat(stCat.map((r)=>({
     stage:'2nd→3rd',
     from_label:r.from_label,to_label:r.to_label,users:r.users,revenue:r.revenue,avg_gap:r.avg_gap
   })));
-  return `<section><div class="section-head"><div><div class="section-title">REPURCHASE MERCHANDISING</div><h2>재구매 상품 · 카테고리 · 전이 분석</h2></div></div>
+  const speedCards = speedSegments.map(seg => ({
+    product: seg.segment,
+    buyers: seg.buyers,
+    revenue: seg.revenue,
+    category: `${seg.top_channel || '미분류'} · ${seg.top_category || '미분류'}`,
+    note: `Avg ${Number(seg.avg_days||0).toFixed(1)}d · AOV ${money(seg.aov||0)} · ${seg.top_product || '-'}`
+  }));
+  return `<section><div class="section-head"><div><div class="section-title">REPURCHASE MERCHANDISING</div><h2>재구매 상품 · 카테고리 · 속도 · 전이 분석</h2></div></div>
     <div class="grid-4">
       <div class="card"><div class="kicker">Repeat Buyers</div><div class="kpi">${num(s.repeat_buyers||0)}</div><div class="kpi-sub">재구매 이력이 있는 고객 수</div></div>
       <div class="card"><div class="kicker">Top Repeat Product</div><div class="kpi" style="font-size:22px;line-height:1.2">${esc2(s.top_repeat_product||'-')}</div><div class="kpi-sub">Buyers ${num(s.top_repeat_product_buyers||0)}</div></div>
       <div class="card"><div class="kicker">Top Repeat Category</div><div class="kpi" style="font-size:22px;line-height:1.2">${esc2(s.top_repeat_category||'-')}</div><div class="kpi-sub">Buyers ${num(s.top_repeat_category_buyers||0)}</div></div>
       <div class="card"><div class="kicker">Top Transition</div><div class="kpi" style="font-size:22px;line-height:1.2">${esc2(s.top_transition||'-')}</div><div class="kpi-sub">Users ${num(s.top_transition_users||0)} · Avg 1→2 ${Number(s.avg_days_1_to_2||0).toFixed(1)}d</div></div>
+      <div class="card"><div class="kicker">Fast Repeat</div><div class="kpi">${num(s.fast_repeat_buyers||0)}</div><div class="kpi-sub">3일 이내 재구매</div></div>
+      <div class="card"><div class="kicker">Warm Repeat</div><div class="kpi">${num(s.warm_repeat_buyers||0)}</div><div class="kpi-sub">7일 이내 재구매</div></div>
+      <div class="card"><div class="kicker">Slow Repeat</div><div class="kpi">${num(s.slow_repeat_buyers||0)}</div><div class="kpi-sub">30일 이내 재구매</div></div>
+      <div class="card"><div class="kicker">Dormant Repeat</div><div class="kpi">${num(s.dormant_repeat_buyers||0)}</div><div class="kpi-sub">30일 초과 재구매</div></div>
     </div>
     <div class="grid-2">
+      <div class="card"><div class="section-title">REPURCHASE SPEED SEGMENTS</div><div class="grid-2">${focusCards(speedCards, true)}</div></div>
+      <div class="card">${table(channelSpeedRows,[['channel_group','Channel'],['buyers','Buyers'],['avg_days_1_to_2','Avg 1→2 Days'],['avg_days_2_to_3','Avg 2→3 Days'],['revenue','Revenue']],['buyers','avg_days_1_to_2','avg_days_2_to_3','revenue'],'repeat-channel-speed')}</div>
       <div class="card">${table(topProducts,[['label','Repeat Product'],['buyers','Buyers'],['revenue','Revenue'],['avg_orders','Avg Orders']],['buyers','revenue','avg_orders'],'repeat-top-products')}</div>
       <div class="card">${table(topCategories,[['label','Repeat Category'],['buyers','Buyers'],['revenue','Revenue'],['avg_orders','Avg Orders']],['buyers','revenue','avg_orders'],'repeat-top-categories')}</div>
       <div class="card">${table(transitionRows,[['stage','Stage'],['from_label','From Category'],['to_label','To Category'],['users','Users'],['revenue','Revenue'],['avg_gap','Avg Gap']],['users','revenue','avg_gap'],'repeat-category-transitions')}</div>
