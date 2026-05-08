@@ -1315,22 +1315,36 @@ def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str,
         re.I,
     )
 
+    # 구형/신형 셀렉터 모두 지원
+    BLOCK_CSS = (
+        ".brand_block, [id='brand_area'], [class*='brand_area'], "
+        "[class*='adv_brand'], [data-cr='brand'], [data-area='brand'], "
+        "[class*='api_brand'], [class*='bs_brand'], [class*='brand-search'], "
+        "[class*='BrandSearch'], [class*='brand_keyword']"
+    )
+    TITLE_CSS   = ".main_title, [class*='brand_tit'], [class*='brand_title']"
+    DESC_CSS    = ".main_desc p, [class*='brand_desc'] p, [class*='brand_copy'] p, [class*='sub_tit']"
+    TAG_CSS     = ".link_button, .keyword_link, [class*='link_btn'], [class*='keyword_item'] a, [class*='tag_item'] a"
+    CARD_CSS    = ".product_item, .prd_item, [class*='product_item'], [class*='prd_item'], [class*='goods_item']"
+    CARD_NM_CSS = ".product_name, .prd_name, [class*='product_name'], [class*='prd_name'], [class*='goods_name']"
+    HERO_CSS    = ".thumb_area img, [class*='thumb_area'] img, [class*='brand_area_img'] img, [class*='hero_img'] img"
+
     best_block = None
     best_score = -10**9
-    for candidate in soup.select(".brand_block"):
+    for candidate in soup.select(BLOCK_CSS):
         text_blob = _powerlink_clean_text(candidate.get_text(" ", strip=True))
         if not text_blob:
             continue
         score = 0
-        if candidate.select_one(".main_title"):
+        if candidate.select_one(TITLE_CSS):
             score += 20
-        if len(candidate.select(".main_desc p")) >= 1:
+        if len(candidate.select(DESC_CSS)) >= 1:
             score += 12
-        if len(candidate.select(".link_button")) >= 2:
+        if len(candidate.select(TAG_CSS)) >= 2:
             score += 12
-        if len(candidate.select(".product_item")) >= 2:
+        if len(candidate.select(CARD_CSS)) >= 2:
             score += 16
-        if candidate.select_one(".thumb_area img"):
+        if candidate.select_one(HERO_CSS):
             score += 8
         ad_links = [a.get("href", "") for a in candidate.select("a[href]")]
         if any("ader.naver.com" in href for href in ad_links):
@@ -1367,22 +1381,24 @@ def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str,
             "cards_detail": [],
         }
 
-    headline = _powerlink_clean_text(block.select_one(".main_title").get_text(" ", strip=True) if block.select_one(".main_title") else "")
+    _title_el = block.select_one(TITLE_CSS)
+    headline = _powerlink_clean_text(_title_el.get_text(" ", strip=True) if _title_el else "")
     desc_lines = [
         _powerlink_clean_text(p.get_text(" ", strip=True))
-        for p in block.select(".main_desc p")
+        for p in block.select(DESC_CSS)
         if _powerlink_clean_text(p.get_text(" ", strip=True))
     ]
     tags = _powerlink_dedupe_keep_order([
         _powerlink_clean_text(a.get_text(" ", strip=True))
-        for a in block.select(".link_button")
+        for a in block.select(TAG_CSS)
         if _powerlink_clean_text(a.get_text(" ", strip=True))
     ])[:POWERLINK_MAX_TAGS]
 
     cards_detail = []
     cards = []
-    for node in block.select(".product_item"):
-        name = _powerlink_clean_text(node.select_one(".product_name").get_text(" ", strip=True) if node.select_one(".product_name") else "")
+    for node in block.select(CARD_CSS):
+        _nm_el = node.select_one(CARD_NM_CSS)
+        name = _powerlink_clean_text(_nm_el.get_text(" ", strip=True) if _nm_el else "")
         img = node.select_one("img")
         src = (img.get("src") or img.get("data-src") or "").strip() if img else ""
         alt = _powerlink_clean_text(img.get("alt", "") if img else "")
@@ -1392,10 +1408,10 @@ def _extract_powerlink_from_structured_html(raw_html: str, brand: str, url: str,
             cards.append(name)
     cards = _powerlink_dedupe_keep_order(cards)[:POWERLINK_MAX_CARDS]
 
-    hero_img = block.select_one(".thumb_area img")
+    _hero_el = block.select_one(HERO_CSS)
     hero_image = ""
-    if hero_img:
-        hero_image = (hero_img.get("src") or hero_img.get("data-src") or "").strip()
+    if _hero_el:
+        hero_image = (_hero_el.get("src") or _hero_el.get("data-src") or "").strip()
 
     # strict structured parsing only
     main_copy = desc_lines[0] if len(desc_lines) > 0 else ""
@@ -1464,9 +1480,58 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
   const brandNorm = norm(brand).toLowerCase().replace(/\s+/g, '');
   const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
 
-  const explicitBlocks = Array.from(document.querySelectorAll('.brand_block, .brand_block.desktop_light.border_middle'));
-  const blocks = explicitBlocks.length ? explicitBlocks : Array.from(document.querySelectorAll('div')).filter((el) => el.className && String(el.className).includes('brand_block'));
+  // ── 1. 브랜드검색 블록 후보 수집 (구/신 셀렉터 모두 포함) ──────────────
+  const BLOCK_SELECTORS = [
+    // 구형 (2024 이전)
+    '.brand_block',
+    '.brand_block.desktop_light',
+    // 신형 (2024~) – Naver 구조 변경 대응
+    '#brand_area',
+    '[id="brand_area"]',
+    '[class*="brand_area"]',
+    '[class*="adv_brand"]',
+    '[data-cr="brand"]',
+    '[data-area="brand"]',
+    'section[class*="brand"]',
+    // 공통 브랜드 검색 래퍼
+    '[class*="api_brand"]',
+    '[class*="bs_brand"]',
+    '[class*="brand-search"]',
+    '[class*="BrandSearch"]',
+    '[class*="brand_keyword"]',
+  ];
 
+  let blocks = [];
+  for (const sel of BLOCK_SELECTORS) {
+    try {
+      const found = Array.from(document.querySelectorAll(sel));
+      if (found.length) { blocks = blocks.concat(found); }
+    } catch(e) {}
+  }
+  // 클래스명에 brand_block 포함하는 div 추가 (동적 해시 클래스 대응)
+  if (!blocks.length) {
+    blocks = Array.from(document.querySelectorAll('div, section')).filter((el) => {
+      const cls = String(el.className || '');
+      return cls.includes('brand_block') || cls.includes('brand_area') || cls.includes('adv_brand');
+    });
+  }
+  // 중복 제거
+  blocks = uniq(blocks);
+
+  // ── 2. 신형 셀렉터 매핑 ─────────────────────────────────────────────────
+  // 구형: .main_title / .main_desc p / .link_button / .product_item / .product_name / .thumb_area img
+  // 신형: .brand_area_tit / .brand_area_desc / .keyword_link .link_text / .prd_item / .prd_name / .brand_area_img img
+  const TITLE_SEL   = '.main_title, .brand_area_tit, [class*="brand_tit"], [class*="brand_title"], h2, h3';
+  const DESC_SEL    = '.main_desc p, [class*="brand_desc"] p, [class*="brand_copy"] p, [class*="sub_tit"]';
+  const TAG_SEL     = '.link_button, .keyword_link, [class*="link_btn"], [class*="keyword_item"] a, [class*="tag_item"] a';
+  const CARD_SEL    = '.product_item, .prd_item, [class*="product_item"], [class*="prd_item"], [class*="goods_item"]';
+  const CARD_NM_SEL = '.product_name, .prd_name, [class*="product_name"], [class*="prd_name"], [class*="goods_name"]';
+  const HERO_SEL    = '.thumb_area img, .brand_area_img img, [class*="thumb_area"] img, [class*="hero_img"] img';
+
+  const qText = (root, sel) => norm(root.querySelector(sel)?.textContent || '');
+  const qAll  = (root, sel) => { try { return Array.from(root.querySelectorAll(sel)); } catch(e) { return []; } };
+
+  // ── 3. 최적 블록 선정 ────────────────────────────────────────────────────
   let chosen = null;
   let bestScore = -1;
   for (const el of blocks) {
@@ -1475,29 +1540,34 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
     const txtNorm = text.toLowerCase().replace(/\s+/g, '');
     let score = 0;
     if (txtNorm.includes(brandNorm)) score += 8;
-    if (el.querySelector('.main_title')) score += 10;
-    if (el.querySelector('.main_desc')) score += 8;
-    if (el.querySelectorAll('.link_button').length >= 1) score += 8;
-    if (el.querySelectorAll('.product_item').length >= 2) score += 10;
+    if (el.querySelector(TITLE_SEL))          score += 10;
+    if (qAll(el, DESC_SEL).length >= 1)       score += 8;
+    if (qAll(el, TAG_SEL).length >= 1)        score += 8;
+    if (qAll(el, CARD_SEL).length >= 2)       score += 10;
     if (el.querySelectorAll('img').length >= 2) score += 4;
+    // ader.naver.com 링크 = 브랜드광고 확실한 신호
+    if (Array.from(el.querySelectorAll('a[href]')).some(a => a.href.includes('ader.naver.com'))) score += 20;
     if (score > bestScore) { bestScore = score; chosen = el; }
   }
 
   if (!chosen) return null;
 
-  const mainTitle = norm(chosen.querySelector('.main_title')?.textContent || '');
-  const descPs = Array.from(chosen.querySelectorAll('.main_desc p')).map((p) => norm(p.textContent || '')).filter(Boolean);
-  const tags = uniq(Array.from(chosen.querySelectorAll('.link_button')).map((a) => norm(a.textContent || '')).filter(Boolean));
-  const cards = Array.from(chosen.querySelectorAll('.product_item')).map((item) => {
-    const name = norm(item.querySelector('.product_name')?.textContent || '');
-    const img = item.querySelector('img');
-    const src = img ? (img.currentSrc || img.src || '') : '';
-    const alt = img ? norm(img.alt || '') : '';
+  // ── 4. 데이터 추출 ───────────────────────────────────────────────────────
+  const mainTitle = qText(chosen, TITLE_SEL);
+  const descPs    = qAll(chosen, DESC_SEL).map(p => norm(p.textContent || '')).filter(Boolean);
+  const tags      = uniq(qAll(chosen, TAG_SEL).map(a => norm(a.textContent || '')).filter(Boolean));
+
+  const cards = qAll(chosen, CARD_SEL).map((item) => {
+    const name = norm(item.querySelector(CARD_NM_SEL)?.textContent || '');
+    const img  = item.querySelector('img');
+    const src  = img ? (img.currentSrc || img.src || '') : '';
+    const alt  = img ? norm(img.alt || '') : '';
     return { name, image: src, alt };
   }).filter((x) => x.name || x.image);
-  const heroImg = chosen.querySelector('.thumb_area img');
-  const hero = heroImg ? (heroImg.currentSrc || heroImg.src || '') : '';
-  const rect = chosen.getBoundingClientRect();
+
+  const heroImg = chosen.querySelector(HERO_SEL);
+  const hero    = heroImg ? (heroImg.currentSrc || heroImg.src || '') : '';
+  const rect    = chosen.getBoundingClientRect();
 
   const lines = uniq([
     norm(brand),
@@ -1817,6 +1887,18 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
             "cards_detail": [],
         } for b in brands]
 
+    # ── Playwright 경로 (JS 렌더링 필요 – 기본값 true) ──────────────────────
+    if POWERLINK_USE_PLAYWRIGHT:
+        try:
+            return _fetch_brand_powerlink_snapshot_playwright(brands, cache_path, now_kst)
+        except ImportError:
+            print("[WARN] playwright not installed; falling back to requests. "
+                  "Install: pip install playwright && playwright install chromium")
+        except Exception as e:
+            print(f"[WARN] Playwright brand search failed ({type(e).__name__}: {e}); "
+                  "falling back to requests.")
+
+    # ── requests 폴백 (Playwright 미설치 또는 실패 시) ────────────────────────
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
         "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -4285,8 +4367,6 @@ def render_page_html(
     kpis_cards_html = (
         kpi_group_title("GA KPI", "GA4 기준")
         + f'<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">{ga_kpis_cards}</div>'
-        + kpi_group_title("ADMIN KPI", "Sessions=GA 기준 · Revenue=ERP 기준 · member_funnel_admin_daily")
-        + f'<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">{admin_kpis_cards}</div>'
     )
 
     trend_tabs = [
