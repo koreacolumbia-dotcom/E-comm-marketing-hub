@@ -1461,117 +1461,54 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
 (brand) => {
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const uniq = (arr) => arr.filter((v, i) => v && arr.indexOf(v) === i);
-  const brandNorm = norm(brand).toLowerCase().replace(/\s+/g, '');
-  const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\()/i;
 
-  // ── Step 1: Find the brand search container block ──────────────────────────
-  // Try explicit class first, then fall back to structural scoring of all major blocks.
-  // "Major block" = direct children of the main results list (li.bx, .bx, section, article)
-  // that contain the brand name AND images.
-  let chosen = null;
-  let bestScore = -1;
+  // ── 실제 Naver 브랜드검색 HTML 구조 기반 (2026-05 확인)
+  // <div class="brand_block desktop_light border_middle"> or <div class="brand_block ...">
+  //   <a class="thumb_area ..."><img ...></a>
+  //   <div class="main_area">
+  //     <a class="main_title">헤드라인</a>
+  //     <div class="main_desc"><p>카피1</p><p>카피2</p></div>
+  //     <ul class="link_button_list"> <li><a class="link_button">#태그</a></li> ... </ul>
+  //     <ul class="product_list"> <li class="product_item"> ... <div class="product_name">이름</div> </li> </ul>
+  //   </div>
+  // </div>
 
-  const explicit = Array.from(document.querySelectorAll('[class*="brand_block"]'));
-  const pool = explicit.length
-    ? explicit
-    : Array.from(document.querySelectorAll('li.bx, .bx, section, article, .sp_nrealestate, [id*="brand"]'));
-
-  for (const el of pool) {
-    const text = norm(el.innerText || '');
-    if (!text || text.length < 10 || badRe.test(text)) continue;
-    const txtNorm = text.toLowerCase().replace(/\s+/g, '');
-    if (!txtNorm.includes(brandNorm)) continue;   // must mention brand
-    let score = 10; // brand name present
-    const imgs = el.querySelectorAll('img');
-    const links = el.querySelectorAll('a');
-    score += Math.min(imgs.length, 5) * 4;        // more images = more likely product grid
-    score += Math.min(links.length, 8) * 2;       // links = tags / nav buttons
-    // ad-domain href → strong signal
-    const hrefs = Array.from(links).map(a => a.href || '');
-    if (hrefs.some(h => /ader\.naver\.com|ad\.naver\.com|brandsearch/i.test(h))) score += 25;
-    // penalise giant containers (nav, header, full-page wrappers)
-    if (el.querySelectorAll('li').length > 30) score -= 20;
-    if (score > bestScore) { bestScore = score; chosen = el; }
+  const block = document.querySelector('[class*="brand_block"]');
+  if (!block) {
+    return { lines: [], debug: 'brand_block not found', chosen_cls: '' };
   }
 
-  if (!chosen || bestScore < 10) return null;
-
-  // ── Step 2: Extract by DOM position, not by class name ────────────────────
-
-  // All direct-text leaf nodes inside the block (single text-node children)
-  const leaves = Array.from(chosen.querySelectorAll('*')).filter(el => {
-    const kids = el.childNodes;
-    if (kids.length !== 1 || kids[0].nodeType !== 3) return false;
-    const t = norm(kids[0].textContent || '');
-    return t.length > 1 && t.length < 80 && !badRe.test(t);
-  });
-
-  // All real images (skip tiny icons / tracking pixels)
-  const allImgs = Array.from(chosen.querySelectorAll('img')).filter(img => {
-    const src = img.currentSrc || img.src || '';
-    if (!src || src.startsWith('data:') || src.length < 12) return false;
-    const w = img.naturalWidth || img.width || 0;
-    const h = img.naturalHeight || img.height || 0;
-    if (w > 0 && w < 20) return false;   // icon
-    if (h > 0 && h < 20) return false;
-    return true;
-  });
-
-  // Anchor texts grouped by character length:
-  //   short (2-18 chars) → tag/button candidates
-  //   medium (19-80 chars) → desc/copy candidates
-  const anchorTexts = Array.from(chosen.querySelectorAll('a')).map(a => norm(a.textContent || '')).filter(Boolean);
-  const shortAnchors = uniq(anchorTexts.filter(t => t.length >= 2 && t.length <= 18));
-  const medAnchors   = uniq(anchorTexts.filter(t => t.length > 18 && t.length <= 80));
-
-  // ── Headline: first leaf text that is NOT the brand name itself,
-  //   prefer ones inside the first 1/3 of the DOM subtree ──────────────────
-  const nonBrandLeaves = leaves
-    .filter(el => el.textContent.replace(/\s+/g,'').toLowerCase() !== brandNorm)
-    .map(el => norm(el.textContent || ''));
-
-  const mainTitle = nonBrandLeaves.find(t => t.length >= 4 && t.length <= 60) || '';
-
-  // ── Desc: longer leaf texts or medium anchor texts ────────────────────────
-  const descCandidates = uniq([
-    ...nonBrandLeaves.filter(t => t.length > 10 && t.length <= 80),
-    ...medAnchors,
-  ]);
-  const descPs = descCandidates.filter(t => t !== mainTitle).slice(0, 2);
-
-  // ── Tags: short anchors, excluding brand name itself ──────────────────────
-  const tags = shortAnchors
-    .filter(t => t.replace(/\s+/g,'').toLowerCase() !== brandNorm)
-    .slice(0, 6);
-
-  // ── Product cards: images 1..N (skip [0] = hero), paired with nearest alt/text ──
-  const heroSrc = allImgs[0] ? (allImgs[0].currentSrc || allImgs[0].src || '') : '';
-  const cards = allImgs.slice(1, 5).map(img => {
-    const src = img.currentSrc || img.src || '';
-    const alt = norm(img.alt || '');
-    // nearest sibling or parent text as product name
-    let name = alt;
-    if (!name) {
-      const par = img.closest('a, li, [class]');
-      name = par ? norm(par.textContent || '') : '';
-      if (name.length > 30) name = '';
-    }
+  const mainTitle  = norm(block.querySelector('.main_title')?.textContent || '');
+  const descPs     = Array.from(block.querySelectorAll('.main_desc p'))
+                       .map(p => norm(p.textContent || '')).filter(Boolean);
+  const tags       = uniq(Array.from(block.querySelectorAll('.link_button'))
+                       .map(a => norm(a.textContent || '')).filter(Boolean));
+  const cards      = Array.from(block.querySelectorAll('.product_item')).map(item => {
+    const name = norm(item.querySelector('.product_name')?.textContent || '');
+    const img  = item.querySelector('img');
+    const src  = img ? (img.currentSrc || img.src || '') : '';
+    const alt  = img ? norm(img.alt || '') : '';
     return { name, image: src, alt };
-  }).filter(x => x.image);
+  }).filter(x => x.name || x.image);
+
+  const heroImg = block.querySelector('.thumb_area img');
+  const hero    = heroImg ? (heroImg.currentSrc || heroImg.src || '') : '';
 
   const lines = uniq([
     norm(brand), mainTitle, ...descPs, ...tags, ...cards.map(x => x.name),
   ].filter(Boolean));
 
-  const rect = chosen.getBoundingClientRect();
+  const rect = block.getBoundingClientRect();
   return {
     lines,
-    headline: mainTitle,
-    desc_lines: descPs,
+    headline:    mainTitle,
+    desc_lines:  descPs,
     tags,
     cards,
-    hero_image: heroSrc,
-    score: bestScore,
+    hero_image:  hero,
+    score:       lines.length,
+    chosen_cls:  String(block.className).slice(0, 80),
+    debug:       `block found | title="${mainTitle}" tags=${tags.length} cards=${cards.length} hero=${!!hero}`,
     rect: { x: Math.max(rect.x,0), y: Math.max(rect.y,0), width: Math.max(rect.width,1), height: Math.max(rect.height,1) },
   };
 }
@@ -1621,13 +1558,7 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
         "hero_image": hero_image,
         "cards_detail": direct_cards,
     }
-    # Valid if any meaningful content was extracted (including just a hero image)
-    valid_signal = bool(
-        item["tags"]
-        or len(item["cards"]) >= 1
-        or item["headline"]
-        or item["hero_image"]
-    )
+    valid_signal = bool(item["tags"] or len(item["cards"]) >= 1 or item["headline"] or item["hero_image"])
     if not valid_signal:
         item["headline"] = ""
         item["main_copy"] = ""
@@ -1640,6 +1571,19 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
     return item
 
 
+def _pw_log(brand: str, strategy: str, url: str, data, attempt: int = 1) -> None:
+    d = data or {}
+    lines_n = len(d.get("lines") or [])
+    status  = "✓ found" if lines_n > 0 else "✗ empty"
+    print(
+        f"[PW][{brand}] {status} attempt={attempt} strategy={strategy}\n"
+        f"  url={url}\n"
+        f"  debug={d.get('debug', '')}\n"
+        f"  chosen_cls={d.get('chosen_cls', '')}\n"
+        f"  headline={d.get('headline', '')!r}  tags={d.get('tags', [])[:4]}  cards={len(d.get('cards') or [])}  hero={bool(d.get('hero_image'))}"
+    )
+
+
 def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: str, now_kst: str) -> List[dict]:
     from playwright.sync_api import sync_playwright
 
@@ -1647,6 +1591,27 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
     out: List[dict] = []
 
     strategies = [
+        {
+            "name": "desktop",
+            "launch": {"headless": True},
+            "context": {
+                "viewport": {"width": 1440, "height": 1600},
+                "user_agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+                ),
+                "locale": "ko-KR",
+                "color_scheme": "light",
+                "extra_http_headers": {
+                    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
+            },
+            "urls": lambda brand: [
+                f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
+            ],
+        },
         {
             "name": "mobile",
             "launch": {"headless": True},
@@ -1667,29 +1632,6 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                 },
             },
             "urls": lambda brand: [
-                f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}",
-                f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
-            ],
-        },
-        {
-            "name": "desktop",
-            "launch": {"headless": True},
-            "context": {
-                "viewport": {"width": 1440, "height": 1600},
-                "user_agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-                ),
-                "locale": "ko-KR",
-                "color_scheme": "light",
-                "extra_http_headers": {
-                    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache",
-                },
-            },
-            "urls": lambda brand: [
-                f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
                 f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}",
             ],
         },
@@ -1724,6 +1666,7 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                                 page.wait_for_timeout(max(POWERLINK_WAIT_MS, 2500))
 
                             data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
+                            _pw_log(brand, strategy["name"], url, data, attempt=1)
                             if not data or not data.get("lines"):
                                 with suppress(Exception):
                                     page.reload(wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
@@ -1732,6 +1675,7 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                                         page.mouse.wheel(0, dy)
                                         page.wait_for_timeout(1000)
                                 data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
+                                _pw_log(brand, strategy["name"], url, data, attempt=2)
                             if not data or not data.get("lines"):
                                 continue
 
@@ -1800,11 +1744,12 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
         update_brandsearch_history_cache(out, dt.datetime.now(ZoneInfo("Asia/Seoul")).date())
     except Exception as e:
         print(f"[WARN] could not update brandsearch history cache: {type(e).__name__}: {e}")
-    return out
-
-
-
-def _brandsearch_variant_signature(item: dict) -> str:
+    # ── 수집 완료 요약 ─────────────────────────────────────────────────────
+    ok_list    = [x["brand"] for x in out if x.get("status") == "ok"]
+    empty_list = [x["brand"] for x in out if x.get("status") != "ok"]
+    print(f"\n[PW SUMMARY] {len(ok_list)}/{len(out)} 성공  ✓{ok_list}  ✗{empty_list}\n")
+    # ──────────────────────────────────────────────────────────────────────
+    return outdef _brandsearch_variant_signature(item: dict) -> str:
     sig = _brandsearch_compare_signature(item)
     return json.dumps(sig, ensure_ascii=False, sort_keys=True)
 
@@ -1881,16 +1826,16 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
             "cards_detail": [],
         } for b in brands]
 
-    # ── Playwright path (preferred: renders JS like a real browser, bypasses bot detection) ──
+    # ── Playwright (default) ───────────────────────────────────────────────
     if POWERLINK_USE_PLAYWRIGHT:
         try:
             return _fetch_brand_powerlink_snapshot_playwright(brands, cache_path, now_kst)
         except ImportError:
-            print("[WARN] playwright not installed; falling back to requests. Run: pip install playwright && playwright install chromium")
+            print("[WARN] playwright not installed; fallback to requests")
         except Exception as e:
-            print(f"[WARN] Playwright brand search failed (falling back to requests): {type(e).__name__}: {e}")
+            print(f"[WARN] Playwright failed ({type(e).__name__}: {e}); fallback to requests")
 
-    # ── requests fallback ──
+    # ── requests fallback ──────────────────────────────────────────────────
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
         "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
