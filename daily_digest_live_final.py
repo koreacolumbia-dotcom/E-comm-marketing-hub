@@ -1464,31 +1464,18 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
   const brandNorm = norm(brand).toLowerCase().replace(/\s+/g, '');
   const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
 
-  // 구형·신형 셀렉터 모두 시도
   const BLOCK_SELECTORS = [
-    '.brand_block',
-    '#brand_area',
-    '[id="brand_area"]',
-    '[class*="brand_area"]',
-    '[class*="adv_brand"]',
-    '[data-cr="brand"]',
-    '[data-area="brand"]',
-    '[class*="api_brand"]',
-    '[class*="bs_brand"]',
-    '[class*="brand-search"]',
-    '[class*="BrandSearch"]',
-    '[class*="brand_keyword"]',
-    'section[class*="brand"]',
+    '.brand_block', '#brand_area', '[id="brand_area"]',
+    '[class*="brand_area"]', '[class*="adv_brand"]',
+    '[data-cr="brand"]', '[data-area="brand"]',
+    '[class*="api_brand"]', '[class*="bs_brand"]',
+    '[class*="brand-search"]', '[class*="BrandSearch"]',
+    '[class*="brand_keyword"]', 'section[class*="brand"]',
   ];
-
   let blocks = [];
   for (const sel of BLOCK_SELECTORS) {
-    try {
-      const found = Array.from(document.querySelectorAll(sel));
-      if (found.length) blocks = blocks.concat(found);
-    } catch(e) {}
+    try { const f = Array.from(document.querySelectorAll(sel)); if (f.length) blocks = blocks.concat(f); } catch(e) {}
   }
-  // 클래스명 포함 검색 fallback
   if (!blocks.length) {
     blocks = Array.from(document.querySelectorAll('div, section')).filter((el) => {
       const cls = String(el.className || '');
@@ -1497,18 +1484,15 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
   }
   blocks = uniq(blocks);
 
-  // 구형·신형 셀렉터 매핑
   const TITLE_SEL   = '.main_title, [class*="brand_tit"], [class*="brand_title"]';
   const DESC_SEL    = '.main_desc p, [class*="brand_desc"] p, [class*="brand_copy"] p, [class*="sub_tit"]';
   const TAG_SEL     = '.link_button, .keyword_link, [class*="link_btn"], [class*="keyword_item"] a, [class*="tag_item"] a';
   const CARD_SEL    = '.product_item, .prd_item, [class*="product_item"], [class*="prd_item"], [class*="goods_item"]';
   const CARD_NM_SEL = '.product_name, .prd_name, [class*="product_name"], [class*="prd_name"], [class*="goods_name"]';
   const HERO_SEL    = '.thumb_area img, [class*="thumb_area"] img, [class*="brand_area_img"] img, [class*="hero_img"] img';
-
   const qAll = (root, sel) => { try { return Array.from(root.querySelectorAll(sel)); } catch(e) { return []; } };
 
-  let chosen = null;
-  let bestScore = -1;
+  let chosen = null, bestScore = -1;
   for (const el of blocks) {
     const text = norm(el.innerText || '');
     if (!text || badRe.test(text)) continue;
@@ -1523,7 +1507,6 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
     if (Array.from(el.querySelectorAll('a[href]')).some(a => (a.href||'').includes('ader.naver.com'))) score += 20;
     if (score > bestScore) { bestScore = score; chosen = el; }
   }
-
   if (!chosen) return null;
 
   const mainTitle = norm(chosen.querySelector(TITLE_SEL)?.textContent || '');
@@ -1539,21 +1522,9 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
   const heroImg = chosen.querySelector(HERO_SEL);
   const hero = heroImg ? (heroImg.currentSrc || heroImg.src || '') : '';
   const rect = chosen.getBoundingClientRect();
-
-  const lines = uniq([
-    norm(brand), mainTitle, ...descPs, ...tags, ...cards.map((x) => x.name),
-  ].filter(Boolean));
-
-  return {
-    lines,
-    headline: mainTitle,
-    desc_lines: descPs,
-    tags,
-    cards,
-    hero_image: hero,
-    score: bestScore,
-    rect: { x: Math.max(rect.x, 0), y: Math.max(rect.y, 0), width: Math.max(rect.width, 1), height: Math.max(rect.height, 1) },
-  };
+  const lines = uniq([norm(brand), mainTitle, ...descPs, ...tags, ...cards.map((x) => x.name)].filter(Boolean));
+  return { lines, headline: mainTitle, desc_lines: descPs, tags, cards, hero_image: hero, score: bestScore,
+    rect: { x: Math.max(rect.x,0), y: Math.max(rect.y,0), width: Math.max(rect.width,1), height: Math.max(rect.height,1) } };
 }
 """
 
@@ -1600,7 +1571,7 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
         "hero_image": str(direct.get("hero_image") or "").strip(),
         "cards_detail": direct_cards,
     }
-    valid_signal = bool(item["tags"] or len(item["cards"]) >= 2 or (item["headline"] and _KEYWORD_LINE_RX.search(item["headline"])) )
+    valid_signal = bool(item["headline"] or item["tags"] or item["cards"])
     if not valid_signal:
         item["headline"] = ""
         item["main_copy"] = ""
