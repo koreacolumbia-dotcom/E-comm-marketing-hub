@@ -1464,8 +1464,48 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
   const brandNorm = norm(brand).toLowerCase().replace(/\s+/g, '');
   const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
 
-  const explicitBlocks = Array.from(document.querySelectorAll('.brand_block, .brand_block.desktop_light.border_middle'));
-  const blocks = explicitBlocks.length ? explicitBlocks : Array.from(document.querySelectorAll('div')).filter((el) => el.className && String(el.className).includes('brand_block'));
+  // 구형·신형 셀렉터 모두 시도
+  const BLOCK_SELECTORS = [
+    '.brand_block',
+    '#brand_area',
+    '[id="brand_area"]',
+    '[class*="brand_area"]',
+    '[class*="adv_brand"]',
+    '[data-cr="brand"]',
+    '[data-area="brand"]',
+    '[class*="api_brand"]',
+    '[class*="bs_brand"]',
+    '[class*="brand-search"]',
+    '[class*="BrandSearch"]',
+    '[class*="brand_keyword"]',
+    'section[class*="brand"]',
+  ];
+
+  let blocks = [];
+  for (const sel of BLOCK_SELECTORS) {
+    try {
+      const found = Array.from(document.querySelectorAll(sel));
+      if (found.length) blocks = blocks.concat(found);
+    } catch(e) {}
+  }
+  // 클래스명 포함 검색 fallback
+  if (!blocks.length) {
+    blocks = Array.from(document.querySelectorAll('div, section')).filter((el) => {
+      const cls = String(el.className || '');
+      return cls.includes('brand_block') || cls.includes('brand_area') || cls.includes('adv_brand');
+    });
+  }
+  blocks = uniq(blocks);
+
+  // 구형·신형 셀렉터 매핑
+  const TITLE_SEL   = '.main_title, [class*="brand_tit"], [class*="brand_title"]';
+  const DESC_SEL    = '.main_desc p, [class*="brand_desc"] p, [class*="brand_copy"] p, [class*="sub_tit"]';
+  const TAG_SEL     = '.link_button, .keyword_link, [class*="link_btn"], [class*="keyword_item"] a, [class*="tag_item"] a';
+  const CARD_SEL    = '.product_item, .prd_item, [class*="product_item"], [class*="prd_item"], [class*="goods_item"]';
+  const CARD_NM_SEL = '.product_name, .prd_name, [class*="product_name"], [class*="prd_name"], [class*="goods_name"]';
+  const HERO_SEL    = '.thumb_area img, [class*="thumb_area"] img, [class*="brand_area_img"] img, [class*="hero_img"] img';
+
+  const qAll = (root, sel) => { try { return Array.from(root.querySelectorAll(sel)); } catch(e) { return []; } };
 
   let chosen = null;
   let bestScore = -1;
@@ -1475,36 +1515,33 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
     const txtNorm = text.toLowerCase().replace(/\s+/g, '');
     let score = 0;
     if (txtNorm.includes(brandNorm)) score += 8;
-    if (el.querySelector('.main_title')) score += 10;
-    if (el.querySelector('.main_desc')) score += 8;
-    if (el.querySelectorAll('.link_button').length >= 1) score += 8;
-    if (el.querySelectorAll('.product_item').length >= 2) score += 10;
+    if (el.querySelector(TITLE_SEL)) score += 10;
+    if (qAll(el, DESC_SEL).length >= 1) score += 8;
+    if (qAll(el, TAG_SEL).length >= 1) score += 8;
+    if (qAll(el, CARD_SEL).length >= 2) score += 10;
     if (el.querySelectorAll('img').length >= 2) score += 4;
+    if (Array.from(el.querySelectorAll('a[href]')).some(a => (a.href||'').includes('ader.naver.com'))) score += 20;
     if (score > bestScore) { bestScore = score; chosen = el; }
   }
 
   if (!chosen) return null;
 
-  const mainTitle = norm(chosen.querySelector('.main_title')?.textContent || '');
-  const descPs = Array.from(chosen.querySelectorAll('.main_desc p')).map((p) => norm(p.textContent || '')).filter(Boolean);
-  const tags = uniq(Array.from(chosen.querySelectorAll('.link_button')).map((a) => norm(a.textContent || '')).filter(Boolean));
-  const cards = Array.from(chosen.querySelectorAll('.product_item')).map((item) => {
-    const name = norm(item.querySelector('.product_name')?.textContent || '');
+  const mainTitle = norm(chosen.querySelector(TITLE_SEL)?.textContent || '');
+  const descPs = qAll(chosen, DESC_SEL).map(p => norm(p.textContent || '')).filter(Boolean);
+  const tags = uniq(qAll(chosen, TAG_SEL).map(a => norm(a.textContent || '')).filter(Boolean));
+  const cards = qAll(chosen, CARD_SEL).map((item) => {
+    const name = norm(item.querySelector(CARD_NM_SEL)?.textContent || '');
     const img = item.querySelector('img');
     const src = img ? (img.currentSrc || img.src || '') : '';
     const alt = img ? norm(img.alt || '') : '';
     return { name, image: src, alt };
   }).filter((x) => x.name || x.image);
-  const heroImg = chosen.querySelector('.thumb_area img');
+  const heroImg = chosen.querySelector(HERO_SEL);
   const hero = heroImg ? (heroImg.currentSrc || heroImg.src || '') : '';
   const rect = chosen.getBoundingClientRect();
 
   const lines = uniq([
-    norm(brand),
-    mainTitle,
-    ...descPs,
-    ...tags,
-    ...cards.map((x) => x.name),
+    norm(brand), mainTitle, ...descPs, ...tags, ...cards.map((x) => x.name),
   ].filter(Boolean));
 
   return {
