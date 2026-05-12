@@ -80,6 +80,15 @@ on:
           - "false"
           - "true"
 
+      utm_channel_only:
+        description: "Run UTM / Source-Medium Channel Analysis only?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
       owned_backfill:
         description: "Force OWNED/Funnel seed from 2025-01-01 to yesterday? (warning: can be heavy)"
         required: true
@@ -182,6 +191,7 @@ jobs:
           FUNNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.funnel_only == 'true' }}"
           MEMBER_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.member_only == 'true' }}"
           SEARCH_VOLUME_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.search_volume_only == 'true' }}"
+          UTM_CHANNEL_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.utm_channel_only == 'true' }}"
           OWNED_BACKFILL="${{ github.event_name == 'workflow_dispatch' && inputs.owned_backfill == 'true' }}"
           EXTSIG_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.extsig_only == 'true' }}"
           SUMMARY_ONLY="${{ github.event_name == 'workflow_dispatch' && inputs.summary_only == 'true' }}"
@@ -196,11 +206,12 @@ jobs:
             [ "$FUNNEL_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$MEMBER_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SEARCH_VOLUME_ONLY" = "true" ] && cnt=$((cnt+1))
+            [ "$UTM_CHANNEL_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$OWNED_BACKFILL" = "true" ] && cnt=$((cnt+1))
             [ "$EXTSIG_ONLY" = "true" ] && cnt=$((cnt+1))
             [ "$SUMMARY_ONLY" = "true" ] && cnt=$((cnt+1))
             if [ "$cnt" -gt 1 ]; then
-              echo "[ERROR] Only one of voc_only/blog_only/hero_only/competitor_only/owned_only/funnel_only/member_only/search_volume_only/owned_backfill/extsig_only/summary_only can be true."
+              echo "[ERROR] Only one of voc_only/blog_only/hero_only/competitor_only/owned_only/funnel_only/member_only/search_volume_only/utm_channel_only/owned_backfill/extsig_only/summary_only can be true."
               exit 1
             fi
           fi
@@ -216,6 +227,7 @@ jobs:
           RUN_FUNNEL=false
           RUN_MEMBER=false
           RUN_SEARCH_VOLUME=true
+          RUN_UTM_CHANNEL=true
 
           if [ "$EVENT" = "schedule" ]; then
             # Reset all first, then enable only the schedule-specific targets.
@@ -230,6 +242,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
 
             case "$SCHEDULE_RAW" in
               "0 16 * * *")
@@ -249,6 +262,7 @@ jobs:
                 RUN_BLOG=true
                 RUN_OWNED=true
                 RUN_SEARCH_VOLUME=true
+                RUN_UTM_CHANNEL=true
                 ;;
               *)
                 echo "[ERROR] Unknown schedule: $SCHEDULE_RAW"
@@ -268,6 +282,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           if [ "$FUNNEL_ONLY" = "true" ]; then
@@ -281,6 +296,7 @@ jobs:
             RUN_FUNNEL=true
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           if [ "$MEMBER_ONLY" = "true" ]; then
@@ -294,6 +310,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=true
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           if [ "$SEARCH_VOLUME_ONLY" = "true" ]; then
@@ -307,6 +324,21 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=true
+            RUN_UTM_CHANNEL=false
+          fi
+
+          if [ "$UTM_CHANNEL_ONLY" = "true" ]; then
+            RUN_PRICE=false
+            RUN_HERO=false
+            RUN_EXTSIG=false
+            RUN_CREMA=false
+            RUN_BLOG=false
+            RUN_SUMMARY=false
+            RUN_OWNED=false
+            RUN_FUNNEL=false
+            RUN_MEMBER=false
+            RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=true
           fi
 
           if [ "$EXTSIG_ONLY" = "true" ]; then
@@ -320,6 +352,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           if [ "$SUMMARY_ONLY" = "true" ]; then
@@ -333,6 +366,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           if [ "$VOC_ONLY" = "true" ]; then
@@ -346,6 +380,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           if [ "$BLOG_ONLY" = "true" ]; then
@@ -359,6 +394,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           if [ "$HERO_ONLY" = "true" ]; then
@@ -372,6 +408,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           if [ "$COMPETITOR_ONLY" = "true" ]; then
@@ -386,6 +423,7 @@ jobs:
             RUN_FUNNEL=false
             RUN_MEMBER=false
             RUN_SEARCH_VOLUME=false
+            RUN_UTM_CHANNEL=false
           fi
 
           echo "run_price=$RUN_PRICE" >> "$GITHUB_OUTPUT"
@@ -399,6 +437,7 @@ jobs:
           echo "run_funnel=$RUN_FUNNEL" >> "$GITHUB_OUTPUT"
           echo "run_member=$RUN_MEMBER" >> "$GITHUB_OUTPUT"
           echo "run_search_volume=$RUN_SEARCH_VOLUME" >> "$GITHUB_OUTPUT"
+          echo "run_utm_channel=$RUN_UTM_CHANNEL" >> "$GITHUB_OUTPUT"
           echo "owned_backfill=$OWNED_BACKFILL" >> "$GITHUB_OUTPUT"
 
           if [ "$EVENT" = "workflow_dispatch" ]; then
@@ -1201,6 +1240,66 @@ jobs:
           python -u "$SUMMARY_SCRIPT" || true
           mkdir -p reports
           echo "{\"build\":\"${UPDATED_KST}\"}" > reports/meta.json
+
+
+      - name: Build UTM Channel Analysis
+        if: ${{ steps.modes.outputs.run_utm_channel == 'true' }}
+        continue-on-error: false
+        shell: bash
+        env:
+          GOOGLE_SA_JSON_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          BQ_PROJECT: columbia-ga4
+          BQ_DATASET: analytics_358593394
+          GA4_PROPERTY_ID: "358593394"
+          YMD: ${{ steps.set_time.outputs.yesterday_ymd }}
+          LOOKBACK_DAYS: "365"
+          INCREMENTAL: "1"
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "build_utm_channel_analysis.py" ]; then
+            echo "[ERROR] build_utm_channel_analysis.py not found."
+            exit 1
+          fi
+
+          if [ -z "${GOOGLE_SA_JSON_B64:-}" ]; then
+            echo "[ERROR] GOOGLE_SA_JSON_B64 empty"
+            exit 1
+          fi
+
+          echo "$GOOGLE_SA_JSON_B64" | base64 -d > /tmp/utm_channel_sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/utm_channel_sa.json
+
+          mkdir -p reports/utm_channel/data
+
+          # First run: this script queries the latest 365 days.
+          # Next runs: if reports/utm_channel/data/utm_channel_daily.json exists,
+          # the script queries only YMD and merges/replaces that date into JSON/CSV/HTML.
+          START_DATE="$(TZ=Asia/Seoul date -d "${YMD} -364 days" '+%Y-%m-%d')"
+          END_DATE="${YMD}"
+
+          python -u build_utm_channel_analysis.py \
+            --start-date "$START_DATE" \
+            --end-date "$END_DATE" \
+            --lookback-days 365 \
+            --output-html "reports/utm_channel/index.html" \
+            --output-json "reports/utm_channel/data/utm_channel_daily.json" \
+            --output-csv "reports/utm_channel/data/utm_channel_daily.csv" \
+            --alerts-json "reports/utm_channel/data/utm_channel_alerts.json" \
+            --alerts-csv "reports/utm_channel/data/utm_channel_alerts.csv" \
+            --meta-json "reports/utm_channel/data/meta.json"
+
+      - name: Validate UTM Channel Analysis
+        if: ${{ steps.modes.outputs.run_utm_channel == 'true' }}
+        continue-on-error: false
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f reports/utm_channel/index.html
+          test -f reports/utm_channel/data/utm_channel_daily.json
+          test -f reports/utm_channel/data/utm_channel_daily.csv
+          test -f reports/utm_channel/data/utm_channel_alerts.json
+          test -f reports/utm_channel/data/meta.json
 
       - name: Commit & push report results (SAFE - keep *_view.json, remove oversized legacy files)
         if: ${{ always() }}
