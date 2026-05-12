@@ -1462,31 +1462,64 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const uniq = (arr) => arr.filter((v, i) => v && arr.indexOf(v) === i);
   const qAll = (root, sel) => { try { return Array.from(root.querySelectorAll(sel)); } catch(e) { return []; } };
-  const imgSrc = (img) => img ? (img.getAttribute('src') || img.currentSrc || img.src || '').trim() : '';
+  const imgSrc = (img) => img ? (img.getAttribute('src') || img.getAttribute('data-src') || img.currentSrc || img.src || '').trim() : '';
+  const hasAder = (root) => Array.from(root.querySelectorAll('a[href]')).some(a => (a.getAttribute('href')||'').includes('ader.naver.com'));
   const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
 
-  // .main_area 가 브랜드검색 텍스트 루트 (실제 DOM 확인 기준)
-  // ader.naver.com 링크가 있는 것만 브랜드검색 광고로 확정
+  const scoreContainer = (el) => {
+    if (!el) return -9999;
+    const text = norm(el.innerText || '');
+    let score = 0;
+    if (el.querySelector('.main_area')) score += 20;
+    if (el.querySelector('.main_title')) score += 20;
+    if (el.querySelector('a.thumb_area img, .thumb_area img')) score += 35;
+    if (hasAder(el)) score += 45;
+    if (el.querySelectorAll('.link_button').length >= 2) score += 10;
+    if (el.querySelectorAll('.product_item').length >= 1) score += 10;
+    if (text.replace(/\s+/g,'').toLowerCase().includes((brand||'').replace(/\s+/g,'').toLowerCase())) score += 6;
+    if (badRe.test(text)) score -= 80;
+    return score;
+  };
+
   const mainAreas = Array.from(document.querySelectorAll('.main_area')).filter(el =>
     el.querySelector('.main_title') && !badRe.test(norm(el.innerText || ''))
   );
-  const chosen_area = mainAreas.find(el =>
-    Array.from(el.querySelectorAll('a[href]')).some(a => (a.getAttribute('href')||'').includes('ader.naver.com'))
-  ) || mainAreas[0];
+  const chosen_area = mainAreas.find(el => {
+    let c = el;
+    for (let i = 0; i < 7 && c; i++, c = c.parentElement) {
+      if (hasAder(c)) return true;
+    }
+    return false;
+  }) || mainAreas[0];
 
   if (!chosen_area) return null;
 
-  // 히어로 이미지: .thumb_area 는 .main_area 와 같은 부모 또는 상위 컨테이너 내에 있음
-  // parentElement 를 최대 4단계까지 올라가며 탐색
-  let thumbImg = null;
-  let container = chosen_area.parentElement;
-  for (let i = 0; i < 4 && container; i++) {
-    thumbImg = container.querySelector('a.thumb_area img, .thumb_area img');
-    if (thumbImg) break;
-    container = container.parentElement;
+  // Brand Search main image can live outside .main_area as a sibling/ancestor block:
+  // <a class="thumb_area ..."><img ...></a> + <div class="main_area">...</div>
+  let bestContainer = chosen_area;
+  let c = chosen_area;
+  for (let i = 0; i < 8 && c; i++, c = c.parentElement) {
+    const sc = scoreContainer(c);
+    if (sc > scoreContainer(bestContainer)) bestContainer = c;
   }
+
+  let thumbImg = bestContainer.querySelector('a.thumb_area img, .thumb_area img');
+  if (!thumbImg) {
+    const candidates = Array.from(document.querySelectorAll('a.thumb_area img, .thumb_area img')).map(img => {
+      const r = img.getBoundingClientRect();
+      const ar = chosen_area.getBoundingClientRect();
+      const dist = Math.abs((r.top + r.bottom) / 2 - (ar.top + ar.bottom) / 2) + Math.abs(r.left - ar.left) * 0.25;
+      const a = img.closest('a[href]');
+      const aderBonus = a && (a.getAttribute('href') || '').includes('ader.naver.com') ? -500 : 0;
+      return { img, dist: dist + aderBonus, area: Math.max(r.width * r.height, 0) };
+    }).filter(x => imgSrc(x.img));
+    candidates.sort((a,b) => (a.dist - b.dist) || (b.area - a.area));
+    thumbImg = candidates[0]?.img || null;
+  }
+
   const hero = imgSrc(thumbImg);
-  const rect = (container || chosen_area.parentElement || chosen_area).getBoundingClientRect();
+  const rectRoot = bestContainer || chosen_area.parentElement || chosen_area;
+  const rect = rectRoot.getBoundingClientRect();
 
   const mainTitle = norm(chosen_area.querySelector('.main_title')?.textContent || '');
   const descPs = qAll(chosen_area, '.main_desc p').map(p => norm(p.textContent || '')).filter(Boolean);
@@ -1497,10 +1530,11 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
     return { name, image: imgSrc(img), alt: img ? norm(img.getAttribute('alt') || '') : '' };
   }).filter(x => x.name || x.image);
 
+  const images = qAll(rectRoot, 'img').map(img => ({ src: imgSrc(img), alt: norm(img.getAttribute('alt') || '') })).filter(x => x.src);
   const lines = uniq([norm(brand), mainTitle, ...descPs, ...tags, ...cards.map(x => x.name)].filter(Boolean));
   return {
     lines, headline: mainTitle, desc_lines: descPs, tags, cards,
-    hero_image: hero, score: 100,
+    hero_image: hero, images, score: scoreContainer(bestContainer),
     rect: { x: Math.max(rect.x,0), y: Math.max(rect.y,0), width: Math.max(rect.width,1), height: Math.max(rect.height,1) },
   };
 }
@@ -2866,90 +2900,95 @@ def get_rising_products(
     exclude_skus: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
-    Rising products are items with positive quantity growth vs the previous period.
-    Items with prev == 0 are excluded, and Best Sellers SKUs are also excluded.
+    Product-view ranking for the current 7 days vs the previous 7 days.
+    The report UI can toggle between current_7d and prev_7d, both sorted by views.
     """
     exclude = set([str(x).strip() for x in (exclude_skus or []) if str(x).strip()])
-    cur_start, cur_end = (w.cur_end, w.cur_end) if w.mode == "daily" else (w.cur_start, w.cur_end)
-    prev_start, prev_end = (w.prev_end, w.prev_end) if w.mode == "daily" else (w.prev_start, w.prev_end)
+    cur_end = w.cur_end
+    cur_start = cur_end - dt.timedelta(days=6)
+    prev_end = cur_start - dt.timedelta(days=1)
+    prev_start = prev_end - dt.timedelta(days=6)
 
-    d1_qty = _get_item_order_product_best_effort(cur_start, cur_end, limit=10000)
-    d0_qty = _get_item_order_product_best_effort(prev_start, prev_end, limit=10000)
+    def _views_period(start: dt.date, end: dt.date) -> pd.DataFrame:
+        tries: List[Tuple[str, bool]] = [
+            ("itemViewEvents", False),
+            ("itemsViewed", False),
+            ("eventCount", True),
+        ]
+        for metric_name, use_event_filter in tries:
+            try:
+                df = run_report(
+                    client, PROPERTY_ID, ymd(start), ymd(end),
+                    ["itemId", "itemName"], [metric_name],
+                    dimension_filter=ga_filter_eq("eventName", "view_item") if use_event_filter else None,
+                    limit=10000,
+                )
+                if df.empty:
+                    continue
+                df["itemId"] = df["itemId"].astype(str).str.strip()
+                df["itemName"] = df["itemName"].astype(str).fillna("").map(lambda x: x.strip())
+                df = df[(df["itemId"] != "") & (~df["itemName"].map(is_not_set))].copy()
+                df = df[~df["itemId"].isin(exclude)].copy()
+                df[metric_name] = pd.to_numeric(df[metric_name], errors="coerce").fillna(0.0)
+                df = df.rename(columns={metric_name: "views"})
+                return df.groupby(["itemId", "itemName"], as_index=False)["views"].sum()
+            except Exception:
+                continue
+        return pd.DataFrame(columns=["itemId", "itemName", "views"])
 
-    if d1_qty.empty:
-        d1_qty = run_report(client, PROPERTY_ID, ymd(cur_start), ymd(cur_end), ["itemId", "itemName"], ["itemsPurchased"], limit=10000)
-        d0_qty = run_report(client, PROPERTY_ID, ymd(prev_start), ymd(prev_end), ["itemId"], ["itemsPurchased"], limit=10000)
-        if d1_qty.empty:
-            return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
-        d1_qty["qty"] = pd.to_numeric(d1_qty["itemsPurchased"], errors="coerce").fillna(0.0)
-        d1_qty["itemId"] = d1_qty["itemId"].astype(str).str.strip()
-        d1_qty["itemName"] = d1_qty["itemName"].astype(str).fillna("").map(lambda x: x.strip())
-        d1_qty = d1_qty[~d1_qty["itemName"].map(is_not_set)]
-        if d1_qty.empty:
-            return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
-        if not d0_qty.empty:
-            d0_qty["qty"] = pd.to_numeric(d0_qty["itemsPurchased"], errors="coerce").fillna(0.0)
-            d0_qty["itemId"] = d0_qty["itemId"].astype(str).str.strip()
-        else:
-            d0_qty = pd.DataFrame(columns=["itemId", "qty"])
-    else:
-        d1_qty["qty"] = pd.to_numeric(d1_qty["qty"], errors="coerce").fillna(0.0)
-        d1_qty["itemId"] = d1_qty["itemId"].astype(str).str.strip()
-        d1_qty["itemName"] = d1_qty["itemName"].astype(str).fillna("").map(lambda x: x.strip())
-        d1_qty = d1_qty[~d1_qty["itemName"].map(is_not_set)]
-        if not d0_qty.empty:
-            d0_qty["qty"] = pd.to_numeric(d0_qty["qty"], errors="coerce").fillna(0.0)
-            d0_qty["itemId"] = d0_qty["itemId"].astype(str).str.strip()
-        else:
-            d0_qty = pd.DataFrame(columns=["itemId", "qty"])
+    cur_views = _views_period(cur_start, cur_end).rename(columns={"views": "views_cur"})
+    prev_views = _views_period(prev_start, prev_end).rename(columns={"views": "views_prev"})
 
-    qty_m = d1_qty.merge(d0_qty[["itemId", "qty"]], on="itemId", how="left", suffixes=("_cur", "_prev")).fillna(0.0)
-    qty_m["qty"] = qty_m["qty_cur"]
-    qty_m["qty_prev"] = qty_m["qty_prev"]
-    qty_m["qty_delta"] = qty_m["qty"] - qty_m["qty_prev"]
+    if cur_views.empty and prev_views.empty:
+        return pd.DataFrame(columns=[
+            "itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url",
+            "views_cur", "views_prev", "views_delta", "views_delta_pct", "qty_cur", "qty_prev",
+            "revenue_cur", "revenue_prev", "rank_cur", "rank_prev",
+            "cur_start", "cur_end", "prev_start", "prev_end",
+        ])
 
-    # Exclude best sellers and keep only prev > 0 with positive delta.
-    qty_m = qty_m[~qty_m["itemId"].isin(exclude)].copy()
-    qty_m = qty_m[(qty_m["qty_prev"] > 0) & (qty_m["qty_delta"] > 0)].copy()
-    if qty_m.empty:
-        return pd.DataFrame(columns=["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"])
+    m = cur_views.merge(prev_views, on=["itemId", "itemName"], how="outer").fillna(0.0)
+    for c in ("views_cur", "views_prev"):
+        m[c] = pd.to_numeric(m[c], errors="coerce").fillna(0.0)
+    m["views_delta"] = m["views_cur"] - m["views_prev"]
+    m["views_delta_pct"] = m.apply(lambda r: pct_change(float(r["views_cur"]), float(r["views_prev"])), axis=1)
 
-    skus = [str(x).strip() for x in qty_m["itemId"].tolist() if str(x).strip()]
+    skus = [str(x).strip() for x in m["itemId"].tolist() if str(x).strip()]
+    qty_cur = _get_item_order_product_best_effort(cur_start, cur_end, skus=skus, limit=10000)
+    qty_prev = _get_item_order_product_best_effort(prev_start, prev_end, skus=skus, limit=10000)
+    if qty_cur.empty:
+        qty_cur = pd.DataFrame(columns=["itemId", "qty", "revenue"])
+    if qty_prev.empty:
+        qty_prev = pd.DataFrame(columns=["itemId", "qty", "revenue"])
+    qty_cur = qty_cur[["itemId", "qty", "revenue"]].rename(columns={"qty": "qty_cur", "revenue": "revenue_cur"}) if set(["itemId","qty","revenue"]).issubset(qty_cur.columns) else pd.DataFrame(columns=["itemId", "qty_cur", "revenue_cur"])
+    qty_prev = qty_prev[["itemId", "qty", "revenue"]].rename(columns={"qty": "qty_prev", "revenue": "revenue_prev"}) if set(["itemId","qty","revenue"]).issubset(qty_prev.columns) else pd.DataFrame(columns=["itemId", "qty_prev", "revenue_prev"])
 
-    v_cur = _get_item_views_best_effort(client, cur_start, cur_end, skus).rename(columns={"views": "views_cur"}) if skus else pd.DataFrame(columns=["itemId","views_cur"])
-    v_prev = _get_item_views_best_effort(client, prev_start, prev_end, skus).rename(columns={"views": "views_prev"}) if skus else pd.DataFrame(columns=["itemId","views_prev"])
-    if v_cur.empty:
-        v_cur = pd.DataFrame({"itemId": skus, "views_cur": [0.0]*len(skus)})
-    if v_prev.empty:
-        v_prev = pd.DataFrame({"itemId": skus, "views_prev": [0.0]*len(skus)})
-
-    r_cur = _get_item_revenue_best_effort(client, cur_start, cur_end)
-    r_prev = _get_item_revenue_best_effort(client, prev_start, prev_end)
-    r_cur = r_cur[["itemId", "revenue"]].rename(columns={"revenue": "revenue_cur"}) if not r_cur.empty else pd.DataFrame({"itemId": skus, "revenue_cur": [0.0]*len(skus)})
-    r_prev = r_prev[["itemId", "revenue"]].rename(columns={"revenue": "revenue_prev"}) if not r_prev.empty else pd.DataFrame({"itemId": skus, "revenue_prev": [0.0]*len(skus)})
-
-    m = qty_m.merge(v_cur, on="itemId", how="left").merge(v_prev, on="itemId", how="left").merge(r_cur, on="itemId", how="left").merge(r_prev, on="itemId", how="left")
-    for c in ("views_cur", "views_prev", "revenue_cur", "revenue_prev"):
+    m = m.merge(qty_cur, on="itemId", how="left").merge(qty_prev, on="itemId", how="left")
+    for c in ("qty_cur", "qty_prev", "revenue_cur", "revenue_prev"):
         m[c] = pd.to_numeric(m.get(c), errors="coerce").fillna(0.0)
 
+    m["rank_cur"] = m["views_cur"].rank(method="first", ascending=False)
+    m["rank_prev"] = m["views_prev"].rank(method="first", ascending=False)
+    m = m[(m["rank_cur"] <= top_n) | (m["rank_prev"] <= top_n)].copy()
+    m = m.sort_values(["rank_cur", "rank_prev"], ascending=True).copy()
+
+    m["qty"] = m["qty_cur"]
     m["views"] = m["views_cur"]
     m["revenue"] = m["revenue_cur"]
-    m["views_delta"] = m["views_cur"] - m["views_prev"]
-    m["revenue_delta"] = m["revenue_cur"] - m["revenue_prev"]
+    m["delta"] = m["views_delta"]
+    m["delta_label"] = "Views Δ"
+    m["image_url"] = ""
+    m["cur_start"] = ymd(cur_start)
+    m["cur_end"] = ymd(cur_end)
+    m["prev_start"] = ymd(prev_start)
+    m["prev_end"] = ymd(prev_end)
 
-    if RISING_BASIS == "views":
-        m["delta"] = m["views_delta"]
-        m["delta_label"] = "Views Δ"
-    elif RISING_BASIS == "revenue":
-        m["delta"] = m["revenue_delta"]
-        m["delta_label"] = "Revenue Δ"
-    else:
-        m["delta"] = m["qty_delta"]
-        m["delta_label"] = "Qty Δ"
-
-    m = m.sort_values("delta", ascending=False).head(top_n).copy()
-    m["image_url"] = ""  # Filled later by attach_image_urls().
-    return m[["itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url"]]
+    return m[[
+        "itemId", "itemName", "qty", "views", "revenue", "delta", "delta_label", "image_url",
+        "views_cur", "views_prev", "views_delta", "views_delta_pct", "qty_cur", "qty_prev",
+        "revenue_cur", "revenue_prev", "rank_cur", "rank_prev",
+        "cur_start", "cur_end", "prev_start", "prev_end",
+    ]]
 
 
 # =========================
@@ -4119,21 +4158,61 @@ def render_page_html(
             </div>
             """
 
-    rising_rows = ""
-    if rising is not None and (not rising.empty):
-        for r in rising.itertuples(index=False):
-            delta = float(getattr(r, "delta", 0) or 0.0)
-            cls = "text-blue-600" if delta >= 0 else "text-orange-700"
-            rising_rows += f"""
+    def _rising_card(r: Any, period: str) -> str:
+        is_prev = period == "prev"
+        views = float(getattr(r, "views_prev" if is_prev else "views_cur", 0) or 0.0)
+        qty = float(getattr(r, "qty_prev" if is_prev else "qty_cur", 0) or 0.0)
+        rev = float(getattr(r, "revenue_prev" if is_prev else "revenue_cur", 0) or 0.0)
+        delta = float(getattr(r, "views_delta", 0) or 0.0)
+        delta_pct = float(getattr(r, "views_delta_pct", 0) or 0.0)
+        cls = "text-blue-600" if delta >= 0 else "text-orange-700"
+        delta_txt = f"{('+' if delta >= 0 else '')}{fmt_int(delta)} / {fmt_pct(delta_pct, 1)}"
+        return f"""
             <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
               {product_img(getattr(r, "image_url", ""))}
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-extrabold text-slate-900">{esc(getattr(r, "itemName", "") or "")}</div>
-                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Qty {fmt_int(getattr(r, "qty", 0))} · Views {fmt_int(getattr(r, "views", 0))}</div>
+                <div class="text-xs text-slate-500">{esc(getattr(r, "itemId", "") or "")} · Views {fmt_int(views)} · Qty {fmt_int(qty)} · {fmt_currency_krw(rev)}</div>
               </div>
-              <div class="text-sm font-black {cls}">{esc(getattr(r, "delta_label", "?") or "?")} {('+' if delta>=0 else '')}{fmt_int(delta)}</div>
+              <div class="text-right text-xs font-black {cls}">
+                <div>vs prev</div>
+                <div>{esc(delta_txt)}</div>
+              </div>
             </div>
             """
+
+    rising_cur_rows = ""
+    rising_prev_rows = ""
+    rising_period_label = "Recent 7D vs Previous 7D"
+    if rising is not None and (not rising.empty):
+        with suppress(Exception):
+            first = rising.iloc[0]
+            rising_period_label = f"{first.get('cur_start','')}~{first.get('cur_end','')} vs {first.get('prev_start','')}~{first.get('prev_end','')}"
+        cur_sort = rising.copy()
+        prev_sort = rising.copy()
+        if "views_cur" in cur_sort.columns:
+            cur_sort["views_cur"] = pd.to_numeric(cur_sort["views_cur"], errors="coerce").fillna(0.0)
+            cur_sort = cur_sort.sort_values("views_cur", ascending=False).head(5)
+        if "views_prev" in prev_sort.columns:
+            prev_sort["views_prev"] = pd.to_numeric(prev_sort["views_prev"], errors="coerce").fillna(0.0)
+            prev_sort = prev_sort.sort_values("views_prev", ascending=False).head(5)
+        for r in cur_sort.itertuples(index=False):
+            rising_cur_rows += _rising_card(r, "cur")
+        for r in prev_sort.itertuples(index=False):
+            rising_prev_rows += _rising_card(r, "prev")
+
+    rising_rows = f"""
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-[11px] font-bold text-slate-400">{esc(rising_period_label)}</div>
+        <div class="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+          <button type="button" data-rising-tab="cur" class="rounded-full px-3 py-1 text-[11px] font-black">직전 7일</button>
+          <button type="button" data-rising-tab="prev" class="rounded-full px-3 py-1 text-[11px] font-black">그 전주 7일</button>
+        </div>
+      </div>
+      <div data-rising-panel="cur" class="mt-3 space-y-2">{rising_cur_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
+      <div data-rising-panel="prev" class="mt-3 space-y-2 hidden">{rising_prev_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
+    """
+
 
     pdp_rows = ""
     if category_pdp_trend is not None and (not category_pdp_trend.empty):
@@ -4361,6 +4440,28 @@ def render_page_html(
   });
   if(trendBtns.length){
     setTrend(trendBtns[0].getAttribute('data-trend-tab'));
+  }
+
+  const risingBtns = Array.from(document.querySelectorAll('[data-rising-tab]'));
+  const risingPanels = Array.from(document.querySelectorAll('[data-rising-panel]'));
+  function setRising(target){
+    risingBtns.forEach(el=>{
+      const active = el.getAttribute('data-rising-tab') === target;
+      el.classList.toggle('bg-slate-900', active);
+      el.classList.toggle('text-white', active);
+      el.classList.toggle('text-slate-500', !active);
+    });
+    risingPanels.forEach(el=>{
+      const active = el.getAttribute('data-rising-panel') === target;
+      if(active) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    });
+  }
+  risingBtns.forEach(el=>{
+    el.addEventListener('click', ()=> setRising(el.getAttribute('data-rising-tab') || 'cur'));
+  });
+  if(risingBtns.length){
+    setRising('cur');
   }
 
   const detailRows = Array.from(document.querySelectorAll('.bucket-summary-row'));
@@ -4669,8 +4770,8 @@ def render_page_html(
       </div>
 
       <div class="report-card rounded-2xl border border-slate-200 bg-white/70 p-4">
-        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products (Top 5)</div>
-        <div class="mt-3 space-y-2">{rising_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
+        <div class="text-xs font-extrabold tracking-widest text-slate-500 uppercase">Rising Products · Views Top 5</div>
+        <div class="mt-3">{rising_rows or "<div class='text-sm text-slate-500'>No data</div>"}</div>
       </div>
     </div>
 
