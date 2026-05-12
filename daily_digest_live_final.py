@@ -1462,26 +1462,31 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const uniq = (arr) => arr.filter((v, i) => v && arr.indexOf(v) === i);
   const qAll = (root, sel) => { try { return Array.from(root.querySelectorAll(sel)); } catch(e) { return []; } };
+  const imgSrc = (img) => img ? (img.getAttribute('src') || img.currentSrc || img.src || '').trim() : '';
   const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
 
-  // .main_area 가 브랜드검색 텍스트 루트 (확인된 실제 DOM 기준)
-  // .thumb_area 는 .main_area 의 형제 → 부모에서 같이 추출
-  const mainAreas = Array.from(document.querySelectorAll('.main_area')).filter(el => {
-    return el.querySelector('.main_title') && !badRe.test(norm(el.innerText || ''));
-  });
-
-  // ader.naver.com 링크가 있는 것만 브랜드검색 광고 블록으로 확정
+  // .main_area 가 브랜드검색 텍스트 루트 (실제 DOM 확인 기준)
+  // ader.naver.com 링크가 있는 것만 브랜드검색 광고로 확정
+  const mainAreas = Array.from(document.querySelectorAll('.main_area')).filter(el =>
+    el.querySelector('.main_title') && !badRe.test(norm(el.innerText || ''))
+  );
   const chosen_area = mainAreas.find(el =>
-    Array.from(el.querySelectorAll('a[href]')).some(a => (a.href||'').includes('ader.naver.com'))
+    Array.from(el.querySelectorAll('a[href]')).some(a => (a.getAttribute('href')||'').includes('ader.naver.com'))
   ) || mainAreas[0];
 
   if (!chosen_area) return null;
 
-  // 히어로 이미지는 형제 .thumb_area 에서
-  const parent = chosen_area.parentElement;
-  const thumbEl = parent ? parent.querySelector('.thumb_area img') : null;
-  const hero = thumbEl ? (thumbEl.currentSrc || thumbEl.src || '') : '';
-  const rect = (parent || chosen_area).getBoundingClientRect();
+  // 히어로 이미지: .thumb_area 는 .main_area 와 같은 부모 또는 상위 컨테이너 내에 있음
+  // parentElement 를 최대 4단계까지 올라가며 탐색
+  let thumbImg = null;
+  let container = chosen_area.parentElement;
+  for (let i = 0; i < 4 && container; i++) {
+    thumbImg = container.querySelector('a.thumb_area img, .thumb_area img');
+    if (thumbImg) break;
+    container = container.parentElement;
+  }
+  const hero = imgSrc(thumbImg);
+  const rect = (container || chosen_area.parentElement || chosen_area).getBoundingClientRect();
 
   const mainTitle = norm(chosen_area.querySelector('.main_title')?.textContent || '');
   const descPs = qAll(chosen_area, '.main_desc p').map(p => norm(p.textContent || '')).filter(Boolean);
@@ -1489,13 +1494,10 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
   const cards = qAll(chosen_area, '.product_item').map(item => {
     const name = norm(item.querySelector('.product_name')?.textContent || '');
     const img = item.querySelector('img');
-    const src = img ? (img.currentSrc || img.src || '') : '';
-    const alt = img ? norm(img.alt || '') : '';
-    return { name, image: src, alt };
+    return { name, image: imgSrc(img), alt: img ? norm(img.getAttribute('alt') || '') : '' };
   }).filter(x => x.name || x.image);
 
   const lines = uniq([norm(brand), mainTitle, ...descPs, ...tags, ...cards.map(x => x.name)].filter(Boolean));
-
   return {
     lines, headline: mainTitle, desc_lines: descPs, tags, cards,
     hero_image: hero, score: 100,
