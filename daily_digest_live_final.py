@@ -1461,54 +1461,44 @@ _POWERLINK_BLOCK_FINDER_JS = r"""
 (brand) => {
   const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const uniq = (arr) => arr.filter((v, i) => v && arr.indexOf(v) === i);
+  const qAll = (root, sel) => { try { return Array.from(root.querySelectorAll(sel)); } catch(e) { return []; } };
+  const badRe = /(설정이 초기화.*도움말|"":\s*"&"\+e\)|u=d;?\}?if\(|0:\(n\?|__proto__|javascript:|function\(|return\s+[a-z_$][\w$]*;?)/i;
 
-  // ── 실제 Naver 브랜드검색 HTML 구조 기반 (2026-05 확인)
-  // <div class="brand_block desktop_light border_middle"> or <div class="brand_block ...">
-  //   <a class="thumb_area ..."><img ...></a>
-  //   <div class="main_area">
-  //     <a class="main_title">헤드라인</a>
-  //     <div class="main_desc"><p>카피1</p><p>카피2</p></div>
-  //     <ul class="link_button_list"> <li><a class="link_button">#태그</a></li> ... </ul>
-  //     <ul class="product_list"> <li class="product_item"> ... <div class="product_name">이름</div> </li> </ul>
-  //   </div>
-  // </div>
+  // .main_area 가 브랜드검색 텍스트 루트 (확인된 실제 DOM 기준)
+  // .thumb_area 는 .main_area 의 형제 → 부모에서 같이 추출
+  const mainAreas = Array.from(document.querySelectorAll('.main_area')).filter(el => {
+    return el.querySelector('.main_title') && !badRe.test(norm(el.innerText || ''));
+  });
 
-  const block = document.querySelector('[class*="brand_block"]');
-  if (!block) {
-    return { lines: [], debug: 'brand_block not found', chosen_cls: '' };
-  }
+  // ader.naver.com 링크가 있는 것만 브랜드검색 광고 블록으로 확정
+  const chosen_area = mainAreas.find(el =>
+    Array.from(el.querySelectorAll('a[href]')).some(a => (a.href||'').includes('ader.naver.com'))
+  ) || mainAreas[0];
 
-  const mainTitle  = norm(block.querySelector('.main_title')?.textContent || '');
-  const descPs     = Array.from(block.querySelectorAll('.main_desc p'))
-                       .map(p => norm(p.textContent || '')).filter(Boolean);
-  const tags       = uniq(Array.from(block.querySelectorAll('.link_button'))
-                       .map(a => norm(a.textContent || '')).filter(Boolean));
-  const cards      = Array.from(block.querySelectorAll('.product_item')).map(item => {
+  if (!chosen_area) return null;
+
+  // 히어로 이미지는 형제 .thumb_area 에서
+  const parent = chosen_area.parentElement;
+  const thumbEl = parent ? parent.querySelector('.thumb_area img') : null;
+  const hero = thumbEl ? (thumbEl.currentSrc || thumbEl.src || '') : '';
+  const rect = (parent || chosen_area).getBoundingClientRect();
+
+  const mainTitle = norm(chosen_area.querySelector('.main_title')?.textContent || '');
+  const descPs = qAll(chosen_area, '.main_desc p').map(p => norm(p.textContent || '')).filter(Boolean);
+  const tags = uniq(qAll(chosen_area, '.link_button').map(a => norm(a.textContent || '')).filter(Boolean));
+  const cards = qAll(chosen_area, '.product_item').map(item => {
     const name = norm(item.querySelector('.product_name')?.textContent || '');
-    const img  = item.querySelector('img');
-    const src  = img ? (img.currentSrc || img.src || '') : '';
-    const alt  = img ? norm(img.alt || '') : '';
+    const img = item.querySelector('img');
+    const src = img ? (img.currentSrc || img.src || '') : '';
+    const alt = img ? norm(img.alt || '') : '';
     return { name, image: src, alt };
   }).filter(x => x.name || x.image);
 
-  const heroImg = block.querySelector('.thumb_area img');
-  const hero    = heroImg ? (heroImg.currentSrc || heroImg.src || '') : '';
+  const lines = uniq([norm(brand), mainTitle, ...descPs, ...tags, ...cards.map(x => x.name)].filter(Boolean));
 
-  const lines = uniq([
-    norm(brand), mainTitle, ...descPs, ...tags, ...cards.map(x => x.name),
-  ].filter(Boolean));
-
-  const rect = block.getBoundingClientRect();
   return {
-    lines,
-    headline:    mainTitle,
-    desc_lines:  descPs,
-    tags,
-    cards,
-    hero_image:  hero,
-    score:       lines.length,
-    chosen_cls:  String(block.className).slice(0, 80),
-    debug:       `block found | title="${mainTitle}" tags=${tags.length} cards=${cards.length} hero=${!!hero}`,
+    lines, headline: mainTitle, desc_lines: descPs, tags, cards,
+    hero_image: hero, score: 100,
     rect: { x: Math.max(rect.x,0), y: Math.max(rect.y,0), width: Math.max(rect.width,1), height: Math.max(rect.height,1) },
   };
 }
@@ -1539,7 +1529,6 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
                 main_copy = title_candidates[2] if len(title_candidates) > 2 else ""
             if not sub_copy:
                 sub_copy = title_candidates[3] if len(title_candidates) > 3 else ""
-    hero_image = str(direct.get("hero_image") or "").strip()
     item = {
         "brand": brand,
         "query": brand,
@@ -1555,10 +1544,10 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
         "source": url,
         "capture_path": capture_path,
         "capture_method": "playwright_element",
-        "hero_image": hero_image,
+        "hero_image": str(direct.get("hero_image") or "").strip(),
         "cards_detail": direct_cards,
     }
-    valid_signal = bool(item["tags"] or len(item["cards"]) >= 1 or item["headline"] or item["hero_image"])
+    valid_signal = bool(item["headline"] or item["tags"] or item["cards"])
     if not valid_signal:
         item["headline"] = ""
         item["main_copy"] = ""
@@ -1571,19 +1560,6 @@ def _extract_powerlink_structured_from_lines(lines: List[str], brand: str, url: 
     return item
 
 
-def _pw_log(brand: str, strategy: str, url: str, data, attempt: int = 1) -> None:
-    d = data or {}
-    lines_n = len(d.get("lines") or [])
-    status  = "✓ found" if lines_n > 0 else "✗ empty"
-    print(
-        f"[PW][{brand}] {status} attempt={attempt} strategy={strategy}\n"
-        f"  url={url}\n"
-        f"  debug={d.get('debug', '')}\n"
-        f"  chosen_cls={d.get('chosen_cls', '')}\n"
-        f"  headline={d.get('headline', '')!r}  tags={d.get('tags', [])[:4]}  cards={len(d.get('cards') or [])}  hero={bool(d.get('hero_image'))}"
-    )
-
-
 def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: str, now_kst: str) -> List[dict]:
     from playwright.sync_api import sync_playwright
 
@@ -1591,27 +1567,6 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
     out: List[dict] = []
 
     strategies = [
-        {
-            "name": "desktop",
-            "launch": {"headless": True},
-            "context": {
-                "viewport": {"width": 1440, "height": 1600},
-                "user_agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-                ),
-                "locale": "ko-KR",
-                "color_scheme": "light",
-                "extra_http_headers": {
-                    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache",
-                },
-            },
-            "urls": lambda brand: [
-                f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
-            ],
-        },
         {
             "name": "mobile",
             "launch": {"headless": True},
@@ -1632,6 +1587,29 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                 },
             },
             "urls": lambda brand: [
+                f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}",
+                f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
+            ],
+        },
+        {
+            "name": "desktop",
+            "launch": {"headless": True},
+            "context": {
+                "viewport": {"width": 1440, "height": 1600},
+                "user_agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+                ),
+                "locale": "ko-KR",
+                "color_scheme": "light",
+                "extra_http_headers": {
+                    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
+            },
+            "urls": lambda brand: [
+                f"https://search.naver.com/search.naver?query={quote_plus(brand)}",
                 f"https://m.search.naver.com/search.naver?where=m&query={quote_plus(brand)}",
             ],
         },
@@ -1666,7 +1644,6 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                                 page.wait_for_timeout(max(POWERLINK_WAIT_MS, 2500))
 
                             data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
-                            _pw_log(brand, strategy["name"], url, data, attempt=1)
                             if not data or not data.get("lines"):
                                 with suppress(Exception):
                                     page.reload(wait_until="domcontentloaded", timeout=max(30000, POWERLINK_TIMEOUT_SEC * 1000))
@@ -1675,7 +1652,6 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
                                         page.mouse.wheel(0, dy)
                                         page.wait_for_timeout(1000)
                                 data = page.evaluate(_POWERLINK_BLOCK_FINDER_JS, brand)
-                                _pw_log(brand, strategy["name"], url, data, attempt=2)
                             if not data or not data.get("lines"):
                                 continue
 
@@ -1744,12 +1720,11 @@ def _fetch_brand_powerlink_snapshot_playwright(brands: List[str], cache_path: st
         update_brandsearch_history_cache(out, dt.datetime.now(ZoneInfo("Asia/Seoul")).date())
     except Exception as e:
         print(f"[WARN] could not update brandsearch history cache: {type(e).__name__}: {e}")
-    # ── 수집 완료 요약 ─────────────────────────────────────────────────────
-    ok_list    = [x["brand"] for x in out if x.get("status") == "ok"]
-    empty_list = [x["brand"] for x in out if x.get("status") != "ok"]
-    print(f"\n[PW SUMMARY] {len(ok_list)}/{len(out)} 성공  ✓{ok_list}  ✗{empty_list}\n")
-    # ──────────────────────────────────────────────────────────────────────
-    return outdef _brandsearch_variant_signature(item: dict) -> str:
+    return out
+
+
+
+def _brandsearch_variant_signature(item: dict) -> str:
     sig = _brandsearch_compare_signature(item)
     return json.dumps(sig, ensure_ascii=False, sort_keys=True)
 
@@ -1826,16 +1801,14 @@ def fetch_brand_powerlink_snapshot(brands: Optional[List[str]] = None, cache_pat
             "cards_detail": [],
         } for b in brands]
 
-    # ── Playwright (default) ───────────────────────────────────────────────
     if POWERLINK_USE_PLAYWRIGHT:
         try:
             return _fetch_brand_powerlink_snapshot_playwright(brands, cache_path, now_kst)
         except ImportError:
-            print("[WARN] playwright not installed; fallback to requests")
+            print("[WARN] playwright not installed; falling back to requests.")
         except Exception as e:
-            print(f"[WARN] Playwright failed ({type(e).__name__}: {e}); fallback to requests")
+            print(f"[WARN] Playwright brand search failed ({type(e).__name__}: {e}); falling back to requests.")
 
-    # ── requests fallback ──────────────────────────────────────────────────
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
         "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
