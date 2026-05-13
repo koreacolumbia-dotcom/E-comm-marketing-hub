@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 UTM / Source-Medium Channel Analysis builder
+Patched: BigQuery NET.URL_DECODE compatibility fix via URL_DECODE_SAFE JS UDF
 
 - Pulls GA4 export data from BigQuery (GA에서 볼 수 있는 퍼널 지표는 GA4 BQ export 기준)
 - Uses the uploaded Looker Studio CASE logic as the channel-group mapping baseline
@@ -188,6 +189,17 @@ def build_ga4_bq_sql(events_table: str, start_date: str, end_date: str) -> str:
 DECLARE start_date DATE DEFAULT DATE('{start_date}');
 DECLARE end_date DATE DEFAULT DATE('{end_date}');
 
+CREATE TEMP FUNCTION URL_DECODE_SAFE(s STRING)
+RETURNS STRING
+LANGUAGE js AS r'''
+  if (s === null || s === undefined) return null;
+  try {{
+    return decodeURIComponent(String(s).replace(/\+/g, ' '));
+  }} catch (e) {{
+    return String(s);
+  }}
+''';
+
 WITH raw_events AS (
   SELECT
     PARSE_DATE('%Y%m%d', event_date) AS event_dt,
@@ -225,11 +237,11 @@ WITH raw_events AS (
 url_utm AS (
   SELECT
     *,
-    NET.URL_DECODE(REGEXP_EXTRACT(page_location, r'[?&]utm_source=([^&#]+)')) AS url_utm_source,
-    NET.URL_DECODE(REGEXP_EXTRACT(page_location, r'[?&]utm_medium=([^&#]+)')) AS url_utm_medium,
-    NET.URL_DECODE(REGEXP_EXTRACT(page_location, r'[?&]utm_campaign=([^&#]+)')) AS url_utm_campaign,
-    NET.URL_DECODE(REGEXP_EXTRACT(page_location, r'[?&]utm_content=([^&#]+)')) AS url_utm_content,
-    NET.URL_DECODE(REGEXP_EXTRACT(page_location, r'[?&]utm_term=([^&#]+)')) AS url_utm_term
+    URL_DECODE_SAFE(REGEXP_EXTRACT(page_location, r'[?&]utm_source=([^&#]+)')) AS url_utm_source,
+    URL_DECODE_SAFE(REGEXP_EXTRACT(page_location, r'[?&]utm_medium=([^&#]+)')) AS url_utm_medium,
+    URL_DECODE_SAFE(REGEXP_EXTRACT(page_location, r'[?&]utm_campaign=([^&#]+)')) AS url_utm_campaign,
+    URL_DECODE_SAFE(REGEXP_EXTRACT(page_location, r'[?&]utm_content=([^&#]+)')) AS url_utm_content,
+    URL_DECODE_SAFE(REGEXP_EXTRACT(page_location, r'[?&]utm_term=([^&#]+)')) AS url_utm_term
   FROM raw_events
 ),
 session_events AS (
