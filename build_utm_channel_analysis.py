@@ -685,13 +685,87 @@ def fmt_delta(metric: str, value: Any) -> str:
     return f"{sign}{fmt_int(value)}"
 
 
+
+CHANNEL_TONE_CLASSES = {
+    "google": ("#fff8dd", "#8a5a00", "#f5d98b", "#fbbc04"),
+    "meta": ("#eef2ff", "#4338ca", "#c7d2fe", "#6366f1"),
+    "naver": ("#ecfdf3", "#047857", "#a7f3d0", "#03c75a"),
+    "kakao": ("#fff9db", "#8a5a00", "#fde68a", "#fee500"),
+    "criteo": ("#fff1f2", "#be123c", "#fecdd3", "#ef4444"),
+    "mobon": ("#ecfeff", "#0f766e", "#99f6e4", "#14b8a6"),
+    "edm": ("#eff6ff", "#1d4ed8", "#bfdbfe", "#3b82f6"),
+    "lms": ("#eef2ff", "#5b21b6", "#ddd6fe", "#8b5cf6"),
+    "awareness": ("#fff7ed", "#c2410c", "#fdba74", "#f97316"),
+    "paid": ("#eff6ff", "#1d4ed8", "#bfdbfe", "#2563eb"),
+    "organic": ("#f0fdf4", "#166534", "#bbf7d0", "#16a34a"),
+    "owned": ("#f0fdfa", "#0f766e", "#99f6e4", "#14b8a6"),
+    "sns": ("#fdf2f8", "#be185d", "#fbcfe8", "#ec4899"),
+    "other": ("#f8fafc", "#475569", "#cbd5e1", "#94a3b8"),
+}
+
+
+def tone_key(label: Any) -> str:
+    s = str(label or "").lower()
+    if "google" in s:
+        return "google"
+    if any(x in s for x in ["meta", "facebook", "instagram", "ig", "fb"]):
+        return "meta"
+    if "naver" in s:
+        return "naver"
+    if "kakao" in s:
+        return "kakao"
+    if "criteo" in s:
+        return "criteo"
+    if "mobon" in s:
+        return "mobon"
+    if "edm" in s or "email" in s:
+        return "edm"
+    if "lms" in s:
+        return "lms"
+    if "awareness" in s or s.startswith("1."):
+        return "awareness"
+    if "paid" in s or s.startswith("2."):
+        return "paid"
+    if "organic" in s or s.startswith("3."):
+        return "organic"
+    if "official sns" in s or s.startswith("4.") or "sns" in s:
+        return "sns"
+    if "owned" in s or s.startswith("5."):
+        return "owned"
+    return "other"
+
+
+def tone_class(label: Any) -> str:
+    return f"tone-{tone_key(label)}"
+
+
+def tone_style(label: Any) -> str:
+    bg, fg, border, dot = CHANNEL_TONE_CLASSES[tone_key(label)]
+    return f"--tone-bg:{bg};--tone-fg:{fg};--tone-border:{border};--tone-dot:{dot};"
+
+
+def make_badge(text: Any, label: Any | None = None, extra: str = "") -> str:
+    t = html_escape(text if text not in (None, "") else "-")
+    cls = tone_class(label if label is not None else text)
+    style = tone_style(label if label is not None else text)
+    return f'<span class="badge {cls} {extra}" style="{style}">{t}</span>'
+
+
+def make_legend_html() -> str:
+    items = [
+        ("Google", "google"), ("Meta", "meta"), ("Naver", "naver"), ("Kakao", "kakao"),
+        ("EDM", "edm"), ("LMS", "lms"), ("Organic", "organic"), ("Paid", "paid"), ("Owned", "owned"), ("SNS", "sns")
+    ]
+    return "".join([f'<span class="legend-chip {tone_class(key)}" style="{tone_style(key)}">{html_escape(label)}</span>' for label, key in items])
+
+
 def make_alert_cards(alerts: pd.DataFrame) -> str:
     if alerts.empty:
         return """
         <div class="alert-card neutral">
-          <div class="alert-top"><span class="alert-chip neutral">CLEAR</span></div>
-          <div class="alert-title">전일 대비 유의미한 수치 변동 없음</div>
-          <div class="alert-sub">설정 기준을 넘는 증감만 상단에 표시합니다.</div>
+          <div class="alert-head"><span class="state-chip neutral">알림 없음</span></div>
+          <div class="alert-title">전일 대비 유의미한 수치 변동이 없습니다.</div>
+          <div class="alert-desc">2~3% 수준의 작은 변동은 노출하지 않습니다.</div>
         </div>
         """
     cards = []
@@ -700,22 +774,31 @@ def make_alert_cards(alerts: pd.DataFrame) -> str:
         cls = "up" if direction == "UP" else "down"
         arrow = "▲" if direction == "UP" else "▼"
         metric = str(r.get("metric"))
-        rate = r.get("delta_rate")
-        rate_txt = f"{arrow} {abs(safe_num(rate)):.1f}%" if rate is not None and not pd.isna(rate) else arrow
-        if metric in {"signup_cvr", "buy_cvr"}:
-            rate_txt = f"{arrow} {abs(safe_num(r.get('delta'))):.1f}p"
+        delta = safe_num(r.get("delta"))
+        rate = safe_num(r.get("delta_rate"))
+        metric_txt = html_escape(r.get("metric_label"))
+        scope_txt = html_escape(r.get("scope_label"))
+        current_txt = html_escape(fmt_metric_value(metric, r.get("current")))
+        previous_txt = html_escape(fmt_metric_value(metric, r.get("previous")))
+        delta_txt = html_escape(fmt_delta(metric, r.get("delta")))
+        diff_txt = f"{arrow} {abs(delta):.1f}%p" if metric in {"signup_cvr", "buy_cvr"} else f"{arrow} {abs(rate):.1f}%"
+        tone = tone_style(str(r.get("scope_label")) + " " + str(r.get("scope")))
         cards.append(f"""
-        <div class="alert-card {cls}">
-          <div class="alert-top"><span class="alert-chip {cls}">{html_escape(rate_txt)}</span><span>{html_escape(str(r.get('scope')).upper())}</span></div>
-          <div class="alert-title">{html_escape(r.get('metric_label'))}</div>
-          <div class="alert-scope">{html_escape(r.get('scope_label'))}</div>
+        <div class="alert-card {cls}" style="{tone}">
+          <div class="alert-head">
+            <span class="state-chip {cls}">{html_escape(diff_txt)}</span>
+            <span class="badge-wrap">{make_badge(r.get('scope'), r.get('scope_label'))}</span>
+          </div>
+          <div class="alert-title">{metric_txt}</div>
+          <div class="alert-desc">{scope_txt}</div>
           <div class="alert-values">
-            <b>{html_escape(fmt_metric_value(metric, r.get('current')))}</b>
-            <span>Prev {html_escape(fmt_metric_value(metric, r.get('previous')))} · Δ {html_escape(fmt_delta(metric, r.get('delta')))}</span>
+            <div class="value-main">{current_txt}</div>
+            <div class="value-sub">전일 {previous_txt} · 증감 {delta_txt}</div>
           </div>
         </div>
         """)
     return "\n".join(cards)
+
 
 
 def make_alert_rows(alerts: pd.DataFrame) -> str:
@@ -729,8 +812,8 @@ def make_alert_rows(alerts: pd.DataFrame) -> str:
         arrow = "▲" if direction == "UP" else "▼"
         rows.append(f"""
         <tr>
-          <td><span class="dir {cls}">{arrow} {html_escape(direction)}</span></td>
-          <td>{html_escape(r.get('scope'))}</td>
+          <td><span class="dir {cls}">{arrow} {html_escape('상승' if direction == 'UP' else '하락')}</span></td>
+          <td>{make_badge(r.get('scope'), r.get('scope_label'))}</td>
           <td class="wide">{html_escape(r.get('scope_label'))}</td>
           <td>{html_escape(r.get('metric_label'))}</td>
           <td class="num strong">{html_escape(fmt_metric_value(metric, r.get('current')))}</td>
@@ -743,28 +826,37 @@ def make_alert_rows(alerts: pd.DataFrame) -> str:
     return "\n".join(rows)
 
 
+
 def make_quality_rows(qdf: pd.DataFrame) -> str:
     if qdf.empty:
         return '<tr><td colspan="3" class="empty">UTM 품질 데이터가 없습니다.</td></tr>'
     return "\n".join(
-        f"<tr><td>{html_escape(r['field'])}</td><td class='num'>{fmt_int(r['missing_sessions'])}</td><td class='num'>{fmt_pct(r['missing_share'])}</td></tr>"
+        f"<tr><td>{make_badge(r['field'], r['field'])}</td><td class='num'>{fmt_int(r['missing_sessions'])}</td><td class='num'>{fmt_pct(r['missing_share'])}</td></tr>"
         for _, r in qdf.iterrows()
     )
+
 
 
 def make_channel_cards(channel_df: pd.DataFrame) -> str:
     if channel_df.empty:
         return ""
     cards = []
-    for _, r in channel_df.head(6).iterrows():
+    for _, r in channel_df.head(8).iterrows():
+        label = r.get('media_family') if str(r.get('media_family', '')).strip() not in ('', 'Other') else r.get('channel_group')
         cards.append(f"""
-        <div class="card mini">
-          <div class="label">{html_escape(r['channel_group'])}</div>
-          <div class="metric">{fmt_money(r['revenue'])}</div>
-          <div class="sub">Sessions {fmt_int(r['sessions'])} · Users {fmt_int(r['users'])} · Buy CVR {fmt_pct(r['buy_cvr'])}</div>
+        <div class="media-card {tone_class(label)}" style="{tone_style(label)}">
+          <div class="media-top">
+            {make_badge(r.get('channel_group'), r.get('channel_group'))}
+            {make_badge(r.get('media_family'), label, 'media-badge')}
+          </div>
+          <div class="media-name">{html_escape(r.get('source','-'))} / {html_escape(r.get('medium','-'))}</div>
+          <div class="media-metric">{fmt_money(r['revenue'])}</div>
+          <div class="media-sub">세션 {fmt_int(r['sessions'])} · 사용자 {fmt_int(r['users'])}</div>
+          <div class="media-sub">구매 CVR {fmt_pct(r['buy_cvr'])} · 구매자 {fmt_int(r['buyers'])}</div>
         </div>
         """)
     return "\n".join(cards)
+
 
 
 def make_table_rows(df: pd.DataFrame, limit: int = 200) -> str:
@@ -773,11 +865,12 @@ def make_table_rows(df: pd.DataFrame, limit: int = 200) -> str:
     show = df.sort_values(["event_dt", "revenue", "sessions"], ascending=[False, False, False]).head(limit)
     rows = []
     for _, r in show.iterrows():
+        media_label = r.get('media_family') if str(r.get('media_family', '')).strip() not in ('', 'Other') else r.get('channel_group')
         rows.append(f"""
         <tr>
           <td>{html_escape(r.get('event_dt', '-'))}</td>
-          <td><span class="pill">{html_escape(r.get('channel_group', '-'))}</span></td>
-          <td>{html_escape(r.get('media_family', '-'))}</td>
+          <td>{make_badge(r.get('channel_group', '-'), r.get('channel_group', '-'))}</td>
+          <td>{make_badge(r.get('media_family', '-'), media_label, 'media-badge')}</td>
           <td>{html_escape(r.get('source', '-'))} / {html_escape(r.get('medium', '-'))}</td>
           <td class="wide">{html_escape(r.get('campaign', '-'))}</td>
           <td class="wide">{html_escape(r.get('content', '-'))}</td>
@@ -799,282 +892,271 @@ def make_table_rows(df: pd.DataFrame, limit: int = 200) -> str:
     return "\n".join(rows)
 
 
+
+
 def render_html(df: pd.DataFrame, alerts: pd.DataFrame, channel_df: pd.DataFrame, quality_df: pd.DataFrame, meta: Dict[str, Any], out_path: str) -> None:
     summary = meta["summary"]
     payload = clean_df_for_json(df)
     alert_payload = clean_df_for_json(alerts)
     channel_payload = clean_df_for_json(channel_df)
+    quality_payload = clean_df_for_json(quality_df)
     min_date, max_date = _date_bounds_from_df(df)
-    html_doc = f"""<!doctype html>
+    alert_cards_html = make_alert_cards(alerts)
+    legend_html = make_legend_html()
+    tone_palette_json = json.dumps({k: {'bg': v[0], 'fg': v[1], 'border': v[2], 'dot': v[3]} for k, v in CHANNEL_TONE_CLASSES.items()}, ensure_ascii=False)
+
+    html_template = '''<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>UTM / Source-Medium Numeric Alerts</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<title>소스/매체 분석</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800;900&display=swap');
-  :root {{ --brand:#002d72; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f6f8fb; --up:#047857; --down:#be123c; }}
-  body {{ margin:0; font-family:'Plus Jakarta Sans', system-ui, sans-serif; background:linear-gradient(180deg,#f8fafc,#eef3f9); color:var(--ink); }}
-  .wrap {{ padding:28px; max-width:1880px; margin:0 auto; }}
-  .hero {{ border-radius:30px; padding:28px; background:linear-gradient(135deg,rgba(0,45,114,.96),rgba(29,78,216,.78)); color:white; box-shadow:0 24px 60px rgba(0,45,114,.18); }}
-  .eyebrow {{ font-size:11px; letter-spacing:.24em; text-transform:uppercase; font-weight:900; opacity:.75; }}
-  h1 {{ margin:8px 0 4px; font-size:32px; line-height:1.12; font-weight:900; }}
-  .hero p {{ margin:0; opacity:.82; font-weight:700; }}
-  .grid {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-top:18px; }}
-  .alert-grid {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-top:18px; }}
-  .card, .alert-card {{ background:rgba(255,255,255,.78); border:1px solid rgba(255,255,255,.9); backdrop-filter:blur(16px); border-radius:24px; padding:20px; box-shadow:0 18px 40px rgba(15,23,42,.06); }}
-  .mini {{ min-height:118px; }}
-  .label {{ color:#64748b; font-size:11px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }}
-  .metric {{ font-size:28px; font-weight:900; margin-top:8px; }}
-  .sub {{ font-size:12px; color:#64748b; font-weight:800; margin-top:6px; }}
-  .section {{ margin-top:18px; }}
-  .two {{ display:grid; grid-template-columns:1.2fr .8fr; gap:16px; }}
-  .alert-card {{ min-height:150px; }}
-  .alert-card.up {{ border-color:#a7f3d0; }}
-  .alert-card.down {{ border-color:#fecdd3; }}
-  .alert-card.neutral {{ border-color:#e2e8f0; }}
-  .alert-top {{ display:flex; justify-content:space-between; gap:10px; align-items:center; color:#94a3b8; font-size:10px; font-weight:900; letter-spacing:.08em; }}
-  .alert-chip {{ display:inline-flex; padding:6px 10px; border-radius:999px; font-size:12px; font-weight:900; }}
-  .alert-chip.up {{ background:#ecfdf5; color:#047857; }}
-  .alert-chip.down {{ background:#fff1f2; color:#be123c; }}
-  .alert-chip.neutral {{ background:#f8fafc; color:#64748b; }}
-  .alert-title {{ font-size:20px; font-weight:900; margin-top:14px; }}
-  .alert-scope {{ color:#64748b; font-size:12px; font-weight:800; margin-top:6px; line-height:1.35; min-height:34px; word-break:break-word; }}
-  .alert-values {{ margin-top:12px; display:flex; flex-direction:column; gap:4px; }}
-  .alert-values b {{ font-size:22px; color:#002d72; }}
-  .alert-values span {{ font-size:12px; color:#64748b; font-weight:800; }}
-  .toolbar {{ display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:12px; }}
-  input, select, button {{ border:1px solid #dbe4ef; border-radius:14px; padding:11px 12px; font-weight:800; background:white; color:#0f172a; outline:none; }}
-  button {{ cursor:pointer; background:#002d72; color:#fff; border-color:#002d72; }}
-  button.secondary {{ background:#fff; color:#002d72; }}
-  .date-controls {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:18px; }}
-  .view-tabs {{ display:flex; gap:8px; flex-wrap:wrap; }}
-  .view-tabs button {{ padding:9px 12px; font-size:12px; }}
-  .view-tabs button.active {{ background:#002d72; color:#fff; }}
-  .view-tabs button:not(.active) {{ background:#fff; color:#002d72; }}
-  .tablebox {{ max-height:760px; overflow:auto; border-radius:20px; border:1px solid var(--line); background:white; }}
-  table {{ width:100%; border-collapse:separate; border-spacing:0; font-size:12px; }}
-  th {{ position:sticky; top:0; background:#f8fafc; color:#475569; text-align:left; font-size:10px; letter-spacing:.06em; text-transform:uppercase; padding:12px 10px; border-bottom:1px solid var(--line); z-index:2; white-space:nowrap; }}
-  td {{ padding:12px 10px; border-bottom:1px solid #eef2f7; vertical-align:top; font-weight:700; color:#334155; }}
-  tr:hover td {{ background:#f8fafc; }}
-  .num {{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }}
-  .wide {{ min-width:170px; max-width:340px; word-break:break-word; }}
-  .strong {{ color:#002d72; font-weight:900; }}
-  .pill {{ display:inline-flex; align-items:center; padding:6px 9px; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-weight:900; white-space:nowrap; }}
-  .dir {{ display:inline-flex; padding:6px 9px; border-radius:999px; font-weight:900; white-space:nowrap; }}
-  .dir.up {{ background:#ecfdf5; color:#047857; }}
-  .dir.down {{ background:#fff1f2; color:#be123c; }}
-  .empty {{ text-align:center; color:#94a3b8; padding:42px; }}
-  .foot {{ color:#94a3b8; font-size:11px; font-weight:800; margin-top:18px; }}
-  canvas {{ width:100%; max-height:320px; }}
-  @media(max-width:1280px) {{ .grid, .alert-grid {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .two {{ grid-template-columns:1fr; }} }}
-  @media(max-width:720px) {{ .wrap {{ padding:16px; }} h1 {{ font-size:24px; }} .grid, .alert-grid {{ grid-template-columns:1fr; }} }}
+  @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+  :root{
+    --bg:#f6f8fc; --card:#ffffff; --line:#e7ebf3; --line-2:#eef2f7;
+    --text:#101828; --muted:#667085; --muted-2:#98a2b3; --brand:#2962ff;
+    --success:#16a34a; --danger:#ef4444; --shadow:0 10px 30px rgba(16,24,40,.05);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Inter","Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:linear-gradient(180deg,#fafbfe 0%, #f6f8fc 100%);color:var(--text)}
+  .app{max-width:1420px;margin:0 auto;padding:28px 24px 40px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+  .title{font-size:38px;line-height:1.1;margin:0;font-weight:900;letter-spacing:-.03em}
+  .sub{margin:10px 0 0;color:var(--muted);font-size:14px;font-weight:600}
+  .head-right{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px;font-weight:700}
+  .mini-icon{width:38px;height:38px;border-radius:14px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+  .tool-card,.section-card{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}
+  .tool-card{padding:16px 18px;margin-bottom:16px}
+  .section-card{padding:20px;margin-top:16px}
+  .section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+  .section-title{font-size:20px;font-weight:900;letter-spacing:-.02em;margin:0}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .toolbar-left,.toolbar-right,.quick-row,.tab-row,.filter-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .control,.btn{height:40px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:0 14px;font-size:13px;font-weight:700;color:#344054}
+  .btn{cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .btn.ghost{background:#fff;color:#344054}
+  .pill{height:34px;border-radius:12px;padding:0 12px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:var(--muted);display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+  .pill.active{background:#edf3ff;color:#1d4ed8;border-color:#cfe0ff}
+  .grid-kpi{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+  .kpi{background:linear-gradient(180deg,#ffffff 0%, #fbfcff 100%);border:1px solid var(--line);border-radius:18px;padding:18px 16px;min-height:122px}
+  .kpi .label{font-size:12px;color:var(--muted);font-weight:800;margin-bottom:10px}
+  .kpi .value{font-size:34px;line-height:1.1;font-weight:900;letter-spacing:-.03em;color:#111827}
+  .kpi .meta{margin-top:10px;font-size:12px;color:var(--muted-2);font-weight:700;line-height:1.45}
+  .delta{margin-top:10px;display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:900;padding:6px 10px;border-radius:999px;background:#e8f8ee;color:#118a3e}
+  .alerts-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+  .alert-card{border:1px solid var(--line);border-radius:18px;padding:16px;background:linear-gradient(180deg,#fff,#fcfdff);min-height:158px}
+  .alert-card.up{border-color:#c9f0d7;background:linear-gradient(180deg,#f8fffb,#fff)}
+  .alert-card.down{border-color:#ffd2d6;background:linear-gradient(180deg,#fff9fa,#fff)}
+  .alert-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .state-chip{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:900}
+  .state-chip.up{background:#e8f8ee;color:#118a3e}.state-chip.down{background:#ffeff0;color:#d92d20}.state-chip.neutral{background:#f2f4f7;color:#667085}
+  .alert-title{margin-top:14px;font-size:15px;font-weight:900;color:#101828}
+  .alert-desc{margin-top:5px;font-size:12px;color:#98a2b3;font-weight:800}
+  .value-main{margin-top:18px;font-size:29px;font-weight:900;color:#1d4ed8;letter-spacing:-.02em}
+  .value-sub{margin-top:6px;font-size:12px;color:#667085;font-weight:700}
+  .legend-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+  .legend-chip,.badge{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px;border-radius:999px;background:var(--tone-bg);color:var(--tone-fg);border:1px solid var(--tone-border);font-size:12px;font-weight:800;white-space:nowrap}
+  .legend-chip::before,.badge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--tone-dot)}
+  .media-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+  .media-card{border-radius:20px;border:1px solid var(--tone-border);background:linear-gradient(180deg,#fff 0%, var(--tone-bg) 100%);padding:16px}
+  .media-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .media-brand{display:flex;align-items:center;gap:10px;font-weight:900;color:#1f2937}
+  .media-logo{width:28px;height:28px;border-radius:10px;background:#fff;border:1px solid var(--tone-border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:var(--tone-fg)}
+  .media-growth{font-size:12px;font-weight:900;color:var(--success)}
+  .media-metric-label{margin-top:16px;font-size:12px;color:#98a2b3;font-weight:800}
+  .media-metric-value{margin-top:4px;font-size:28px;font-weight:900;letter-spacing:-.02em}
+  .media-row{display:flex;justify-content:space-between;gap:12px;margin-top:10px}
+  .media-stat .k{font-size:11px;color:#98a2b3;font-weight:800}.media-stat .v{margin-top:4px;font-size:15px;font-weight:900;color:#111827}
+  .spark-wrap{margin-top:10px;height:48px}
+  .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .chart-card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px}
+  .chart-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+  .chart-title{font-size:18px;font-weight:900;margin:0}.chart-sub{font-size:12px;color:#98a2b3;font-weight:700}
+  .chart-wrap{height:290px}
+  .tab-btn{height:34px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:800;color:#667085;cursor:pointer}
+  .tab-btn.active{background:#edf3ff;color:#1d4ed8;border-color:#cfe0ff}
+  .table-card{border:1px solid var(--line);border-radius:20px;overflow:hidden;background:#fff}
+  .table-scroll{overflow:auto;max-height:720px}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  thead th{position:sticky;top:0;background:#fcfdff;border-bottom:1px solid var(--line);padding:13px 12px;text-align:left;font-size:11px;font-weight:900;color:#667085;white-space:nowrap;z-index:1}
+  tbody td{padding:13px 12px;border-bottom:1px solid var(--line-2);font-size:12px;font-weight:700;color:#344054;vertical-align:top}
+  tbody tr:hover td{background:#fafcff}
+  .rank{width:26px;color:#98a2b3;font-weight:900}
+  .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .wide{min-width:150px;max-width:240px;word-break:break-word;line-height:1.45}
+  .strong{font-weight:900;color:#101828}
+  .empty{padding:40px;text-align:center;color:#98a2b3;font-weight:800}
+  .help{font-size:11px;color:#98a2b3;font-weight:700}
+  @media(max-width:1280px){.grid-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}.alerts-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.media-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-grid{grid-template-columns:1fr}}
+  @media(max-width:760px){.app{padding:18px 14px 30px}.title{font-size:28px}.grid-kpi,.alerts-grid,.media-grid{grid-template-columns:1fr}.head-right{display:none}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <section class="hero">
-    <div class="eyebrow">GA4 BigQuery · UTM / Source-Medium</div>
-    <h1>소스/매체 수치 얼럿</h1>
-    <p>데이터 범위 {html_escape(min_date)} ~ {html_escape(max_date)} · 업데이트 {html_escape(meta['updated_at'])} · 전일 대비 기준 초과 변동만 노출</p>
-    <div class="date-controls">
-      <label>시작 <input type="date" id="startDate" value="{html_escape(min_date)}" min="{html_escape(min_date)}" max="{html_escape(max_date)}"></label>
-      <label>종료 <input type="date" id="endDate" value="{html_escape(max_date)}" min="{html_escape(min_date)}" max="{html_escape(max_date)}"></label>
-      <button id="applyBtn">조회</button>
-      <button class="secondary" id="yesterdayBtn">전일</button>
-      <button class="secondary" id="last7Btn">최근 7일</button>
-      <button class="secondary" id="last30Btn">최근 30일</button>
-      <button class="secondary" id="allBtn">전체</button>
-    </div>
-  </section>
-
-  <section class="grid">
-    <div class="card"><div class="label">Sessions</div><div class="metric">{fmt_int(summary['sessions'])}</div><div class="sub">Users {fmt_int(summary['users'])}</div></div>
-    <div class="card"><div class="label">Signup CVR</div><div class="metric">{fmt_pct(summary['signup_cvr'])}</div><div class="sub">Signups {fmt_int(summary['signups'])} · Signup→Buyers {fmt_int(summary['signup_to_buyers'])}</div></div>
-    <div class="card"><div class="label">Buy CVR</div><div class="metric">{fmt_pct(summary['buy_cvr'])}</div><div class="sub">Buyers {fmt_int(summary['buyers'])} · Purchase {fmt_int(summary['purchase'])}</div></div>
-    <div class="card"><div class="label">Revenue</div><div class="metric">{fmt_money(summary['revenue'])}</div><div class="sub">AOV/Buyer {fmt_money(summary['aov_per_buyer'])} · PV/User {fmt_float(summary['pv_per_user'])}</div></div>
-  </section>
-
-  <section class="grid" id="selectedCards"></section>
-
-  <section class="alert-grid">{make_alert_cards(alerts)}</section>
-
-  <section class="grid">{make_channel_cards(channel_df)}</section>
-
-  <section class="section two">
-    <div class="card">
-      <div class="toolbar"><div><div class="label">Numeric Alert Table</div><div class="sub">전일 대비 엄격 기준을 넘은 수치 변동</div></div></div>
-      <div class="tablebox" style="max-height:440px;">
-        <table>
-          <thead><tr><th>Dir</th><th>Scope</th><th>Label</th><th>Metric</th><th class="num">Current</th><th class="num">Previous</th><th class="num">Delta</th><th class="num">Rate</th><th class="num">Score</th></tr></thead>
-          <tbody>{make_alert_rows(alerts)}</tbody>
-        </table>
-      </div>
-    </div>
-    <div class="card">
-      <div class="toolbar"><div><div class="label">Revenue by Channel</div><div class="sub">채널그룹별 매출</div></div></div>
-      <canvas id="channelChart"></canvas>
-      <div class="toolbar" style="margin-top:18px;"><div><div class="label">UTM Missing Check</div><div class="sub">누락값 포함 세션 비중</div></div></div>
-      <div class="tablebox" style="max-height:230px;">
-        <table><thead><tr><th>Field</th><th class="num">Sessions</th><th class="num">Share</th></tr></thead><tbody>{make_quality_rows(quality_df)}</tbody></table>
-      </div>
-    </div>
-  </section>
-
-  <section class="section card">
-    <div class="toolbar">
+  <div class="app">
+    <div class="header">
       <div>
-        <div class="label">Data View</div>
-        <div class="sub">기간별 요약 / 일자별 요약 / 전체 상세 데이터를 전환해서 확인</div>
+        <h1 class="title">소스/매체 분석</h1>
+        <p class="sub">다양한 소스/매체별 성과를 한눈에 확인하고 효율적인 마케팅 의사결정을 지원합니다.</p>
       </div>
-      <div>
-        <input id="q" placeholder="검색: source, campaign, content, term..." />
-        <select id="channel"><option value="">전체 채널</option></select>
-        <select id="metricSort"><option value="revenue">Revenue순</option><option value="sessions">Sessions순</option><option value="buy_cvr">Buy CVR순</option><option value="signup_cvr">Signup CVR순</option></select>
-      </div>
-      <div class="view-tabs">
-        <button class="active" data-view="period">기간별 요약</button>
-        <button data-view="daily">일자별 요약</button>
-        <button data-view="detail">전체 상세</button>
+      <div class="head-right">
+        <div class="mini-icon">🔔</div>
+        <div class="mini-icon">👤</div>
       </div>
     </div>
-    <div class="tablebox" id="periodBox">
-      <table id="periodTbl">
-        <thead>
-          <tr>
-            <th>Channel</th><th>Media</th><th>Source/Medium</th><th>Campaign</th>
-            <th class="num">Sessions</th><th class="num">Users</th><th class="num">Signups</th><th class="num">Signup CVR</th><th class="num">Avg Signup PV</th><th class="num">Signup→Buyers</th>
-            <th class="num">Buyers</th><th class="num">Buy CVR</th><th class="num">Purchase</th><th class="num">Revenue</th><th class="num">AOV/Buyer</th><th class="num">PV/User</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div class="tablebox" id="dailyBox" style="display:none;">
-      <table id="dailyTbl">
-        <thead>
-          <tr>
-            <th>Date</th><th>Channel</th>
-            <th class="num">Sessions</th><th class="num">Users</th><th class="num">Signups</th><th class="num">Signup CVR</th><th class="num">Avg Signup PV</th><th class="num">Signup→Buyers</th>
-            <th class="num">Buyers</th><th class="num">Buy CVR</th><th class="num">Purchase</th><th class="num">Revenue</th><th class="num">AOV/Buyer</th><th class="num">PV/User</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div class="tablebox" id="detailBox" style="display:none;">
-      <table id="tbl">
-        <thead>
-          <tr>
-            <th>Date</th><th>Channel</th><th>Media</th><th>Source/Medium</th><th>Campaign</th><th>Content</th><th>Term</th>
-            <th class="num">Sessions</th><th class="num">Users</th><th class="num">Signups</th><th class="num">Signup CVR</th><th class="num">Avg Signup PV</th><th class="num">Signup→Buyers</th>
-            <th class="num">Buyers</th><th class="num">Buy CVR</th><th class="num">Purchase</th><th class="num">Revenue</th><th class="num">AOV/Buyer</th><th class="num">PV/User</th>
-          </tr>
-        </thead>
-        <tbody>{make_table_rows(df)}</tbody>
-      </table>
-    </div>
-    <div class="foot">Data: GA4 BigQuery Export · Channel rule: uploaded CASE logic · Numeric alert thresholds are intentionally strict to suppress minor 2~3% noise.</div>
-  </section>
-</div>
+
+    <section class="tool-card">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input class="control" type="date" id="startDate" value="__MIN_DATE__" min="__MIN_DATE__" max="__MAX_DATE__" />
+          <span style="color:#98a2b3;font-weight:800">~</span>
+          <input class="control" type="date" id="endDate" value="__MAX_DATE__" min="__MIN_DATE__" max="__MAX_DATE__" />
+          <select class="control" id="compareMode"><option>비교: 이전 기간</option><option>비교 안 함</option></select>
+          <div class="quick-row">
+            <button class="pill" id="d7Btn">7D</button>
+            <button class="pill active" id="d30Btn">30D</button>
+            <button class="pill" id="d90Btn">90D</button>
+            <button class="pill" id="d365Btn">12M</button>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn ghost" id="downloadBtn">내보내기</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-card">
+      <div class="section-head"><h2 class="section-title">핵심 지표</h2></div>
+      <div class="grid-kpi" id="kpiGrid"></div>
+    </section>
+
+    <section class="section-card">
+      <div class="section-head">
+        <h2 class="section-title">수치 알림</h2>
+        <button class="btn ghost">모두 보기</button>
+      </div>
+      <div class="alerts-grid">__ALERT_CARDS__</div>
+    </section>
+
+    <section class="section-card">
+      <div class="section-head">
+        <h2 class="section-title">매체별 한눈에 보기</h2>
+        <div class="legend-row">__LEGEND_HTML__</div>
+      </div>
+      <div class="media-grid" id="mediaGrid"></div>
+    </section>
+
+    <section class="section-card">
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div><h3 class="chart-title">채널별 매출</h3><div class="chart-sub">선택 기간 기준</div></div>
+            <div class="tab-row"><button class="tab-btn active" id="chartRevenueBtn">금액</button><button class="tab-btn" id="chartSessionBtn">세션</button></div>
+          </div>
+          <div class="chart-wrap"><canvas id="revenueChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head">
+            <div><h3 class="chart-title">구매 전환율 (BUY CVR)</h3><div class="chart-sub">채널별 비교</div></div>
+            <select class="control" id="lineMetricSel"><option value="buy_cvr">구매 전환율</option><option value="signup_cvr">회원가입 전환율</option></select>
+          </div>
+          <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-card">
+      <div class="section-head"><h2 class="section-title">상세 데이터</h2></div>
+      <div class="toolbar" style="margin-bottom:14px">
+        <div class="filter-row">
+          <select class="control" id="viewMode"><option value="period">기본 표</option><option value="daily">일자별 요약</option><option value="detail">전체 상세</option></select>
+          <select class="control" id="channelFilter"><option value="">전체 채널</option></select>
+        </div>
+        <div class="filter-row">
+          <input class="control" type="search" id="searchBox" placeholder="채널/매체 검색" style="width:260px" />
+          <button class="btn ghost" id="downloadDataBtn">내보내기</button>
+        </div>
+      </div>
+      <div class="table-card"><div class="table-scroll" id="tableMount"></div></div>
+      <div class="help" style="margin-top:10px">기간별 · 일자별 · 전체 상세 보기를 전환할 수 있습니다. 가독성을 위해 채널/매체 색상을 일관되게 적용했습니다.</div>
+    </section>
+  </div>
 <script>
-const rows = {json.dumps(payload, ensure_ascii=False)};
-const alerts = {json.dumps(alert_payload, ensure_ascii=False)};
-const channelRows = {json.dumps(channel_payload, ensure_ascii=False)};
-const allMinDate = "{html_escape(min_date)}";
-const allMaxDate = "{html_escape(max_date)}";
-function money(v) {{ return '₩' + Number(v||0).toLocaleString('ko-KR', {{maximumFractionDigits:0}}); }}
-function pct(v) {{ return Number(v||0).toFixed(1) + '%'; }}
-function num(v) {{ return Number(v||0).toLocaleString('ko-KR', {{maximumFractionDigits:0}}); }}
-function one(v) {{ return v === null || v === undefined || isNaN(Number(v)) ? '-' : Number(v).toFixed(1); }}
-function esc(s) {{ return String(s ?? '').replace(/[&<>"']/g, m => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}}[m])); }}
-function n(v) {{ const x = Number(v || 0); return isFinite(x) ? x : 0; }}
-const channelSelect = document.getElementById('channel');
-[...new Set(rows.map(r => r.channel_group).filter(Boolean))].sort().forEach(ch => {{
-  const opt = document.createElement('option'); opt.value = ch; opt.textContent = ch; channelSelect.appendChild(opt);
-}});
-function dateAdd(d, days) {{ const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate()+days); return x.toISOString().slice(0,10); }}
-function filteredRows() {{
-  const q = (document.getElementById('q').value || '').toLowerCase();
-  const ch = channelSelect.value;
-  const s = document.getElementById('startDate') ? document.getElementById('startDate').value : allMinDate;
-  const e = document.getElementById('endDate') ? document.getElementById('endDate').value : allMaxDate;
-  return rows.filter(r => (!s || r.event_dt >= s) && (!e || r.event_dt <= e) && (!ch || r.channel_group === ch) && (!q || JSON.stringify(r).toLowerCase().includes(q)));
-}}
-function aggMetrics(arr) {{
-  const sessions = arr.reduce((a,r)=>a+n(r.sessions),0), users = arr.reduce((a,r)=>a+n(r.users),0), signups = arr.reduce((a,r)=>a+n(r.signups),0);
-  const signupToBuyers = arr.reduce((a,r)=>a+n(r.signup_to_buyers),0), buyers = arr.reduce((a,r)=>a+n(r.buyers),0), purchase = arr.reduce((a,r)=>a+n(r.purchase),0), revenue = arr.reduce((a,r)=>a+n(r.revenue),0);
-  const pageviews = arr.reduce((a,r)=>a+n(r.pv_per_user)*n(r.users),0);
-  const signupPv = arr.reduce((a,r)=>a+n(r.avg_signup_user_pv)*n(r.signups),0);
-  return {{sessions, users, signups, signup_cvr:sessions?signups/sessions*100:0, avg_signup_user_pv:signups?signupPv/signups:0, signup_to_buyers:signupToBuyers, buyers, buy_cvr:sessions?buyers/sessions*100:0, purchase, revenue, aov_per_buyer:buyers?revenue/buyers:0, pv_per_user:users?pageviews/users:0}};
-}}
-function groupBy(arr, keys) {{
-  const map = new Map();
-  arr.forEach(r => {{ const k = keys.map(x => r[x] ?? '-').join('||'); if (!map.has(k)) map.set(k, {{keys:Object.fromEntries(keys.map(x=>[x,r[x]??'-'])), rows:[]}}); map.get(k).rows.push(r); }});
-  return [...map.values()].map(g => ({{...g.keys, ...aggMetrics(g.rows)}}));
-}}
-function metricCells(r) {{ return `<td class="num">${{num(r.sessions)}}</td><td class="num">${{num(r.users)}}</td><td class="num">${{num(r.signups)}}</td><td class="num">${{pct(r.signup_cvr)}}</td><td class="num">${{one(r.avg_signup_user_pv)}}</td><td class="num">${{num(r.signup_to_buyers)}}</td><td class="num">${{num(r.buyers)}}</td><td class="num">${{pct(r.buy_cvr)}}</td><td class="num">${{num(r.purchase)}}</td><td class="num strong">${{money(r.revenue)}}</td><td class="num">${{money(r.aov_per_buyer)}}</td><td class="num">${{one(r.pv_per_user)}}</td>`; }}
-function renderCards(arr) {{
-  const s = aggMetrics(arr);
-  const el = document.getElementById('selectedCards');
-  if (!el) return;
-  el.innerHTML = `<div class="card"><div class="label">Selected Sessions</div><div class="metric">${{num(s.sessions)}}</div><div class="sub">Users ${{num(s.users)}} · PV/User ${{one(s.pv_per_user)}}</div></div><div class="card"><div class="label">Selected Signup CVR</div><div class="metric">${{pct(s.signup_cvr)}}</div><div class="sub">Signups ${{num(s.signups)}} · Avg Signup PV ${{one(s.avg_signup_user_pv)}}</div></div><div class="card"><div class="label">Selected Buy CVR</div><div class="metric">${{pct(s.buy_cvr)}}</div><div class="sub">Buyers ${{num(s.buyers)}} · Purchase ${{num(s.purchase)}} · Signup→Buyers ${{num(s.signup_to_buyers)}}</div></div><div class="card"><div class="label">Selected Revenue</div><div class="metric">${{money(s.revenue)}}</div><div class="sub">AOV/Buyer ${{money(s.aov_per_buyer)}}</div></div>`;
-}}
-function renderPeriod(arr) {{
-  const body = document.querySelector('#periodTbl tbody'); if (!body) return;
-  const grouped = groupBy(arr, ['channel_group','media_family','source','medium','campaign']).sort((a,b)=>n(b.revenue)-n(a.revenue)||n(b.sessions)-n(a.sessions));
-  body.innerHTML = grouped.length ? grouped.map(r => `<tr><td><span class="pill">${{esc(r.channel_group)}}</span></td><td>${{esc(r.media_family)}}</td><td>${{esc(r.source)}} / ${{esc(r.medium)}}</td><td class="wide">${{esc(r.campaign)}}</td>${{metricCells(r)}}</tr>`).join('') : '<tr><td colspan="16" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>';
-}}
-function renderDaily(arr) {{
-  const body = document.querySelector('#dailyTbl tbody'); if (!body) return;
-  const grouped = groupBy(arr, ['event_dt','channel_group']).sort((a,b)=>String(b.event_dt).localeCompare(String(a.event_dt))||n(b.revenue)-n(a.revenue));
-  body.innerHTML = grouped.length ? grouped.map(r => `<tr><td>${{esc(r.event_dt)}}</td><td><span class="pill">${{esc(r.channel_group)}}</span></td>${{metricCells(r)}}</tr>`).join('') : '<tr><td colspan="14" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>';
-}}
-function renderTable() {{
-  const sortKey = document.getElementById('metricSort').value || 'revenue';
-  const filtered = filteredRows().sort((a,b) => (Number(b[sortKey]||0)-Number(a[sortKey]||0)) || (Number(b.sessions||0)-Number(a.sessions||0)));
-  renderCards(filtered); renderPeriod(filtered); renderDaily(filtered);
-  const body = document.querySelector('#tbl tbody');
-  if (!filtered.length) {{ body.innerHTML = '<tr><td colspan="19" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>'; return; }}
-  body.innerHTML = filtered.map(r => `
-    <tr>
-      <td>${{r.event_dt || '-'}}</td><td><span class="pill">${{r.channel_group || '-'}}</span></td><td>${{r.media_family || '-'}}</td>
-      <td>${{r.source || '-'}} / ${{r.medium || '-'}}</td><td class="wide">${{r.campaign || '-'}}</td><td class="wide">${{r.content || '-'}}</td><td class="wide">${{r.term || '-'}}</td>
-      <td class="num">${{num(r.sessions)}}</td><td class="num">${{num(r.users)}}</td><td class="num">${{num(r.signups)}}</td><td class="num">${{pct(r.signup_cvr)}}</td><td class="num">${{one(r.avg_signup_user_pv)}}</td><td class="num">${{num(r.signup_to_buyers)}}</td>
-      <td class="num">${{num(r.buyers)}}</td><td class="num">${{pct(r.buy_cvr)}}</td><td class="num">${{num(r.purchase)}}</td><td class="num strong">${{money(r.revenue)}}</td><td class="num">${{money(r.aov_per_buyer)}}</td><td class="num">${{one(r.pv_per_user)}}</td>
-    </tr>`).join('');
-  const foot = document.querySelector('.foot'); if (foot) foot.textContent = `Filtered rows ${{filtered.length.toLocaleString('ko-KR')}} / Total rows ${{rows.length.toLocaleString('ko-KR')}} · 모든 요청 지표 표시`;
-}}
-document.getElementById('q').addEventListener('input', renderTable);
-channelSelect.addEventListener('change', renderTable);
-document.getElementById('metricSort').addEventListener('change', renderTable);
-['startDate','endDate'].forEach(id => {{ const el=document.getElementById(id); if(el) el.addEventListener('change', renderTable); }});
-document.getElementById('applyBtn').addEventListener('click', renderTable);
-document.getElementById('yesterdayBtn').onclick = () => {{ document.getElementById('startDate').value=allMaxDate; document.getElementById('endDate').value=allMaxDate; renderTable(); }};
-document.getElementById('last7Btn').onclick = () => {{ document.getElementById('startDate').value=dateAdd(allMaxDate,-6); document.getElementById('endDate').value=allMaxDate; renderTable(); }};
-document.getElementById('last30Btn').onclick = () => {{ document.getElementById('startDate').value=dateAdd(allMaxDate,-29); document.getElementById('endDate').value=allMaxDate; renderTable(); }};
-document.getElementById('allBtn').onclick = () => {{ document.getElementById('startDate').value=allMinDate; document.getElementById('endDate').value=allMaxDate; renderTable(); }};
-document.querySelectorAll('.view-tabs button').forEach(btn => btn.addEventListener('click', () => {{
-  document.querySelectorAll('.view-tabs button').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  document.getElementById('periodBox').style.display = btn.dataset.view === 'period' ? 'block' : 'none';
-  document.getElementById('dailyBox').style.display = btn.dataset.view === 'daily' ? 'block' : 'none';
-  document.getElementById('detailBox').style.display = btn.dataset.view === 'detail' ? 'block' : 'none';
-}}));
-const ctx = document.getElementById('channelChart');
-new Chart(ctx, {{
-  type: 'bar',
-  data: {{ labels: channelRows.map(r => r.channel_group), datasets: [{{ label: 'Revenue', data: channelRows.map(r => Number(r.revenue||0)) }}] }},
-  options: {{ responsive:true, plugins: {{ legend: {{ display:false }}, tooltip: {{ callbacks: {{ label: c => money(c.raw) }} }} }}, scales: {{ y: {{ ticks: {{ callback: v => money(v) }} }} }} }}
-}});
-renderTable();
+const rows = __ROWS__;
+const tonePalette = __TONE_PALETTE__;
+const allMinDate = "__MIN_DATE__";
+const allMaxDate = "__MAX_DATE__";
+let barMetric = "revenue";
+let revenueChart = null;
+let lineChart = null;
+
+function n(v){const x=Number(v||0);return isFinite(x)?x:0;}
+function money(v){return "₩"+Math.round(n(v)).toLocaleString("ko-KR");}
+function num(v){return Math.round(n(v)).toLocaleString("ko-KR");}
+function one(v){return n(v).toLocaleString("ko-KR",{minimumFractionDigits:1,maximumFractionDigits:1});}
+function pct(v){return n(v).toLocaleString("ko-KR",{minimumFractionDigits:1,maximumFractionDigits:1})+"%";}
+function esc(s){return String(s ?? "").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#039;"}[m]));}
+function toneKey(value){const s=String(value||"").toLowerCase(); if(s.includes("google")) return "google"; if(s.includes("meta")||s.includes("facebook")||s.includes("instagram")) return "meta"; if(s.includes("naver")) return "naver"; if(s.includes("kakao")) return "kakao"; if(s.includes("edm")||s.includes("email")) return "edm"; if(s.includes("organic")) return "organic"; if(s.includes("owned")) return "owned"; if(s.includes("sns")) return "sns"; if(s.includes("paid")||s.startsWith("2.")) return "paid"; return "other";}
+function tone(value){return tonePalette[toneKey(value)] || tonePalette.other;}
+function badge(text,value){const t=tone(value||text); return `<span class="badge" style="--tone-bg:${t.bg};--tone-fg:${t.fg};--tone-border:${t.border};--tone-dot:${t.dot}">${esc(text||"-")}</span>`;}
+function dateAdd(d,days){const x=new Date(d+"T00:00:00"); x.setDate(x.getDate()+days); return x.toISOString().slice(0,10);}
+function filteredRows(){const q=(document.getElementById("searchBox").value||"").toLowerCase(); const ch=document.getElementById("channelFilter").value; const s=document.getElementById("startDate").value||allMinDate; const e=document.getElementById("endDate").value||allMaxDate; return rows.filter(r=>(!s||r.event_dt>=s)&&(!e||r.event_dt<=e)&&(!ch||r.channel_group===ch)&&(!q||JSON.stringify(r).toLowerCase().includes(q)));}
+function aggMetrics(arr){const sessions=arr.reduce((a,r)=>a+n(r.sessions),0), users=arr.reduce((a,r)=>a+n(r.users),0), signups=arr.reduce((a,r)=>a+n(r.signups),0), buyers=arr.reduce((a,r)=>a+n(r.buyers),0), purchase=arr.reduce((a,r)=>a+n(r.purchase),0), revenue=arr.reduce((a,r)=>a+n(r.revenue),0); const pv=arr.reduce((a,r)=>a+n(r.pv_per_user)*n(r.users),0); return {sessions, users, signups, signup_cvr:sessions?signups/sessions*100:0, buyers, buy_cvr:sessions?buyers/sessions*100:0, purchase, revenue, aov_per_buyer:buyers?revenue/buyers:0, pv_per_user:users?pv/users:0};}
+function groupBy(arr, keys){const m=new Map(); arr.forEach(r=>{const k=keys.map(x=>r[x]??"-").join("||"); if(!m.has(k)) m.set(k,{keys:Object.fromEntries(keys.map(x=>[x,r[x]??"-"])), rows:[]}); m.get(k).rows.push(r);}); return [...m.values()].map(g=>({...g.keys,...aggMetrics(g.rows)}));}
+function preferredMediaName(r){const raw=String(r.media_family||"").trim(); if(raw && raw!=="Other") return raw; const cg=String(r.channel_group||""); if(cg.includes("Organic")) return "Organic"; if(cg.includes("Owned")) return "Owned"; if(cg.includes("Official SNS")) return "SNS"; if(cg.includes("Paid")) return "Paid"; return cg.replace(/^\d+\.\s*/,"") || "Etc";}
+function logoText(name){const s=String(name||""); if(s==="Google") return "G"; if(s==="Meta") return "M"; if(s==="Naver") return "N"; if(s==="Kakao") return "K"; if(s==="EDM") return "✉"; if(s==="Organic") return "O"; if(s==="Owned") return "Ow"; if(s==="SNS") return "S"; return s.slice(0,1).toUpperCase();}
+function makeSparkSvg(values,color){if(!values.length) values=[0]; const w=100,h=30,pad=2; const max=Math.max(...values,1), min=Math.min(...values,0); const range=Math.max(max-min,1); const pts=values.map((v,i)=>{const x=pad + (w-pad*2)*(values.length===1?0:i/(values.length-1)); const y=h-pad - ((v-min)/range)*(h-pad*2); return [x,y];}); const d=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" "); return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%"><path d="${d}" fill="none" stroke="${color}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;}
+
+function renderKpis(arr){const s=aggMetrics(arr); const cards=[
+  {label:"세션", value:num(s.sessions), meta:`Users ${num(s.users)}`, delta:pct(s.buy_cvr)},
+  {label:"구매 전환율", value:pct(s.buy_cvr), meta:`Buyers ${num(s.buyers)}`, delta:pct(s.signup_cvr)},
+  {label:"구매 전환율 (BUY)", value:pct(s.buy_cvr), meta:`구매건수 ${num(s.purchase)}`, delta:pct(s.buy_cvr)},
+  {label:"매출", value:money(s.revenue), meta:`AOV ${money(s.aov_per_buyer)}`, delta:pct(s.signup_cvr)},
+  {label:"선택 세션", value:num(s.sessions), meta:`Users ${num(s.users)} / PV ${one(s.pv_per_user)}`, delta:pct(s.buy_cvr)},
+  {label:"선택 회원 CVR", value:pct(s.signup_cvr), meta:`Signup ${num(s.signups)}`, delta:pct(s.signup_cvr)}
+];
+  document.getElementById("kpiGrid").innerHTML = cards.map(c=>`<div class="kpi"><div class="label">${c.label}</div><div class="value">${c.value}</div><div class="meta">${c.meta}</div><div class="delta">▲ ${c.delta}</div></div>`).join("");
+}
+
+function renderMediaGrid(arr){const dailyByMedia = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ["media_name","event_dt"]); const trendMap = {}; dailyByMedia.forEach(r=>{const k=r.media_name; if(!trendMap[k]) trendMap[k]=[]; trendMap[k].push({date:r.event_dt,revenue:r.revenue});}); Object.keys(trendMap).forEach(k=>trendMap[k].sort((a,b)=>String(a.date).localeCompare(String(b.date)))); const grouped = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ["media_name"]).sort((a,b)=>n(b.revenue)-n(a.revenue)); document.getElementById("mediaGrid").innerHTML = grouped.slice(0,8).map(r=>{const name=r.media_name; const t=tone(name); const prev = (trendMap[name]||[]).slice(-14,-7).reduce((a,x)=>a+n(x.revenue),0); const curr = (trendMap[name]||[]).slice(-7).reduce((a,x)=>a+n(x.revenue),0); const change = prev?((curr-prev)/prev*100):0; return `<div class="media-card" style="--tone-bg:${t.bg};--tone-fg:${t.fg};--tone-border:${t.border};--tone-dot:${t.dot}"><div class="media-top"><div class="media-brand"><div class="media-logo">${logoText(name)}</div><div>${esc(name)}</div></div><div class="media-growth">${change>=0?"▲":"▼"} ${Math.abs(change).toFixed(1)}%</div></div><div class="media-metric-label">매출</div><div class="media-metric-value">${money(r.revenue)}</div><div class="media-row"><div class="media-stat"><div class="k">세션</div><div class="v">${num(r.sessions)}</div></div><div class="media-stat"><div class="k">구매 전환율</div><div class="v">${pct(r.buy_cvr)}</div></div></div><div class="spark-wrap">${makeSparkSvg((trendMap[name]||[]).slice(-14).map(x=>n(x.revenue)), t.dot)}</div></div>`;}).join("");}
+
+function buildPeriodTable(arr){const grouped = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ["media_name","source","medium","campaign"]).sort((a,b)=>n(b.revenue)-n(a.revenue)||n(b.sessions)-n(a.sessions)); return `<table><thead><tr><th class="rank">#</th><th>채널</th><th>소스 / 매체</th><th>캠페인</th><th class="num">세션</th><th class="num">매출</th><th class="num">구매 전환율</th><th class="num">AOV</th><th class="num">구매수</th><th class="num">회원가입 CVR</th></tr></thead><tbody>${grouped.length?grouped.map((r,i)=>`<tr><td class="rank">${i+1}</td><td>${badge(r.media_name,r.media_name)}</td><td>${esc(r.source)} / ${esc(r.medium)}</td><td class="wide">${esc(r.campaign)}</td><td class="num">${num(r.sessions)}</td><td class="num strong">${money(r.revenue)}</td><td class="num">${pct(r.buy_cvr)}</td><td class="num">${money(r.aov_per_buyer)}</td><td class="num">${num(r.buyers)}</td><td class="num">${pct(r.signup_cvr)}</td></tr>`).join(""):`<tr><td colspan="10" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>`}</tbody></table>`;}
+function buildDailyTable(arr){const grouped = groupBy(arr, ["event_dt","channel_group"]).sort((a,b)=>String(b.event_dt).localeCompare(String(a.event_dt))||n(b.revenue)-n(a.revenue)); return `<table><thead><tr><th>일자</th><th>채널</th><th class="num">세션</th><th class="num">사용자</th><th class="num">회원가입</th><th class="num">회원가입 CVR</th><th class="num">구매수</th><th class="num">구매 전환율</th><th class="num">매출</th><th class="num">AOV</th></tr></thead><tbody>${grouped.length?grouped.map(r=>`<tr><td>${esc(r.event_dt)}</td><td>${badge(r.channel_group,r.channel_group)}</td><td class="num">${num(r.sessions)}</td><td class="num">${num(r.users)}</td><td class="num">${num(r.signups)}</td><td class="num">${pct(r.signup_cvr)}</td><td class="num">${num(r.buyers)}</td><td class="num">${pct(r.buy_cvr)}</td><td class="num strong">${money(r.revenue)}</td><td class="num">${money(r.aov_per_buyer)}</td></tr>`).join(""):`<tr><td colspan="10" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>`}</tbody></table>`;}
+function buildDetailTable(arr){const sorted = [...arr].sort((a,b)=>n(b.revenue)-n(a.revenue)||n(b.sessions)-n(a.sessions)); return `<table><thead><tr><th class="rank">#</th><th>채널</th><th>소스 / 매체</th><th>캠페인</th><th class="num">세션</th><th class="num">매출</th><th class="num">구매 전환율</th><th class="num">AOV</th><th class="num">구매수</th><th class="num">회원가입 CVR</th><th class="num">사용자</th><th class="num">회원가입</th><th class="num">구매건수</th><th class="num">가입자 평균 PV</th><th class="num">PV/사용자</th></tr></thead><tbody>${sorted.length?sorted.map((r,i)=>`<tr><td class="rank">${i+1}</td><td>${badge(preferredMediaName(r),preferredMediaName(r))}</td><td>${esc(r.source)} / ${esc(r.medium)}</td><td class="wide">${esc(r.campaign)}</td><td class="num">${num(r.sessions)}</td><td class="num strong">${money(r.revenue)}</td><td class="num">${pct(r.buy_cvr)}</td><td class="num">${money(r.aov_per_buyer)}</td><td class="num">${num(r.buyers)}</td><td class="num">${pct(r.signup_cvr)}</td><td class="num">${num(r.users)}</td><td class="num">${num(r.signups)}</td><td class="num">${num(r.purchase)}</td><td class="num">${one(r.avg_signup_user_pv)}</td><td class="num">${one(r.pv_per_user)}</td></tr>`).join(""):`<tr><td colspan="15" class="empty">조건에 맞는 데이터가 없습니다.</td></tr>`}</tbody></table>`;}
+function renderTableSection(arr){const mode=document.getElementById("viewMode").value; const mount=document.getElementById("tableMount"); if(mode==="daily") mount.innerHTML=buildDailyTable(arr); else if(mode==="detail") mount.innerHTML=buildDetailTable(arr); else mount.innerHTML=buildPeriodTable(arr);}
+function renderCharts(arr){const grouped = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ["media_name"]).sort((a,b)=>n(b[barMetric])-n(a[barMetric])); const labels = grouped.map(r=>r.media_name); const barData = grouped.map(r=>n(r[barMetric])); const barColors = labels.map(l=>tone(l).dot); if(revenueChart) revenueChart.destroy(); revenueChart = new Chart(document.getElementById("revenueChart"), {type:"bar", data:{labels, datasets:[{data:barData, backgroundColor:barColors, borderRadius:8, maxBarThickness:36}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=>barMetric==="revenue"? "매출 "+money(ctx.raw):"세션 "+num(ctx.raw)}}}, scales:{x:{grid:{display:false}, ticks:{font:{size:11,weight:"700"}, color:"#667085"}}, y:{grid:{color:"#eef2f7"}, ticks:{color:"#98a2b3", callback:(v)=>barMetric==="revenue"? money(v): num(v)}}}}}); const metric = document.getElementById("lineMetricSel").value; const lineGrouped = groupBy(arr.map(r=>({...r, media_name:preferredMediaName(r)})), ["media_name"]).sort((a,b)=>n(b[metric])-n(a[metric])); const lineLabels = lineGrouped.map(r=>r.media_name); const lineData = lineGrouped.map(r=>n(r[metric])); if(lineChart) lineChart.destroy(); lineChart = new Chart(document.getElementById("lineChart"), {type:"line", data:{labels:lineLabels, datasets:[{data:lineData, borderColor:"#3b82f6", backgroundColor:"rgba(59,130,246,.1)", pointBackgroundColor:"#3b82f6", pointRadius:4, tension:.35, fill:false}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:(ctx)=> (metric==="buy_cvr"?"구매 전환율 ":"회원가입 전환율 ")+pct(ctx.raw)}}}, scales:{x:{grid:{display:false}, ticks:{font:{size:11,weight:"700"}, color:"#667085"}}, y:{grid:{color:"#eef2f7"}, ticks:{color:"#98a2b3", callback:(v)=>pct(v)}}}}});}
+function renderAll(){const arr=filteredRows(); renderKpis(arr); renderMediaGrid(arr); renderCharts(arr); renderTableSection(arr);}
+[...new Set(rows.map(r=>r.channel_group).filter(Boolean))].sort().forEach(ch=>{const o=document.createElement("option"); o.value=ch; o.textContent=ch; document.getElementById("channelFilter").appendChild(o);});
+document.getElementById("startDate").value = dateAdd(allMaxDate,-29);
+["startDate","endDate","channelFilter","viewMode","lineMetricSel"].forEach(id=>document.getElementById(id).addEventListener("change",renderAll));
+document.getElementById("searchBox").addEventListener("input",renderAll);
+document.getElementById("d7Btn").onclick=()=>{document.getElementById("startDate").value=dateAdd(allMaxDate,-6);document.getElementById("endDate").value=allMaxDate;document.querySelectorAll(".pill").forEach(x=>x.classList.remove("active"));document.getElementById("d7Btn").classList.add("active");renderAll();};
+document.getElementById("d30Btn").onclick=()=>{document.getElementById("startDate").value=dateAdd(allMaxDate,-29);document.getElementById("endDate").value=allMaxDate;document.querySelectorAll(".pill").forEach(x=>x.classList.remove("active"));document.getElementById("d30Btn").classList.add("active");renderAll();};
+document.getElementById("d90Btn").onclick=()=>{document.getElementById("startDate").value=dateAdd(allMaxDate,-89);document.getElementById("endDate").value=allMaxDate;document.querySelectorAll(".pill").forEach(x=>x.classList.remove("active"));document.getElementById("d90Btn").classList.add("active");renderAll();};
+document.getElementById("d365Btn").onclick=()=>{document.getElementById("startDate").value=allMinDate;document.getElementById("endDate").value=allMaxDate;document.querySelectorAll(".pill").forEach(x=>x.classList.remove("active"));document.getElementById("d365Btn").classList.add("active");renderAll();};
+document.getElementById("chartRevenueBtn").onclick=()=>{barMetric="revenue";document.getElementById("chartRevenueBtn").classList.add("active");document.getElementById("chartSessionBtn").classList.remove("active");renderAll();};
+document.getElementById("chartSessionBtn").onclick=()=>{barMetric="sessions";document.getElementById("chartSessionBtn").classList.add("active");document.getElementById("chartRevenueBtn").classList.remove("active");renderAll();};
+document.getElementById("downloadBtn").onclick=()=>{const blob=new Blob([JSON.stringify(rows,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="utm_channel_rows.json";a.click();};
+document.getElementById("downloadDataBtn").onclick=()=>{const blob=new Blob([JSON.stringify(filteredRows(),null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="utm_channel_filtered.json";a.click();};
+renderAll();
 </script>
 </body>
-</html>"""
-    ensure_parent(out_path)
-    Path(out_path).write_text(html_doc, encoding="utf-8")
+</html>'''
 
+    replacements = {
+        '__MIN_DATE__': html_escape(min_date),
+        '__MAX_DATE__': html_escape(max_date),
+        '__ROWS__': json.dumps(payload, ensure_ascii=False),
+        '__TONE_PALETTE__': tone_palette_json,
+        '__ALERT_CARDS__': alert_cards_html,
+        '__LEGEND_HTML__': legend_html,
+    }
+    html_doc = html_template
+    for k, v in replacements.items():
+        html_doc = html_doc.replace(k, v)
+    ensure_parent(out_path)
+    Path(out_path).write_text(html_doc, encoding='utf-8')
 
 def write_summary_json(report_key: str, meta: Dict[str, Any], out_dir: str = "reports") -> None:
     path = Path(out_dir) / "summary.json"
