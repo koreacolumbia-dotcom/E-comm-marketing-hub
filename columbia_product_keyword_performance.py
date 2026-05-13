@@ -221,11 +221,45 @@ def run_search_query(client: bigquery.Client, start_date: dt.date, end_date: dt.
 
 
 def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookback_days: int) -> dict:
+    """
+    Build dashboard payload.
+
+    raw_daily_by_term is always defined so the HTML keyword filter chart
+    works even when the query returns zero rows.
+    """
+    raw_daily_by_term = []
+
     if df.empty:
-        daily = pd.DataFrame(columns=["date", "searches", "purchase_qty", "erp_revenue", "net_erp_revenue", "orders"])
-        top = pd.DataFrame(columns=["search_term", "searches", "orders", "purchase_qty", "erp_revenue", "net_erp_revenue", "order_cvr"])
+        daily = pd.DataFrame(
+            columns=[
+                "date",
+                "searches",
+                "search_users",
+                "search_sessions",
+                "orders",
+                "purchase_qty",
+                "erp_revenue",
+                "net_erp_revenue",
+            ]
+        )
+        top = pd.DataFrame(
+            columns=[
+                "search_term",
+                "searches",
+                "search_users",
+                "search_sessions",
+                "orders",
+                "purchased_products",
+                "purchase_qty",
+                "erp_revenue",
+                "net_erp_revenue",
+                "order_cvr",
+            ]
+        )
     else:
+        df = df.copy()
         df["search_date"] = pd.to_datetime(df["search_date"]).dt.date
+
         daily = (
             df.groupby("search_date", as_index=False)
               .agg(
@@ -241,6 +275,20 @@ def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookb
         )
         daily["date"] = daily["search_date"].astype(str)
 
+        raw_daily_by_term_df = (
+            df.groupby(["search_date", "search_term"], as_index=False)
+              .agg(
+                  searches=("searches", "sum"),
+                  orders=("orders", "sum"),
+                  purchase_qty=("purchase_qty", "sum"),
+                  erp_revenue=("erp_revenue", "sum"),
+                  net_erp_revenue=("net_erp_revenue", "sum"),
+              )
+              .sort_values(["search_date", "search_term"])
+        )
+        raw_daily_by_term_df["date"] = raw_daily_by_term_df["search_date"].astype(str)
+        raw_daily_by_term = raw_daily_by_term_df.drop(columns=["search_date"], errors="ignore").to_dict("records")
+
         top = (
             df.groupby("search_term", as_index=False)
               .agg(
@@ -254,14 +302,17 @@ def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookb
                   net_erp_revenue=("net_erp_revenue", "sum"),
               )
         )
-        top["order_cvr"] = top.apply(lambda r: (r["orders"] / r["search_sessions"]) if r["search_sessions"] else 0, axis=1)
+        top["order_cvr"] = top.apply(
+            lambda r: (r["orders"] / r["search_sessions"]) if r["search_sessions"] else 0,
+            axis=1,
+        )
         top = top.sort_values(["net_erp_revenue", "purchase_qty", "searches"], ascending=False).head(30)
 
     totals = {
         "searches": int(df["searches"].sum()) if not df.empty else 0,
         "search_users": int(df["search_users"].sum()) if not df.empty else 0,
         "search_sessions": int(df["search_sessions"].sum()) if not df.empty else 0,
-        "login_search_users": int(df["login_search_users"].sum()) if not df.empty else 0,
+        "login_search_users": int(df["login_search_users"].sum()) if not df.empty and "login_search_users" in df.columns else 0,
         "orders": int(df["orders"].sum()) if not df.empty else 0,
         "purchase_qty": int(df["purchase_qty"].sum()) if not df.empty else 0,
         "erp_revenue": int(df["erp_revenue"].sum()) if not df.empty else 0,
@@ -277,7 +328,7 @@ def make_payload(df: pd.DataFrame, start_date: dt.date, end_date: dt.date, lookb
             "lookback_days": lookback_days,
             "updated_at_kst": dt.datetime.now(KST).strftime("%Y-%m-%d %H:%M KST"),
             "period_text": f"{start_date.isoformat()} ~ {end_date.isoformat()}",
-            "source": "GA4 BigQuery + SQL Server order mart",
+            "source": "GA4 search terms + SQL Server order product mart",
         },
         "totals": totals,
         "daily": daily.drop(columns=["search_date"], errors="ignore").to_dict("records"),
